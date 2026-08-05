@@ -11,24 +11,27 @@ race-day-critical timing app**).
 
 ## Current state — read this before writing anything
 
-**There is no application code yet, and that is deliberate.** The repository is
-documentation only. Two decisions block the scaffold:
+**There is no application code yet.** The repository is documentation only.
 
-- [ADR-0002 — hosting platform](docs/adr/0002-hosting-platform.md): Cloudflare, Vercel,
-  or split. Undecided.
-- [ADR-0006 — repository shape](docs/adr/0006-repository-shape.md): one repository or
-  several. Undecided.
+**Hosting is settled: Cloudflare Workers**
+([ADR-0002](docs/adr/0002-hosting-platform.md)), via `@opennextjs/cloudflare`. Each
+service is its own repository and its own Worker
+([ADR-0006](docs/adr/0006-repository-shape.md)).
 
-**Do not scaffold an application, choose a hosting target, or write migrations until
-those land.** Building past them means building twice. If asked to start implementation,
-say what is blocked and offer to help resolve the ADR instead.
+**The first task is not code.** DNS must be delegated to Cloudflare before any club
+hostname can be served by a Worker
+([ADR-0010](docs/adr/0010-dns-delegation-to-cloudflare.md)). Sequencing for everything
+else is in [docs/plan-of-attack.md](docs/plan-of-attack.md) — read it before proposing
+work, because the order matters more than the content here.
 
 ## Read before working
 
 | Document | Why |
 | --- | --- |
+| [docs/plan-of-attack.md](docs/plan-of-attack.md) | What happens next and in what order |
 | [docs/principles.md](docs/principles.md) | The fourteen rules. Non-negotiable. Read in full. |
-| [docs/architecture.md](docs/architecture.md) | The three front doors and the shared database |
+| [docs/architecture.md](docs/architecture.md) | Services, shared database, routing |
+| [docs/reference/timing-app-review.md](docs/reference/timing-app-review.md) | How the live timing app works — read before touching anything that reads its tables |
 | [docs/delivery-and-environments.md](docs/delivery-and-environments.md) | Environments and pipeline |
 | [docs/testing-strategy.md](docs/testing-strategy.md) | What blocks a merge |
 | [docs/open-questions.md](docs/open-questions.md) | What is undecided — check before assuming |
@@ -57,9 +60,13 @@ a style disagreement.
    treasurer-controlled Stripe account, and written refund/entry terms. Agreed at the
    QGM. Do not start it because it looks technically ready.
 9. **UTC in storage, `Europe/London` for display.** A race sits on the clocks-change
-   weekend; this is a real hazard, not pedantry.
+   weekend; this is a real hazard, not pedantry. The timing app pins this through one
+   tested path (`lib/london-time.ts`) — follow that pattern, do not invent another.
 10. **Boring beats clever.** A new dependency, framework or pattern needs an ADR. The
     next maintainer is a volunteer with a day job.
+11. **Dependencies are a hosting cost now.** Cloudflare Workers cap a bundle at 3 MB
+    compressed on the free plan, 10 MB on paid, with a 10 ms CPU budget on free. Prefer
+    static rendering; justify every dependency.
 
 ## Conventions
 

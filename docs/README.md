@@ -8,12 +8,16 @@ Everything that explains why this repository is the way it is.
    "done" looks like.
 2. **[Foundational principles](principles.md)** — the fourteen rules everything here is
    held to. If you read one document, read this one.
-3. **[Architecture](architecture.md)** — one codebase, one database, three front doors.
-4. **[Delivery and environments](delivery-and-environments.md)** — the four environments
+3. **[Plan of attack](plan-of-attack.md)** — what happens next, in what order, and the
+   five places it corrects the proposal.
+4. **[Architecture](architecture.md)** — one database, several services, several front
+   doors.
+5. **[Delivery and environments](delivery-and-environments.md)** — the four environments
    and the pipeline that is the only way to production.
-5. **[Testing strategy](testing-strategy.md)** — what runs, what blocks a merge, and the
+6. **[Testing strategy](testing-strategy.md)** — what runs, what blocks a merge, and the
    manual gate automation cannot replace.
-6. **[Roadmap](roadmap.md)** — the five workstreams and their sequencing constraints.
+7. **[Roadmap](roadmap.md)** — the five workstreams as scope. The plan of attack orders
+   them.
 
 ## Reference
 
@@ -22,6 +26,8 @@ Everything that explains why this repository is the way it is.
   and what each one blocks.
 - **[Glossary](glossary.md)** — domain vocabulary, so code and conversation match.
 - **[Decision records](adr/)** — why each significant choice was made.
+- **[Timing app review](reference/timing-app-review.md)** — how the live timing app is
+  built, what it stores, and what a port must not break.
 - **[Platform proposal v8](reference/platform-proposal-v8.md)** — the July 2026 board
   proposal, transcribed. The source of nearly everything here.
 

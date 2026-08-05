@@ -88,6 +88,28 @@ deploys.
 **Expand–migrate–contract** — the migration pattern that keeps the previously deployed
 version working against the new schema, so rollback stays possible.
 
+**Zone** — a domain as managed by a DNS provider. A *full* Cloudflare zone means
+Cloudflare's nameservers are authoritative; a *partial* (CNAME) zone keeps nameservers
+elsewhere and is Business/Enterprise only.
+
+**Delegation** — pointing a domain's nameservers at a provider. Distinct from the
+**apex cutover**, which repoints the records to a new origin. The club does the first
+early and the second late; see [ADR-0010](adr/0010-dns-delegation-to-cloudflare.md).
+
+**Apex** — the bare domain, `southvillerunningclub.co.uk`, with no subdomain.
+
+**Custom Domain** *(Cloudflare)* — attaching a hostname to a Worker so it serves all
+paths on it. Requires a full Cloudflare zone.
+
+**Route** *(Cloudflare)* — a path pattern that sends matching requests to a Worker while
+other paths fall through to the origin. More granular than a Custom Domain.
+
+**`workers.dev`** — the free Cloudflare hostname every Worker gets. Needs no DNS, which
+makes it the development and demo address before delegation.
+
+**Orange cloud / grey cloud** — whether a Cloudflare DNS record is proxied through
+Cloudflare or DNS-only. Squarespace's `verify.squarespace.com` record must stay grey.
+
 ## External services
 
 **Supabase** — managed PostgreSQL, currently on the free tier. Pauses after roughly a

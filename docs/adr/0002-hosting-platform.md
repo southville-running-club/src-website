@@ -1,9 +1,9 @@
 # ADR-0002 — Hosting platform: Cloudflare, Vercel, or split
 
-- **Status:** **Proposed — blocking**
-- **Date:** 2026-08-05
+- **Status:** **Accepted — Cloudflare**
+- **Date:** 2026-08-05 (proposed), 2026-08-05 (accepted)
 - **Owner:** Board, on the platform volunteer's recommendation
-- **Blocks:** All of [Workstream 3](../roadmap.md#workstream-3--the-new-club-website-this-repository). The website must be built once, on its final home.
+- **Unblocks:** the website build, and the [plan of attack](../plan-of-attack.md)
 
 ## Context
 
@@ -60,21 +60,56 @@ non-commercial while entries are taken elsewhere — which is worth confirming i
 
 ## Decision
 
-**Not yet made.** The proposal's author leans B or C.
+**Option B — Cloudflare is the platform's end target.** Everything the club builds from
+here targets Cloudflare Workers: the Nightingale Nightmare sign-up service, the rebuilt
+club website, and eventually the timing app.
 
-## Consequences (whichever is chosen)
+The deciding reason is commercial: Vercel's free tier prohibits commercial use, and the
+club intends to take money on its own site. Option C (split) was rejected because it
+rests on an unconfirmed reading of Vercel's terms ([Q3](../open-questions.md)) and
+commits a one-volunteer club to operating two platforms permanently.
 
-- The website is built once, against the chosen platform's deployment model, adapter
-  behaviour and edge/runtime constraints.
-- Under B, the timing-app migration is a separate scheduled project with its own
-  race-simulation gate, never near an event
-  ([P7](../principles.md#p7--race-day-is-safety-critical-the-website-is-not)).
-- Under C, the split must be documented explicitly so nobody later assumes a single
-  platform, and Q3 must be answered first.
-- Under A, the ~£190/yr line goes into the club's budget from the entries phase onward.
+**The timing app is the exception in timing, not in direction.** It moves last, in the
+quiet season, with a full race-simulation pass, and never near an event
+([P7](../principles.md#p7--race-day-is-safety-critical-the-website-is-not)). Until then
+it stays on Vercel's free tier, where it is proven. Sequencing is in the
+[plan of attack](../plan-of-attack.md).
+
+## Verified before accepting
+
+- **Next.js 16 is supported by `@opennextjs/cloudflare`** — all minor and patch versions.
+  The timing app is on 16.2.4, so no framework downgrade is implied. Next.js 16.2 also
+  introduced a stable Adapter API built with Cloudflare as a named partner.
+- **Middleware is supported**; *Node* middleware is not. The timing app's `proxy.ts` is
+  standard edge middleware, so this does not bite.
+- **`nodejs_compat` covers the one Node built-in in use** (`randomInt` from
+  `node:crypto`).
+
+## Consequences
+
+- **Workers Paid (~£48/yr) should be budgeted, not hoped against.** The free plan caps a
+  Worker at 3 MB compressed and **10 ms CPU per request**; the paid plan raises these to
+  10 MB and 5 minutes, and removes the 100,000 requests/day cap. A server-rendered
+  Next.js app is a poor fit for a 10 ms CPU budget. Static and lightly-dynamic pages may
+  well stay inside the free tier; the timing app under race-night load should not be
+  asked to. This is still an order of magnitude below Vercel Pro's ~£190/yr.
+- **Bundle size becomes a design constraint.** Dependencies are now a hosting cost, which
+  reinforces [P6](../principles.md#p6--boring-by-default) and
+  [P14](../principles.md#p14--prefer-deleting-to-adding).
+- **The zone must move to Cloudflare** before any club-domain hostname can be served by a
+  Worker — see [ADR-0010](0010-dns-delegation-to-cloudflare.md). This is the first
+  dependency in the whole programme and it was not obvious from the proposal.
+- Each service deploys as its own Worker with its own custom domain, which suits the
+  microservice shape settled in [ADR-0006](0006-repository-shape.md).
+- The timing app carries migration risk until re-proven on Cloudflare
+  ([R4](../risks.md#r4--timing-app-hosting-migration)). Vercel stays deployable in parallel as the
+  rollback until it is.
+- Vercel remains in the picture, on the free tier, for as long as the timing app has not
+  moved. The club operates two platforms *temporarily* — a transition state with an end
+  date, not option C.
 
 ## Revisit if
 
-Vercel changes its free-tier commercial-use terms; Cloudflare's Next.js support
-regresses; or entry volumes move far enough that the break-even table's conclusion
-flips.
+Cloudflare's Next.js support regresses; the Workers Paid plan stops covering club
+traffic; or OpenNext's translation layer produces a race-day defect that Vercel would not
+have had.

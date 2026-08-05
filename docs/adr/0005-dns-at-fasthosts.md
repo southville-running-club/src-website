@@ -1,8 +1,19 @@
 # ADR-0005 — DNS stays at Fasthosts
 
-- **Status:** Accepted
+- **Status:** **Superseded by [ADR-0010](0010-dns-delegation-to-cloudflare.md)** (2026-08-05)
 - **Date:** 2026-08-05
 - **Owner:** Platform volunteer
+
+> **Superseded the same day it was written.** This record assumed the club could leave
+> authoritative DNS at Fasthosts and change only the records. That is not compatible with
+> serving club hostnames from Cloudflare Workers: a Workers custom domain requires a full
+> Cloudflare zone, and Cloudflare's partial (CNAME) setup — the only way to keep
+> nameservers elsewhere — is a Business/Enterprise feature. See
+> [ADR-0010](0010-dns-delegation-to-cloudflare.md).
+>
+> The **registrar** decision below still holds: the domain stays registered at Fasthosts.
+> Only the nameservers move. The cutover discipline below also still holds and is carried
+> forward.
 
 ## Context
 
@@ -31,7 +42,7 @@ Before cutover:
   ([Q4](../open-questions.md)).
 - Lower the TTL well in advance so a rollback propagates quickly.
 - Have redirects in place from every existing Squarespace URL, verified before the
-  switch ([R10](../risks.md#r10--website-launch-and-dns-cutover-delivery-risk)).
+  switch ([R10](../risks.md#r10--website-launch-and-apex-cutover-delivery-risk)).
 - Keep the Squarespace subscription live until the new site is proven — and in any case
   until the member fund has moved and the treasurer has confirmed it
   ([P13](../principles.md#p13--governance-gates-come-before-the-code-they-enable)).

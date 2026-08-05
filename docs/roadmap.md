@@ -3,6 +3,11 @@
 Derived from the [platform proposal v8](reference/platform-proposal-v8.md), July 2026.
 Dates are the proposal's; scope here is written as delivery work.
 
+> **For sequencing, read the [plan of attack](plan-of-attack.md).** This document is the
+> proposal's five workstreams as scope. The plan of attack is how they are ordered
+> against each other after the Cloudflare decision, and it corrects the proposal in five
+> places. Where the two differ, the plan of attack is current.
+
 This repository owns **Workstream 3** primarily, and hosts the site that workstreams 4
 and 5 attach to. Workstreams 1 and 2 belong to the timing app and are listed for
 sequencing context.
@@ -37,14 +42,37 @@ depends entirely on this data model.
 
 ## Workstream 2 — Nightingale Nightmare on the same platform
 
-*Timing app. Cost: volunteer time.*
+*Own service (`admin-src/nightingale-nightmare`) plus timing-app work. Cost: volunteer time.*
 
 A solo mass-start 10 km: one runner per entry, one gun, one finish crossing each.
 Reuses nearly all existing machinery; what is new is configuration — solo entries, plain
 sequential bibs, and age-band categories (Vet 40/50/60, male and female), which require
-date of birth in the entry data.
+age in the entry data.
 
-Blocked on club answers — see [Open questions](open-questions.md).
+**Scope has grown since the proposal.** Nightingale Nightmare is now its own service with
+its own sign-up surface on its own subdomain
+([ADR-0011](adr/0011-nightingale-nightmare-routing.md)), reusing the shared event model
+([ADR-0012](adr/0012-one-supabase-project-many-services.md)).
+
+**"Configuration rather than new software" is optimistic.** The
+[timing app review](reference/timing-app-review.md) found solo genuinely modelled —
+`events.format` has carried `'solo'` since the first migration, solo bib resolution works,
+the results export branches on format — but three real gaps remain:
+
+- The leaderboard's derivation is relay-shaped (`handoverAt`, `splitAMs`, `splitBMs`); a
+  solo mass-start needs a single-crossing finish path through the display.
+- Age-band categories do not exist. `lib/categories.ts` derives **pair** categories from
+  two runners' genders. `runners.age_on_day` is already stored, so the data is there and
+  the logic is not.
+- Two pieces of single-event hardcoding are logged as open in the app's own decision log:
+  `LOCATION_LABEL = "Ashton Court"` and race-day copy assuming an evening start.
+
+**NN 2026 is timed on Vercel**, not on a freshly-ported Cloudflare deployment — the race
+is too close to the port. See the [plan of attack](plan-of-attack.md).
+
+Blocked on club answers — see [Open questions](open-questions.md), particularly the race
+date ([Q8](open-questions.md)) and the sign-up data scope
+([Q22](open-questions.md)).
 
 ---
 
@@ -55,17 +83,23 @@ Blocked on club answers — see [Open questions](open-questions.md).
 Rebuild `southvillerunningclub.co.uk`: about, membership, training sessions, news, and a
 page per race drawing information and results directly from the shared database.
 
-**Sequencing constraints, both hard:**
+**Sequencing constraints, all hard:**
 
-1. The **hosting decision is settled first** ([ADR-0002](adr/0002-hosting-platform.md)),
-   so the site is built once on its final home.
-2. The **member fund is re-homed before Squarespace is cancelled**
+1. ~~The hosting decision is settled first~~ — **settled: Cloudflare**
+   ([ADR-0002](adr/0002-hosting-platform.md)).
+2. **DNS is delegated to Cloudflare first**
+   ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)). No club hostname can be served
+   by a Worker until it is.
+3. The **member fund is re-homed before the apex cutover** — not merely before
+   Squarespace is cancelled. The fund page lives on the Squarespace site, so the cutover
+   would remove it
    ([P13](principles.md#p13--governance-gates-come-before-the-code-they-enable)).
 
 ### Phase 3a — foundations
 
-- [ ] Settle hosting ([ADR-0002](adr/0002-hosting-platform.md)) and repository shape
+- [x] Settle hosting ([ADR-0002](adr/0002-hosting-platform.md)) and repository shape
       ([ADR-0006](adr/0006-repository-shape.md)).
+- [ ] Delegate DNS to Cloudflare ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
 - [ ] Containerised local + CI environment ([ADR-0009](adr/0009-containerised-environments.md)).
 - [ ] Pipeline skeleton: lint, type check, test, build, preview deploy
       ([ADR-0008](adr/0008-github-actions-pipeline.md)).
@@ -84,11 +118,13 @@ page per race drawing information and results directly from the shared database.
 
 ### Phase 3c — cutover
 
+- [ ] Deploy to `beta.southvillerunningclub.co.uk`, `noindex`, for committee review.
 - [ ] Accessibility and performance sign-off.
-- [ ] Repoint DNS at Fasthosts from Squarespace to our hosting
-      ([ADR-0005](adr/0005-dns-at-fasthosts.md)), with a tested rollback.
 - [ ] Verify the member fund has fully moved and the treasurer has confirmed it.
-- [ ] Cancel Squarespace, ahead of its next renewal.
+- [ ] Repoint the apex and `www` from Squarespace to the site Worker — a record change
+      inside Cloudflare, reversible in seconds
+      ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
+- [ ] Watch a week, then cancel Squarespace ahead of its next renewal.
 
 ---
 

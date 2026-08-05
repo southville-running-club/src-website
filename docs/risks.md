@@ -13,7 +13,18 @@ Ordered by the club's exposure, worst first.
 grows with every workstream. It is the strongest argument for boring design and current
 documentation, and it is why the principles read the way they do.
 
+**Live instance, found 5 August 2026:** the timing app repository sits in a **personal
+GitHub account** (`bindalshah/src-race-timing`), not the club's `admin-src` organisation.
+The proposal names "code and documentation live in the club's reach on GitHub" as a
+mitigation for this exact risk; for the club's race-day-critical software that is not
+currently true. The same question applies to the Supabase project, the Vercel account and
+— now — the Cloudflare and Fasthosts accounts.
+
 *Mitigations:*
+- **Transfer `src-race-timing` to `admin-src`.** One administrative action, before the
+  port rather than after.
+- Confirm ownership and second-administrator access on every account the platform depends
+  on: Supabase, Vercel, Cloudflare, Fasthosts, Stripe, Resend.
 - Everything in code, in the club's GitHub organisation, on mainstream services another
   developer could pick up ([P1](principles.md#p1--everything-is-code-nothing-is-clicked),
   [P6](principles.md#p6--boring-by-default)).
@@ -22,6 +33,10 @@ documentation, and it is why the principles read the way they do.
   ([P12](principles.md#p12--documentation-is-part-of-done)).
 - No credential or pipeline step that only one person can execute
   ([P4](principles.md#p4--deployment-is-a-pipeline-never-a-person)).
+
+*Working in the club's favour:* the timing app's `DECISIONS.md` runs to 2,542 lines of
+append-only, structured reasoning. It is the single strongest existing mitigation of this
+risk, and the practice is worth copying rather than admiring.
 
 *Open:* at least one other person with production access, and one documented, rehearsed
 handover.
@@ -53,20 +68,69 @@ minimum-necessary collection, no personal data in logs or non-production environ
 
 ---
 
-## R4 — Hosting migration
+## R4 — Timing app hosting migration
 
-If the Cloudflare route is chosen, the migration window is itself a risk. The thing that
-would move is safety-critical: the timing app is proven, on Vercel, in front of a live
-race.
+Cloudflare is now the decided target ([ADR-0002](adr/0002-hosting-platform.md)), so this
+risk is accepted rather than avoidable. The thing that moves is safety-critical: the
+timing app is proven, on Vercel, in front of a live race.
 
-*Mitigations:* migrate in the quiet season; run Vercel in parallel until Cloudflare is
-proven; complete the full manual race-simulation checks before any event depends on it;
-**never migrate near an event**
+*Verified, reducing the risk:* `@opennextjs/cloudflare` supports all of Next.js 16 and
+the app is on 16.2.4, so no framework downgrade is implied; edge middleware is supported
+(the app's `proxy.ts` is edge, not Node, middleware); and the one Node built-in in use
+(`randomInt` from `node:crypto`) is covered by `nodejs_compat`.
+
+*Mitigations:* migrate in the quiet season, **after Nightingale Nightmare 2026**; run
+Vercel in parallel until Cloudflare is proven; complete the full manual race-simulation
+checks — including the true two-marshal end-to-end check the app's own log records as
+still outstanding — before any event depends on it; **never migrate near an event**
 ([P7](principles.md#p7--race-day-is-safety-critical-the-website-is-not)).
 
-*Note:* the split option (website and entries on Cloudflare, timing app untouched on
-Vercel) avoids this risk entirely at the price of operating two platforms, and rests on a
-reading of Vercel's terms worth confirming.
+*Three things a port must not break:* the IndexedDB offline queue and its
+idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
+`Europe/London` pinning in `lib/london-time.ts`. See the
+[timing app review](reference/timing-app-review.md).
+
+---
+
+## R4b — Workers platform limits
+
+Cloudflare's free plan caps a Worker at **3 MB compressed** and **10 ms CPU per request**,
+with 100,000 requests/day. Server-rendered Next.js is a poor fit for a 10 ms CPU budget,
+and a Next app with a real dependency tree can approach 3 MB.
+
+*Consequence:* the "£0 hosting" line in the proposal is optimistic for anything
+server-rendered. Workers Paid (~£48/yr) should be **budgeted, not hoped against** — still
+an order of magnitude below Vercel Pro's ~£190/yr, and the proposal already carries ~£48
+as the paid-tier figure.
+
+*Mitigations:* render statically wherever possible
+([P11](principles.md#p11--built-for-a-phone-in-a-field-on-bad-signal)); treat every
+dependency as a hosting cost
+([P14](principles.md#p14--prefer-deleting-to-adding)); measure bundle size in CI and fail
+the build on a budget breach; establish the real figures on the Nightingale Nightmare
+service before committing the timing app.
+
+---
+
+## R4c — DNS delegation and club email
+
+Moving nameservers from Fasthosts to Cloudflare
+([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)) moves **all** DNS, not just the
+website. A missed `MX`, `SPF`, `DKIM` or `DMARC` record stops club email silently, and
+the rollback is slow — an NS change propagating over 24–48 hours.
+
+A second, specific trap: Squarespace's `verify.squarespace.com` record **must remain
+DNS-only (grey cloud)**. Proxy it and Squarespace cannot verify the domain, which breaks
+the live site.
+
+*Mitigations:* full zone export and record-by-record audit before touching anything;
+TTLs lowered to 300 s at least 48 hours ahead; every record imported DNS-only; verify
+against Cloudflare's nameservers *before* delegating; a deliberate 72-hour watch with
+real send-and-receive email tests. Not in the week before a race.
+
+*Note the shape of this risk:* it is concentrated in the **early, invisible** step, not
+the late, visible apex cutover. The cutover is a record change we control, reversible in
+seconds.
 
 ---
 
@@ -116,22 +180,65 @@ committee finds it genuinely needed.
 ## R9 — Nightingale Nightmare's date and the clocks change
 
 The race sits at the clocks-change boundary — a genuine technical hazard for a timing
-system.
+system. **The date is still unconfirmed** (25 October or 1 November) with roughly 11
+weeks to go, which compresses every dependent decision.
 
-*Mitigations:* settle the date question early; store all timestamps in UTC and render in
-`Europe/London`; test explicitly against the real race date
+*Working in the club's favour:* the timing app already treats this as a known foot-gun.
+`lib/london-time.ts` exists solely to pin `Europe/London` on every conversion through one
+tested path, because the rest of the app leans on ambient `toLocaleTimeString` and the
+suite only passes because `TZ=UTC` is pinned. The module's own comment names the
+one-hour-drift hazard.
+
+*Mitigations:* settle the date **first** — it blocks the whole Nightingale Nightmare
+track; store all timestamps in UTC and render in `Europe/London` through that one path;
+run a race simulation against the real race date
 ([Testing strategy](testing-strategy.md)).
 
 ---
 
-## R10 — Website launch and DNS cutover *(delivery risk)*
+## R9b — Nightingale Nightmare timeline compression
+
+Eleven to twelve weeks from 5 August 2026 to race day, with the date unconfirmed, a new
+service to build, sign-up data whose scope is undecided, and three real gaps in solo
+timing support.
+
+*Mitigations:* time the 2026 race on Vercel rather than a freshly-ported Cloudflare
+deployment; launch sign-ups minimal (expression of interest, name and email) and upgrade
+later rather than commissioning data-protection advice against a race-day deadline;
+develop on `*.workers.dev` so the build is not blocked by DNS delegation. See the
+[plan of attack](plan-of-attack.md).
+
+*The failure mode to avoid:* letting a fixed race date pull a hosting migration, a new
+service and a data-protection process into the same eleven weeks.
+
+---
+
+## R10 — Website launch and apex cutover *(delivery risk)*
 
 Repointing `southvillerunningclub.co.uk` from Squarespace is a visible, public change
 with the potential to break every existing link and every search result.
 
-*Mitigations:* redirects from every existing Squarespace URL, verified before cutover; a
-low TTL set well in advance; a tested rollback to Squarespace; cutover outside a race
-window; the Squarespace subscription kept live until the new site is proven.
+*Reduced by [ADR-0010](adr/0010-dns-delegation-to-cloudflare.md):* because delegation
+happens months earlier, by cutover time the club controls the records and their TTLs, and
+rollback is a record change taking seconds rather than an NS change taking days.
+
+*Mitigations:* redirects from every existing Squarespace URL, verified against a content
+inventory before cutover; the rebuilt site proven on `beta.` first; cutover outside a race
+window; the Squarespace subscription kept live until the new site has run a week.
+
+*Sequencing correction:* the member fund must be re-homed **before the cutover**, not
+merely before Squarespace is cancelled — the fund page lives on the Squarespace site and
+the cutover would remove it.
+
+---
+
+## R10b — `beta.` competing with the live site in search *(delivery risk)*
+
+A publicly-reachable rebuild on `beta.southvillerunningclub.co.uk` can be indexed,
+splitting search authority and showing visitors an unfinished site.
+
+*Mitigations:* `noindex` throughout the rebuild, verified in CI alongside the other
+route checks; removed deliberately at cutover, not by memory.
 
 ---
 

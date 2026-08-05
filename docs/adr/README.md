@@ -10,14 +10,17 @@ see [P6](../principles.md#p6--boring-by-default) and
 | # | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
-| [0002](0002-hosting-platform.md) | Hosting platform — Cloudflare, Vercel, or split | **Proposed — blocking** |
+| [0002](0002-hosting-platform.md) | Hosting platform — Cloudflare, Vercel, or split | **Accepted — Cloudflare** |
 | [0003](0003-nextjs-and-typescript.md) | Next.js and TypeScript | Accepted |
 | [0004](0004-postgres-on-supabase.md) | PostgreSQL on Supabase | Accepted |
-| [0005](0005-dns-at-fasthosts.md) | DNS stays at Fasthosts | Accepted |
-| [0006](0006-repository-shape.md) | Repository shape — one repo or several | **Proposed — blocking** |
+| [0005](0005-dns-at-fasthosts.md) | DNS stays at Fasthosts | ~~Superseded by 0010~~ |
+| [0006](0006-repository-shape.md) | Repository shape — one repo or several | **Accepted — one repo per service** |
 | [0007](0007-stripe-for-payments.md) | Stripe for payments | Proposed |
 | [0008](0008-github-actions-pipeline.md) | GitHub Actions for the pipeline | Proposed |
 | [0009](0009-containerised-environments.md) | Containerised local and CI environments | Proposed |
+| [0010](0010-dns-delegation-to-cloudflare.md) | Delegate DNS to Cloudflare; registrar stays Fasthosts | Accepted |
+| [0011](0011-nightingale-nightmare-routing.md) | Nightingale Nightmare on a subdomain | Accepted |
+| [0012](0012-one-supabase-project-many-services.md) | One Supabase project, one role per service | Accepted |
 
 ## Statuses
 

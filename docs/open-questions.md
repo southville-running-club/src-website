@@ -6,31 +6,36 @@ struck through here with a link.
 
 ---
 
+## Answered
+
+- ~~**Q1 — Hosting: Cloudflare, Vercel, or split?**~~ → **Cloudflare**, decided 5 August
+  2026 on commercial grounds. [ADR-0002](adr/0002-hosting-platform.md).
+- ~~**Q2 — Repository shape?**~~ → **One repository per service**, each its own Worker.
+  [ADR-0006](adr/0006-repository-shape.md).
+- ~~**Q3 — Vercel free-tier compliance under the split option?**~~ → Moot; the split
+  option was rejected, partly *because* it rested on this unconfirmed reading.
+
 ## Blocking the website build
 
-**Q1 — Hosting: Cloudflare, Vercel, or split?**
-Owner: board / platform volunteer · Blocks: everything in Workstream 3
-The site should be built once, on its final home. Three options are on the table with
-materially different costs and risks — see
-[ADR-0002](adr/0002-hosting-platform.md).
+**Q4 — Fasthosts account access and domain registration.**
+Owner: platform volunteer + committee · **Blocks: DNS delegation, which blocks everything**
+Confirm who holds the Fasthosts credentials, that more than one person can reach them,
+and whether the domain is registered independently or bundled with Squarespace. Then
+export the full zone for audit before anything moves
+([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
 
-**Q2 — Repository shape: does the website live with the timing app or separately?**
-Owner: platform volunteer · Blocks: scaffold, CI, database access design
-The proposal says "one codebase, one database, three front doors", but the timing app
-and this repository are separate today. See
-[ADR-0006](adr/0006-repository-shape.md).
+**Q4b — What is in the DNS zone today, exactly?**
+Owner: platform volunteer · Blocks: DNS delegation
+Every record must be replicated, not just the website ones. `MX`, `SPF`, `DKIM`, `DMARC`,
+every `TXT`, Squarespace's verification records. Who provides club email, and through
+what? A missed record stops club email silently
+([R4c](risks.md#r4c--dns-delegation-and-club-email)).
 
-**Q3 — Does the club's Vercel free-tier usage remain compliant under the split option?**
-Owner: platform volunteer · Blocks: Q1
-The split option rests on a reading of Vercel's terms — that the timing app on the free
-tier is non-commercial while entries are taken elsewhere. Worth confirming in writing
-before the option is chosen.
-
-**Q4 — Domain registration and the DNS cutover window.**
-Owner: platform volunteer + committee · Blocks: Phase 3c
-DNS is at Fasthosts today, pointing at Squarespace. Confirm who holds the Fasthosts
-account credentials, whether the domain is registered separately or bundled with
-Squarespace, and agree a cutover date outside any race window.
+**Q4c — Who owns the Cloudflare account?**
+Owner: committee · Blocks: DNS delegation
+It becomes critical club infrastructure the moment it is authoritative for the domain. It
+should be club-owned with more than one administrator, before it holds anything
+([R1](risks.md#r1--key-person-dependency)).
 
 **Q5 — What content actually exists on the current Squarespace site?**
 Owner: committee · Blocks: content migration
@@ -51,10 +56,28 @@ Club-owned code in a public repository needs a stated licence.
 
 ## Blocking Nightingale Nightmare (Workstream 2)
 
-**Q8 — The 2026 date: 25 October or 1 November?**
-Owner: committee · Blocks: scheduling and timezone testing
+**Q8 — The 2026 date: 25 October or 1 November?** ⚠️ **Highest priority in the programme**
+Owner: committee · Blocks: the entire Nightingale Nightmare track
 Notes disagree. The race sits on or near the clocks-change weekend, so this matters
 technically as well as operationally — see [R9](risks.md#r9--nightingale-nightmares-date-and-the-clocks-change).
+With roughly eleven weeks to go, every dependent decision is compressed until this lands.
+It costs nothing to answer.
+
+**Q22 — What does the 2026 sign-up form collect: expression of interest, or full entries?**
+Owner: committee · Blocks: whether data-protection advice is needed in weeks or months
+"Sign-ups and hold data" means names, dates of birth, emergency contacts, possibly EA
+numbers — the personal-entrant data that
+[P13](principles.md#p13--governance-gates-come-before-the-code-they-enable) gates on
+advice. Two honest routes: a minimal expression of interest (name and email, no DOB, no
+payment, entries still taken through the existing channel), launchable in weeks; or full
+entries, needing the privacy notice, retention policy and lawful basis in place **before
+the first record**. See the [plan of attack](plan-of-attack.md).
+
+**Q23 — Does Nightingale Nightmare 2026 need live timing and results at all?**
+Owner: race director · Blocks: how much timing-app work lands before October
+The proposal implies yes, the brief implies sign-ups first. It decides whether the three
+solo gaps — leaderboard derivation, age bands, single-event hardcoding — are October work
+or 2027 work. See the [timing app review](reference/timing-app-review.md).
 
 **Q9 — Does entry data include date of birth?**
 Owner: committee · Blocks: age-band categories (Vet 40/50/60, male and female)
@@ -110,7 +133,29 @@ explicitly rather than by default.
 
 ---
 
+## Platform governance
+
+**Q24 — When does `src-race-timing` transfer to the `admin-src` organisation?**
+Owner: platform volunteer + committee · Blocks: nothing technically; should precede the port
+The club's race-day-critical software currently sits in a personal GitHub account, which
+contradicts the proposal's own key-person mitigation. One administrative action
+([R1](risks.md#r1--key-person-dependency)).
+
+**Q25 — Who owns the Supabase, Vercel, Stripe and Resend accounts, and who else can reach them?**
+Owner: committee · Blocks: nothing technically; a standing exposure
+The same question as Q4c and Q24, applied to every account the platform depends on.
+
+**Q26 — Does the club take Supabase Pro now that three services share one project?**
+Owner: committee · Blocks: the archive's backup story
+The free tier pauses after ~a week of inactivity and has no automated backups. With one
+service that was contingency; with three and a permanent public archive it starts looking
+like a decision ([R5](risks.md#r5--supabase-free-tier-pausing),
+[ADR-0012](adr/0012-one-supabase-project-many-services.md)).
+
 ## Facts to verify before figures go further than the board
 
 **Q20 — Actual Squarespace invoice amount** (currently stated as a £170–£420 range).
 **Q21 — Actual entry volumes** (illustrative figures assume 80 teams and 150 solo entries).
+**Q27 — Real Worker bundle size and CPU time**, measured on the Nightingale Nightmare
+service, to establish whether the free tier is viable or Workers Paid (~£48/yr) is
+required ([R4b](risks.md#r4b--workers-platform-limits)).
