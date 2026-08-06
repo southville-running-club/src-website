@@ -7,7 +7,8 @@ This exists so that choices can be judged against something, and re-judged later
 starting over. If a requirement here is wrong, that is a bigger problem than any vendor
 choice made underneath it.
 
-Baseline facts are in [current state](current-state.md).
+Baseline facts are in [current state](current-state.md); the destination these serve is in
+[target state](target-state.md).
 
 ---
 

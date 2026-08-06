@@ -18,7 +18,8 @@ deliberate.
 | --- | --- |
 | [Problem statement](docs/problem-statement.md) | **Why this is happening at all** |
 | [Current state](docs/current-state.md) | What exists today, as fact. The baseline any option has to beat |
-| [Requirements](docs/requirements.md) | The eleven capabilities the platform must provide, and what bounds how |
+| [Target state](docs/target-state.md) | **What the club has when this is finished** |
+| [Requirements](docs/requirements.md) | The capabilities the platform must provide, and what bounds how |
 | [Options](docs/options.md) | The solution space per capability, and the criteria to judge by |
 | [Priorities](docs/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decision-log.md) | Where choices get recorded — and how they get re-opened |
