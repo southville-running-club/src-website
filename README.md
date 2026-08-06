@@ -21,6 +21,9 @@ deliberate.
 | [Target state](docs/target-state.md) | **What the club has when this is finished** |
 | [Requirements](docs/requirements.md) | The capabilities the platform must provide, and what bounds how |
 | [Options](docs/options.md) | The solution space per capability, and the criteria to judge by |
+| [Platform options](docs/platform-options.md) | **Named candidates, priced** — Vercel, Cloudflare, Netlify, AWS, VPS — with a recommendation |
+| [DNS and domain](docs/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
+| [Nightingale Nightmare first](docs/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decision-log.md) | Where choices get recorded — and how they get re-opened |
 

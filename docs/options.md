@@ -8,6 +8,10 @@ changing its pricing.
 
 Read [requirements](requirements.md) first; this is meaningless without them.
 
+**Named candidates are now priced in [platform options](platform-options.md)**, which answers
+questions 2, 3 and 4 at the foot of this page against real products and real figures. The domain
+and DNS question has its own document: [DNS and domain](dns-and-domain.md).
+
 ---
 
 ## How to judge
@@ -227,14 +231,17 @@ applying early costs nothing. The export fallback means nothing is blocked while
 
 ## Questions to answer before any of this is decided
 
+Questions 2, 3 and 4 are answered against named candidates in
+[platform options](platform-options.md); question 7 belongs to [DNS and domain](dns-and-domain.md).
+
 1. **What is the actual Squarespace renewal date**, and does "off by April" mean cancelled
    before renewal or simply not renewed?
 2. **For each hosting candidate: do the terms permit taking payments** on the tier the club
-   would use?
+   would use? — *[answered](platform-options.md#1-does-the-free-or-cheap-tier-permit-taking-payments); the incumbent's free tier does not*
 3. **For each hosting candidate: can it serve a club hostname without controlling the
-   domain's DNS?**
+   domain's DNS?** — *[answered](platform-options.md#2-can-it-serve-a-club-hostname-without-controlling-the-domains-dns); a subdomain, yes on every candidate; the apex, not on Cloudflare*
 4. **Does the club want capabilities bundled or assembled?** — the largest architectural
-   question here.
+   question here. *[A two-vendor split is proposed](platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended): serving separate from data*
 5. **What does the treasurer need for reconciliation?** It constrains C4 more than fees do.
 6. **Who holds every account**, and can more than one person reach each?
 7. **What does the `mcp` DNS record serve?**

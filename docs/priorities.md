@@ -14,6 +14,11 @@ and survive the plan slipping.
 
 A page that collects a name and an email address, and keeps them.
 
+Scoped and planned in [Nightingale Nightmare first](nn-first-delivery.md), which also carries a
+finding that qualifies the "not on the critical path" conclusion below: **working back from an
+October or November race, paid entries want to open in early September, so the commercial-use
+terms bite four weeks from now rather than in April.**
+
 ### 2. Off Squarespace before it renews — April
 
 The exact renewal date is not yet established, and it should be, because everything in the
@@ -194,6 +199,11 @@ does not buy an earlier April.
 **Nightingale Nightmare is not on the critical path to April** — it has its own deadline
 and its own dependencies, and it should be built so that decisions taken for it are cheap
 to revisit.
+
+**But its own deadline arrives first.** If NN takes entry money, it needs a host whose terms
+permit payment by early September — which makes the hosting choice due months before April.
+[Nightingale Nightmare first](nn-first-delivery.md#the-finding-commercial-use-bites-in-weeks-not-in-april)
+sets out the schedule and the fallback that removes the dependency if the club wants it.
 
 ---
 
