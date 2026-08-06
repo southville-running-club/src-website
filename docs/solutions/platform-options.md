@@ -9,12 +9,12 @@ It answers the three questions
 commercial-use terms, whether a candidate needs control of the domain's DNS, and bundled
 versus assembled — because nothing can be built until they are answered.
 
-**This is analysis, not a decision.** The [decision log](decision-log.md) stays empty
-until the committee chooses. Read [requirements](requirements.md) first; the criteria used
+**This is analysis, not a decision.** The [decision log](../decisions/decision-log.md) stays empty
+until the committee chooses. Read [requirements](../foundations/requirements.md) first; the criteria used
 here are the seven in [options](options.md#how-to-judge).
 
 Companion documents: [DNS and domain](dns-and-domain.md) for the Fasthosts question, and
-[Nightingale Nightmare first](nn-first-delivery.md) for what gets built first.
+[Nightingale Nightmare first](../delivery/nn-first-delivery.md) for what gets built first.
 
 **Prices captured August 2026.** Dollar figures converted at **$1 = £0.79**. Where a
 figure is inferred rather than read off a vendor's own page it says so, and everything
@@ -49,7 +49,7 @@ middle tier in the first place.
 ### 2. Can it serve a club hostname without controlling the domain's DNS?
 
 This is the trap
-[priorities](priorities.md#the-two-week-deadline-is-not-as-tight-as-it-looks) warned
+[priorities](../delivery/priorities.md#the-two-week-deadline-is-not-as-tight-as-it-looks) warned
 about, and the answer differs *within* a single vendor.
 
 | Candidate | Subdomain (`nn.…`) from external DNS | Apex (`southvillerunningclub.co.uk`) from external DNS |
@@ -84,7 +84,7 @@ Pages project while the zone stays at Fasthosts.
 
 The club's one proven asset is a Next.js 16 / TypeScript race-timing application with
 row-level security, an offline capture queue and a tested timezone path.
-[Convergence](requirements.md#convergence) is a stated requirement: the website,
+[Convergence](../foundations/requirements.md#convergence) is a stated requirement: the website,
 Nightingale Nightmare and the timing platform end up as one platform. A second language
 means a second set of types for the same entities, a second build pipeline, and a second
 thing a third volunteer has to learn.
@@ -97,7 +97,7 @@ overlooked:
 | **Go** | Single binary, trivial to self-host, fast | Nothing in the club's stack is Go; loses type sharing with the timing app; smaller pool of people who could pick it up |
 | **Python (Django)** | Batteries-included admin would answer committee editing almost for free | Divergent runtime; the Django admin is a strong pull, but it buys one capability at the cost of every other |
 | **PHP (Laravel / WordPress)** | Cheapest possible hosting; WordPress solves committee editing outright | Reintroduces exactly what the club is leaving — a database-backed CMS edited by clicking, with a patching burden and no meaningful convergence |
-| **Rust / Elixir** | Genuinely good at the realtime part | Fails ["boring" as a hard requirement](requirements.md#people) |
+| **Rust / Elixir** | Genuinely good at the realtime part | Fails ["boring" as a hard requirement](../foundations/requirements.md#people) |
 
 ### Framework, which is a separate question from language
 
@@ -112,7 +112,7 @@ overlooked:
 **The honest position:** for a site that is 60 pages of content, a document archive and a
 results archive — all of which are static by nature — Astro is a better fit than Next.js,
 and its markdown content collections are a direct, cheap answer to the ["what lives in
-code and what lives in a database"](target-state.md#open-questions-this-raises) question.
+code and what lives in a database"](../foundations/target-state.md#open-questions-this-raises) question.
 Policies, page structure and the pace guide become files in the repository, reviewed by
 pull request. Results, newsletters and entries stay in the database.
 
@@ -145,7 +145,7 @@ way.
 
 That is **three times what Squarespace costs today**, to save volunteer time the club
 could also save on a £47/yr platform. It fails the [money
-constraint](requirements.md#money) outright.
+constraint](../foundations/requirements.md#money) outright.
 
 **Could the club stay free?** Only by breaking one of its own requirements:
 
@@ -155,7 +155,7 @@ constraint](requirements.md#money) outright.
   club's website being suspended rather than a bill.
 - *Supabase Free* — 500 MB, two active projects, and **projects pause after a week of
   inactivity**. A live public site generates requests, so pausing is unlikely in practice;
-  but "unlikely to pause" is not the same as [permanent](requirements.md#continuity), and
+  but "unlikely to pause" is not the same as [permanent](../foundations/requirements.md#continuity), and
   the two-project ceiling is already half-used by the timing platform.
 
 **How it gets actioned:** fastest of any option. Both volunteers know it, deployment is a
@@ -190,22 +190,22 @@ plausible permanent home**, and unlike Vercel's it permits taking payments.
 
 R2 deserves a specific mention: 10 GB free with **no egress charge**, which is the right
 home for the 45 club documents and the images being [rescued from Squarespace's
-CDN](requirements.md#c14--publish-newsletters-and-club-documents) before the subscription
+CDN](../foundations/requirements.md#c14--publish-newsletters-and-club-documents) before the subscription
 lapses. Cloudflare's old restriction on serving non-HTML content on free plans no longer
 applies to content hosted on its own services.
 
-Cloudflare Access covers [C7](requirements.md#c7--authenticate-and-authorise-staff) free
+Cloudflare Access covers [C7](../foundations/requirements.md#c7--authenticate-and-authorise-staff) free
 to 50 users — the club needs single figures.
 
 **What it costs the club that the table does not show:**
 
 - **D1 is SQLite, not Postgres.** The timing platform is Postgres with row-level security
   from its first migration. Choosing D1 means the convergence in
-  [requirements](requirements.md#convergence) eventually requires rewriting the timing
+  [requirements](../foundations/requirements.md#convergence) eventually requires rewriting the timing
   app's data layer — re-opening race-tested code, which is precisely what the [risk
-  constraint](requirements.md#risk) says not to do.
+  constraint](../foundations/requirements.md#risk) says not to do.
 - **Durable Objects are the stickiest dependency in the stack** and would become the
-  answer to [C6](requirements.md#c6--show-live-race-progress-to-spectators).
+  answer to [C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators).
 - **Next.js needs an adapter.** Astro does not.
 
 **How it gets actioned:** first week is Cloudflare account (club-owned, both volunteers as
@@ -303,7 +303,7 @@ ideal*, that is worth real money.
 free tier moved to a shared 300-credit monthly pool (bandwidth at 20 credits/GB,
 production deploys 15 credits each), with no auto-recharge. A club site would sit well
 inside it in a normal month — but ["permanent" is a hard
-requirement](requirements.md#c2--publish-race-results-permanently-and-automatically), and
+requirement](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically), and
 a results archive that goes dark because a busy race week plus a run of deploys exhausted
 a credit pool fails it. The mitigation is Personal at £85/yr, which is still comfortably
 inside the money constraint.
@@ -339,12 +339,12 @@ then the bill arrives in a currency that is not money.
 
 **What lands on one volunteer:** operating-system patching, TLS renewal, Postgres
 upgrades, backup *and a tested restore*, monitoring, disk-full incidents, and being the
-person who fixes it on a Sunday. [Requirements](requirements.md#people) makes "a third
+person who fixes it on a Sunday. [Requirements](../foundations/requirements.md#people) makes "a third
 person can pick this up cold" a hard requirement, and a hand-built box is the hardest
 thing in this document to hand over.
 
 **Where it genuinely wins:** total control, `eu-west-2` London for [data
-residency](requirements.md#c10--hold-personal-data-lawfully), no free-tier terms to be
+residency](../foundations/requirements.md#c10--hold-personal-data-lawfully), no free-tier terms to be
 changed underneath the club, and no vendor able to suspend the site. If the club's
 overriding concern were sovereignty rather than volunteer time, this would be the answer.
 
@@ -442,8 +442,8 @@ visible are worth stating plainly.
 **D scores one point above C, and C is still the recommendation.** That is a real tension,
 not an oversight. The seven criteria are the right ones for comparing *hosts*, and on those
 Netlify is marginally the better host. What they do not score is a club requirement that sits
-outside hosting: [everything defined as code](requirements.md#everything-is-defined-as-code)
-and [no system reachable by one person](requirements.md#shared-ownership). Cloudflare's route
+outside hosting: [everything defined as code](../foundations/requirements.md#everything-is-defined-as-code)
+and [no system reachable by one person](../foundations/requirements.md#shared-ownership). Cloudflare's route
 carries DNS with it and closes both gaps; Netlify's leaves DNS exactly as it is. Anyone who
 weighs that differently should reach a different answer, and the scores are here so they can.
 
@@ -462,7 +462,7 @@ Restated as a decision the committee can take:
 
 | | |
 | --- | --- |
-| **Requirement served** | All of [C1–C18](requirements.md#capabilities); decisively [C2](requirements.md#c2--publish-race-results-permanently-and-automatically) and the [money constraint](requirements.md#money) |
+| **Requirement served** | All of [C1–C18](../foundations/requirements.md#capabilities); decisively [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically) and the [money constraint](../foundations/requirements.md#money) |
 | **Decision** | Serving on Cloudflare Pages; data on Supabase Postgres; files on R2; payments on Stripe; TypeScript, Astro for the site |
 | **Cost** | **£0–£57/yr**, unchanged when payments switch on |
 | **Consequences accepted** | Two vendors; Supabase's bundling exposure inherited; the apex requires Cloudflare nameservers; a second framework alongside Next.js |
@@ -489,7 +489,7 @@ rather than under deadline pressure.
 ## What payments actually cost
 
 Included because a cost analysis that ignored it would understate the picture by an order
-of magnitude. This does not re-open [C4](requirements.md#c4--take-payments); it prices it.
+of magnitude. This does not re-open [C4](../foundations/requirements.md#c4--take-payments); it prices it.
 
 On **94 subscribers at £2.50/month (£2,820/yr)**, with Stripe UK rates and 20% VAT added —
 the club is not VAT-registered, so the VAT is a real cost, not a reclaim:
@@ -542,12 +542,12 @@ Items 1–5 block the hosting decision. Items 6–9 do not, and can run in paral
 
 ## What this document does not decide
 
-- **The payments choice.** Priced here, decided in [C4](requirements.md#c4--take-payments)
-  with the treasurer, behind the [governance gates](requirements.md#legal-and-governance).
+- **The payments choice.** Priced here, decided in [C4](../foundations/requirements.md#c4--take-payments)
+  with the treasurer, behind the [governance gates](../foundations/requirements.md#legal-and-governance).
 - **Whether the timing platform moves.** It works where it is. This recommendation is
   chosen so that it *can* move later, cheaply, without requiring it.
 - **How the committee edits content.** [Deliberately
-  deferred](priorities.md#what-can-safely-be-decided-later) until it is known what they
+  deferred](../delivery/priorities.md#what-can-safely-be-decided-later) until it is known what they
   actually ask to change. Astro's markdown collections plus a git-backed editor is the
   cheapest starting point, and adding one later costs nothing now.
 - **The domain registrar.** See [DNS and domain](dns-and-domain.md).

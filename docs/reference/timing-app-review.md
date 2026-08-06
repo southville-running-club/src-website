@@ -8,7 +8,7 @@ Cloudflare, and Nightingale Nightmare is expected to run on it. Everything below
 observed in the repository, not inferred from the proposal.
 
 > **Read-only relationship.** Nothing here is an invitation for website work to change
-> this application. See the race-day risk constraint in [requirements](../requirements.md#risk).
+> this application. See the race-day risk constraint in [requirements](../foundations/requirements.md#risk).
 
 ---
 
@@ -35,7 +35,7 @@ no crossing.
 
 Dependencies are notably few: `@supabase/ssr`, `@supabase/supabase-js`, `idb`,
 `papaparse`, `next`, `react`. No date library, no state library, no UI kit. This is
-the one-volunteer constraint in [requirements](../requirements.md#people) already being practised.
+the one-volunteer constraint in [requirements](../foundations/requirements.md#people) already being practised.
 
 ## Routes
 
@@ -96,7 +96,7 @@ CSV's DOB against the event's race date — and the CSV's own `AgeOnDay` column 
 in favour of computing it. The raw CSV in Supabase storage is the audit trail; the table
 holds operational data only.
 
-This is [C10](../requirements.md#c10--hold-personal-data-lawfully) already
+This is [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) already
 implemented, and it is the pattern any new entry surface should inherit.
 
 ### `crossings`
@@ -197,7 +197,7 @@ the results archive.
 - **`DECISIONS.md` is 2,542 lines of append-only reasoning** with a consistent
   Status/Context/Decision/Rationale/Consequences/Revisit-if structure. It is the most
   valuable artefact in the repository and the strongest existing mitigation of
-  [current state](../current-state.md#accounts-and-access).
+  [current state](../foundations/current-state.md#accounts-and-access).
 - **Migrations document their own deployment ordering.** The registration migration spells
   out the deploy-then-migrate sequence needed to avoid a `42703` window in production —
   expand-migrate-contract reasoning applied by hand.
@@ -228,7 +228,7 @@ import in application code is `randomInt` from `node:crypto`, covered by `nodejs
 support). Realtime and Auth are browser-to-Supabase and indifferent to the host. The
 risks are the Workers **bundle size ceiling** — 3 MB compressed on free, 10 MB on paid —
 and the **10 ms CPU limit** on the free plan against server-rendered pages. See
-[options](../options.md#c1c2--serving-pages-and-results).
+[options](../solutions/options.md#c1c2--serving-pages-and-results).
 
 **Three things must not be broken by any port:** the IndexedDB offline queue and its
 idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
@@ -241,13 +241,13 @@ the club's `admin-src` organisation. The proposal states that "code and document
 in the club's reach on GitHub" as a mitigation for key-person dependency. For this
 repository that is not yet true. Transferring it to the club organisation is a small
 action with a large effect on
-[current state](../current-state.md#accounts-and-access), and it should happen before the port, not
+[current state](../foundations/current-state.md#accounts-and-access), and it should happen before the port, not
 after.
 
 **The Supabase project is likewise the platform's single most valuable asset.** Confirm
 who holds the account, whether more than one person can reach it, and where the free
 tier's absence of automated backups leaves the permanent archive
-([options](../options.md#c2--storing-the-archive)).
+([options](../solutions/options.md#c2--storing-the-archive)).
 
 ## Open items carried in the app's own logs
 

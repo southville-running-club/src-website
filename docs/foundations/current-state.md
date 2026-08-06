@@ -4,7 +4,7 @@ What exists today, as fact. No proposals, no recommendations, no vendor preferen
 
 Everything here is either observed directly (the DNS zone, the timing app source, the live
 site's redirect behaviour) or taken from the club's own
-[platform proposal](reference/platform-proposal-v8.md). Where a figure is an estimate or
+[platform proposal](../reference/platform-proposal-v8.md). Where a figure is an estimate or
 a range from the proposal rather than a measured number, it says so.
 
 This document is the baseline any option has to improve on.

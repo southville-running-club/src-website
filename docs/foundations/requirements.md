@@ -197,7 +197,7 @@ problem, not just a broken link.
 *Done when:* the newsletter archive updates itself, every document is held by the club at a
 stable URL, and adding a document does not require a developer.
 
-See [existing site inventory](reference/existing-site.md).
+See [existing site inventory](../reference/existing-site.md).
 
 ### C15 — Sell merchandise and tickets
 
@@ -290,7 +290,7 @@ What follows from it:
 - **Legible to tooling** — a codebase with its decisions written down is one that automated
   assistance can work in productively, which is how two volunteers with day jobs cover more
   ground than two volunteers otherwise would.
-- **Decisions are documented** — see the [decision log](decision-log.md).
+- **Decisions are documented** — see the [decision log](../decisions/decision-log.md).
 
 A pragmatic exception, stated so it does not become a slow leak: **a small amount of manual
 setup is accepted** — creating an account, issuing an API token, a registrar action that has
@@ -343,7 +343,7 @@ person, so the club has two single points of failure rather than one shared capa
 ### Time
 
 Two fixed points; everything else is dependency-ordered rather than dated. See
-[priorities](priorities.md).
+[priorities](../delivery/priorities.md).
 
 ### Risk
 
@@ -363,7 +363,7 @@ not merely a rollback plan.
 **Nothing may be lost in the move.** Every image, document and newsletter currently on the
 site is held on a platform CDN — cancelling the subscription deletes them. Retrieving the
 lot while the subscription is live is a prerequisite, not a cleanup task. See the
-[existing site inventory](reference/existing-site.md#what-the-site-depends-on).
+[existing site inventory](../reference/existing-site.md#what-the-site-depends-on).
 
 ### Legal and governance
 

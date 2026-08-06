@@ -3,10 +3,10 @@
 Why the club is doing this at all.
 
 Everything else in this repository — [requirements](requirements.md),
-[options](options.md), [priorities](priorities.md) — exists to answer the problems set out
+[options](../solutions/options.md), [priorities](../delivery/priorities.md) — exists to answer the problems set out
 here. If a proposed change does not address one of them, it is not in scope.
 
-Derived from the club's [platform proposal](reference/platform-proposal-v8.md) and from the
+Derived from the club's [platform proposal](../reference/platform-proposal-v8.md) and from the
 [current state](current-state.md) as observed.
 
 ---

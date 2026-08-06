@@ -6,7 +6,7 @@ Nothing here is decided. Named products appear as **examples of a category**, no
 recommendations — the categories are the useful part, because they survive a vendor
 changing its pricing.
 
-Read [requirements](requirements.md) first; this is meaningless without them.
+Read [requirements](../foundations/requirements.md) first; this is meaningless without them.
 
 **Named candidates are now priced in [platform options](platform-options.md)**, which answers
 questions 2, 3 and 4 at the foot of this page against real products and real figures. The domain

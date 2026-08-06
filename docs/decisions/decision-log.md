@@ -3,8 +3,8 @@
 Where choices get recorded once they are made — and, just as importantly, how they get
 **re-opened** when the ground shifts.
 
-**Nothing is recorded here yet.** [Requirements](requirements.md) and
-[options](options.md) come first; decisions come after. That order is the point of this
+**Nothing is recorded here yet.** [Requirements](../foundations/requirements.md) and
+[options](../solutions/options.md) come first; decisions come after. That order is the point of this
 branch.
 
 ---
@@ -26,7 +26,7 @@ Each decision states:
 
 | Section | What goes in it |
 | --- | --- |
-| **Requirement** | Which capability from [requirements.md](requirements.md) this serves |
+| **Requirement** | Which capability from [requirements.md](../foundations/requirements.md) this serves |
 | **Context** | The facts that forced a choice. Numbers where numbers exist |
 | **Options** | What was genuinely considered, with the trade-off for each |
 | **Decision** | What we are doing, in the present tense |
@@ -56,7 +56,7 @@ To re-evaluate a choice:
 1. **Check the requirement still holds.** Often the surprise is that the requirement moved,
    not the market. A decision that no longer serves a requirement is not a bad decision — it
    is a finished one.
-2. **Re-score the options against the same criteria** in [options.md](options.md). Same
+2. **Re-score the options against the same criteria** in [options.md](../solutions/options.md). Same
    criteria, or the comparison means nothing.
 3. **Price the exit** using the record's own exit-cost section. Compare that against what
    staying costs.
@@ -73,7 +73,7 @@ Conditions that should prompt a re-read regardless of whether anyone feels like 
 - A recurring cost appears, or an existing one moves materially.
 - A second maintainer arrives. Several trade-offs here are made *because* there is one
   volunteer, and they should be revisited when that stops being true.
-- A capability in [requirements.md](requirements.md) is added, removed or changes shape.
+- A capability in [requirements.md](../foundations/requirements.md) is added, removed or changes shape.
 - Something breaks in a way a different choice would have prevented.
 - The club's data-protection position changes.
 

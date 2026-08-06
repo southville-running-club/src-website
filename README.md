@@ -16,16 +16,16 @@ deliberate.
 
 | Read this | For |
 | --- | --- |
-| [Problem statement](docs/problem-statement.md) | **Why this is happening at all** |
-| [Current state](docs/current-state.md) | What exists today, as fact. The baseline any option has to beat |
-| [Target state](docs/target-state.md) | **What the club has when this is finished** |
-| [Requirements](docs/requirements.md) | The capabilities the platform must provide, and what bounds how |
-| [Options](docs/options.md) | The solution space per capability, and the criteria to judge by |
-| [Platform options](docs/platform-options.md) | **Named candidates, priced** — Vercel, Cloudflare, Netlify, AWS, VPS — with a recommendation |
-| [DNS and domain](docs/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
-| [Nightingale Nightmare first](docs/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
-| [Priorities](docs/priorities.md) | The two fixed dates, and everything else in dependency order |
-| [Decision log](docs/decision-log.md) | Where choices get recorded — and how they get re-opened |
+| [Problem statement](docs/foundations/problem-statement.md) | **Why this is happening at all** |
+| [Current state](docs/foundations/current-state.md) | What exists today, as fact. The baseline any option has to beat |
+| [Target state](docs/foundations/target-state.md) | **What the club has when this is finished** |
+| [Requirements](docs/foundations/requirements.md) | The capabilities the platform must provide, and what bounds how |
+| [Options](docs/solutions/options.md) | The solution space per capability, and the criteria to judge by |
+| [Platform options](docs/solutions/platform-options.md) | **Named candidates, priced** — Vercel, Cloudflare, Netlify, AWS, VPS — with a recommendation |
+| [DNS and domain](docs/solutions/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
+| [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
+| [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
+| [Decision log](docs/decisions/decision-log.md) | Where choices get recorded — and how they get re-opened |
 
 Supporting material:
 
@@ -33,7 +33,7 @@ Supporting material:
 | --- | --- |
 | [Timing app review](docs/reference/timing-app-review.md) | How the club's existing race-timing system works, read from source |
 | [Platform proposal v8](docs/reference/platform-proposal-v8.md) | The July 2026 board proposal, transcribed |
-| [Glossary](docs/glossary.md) | Domain vocabulary — an *event* is one running of one race in one year |
+| [Glossary](docs/foundations/glossary.md) | Domain vocabulary — an *event* is one running of one race in one year |
 
 ## The shape of the problem
 
@@ -65,16 +65,16 @@ Everything else is ordered by dependency rather than by calendar.
 1. **Nightingale Nightmare sign-ups live — two weeks.**
 2. **Off the current website platform before it renews — April.**
 
-See [priorities](docs/priorities.md).
+See [priorities](docs/delivery/priorities.md).
 
 ## Working here
 
 Documentation only for now. Every change by pull request; documentation ships with the
 change it describes; markdown wraps at roughly 90 characters.
 
-Use the [glossary](docs/glossary.md)'s words exactly — an "event" is one running of one race
-in one year, a "race" is the recurring thing, and a "team" is the unit of entry even when it
-holds one runner. Getting this wrong in a schema is expensive.
+Use the [glossary](docs/foundations/glossary.md)'s words exactly — an "event" is one running
+of one race in one year, a "race" is the recurring thing, and a "team" is the unit of entry
+even when it holds one runner. Getting this wrong in a schema is expensive.
 
 ## Licence
 

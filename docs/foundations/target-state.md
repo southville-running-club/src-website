@@ -5,7 +5,7 @@ What the club has when this is finished.
 [Current state](current-state.md) is where things are. [Problem statement](problem-statement.md)
 is why that isn't good enough. This is the destination —
 [requirements](requirements.md) then say what has to be true to reach it, and
-[options](options.md) covers how.
+[options](../solutions/options.md) covers how.
 
 Written as what changes for the people involved, because that is what makes it real. A list
 of capabilities is a specification; this is the picture.

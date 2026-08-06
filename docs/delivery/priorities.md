@@ -142,7 +142,7 @@ No dates. Each item lists what must be true before it starts.
 
 | | Needs first |
 | --- | --- |
-| **Settle the requirements** — is [requirements.md](requirements.md) right and complete? | Nothing |
+| **Settle the requirements** — is [requirements.md](../foundations/requirements.md) right and complete? | Nothing |
 | **Decide bundled or assembled** — one vendor for five capabilities, or several | Requirements |
 | **Choose hosting** | Requirements; commercial-use terms confirmed per candidate; whether each candidate needs control of the domain's DNS |
 | **Choose the data platform** | Requirements; the bundled-or-assembled decision |

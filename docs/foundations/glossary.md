@@ -73,7 +73,7 @@ results. Proven in production at Pass the Buck 2026.
 **Front door** — one of the three user-facing surfaces onto the shared platform.
 
 **Decision record** — a short document capturing a decision, its context, its consequences
-and its exit cost. See [decision log](decision-log.md).
+and its exit cost. See [decision log](../decisions/decision-log.md).
 
 **Preview deployment** — a deployed URL for a pull request, so a change can be looked at
 before it is real.

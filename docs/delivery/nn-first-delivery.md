@@ -7,8 +7,8 @@ be decided.
 weeks. This document takes that seriously and works out what it actually means — including
 one finding that changes the sequencing in [priorities](priorities.md).
 
-Read with [platform options](platform-options.md) for the stack and [DNS and
-domain](dns-and-domain.md) for the hostname.
+Read with [platform options](../solutions/platform-options.md) for the stack and [DNS and
+domain](../solutions/dns-and-domain.md) for the hostname.
 
 ---
 
@@ -18,7 +18,7 @@ Not because it is the biggest thing. Because it is the only piece of work that i
 **useful, small, and forcing** all at once.
 
 **Useful.** [Nightingale Nightmare has no web presence at
-all](problem-statement.md#6-two-races-one-of-them-invisible). Pass the Buck at least has a
+all](../foundations/problem-statement.md#6-two-races-one-of-them-invisible). Pass the Buck at least has a
 page. NN has nothing — no date, no entry route, no way for a runner who heard about it to
 find it. Anything is an improvement over nothing.
 
@@ -77,7 +77,7 @@ Nightingale Nightmare is not on the critical path, and against the *April* deadl
 is correct.
 
 But the schedule above says paid entries want to be open in **about four weeks**. And
-[platform options](platform-options.md#the-two-questions-that-eliminate) establishes that
+[platform options](../solutions/platform-options.md#the-two-questions-that-eliminate) establishes that
 **Vercel's Hobby tier prohibits commercial use, naming payment processing explicitly.**
 
 Put those together:
@@ -96,13 +96,13 @@ four weeks away, not eight months.
 
 **Response A — build NN on the target stack now.** Choose the host that permits payments,
 build NN v1 on it, and add payments when the [governance
-gates](requirements.md#legal-and-governance) are satisfied. No migration, no second
-decision. This is what [platform options](platform-options.md#the-recommendation)
+gates](../foundations/requirements.md#legal-and-governance) are satisfied. No migration, no second
+decision. This is what [platform options](../solutions/platform-options.md#the-recommendation)
 recommends, and NN is small enough that being wrong is cheap.
 
 **Response B — take NN 2026 entries through Full On Sport, as now.** The club already has
 this route, the fee is [paid by entrants rather than the
-club](current-state.md#race-entries), and it removes the payment dependency from the
+club](../foundations/current-state.md#race-entries), and it removes the payment dependency from the
 October date completely. The club's own site becomes the shop window and the information
 source; the transaction stays where it is for one more year.
 
@@ -131,7 +131,7 @@ captures their interest.
 | **The form** | **Name and email address only** |
 | **The storage** | One table. Name, email, consent, timestamp |
 | **The confirmation** | An on-page acknowledgement. Email confirmation is not required for v1 |
-| **The hostname** | One additive CNAME at Fasthosts. See [Move 1](dns-and-domain.md#move-1--add-a-record-no-risk) |
+| **The hostname** | One additive CNAME at Fasthosts. See [Move 1](../solutions/dns-and-domain.md#move-1--add-a-record-no-risk) |
 
 ### What it must not do
 
@@ -142,7 +142,7 @@ repeating because time pressure erodes exactly these:
   burden. Date of birth, emergency contacts, England Athletics numbers and medical
   information do not, and none of them are needed to tell somebody when a race is.
 - **Must not take money.** That trips the [governance
-  gates](requirements.md#legal-and-governance) and the commercial-use terms in the same
+  gates](../foundations/requirements.md#legal-and-governance) and the commercial-use terms in the same
   step, and neither is ready in two weeks.
 - **Must not require a decision that is still open.** Anything chosen under time pressure
   should be cheap to change.
@@ -153,12 +153,12 @@ repeating because time pressure erodes exactly these:
 - **A privacy notice**, however short, and a lawful basis for holding the addresses. This
   is the first time the club collects personal data on its own infrastructure and the
   pattern set here is the one everything else copies.
-  [C10](requirements.md#c10--hold-personal-data-lawfully) applies from the first row.
+  [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) applies from the first row.
 - **A stated purpose.** "We will email you when entries open" — and nothing else, unless
   separately consented to. An interest list is not a mailing list.
 - **A way to be removed.** An address to write to is sufficient at this size.
 - **Two people with access**, from the first day. The whole point is not to build a fifth
-  system [reachable by one person](current-state.md#accounts-and-access).
+  system [reachable by one person](../foundations/current-state.md#accounts-and-access).
 
 ---
 
@@ -166,7 +166,7 @@ repeating because time pressure erodes exactly these:
 
 **Astro on Cloudflare Pages, writing to Supabase Postgres in `eu-west-2`** — the target
 recommendation from [platform
-options](platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended).
+options](../solutions/platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended).
 
 Choosing the target stack rather than the quickest one looks like it violates *"must not
 require a decision that is still open"*. It does not, and the reasoning is worth setting
@@ -188,7 +188,7 @@ one, and that is already settled by the timing platform.
 **One thing to confirm before starting:** Cloudflare **Pages** accepts a custom subdomain
 on a zone hosted elsewhere; Cloudflare **Workers custom domains** do not. While the zone
 stays at Fasthosts, this must be a Pages project. See [platform options, item
-4](platform-options.md#verify-before-deciding).
+4](../solutions/platform-options.md#verify-before-deciding).
 
 ---
 
@@ -213,11 +213,11 @@ contains all the things that go wrong in an unfamiliar deployment.
 
 | | |
 | --- | --- |
-| **Accessibility** | [WCAG 2.2 AA](requirements.md#users): semantic markup, real contrast, keyboard navigation, a form that works without JavaScript |
+| **Accessibility** | [WCAG 2.2 AA](../foundations/requirements.md#users): semantic markup, real contrast, keyboard navigation, a form that works without JavaScript |
 | **Phones on poor signal** | Static-first, small payload, no heavy client bundle. This is the club's actual audience |
 | **Test the form properly** | Duplicate submission, malformed address, empty fields, submission with JavaScript disabled |
 | **Confirm the data** | Rows are where they should be, both volunteers can read them, and a deletion request can be honoured |
-| **Write down what was done by hand** | Every account created and token issued, per the [pragmatic exception](requirements.md#everything-is-defined-as-code). This is the record a third volunteer reads |
+| **Write down what was done by hand** | Every account created and token issued, per the [pragmatic exception](../foundations/requirements.md#everything-is-defined-as-code). This is the record a third volunteer reads |
 | **Slack** | Deliberately unallocated |
 
 ### What "done" looks like
@@ -234,12 +234,12 @@ Not in the two weeks. Blocked on things that are not code.
 
 | Blocked on | Status |
 | --- | --- |
-| [Governance gates](requirements.md#legal-and-governance) — data-protection advice and treasurer-controlled payment arrangements | **Not satisfied.** Nothing about payment starts before these |
+| [Governance gates](../foundations/requirements.md#legal-and-governance) — data-protection advice and treasurer-controlled payment arrangements | **Not satisfied.** Nothing about payment starts before these |
 | A host whose terms permit payment | Settled by the hosting decision |
-| The payments decision — processor and flow | Priced in [platform options](platform-options.md#what-payments-actually-cost), not decided |
+| The payments decision — processor and flow | Priced in [platform options](../solutions/platform-options.md#what-payments-actually-cost), not decided |
 | The race date | **Unconfirmed** |
 | Entry price | Assumed £8–£10, **unconfirmed** |
-| England Athletics status pricing | Needs [C11](requirements.md#c11--verify-england-athletics-registration) or the export fallback |
+| England Athletics status pricing | Needs [C11](../foundations/requirements.md#c11--verify-england-athletics-registration) or the export fallback |
 
 **The fields an entry needs are genuinely more than a name and an email** — age bands for
 the Vet 40/50/60 categories mean date of birth, and a mass-start road race means emergency
@@ -255,12 +255,12 @@ decision should be taken on a date, by a person, not left to drift.
 
 Furthest out, and the one place where care matters more than speed.
 
-The timing platform **works** and is [race-day critical](requirements.md#risk). NN needs
+The timing platform **works** and is [race-day critical](../foundations/requirements.md#risk). NN needs
 three things from it that Pass the Buck did not:
 
 | | |
 | --- | --- |
-| **Solo format** | `events.format` already supports `solo`; the leaderboard's derivation is [relay-shaped](current-state.md#the-race-timing-platform) and needs work |
+| **Solo format** | `events.format` already supports `solo`; the leaderboard's derivation is [relay-shaped](../foundations/current-state.md#the-race-timing-platform) and needs work |
 | **Age-band categories** | Vet 40/50/60, male and female. **These do not exist** — current categories are pair-derived. This is the real build |
 | **Timezone under a clocks change** | Already pinned through a single tested path. If the race lands on 25 October it is tested for real, on the day, once |
 
@@ -280,7 +280,7 @@ quiet season, with a full race simulation, away from any race.
 | | Likelihood | Cost | Mitigation |
 | --- | --- | --- | --- |
 | The CNAME is added wrong | Low | Minutes — NN does not resolve | Delete it. Nothing existing is touched |
-| Cloudflare Pages will not serve the subdomain from Fasthosts DNS | Low | A day, and a switch to Netlify | [Confirm before starting](platform-options.md#verify-before-deciding) |
+| Cloudflare Pages will not serve the subdomain from Fasthosts DNS | Low | A day, and a switch to Netlify | [Confirm before starting](../solutions/platform-options.md#verify-before-deciding) |
 | The race date changes after the page is published | **Moderate** | An edit and an email to the interest list | Publish the date only once it is committed |
 | Payments are not ready for September | **Moderate** | Nothing, if decided early | Full On Sport for 2026 |
 | The form collects too much | Moderate | A data-protection problem the club created itself | Name and email. Nothing else. Enforce it at review |
@@ -303,7 +303,7 @@ Blocking, in order of how cheap they are to answer:
    committee decision.*
 5. **Cloudflare or Netlify?** Does not block this build — but it should be settled while
    the pressure is off. See [DNS and
-   domain](dns-and-domain.md#should-the-club-move-dns-at-all).
+   domain](../solutions/dns-and-domain.md#should-the-club-move-dns-at-all).
 
 And one that blocks nothing here but should be done in the same fortnight because it is
 free: **move the timing repository into the club organisation**, and put a second person
