@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-05
 - **Owner:** Platform volunteer
-- **Depends on:** [ADR-0010](0010-dns-delegation-to-cloudflare.md)
+- **Depends on:** [ADR-0005](0005-dns.md)
 
 ## Context
 
@@ -21,7 +21,7 @@ The hard constraint: **the apex is still served by Squarespace** and will be for
 
 ## Options
 
-### A — Subdomain: `nightingale-nightmare.southvillerunningclub.co.uk`
+### A — Subdomain: `nn.southvillerunningclub.co.uk`
 
 A new DNS record on a hostname Squarespace has never used, attached to the Worker as a
 Custom Domain. **Touches nothing that is currently live.**
@@ -50,8 +50,10 @@ wanted.
 
 ## Decision
 
-**Option C. `nightingale-nightmare.southvillerunningclub.co.uk` is the launch address and
-the canonical one.**
+**Option C. `nn.southvillerunningclub.co.uk` is the launch address and the canonical one.**
+
+Short over descriptive: it is far easier to type, print and read out than the full race
+name, and the QR code carries the discoverability that brevity costs.
 
 The path form is not foreclosed. After the apex cutover, `/nightingale-nightmare` can
 redirect to the subdomain, or — if SEO consolidation matters more by then — become
@@ -60,7 +62,7 @@ apex, and an expensive risk before.
 
 **Interim address before delegation:** the service is developed and demoed on its
 `*.workers.dev` address, which needs no DNS at all. So the build is not blocked by
-[ADR-0010](0010-dns-delegation-to-cloudflare.md) — only the public launch is.
+[ADR-0005](0005-dns.md) — only the public launch is.
 
 The same pattern applies to every other service: **its own hostname, its own Worker.**
 The timing app takes a subdomain when it ports, and the rebuilt site takes `beta.` until
@@ -71,8 +73,10 @@ it takes the apex.
 - Nightingale Nightmare can launch without the apex being touched, and without the
   Squarespace site being put at any risk.
 - Rollback for the launch is deleting one DNS record.
-- The club has to publicise a longer URL for the 2026 race. A printed QR code and a link
-  from the existing Squarespace site cover this in practice.
+- The club publicises a subdomain rather than the apex for the 2026 race. A printed QR
+  code and a link from the existing Squarespace site cover this in practice.
+- `nn.` means nothing to someone who has not seen it before. Acceptable behind a QR code
+  and a link; worth remembering when it is read aloud.
 - If Supabase Auth sessions are ever shared between services, cookie domain scoping
   becomes an explicit decision rather than an accident of same-origin. Given the timing
   app's auth model is staff-only and NN's sign-ups are public, they should **not** share

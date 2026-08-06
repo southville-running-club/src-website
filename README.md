@@ -12,15 +12,22 @@ controls entirely in code.
 **Documentation and planning only.** No application code has been written yet.
 
 **Hosting is settled: Cloudflare** ([ADR-0002](docs/adr/0002-hosting-platform.md)), on
-commercial grounds. The first piece of work is not code — it is
-[delegating DNS to Cloudflare](docs/adr/0010-dns-delegation-to-cloudflare.md), which
-blocks every club hostname that a Worker will serve.
+commercial grounds. The gating milestone is Nightingale Nightmare running on
+`nn.southvillerunningclub.co.uk` — payments follow it, and no part of Squarespace migrates
+before it.
+
+The first piece of work is not code. It is
+[delegating DNS to Cloudflare](docs/adr/0005-dns.md), because a Worker can only serve a
+club hostname if Cloudflare holds the zone. **Delegation is not migration** — records
+copied across unchanged leave Squarespace serving and mail flowing.
 
 ## Start here
 
 | If you want to know… | Read |
 | --- | --- |
 | **What happens next, and in what order** | **[Plan of attack](docs/plan-of-attack.md)** |
+| Why the club is leaving Squarespace | [ADR-0010](docs/adr/0010-leaving-squarespace.md) |
+| Why Cloudflare rather than Vercel | [ADR-0002](docs/adr/0002-hosting-platform.md) |
 | Why this exists and what "done" looks like | [Mission and goals](docs/mission-and-goals.md) |
 | The rules everything here must follow | [Foundational principles](docs/principles.md) |
 | How the pieces fit together | [Architecture](docs/architecture.md) |
@@ -40,15 +47,16 @@ Working in this repo — conventions, workflow, definition of done:
 
 ## The wider platform
 
-The website is one service among several sharing a single PostgreSQL database, so race
-information and results published here are the same records the timing app writes.
+The website is one service among several. It reads the same PostgreSQL database the timing
+app writes, so race information and results published here are the timing app's own
+records.
 
-| Service | Repository | Hosting |
-| --- | --- | --- |
-| Club website | this repository | Cloudflare |
-| Nightingale Nightmare | `admin-src/nightingale-nightmare` | Cloudflare |
-| Race timing — live, proven at Pass the Buck 2026 | `src-race-timing` | Vercel today, Cloudflare later |
-| Payments and membership | later | Stripe-hosted first |
+| Service | Repository | Hostname | Hosting |
+| --- | --- | --- | --- |
+| Club website | this repository | apex + `www`, after cutover | Cloudflare |
+| Nightingale Nightmare | `admin-src/nightingale-nightmare` | `nn.` | Cloudflare |
+| Race timing — live, proven at Pass the Buck 2026 | `src-race-timing` | `timing.`, after the port | Vercel today |
+| Payments and membership | later | Stripe-hosted first | — |
 
 Each is its own Worker on its own hostname
 ([ADR-0006](docs/adr/0006-repository-shape.md)). See

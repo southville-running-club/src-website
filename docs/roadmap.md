@@ -3,10 +3,10 @@
 Derived from the [platform proposal v8](reference/platform-proposal-v8.md), July 2026.
 Dates are the proposal's; scope here is written as delivery work.
 
-> **For sequencing, read the [plan of attack](plan-of-attack.md).** This document is the
-> proposal's five workstreams as scope. The plan of attack is how they are ordered
-> against each other after the Cloudflare decision, and it corrects the proposal in five
-> places. Where the two differ, the plan of attack is current.
+> **This document is scope; the [plan of attack](plan-of-attack.md) is order.** The five
+> workstreams below say what each piece of work involves. How they are sequenced against
+> each other — and what blocks what — lives in the plan of attack, which is the operative
+> document.
 
 This repository owns **Workstream 3** primarily, and hosts the site that workstreams 4
 and 5 attach to. Workstreams 1 and 2 belong to the timing app and are listed for
@@ -49,15 +49,15 @@ Reuses nearly all existing machinery; what is new is configuration — solo entr
 sequential bibs, and age-band categories (Vet 40/50/60, male and female), which require
 age in the entry data.
 
-**Scope has grown since the proposal.** Nightingale Nightmare is now its own service with
-its own sign-up surface on its own subdomain
-([ADR-0011](adr/0011-nightingale-nightmare-routing.md)), reusing the shared event model
-([ADR-0012](adr/0012-one-supabase-project-many-services.md)).
+Nightingale Nightmare is its own service, with its own sign-up surface on its own
+subdomain ([ADR-0011](adr/0011-nightingale-nightmare-routing.md)) and its own Supabase
+project to start with ([ADR-0012](adr/0012-one-supabase-project-many-services.md)). It
+grows in phases: sign-ups, then payments, then timing and results, then photos.
 
-**"Configuration rather than new software" is optimistic.** The
+**Timing is real work, not configuration.** The
 [timing app review](reference/timing-app-review.md) found solo genuinely modelled —
 `events.format` has carried `'solo'` since the first migration, solo bib resolution works,
-the results export branches on format — but three real gaps remain:
+the results export branches on format — but three gaps remain:
 
 - The leaderboard's derivation is relay-shaped (`handoverAt`, `splitAMs`, `splitBMs`); a
   solo mass-start needs a single-crossing finish path through the display.
@@ -67,12 +67,12 @@ the results export branches on format — but three real gaps remain:
 - Two pieces of single-event hardcoding are logged as open in the app's own decision log:
   `LOCATION_LABEL = "Ashton Court"` and race-day copy assuming an evening start.
 
-**NN 2026 is timed on Vercel**, not on a freshly-ported Cloudflare deployment — the race
-is too close to the port. See the [plan of attack](plan-of-attack.md).
+**2026 is sign-ups only**, so the timing work above is scoped separately and can be pulled
+forward if the race director wants it. Any timing that does happen in 2026 runs on Vercel,
+where the app is proven.
 
 Blocked on club answers — see [Open questions](open-questions.md), particularly the race
-date ([Q8](open-questions.md)) and the sign-up data scope
-([Q22](open-questions.md)).
+date ([Q8](open-questions.md)).
 
 ---
 
@@ -88,7 +88,7 @@ page per race drawing information and results directly from the shared database.
 1. ~~The hosting decision is settled first~~ — **settled: Cloudflare**
    ([ADR-0002](adr/0002-hosting-platform.md)).
 2. **DNS is delegated to Cloudflare first**
-   ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)). No club hostname can be served
+   ([ADR-0005](adr/0005-dns.md)). No club hostname can be served
    by a Worker until it is.
 3. The **member fund is re-homed before the apex cutover** — not merely before
    Squarespace is cancelled. The fund page lives on the Squarespace site, so the cutover
@@ -99,7 +99,7 @@ page per race drawing information and results directly from the shared database.
 
 - [x] Settle hosting ([ADR-0002](adr/0002-hosting-platform.md)) and repository shape
       ([ADR-0006](adr/0006-repository-shape.md)).
-- [ ] Delegate DNS to Cloudflare ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
+- [ ] Delegate DNS to Cloudflare ([ADR-0005](adr/0005-dns.md)).
 - [ ] Containerised local + CI environment ([ADR-0009](adr/0009-containerised-environments.md)).
 - [ ] Pipeline skeleton: lint, type check, test, build, preview deploy
       ([ADR-0008](adr/0008-github-actions-pipeline.md)).
@@ -123,7 +123,7 @@ page per race drawing information and results directly from the shared database.
 - [ ] Verify the member fund has fully moved and the treasurer has confirmed it.
 - [ ] Repoint the apex and `www` from Squarespace to the site Worker — a record change
       inside Cloudflare, reversible in seconds
-      ([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
+      ([ADR-0005](adr/0005-dns.md)).
 - [ ] Watch a week, then cancel Squarespace ahead of its next renewal.
 
 ---

@@ -89,8 +89,10 @@ a schema change proposes it there.
   ([P7](../principles.md#p7--race-day-is-safety-critical-the-website-is-not)).
 - A new contributor runs one service locally without standing up the others.
 - Database types are duplicated per service until the shared package exists. Accepted
-  knowingly; each service generates its own from the same Supabase project, so drift
-  shows up as a type error rather than silently.
+  knowingly; the website and timing app generate theirs from the same project, so drift
+  between those two shows up as a type error rather than silently. Nightingale Nightmare
+  has its own project and its own types
+  ([ADR-0012](0012-one-supabase-project-many-services.md)).
 - Three pipelines to keep current, all near-identical. Worth templating early.
 - Cross-service concerns — the schema, RLS roles, shared vocabulary — need a home. That
   home is this repository's [documentation](../), which is why the

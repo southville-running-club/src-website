@@ -8,12 +8,39 @@ struck through here with a link.
 
 ## Answered
 
-- ~~**Q1 — Hosting: Cloudflare, Vercel, or split?**~~ → **Cloudflare**, decided 5 August
-  2026 on commercial grounds. [ADR-0002](adr/0002-hosting-platform.md).
+- ~~**Q1 — Hosting: Cloudflare, Vercel, or split?**~~ → **Cloudflare**, on commercial
+  grounds. [ADR-0002](adr/0002-hosting-platform.md).
 - ~~**Q2 — Repository shape?**~~ → **One repository per service**, each its own Worker.
   [ADR-0006](adr/0006-repository-shape.md).
 - ~~**Q3 — Vercel free-tier compliance under the split option?**~~ → Moot; the split
   option was rejected, partly *because* it rested on this unconfirmed reading.
+- ~~**Q22 — What does the 2026 sign-up form collect?**~~ → **Name and email**, with
+  payments following quickly via a Stripe Payment Link.
+  [Plan of attack](plan-of-attack.md#track-b--nightingale-nightmare--the-milestone).
+- ~~**Q23 — Does Nightingale Nightmare 2026 need timing and results?**~~ → **No — sign-ups
+  only.** Timing is scoped separately and can be pulled forward if the race director wants
+  it. This is why the timing app port has no autumn deadline.
+- ~~**Which database does Nightingale Nightmare use?**~~ → **Its own Supabase project** to
+  start, converging via CSV when it publishes results.
+  [ADR-0012](adr/0012-one-supabase-project-many-services.md).
+- ~~**Website rebuild or timing port first?**~~ → **Website first**, so OpenNext's rough
+  edges are found on a content site rather than on race-critical software.
+- ~~**How much of a rethink is the website rebuild?**~~ → **Like-for-like content plus the
+  results archive** at cutover; visual redesign afterwards as its own work.
+- ~~**Is the bare domain or `www` canonical?**~~ → **`www`.** Verified 6 August 2026: the
+  bare domain 301-redirects to `https://www.southvillerunningclub.co.uk/`. Preserved
+  through the cutover.
+- ~~**What are the service hostnames?**~~ → `nn.`, `timing.`, `beta.`
+  ([ADR-0005](adr/0005-dns.md)).
+- ~~**Does the timing app take a subdomain or a path?**~~ → **Subdomain**, with a path
+  alias possible after the apex is ours. A path would put the website Worker in charge of
+  race-day routing.
+- ~~**Who can change nameservers at Fasthosts?**~~ → The platform volunteer has access. A
+  **second person still needs it** — see Q28.
+- ~~**Does the club need Cloudflare Business?**~~ → **No.** ~£1,900/yr, eight to ten times
+  the whole platform budget, and it would not enable Workers on club hostnames anyway. A
+  club-owned free account plus Workers Paid (~£48/yr) is what is needed.
+  [ADR-0002](adr/0002-hosting-platform.md).
 
 ## Blocking the website build
 
@@ -22,14 +49,22 @@ Owner: platform volunteer + committee · **Blocks: DNS delegation, which blocks 
 Confirm who holds the Fasthosts credentials, that more than one person can reach them,
 and whether the domain is registered independently or bundled with Squarespace. Then
 export the full zone for audit before anything moves
-([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)).
+([ADR-0005](adr/0005-dns.md)).
 
-**Q4b — What is in the DNS zone today, exactly?**
-Owner: platform volunteer · Blocks: DNS delegation
-Every record must be replicated, not just the website ones. `MX`, `SPF`, `DKIM`, `DMARC`,
-every `TXT`, Squarespace's verification records. Who provides club email, and through
-what? A missed record stops club email silently
-([R4c](risks.md#r4c--dns-delegation-and-club-email)).
+**Q4b — What does the `mcp` A record serve?**
+Owner: platform volunteer · Blocks: nothing; copy it verbatim meanwhile
+`mcp.southvillerunningclub.co.uk` → 213.171.195.10, in Fasthosts' IP range, purpose
+unknown. It gets replicated as-is because an unused record costs nothing and a missing one
+costs an outage — but an unexplained record in a zone the club is taking responsibility for
+should be understood before Squarespace is cancelled
+([ADR-0005](adr/0005-dns.md)).
+
+**Q28 — Which delegation approach, and who else gets Fasthosts access?**
+Owner: platform volunteer + committee · **Blocks: DNS delegation**
+Three options with their trade-offs are in
+[ADR-0013](adr/0013-delegation-approach.md), deliberately left open. Separately: the
+Fasthosts account is the rollback route, and a rollback route only one person can reach is
+not a rollback route ([R1](risks.md#r1--key-person-dependency)).
 
 **Q4c — Who owns the Cloudflare account?**
 Owner: committee · Blocks: DNS delegation
@@ -63,21 +98,12 @@ technically as well as operationally — see [R9](risks.md#r9--nightingale-night
 With roughly eleven weeks to go, every dependent decision is compressed until this lands.
 It costs nothing to answer.
 
-**Q22 — What does the 2026 sign-up form collect: expression of interest, or full entries?**
-Owner: committee · Blocks: whether data-protection advice is needed in weeks or months
-"Sign-ups and hold data" means names, dates of birth, emergency contacts, possibly EA
-numbers — the personal-entrant data that
-[P13](principles.md#p13--governance-gates-come-before-the-code-they-enable) gates on
-advice. Two honest routes: a minimal expression of interest (name and email, no DOB, no
-payment, entries still taken through the existing channel), launchable in weeks; or full
-entries, needing the privacy notice, retention policy and lawful basis in place **before
-the first record**. See the [plan of attack](plan-of-attack.md).
-
-**Q23 — Does Nightingale Nightmare 2026 need live timing and results at all?**
-Owner: race director · Blocks: how much timing-app work lands before October
-The proposal implies yes, the brief implies sign-ups first. It decides whether the three
-solo gaps — leaderboard derivation, age bands, single-event hardcoding — are October work
-or 2027 work. See the [timing app review](reference/timing-app-review.md).
+**Q29 — How soon after sign-ups do paid entries open?**
+Owner: committee + treasurer · Blocks: how urgent the governance gate is
+Payments follow the sign-up launch closely, which pulls data-protection advice and the
+treasurer's Stripe account forward from winter to now. Taking money for an entry also means
+knowing who it is for, and the prize structure needs age categories — so paid entries
+effectively require full entry data, and the name-and-email phase is short by design.
 
 **Q9 — Does entry data include date of birth?**
 Owner: committee · Blocks: age-band categories (Vet 40/50/60, male and female)
@@ -145,12 +171,21 @@ contradicts the proposal's own key-person mitigation. One administrative action
 Owner: committee · Blocks: nothing technically; a standing exposure
 The same question as Q4c and Q24, applied to every account the platform depends on.
 
-**Q26 — Does the club take Supabase Pro now that three services share one project?**
+**Q26 — Does the club take Supabase Pro for the main project?**
 Owner: committee · Blocks: the archive's backup story
-The free tier pauses after ~a week of inactivity and has no automated backups. With one
-service that was contingency; with three and a permanent public archive it starts looking
-like a decision ([R5](risks.md#r5--supabase-free-tier-pausing),
+The free tier pauses after ~a week of inactivity and has no automated backups. For a
+permanent public archive that is a decision rather than a contingency. Nightingale
+Nightmare's separate project is the more likely to pause, since a race sign-up page goes
+quiet for eleven months of the year ([R5](risks.md#r5--supabase-free-tier-pausing),
 [ADR-0012](adr/0012-one-supabase-project-many-services.md)).
+
+**Q30 — How long must the parallel-payments window stay open?**
+Owner: treasurer · Blocks: the earliest sensible date for the apex cutover
+Both payment routes run side by side while the 94 recurring payers move. The window closes
+at the apex cutover, because the old fund page lives on the Squarespace site. The escape
+hatch — redirecting the old fund path to the `*.squarespace.com` URL — means a slow payer
+need not block the website launch, but the treasurer should set the target deliberately
+rather than discover it.
 
 ## Facts to verify before figures go further than the board
 

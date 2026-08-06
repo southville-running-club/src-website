@@ -90,11 +90,17 @@ version working against the new schema, so rollback stays possible.
 
 **Zone** — a domain as managed by a DNS provider. A *full* Cloudflare zone means
 Cloudflare's nameservers are authoritative; a *partial* (CNAME) zone keeps nameservers
-elsewhere and is Business/Enterprise only.
+elsewhere and is Business/Enterprise only. Workers need a full zone.
 
 **Delegation** — pointing a domain's nameservers at a provider. Distinct from the
 **apex cutover**, which repoints the records to a new origin. The club does the first
-early and the second late; see [ADR-0010](adr/0010-dns-delegation-to-cloudflare.md).
+early and the second late; see [ADR-0005](adr/0005-dns.md).
+
+**Dual-answer window** — the period after a delegation during which both the old and new
+nameservers are authoritative for different users, because resolvers cache the delegation.
+`.co.uk` publishes it with a 48-hour TTL. Identical records make it invisible; any
+discrepancy makes it maddening. See
+[ADR-0013](adr/0013-delegation-approach.md).
 
 **Apex** — the bare domain, `southvillerunningclub.co.uk`, with no subdomain.
 

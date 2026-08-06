@@ -10,32 +10,32 @@
 One database, several services, several front doors:
 
 ```
-                    ┌──────────────────────────────────────────┐
-                    │            PostgreSQL (Supabase)          │
-                    │  events · rosters · crossings · results   │
-                    │  members · entries · content              │
-                    └───────────────▲──────────────────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        │                           │                           │
-┌───────┴────────┐        ┌─────────┴────────┐        ┌─────────┴────────┐
-│  Club website  │        │ Membership and   │        │   Timing app     │
-│  (this repo)   │        │ entry payments   │        │  (live today)    │
-│                │        │                  │        │                  │
-│ about, news,   │        │ join flow, EA    │        │ marshal capture, │
-│ sessions,      │        │ check, £2.50     │        │ live leaderboard │
-│ race pages,    │        │ fund, entry      │        │ anomaly tools,   │
-│ results archive│        │ forms            │        │ results export   │
-└────────────────┘        └──────────────────┘        └──────────────────┘
-        │                           │                           │
-        └───────────────────────────┼───────────────────────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              │                     │                     │
-        ┌─────┴─────┐        ┌──────┴──────┐      ┌───────┴───────┐
-        │  Stripe   │        │   Resend    │      │ England       │
-        │  cards    │        │   email     │      │ Athletics API │
-        └───────────┘        └─────────────┘      └───────────────┘
+        ┌──────────────────────────────────────────┐   ┌──────────────────┐
+        │       PostgreSQL — main project           │   │ PostgreSQL — NN  │
+        │  events · rosters · crossings · results   │   │  sign-ups        │
+        │  members · entries · content              │   │                  │
+        └───────────────▲──────────────────────────┘   └────────▲─────────┘
+                        │                                       │
+      ┌─────────────────┼─────────────────┐                     │  CSV export
+      │                 │                 │                     │  on convergence
+┌─────┴──────┐  ┌───────┴────────┐  ┌─────┴────────┐  ┌─────────┴────────┐
+│Club website│  │ Membership and │  │  Timing app  │  │  Nightingale     │
+│ (this repo)│  │ entry payments │  │ (live today) │  │  Nightmare       │
+│            │  │                │  │              │  │                  │
+│about, news,│  │ join flow, EA  │  │marshal capture│ │ sign-ups → pay → │
+│race pages, │  │ check, £2.50   │  │live leaderboard││ timing → photos  │
+│results     │  │ fund, entry    │  │anomaly tools, │ │                  │
+│archive     │  │ forms          │  │results export │ │                  │
+└────────────┘  └────────────────┘  └──────────────┘  └──────────────────┘
+   apex+www          Stripe-hosted        timing.              nn.
+      │                    │                  │                   │
+      └────────────────────┴──────────────────┴───────────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+        ┌─────┴─────┐       ┌──────┴──────┐     ┌───────┴───────┐
+        │  Stripe   │       │   Resend    │     │   England     │
+        │  cards    │       │   email     │     │ Athletics API │
+        └───────────┘       └─────────────┘     └───────────────┘
 ```
 
 Each additional service costs little because the expensive part — the data model and the
@@ -50,7 +50,7 @@ release cadence ([ADR-0006](adr/0006-repository-shape.md),
 | Service | Repository | Hostname | Host |
 | --- | --- | --- | --- |
 | Club website | `admin-src/src-website` | apex + `www` (after cutover) | Cloudflare |
-| Nightingale Nightmare | `admin-src/nightingale-nightmare` | `nightingale-nightmare.` | Cloudflare |
+| Nightingale Nightmare | `admin-src/nightingale-nightmare` | `nn.` | Cloudflare |
 | Race timing | `src-race-timing` | `timing.` (after port) | Vercel today |
 | Payments/membership | — later — | Stripe-hosted first | — |
 
@@ -73,11 +73,14 @@ anything that reads its tables.
 
 ### Nightingale Nightmare
 
-A solo mass-start 10 km at Halloween, built as its own service. Launches with sign-ups
-and entrant data; payments, timing and results follow. Reuses the existing event model —
-`events.format = 'solo'`, an entry being a `teams` row with one `runners` row — so its
-results land in the permanent archive automatically
-([ADR-0012](adr/0012-one-supabase-project-many-services.md)).
+A solo mass-start 10 km at Halloween, built as its own service on
+`nn.southvillerunningclub.co.uk`. It grows in phases: sign-ups (name and email), then
+payments, then timing and results, then photos.
+
+**It starts on its own Supabase project**, so a public sign-up form cannot reach
+race-critical data. When it needs results in the permanent archive, entries export to CSV
+and import through the timing app's existing roster flow — the same path Full On Sport's
+entries take today ([ADR-0012](adr/0012-one-supabase-project-many-services.md)).
 
 ### Membership and entries surface (later phases)
 
@@ -91,9 +94,9 @@ member fund moves to Stripe-hosted payment links first, needing no website at al
 | Layer | Choice | Status | Record |
 | --- | --- | --- | --- |
 | Framework | Next.js 16 (React, TypeScript) | Inherited from the timing app | [ADR-0003](adr/0003-nextjs-and-typescript.md) |
-| Database | PostgreSQL on Supabase, one project, one role per service | Accepted | [ADR-0004](adr/0004-postgres-on-supabase.md), [ADR-0012](adr/0012-one-supabase-project-many-services.md) |
+| Database | PostgreSQL on Supabase; boundaries follow trust | Accepted | [ADR-0004](adr/0004-postgres-on-supabase.md), [ADR-0012](adr/0012-one-supabase-project-many-services.md) |
 | Hosting | **Cloudflare Workers**, via `@opennextjs/cloudflare` | Accepted | [ADR-0002](adr/0002-hosting-platform.md) |
-| DNS | Registrar Fasthosts; authoritative nameservers Cloudflare | Accepted | [ADR-0010](adr/0010-dns-delegation-to-cloudflare.md) |
+| DNS | Registrar Fasthosts; authoritative nameservers Cloudflare | Accepted | [ADR-0005](adr/0005-dns.md) |
 | Repository shape | One repository per service | Accepted | [ADR-0006](adr/0006-repository-shape.md) |
 | Payments | Stripe | Proposed, gated | [ADR-0007](adr/0007-stripe-for-payments.md) |
 | Transactional email | Resend, from a verified club domain | Proposed | — |
@@ -109,23 +112,24 @@ This is what lets old and new run side by side — see the
 | Hostname | Serves | From |
 | --- | --- | --- |
 | apex + `www` | Squarespace, unchanged | today |
-| `nightingale-nightmare.` | NN Worker | after DNS delegation |
+| `nn.` | NN Worker | after DNS delegation |
 | `beta.` *(noindex)* | Rebuilt site Worker | during the rebuild |
 | `timing.` | Timing Worker, parallel to Vercel | after the port |
 | apex + `www` | **Site Worker** | at the apex cutover |
 
 ## Data ownership boundaries
 
-The database is shared, but not everything is everyone's to write:
+Two Supabase projects. The main one holds the archive; Nightingale Nightmare starts
+isolated ([ADR-0012](adr/0012-one-supabase-project-many-services.md)).
 
-| Data | Written by | Read by the website |
-| --- | --- | --- |
-| Events, rosters, crossings, results | Timing app | Yes — read-only |
-| Nightingale Nightmare sign-ups | NN service | Only aggregate/non-personal |
-| Race information (dates, distances, course, prices) | Website admin surface *(proposed)* | Yes |
-| Site content (news, sessions, pages) | Website | Yes |
-| Members, EA verification state | Membership flow | Only aggregate/non-personal |
-| Entries and payments | Entry flow / Stripe webhooks | No |
+| Data | Project | Written by | Read by the website |
+| --- | --- | --- | --- |
+| Events, rosters, crossings, results | Main | Timing app | Yes — read-only |
+| Race information (dates, distances, course, prices) | Main | Website admin surface *(proposed)* | Yes |
+| Site content (news, sessions, pages) | Main | Website | Yes |
+| Members, EA verification state | Main | Membership flow | Only aggregate/non-personal |
+| Entries and payments | Main | Entry flow / Stripe webhooks | No |
+| Nightingale Nightmare sign-ups | **NN's own** | NN service | No |
 
 **The website never writes to timing tables.** Enforced at the database level with
 row-level security and a dedicated, least-privilege role for the website

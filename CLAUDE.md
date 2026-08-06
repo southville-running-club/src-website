@@ -18,11 +18,17 @@ race-day-critical timing app**).
 service is its own repository and its own Worker
 ([ADR-0006](docs/adr/0006-repository-shape.md)).
 
+**The gating milestone is Nightingale Nightmare on `nn.southvillerunningclub.co.uk`.**
+Payments follow it; no part of Squarespace migrates before it.
+
 **The first task is not code.** DNS must be delegated to Cloudflare before any club
-hostname can be served by a Worker
-([ADR-0010](docs/adr/0010-dns-delegation-to-cloudflare.md)). Sequencing for everything
-else is in [docs/plan-of-attack.md](docs/plan-of-attack.md) — read it before proposing
-work, because the order matters more than the content here.
+hostname can be served by a Worker ([ADR-0005](docs/adr/0005-dns.md)) — the *how* is still
+an open decision ([ADR-0013](docs/adr/0013-delegation-approach.md)). Sequencing for
+everything else is in [docs/plan-of-attack.md](docs/plan-of-attack.md) — read it before
+proposing work, because the order matters more than the content here.
+
+**Never conflate delegation with migration.** Moving nameservers changes who answers DNS
+questions, not what the answers are. Squarespace keeps serving throughout.
 
 ## Read before working
 

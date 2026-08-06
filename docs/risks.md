@@ -114,23 +114,39 @@ service before committing the timing app.
 
 ## R4c — DNS delegation and club email
 
-Moving nameservers from Fasthosts to Cloudflare
-([ADR-0010](adr/0010-dns-delegation-to-cloudflare.md)) moves **all** DNS, not just the
-website. A missed `MX`, `SPF`, `DKIM` or `DMARC` record stops club email silently, and
-the rollback is slow — an NS change propagating over 24–48 hours.
+Moving nameservers to Cloudflare ([ADR-0005](adr/0005-dns.md)) moves **all** DNS, not just
+the website. Club email is forwarding-only through Fasthosts livemail, which means `MX`,
+`SPF`, four DKIM records and `_dmarc` are all load-bearing.
 
-A second, specific trap: Squarespace's `verify.squarespace.com` record **must remain
-DNS-only (grey cloud)**. Proxy it and Squarespace cannot verify the domain, which breaks
-the live site.
+**The shape of the risk is the dual-answer window.** `.co.uk` publishes the delegation with
+a 48-hour TTL, so for up to two days both nameserver sets are authoritative for different
+people simultaneously. Identical records make this invisible; any discrepancy produces the
+worst symptom in networking — some people fine, some broken, no pattern.
 
-*Mitigations:* full zone export and record-by-record audit before touching anything;
-TTLs lowered to 300 s at least 48 hours ahead; every record imported DNS-only; verify
-against Cloudflare's nameservers *before* delegating; a deliberate 72-hour watch with
-real send-and-receive email tests. Not in the week before a race.
+**The live hazard, specifically:** the MX points at `mail.southvillerunningclub.co.uk`, an
+A record inside the zone. Proxy that record and inbound mail resolves to Cloudflare, which
+does not speak SMTP. Cloudflare defaults new A records to proxied, so keeping it grey is an
+active step. A second trap: Squarespace's verification CNAME (host
+`9sw9cgfs3d8e53r2xcx5`) must also stay DNS-only, or Squarespace cannot verify the domain
+and the live site breaks.
 
-*Note the shape of this risk:* it is concentrated in the **early, invisible** step, not
-the late, visible apex cutover. The cutover is a record change we control, reversible in
-seconds.
+*Mitigations:* the pre-flight diff — Cloudflare's nameservers answer before delegation, so
+both sides can be compared record-for-record until identical, proving the change is a no-op
+before committing; copy exactly and change nothing else at the same time; keep the
+Fasthosts zone intact as the rollback; TTLs lowered to 300 s 48 hours ahead; a deliberate
+72-hour watch with real send-and-receive mail tests. Full procedure and options in
+[ADR-0013](adr/0013-delegation-approach.md).
+
+*Already in the club's favour:* **no CAA records**, so nothing blocks Cloudflare issuing
+certificates; and **DMARC at `p=none`**, so authentication problems degrade toward spam
+folders rather than outright rejection. Both remove whole categories of failure.
+
+*Rollback is slow but rarely needed.* Reverting the delegation reconverges over the same 48
+hours. But the 48 hours applies to the delegation, not the records — a missing record is
+fixed in Cloudflare in seconds and live in minutes. **The fast path is forward.**
+
+*Note the asymmetry:* this risk sits in the **early, invisible** step. The late, visible
+apex cutover is a record change we control, reversible in seconds.
 
 ---
 
@@ -140,9 +156,15 @@ The free tier pauses a project after roughly a week of inactivity and has no aut
 backups. Quiet months between races are exactly when pausing would bite a permanent
 archive.
 
-*Mitigations:* public website traffic may keep the project active for free; ~£240/yr for
-Supabase Pro is pre-approved contingency, spent only if needed. Monitoring must alert on
-approaching inactivity rather than on the archive already being down.
+**Two projects now carry this**, not one — the main project and Nightingale Nightmare's
+([ADR-0012](adr/0012-one-supabase-project-many-services.md)). Nightingale Nightmare's is
+the more likely to pause, since a race sign-up page goes quiet for eleven months of the
+year.
+
+*Mitigations:* public website traffic may keep the main project active for free; ~£240/yr
+for Supabase Pro is pre-approved contingency, spent only if needed. Monitoring must alert
+on approaching inactivity rather than on the archive already being down — a paused project
+discovered by a member trying to sign up is a failure of monitoring, not of Supabase.
 
 ---
 
@@ -218,7 +240,7 @@ service and a data-protection process into the same eleven weeks.
 Repointing `southvillerunningclub.co.uk` from Squarespace is a visible, public change
 with the potential to break every existing link and every search result.
 
-*Reduced by [ADR-0010](adr/0010-dns-delegation-to-cloudflare.md):* because delegation
+*Reduced by [ADR-0005](adr/0005-dns.md):* because delegation
 happens months earlier, by cutover time the club controls the records and their TTLs, and
 rollback is a record change taking seconds rather than an NS change taking days.
 

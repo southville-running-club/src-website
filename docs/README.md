@@ -8,8 +8,8 @@ Everything that explains why this repository is the way it is.
    "done" looks like.
 2. **[Foundational principles](principles.md)** — the fourteen rules everything here is
    held to. If you read one document, read this one.
-3. **[Plan of attack](plan-of-attack.md)** — what happens next, in what order, and the
-   five places it corrects the proposal.
+3. **[Plan of attack](plan-of-attack.md)** — what happens next, in what order, and what
+   blocks what. The operative document.
 4. **[Architecture](architecture.md)** — one database, several services, several front
    doors.
 5. **[Delivery and environments](delivery-and-environments.md)** — the four environments
