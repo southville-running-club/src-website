@@ -15,10 +15,18 @@ This document is the baseline any option has to improve on.
 
 **Southville Running Club**, Bristol. Volunteer-run.
 
-**Pass the Buck** — a two-person relay at Ashton Court. Roughly 100 teams. A single
-physical line acts as start, handover and finish. Priced by England Athletics registration
-status: £8 per registered runner, £10 per non-registered, paid as one transaction per team
-(£16, £18 or £20). Last run 8 July 2026.
+**Pass the Buck** — a two-person team relay around the Ashton Court Estate. Each runner
+runs a 5 km lap; the team must complete 10 km inside a **1 hour 20 minute cut-off**. Winners
+are the pair with the lowest combined time. **Maximum 100 teams.** Race HQ at Ashton Park
+School, start at Ashton Court Mansion. A single physical line acts as start, handover and
+finish. Priced by England Athletics registration status: £8 per registered runner, £10 per
+non-registered, paid as one transaction per team (£16, £18 or £20). Last run 8 July 2026.
+
+**Nine prize categories**, which the results logic has to satisfy: 1st and 2nd male pair,
+1st and 2nd female pair, 1st and 2nd mixed pair, the pair whose times are closest together,
+the pair with the biggest time difference, fastest male and fastest female (each excluding
+anyone who has already won). No dogs on the course. Visually impaired runners are accepted
+with a guide, in mixed VI / non-VI teams.
 
 **Nightingale Nightmare** — a solo mass-start 10 km at Halloween. One runner per entry,
 one gun, one finish crossing each. Age-band categories (Vet 40/50/60, male and female).
@@ -33,7 +41,8 @@ membership secretary and committee hold the non-technical responsibilities.
 
 ## The website
 
-Runs on **Squarespace** at `southvillerunningclub.co.uk`.
+Runs on **Squarespace** at `southvillerunningclub.co.uk`. Built from scratch by the Web
+Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
 
 - **`www` is canonical.** Verified 6 August 2026: the bare domain returns a 301 to
   `https://www.southvillerunningclub.co.uk/`.
@@ -42,6 +51,62 @@ Runs on **Squarespace** at `southvillerunningclub.co.uk`.
 - **Renewal is in April.** The exact date is not yet established.
 - Any committee member can edit a page visually. This is the club's current editing model.
 - Race results are published by hand, in a format carried over from the previous year.
+- **Squarespace commerce is enabled** — the site has a cart, a checkout, customer accounts
+  and a login.
+
+### What is actually on it
+
+**60 URLs**, from the sitemap, 6 August 2026. Far more than a brochure site.
+
+| Area | Pages | Notes |
+| --- | --- | --- |
+| **Newsletters** | **33**, October 2023 – July 2026 | Monthly, individually addressed under `/news-letters/` |
+| **Club documents** | ~45 linked documents | Constitution, inclusion, health and safety, risk assessment, disciplinary and grievance, welfare, safeguarding, codes of conduct, plus **~35 sets of AGM and QGM minutes back to 2015** |
+| **Membership** | 5 pages | Information, new members, renew, cancel, payment page |
+| **Runner information** | 5 pages | New runners, FAQ, running terminology, groups (with a pace guide), kit |
+| **Events** | 4 pages | Pass the Buck, results 2025, results 2026, Summer Party 2026 |
+| **Store** | 3 pages | Squarespace commerce — a Tickets category, currently a £6.00 Summer Party ticket |
+| **Community** | 3 pages | WhatsApp community, SRC committee, about us |
+| **Policies** | 3 pages | Privacy policy, code of conduct, disciplinary policy |
+
+Content that will need somewhere to live, beyond pages: a **member discount directory**
+(around a dozen local businesses with negotiated rates), a **pace guide** mapping paces to
+5K/half/marathon times, a **kit catalogue** with descriptions, prices and a live stock list,
+a **12-point WhatsApp code of conduct**, and a **mailing list** subscription.
+
+**Forms currently in use:** new member, cancel membership, and WhatsApp community join.
+
+**Race photographs are not on the site** — the 2026 results page directs people to
+Facebook.
+
+---
+
+## The club
+
+Founded 2007. **Southville Running Club Limited** — a limited company, with Articles of
+Association filed at Companies House.
+
+Sessions every **Tuesday and Thursday**, 6:00pm for a 6:15pm start, at the Southbank Club,
+Dean Lane, BS3 1DB. **50p per run**, covering room hire. Open to anyone 18+; membership is
+not required to run. Hi-viz is mandatory from October until the clocks go forward.
+
+**Committee and volunteers**, from the site:
+
+| Role | |
+| --- | --- |
+| Co-Chairs | Kayleigh Doherty, Liam Coleman |
+| Club Secretary | Amy Webb |
+| **Treasurer** | Dave Unsworth |
+| **Membership Officer** | Bindal Shah |
+| **Web Manager** | Mark Chesser |
+| Co Club Captains | Sophie Patten, Laura Pease |
+| Quarter Master | Robin Nash |
+| Welfare | Nicholas Mimmack (lead), Clara K |
+| Committee Member | Sam Blanning |
+
+**Who builds the platform:** two people. The Web Manager built the current website and
+holds Fasthosts access; the Membership Officer built the race-timing system. The rebuild is
+a joint effort.
 
 ---
 
@@ -138,10 +203,23 @@ import currently works around.
 
 ---
 
-## Membership
+## Membership and money — three separate things
 
-Members pay **£2.50** into a Squarespace donation fund ('Monthly running fee', created
-October 2024), in place of 50p cash at sessions.
+These are routinely conflated, including in the platform proposal. The site is explicit
+that they are distinct, and the distinction matters for any design.
+
+### 1. Session fees — 50p per run
+
+Charged per run, covering room hire at the Southbank Club. Payable in cash on the night.
+
+### 2. The £2.50 monthly subscription — **not membership**
+
+An alternative to bringing cash: £2.50 a month for as many sessions as you like. Set up as a
+Squarespace donation fund ('Monthly running fee', October 2024).
+
+The site states plainly: *"This £2.50 monthly subscription does not confer membership of the
+Club. It is open to members and non-members alike, and can be stopped and started as often
+as you wish without any commitment."* Payments are non-refundable and non-transferable.
 
 - **94 active recurring payers**, every one at exactly £2.50 — roughly **£2,820 a year**.
 - Processing fees roughly **£340–£450 a year**, all absorbed by the club.
@@ -150,8 +228,25 @@ October 2024), in place of 50p cash at sessions.
   club Stripe account or Squarespace's own processor is not established; the club only ever
   provided a bank account for deposits.
 
-England Athletics registration is not currently verified at the point of joining. The
-membership secretary holds the club's member list in the EA myAthletics portal.
+> **The 94 payers are not necessarily members**, and members are not necessarily among
+> them. Anything that treats "the member fund" as a membership list will be wrong.
+
+### 3. SRC membership — £4 a year
+
+Confers membership: the WhatsApp community, and discounts at around a dozen local
+businesses. Optional — you do not need it to run with the club.
+
+An **England Athletics Competition Licence** can be bought alongside at **£23 a year**
+(the site also quotes £24 for the combined total and a £20 renewal fee — **the figures on
+the site are inconsistent** and should be reconciled). It gives discounted race entry, and
+club policy is not to issue one without SRC membership first. Renewals fall due in April.
+
+**Renewals do not happen on the club site** — members are directed to the England
+Athletics portal, or to email the Membership Officer. New memberships and cancellations are
+web forms.
+
+England Athletics registration is not verified at the point of joining. The Membership
+Officer holds the club's member list in the EA myAthletics portal.
 
 ---
 

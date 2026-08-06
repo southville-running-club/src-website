@@ -13,8 +13,12 @@ Baseline facts are in [current state](current-state.md).
 
 ## Capabilities
 
-Ten things the platform must do. Each says what it is, what makes it harder than it looks,
-and how the club would know it works.
+What the platform must do. Each says what it is, what makes it harder than it looks, and
+how the club would know it works.
+
+**Derived from what the current site actually does**, not from what a club website is
+assumed to need — see [current state](current-state.md#what-is-actually-on-it). Several of
+these were missing from earlier drafts because the site was never inventoried.
 
 ### C1 — Publish club information publicly
 
@@ -51,19 +55,23 @@ club's, with no import step.
 
 ### C4 — Take payments
 
-Two different problems that need not share an answer:
+**Four** distinct money flows, not one. They need not share an answer.
 
-- **Recurring membership** — small (£2.50), high-volume, long-lived, 94 existing mandates
-  that cannot be transferred and must be re-established individually.
-- **One-off race entries** — larger, from non-members, at the moment of entry, priced by
-  England Athletics status.
+| Flow | Shape | Today |
+| --- | --- | --- |
+| **Session subscription** — £2.50/month | Small, recurring, cancellable at will, **open to non-members** | Squarespace donation fund, 94 payers |
+| **SRC membership** — £4/year | Annual, confers benefits, tied to an identity | Not taken online; forms plus the EA portal |
+| **Race entries** — £8–£10 per runner | One-off, from non-members, priced by EA status | A third-party entry platform |
+| **Merchandise and tickets** | Occasional, physical or admission, needs stock and sizes | Squarespace commerce; kit via an external link |
 
-*Harder than it looks:* fixed per-transaction fees dominate small payments — the difference
-between monthly and annual membership pricing matters more than the choice of processor.
-Card data must never touch club systems. The treasurer must be able to reconcile.
+*Harder than it looks:* the £2.50 subscription **is not membership** and its payers are not
+a membership list — conflating them will produce a wrong data model. Fixed per-transaction
+fees dominate small payments, so the difference between monthly and annual pricing matters
+more than the choice of processor. Card data must never touch club systems. The treasurer
+must be able to reconcile all four flows.
 
-*Done when:* money arrives in a club account under treasurer oversight, reconcilable
-against members and entrants, with a written refund policy behind it.
+*Done when:* money arrives in a club account under treasurer oversight, reconcilable against
+members, subscribers, entrants and buyers, with a written refund policy behind it.
 
 ### C5 — Capture race timing data, tolerant of no signal
 
@@ -135,10 +143,83 @@ Confirm a runner's URN against their name and status, to price entries correctly
 gate membership.
 
 *Harder than it looks:* depends on an external body's agreement and lead time. Needs a
-fallback that works without it.
+fallback that works without it. Club policy also requires SRC membership before an EA
+licence is issued, so the two are ordered.
 
 *Done when:* an entry is priced correctly from a verified registration status, or from a
 recent club member list if the interface is unavailable.
+
+### C12 — Maintain membership records
+
+Who is a member, when they joined, whether they are current, when they lapse. Distinct from
+taking their money and distinct from the £2.50 subscription list.
+
+*Harder than it looks:* the authoritative record currently lives in **England Athletics'
+portal**, not the club's systems, and renewals happen there. Joining and cancelling are web
+forms handled by hand. Membership confers the WhatsApp community and the discount scheme,
+so "is this person current?" is a question the platform must be able to answer.
+
+*Done when:* the Membership Officer can answer who is current without cross-referencing
+three systems.
+
+### C13 — Gate the members' community
+
+Membership entitles someone to the WhatsApp community. Entry requires current membership, a
+form, and agreement to a 12-point code of conduct.
+
+*Harder than it looks:* the gate is only as strong as the invite link, and messaging
+platforms do not expose membership management. Any enforcement is ours, not theirs — and
+should be described honestly rather than as if it were airtight.
+
+*Done when:* joining is a single flow from paid membership to being in the group, and
+leaving membership can be reflected.
+
+### C14 — Publish newsletters and club documents
+
+**33 newsletters** since October 2023, and around **45 governance documents** including the
+constitution, policies, and **~35 sets of AGM and QGM minutes going back to 2015**.
+
+*Harder than it looks:* this is the largest body of content on the site by volume, it is a
+limited company's public record, and some of it has legal weight. It is also almost entirely
+static, which makes it cheap to serve and awkward to lose. Every existing URL needs to keep
+working.
+
+*Done when:* every newsletter and document is reachable at a stable URL, and adding a new
+one does not require a developer.
+
+### C15 — Sell merchandise and tickets
+
+Club kit — buffs, t-shirts, vests, hi-viz variants — ordered in seasonal batches two or
+three times a year, with sizes, a buy-back policy, a small held stock, and collection from a
+local shop. Plus tickets to social events.
+
+*Harder than it looks:* kit ordering currently runs through an external link with stock
+tracked by hand on a page. Sizes and variants make this a real catalogue, not a button.
+Whether the club wants to keep running this itself is a genuine question.
+
+*Done when:* an order can be placed, paid for and fulfilled without the Quarter Master
+maintaining a spreadsheet — or, if the club prefers, the external arrangement is documented
+as a deliberate choice.
+
+### C16 — Publish member benefits
+
+A directory of around a dozen local businesses offering negotiated rates to members.
+
+*Harder than it looks:* it changes as deals come and go, which makes it exactly the sort of
+content the committee will want to edit without a developer.
+
+*Done when:* the Membership Officer can add or amend a discount unaided.
+
+### C17 — Collect form submissions
+
+New member, cancel membership, WhatsApp community join, mailing-list subscription, and
+whatever comes next.
+
+*Harder than it looks:* every one of these collects personal data, so C10 applies. They are
+also the club's main inbound channel and the thing most likely to be quietly broken by a
+migration.
+
+*Done when:* submissions reach the right officer reliably, and are retained to the policy.
 
 ---
 
@@ -159,12 +240,22 @@ are architectural facts, not fine print.
 
 ### People
 
-**One volunteer builds and maintains everything**, with a day job. A second volunteer must
-be able to pick it up cold.
+**Two volunteers build and maintain the platform**, both with day jobs — the Web Manager
+(who built the current site and holds domain and DNS access) and the Membership Officer
+(who built the race-timing system). Knowledge and access are currently **split** between
+them rather than shared.
 
-This makes "boring" a hard requirement rather than a preference. Mainstream, well
-documented, widely known beats optimal. Every unusual choice is a tax on somebody who has
-not been hired.
+Two is materially better than one, and it changes what is affordable: some operational
+burden is now bearable, and there is somebody to review a change. It does not remove the
+constraint. Both have day jobs, the club is a volunteer organisation, and a third person
+must be able to pick this up cold.
+
+So "boring" stays a hard requirement rather than a preference. Mainstream, well documented,
+widely known beats optimal. Every unusual choice is a tax on somebody who has not been
+hired.
+
+**The split is itself a risk.** Access to each critical system currently sits with one
+person, so the club has two single points of failure rather than one shared capability.
 
 ### Time
 
@@ -199,11 +290,17 @@ This is a first-class criterion, not an afterthought. It is what makes a vendor 
 reversible rather than permanent, and it is how a small club stays safe while depending on
 free tiers.
 
-### Compatibility with what exists
+### Convergence
 
-The timing platform is written in a specific framework against a specific data model. That
-is not immovable, but changing it costs real volunteer time and re-opens proven, race-tested
-code. Divergence should be a deliberate decision with a stated benefit, not a side effect.
+**The end state is one platform.** The race-timing system, Nightingale Nightmare and the
+club website are intended to merge — one place, not three things that happen to share a
+club. This is a stated goal, not merely an option, and it means any interim arrangement
+should be judged partly on how cheaply it converges later.
+
+The timing platform functions well but currently sits on its own hosting and its own
+database. Its framework and data model are the incumbent; changing them costs real volunteer
+time and re-opens proven, race-tested code. Divergence should be a deliberate decision with
+a stated benefit, not a side effect.
 
 ### Users
 
