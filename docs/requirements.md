@@ -223,16 +223,80 @@ migration.
 
 ---
 
+### C18 — Reduce manual work
+
+Every process in the club's [manual-process
+list](current-state.md#manual-processes) that a system could do instead: validating a
+WhatsApp request against membership, processing joiners and leavers, publishing results,
+importing entries, mirroring newsletters, reconciling payments.
+
+*Harder than it looks:* automating a process means encoding a rule somebody currently
+applies by judgement, so each one has to be pinned down before it can be automated. Some
+should not be — a human check on a new member may be the point rather than the overhead.
+
+*Done when:* the Membership Officer is not cross-referencing systems by hand, and the
+newsletter archive stops drifting.
+
+**This is where most of the value is.** The subscription fee is the visible cost; volunteer
+time is the larger one, and it appears on no invoice. See
+[problem statement](problem-statement.md#3--volunteers-are-doing-work-the-system-should-do).
+
+---
+
 ## Constraints
 
 These bound *how* the capabilities may be met. They are why the obvious answer is often
 wrong here.
 
+### Everything is defined as code
+
+**This is a foundational requirement, not an implementation preference.** The platform's
+infrastructure, configuration, schema and deployment are defined in version control and
+changed by a reviewed commit.
+
+It is what the club is actually buying. The current site's state lives in a browser session:
+no history of what changed, no review before it goes live, no rollback, and no way for a
+second person to see what the first did. Recreating that on different technology would gain
+the club almost nothing.
+
+What follows from it:
+
+- **Reviewable** — a change is proposed, seen by the other volunteer, and merged. Shared
+  ownership is a property of the workflow, not a promise.
+- **Testable** — if it is code, it can be tested, and a change can be verified before it
+  reaches members.
+- **Reversible** — every change has a previous state to return to.
+- **Reusable** — patterns established once serve the website, Nightingale Nightmare and the
+  timing platform rather than being solved three times.
+- **Legible to tooling** — a codebase with its decisions written down is one that automated
+  assistance can work in productively, which is how two volunteers with day jobs cover more
+  ground than two volunteers otherwise would.
+- **Decisions are documented** — see the [decision log](decision-log.md).
+
+A pragmatic exception, stated so it does not become a slow leak: **a small amount of manual
+setup is accepted** — creating an account, issuing an API token, a registrar action that has
+no interface. Where that happens it is documented in the repository: what was done, why, by
+whom, and how to redo it. Anything routinely done by clicking is a gap to close, not a way
+of working.
+
+### Shared ownership
+
+**No system may be reachable by only one person.**
+
+Today four are: the domain, DNS and email sit with one volunteer; the database, hosting and
+England Athletics record sit with the other. Neither can cover for the other, and the club
+cannot reach either without them.
+
+This is a requirement on *how* things are set up, not only on who holds passwords: club-owned
+accounts rather than personal ones, code in the club's organisation rather than an
+individual's, and access granted by role.
+
 ### Money
 
-The club's platform spend is measured in **tens of pounds a year, not hundreds**. Today's
-club-borne total is ~£510–£890 including payment fees. Anything that adds a recurring
-three-figure line needs to displace more than it costs.
+The club's platform spend is measured in **tens of pounds a year, not hundreds**. Today it
+pays **£204** for the website and **£15.40** for the domain and DNS, plus payment fees on
+every transaction. Anything that adds a recurring three-figure line needs to displace more
+than it costs.
 
 This is the constraint that eliminates most of the enterprise-shaped answers. It also means
 free tiers are load-bearing, so their *terms* — commercial use, inactivity, retention —

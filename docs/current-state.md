@@ -46,8 +46,12 @@ Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
 
 - **`www` is canonical.** Verified 6 August 2026: the bare domain returns a 301 to
   `https://www.southvillerunningclub.co.uk/`.
-- Cost: **£170–£420 a year** depending on plan. The proposal marks this "read off invoice"
-  — the actual figure is unverified.
+- Cost: **£204 a year.**
+- **The club is on the middle tier and cannot drop below it** — that tier is what permits
+  taking payments. The club is buying commerce capability and paying for a website plan to
+  get it.
+- **Squarespace takes a fee on every payment, on top of the card processing fee.** This
+  applies to the £2.50 running-fee subscription and to event payments.
 - **Renewal is in April.** The exact date is not yet established.
 - Any committee member can edit a page visually. This is the club's current editing model.
 - Race results are published by hand, in a format carried over from the previous year.
@@ -60,7 +64,7 @@ Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
 
 | Area | Pages | Notes |
 | --- | --- | --- |
-| **Newsletters** | **33**, October 2023 – July 2026 | Monthly, individually addressed under `/news-letters/` |
+| **Newsletters** | **33**, October 2023 – July 2026 | Monthly. **Authored and sent in Mailchimp**, then mirrored onto the site by hand under `/news-letters/` |
 | **Club documents** | ~45 linked documents | Constitution, inclusion, health and safety, risk assessment, disciplinary and grievance, welfare, safeguarding, codes of conduct, plus **~35 sets of AGM and QGM minutes back to 2015** |
 | **Membership** | 5 pages | Information, new members, renew, cancel, payment page |
 | **Runner information** | 5 pages | New runners, FAQ, running terminology, groups (with a pace guide), kit |
@@ -125,7 +129,7 @@ The zone holds **18 records**, captured 6 August 2026:
 | A | `mailserver` | 213.171.216.40 | Fasthosts livemail |
 | A | `smtp` | 213.171.216.50 | Fasthosts outbound |
 | A | `webmail` | 213.171.216.231 | Fasthosts webmail |
-| A | `mcp` | 213.171.195.10 | **Purpose unknown** |
+| A | `mcp` | 213.171.195.10 | Unrelated to the club site — an AI Model Context Protocol endpoint |
 | CNAME | `www` | `ext-cust.squarespace.com` | Squarespace |
 | CNAME | `9sw9cgfs3d8e53r2xcx5` | `verify.squarespace.com` | Squarespace domain verification |
 | CNAME | `livemail1._domainkey` | `…366995.dkim.livemail.co.uk` | DKIM |
@@ -138,16 +142,19 @@ The zone holds **18 records**, captured 6 August 2026:
 
 No CAA records. No AAAA records. No ALIAS or SRV records.
 
+Cost: **£15.40 a year** for the domain and DNS.
+
 **Facts worth noting because they constrain later choices:**
 
-- **Email is forwarding-only**, through Fasthosts livemail.
+- **Email is forwarding-only**, through Fasthosts livemail, **forwarding to Gmail
+  accounts**. There are addresses on the domain (the Membership Officer publishes one), but
+  no mailboxes the club hosts.
 - **The MX points at a hostname inside the zone**, so `mail`'s A record is load-bearing for
   all inbound mail.
 - **DMARC is `p=none`** — monitoring, no enforcement. Authentication failures degrade
   toward spam folders rather than causing rejection.
 - **Two records carry a Fasthosts "manually changed / restore automatic updates" prompt.**
   Restoring the apex would repoint it at 88.208.252.9, Fasthosts' own web hosting.
-- **The `mcp` record's purpose is unknown.**
 - Whether Fasthosts or Squarespace holds the **registration** is not established.
 
 ---
@@ -236,10 +243,14 @@ as you wish without any commitment."* Payments are non-refundable and non-transf
 Confers membership: the WhatsApp community, and discounts at around a dozen local
 businesses. Optional — you do not need it to run with the club.
 
-An **England Athletics Competition Licence** can be bought alongside at **£23 a year**
-(the site also quotes £24 for the combined total and a £20 renewal fee — **the figures on
-the site are inconsistent** and should be reconciled). It gives discounted race entry, and
-club policy is not to issue one without SRC membership first. Renewals fall due in April.
+An **England Athletics athlete registration** can be bought alongside. England Athletics'
+published fee for 2026–27 is **£23 a year**, renewable by 30 June; club affiliation is £210
+from April 2026. So SRC membership plus EA registration is **£27**.
+
+The site quotes £23 in one place, £24 for the combined total in another, and a £20 renewal
+fee in a third — **the figures on the site are stale and inconsistent**, and appear to
+predate EA's increase. Club policy is not to issue an EA registration without SRC
+membership first.
 
 **Renewals do not happen on the club site** — members are directed to the England
 Athletics portal, or to email the Membership Officer. New memberships and cancellations are
@@ -268,16 +279,47 @@ actual invoices.
 
 ## Accounts and access
 
-Not fully established, and material to any decision about resilience:
-
-| Asset | Who holds it |
+| Asset | Who can reach it |
 | --- | --- |
-| Fasthosts (domain, DNS, email) | The platform volunteer has access; whether anyone else does is unconfirmed |
-| Squarespace | Unconfirmed |
-| The connected payment account | **Unconfirmed** — set up informally |
-| Supabase project | Unconfirmed |
-| Vercel account | Unconfirmed |
+| **Fasthosts** — domain, DNS, email forwarding | **Web Manager only** |
+| **Supabase** — the platform database and results archive | **Membership Officer only** |
+| **Vercel** — the timing platform's hosting | **Membership Officer only** |
+| **England Athletics portal** — the membership record | **Membership Officer only** |
+| Squarespace | Several people, with varying roles |
+| Stripe | Treasurer, and the Membership Officer |
 | `src-race-timing` repository | A personal GitHub account |
+| GitHub organisation | Created under a club account, `srcdmin@gmail.com` *(the typo is in the address itself)* |
+| The payment account connected under Squarespace | **Unconfirmed** — set up informally |
+
+**Four systems are reachable by exactly one person each**, and the two volunteers cannot
+cover for one another: the domain, DNS and email sit with one; the database, hosting and
+membership record sit with the other.
+
+A GitHub organisation exists under the club-owned `srcdmin@gmail.com` account. The intended
+shape is a repository for the website core, with separate repositories for the timing app
+and Nightingale Nightmare — not fixed.
+
+---
+
+## Manual processes
+
+Work volunteers do that the systems do not. This is the largest cost in the current
+arrangement and it appears on no invoice.
+
+| Process | Who | How it works today |
+| --- | --- | --- |
+| WhatsApp community joining | Membership Officer | Form submission, then **checked by hand against the membership records** |
+| New memberships | Membership Officer | Web form, processed manually |
+| Cancellations | Membership Officer | Web form, processed manually |
+| Membership renewal | Members | **In the England Athletics portal**, not the club's systems |
+| Race results publication | Web Manager | **Re-keyed** from the timing system onto a page |
+| Race entries | Race organisers | CSV export from the entry platform, imported, data-quality problems worked around |
+| Kit orders | Quarter Master | External ordering link; stock tracked by hand on a page |
+| Newsletters | Committee | Written in **Mailchimp**, then mirrored onto the site by hand |
+| Ticket and running-fee reconciliation | Treasurer | Manual |
+
+**Newsletters are not being kept up to date**, which the club attributes to the manual
+mirroring step.
 
 ---
 

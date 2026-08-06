@@ -16,6 +16,7 @@ deliberate.
 
 | Read this | For |
 | --- | --- |
+| [Problem statement](docs/problem-statement.md) | **Why this is happening at all** |
 | [Current state](docs/current-state.md) | What exists today, as fact. The baseline any option has to beat |
 | [Requirements](docs/requirements.md) | The eleven capabilities the platform must provide, and what bounds how |
 | [Options](docs/options.md) | The solution space per capability, and the criteria to judge by |
@@ -38,15 +39,20 @@ leaderboard, published results. Everything else is about building around it.
 
 Four things need to change:
 
-- The **website** is on a platform the club cannot version, review or roll back, and which
-  cannot reach the timing data. So results are published by hand.
-- **Race entries** go through a third party at 8–10%, and arrive as a CSV to import.
-- **Membership payments** run through the website platform, costing the club £340–£450 a
-  year in fees on £2,820 of income.
+- The **website** costs £204 a year, sits on the middle tier only because that is what
+  permits payments, cannot be versioned or rolled back, and cannot reach the timing data —
+  so results are typed out by hand.
+- **Volunteers do the joining-up**: WhatsApp requests checked against membership by hand,
+  joiners and leavers processed manually, entries imported from CSV, newsletters mirrored
+  from Mailchimp. This is the largest cost and it appears on no invoice.
+- **Four systems are reachable by one person each**, and the two volunteers cannot cover for
+  one another.
 - **Nightingale Nightmare** has no online presence at all.
 
-And one constraint shapes every answer: **one volunteer builds and maintains all of it.**
-That makes boring, well-documented and easy-to-leave worth more than optimal.
+Two constraints shape every answer: **two volunteers with day jobs build and maintain all of
+it**, so boring and easy-to-leave beats optimal; and **everything is defined as code**, so
+that ownership is shared, changes are reviewable and reversible, and a third person can pick
+it up.
 
 ## Two fixed dates
 
