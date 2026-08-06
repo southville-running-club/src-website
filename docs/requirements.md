@@ -176,30 +176,48 @@ leaving membership can be reflected.
 
 ### C14 — Publish newsletters and club documents
 
-**33 newsletters** since October 2023, and around **45 governance documents** including the
-constitution, policies, and **~35 sets of AGM and QGM minutes going back to 2015**.
+**34 newsletters** since October 2023, and **29 documents** — the constitution, policies,
+and AGM/QGM minutes running back to August 2015.
 
-*Harder than it looks:* this is the largest body of content on the site by volume, it is a
-limited company's public record, and some of it has legal weight. It is also almost entirely
-static, which makes it cheap to serve and awkward to lose. Every existing URL needs to keep
-working.
+**Newsletters stay in Mailchimp.** The committee writes and sends there, and that does not
+change. What changes is the mirroring: the site pulls the archive automatically instead of
+somebody copying each one across by hand. That single change removes a manual process the
+club is already failing to keep up with.
 
-*Done when:* every newsletter and document is reachable at a stable URL, and adding a new
-one does not require a developer.
+**Documents move onto the new site**, hosted by the club rather than on a platform's CDN.
+Keep it simple to begin with — public, as they are now — with a members-only area available
+later if the committee decides some should be restricted.
+
+*Harder than it looks:* the archive is split across two providers — most documents are PDFs
+on Squarespace's CDN, but **seven are on Google Drive**, outside club control. It is also a
+limited company's public record, so losing part of it in a migration is a governance
+problem, not just a broken link.
+
+*Done when:* the newsletter archive updates itself, every document is held by the club at a
+stable URL, and adding a document does not require a developer.
+
+See [existing site inventory](reference/existing-site.md).
 
 ### C15 — Sell merchandise and tickets
 
-Club kit — buffs, t-shirts, vests, hi-viz variants — ordered in seasonal batches two or
-three times a year, with sizes, a buy-back policy, a small held stock, and collection from a
-local shop. Plus tickets to social events.
+**Both are in scope to rebuild.**
 
-*Harder than it looks:* kit ordering currently runs through an external link with stock
-tracked by hand on a page. Sizes and variants make this a real catalogue, not a button.
-Whether the club wants to keep running this itself is a genuine question.
+**Kit** — seven items (buffs, t-shirts, vests, hi-viz variants) with sizes, male and female
+cuts, prices, a buy-back policy and a held stock. Ordered in seasonal batches two or three
+times a year, currently through an external link with **stock tracked by hand in a table on
+a page**, and collected from a local shop.
+
+**Tickets** — Summer and Christmas parties. Currently Squarespace commerce, with a cart,
+checkout and customer accounts.
+
+*Harder than it looks:* this is the largest single piece of build in the website. Sizes and
+variants make kit a real catalogue rather than a button; batch ordering is not the same
+shape as continuous stock; and both need fulfilment tracking, not just payment. It also
+brings customer accounts and order history with it, which is state the current site holds
+and a rebuild must either carry over or deliberately abandon.
 
 *Done when:* an order can be placed, paid for and fulfilled without the Quarter Master
-maintaining a spreadsheet — or, if the club prefers, the external arrangement is documented
-as a deliberate choice.
+maintaining a table by hand, and a party ticket can be bought without Squarespace.
 
 ### C16 — Publish member benefits
 
@@ -336,6 +354,15 @@ justifies treating anything that touches race day differently from everything el
 
 **The results archive is permanent.** Whatever holds it must not sleep, expire, or lose data
 without a restorable backup. A URL published in 2026 should resolve in 2036.
+
+**The old site runs until the club is satisfied with the new one.** They coexist; there is
+no big-bang switchover. That is a constraint on how the replacement is built and addressed,
+not merely a rollback plan.
+
+**Nothing may be lost in the move.** Every image, document and newsletter currently on the
+site is held on a platform CDN — cancelling the subscription deletes them. Retrieving the
+lot while the subscription is live is a prerequisite, not a cleanup task. See the
+[existing site inventory](reference/existing-site.md#what-the-site-depends-on).
 
 ### Legal and governance
 
