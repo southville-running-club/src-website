@@ -239,7 +239,7 @@ newsletter archive stops drifting.
 
 **This is where most of the value is.** The subscription fee is the visible cost; volunteer
 time is the larger one, and it appears on no invoice. See
-[problem statement](problem-statement.md#3--volunteers-are-doing-work-the-system-should-do).
+[problem statement](problem-statement.md#3-volunteers-are-doing-work-the-system-should-do).
 
 ---
 
