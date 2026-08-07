@@ -239,6 +239,20 @@ The zone holds **18 records**, captured 6 August 2026:
 
 No CAA records. No AAAA records. No ALIAS or SRV records.
 
+**Verified by direct query against the authoritative nameservers, 7 August 2026:**
+
+| | |
+| --- | --- |
+| Nameservers | `ns1`, `ns2`, `ns3.livedns.co.uk` |
+| **DNSSEC** | **Not enabled** — no `DS` at the registry, no `DNSKEY` |
+| **CAA** | **None** |
+| **Record TTL** | **3600 seconds, uniform across every record** |
+| **Registry delegation TTL** | **172,800 seconds — 48 hours.** Not under the club's control |
+| SOA negative cache | 3600 |
+| SOA contact | `admin@southvillerunningclub.co.uk` |
+| Undocumented records | **None found** in a fifteen-host probe |
+| Zone transfer | Refused |
+
 Cost: **£15.40 a year** for the domain and DNS.
 
 **Facts worth noting because they constrain later choices:**

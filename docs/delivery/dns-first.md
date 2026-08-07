@@ -95,6 +95,162 @@ understands which authorities it needs to permit.
 
 ---
 
+## The zone, as measured
+
+Queried directly against the authoritative nameservers on **7 August 2026**. These are
+facts, not the record list transcribed from a control panel.
+
+| | Measured | Why it matters |
+| --- | --- | --- |
+| **Nameservers** | `ns1`, `ns2`, `ns3.livedns.co.uk` | Fasthosts, three of them |
+| **DNSSEC** | **Not enabled** — no `DS` at the registry, no `DNSKEY` | **The single worst failure mode does not apply.** Moving nameservers with a stale `DS` record makes a domain vanish entirely for validating resolvers. It cannot happen here |
+| **CAA records** | **None** | Nothing restricts which authority may issue certificates, so Squarespace's SSL renewal cannot be blocked |
+| **Record TTL** | **3600 seconds — uniform across every record** | One hour. Governs how long a *record* correction takes to propagate |
+| **Registry delegation TTL** | **172,800 seconds — exactly 48 hours** | **Not under the club's control.** This governs the nameserver change itself, and the rollback |
+| **SOA negative cache** | 3600 | A name that does not exist is remembered as not existing for an hour |
+| **Undocumented records** | **None found.** A fifteen-host probe (`autodiscover`, `ftp`, `imap`, `cpanel`, `api`, `cdn`, `staging`…) returned nothing | The documented eighteen appear to be the whole zone |
+| **Zone transfer** | Refused | Expected. The zone must be captured from the control panel, not pulled |
+
+**Three of the four things that usually go wrong here do not apply to this domain.** No
+DNSSEC, no CAA, and no hidden records. What is left is the copying, and the proxy setting.
+
+---
+
+## What the interim state actually is
+
+```
+TODAY
+  browser → resolver → ns1.livedns.co.uk  →  "198.185.159.144"
+  browser ──────────────────────────────────────────────→  Squarespace
+
+AFTER, every record DNS-only
+  browser → resolver → Cloudflare NS      →  "198.185.159.144"   ← identical answer
+  browser ──────────────────────────────────────────────→  Squarespace   ← identical connection
+
+IF A RECORD IS PROXIED — must not happen
+  browser → resolver → Cloudflare NS      →  "104.x.x.x"         ← Cloudflare's address
+  browser → Cloudflare edge ────────────────────────────→  Squarespace   ← TLS terminated in between
+```
+
+**In the middle case Cloudflare never touches a packet of the club's traffic.** It answers
+a question and steps out of the way. Squarespace receives exactly the connection it
+receives today, from exactly the same browsers, and presents its own certificate.
+
+The third case is the one Squarespace warns about, and it is a checkbox away.
+
+---
+
+## The proxy default is the real hazard
+
+> **When Cloudflare imports a zone it turns the proxy ON by default for every record that
+> can be proxied.** The safe state is not the default state.
+
+Of the eighteen records, **eleven are proxiable and will arrive orange**:
+
+| Records | Count | Must be |
+| --- | --- | --- |
+| Apex `A` → Squarespace | **4** | **DNS-only** |
+| `mail`, `mailserver`, `smtp`, `webmail` | **4** | **DNS-only — proxying these breaks club email** |
+| `mcp` | 1 | **DNS-only** — purpose still unknown, so assume it matters |
+| `www` CNAME → `ext-cust.squarespace.com` | 1 | **DNS-only** |
+| `9sw9cgfs3d8e53r2xcx5` → `verify.squarespace.com` | 1 | **DNS-only** |
+| **Total to turn grey** | **11** | |
+
+The remaining seven cannot be proxied and are safe by construction: the four
+`_domainkey` DKIM CNAMEs — underscore-prefixed names are not proxiable — plus the `MX` and
+the two `TXT` records.
+
+**So the checklist after import is: eleven grey clouds.** Not "check the proxy settings" —
+eleven, counted.
+
+### The other Cloudflare-specific traps
+
+| | What happens | What to do |
+| --- | --- | --- |
+| **Email Routing prompt** | Cloudflare sees `MX` records and may offer to enable its own Email Routing, **which replaces them** | **Decline.** Club mail stays with Fasthosts |
+| **Universal SSL** | Cloudflare issues a certificate for the zone on activation even with everything DNS-only | Harmless — it is never presented, because no traffic reaches Cloudflare |
+| **Adding CAA** | Would restrict which authorities may issue | **Do not.** It could break Squarespace's renewal quietly, weeks later |
+| **CNAME flattening** | Cloudflare flattens CNAMEs at the apex | Not applicable — the apex uses `A` records |
+
+---
+
+## The two clocks, and what each one governs
+
+These are different numbers and confusing them is how people mis-plan this.
+
+| | Value | Under club control? | Governs |
+| --- | --- | --- | --- |
+| **Record TTL** | 3600 → lower to 300 | **Yes** | How fast a *record* fix propagates after the switch |
+| **Registry delegation TTL** | **172,800 (48h)** | **No** | How long resolvers keep using Fasthosts, and how long a rollback takes |
+
+**Lowering the record TTL is worth doing and takes about an hour, not two days.** The
+current value is 3600, so once changed at Fasthosts, caches holding the old value drain
+within an hour. Waiting longer buys nothing.
+
+**The 48-hour delegation TTL is the one that matters, and it has a consequence nobody
+expects:**
+
+> **For up to 48 hours after the switch, both nameserver sets are live.** Some resolvers
+> ask Cloudflare; some still ask Fasthosts. **Both must give the same answers.**
+
+From which:
+
+- **Do not edit the Fasthosts zone during the window.** It is not a stale copy yet — it is
+  still serving half the internet.
+- **Do not change records at Cloudflare during the window either**, unless fixing
+  something broken. A change made there is invisible to anyone still resolving through
+  Fasthosts.
+- **The window is also the rollback window.** Reverting the nameservers takes up to 48
+  hours, which is why repairing forward at Cloudflare — effective in 300 seconds — is the
+  first response to anything wrong.
+
+---
+
+## Verification, before and after
+
+Run against both sets of nameservers and compare. **The switch is safe when these produce
+identical output.**
+
+```bash
+D=southvillerunningclub.co.uk
+for host in @ www mail mailserver smtp webmail mcp _dmarc; do
+  for rr in A CNAME MX TXT; do
+    old=$(dig @ns1.livedns.co.uk +short "${host%@}${host:+.}$D" $rr)
+    new=$(dig @<cloudflare-ns>      +short "${host%@}${host:+.}$D" $rr)
+    [ "$old" != "$new" ] && echo "DIFFERS: $host $rr"
+  done
+done
+```
+
+After the switch, the checks that matter in order:
+
+1. **Send and receive a test message on a club address.** Mail first, always.
+2. `dig southvillerunningclub.co.uk A` returns the four Squarespace addresses — **not a
+   Cloudflare address.** A Cloudflare address means something is proxied.
+3. The site loads over HTTPS, from mobile data as well as home broadband.
+4. `dig MX` and the four DKIM CNAMEs still resolve.
+5. DMARC reports keep arriving.
+
+---
+
+## Afterwards: two zones, one of them stale
+
+Once the 48 hours have passed, **the Fasthosts zone becomes a divergent copy** — still
+editable, no longer serving anything. That is a footgun worth naming: a volunteer editing
+DNS in the familiar Fasthosts panel would see the change save successfully and do nothing
+at all.
+
+Three mitigations, in order of usefulness:
+
+- **Commit the Cloudflare zone as code**, so the real source of truth is a file in this
+  repository and a change is a pull request.
+- **Leave the Fasthosts zone intact for a month** as the rollback, then clear it — but not
+  before.
+- **Write down which is authoritative**, in the repository and in the Fasthosts account
+  notes.
+
+---
+
 ## What this unblocks
 
 A constraint documented in the [build
