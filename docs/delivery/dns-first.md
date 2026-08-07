@@ -122,13 +122,35 @@ is that the *website rebuild* is no longer constrained, and nothing has to be bu
 
 Nothing here is on the critical path for anything else, which is the point.
 
-### Before starting — non-negotiable
+### Before starting — and the order matters more than it looks
 
-| | | Why |
+**The club needs an address before it can own anything.** Every account created below is
+created *by* an email address, and an account created under a volunteer's personal address
+is a club asset held personally — which is [the problem this programme exists to
+fix](../foundations/problem-statement.md#4-everything-is-a-single-point-of-failure),
+rebuilt in new technology. So the mailbox comes first, and not only for the DNS reasons.
+
+| | | Why it is in this position |
 | --- | --- | --- |
-| **1** | **`whois` the domain** | Everything below changes a setting at the registrar. The club must know who that is. Still [not established](../foundations/current-state.md#dns-and-email) |
-| **2** | **Club-owned Cloudflare account, both volunteers as admins** | Creating it as one person's account rebuilds the problem being solved |
-| **3** | **Buy the Fasthosts mailboxes and verify mail works** | [Decision 003](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts). Fasthosts configures its own mail records automatically while it still controls the zone — so the zone the club copies is complete and verified. **Doing this after the move means hand-adding mail records in a panel that no longer controls the zone** |
+| **1** | **Buy a Fasthosts admin mailbox and verify mail works** | **Two reasons.** It creates the club identity everything else is registered under; and Fasthosts configures its own mail records automatically while it still controls the zone, so the zone captured at step 4 is complete and verified. **Doing this later means hand-adding mail records in a panel that no longer controls the zone** |
+| **2** | **Create Cloudflare, Supabase and GitHub under that address** | Club-owned from the first day rather than transferred later — transfers are the step that never happens |
+| **3** | **Add the second volunteer as a full admin on each, in their own right** | Not sharing a login. Two independent owners, so neither the account nor the mailbox is a single point of failure |
+
+**On the mailbox itself:** it should be a **role address**, not a person's — something
+that outlives whoever holds the role. Its own recovery address must not be a personal
+Gmail, or the dependency is simply moved one step down.
+
+**A GitHub organisation already exists** under a club Google account,
+[`srcdmin@gmail.com`](../foundations/current-state.md#accounts-and-access) — the typo is
+in the address itself. Step 2 is a chance to regularise that rather than add a fourth
+identity.
+
+### Also before starting
+
+| | |
+| --- | --- |
+| **The domain is registered at Fasthosts under the Web Manager's personal account** | Confirmed by the Web Manager, August 2026. It resolves the "who holds the registration" question and replaces it with a governance one: **a club asset is held by an individual.** That does not block the DNS move — but it should be on the list to fix, by moving the Fasthosts account to a club identity or transferring the registration later |
+| **Confirm Fasthosts' email sending limits and its price beyond two mailboxes** | Neither is published, and both could reopen [decision 003](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) |
 
 ### The move
 
@@ -177,11 +199,15 @@ until the day it wants a club hostname.
 
 So the two tracks run side by side:
 
-| | Nightingale Nightmare | DNS |
+| | Nightingale Nightmare | Email, accounts and DNS |
 | --- | --- | --- |
-| Week 1 | Repo, Astro scaffold, deploying to `pages.dev` | `whois`, accounts, mailboxes |
-| Week 2 | Page, form, privacy notice, accessibility | Capture zone, lower TTLs, stage and diff |
+| Week 1 | Repo and Astro scaffold — needs nothing | **Mailbox bought and verified; Cloudflare, Supabase and GitHub created under it; second admin added** |
+| Week 2 | Deploying to `pages.dev`, page, form, privacy notice | Capture zone, lower TTLs, stage and diff |
 | Week 3 | Ready for a hostname | Switch nameservers, watch |
+
+**Nightingale Nightmare cannot deploy until the Cloudflare account exists**, which is the
+one genuine coupling — but that is week 1, and the repository and content can start before
+it.
 
 **Whichever finishes first, the other is unaffected.** If DNS has moved, `nn.` is a record
 inside Cloudflare. If it has not, `nn.` is [one additive CNAME at

@@ -252,7 +252,9 @@ Cost: **£15.40 a year** for the domain and DNS.
   toward spam folders rather than causing rejection.
 - **Two records carry a Fasthosts "manually changed / restore automatic updates" prompt.**
   Restoring the apex would repoint it at 88.208.252.9, Fasthosts' own web hosting.
-- Whether Fasthosts or Squarespace holds the **registration** is not established.
+- **The registration is at Fasthosts, under the Web Manager's personal account** —
+  confirmed by the Web Manager, August 2026. So the domain is a club asset held by an
+  individual, which is a governance exposure rather than a technical one.
 
 ---
 

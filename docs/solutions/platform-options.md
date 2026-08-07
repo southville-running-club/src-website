@@ -836,7 +836,8 @@ than deleted.
 
 | # | To confirm | Why it matters | Blocks |
 | --- | --- | --- | --- |
-| **1** | **Who holds the domain registration** | Every plan changes a setting at the registrar, and Squarespace is being cancelled. One `whois` | **The DNS move** |
+| ~~1~~ | ~~Who holds the domain registration~~ — **resolved.** Fasthosts, under the Web Manager's **personal** account | Replaced by a governance question: a club asset is held by an individual, and the Fasthosts account should move to a club identity | Nothing technical |
+| **1a** | **A club-owned email address, before any account is created** | Accounts created under a personal address rebuild the single-point-of-failure the programme exists to remove | **Every account** |
 | **2** | **Fasthosts' email sending limits, and the price beyond two mailboxes** | Neither is published. If limits are worse than 20/day the [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) flips | **Buying mailboxes** |
 | **3** | Cloudflare's terms carry no non-commercial restriction on Workers | The recommendation rests on it. Secondary sources only | Taking payments |
 | **4** | Stripe UK rates — 1.5% + 20p, and **Bacs at 1% with no fixed fee** | Worth ~£250/yr. Secondary sources only | The payments decision |
