@@ -9,8 +9,8 @@ permanent results archive around a race-timing system it already owns and runs. 
 the requirements written down before the products means a choice can be re-opened later
 without starting the thinking over.
 
-**There is no application code yet, and no decisions have been recorded.** That is
-deliberate.
+**There is no application code yet.** The first three decisions are proposed and recorded
+in the [decision log](docs/decisions/decision-log.md), pending committee ratification.
 
 ## Start here
 
@@ -27,7 +27,7 @@ deliberate.
 | [Email](docs/solutions/email.md) | Getting off forwarding-to-Gmail, and how the platform sends mail — ~£30/yr |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
-| [Decision log](docs/decisions/decision-log.md) | Where choices get recorded — and how they get re-opened |
+| [Decision log](docs/decisions/decision-log.md) | **Three decisions proposed** — Cloudflare, Supabase free, Migadu — and how they get re-opened |
 
 Supporting material:
 

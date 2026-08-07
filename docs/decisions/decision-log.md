@@ -88,3 +88,82 @@ proposing the change will not be the one maintaining the result.
 
 **Boring and settled beats optimal and re-litigated**, for a club maintained by
 volunteers.
+
+---
+
+# Records
+
+Proposed by the Web Manager, 7 August 2026. **Not yet ratified by the committee** — the
+[governance gates](../foundations/requirements.md#legal-and-governance) still stand, and
+nothing here authorises payment work.
+
+---
+
+## 001 — Serve the website from Cloudflare, and move the domain's DNS there
+
+| | |
+| --- | --- |
+| **Requirement** | [C1](../foundations/requirements.md#c1--publish-club-information-publicly), [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically), and the [money constraint](../foundations/requirements.md#money) |
+| **Context** | The incumbent pattern — Vercel Hobby — [prohibits commercial use](../solutions/platform-options.md#1-does-the-free-or-cheap-tier-permit-taking-payments), and paying for it properly costs more than staying on Squarespace. Cloudflare's terms permit payments on the free tier. Serving the apex requires Cloudflare to be authoritative for the zone |
+| **Options** | Compared in [platform options](../solutions/platform-options.md#the-complete-cost-picture); the final two head-to-head in [Cloudflare or Netlify](../solutions/cloudflare-vs-netlify.md) |
+| **Decision** | Cloudflare serves the site. Authoritative DNS moves from Fasthosts to Cloudflare, following the [staged runbook](../solutions/dns-and-domain.md#what-moving-the-apex-to-cloudflare-actually-involves). Registration stays at Fasthosts for now |
+| **Plan** | **Workers Paid, $5/month (~£47/yr). The Cloudflare zone stays on the Free plan** — the Pro zone plan is a different product at ~£190/yr and buys the club nothing |
+| **Consequences** | DNS becomes code and lands in a club-owned account both volunteers can reach — closing the last click-operated single point of failure. Accepts a one-off migration that carries club email, reversible only over 48 hours. Until the nameservers move, anything on the club domain must be a **Pages** project, not a Worker |
+| **Exit cost** | **Low on serving** — static output moves to Netlify in an afternoon. **Moderate on DNS** — moving the zone back is another nameserver change with the same care |
+| **Revisit when** | Cloudflare's free tier gains a commercial-use restriction; or a Cloudflare outage affects the club materially |
+
+## 002 — Hold the club's data in Supabase, on the free tier
+
+| | |
+| --- | --- |
+| **Requirement** | [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically), [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully), [C12](../foundations/requirements.md#c12--maintain-membership-records), and [convergence](../foundations/requirements.md#convergence) |
+| **Context** | The timing platform already runs on Supabase Postgres in `eu-west-2`. Keeping Postgres means the website and the timing platform converge without re-opening race-tested code. Cloudflare D1 would cost the same and break that |
+| **Decision** | Supabase Postgres, `eu-west-2`, **free tier**. Website and timing data in one project |
+| **Consequences accepted** | 500 MB, and **Realtime capped at 200 concurrent connections**. Inherits the existing bundling exposure rather than creating a new one |
+| **Binding design constraint** | **The live race leaderboard must be served from Cloudflare — Durable Objects or equivalent — not Supabase Realtime.** A race-night crowd would exceed 200 connections and force Supabase Pro at £237/yr. This decision only holds if [C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) is built that way |
+| **Also** | Files go to R2, never into Postgres. That is the other way to reach the free-tier ceiling |
+| **Exit cost** | **Low for the data itself** — a standard Postgres dump. Higher if Supabase Auth and Realtime become load-bearing |
+| **Revisit when** | The database approaches 500 MB; Realtime concurrency is needed beyond 200; or the free tier's terms change |
+
+## 003 — Move club mailboxes to Migadu
+
+| | |
+| --- | --- |
+| **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club), and [shared ownership](../foundations/requirements.md#shared-ownership) |
+| **Context** | Club mail is forwarding-only into personal Gmail accounts, so replies leave from a volunteer's address, forwarding breaks SPF, and no archive is club-held. **Cloudflare sells no mailbox product**, so moving DNS there does not answer this |
+| **Options** | [Email](../solutions/email.md#options) — flat-rate providers fit a committee of many roles and few people far better than per-user pricing |
+| **Decision** | **Migadu**, with real mailboxes used through Gmail *Send mail as*, so replies leave from the club address and are SPF-aligned. Transactional mail stays separate, on Resend, from a dedicated sending subdomain |
+| **Open before purchase** | **Which Migadu tier.** Micro is ~£15/yr but sends only **20 messages a day across the whole account**, and every committee reply counts against it. Check a week of real outbound volume in the club's Gmail accounts first. If 20 is too tight, **Zoho Mail Lite is the better answer than Migadu Mini** — similar money, generous sending |
+| **Consequences** | An **MX change**, which is a mail-affecting change in its own right. **It must not happen in the same week as the nameserver move.** Fasthosts is reduced to registrar only |
+| **Exit cost** | **Low.** Export mailboxes, repoint MX. Standard IMAP, no lock-in |
+| **Revisit when** | The daily send limit is hit; the committee wants an address per role; or the registrar moves and consolidation becomes attractive |
+
+---
+
+## What these three cost together
+
+| | Per year |
+| --- | --- |
+| Cloudflare Workers Paid *(zone on the Free plan)* | £47 |
+| Supabase — free tier | £0 |
+| Migadu Micro | £15 |
+| Domain, still at Fasthosts | £15.40 |
+| Card processing — Stripe at 1.5% + 20p | £335 |
+| **Total** | **£412** |
+| **Against £735 today** | **Saves £323 a year** |
+
+Payment processing is shown because it changes with the platform — Squarespace Payments
+cannot outlive Squarespace. It is not a decision taken here; see
+[C4](../foundations/requirements.md#c4--take-payments), still behind the governance gates.
+
+## What is still open
+
+- **The registrar.** Fasthosts for now. Moving it is optional, later, and worth doing for
+  consolidation rather than the ~£7
+- **The Migadu tier**, pending the outbound-volume check above
+- **Payments** — processor, flow, and whether Direct Debit replaces card on the £2.50
+  subscription. That last one is worth ~£250/yr, more than all three decisions above
+  combined
+- **Five vendor facts** listed under
+  [verify before deciding](../solutions/platform-options.md#verify-before-deciding), which
+  should be confirmed in writing before any account is paid for

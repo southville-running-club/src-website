@@ -113,7 +113,8 @@ in the second column.
 | --- | --- | --- | --- | --- |
 | **Keep forwarding** | £0 | £0 | — | Free, and fixes nothing |
 | **Cloudflare Email Routing** | £0 | £0 | **Yes — MX** | Still forwarding. Does not solve the complaint |
-| **Migadu Micro** | **~£15** | **~£15** | **Yes — MX** | **Flat rate, unlimited mailboxes and domains.** Priced by volume, not people. Swiss; 5 GB, 200 sent/day |
+| **Migadu Micro** | **~£15** | **~£15** | **Yes — MX** | Flat rate, unlimited domains. Swiss; 5 GB. **Sends only 20 messages a day** — see below |
+| **Migadu Mini** | ~£71 | ~£71 | **Yes — MX** | Same model, 200 sent/day. No longer cheaper than Fasthosts |
 | **Zoho Mail Lite** | ~£19 | ~£57 | **Yes — MX** | Good webmail, per user |
 | **mailbox.org** | ~£20 | ~£61 | **Yes — MX** | German, privacy-focused, per user |
 | **Fasthosts Standard Email** | **~£26–£33** | **Unknown — check** | **None** | MX already points here. Intro ~£1/mo rising to £2.19–£2.75/mo. Cost beyond two mailboxes is not published |
@@ -126,6 +127,32 @@ in the second column.
 **Migadu is cheaper for six addresses than Fasthosts is for two**, and the price does not
 move as the committee grows. That is the pricing model matching the problem rather than
 fighting it.
+
+#### The catch on Migadu Micro: 20 messages sent per day
+
+Not 200. **Twenty, across the entire account**, on the £15 plan.
+
+That matters more than it looks, because the whole point of buying mailboxes is *Send mail
+as* — so **every committee reply from a club address counts against it.** On a quiet week
+that is ample. In a race-entry week, a membership renewal push, or any day somebody
+answers a run of enquiries, it is not, and the failure mode is deferred or rejected mail —
+precisely the problem the club is trying to leave.
+
+| | Sent per day | Per year |
+| --- | --- | --- |
+| **Migadu Micro** | **20** | ~£15 |
+| **Migadu Mini** | 200 | ~£71 |
+| Zoho Mail Lite, per user | Several hundred | ~£19 for two, ~£57 for six |
+| Fasthosts Standard | **Not published — ask** | ~£26–£33 |
+
+**This should be checked against actual usage before committing**, and it is checkable:
+the club's Gmail accounts already show how much mail goes out from club addresses in a
+week.
+
+**If 20 a day is too tight, the answer is not Migadu Mini at £71** — at that price the
+flat-rate advantage has gone. It is **Zoho Mail Lite**, which is per-user but generous on
+sending and costs about the same as Migadu Micro for the two or three mailboxes the club
+actually needs today.
 
 ### So does it still make sense to use Fasthosts?
 
