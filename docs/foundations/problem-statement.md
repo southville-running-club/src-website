@@ -21,12 +21,29 @@ website features, but because that tier is what permits taking payments. The clu
 buying commerce capability and paying for a website plan to get it.
 
 On top of the subscription, Squarespace **takes a fee of its own on every payment, layered
-on top of the card processing fee**. On the £2.50 running-fee subscription and on event
-payments, that is a percentage of a very small transaction, and the club absorbs all of it
-— nobody uses the "cover the fees" option.
+on top of the card processing fee**. The club absorbs all of it — nobody uses the "cover
+the fees" option.
 
-So the club pays three times on the same money: the plan, Squarespace's cut, and the card
-fee.
+The club pays three times on the same money: the plan, Squarespace's cut, and the card
+fee. On the £2.50 running-fee subscription that comes to:
+
+| | Per year |
+| --- | --- |
+| The plan, held only because it permits payments | £204 |
+| Squarespace's 3% on every payment | £85 |
+| Card processing | £321 |
+| **Cost of collecting £2,820** | **£610 — 21.6%** |
+
+**Every £2.50 a member pays becomes £2.14 by the time it reaches the club.**
+
+One number in that table deserves separating from the rest. **£271 of the £321 is the flat
+20p charged per transaction** — which is 8% of £2.50 before any percentage is applied.
+That cost is created by charging 94 people every month for a very small amount, and it
+follows the club to any platform and any processor. Leaving Squarespace removes £289 of
+the £610. The remaining £321 is a question about how the club bills, not about who hosts
+it.
+
+See [the flow of money](current-state.md#the-flow-of-money).
 
 ## 2. It cannot do what the club needs
 

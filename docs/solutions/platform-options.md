@@ -422,8 +422,11 @@ that those do not. Listed so they are visibly considered.
 | **F — VPS (Hetzner / Mythic)** | £39–120 | included | £15.40 | **£54–135** | **£162–405** + ops hours |
 | **G — Railway / Render** | £47–237 | +£0–47 | £15.40 | **£62–300** | **£186–900** |
 
-Payment processing is excluded here because it is the same whichever host is chosen — see
-[what payments actually cost](#what-payments-actually-cost) below.
+Card processing is excluded here because it is the same whichever host is chosen. **The
+incumbent's row understates it by £85**, because Squarespace also takes 3% of every
+payment and no other candidate does — see [what payments actually
+cost](#what-payments-actually-cost) below. Counting it, Squarespace costs the club
+**£289/yr**, not £204.
 
 ### Against the seven criteria
 
@@ -506,26 +509,26 @@ the club is not VAT-registered, so the VAT is a real cost, not a reclaim:
 
 | Arrangement | Fee per payment | **Per year** | Effective rate |
 | --- | --- | --- | --- |
-| **Today — Squarespace's cut plus card fee** | — | **~£406** *([derived](../foundations/current-state.md#what-the-fees-are-made-of); £321 card + £85 platform)* | ~14% |
+| **Today — Squarespace's cut plus card fee** | — | **£406** *([£321 card + £85 platform](../foundations/current-state.md#what-each-payment-is-worth))* | 14.4% |
 | Stripe card, **monthly** — 1.5% + 20p | £0.285 | **£321** | 11.4% |
 | Stripe card, **annual £30** — 1.5% + 20p | £0.78 | **£73** | 2.6% |
 | **Stripe Bacs Direct Debit** — 1%, no fixed fee, capped £4 | £0.03 | **£34** | **1.2%** |
 
-Three findings:
+Three things follow from it:
 
 1. **Changing processor barely helps; changing the billing frequency does.** Monthly card
-   billing is dominated by the 20p fixed fee — confirming what
-   [options](options.md#c4--payments) already found.
+   billing is dominated by the 20p fixed fee — as
+   [options](options.md#c4--payments) sets out.
 2. **Bacs Direct Debit has no fixed fee, which collapses the problem entirely.** At 3p per
    payment it makes *monthly* billing as cheap as annual, so the club would not have to
    ask 94 people to switch to paying £30 up front. **This is worth roughly £370 a year —
    more than the entire hosting decision.**
-3. **Squarespace's cut is the smallest of the three levers.** Decomposing today's fees
-   puts the platform's 3% at **~£85 of ~£406** — real, and worth removing, but a fifth of
-   the problem. The other four fifths are the fixed fee on a very small, very frequent
-   transaction, and that survives leaving Squarespace unless the billing instrument
-   changes too. Worth stating plainly, because "Squarespace takes a cut" is the memorable
-   fact and it is not where the money goes.
+3. **Squarespace's cut is the smallest of the three levers.** The platform's 3% is **£85
+   of the £406** — real, and worth removing, but a fifth of the problem. The other four
+   fifths are the fixed fee on a very small, very frequent transaction, and that follows
+   the club to any platform unless the billing instrument changes too. Worth stating
+   plainly, because "Squarespace takes a cut" is the memorable fact and it is not where
+   the money goes.
 
 Bacs is not free of friction: mandate setup takes several working days, payments settle in
 about three, and a failed payment costs £5. Those are operational facts to plan around,
@@ -550,7 +553,7 @@ these should be relied on until confirmed in writing from the vendor**, per
 | 6 | Stripe Bacs Direct Debit: 1%, capped £4, **no fixed fee**, and any minimum | Worth ~£370/yr |
 | 7 | Cloudflare Registrar's actual `.co.uk` renewal price | Currently stated only as "at cost" |
 | 8 | Supabase Free's pause behaviour for a project receiving steady public traffic | Decides £0 vs £237/yr |
-| 9 | **The Squarespace plan name and its stated transaction fee**, and **which processor is connected** | Both visible in Squarespace admin without Stripe access. They turn the [derived £406](../foundations/current-state.md#what-the-fees-are-made-of) into fact |
+| 9 | **The Squarespace plan name and its stated transaction fee**, and **which processor is connected** | Both visible in Squarespace admin without Stripe access. They confirm the rates behind [the flow of money](../foundations/current-state.md#the-flow-of-money) |
 | 10 | Actual gross, fees and net from the payment processor | **Needs Treasurer or Membership Officer** — the Web Manager cannot reach Stripe |
 
 Items 1–5 block the hosting decision. Items 6–10 do not, and can run in parallel.
