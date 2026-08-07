@@ -11,7 +11,8 @@ Prepared by Bindal Shah · July 2026 · v8, for discussion
 > It is a **point-in-time record of a proposal**, not a specification. Where this
 > document and the working documentation in [`docs/`](..) disagree, the working
 > documentation wins — see [Requirements](../foundations/requirements.md),
-> [Priorities](../delivery/priorities.md) and the [decision log](../decisions/decision-log.md).
+> [Priorities](../delivery/priorities.md) and the
+> [decision log](../decisions/decision-log.md).
 
 ---
 

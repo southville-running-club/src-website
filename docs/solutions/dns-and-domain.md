@@ -10,8 +10,8 @@ one decision.
 **It is four**, they are independent, and three of the four carry almost no risk.
 
 Baseline facts — the 18 records, the mail arrangement — are in [current
-state](../foundations/current-state.md#dns-and-email). The hosting candidates that make this question
-live are in [platform options](platform-options.md).
+state](../foundations/current-state.md#dns-and-email). The hosting candidates that make
+this question live are in [platform options](platform-options.md).
 
 ---
 
@@ -39,7 +39,8 @@ four touches club email.
 
 ## Before anything else: who actually holds the registration?
 
-[Current state](../foundations/current-state.md#dns-and-email) records this as **not established**.
+[Current state](../foundations/current-state.md#dns-and-email) records this as **not
+established**.
 
 **This is the single highest-consequence unknown in the whole programme**, because the
 plan is to cancel Squarespace in April. If Squarespace holds the registration — some
@@ -58,8 +59,8 @@ whois southvillerunningclub.co.uk | grep -iA2 registrar
 ```
 
 Nothing else in this document should be actioned until that returns an answer, and the
-answer should be written into the [decision log](../decisions/decision-log.md). It costs five minutes
-and it removes a risk that could not be recovered from quickly.
+answer should be written into the [decision log](../decisions/decision-log.md). It costs
+five minutes and it removes a risk that could not be recovered from quickly.
 
 ---
 
@@ -80,7 +81,8 @@ creates a name that does not exist today and modifies nothing that does.
 | Downtime | **None** |
 
 **This is how Nightingale Nightmare goes live**, and it is why the two-week deadline never
-required a DNS migration. See [Nightingale Nightmare first](../delivery/nn-first-delivery.md).
+required a DNS migration. See [Nightingale Nightmare
+first](../delivery/nn-first-delivery.md).
 
 ### Move 2 — Repoint the website. **Low risk, fast to reverse.**
 
@@ -155,8 +157,9 @@ folders rather than announcing itself. That is worse, not better — it is a fai
 club would discover from a member saying they never got a reply.
 
 **4. The `mcp` record.** `mcp → 213.171.195.10`, purpose unknown, already flagged in
-[priorities](../delivery/priorities.md#actions-that-block-nothing-and-cost-nothing). Copy it, keep it
-DNS-only, and find out what it serves before taking responsibility for the zone.
+[priorities](../delivery/priorities.md#actions-that-block-nothing-and-cost-nothing). Copy
+it, keep it DNS-only, and find out what it serves before taking responsibility for the
+zone.
 
 #### One more thing that is not a hazard but is a trap
 
@@ -249,8 +252,9 @@ should be able to check the work.
 1. **Export the current zone.** Ask Fasthosts for a zone file, or capture every record by
    hand from the control panel. Commit it to this repository. It is the rollback reference
    and the diff baseline.
-2. **Confirm the record count.** [Current state](../foundations/current-state.md#dns-and-email) says
-   **18**. If the export shows a different number, find out why before continuing.
+2. **Confirm the record count.** [Current
+   state](../foundations/current-state.md#dns-and-email) says **18**. If the export shows
+   a different number, find out why before continuing.
 3. **Lower TTLs to 300 seconds at Fasthosts**, and wait at least 48 hours. This shrinks
    the blast radius of anything wrong from hours to minutes.
 4. **Create the zone at the new provider and let it scan**, then **add every missing
@@ -269,7 +273,8 @@ should be able to check the work.
    ```
 
 7. **Have a second person check the diff.** This is exactly the kind of change the club's
-   [review requirement](../foundations/requirements.md#everything-is-defined-as-code) exists for.
+   [review requirement](../foundations/requirements.md#everything-is-defined-as-code)
+   exists for.
 
 ### During
 
@@ -317,11 +322,14 @@ addresses on the domain but no mailboxes the club hosts.
 | **Cloudflare Email Routing** | Free, forwarding-only — exactly the shape the club already uses. Requires the zone on Cloudflare. Would remove the Fasthosts dependency entirely |
 | **Keep Fasthosts livemail** | Works today. Continues to work with DNS elsewhere, as long as the records are correct — but ties the club to a Fasthosts account it might otherwise close |
 
-**Neither should be done now.** [Options](options.md#c8--email) already places email among
-the cheapest capabilities to change and warns it should not influence larger decisions.
-Changing MX records is a bigger and more visible change than changing where a website is
-served from, and there is no reason to take that risk in the same season as everything
-else.
+**Neither should be done now**, and there is a third option that changes no DNS at all —
+paid mailboxes at Fasthosts, which the MX already points to. That is the recommendation in
+[email](email.md), precisely because it fixes the complaint without touching the zone.
+
+[Options](options.md#c8--email) already places email among the cheapest capabilities to
+change and warns it should not influence larger decisions. Changing MX records is a bigger
+and more visible change than changing where a website is served from, and there is no
+reason to take that risk in the same season as everything else.
 
 One thing that *should* happen eventually, and costs nothing: **DMARC is at `p=none`**,
 which is monitoring only. Once the DNS position is settled and reports are clean, moving

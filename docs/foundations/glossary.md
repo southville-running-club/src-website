@@ -95,26 +95,26 @@ version working against the new schema, so rollback stays possible.
 **Authoritative nameserver** — the server that gives the definitive answer for a domain's
 records. Which provider is authoritative is set at the registrar.
 
-**Delegation** — changing which nameservers are authoritative. Slow to take effect and slow
-to reverse, because the change is cached across the internet for up to 48 hours.
+**Delegation** — changing which nameservers are authoritative. Slow to take effect and
+slow to reverse, because the change is cached across the internet for up to 48 hours.
 
 **Apex** — the bare domain, `southvillerunningclub.co.uk`, with no subdomain.
 
-**Cutover** — repointing an existing record at a new destination. Distinct from delegation:
-much faster to make and to reverse, once the club controls the records.
+**Cutover** — repointing an existing record at a new destination. Distinct from
+delegation: much faster to make and to reverse, once the club controls the records.
 
 **Additive record** — a new record for a name that did not previously exist. Cannot break
 anything that already works, because nothing was resolving that name before. Deleting it
 restores the previous state exactly.
 
 **Proxied vs DNS-only** — whether a DNS provider passes traffic through its own network or
-simply answers with the destination address. Some records must not be proxied, notably mail
-hostnames and third-party verification records.
+simply answers with the destination address. Some records must not be proxied, notably
+mail hostnames and third-party verification records.
 
 ## External services in use today
 
-**Full On Sport** — the current race entry provider. 5.9% + 20p plus VAT, **added on top of
-the entry price and paid by entrants**, not by the club.
+**Full On Sport** — the current race entry provider. 5.9% + 20p plus VAT, **added on top
+of the entry price and paid by entrants**, not by the club.
 
 **Fasthosts** — the domain registrar, authoritative DNS provider, and the club's mail
 provider (livemail), with forwarding-only mailboxes.

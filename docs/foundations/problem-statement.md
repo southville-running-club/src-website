@@ -3,11 +3,12 @@
 Why the club is doing this at all.
 
 Everything else in this repository — [requirements](requirements.md),
-[options](../solutions/options.md), [priorities](../delivery/priorities.md) — exists to answer the problems set out
-here. If a proposed change does not address one of them, it is not in scope.
+[options](../solutions/options.md), [priorities](../delivery/priorities.md) — exists to
+answer the problems set out here. If a proposed change does not address one of them, it is
+not in scope.
 
-Derived from the club's [platform proposal](../reference/platform-proposal-v8.md) and from the
-[current state](current-state.md) as observed.
+Derived from the club's [platform proposal](../reference/platform-proposal-v8.md) and from
+the [current state](current-state.md) as observed.
 
 ---
 
@@ -21,8 +22,8 @@ buying commerce capability and paying for a website plan to get it.
 
 On top of the subscription, Squarespace **takes a fee of its own on every payment, layered
 on top of the card processing fee**. On the £2.50 running-fee subscription and on event
-payments, that is a percentage of a very small transaction, and the club absorbs all of it —
-nobody uses the "cover the fees" option.
+payments, that is a percentage of a very small transaction, and the club absorbs all of it
+— nobody uses the "cover the fees" option.
 
 So the club pays three times on the same money: the plan, Squarespace's cut, and the card
 fee.
@@ -71,11 +72,12 @@ Not one point of failure: several, each resting on one person.
 | Stripe | Treasurer and one other |
 
 The club's race-day-critical software and its entire results archive are reachable by one
-volunteer. Its domain and email are reachable by a different one. Neither can cover for the
-other, and there is no shared ownership of anything.
+volunteer. Its domain and email are reachable by a different one. Neither can cover for
+the other, and there is no shared ownership of anything.
 
-The site itself compounds this: changes are made by clicking in a browser session. There is
-no history of what changed, no review before it goes live, and no way to roll anything back.
+The site itself compounds this: changes are made by clicking in a browser session. There
+is no history of what changed, no review before it goes live, and no way to roll anything
+back.
 
 ## 5. Three systems that do not talk to each other
 
@@ -98,16 +100,16 @@ years of hand-typed results.
 **Volunteer time back.** Automating the manual chain above is where the real return is.
 
 **Shared ownership.** Two people building it in the open, with the infrastructure defined
-as code, means neither is a single point of failure and a third person can pick it up. This
-is the difference between a club asset and a personal favour.
+as code, means neither is a single point of failure and a third person can pick it up.
+This is the difference between a club asset and a personal favour.
 
 **The ability to change things.** Infrastructure as code, tested, reviewable, reversible —
 so a change is something anyone can propose and verify rather than something one person
-does by clicking. It also makes the platform legible to automated tooling, which is how two
-volunteers with day jobs get to punch above their weight.
+does by clicking. It also makes the platform legible to automated tooling, which is how
+two volunteers with day jobs get to punch above their weight.
 
-**Its own data.** Entrant records, results and membership under club control, in one place,
-permanently.
+**Its own data.** Entrant records, results and membership under club control, in one
+place, permanently.
 
 ---
 

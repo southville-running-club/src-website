@@ -6,11 +6,13 @@ Nothing here is decided. Named products appear as **examples of a category**, no
 recommendations — the categories are the useful part, because they survive a vendor
 changing its pricing.
 
-Read [requirements](../foundations/requirements.md) first; this is meaningless without them.
+Read [requirements](../foundations/requirements.md) first; this is meaningless without
+them.
 
-**Named candidates are now priced in [platform options](platform-options.md)**, which answers
-questions 2, 3 and 4 at the foot of this page against real products and real figures. The domain
-and DNS question has its own document: [DNS and domain](dns-and-domain.md).
+**Named candidates are now priced in [platform options](platform-options.md)**, which
+answers questions 2, 3 and 4 at the foot of this page against real products and real
+figures. The domain and DNS question has its own document: [DNS and
+domain](dns-and-domain.md).
 
 ---
 
@@ -39,12 +41,12 @@ tiers is exposed to terms changing under it. The defence is not picking the perf
 The capabilities do not map one-to-one onto products.
 
 The current timing platform gets **five capabilities from a single vendor**: relational
-storage (C2), live push (C6), authentication (C7), file storage (C9), and the access-control
-tooling that C10 relies on.
+storage (C2), live push (C6), authentication (C7), file storage (C9), and the
+access-control tooling that C10 relies on.
 
-That bundling is why it is cheap and why it works well. It is also the largest single point
-of exit cost in the whole system. The genuine architectural question is not "which database"
-— it is:
+That bundling is why it is cheap and why it works well. It is also the largest single
+point of exit cost in the whole system. The genuine architectural question is not "which
+database" — it is:
 
 > **Do we want one vendor providing five capabilities, or five things we assemble?**
 
@@ -56,8 +58,8 @@ of exit cost in the whole system. The genuine architectural question is not "whi
 | Operational burden | Lower | Higher |
 | One-volunteer fit | Better | Worse |
 
-For a club with one volunteer, bundling is probably right. But it should be a decision with
-its exit cost written down, not a default.
+For a club with one volunteer, bundling is probably right. But it should be a decision
+with its exit cost written down, not a default.
 
 **Portability, capability by capability:**
 
@@ -86,8 +88,8 @@ static or cached where possible for phones on poor signal.
 | **Static hosting + functions** | Pre-rendered pages plus a few dynamic endpoints. *e.g. GitHub Pages, S3+CDN, any of the above* | Excellent fit for a mostly-static club site; a permanent archive is mostly static by nature. Dynamic bits need somewhere to run |
 | **Stay managed-CMS** | Squarespace or similar | Zero build effort, preserves visual editing. Cannot reach the results database — fails C2 outright, which is the point of the exercise |
 
-*The eliminating question:* **does the free or cheap tier permit taking payments?** This is
-what disqualifies the incumbent arrangement and it should be checked in writing for any
+*The eliminating question:* **does the free or cheap tier permit taking payments?** This
+is what disqualifies the incumbent arrangement and it should be checked in writing for any
 candidate, not assumed.
 
 ## C2 — Storing the archive
@@ -102,9 +104,9 @@ per-role read/write rules; UK/EU region available.
 | **Database bundled with the host** | Whatever the application platform offers | One vendor, one bill. Couples the data's fate to the hosting decision — worst of both if either changes |
 | **Self-hosted** | The club runs the database | Total control, lowest licence cost. Backups, upgrades and availability become one volunteer's problem |
 
-*Watch for:* **inactivity behaviour.** A permanent archive that sleeps after a quiet week is
-not a permanent archive. And **backups** — "we take backups" is not the same as "we have
-restored from one".
+*Watch for:* **inactivity behaviour.** A permanent archive that sleeps after a quiet week
+is not a permanent archive. And **backups** — "we take backups" is not the same as "we
+have restored from one".
 
 ## C6 — Live push to browsers
 
@@ -150,8 +152,8 @@ Two different problems; they may have different answers.
 | Direct debit | ~1% + fixed, capped | Comparable to card | Mandates outlive cards — no expiry churn |
 | Standing order to the club account | **£0** | **£0** | No reconciliation, no central control, members set it up themselves |
 
-*The finding worth carrying:* **moving processor holds the line; moving to annual billing is
-what actually cuts the cost.** Any option should be judged on both.
+*The finding worth carrying:* **moving processor holds the line; moving to annual billing
+is what actually cuts the cost.** Any option should be judged on both.
 
 **One-off entries** — from non-members, at the moment of entry, priced by registration
 status.
@@ -196,8 +198,8 @@ committing.
 
 *Two properties of any DNS change:* moving nameservers is invisible if records are copied
 exactly, and slow to reverse. Changing a record once the provider is settled is fast to do
-and fast to reverse. **The first is riskier than the second**, which is the opposite of how
-it usually feels.
+and fast to reverse. **The first is riskier than the second**, which is the opposite of
+how it usually feels.
 
 ## C8 — Email
 
@@ -210,11 +212,15 @@ it usually feels.
 *Low stakes and easily swapped* — one of the cheapest capabilities to change later, so it
 should not influence larger decisions.
 
+**Priced against named providers in [email](email.md)**, which also separates this from
+the distinct problem of the club's *human* mailboxes — today forwarded into personal Gmail
+accounts, which is why replies do not come from the club.
+
 ## C9 — File storage
 
-Object storage is close to a commodity, with near-identical interfaces. **Genuinely low exit
-cost** whichever is chosen. Options: bundled with the data platform, bundled with the host,
-or a dedicated object store.
+Object storage is close to a commodity, with near-identical interfaces. **Genuinely low
+exit cost** whichever is chosen. Options: bundled with the data platform, bundled with the
+host, or a dedicated object store.
 
 ## C11 — England Athletics verification
 
@@ -231,18 +237,25 @@ applying early costs nothing. The export fallback means nothing is blocked while
 
 ## Questions to answer before any of this is decided
 
-Questions 2, 3 and 4 are answered against named candidates in
-[platform options](platform-options.md); question 7 belongs to [DNS and domain](dns-and-domain.md).
+Questions 2, 3 and 4 are answered against named candidates in [platform
+options](platform-options.md); question 7 belongs to [DNS and domain](dns-and-domain.md).
 
 1. **What is the actual Squarespace renewal date**, and does "off by April" mean cancelled
    before renewal or simply not renewed?
-2. **For each hosting candidate: do the terms permit taking payments** on the tier the club
-   would use? — *[answered](platform-options.md#1-does-the-free-or-cheap-tier-permit-taking-payments); the incumbent's free tier does not*
+2. **For each hosting candidate: do the terms permit taking payments** on the tier the
+   club would use? —
+   *[answered](platform-options.md#1-does-the-free-or-cheap-tier-permit-taking-payments);
+   the incumbent's free tier does not*
 3. **For each hosting candidate: can it serve a club hostname without controlling the
-   domain's DNS?** — *[answered](platform-options.md#2-can-it-serve-a-club-hostname-without-controlling-the-domains-dns); a subdomain, yes on every candidate; the apex, not on Cloudflare*
+   domain's DNS?** —
+   *[answered](platform-options.md#2-can-it-serve-a-club-hostname-without-controlling-the-domains-dns);
+   a subdomain, yes on every candidate; the apex, not on Cloudflare*
 4. **Does the club want capabilities bundled or assembled?** — the largest architectural
-   question here. *[A two-vendor split is proposed](platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended): serving separate from data*
-5. **What does the treasurer need for reconciliation?** It constrains C4 more than fees do.
+   question here. *[A two-vendor split is
+   proposed](platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended):
+   serving separate from data*
+5. **What does the treasurer need for reconciliation?** It constrains C4 more than fees
+   do.
 6. **Who holds every account**, and can more than one person reach each?
 7. **What does the `mcp` DNS record serve?**
 8. **What is the Nightingale Nightmare 2026 date?**

@@ -18,9 +18,9 @@ Not because it is the biggest thing. Because it is the only piece of work that i
 **useful, small, and forcing** all at once.
 
 **Useful.** [Nightingale Nightmare has no web presence at
-all](../foundations/problem-statement.md#6-two-races-one-of-them-invisible). Pass the Buck at least has a
-page. NN has nothing — no date, no entry route, no way for a runner who heard about it to
-find it. Anything is an improvement over nothing.
+all](../foundations/problem-statement.md#6-two-races-one-of-them-invisible). Pass the Buck
+at least has a page. NN has nothing — no date, no entry route, no way for a runner who
+heard about it to find it. Anything is an improvement over nothing.
 
 **Small.** A page, a form, somewhere to keep a name and an email address, a hostname, a
 deploy. That is days of work, not two weeks.
@@ -77,8 +77,9 @@ Nightingale Nightmare is not on the critical path, and against the *April* deadl
 is correct.
 
 But the schedule above says paid entries want to be open in **about four weeks**. And
-[platform options](../solutions/platform-options.md#the-two-questions-that-eliminate) establishes that
-**Vercel's Hobby tier prohibits commercial use, naming payment processing explicitly.**
+[platform options](../solutions/platform-options.md#the-two-questions-that-eliminate)
+establishes that **Vercel's Hobby tier prohibits commercial use, naming payment processing
+explicitly.**
 
 Put those together:
 
@@ -96,15 +97,16 @@ four weeks away, not eight months.
 
 **Response A — build NN on the target stack now.** Choose the host that permits payments,
 build NN v1 on it, and add payments when the [governance
-gates](../foundations/requirements.md#legal-and-governance) are satisfied. No migration, no second
-decision. This is what [platform options](../solutions/platform-options.md#the-recommendation)
-recommends, and NN is small enough that being wrong is cheap.
+gates](../foundations/requirements.md#legal-and-governance) are satisfied. No migration,
+no second decision. This is what [platform
+options](../solutions/platform-options.md#the-recommendation) recommends, and NN is small
+enough that being wrong is cheap.
 
 **Response B — take NN 2026 entries through Full On Sport, as now.** The club already has
 this route, the fee is [paid by entrants rather than the
-club](../foundations/current-state.md#race-entries), and it removes the payment dependency from the
-October date completely. The club's own site becomes the shop window and the information
-source; the transaction stays where it is for one more year.
+club](../foundations/current-state.md#race-entries), and it removes the payment dependency
+from the October date completely. The club's own site becomes the shop window and the
+information source; the transaction stays where it is for one more year.
 
 **Response B is the better risk position for the 2026 race, and it does not conflict with
 Response A.** Build NN on the target stack because that is right anyway, and decide
@@ -142,8 +144,8 @@ repeating because time pressure erodes exactly these:
   burden. Date of birth, emergency contacts, England Athletics numbers and medical
   information do not, and none of them are needed to tell somebody when a race is.
 - **Must not take money.** That trips the [governance
-  gates](../foundations/requirements.md#legal-and-governance) and the commercial-use terms in the same
-  step, and neither is ready in two weeks.
+  gates](../foundations/requirements.md#legal-and-governance) and the commercial-use terms
+  in the same step, and neither is ready in two weeks.
 - **Must not require a decision that is still open.** Anything chosen under time pressure
   should be cheap to change.
 - **Must not touch an existing DNS record.** Additive only.
@@ -153,7 +155,8 @@ repeating because time pressure erodes exactly these:
 - **A privacy notice**, however short, and a lawful basis for holding the addresses. This
   is the first time the club collects personal data on its own infrastructure and the
   pattern set here is the one everything else copies.
-  [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) applies from the first row.
+  [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) applies from the
+  first row.
 - **A stated purpose.** "We will email you when entries open" — and nothing else, unless
   separately consented to. An interest list is not a mailing list.
 - **A way to be removed.** An address to write to is sufficient at this size.
@@ -255,8 +258,9 @@ decision should be taken on a date, by a person, not left to drift.
 
 Furthest out, and the one place where care matters more than speed.
 
-The timing platform **works** and is [race-day critical](../foundations/requirements.md#risk). NN needs
-three things from it that Pass the Buck did not:
+The timing platform **works** and is [race-day
+critical](../foundations/requirements.md#risk). NN needs three things from it that Pass
+the Buck did not:
 
 | | |
 | --- | --- |

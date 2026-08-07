@@ -5,9 +5,9 @@ options are, and what order things happen in.
 
 **Requirements first, solutions second.** Nothing here names a vendor as a decision. The
 club is replacing a website it does not control and adding sign-ups, payments and a
-permanent results archive around a race-timing system it already owns and runs. Getting the
-requirements written down before the products means a choice can be re-opened later without
-starting the thinking over.
+permanent results archive around a race-timing system it already owns and runs. Getting
+the requirements written down before the products means a choice can be re-opened later
+without starting the thinking over.
 
 **There is no application code yet, and no decisions have been recorded.** That is
 deliberate.
@@ -23,6 +23,7 @@ deliberate.
 | [Options](docs/solutions/options.md) | The solution space per capability, and the criteria to judge by |
 | [Platform options](docs/solutions/platform-options.md) | **Named candidates, priced** — Vercel, Cloudflare, Netlify, AWS, VPS — with a recommendation |
 | [DNS and domain](docs/solutions/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
+| [Email](docs/solutions/email.md) | Getting off forwarding-to-Gmail, and how the platform sends mail — ~£30/yr |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decisions/decision-log.md) | Where choices get recorded — and how they get re-opened |
@@ -49,14 +50,14 @@ Four things need to change:
 - **Volunteers do the joining-up**: WhatsApp requests checked against membership by hand,
   joiners and leavers processed manually, entries imported from CSV, newsletters mirrored
   from Mailchimp. This is the largest cost and it appears on no invoice.
-- **Four systems are reachable by one person each**, and the two volunteers cannot cover for
-  one another.
+- **Four systems are reachable by one person each**, and the two volunteers cannot cover
+  for one another.
 - **Nightingale Nightmare** has no online presence at all.
 
-Two constraints shape every answer: **two volunteers with day jobs build and maintain all of
-it**, so boring and easy-to-leave beats optimal; and **everything is defined as code**, so
-that ownership is shared, changes are reviewable and reversible, and a third person can pick
-it up.
+Two constraints shape every answer: **two volunteers with day jobs build and maintain all
+of it**, so boring and easy-to-leave beats optimal; and **everything is defined as code**,
+so that ownership is shared, changes are reviewable and reversible, and a third person can
+pick it up.
 
 ## Two fixed dates
 
@@ -72,9 +73,9 @@ See [priorities](docs/delivery/priorities.md).
 Documentation only for now. Every change by pull request; documentation ships with the
 change it describes; markdown wraps at roughly 90 characters.
 
-Use the [glossary](docs/foundations/glossary.md)'s words exactly — an "event" is one running
-of one race in one year, a "race" is the recurring thing, and a "team" is the unit of entry
-even when it holds one runner. Getting this wrong in a schema is expensive.
+Use the [glossary](docs/foundations/glossary.md)'s words exactly — an "event" is one
+running of one race in one year, a "race" is the recurring thing, and a "team" is the unit
+of entry even when it holds one runner. Getting this wrong in a schema is expensive.
 
 ## Licence
 

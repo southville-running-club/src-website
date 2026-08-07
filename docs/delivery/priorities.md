@@ -14,10 +14,10 @@ and survive the plan slipping.
 
 A page that collects a name and an email address, and keeps them.
 
-Scoped and planned in [Nightingale Nightmare first](nn-first-delivery.md), which also carries a
-finding that qualifies the "not on the critical path" conclusion below: **working back from an
-October or November race, paid entries want to open in early September, so the commercial-use
-terms bite four weeks from now rather than in April.**
+Scoped and planned in [Nightingale Nightmare first](nn-first-delivery.md), which also
+carries a finding that qualifies the "not on the critical path" conclusion below:
+**working back from an October or November race, paid entries want to open in early
+September, so the commercial-use terms bite four weeks from now rather than in April.**
 
 ### 2. Off Squarespace before it renews — April
 
@@ -30,8 +30,8 @@ deadline than the second.
 
 ## The two-week deadline is not as tight as it looks
 
-A sign-up form is a small thing: a page, somewhere to keep a name and an email, a hostname,
-and a deploy. That is days of work, not two weeks.
+A sign-up form is a small thing: a page, somewhere to keep a name and an email, a
+hostname, and a deploy. That is days of work, not two weeks.
 
 What could have made it tight was coupling it to a DNS migration. **It does not have to
 be.**
@@ -50,8 +50,8 @@ to be wrong, deleting it restores exactly today's behaviour.
 This is worth stating plainly because the opposite conclusion was reached earlier by
 reasoning from a vendor's constraints rather than from the requirement. **"The nameservers
 must move" was never a property of the problem** — it was a property of one candidate
-solution. Choosing that candidate is still open; inheriting its constraints before choosing
-it is not.
+solution. Choosing that candidate is still open; inheriting its constraints before
+choosing it is not.
 
 ### What the two weeks actually needs
 
@@ -62,11 +62,11 @@ it is not.
 | The hostname | One CNAME at the existing DNS provider, if the host supports it |
 | The deploy | Push to version control, host builds. Existing pattern |
 
-**A free tier is appropriate here specifically because this phase takes no money.** Several
-platforms restrict free tiers to non-commercial use, and a name-and-email interest list is
-not commercial use. That exemption ends the moment entries are paid for — which is a useful
-forcing function, because it puts the hosting decision at the same point as the payments
-decision rather than before it.
+**A free tier is appropriate here specifically because this phase takes no money.**
+Several platforms restrict free tiers to non-commercial use, and a name-and-email interest
+list is not commercial use. That exemption ends the moment entries are paid for — which is
+a useful forcing function, because it puts the hosting decision at the same point as the
+payments decision rather than before it.
 
 ### What this phase must not do
 
@@ -81,7 +81,8 @@ decision rather than before it.
 
 ## Working backwards from April
 
-Switching Squarespace off requires three things to be true at once. Each has its own chain.
+Switching Squarespace off requires three things to be true at once. Each has its own
+chain.
 
 ```
                                  ┌─ website rebuilt, proven, apex moved ─┐
@@ -93,7 +94,8 @@ Squarespace can be switched off ─┼─ member fund fully moved ────�
 
 **The member fund is the long pole.** Ninety-four people must each personally re-establish
 a payment; mandates cannot be transferred. That is a communications exercise measured in
-weeks-to-months, and it is the only item here that cannot be accelerated by working harder.
+weeks-to-months, and it is the only item here that cannot be accelerated by working
+harder.
 
 There is a tension worth naming early. The club's preference is a **programmatic payment
 integration on its own website**. That is the better end state — one flow, automatic
@@ -108,8 +110,8 @@ fund moved  →  needs a website with payments built in
 
 Against the April deadline, that is a lot of links. The alternative is to **move the fund
 first using hosted payment pages that need no website at all**, and replace them with the
-programmatic integration afterwards. The fund migration then starts immediately and runs in
-parallel with everything else, and April stops depending on the build.
+programmatic integration afterwards. The fund migration then starts immediately and runs
+in parallel with everything else, and April stops depending on the build.
 
 That is a genuine choice, not a foregone one:
 
@@ -121,9 +123,9 @@ That is a genuine choice, not a foregone one:
 | Total work | Less | Slightly more |
 | Risk to the deadline | **High** | Low |
 
-The middle path worth considering: **hosted pages now, on the processor the club intends to
-keep**, so members' payments are already in the right place and the later programmatic work
-changes the interface rather than the money.
+The middle path worth considering: **hosted pages now, on the processor the club intends
+to keep**, so members' payments are already in the right place and the later programmatic
+work changes the interface rather than the money.
 
 ### The escape hatch
 
@@ -151,8 +153,8 @@ No dates. Each item lists what must be true before it starts.
 
 ### Actions that block nothing and cost nothing
 
-These should happen regardless of any decision above, because they are free and they reduce
-risk immediately:
+These should happen regardless of any decision above, because they are free and they
+reduce risk immediately:
 
 - **Switch on the "cover the fees" option** on the existing fund. Nobody uses it today and
   the club absorbs every fee.
@@ -164,8 +166,8 @@ risk immediately:
 - **Confirm the Squarespace renewal date** and what cancelling before it requires.
 - **Settle the Nightingale Nightmare race date.** It blocks race planning, and the
   clocks-change weekend makes it a technical input.
-- **Apply for England Athletics verification access.** The lead time belongs to them, and a
-  fallback exists meanwhile, so applying early costs nothing.
+- **Apply for England Athletics verification access.** The lead time belongs to them, and
+  a fallback exists meanwhile, so applying early costs nothing.
 - **Find out what the `mcp` DNS record serves**, before the club takes responsibility for
   the zone.
 
@@ -200,25 +202,26 @@ does not buy an earlier April.
 and its own dependencies, and it should be built so that decisions taken for it are cheap
 to revisit.
 
-**But its own deadline arrives first.** If NN takes entry money, it needs a host whose terms
-permit payment by early September — which makes the hosting choice due months before April.
-[Nightingale Nightmare first](nn-first-delivery.md#the-finding-commercial-use-bites-in-weeks-not-in-april)
-sets out the schedule and the fallback that removes the dependency if the club wants it.
+**But its own deadline arrives first.** If NN takes entry money, it needs a host whose
+terms permit payment by early September — which makes the hosting choice due months before
+April. [Nightingale Nightmare
+first](nn-first-delivery.md#the-finding-commercial-use-bites-in-weeks-not-in-april) sets
+out the schedule and the fallback that removes the dependency if the club wants it.
 
 ---
 
 ## What can safely be decided later
 
-Deliberately deferring a decision is only safe if deferring it is *cheaper* than deciding it
-early and wrongly. These qualify:
+Deliberately deferring a decision is only safe if deferring it is *cheaper* than deciding
+it early and wrongly. These qualify:
 
 - **The permanent home of the timing platform.** It works where it is. Moving it is a
   project with a race-simulation gate, and no race depends on it moving.
 - **How the club sends email.** One of the cheapest capabilities to change; it should not
   influence larger decisions.
 - **File storage.** Close to a commodity; low exit cost whichever way it goes.
-- **Whether to build an editing interface for the committee.** Better answered by observing
-  what they actually ask to change after launch than by guessing beforehand.
+- **Whether to build an editing interface for the committee.** Better answered by
+  observing what they actually ask to change after launch than by guessing beforehand.
 - **Race photographs.** Brings its own data-protection questions; nothing depends on it.
 
 And one that emphatically **cannot** safely be deferred: **who else can reach the club's

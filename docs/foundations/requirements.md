@@ -25,8 +25,8 @@ these were missing from earlier drafts because the site was never inventoried.
 
 About, membership, training sessions, news, contact. Readable on a phone.
 
-*Harder than it looks:* committee members can edit these today by clicking. Any replacement
-either preserves that or has an answer for why it does not.
+*Harder than it looks:* committee members can edit these today by clicking. Any
+replacement either preserves that or has an answer for why it does not.
 
 *Done when:* everything on the current site is reachable, and every existing URL still
 resolves.
@@ -48,8 +48,9 @@ anyone copying anything.
 Collect the fields the race and its categories actually need, at the moment of entry, into
 the club's own records. Replaces exporting a CSV from a third party and importing it.
 
-*Harder than it looks:* the fields needed differ by race (age bands need age; a relay needs
-pairs). Entry data is personal data, which brings C10 and the governance gates with it.
+*Harder than it looks:* the fields needed differ by race (age bands need age; a relay
+needs pairs). Entry data is personal data, which brings C10 and the governance gates with
+it.
 
 *Done when:* on race morning the registration desk works from a roster that was always the
 club's, with no import step.
@@ -65,14 +66,14 @@ club's, with no import step.
 | **Race entries** — £8–£10 per runner | One-off, from non-members, priced by EA status | A third-party entry platform |
 | **Merchandise and tickets** | Occasional, physical or admission, needs stock and sizes | Squarespace commerce; kit via an external link |
 
-*Harder than it looks:* the £2.50 subscription **is not membership** and its payers are not
-a membership list — conflating them will produce a wrong data model. Fixed per-transaction
-fees dominate small payments, so the difference between monthly and annual pricing matters
-more than the choice of processor. Card data must never touch club systems. The treasurer
-must be able to reconcile all four flows.
+*Harder than it looks:* the £2.50 subscription **is not membership** and its payers are
+not a membership list — conflating them will produce a wrong data model. Fixed
+per-transaction fees dominate small payments, so the difference between monthly and annual
+pricing matters more than the choice of processor. Card data must never touch club
+systems. The treasurer must be able to reconcile all four flows.
 
-*Done when:* money arrives in a club account under treasurer oversight, reconcilable against
-members, subscribers, entrants and buyers, with a written refund policy behind it.
+*Done when:* money arrives in a club account under treasurer oversight, reconcilable
+against members, subscribers, entrants and buyers, with a written refund policy behind it.
 
 ### C5 — Capture race timing data, tolerant of no signal
 
@@ -89,11 +90,11 @@ connectivity loss and a run against a real race date.
 
 ### C6 — Show live race progress to spectators
 
-A public leaderboard updating within about a second of a marshal's tap, for people standing
-at the finish and for family watching from home.
+A public leaderboard updating within about a second of a marshal's tap, for people
+standing at the finish and for family watching from home.
 
-*Harder than it looks:* this is the one capability that needs **live push to browsers**, not
-just request/response. It is the least substitutable thing in the stack.
+*Harder than it looks:* this is the one capability that needs **live push to browsers**,
+not just request/response. It is the least substitutable thing in the stack.
 
 *Done when:* two browsers agree within a second, under the load of a full field's
 spectators.
@@ -113,8 +114,8 @@ surfaces, so a lockout on race morning is a serious failure.
 Membership acknowledgements, entry confirmations, welcome messages, magic links. From a
 club address, arriving in inboxes rather than spam.
 
-*Harder than it looks:* requires DNS records the club controls, and interacts with existing
-mail — the domain already has SPF, DKIM and DMARC for a different provider.
+*Harder than it looks:* requires DNS records the club controls, and interacts with
+existing mail — the domain already has SPF, DKIM and DMARC for a different provider.
 
 *Done when:* a message sent by the platform arrives and passes authentication checks.
 
@@ -125,7 +126,8 @@ CSV import audit trails today; race photographs later.
 *Harder than it looks:* photographs of identifiable people are personal data. This
 capability grows a governance dimension the moment it is used for images.
 
-*Done when:* files are retrievable, access-controlled, and covered by the retention policy.
+*Done when:* files are retrievable, access-controlled, and covered by the retention
+policy.
 
 ### C10 — Hold personal data lawfully
 
@@ -135,8 +137,8 @@ records. Collected minimally, retained to a written policy, deletable on request
 *Harder than it looks:* this is not a feature, it is a condition on everything else. It
 constrains where data may live, what may be logged, and what may exist outside production.
 
-*Done when:* there is a privacy notice, a retention policy, a lawful basis, and no personal
-data anywhere it is not needed.
+*Done when:* there is a privacy notice, a retention policy, a lawful basis, and no
+personal data anywhere it is not needed.
 
 ### C11 — Verify England Athletics registration
 
@@ -152,21 +154,21 @@ recent club member list if the interface is unavailable.
 
 ### C12 — Maintain membership records
 
-Who is a member, when they joined, whether they are current, when they lapse. Distinct from
-taking their money and distinct from the £2.50 subscription list.
+Who is a member, when they joined, whether they are current, when they lapse. Distinct
+from taking their money and distinct from the £2.50 subscription list.
 
 *Harder than it looks:* the authoritative record currently lives in **England Athletics'
-portal**, not the club's systems, and renewals happen there. Joining and cancelling are web
-forms handled by hand. Membership confers the WhatsApp community and the discount scheme,
-so "is this person current?" is a question the platform must be able to answer.
+portal**, not the club's systems, and renewals happen there. Joining and cancelling are
+web forms handled by hand. Membership confers the WhatsApp community and the discount
+scheme, so "is this person current?" is a question the platform must be able to answer.
 
 *Done when:* the Membership Officer can answer who is current without cross-referencing
 three systems.
 
 ### C13 — Gate the members' community
 
-Membership entitles someone to the WhatsApp community. Entry requires current membership, a
-form, and agreement to a 12-point code of conduct.
+Membership entitles someone to the WhatsApp community. Entry requires current membership,
+a form, and agreement to a 12-point code of conduct.
 
 *Harder than it looks:* the gate is only as strong as the invite link, and messaging
 platforms do not expose membership management. Any enforcement is ours, not theirs — and
@@ -186,16 +188,16 @@ somebody copying each one across by hand. That single change removes a manual pr
 club is already failing to keep up with.
 
 **Documents move onto the new site**, hosted by the club rather than on a platform's CDN.
-Keep it simple to begin with — public, as they are now — with a members-only area available
-later if the committee decides some should be restricted.
+Keep it simple to begin with — public, as they are now — with a members-only area
+available later if the committee decides some should be restricted.
 
-*Harder than it looks:* the archive is split across two providers — most documents are PDFs
-on Squarespace's CDN, but **seven are on Google Drive**, outside club control. It is also a
-limited company's public record, so losing part of it in a migration is a governance
-problem, not just a broken link.
+*Harder than it looks:* the archive is split across two providers — most documents are
+PDFs on Squarespace's CDN, but **seven are on Google Drive**, outside club control. It is
+also a limited company's public record, so losing part of it in a migration is a
+governance problem, not just a broken link.
 
-*Done when:* the newsletter archive updates itself, every document is held by the club at a
-stable URL, and adding a document does not require a developer.
+*Done when:* the newsletter archive updates itself, every document is held by the club at
+a stable URL, and adding a document does not require a developer.
 
 See [existing site inventory](../reference/existing-site.md).
 
@@ -203,19 +205,19 @@ See [existing site inventory](../reference/existing-site.md).
 
 **Both are in scope to rebuild.**
 
-**Kit** — seven items (buffs, t-shirts, vests, hi-viz variants) with sizes, male and female
-cuts, prices, a buy-back policy and a held stock. Ordered in seasonal batches two or three
-times a year, currently through an external link with **stock tracked by hand in a table on
-a page**, and collected from a local shop.
+**Kit** — seven items (buffs, t-shirts, vests, hi-viz variants) with sizes, male and
+female cuts, prices, a buy-back policy and a held stock. Ordered in seasonal batches two
+or three times a year, currently through an external link with **stock tracked by hand in
+a table on a page**, and collected from a local shop.
 
 **Tickets** — Summer and Christmas parties. Currently Squarespace commerce, with a cart,
 checkout and customer accounts.
 
-*Harder than it looks:* this is the largest single piece of build in the website. Sizes and
-variants make kit a real catalogue rather than a button; batch ordering is not the same
-shape as continuous stock; and both need fulfilment tracking, not just payment. It also
-brings customer accounts and order history with it, which is state the current site holds
-and a rebuild must either carry over or deliberately abandon.
+*Harder than it looks:* this is the largest single piece of build in the website. Sizes
+and variants make kit a real catalogue rather than a button; batch ordering is not the
+same shape as continuous stock; and both need fulfilment tracking, not just payment. It
+also brings customer accounts and order history with it, which is state the current site
+holds and a rebuild must either carry over or deliberately abandon.
 
 *Done when:* an order can be placed, paid for and fulfilled without the Quarter Master
 maintaining a table by hand, and a party ticket can be bought without Squarespace.
@@ -224,8 +226,8 @@ maintaining a table by hand, and a party ticket can be bought without Squarespac
 
 A directory of around a dozen local businesses offering negotiated rates to members.
 
-*Harder than it looks:* it changes as deals come and go, which makes it exactly the sort of
-content the committee will want to edit without a developer.
+*Harder than it looks:* it changes as deals come and go, which makes it exactly the sort
+of content the committee will want to edit without a developer.
 
 *Done when:* the Membership Officer can add or amend a discount unaided.
 
@@ -234,9 +236,9 @@ content the committee will want to edit without a developer.
 New member, cancel membership, WhatsApp community join, mailing-list subscription, and
 whatever comes next.
 
-*Harder than it looks:* every one of these collects personal data, so C10 applies. They are
-also the club's main inbound channel and the thing most likely to be quietly broken by a
-migration.
+*Harder than it looks:* every one of these collects personal data, so C10 applies. They
+are also the club's main inbound channel and the thing most likely to be quietly broken by
+a migration.
 
 *Done when:* submissions reach the right officer reliably, and are retained to the policy.
 
@@ -256,9 +258,9 @@ should not be — a human check on a new member may be the point rather than the
 *Done when:* the Membership Officer is not cross-referencing systems by hand, and the
 newsletter archive stops drifting.
 
-**This is where most of the value is.** The subscription fee is the visible cost; volunteer
-time is the larger one, and it appears on no invoice. See
-[problem statement](problem-statement.md#3-volunteers-are-doing-work-the-system-should-do).
+**This is where most of the value is.** The subscription fee is the visible cost;
+volunteer time is the larger one, and it appears on no invoice. See [problem
+statement](problem-statement.md#3-volunteers-are-doing-work-the-system-should-do).
 
 ---
 
@@ -273,10 +275,10 @@ wrong here.
 infrastructure, configuration, schema and deployment are defined in version control and
 changed by a reviewed commit.
 
-It is what the club is actually buying. The current site's state lives in a browser session:
-no history of what changed, no review before it goes live, no rollback, and no way for a
-second person to see what the first did. Recreating that on different technology would gain
-the club almost nothing.
+It is what the club is actually buying. The current site's state lives in a browser
+session: no history of what changed, no review before it goes live, no rollback, and no
+way for a second person to see what the first did. Recreating that on different technology
+would gain the club almost nothing.
 
 What follows from it:
 
@@ -285,30 +287,30 @@ What follows from it:
 - **Testable** — if it is code, it can be tested, and a change can be verified before it
   reaches members.
 - **Reversible** — every change has a previous state to return to.
-- **Reusable** — patterns established once serve the website, Nightingale Nightmare and the
-  timing platform rather than being solved three times.
-- **Legible to tooling** — a codebase with its decisions written down is one that automated
-  assistance can work in productively, which is how two volunteers with day jobs cover more
-  ground than two volunteers otherwise would.
+- **Reusable** — patterns established once serve the website, Nightingale Nightmare and
+  the timing platform rather than being solved three times.
+- **Legible to tooling** — a codebase with its decisions written down is one that
+  automated assistance can work in productively, which is how two volunteers with day jobs
+  cover more ground than two volunteers otherwise would.
 - **Decisions are documented** — see the [decision log](../decisions/decision-log.md).
 
-A pragmatic exception, stated so it does not become a slow leak: **a small amount of manual
-setup is accepted** — creating an account, issuing an API token, a registrar action that has
-no interface. Where that happens it is documented in the repository: what was done, why, by
-whom, and how to redo it. Anything routinely done by clicking is a gap to close, not a way
-of working.
+A pragmatic exception, stated so it does not become a slow leak: **a small amount of
+manual setup is accepted** — creating an account, issuing an API token, a registrar action
+that has no interface. Where that happens it is documented in the repository: what was
+done, why, by whom, and how to redo it. Anything routinely done by clicking is a gap to
+close, not a way of working.
 
 ### Shared ownership
 
 **No system may be reachable by only one person.**
 
-Today four are: the domain, DNS and email sit with one volunteer; the database, hosting and
-England Athletics record sit with the other. Neither can cover for the other, and the club
-cannot reach either without them.
+Today four are: the domain, DNS and email sit with one volunteer; the database, hosting
+and England Athletics record sit with the other. Neither can cover for the other, and the
+club cannot reach either without them.
 
-This is a requirement on *how* things are set up, not only on who holds passwords: club-owned
-accounts rather than personal ones, code in the club's organisation rather than an
-individual's, and access granted by role.
+This is a requirement on *how* things are set up, not only on who holds passwords:
+club-owned accounts rather than personal ones, code in the club's organisation rather than
+an individual's, and access granted by role.
 
 ### Money
 
@@ -317,9 +319,9 @@ pays **£204** for the website and **£15.40** for the domain and DNS, plus paym
 every transaction. Anything that adds a recurring three-figure line needs to displace more
 than it costs.
 
-This is the constraint that eliminates most of the enterprise-shaped answers. It also means
-free tiers are load-bearing, so their *terms* — commercial use, inactivity, retention —
-are architectural facts, not fine print.
+This is the constraint that eliminates most of the enterprise-shaped answers. It also
+means free tiers are load-bearing, so their *terms* — commercial use, inactivity,
+retention — are architectural facts, not fine print.
 
 ### People
 
@@ -333,9 +335,9 @@ burden is now bearable, and there is somebody to review a change. It does not re
 constraint. Both have day jobs, the club is a volunteer organisation, and a third person
 must be able to pick this up cold.
 
-So "boring" stays a hard requirement rather than a preference. Mainstream, well documented,
-widely known beats optimal. Every unusual choice is a tax on somebody who has not been
-hired.
+So "boring" stays a hard requirement rather than a preference. Mainstream, well
+documented, widely known beats optimal. Every unusual choice is a tax on somebody who has
+not been hired.
 
 **The split is itself a risk.** Access to each critical system currently sits with one
 person, so the club has two single points of failure rather than one shared capability.
@@ -353,12 +355,12 @@ justifies treating anything that touches race day differently from everything el
 
 ### Continuity
 
-**The results archive is permanent.** Whatever holds it must not sleep, expire, or lose data
-without a restorable backup. A URL published in 2026 should resolve in 2036.
+**The results archive is permanent.** Whatever holds it must not sleep, expire, or lose
+data without a restorable backup. A URL published in 2026 should resolve in 2036.
 
 **The old site runs until the club is satisfied with the new one.** They coexist; there is
-no big-bang switchover. That is a constraint on how the replacement is built and addressed,
-not merely a rollback plan.
+no big-bang switchover. That is a constraint on how the replacement is built and
+addressed, not merely a rollback plan.
 
 **Nothing may be lost in the move.** Every image, document and newsletter currently on the
 site is held on a platform CDN — cancelling the subscription deletes them. Retrieving the
@@ -390,20 +392,21 @@ club. This is a stated goal, not merely an option, and it means any interim arra
 should be judged partly on how cheaply it converges later.
 
 The timing platform functions well but currently sits on its own hosting and its own
-database. Its framework and data model are the incumbent; changing them costs real volunteer
-time and re-opens proven, race-tested code. Divergence should be a deliberate decision with
-a stated benefit, not a side effect.
+database. Its framework and data model are the incumbent; changing them costs real
+volunteer time and re-opens proven, race-tested code. Divergence should be a deliberate
+decision with a stated benefit, not a side effect.
 
 ### Users
 
-Runners, marshals, members and spectators, on phones, often on poor mobile signal, sometimes
-in bright sunlight with cold hands. Accessibility is part of this: semantic markup, real
-contrast, keyboard navigation, WCAG 2.2 AA.
+Runners, marshals, members and spectators, on phones, often on poor mobile signal,
+sometimes in bright sunlight with cold hands. Accessibility is part of this: semantic
+markup, real contrast, keyboard navigation, WCAG 2.2 AA.
 
 ### Time and timezone
 
-All timestamps stored in UTC, displayed in `Europe/London`. A race sits on the clocks-change
-weekend, which makes this a correctness requirement rather than a formatting preference.
+All timestamps stored in UTC, displayed in `Europe/London`. A race sits on the
+clocks-change weekend, which makes this a correctness requirement rather than a formatting
+preference.
 
 ---
 
@@ -417,7 +420,7 @@ Stating these prevents solutions being judged against imaginary requirements.
   on race night. Anything designed for scale is being paid for in complexity the club does
   not need.
 - **Not high availability.** The website being down for an hour is an inconvenience. The
-  timing app being down during a race is not, but that is one evening a year and is handled
-  by the offline queue rather than by uptime engineering.
+  timing app being down during a race is not, but that is one evening a year and is
+  handled by the offline queue rather than by uptime engineering.
 - **Not rebuilding the timing app.** It works.
 - **Not a mobile app.** A phone browser is the delivery mechanism.

@@ -3,9 +3,9 @@
 What exists today, as fact. No proposals, no recommendations, no vendor preferences.
 
 Everything here is either observed directly (the DNS zone, the timing app source, the live
-site's redirect behaviour) or taken from the club's own
-[platform proposal](../reference/platform-proposal-v8.md). Where a figure is an estimate or
-a range from the proposal rather than a measured number, it says so.
+site's redirect behaviour) or taken from the club's own [platform
+proposal](../reference/platform-proposal-v8.md). Where a figure is an estimate or a range
+from the proposal rather than a measured number, it says so.
 
 This document is the baseline any option has to improve on.
 
@@ -16,17 +16,18 @@ This document is the baseline any option has to improve on.
 **Southville Running Club**, Bristol. Volunteer-run.
 
 **Pass the Buck** — a two-person team relay around the Ashton Court Estate. Each runner
-runs a 5 km lap; the team must complete 10 km inside a **1 hour 20 minute cut-off**. Winners
-are the pair with the lowest combined time. **Maximum 100 teams.** Race HQ at Ashton Park
-School, start at Ashton Court Mansion. A single physical line acts as start, handover and
-finish. Priced by England Athletics registration status: £8 per registered runner, £10 per
-non-registered, paid as one transaction per team (£16, £18 or £20). Last run 8 July 2026.
+runs a 5 km lap; the team must complete 10 km inside a **1 hour 20 minute cut-off**.
+Winners are the pair with the lowest combined time. **Maximum 100 teams.** Race HQ at
+Ashton Park School, start at Ashton Court Mansion. A single physical line acts as start,
+handover and finish. Priced by England Athletics registration status: £8 per registered
+runner, £10 per non-registered, paid as one transaction per team (£16, £18 or £20). Last
+run 8 July 2026.
 
 **Nine prize categories**, which the results logic has to satisfy: 1st and 2nd male pair,
-1st and 2nd female pair, 1st and 2nd mixed pair, the pair whose times are closest together,
-the pair with the biggest time difference, fastest male and fastest female (each excluding
-anyone who has already won). No dogs on the course. Visually impaired runners are accepted
-with a guide, in mixed VI / non-VI teams.
+1st and 2nd female pair, 1st and 2nd mixed pair, the pair whose times are closest
+together, the pair with the biggest time difference, fastest male and fastest female (each
+excluding anyone who has already won). No dogs on the course. Visually impaired runners
+are accepted with a guide, in mixed VI / non-VI teams.
 
 **Nightingale Nightmare** — a solo mass-start 10 km at Halloween. One runner per entry,
 one gun, one finish crossing each. Age-band categories (Vet 40/50/60, male and female).
@@ -75,8 +76,8 @@ Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
 
 Content that will need somewhere to live, beyond pages: a **member discount directory**
 (around a dozen local businesses with negotiated rates), a **pace guide** mapping paces to
-5K/half/marathon times, a **kit catalogue** with descriptions, prices and a live stock list,
-a **12-point WhatsApp code of conduct**, and a **mailing list** subscription.
+5K/half/marathon times, a **kit catalogue** with descriptions, prices and a live stock
+list, a **12-point WhatsApp code of conduct**, and a **mailing list** subscription.
 
 **Forms currently in use:** new member, cancel membership, and WhatsApp community join.
 
@@ -109,8 +110,8 @@ not required to run. Hi-viz is mandatory from October until the clocks go forwar
 | Committee Member | Sam Blanning |
 
 **Who builds the platform:** two people. The Web Manager built the current website and
-holds Fasthosts access; the Membership Officer built the race-timing system. The rebuild is
-a joint effort.
+holds Fasthosts access; the Membership Officer built the race-timing system. The rebuild
+is a joint effort.
 
 ---
 
@@ -147,10 +148,10 @@ Cost: **£15.40 a year** for the domain and DNS.
 **Facts worth noting because they constrain later choices:**
 
 - **Email is forwarding-only**, through Fasthosts livemail, **forwarding to Gmail
-  accounts**. There are addresses on the domain (the Membership Officer publishes one), but
-  no mailboxes the club hosts.
-- **The MX points at a hostname inside the zone**, so `mail`'s A record is load-bearing for
-  all inbound mail.
+  accounts**. There are addresses on the domain (the Membership Officer publishes one),
+  but no mailboxes the club hosts.
+- **The MX points at a hostname inside the zone**, so `mail`'s A record is load-bearing
+  for all inbound mail.
 - **DMARC is `p=none`** — monitoring, no enforcement. Authentication failures degrade
   toward spam folders rather than causing rejection.
 - **Two records carry a Fasthosts "manually changed / restore automatic updates" prompt.**
@@ -191,8 +192,8 @@ security. These are separate capabilities that happen to come from one vendor to
 
 **Known gaps**, from the app's own decision log: the leaderboard's derivation is
 relay-shaped; age-band categories do not exist (only pair categories, derived from two
-runners' genders); the home page hardcodes `LOCATION_LABEL = "Ashton Court"` and assumes an
-evening start; and a true two-marshal end-to-end verification is still outstanding.
+runners' genders); the home page hardcodes `LOCATION_LABEL = "Ashton Court"` and assumes
+an evening start; and a true two-marshal end-to-end verification is still outstanding.
 
 ---
 
@@ -221,19 +222,20 @@ Charged per run, covering room hire at the Southbank Club. Payable in cash on th
 
 ### 2. The £2.50 monthly subscription — **not membership**
 
-An alternative to bringing cash: £2.50 a month for as many sessions as you like. Set up as a
-Squarespace donation fund ('Monthly running fee', October 2024).
+An alternative to bringing cash: £2.50 a month for as many sessions as you like. Set up as
+a Squarespace donation fund ('Monthly running fee', October 2024).
 
-The site states plainly: *"This £2.50 monthly subscription does not confer membership of the
-Club. It is open to members and non-members alike, and can be stopped and started as often
-as you wish without any commitment."* Payments are non-refundable and non-transferable.
+The site states plainly: *"This £2.50 monthly subscription does not confer membership of
+the Club. It is open to members and non-members alike, and can be stopped and started as
+often as you wish without any commitment."* Payments are non-refundable and
+non-transferable.
 
 - **94 active recurring payers**, every one at exactly £2.50 — roughly **£2,820 a year**.
 - Processing fees roughly **£340–£450 a year**, all absorbed by the club.
 - **0% of payments use Squarespace's "cover the fees" option.**
 - A payment account is connected under Squarespace, **set up informally**. Whether it is a
-  club Stripe account or Squarespace's own processor is not established; the club only ever
-  provided a bank account for deposits.
+  club Stripe account or Squarespace's own processor is not established; the club only
+  ever provided a bank account for deposits.
 
 > **The 94 payers are not necessarily members**, and members are not necessarily among
 > them. Anything that treats "the member fund" as a membership list will be wrong.
@@ -244,8 +246,8 @@ Confers membership: the WhatsApp community, and discounts at around a dozen loca
 businesses. Optional — you do not need it to run with the club.
 
 An **England Athletics athlete registration** can be bought alongside. England Athletics'
-published fee for 2026–27 is **£23 a year**, renewable by 30 June; club affiliation is £210
-from April 2026. So SRC membership plus EA registration is **£27**.
+published fee for 2026–27 is **£23 a year**, renewable by 30 June; club affiliation is
+£210 from April 2026. So SRC membership plus EA registration is **£27**.
 
 The site quotes £23 in one place, £24 for the combined total in another, and a £20 renewal
 fee in a third — **the figures on the site are stale and inconsistent**, and appear to
@@ -253,8 +255,8 @@ predate EA's increase. Club policy is not to issue an EA registration without SR
 membership first.
 
 **Renewals do not happen on the club site** — members are directed to the England
-Athletics portal, or to email the Membership Officer. New memberships and cancellations are
-web forms.
+Athletics portal, or to email the Membership Officer. New memberships and cancellations
+are web forms.
 
 England Athletics registration is not verified at the point of joining. The Membership
 Officer holds the club's member list in the EA myAthletics portal.
@@ -295,9 +297,9 @@ actual invoices.
 cover for one another: the domain, DNS and email sit with one; the database, hosting and
 membership record sit with the other.
 
-A GitHub organisation exists under the club-owned `srcdmin@gmail.com` account. The intended
-shape is a repository for the website core, with separate repositories for the timing app
-and Nightingale Nightmare — not fixed.
+A GitHub organisation exists under the club-owned `srcdmin@gmail.com` account. The
+intended shape is a repository for the website core, with separate repositories for the
+timing app and Nightingale Nightmare — not fixed.
 
 ---
 
@@ -327,10 +329,11 @@ mirroring step.
 
 - **The timing platform is proven in production and race-day critical.** Regressing it is
   expensive in a way that cannot be recovered by a rollback on the night.
-- **Nightingale Nightmare sits on or near the clocks change.** The timing app already treats
-  this as a known hazard and pins `Europe/London` through a single tested code path.
-- **Governance positions agreed at the QGM:** no payment work before data-protection advice
-  and treasurer-controlled payment arrangements are in place; the member fund must be
-  re-homed before Squarespace is cancelled.
+- **Nightingale Nightmare sits on or near the clocks change.** The timing app already
+  treats this as a known hazard and pins `Europe/London` through a single tested code
+  path.
+- **Governance positions agreed at the QGM:** no payment work before data-protection
+  advice and treasurer-controlled payment arrangements are in place; the member fund must
+  be re-homed before Squarespace is cancelled.
 - **One volunteer.** Every decision is bounded by what one person with a day job can build
   and what a second person could later pick up.
