@@ -35,6 +35,48 @@ Any of these can move without the others. In particular:
 Conflating these is what makes the whole thing feel dangerous. Separated, only one of the
 four touches club email.
 
+### "Moving the apex to Cloudflare" is not one thing
+
+The phrase is convenient shorthand and it misleads, because it sounds like the domain
+moves. **It does not.** Three separate things are involved and only the middle one changes
+hands:
+
+| | What it is | Today | After |
+| --- | --- | --- | --- |
+| **Registration** | Who the club rents the name from | **Fasthosts** | **Fasthosts — unchanged** |
+| **Authoritative DNS** | Whose nameservers answer queries for the zone | Fasthosts | **Cloudflare** |
+| **The apex record** | What that answer says for the bare domain | Squarespace's four IPs | The club's Cloudflare project |
+
+**At Fasthosts, exactly one setting changes: the nameservers.** They point at Fasthosts
+today and would point at Cloudflare instead. The domain remains registered at Fasthosts,
+renews at Fasthosts, and costs the same. Nothing is transferred.
+
+What stops mattering is the DNS editing screen in the Fasthosts control panel — those
+records go quiet, and Cloudflare's become the live ones.
+
+**Cloudflare requires this because it will not serve a bare domain unless it is
+authoritative for the whole zone.** That is a property of Cloudflare, not of the club's
+problem — which is why a subdomain like `nn.` needs none of it, and why
+[Netlify](cloudflare-vs-netlify.md) is the alternative that never asks for it.
+
+### Where Fasthosts ends up
+
+| | Today | After DNS moves | After mail moves too |
+| --- | --- | --- | --- |
+| Domain registration | Fasthosts | **Fasthosts** | **Fasthosts** |
+| Authoritative DNS | Fasthosts | Cloudflare | Cloudflare |
+| Mailboxes and mail routing | Fasthosts | Fasthosts | Elsewhere |
+
+**After both moves Fasthosts does exactly one thing: it holds the registration.** Nothing
+technical runs there.
+
+That is a perfectly good end state — a registrar being only a registrar is fine, and
+[transferring it](#move-4--transfer-the-registration-administrative-risk-only) stays
+optional. But it settles a question raised in
+[email](email.md#so-does-it-still-make-sense-to-use-fasthosts): once DNS and mail have
+both left, **there is no consolidation benefit left to protect**, and the mailbox provider
+should be chosen purely on merit.
+
 ---
 
 ## Before anything else: who actually holds the registration?
