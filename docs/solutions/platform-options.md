@@ -408,7 +408,7 @@ that those do not. Listed so they are visibly considered.
 
 ## Side by side
 
-### Annual cost, steady state, with payments live
+### Platform cost alone
 
 | | Hosting | Data | Domain/DNS | **Per year** | **3 years** |
 | --- | --- | --- | --- | --- | --- |
@@ -422,11 +422,50 @@ that those do not. Listed so they are visibly considered.
 | **F — VPS (Hetzner / Mythic)** | £39–120 | included | £15.40 | **£54–135** | **£162–405** + ops hours |
 | **G — Railway / Render** | £47–237 | +£0–47 | £15.40 | **£62–300** | **£186–900** |
 
-Card processing is excluded here because it is the same whichever host is chosen. **The
-incumbent's row understates it by £85**, because Squarespace also takes 3% of every
-payment and no other candidate does — see [what payments actually
-cost](#what-payments-actually-cost) below. Counting it, Squarespace costs the club
-**£289/yr**, not £204.
+**That table is not the comparison the club should decide on**, and it took measured
+figures to see why.
+
+### Total cost of collecting the club's money
+
+Two things change with the platform that the table above misses.
+
+**Squarespace's transaction fee disappears.** It takes 2% of every payment — **£91 a
+year** — and **no other candidate takes a cut at all.** Cloudflare, Netlify, AWS and a VPS
+are infrastructure; they do not sit between the club and its money.
+
+**The processor changes too, and it is not a wash.** The club is on **Squarespace
+Payments**, which cannot outlive the platform. Its UK rate is **2% + 25p**. Stripe's is
+**1.5% + 20p** — lower on both the percentage *and* the fixed fee, and the fixed fee is
+what dominates a £2.50 transaction. So leaving Squarespace forces a processor change that
+happens to be an improvement.
+
+On measured volumes — 1,175 subscription payments and 158 ticket orders, £4,560 gross:
+
+| | Plan | Platform's cut | Processing | Domain | **Per year** | **Saving** |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Today — Squarespace + Squarespace Payments** | £204 | £91 | £424 | £15.40 | **£734** | — |
+| **C — Cloudflare + Stripe, card** ⭐ | £0 | **£0** | £335 | £15.40 | **£350** | **£384** |
+| **D — Netlify (Personal) + Stripe, card** | £85 | **£0** | £335 | £15.40 | **£435** | £299 |
+| **A — Vercel Pro + Supabase Pro + Stripe** | £616 | **£0** | £335 | £15.40 | **£966** | **−£232** |
+| **C + Bacs Direct Debit on the subscription** | £0 | **£0** | £85 | £15.40 | **£100** | **£634** |
+
+Ex-VAT throughout, so the comparison is like-for-like; VAT applies to both sides and does
+not change the ranking.
+
+**Three readings of that table.**
+
+**The platform saving is £384, not £219.** Nearly half of it — £166 — is the platform's
+cut plus the better processor rate, neither of which appears in a hosting comparison. A
+cost case built on "we save the £204 subscription" understates the move by 75%.
+
+**Option A does not merely cost more, it costs more than staying.** Vercel Pro and
+Supabase Pro at £966 is **£232 a year worse than Squarespace** while delivering less
+commerce capability. That is the clearest possible statement of why the incumbent pattern
+cannot carry the website.
+
+**The biggest single lever is still not the platform.** Moving to Bacs Direct Debit on the
+subscription takes the total to **£100 — a £634 saving**, and £250 of that has nothing to
+do with hosting. See [what payments actually cost](#what-payments-actually-cost).
 
 ### Against the seven criteria
 
@@ -476,7 +515,8 @@ Restated as a decision the committee can take:
 | --- | --- |
 | **Requirement served** | All of [C1–C18](../foundations/requirements.md#capabilities); decisively [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically) and the [money constraint](../foundations/requirements.md#money) |
 | **Decision** | Serving on Cloudflare Pages; data on Supabase Postgres; files on R2; payments on Stripe; TypeScript, Astro for the site |
-| **Cost** | **£0–£57/yr**, unchanged when payments switch on |
+| **Platform cost** | **£0–£57/yr**, unchanged when payments switch on |
+| **Total cost of collecting the club's money** | **£350/yr against £734 today — a £384 saving.** £295 of that is the plan and Squarespace's cut; £89 is the better processor rate that comes with leaving. A further £250 is available from Bacs Direct Debit, independently of this decision |
 | **Consequences accepted** | Two vendors; Supabase's bundling exposure inherited; the apex requires Cloudflare nameservers; a second framework alongside Next.js |
 | **Exit cost** | Serving: an afternoon. Files: S3-compatible, near zero. Data: unchanged from today's exposure |
 | **Revisit when** | Cloudflare's free tier gains a commercial-use restriction; Supabase Free's ceilings are reached; or a volunteer arrives who wants to run infrastructure |

@@ -101,13 +101,21 @@ without a handover meeting.
 
 | | Today | Target |
 | --- | --- | --- |
-| Website platform | £204/yr, middle tier required only to take payments | Domain and minimal hosting |
-| Domain and DNS | £15.40/yr | £15.40/yr |
-| Payment fees | Card processing **plus Squarespace's cut on every payment** | Card processing only |
+| Website platform | **£204/yr**, middle tier required only to take payments | **£0–£57/yr** |
+| Platform's cut on payments | **£91/yr** — 2% of everything collected | **£0** — infrastructure does not take a cut |
+| Card processing | **£424/yr** — Squarespace Payments at 2% + 25p | **£335/yr** on Stripe at 1.5% + 20p, or **£85** on Direct Debit |
+| Domain and DNS | £15.40/yr | £0–£15.40/yr |
+| **Total cost of collecting £4,560** | **£734/yr** | **£350/yr**, or **£100** with Direct Debit |
 | Volunteer hours | The manual chain in the [problem statement](problem-statement.md#3-volunteers-are-doing-work-the-system-should-do) | Substantially reduced |
 
-The subscription saving is real but modest. **The volunteer time is the larger return**,
-and it is the one that does not show up on an invoice.
+**The saving is £384 a year, not the £204 subscription** — because leaving also removes
+the 2% Squarespace takes on every payment and moves the club onto a cheaper processor. A
+further £250 is available from changing how the club bills rather than where it hosts.
+Figures and workings in [platform
+options](../solutions/platform-options.md#total-cost-of-collecting-the-clubs-money).
+
+Even so: **the volunteer time is the larger return**, and it is the one that does not show
+up on an invoice.
 
 ---
 
