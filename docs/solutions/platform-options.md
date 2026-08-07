@@ -410,6 +410,21 @@ that those do not. Listed so they are visibly considered.
 
 ## Side by side
 
+The candidates, so the letters below can be read without scrolling back:
+
+| | | |
+| --- | --- | --- |
+| **A** | Vercel + Supabase | Extend the incumbent pattern — what the timing app runs on today |
+| **B** | Cloudflare, bundled | One vendor for everything: Pages/Workers, D1, R2, Access |
+| **C** ⭐ | **Cloudflare + Supabase** | Cloudflare serves, Supabase holds the data. **Recommended** |
+| **D** | Netlify + Supabase | Same shape as C, different host. The strongest alternative |
+| **E** | AWS Lightsail | Self-hosted on a VPS inside AWS |
+| **F** | Plain VPS | Hetzner, Mythic Beasts or DigitalOcean |
+| **G** | Container hosts | Render, Railway, Fly.io |
+
+Rows labelled *"on Supabase Pro"* are the same option with the paid data tier, shown
+separately because that £237 is the single largest risk to the cost case.
+
 ### Platform cost alone
 
 | | Hosting | Data | Domain/DNS | **Per year** | **3 years** |
@@ -418,7 +433,7 @@ that those do not. Listed so they are visibly considered.
 | **A — Vercel Pro + Supabase Pro** | £379 | £237 | £15.40 | **£631** | **£1,894** |
 | **B — Cloudflare bundled** | £47 | £0 | £0–10 | **£47–57** | **£141–171** |
 | **C — Cloudflare + Supabase** ⭐ | £47 | £0 | £0–10 | **£47–57** | **£141–171** |
-| **C′ — as above, Supabase Pro** | £47 | £237 | £0–10 | **£284–294** | **£852–882** |
+| **C on Supabase Pro** — as above, paid data tier | £47 | £237 | £0–10 | **£284–294** | **£852–882** |
 | **D — Netlify + Supabase** | £0–85 | £0 | £15.40 | **£15–100** | **£45–300** |
 | **E — AWS Lightsail** | £57–75 | included | £15.40 | **£72–90** | **£216–270** + ops hours |
 | **F — VPS (Hetzner / Mythic)** | £39–120 | included | £15.40 | **£54–135** | **£162–405** + ops hours |
@@ -448,9 +463,9 @@ On measured volumes — 1,175 subscription payments and 158 ticket orders, £4,5
 | **Today — Squarespace + Squarespace Payments** | £204 | £91 | £424 | £15.40 | **£734** | — |
 | **C — Cloudflare free + Supabase free** | £0 | £0 | **£0** | £335 | £15.40 | **£350** | £384 |
 | **C — Cloudflare Paid + Supabase free** ⭐ *(plan on this)* | £47 | £0 | **£0** | £335 | £15.40 | **£397** | **£337** |
-| **C′ — Cloudflare Paid + Supabase Pro** | £47 | £237 | **£0** | £335 | £15.40 | **£634** | **£100** |
+| **C on Supabase Pro** — Cloudflare Paid + paid data tier | £47 | £237 | **£0** | £335 | £15.40 | **£634** | **£100** |
 | **D — Netlify Personal + Supabase free** | £85 | £0 | **£0** | £335 | £15.40 | **£435** | £299 |
-| **D′ — Netlify Personal + Supabase Pro** | £85 | £237 | **£0** | £335 | £15.40 | **£672** | £62 |
+| **D on Supabase Pro** — Netlify Personal + paid data tier | £85 | £237 | **£0** | £335 | £15.40 | **£672** | £62 |
 | **A — Vercel Pro + Supabase Pro** | £379 | £237 | **£0** | £335 | £15.40 | **£966** | **−£232** |
 | **C + Bacs Direct Debit on the subscription** | £47 | £0 | **£0** | £85 | £15.40 | **£147** | **£587** |
 
