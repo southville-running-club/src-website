@@ -25,6 +25,7 @@ in the [decision log](docs/decisions/decision-log.md), pending committee ratific
 | [DNS and domain](docs/solutions/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
 | [Cloudflare or Netlify](docs/solutions/cloudflare-vs-netlify.md) | **The one open question** — the apex, the DNS move, and what each forecloses |
 | [Email](docs/solutions/email.md) | Getting off forwarding-to-Gmail, and how the platform sends mail — ~£30/yr |
+| [The plan](docs/delivery/plan.md) | **Start here for what happens when** — end to end, to Squarespace switched off |
 | [Move the DNS first](docs/delivery/dns-first.md) | **The plan** — take the risky change now, while nothing depends on it |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
