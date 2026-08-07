@@ -496,6 +496,65 @@ total to £148 — a £587 saving — on exactly the same platform as the recomm
 of that has nothing to do with where the website lives.** See [what payments actually
 cost](#what-payments-actually-cost).
 
+### What each option actually saves
+
+The same table read as money kept rather than money spent. **Today the club spends £735 a
+year — 16.1% of everything it collects — on the platform and the fees to run payments
+through it.**
+
+| Option | Cost a year | **Saves a year** | Over 3 years | Over 5 years | Cost as % of income |
+| --- | --- | --- | --- | --- | --- |
+| **Cloudflare + Supabase, with Direct Debit** | £148 | **£587** | **£1,762** | **£2,936** | **3.2%** |
+| Netlify free + Supabase free | £350 | £385 | £1,154 | £1,923 | 7.7% |
+| Hetzner server, self-hosted database | £389 | £346 | £1,037 | £1,728 | 8.5% |
+| **Cloudflare + Supabase free** ⭐ | £397 | **£338** | **£1,013** | **£1,688** | 8.7% |
+| Amazon Lightsail, self-hosted database | £416 | £319 | £956 | £1,593 | 9.1% |
+| Netlify Personal + Supabase free | £435 | £300 | £899 | £1,498 | 9.6% |
+| Mythic Beasts server, self-hosted database | £440 | £295 | £884 | £1,473 | 9.7% |
+| Railway + Railway Postgres | £444 | £291 | £872 | £1,453 | 9.8% |
+| Fly.io + Fly Postgres | £492 | £243 | £728 | £1,213 | 10.8% |
+| Cloudflare + Supabase Pro | £634 | £101 | £302 | £503 | 13.9% |
+| Render Pro + Render Postgres | £653 | £82 | £245 | £408 | 14.3% |
+| Netlify Personal + Supabase Pro | £672 | £63 | £188 | £313 | 14.8% |
+| **Squarespace — today** | £735 | — | — | — | **16.1%** |
+| Vercel Pro (2 seats) + Supabase Pro | £966 | **−£231** | **−£694** | **−£1,157** | 21.2% |
+
+#### Where the recommended saving comes from
+
+Four separate movements, and only one of them is the subscription everybody talks about:
+
+| | |
+| --- | --- |
+| Squarespace subscription removed | **+£204** |
+| Squarespace's 2% cut on every payment removed | **+£91** |
+| Cheaper processor — Stripe at 1.5% + 20p instead of Squarespace Payments at 2% + 25p | **+£89** |
+| New hosting cost — Cloudflare Workers Paid | **−£47** |
+| **Platform saving** | **£338 a year** |
+| Direct Debit instead of card on the £2.50 subscription | **+£250** |
+| **Total available** | **£587 a year** |
+
+**These are two independent levers and they stack.** The platform change is worth £338 and
+needs a build. The billing change is worth £250, needs no build at all, and is available
+on *any* platform including the current one — so it should not be presented as part of the
+case for moving.
+
+#### Three honest qualifications
+
+**The saving is modest against what the club raises.** £338 a year set against £2,940 of
+subscription income is real but not transformative. **The stated return on this programme
+was never the money** — see the [problem
+statement](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do),
+where volunteer time is named as the larger cost and it appears on no invoice.
+
+**£237 of the saving is contingent.** If the live leaderboard forces Supabase Pro, the
+recommendation drops from saving £338 to saving £101 — still positive, but a third of the
+case. [What would trigger it](#what-it-costs-as-the-club-grows).
+
+**Two rows save money the club would pay back in evenings.** Hetzner at £346 and Lightsail
+at £319 look competitive with the recommendation. They are, on the invoice. The difference
+is patching, backups, tested restores and someone being on call — which is the very cost
+this programme exists to reduce.
+
 ### Why Cloudflare is free, and when it stops being
 
 **£0 is a real number for the website as scoped, and a misleading one to plan on.**
