@@ -93,7 +93,7 @@ volunteers.
 
 # Records
 
-Proposed by the Web Manager, 7 August 2026. **Not yet ratified by the committee** — the
+Proposed by the Web Manager, 7–8 August 2026. **Not yet ratified by the committee** — the
 [governance gates](../foundations/requirements.md#legal-and-governance) still stand, and
 nothing here authorises payment work.
 
@@ -138,9 +138,22 @@ nothing here authorises payment work.
 | **Exit cost** | **Low.** Export mailboxes, repoint MX. Standard IMAP, no lock-in |
 | **Revisit when** | Fasthosts will not state its sending limits, or they are worse than 20/day; a third mailbox costs more than a whole Migadu plan; or the registrar moves away from Fasthosts, at which point the consolidation argument disappears |
 
+## 004 — Run the new site alongside the old, and switch in one moment
+
+| | |
+| --- | --- |
+| **Requirement** | [Continuity](../foundations/requirements.md#continuity) — *"the old site runs until the club is satisfied with the new one. They coexist; there is no big-bang switchover"* |
+| **Context** | The member fund is the critical path: ~103 people must personally re-establish a payment, and **the list grows by about 45 payments a month.** A plan that migrates everyone at the end is migrating a larger number than a plan that starts early |
+| **Decision** | The new site is built at **`new.southvillerunningclub.co.uk`, with paths mirroring the old site**, and runs alongside Squarespace throughout. **The payment page is built first**, and every new subscriber is sent to it from that day on |
+| **Why the payment page first** | **It stops the old list growing.** Every month it is live is roughly 45 people who never join the list that has to be migrated. Nothing else in the plan changes a growing problem into a fixed one |
+| **Consequences accepted** | `noindex` on `new.` until cutover, or the club's search results split — 314 visits a month arrive from Google. **Two payment sources reconciled** while the fund migrates; time-box it. `new.` must redirect to the apex afterwards so bookmarks are not stranded |
+| **The cutover** | **One coordinated moment.** Squarespace **301-redirects every secondary domain to its primary**, so the old site cannot be reachable at `old.` while it still serves `www` — the primary-domain change and the apex repoint happen together, or the old site is simply left on its built-in `*.squarespace.com` address, which needs no DNS at all |
+| **Exit cost** | **Near zero.** `new.` is a subdomain; abandoning it costs a DNS record |
+| **Revisit when** | Parallel running has lasted long enough that reconciling two payment sources is a burden |
+
 ---
 
-## What these three cost together
+## What these decisions cost together
 
 | | Per year |
 | --- | --- |
@@ -162,7 +175,7 @@ cannot outlive Squarespace. It is not a decision taken here; see
   consolidation rather than the ~£7
 - **Fasthosts' sending limits and its price beyond two mailboxes**, neither published
 - **Payments** — processor, flow, and whether Direct Debit replaces card on the £2.50
-  subscription. That last one is worth ~£250/yr, more than all three decisions above
+  subscription. That last one is worth ~£250/yr, more than all four decisions above
   combined
 - **Five vendor facts** listed under
   [verify before deciding](../solutions/platform-options.md#validation-register), which

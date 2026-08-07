@@ -1,9 +1,9 @@
-# What is happening, in nine steps
+# What is happening, in ten steps
 
 A plain summary for the committee. **No technical knowledge assumed**, and safe to
 forward.
 
-The detail behind every step is in [the plan](plan.md) — 61 numbered tasks — and the
+The detail behind every step is in [the plan](plan.md) — 70 numbered tasks — and the
 reasoning is in the rest of this repository. This page is the shape of it.
 
 ---
@@ -24,7 +24,7 @@ towards.
 
 ---
 
-## The nine steps
+## The ten steps
 
 ### 1. Give the club its own email address
 
@@ -65,39 +65,49 @@ deadline.*
 
 It moves from a temporary address to `nn.southvillerunningclub.co.uk`.
 
-### 6. Move the monthly £2.50 payments ⚠️ **the one step that asks something of members**
+### 6. Put the race timing system on the club's address
+
+The timing app currently lives at a supplier's web address. It moves to
+`timing.southvillerunningclub.co.uk`.
+
+*Nothing about how it works changes. Done well away from race season, because it is the
+one system the club cannot afford to disturb.*
+
+### 7. Build the new website alongside the old one
+
+The new site goes up at **`new.southvillerunningclub.co.uk`** and grows there while
+Squarespace carries on serving members exactly as it does now. **Both run at once**, with
+the same page addresses on each.
+
+*The payment page is built first, and every **new** subscriber is sent to it from that day
+on. That matters: the old payment list currently grows by about 45 people a month, and
+each one is somebody who would otherwise have to be asked to move later. Building this
+early stops the problem getting bigger.*
+
+Then race results — the most-read pages on the site, and the ones typed out by hand today
+— followed by the main pages, the newsletter archive, documents and membership forms.
+
+### 8. Move the monthly £2.50 payments ⚠️ **the one step that asks something of members**
 
 Around **103 people** pay £2.50 a month. Those payments are set up inside Squarespace and
-**cannot be transferred** — every person has to set theirs up again on the new
-arrangement.
+**cannot be transferred** — every person has to set theirs up again.
 
 *This is a communications exercise measured in months, not a technical task. It is the
-longest part of the whole project and the only part that cannot be sped up by working
-harder. It also grows every month, so the sooner it starts the fewer people we have to
-ask.*
+longest part of the project and the only part that cannot be sped up by working harder.*
 
 **Before we ask anyone, the committee needs to decide whether payments move to Direct
 Debit.** It would save around £250 a year, and deciding late means asking 103 people
 twice.
 
-### 7. Build the new website
+### 9. Switch the club's address to the new website
 
-Starting with **race results**, because they are the most-read pages on the site — and the
-ones currently typed out by hand after every race. Then the main pages, the newsletter
-archive, club documents, and membership forms.
+The new site takes over the main address; the old one stays reachable at a different
+address while anything still needs it.
 
-*We now know what people actually visit, so the build follows real usage rather than
-guesswork. Kit, for example, is 1% of traffic and was scoped as the largest piece of
-work.*
+*Instant, and instantly reversible. Every existing web address will keep working, because
+the new site has been running with matching addresses for months by this point.*
 
-### 8. Point the club's address at the new website
-
-The switch itself. Instant, and instantly reversible if anything is wrong.
-
-*The old site stays available until we are satisfied. Every existing web address will keep
-working.*
-
-### 9. Turn Squarespace off
+### 10. Turn Squarespace off
 
 **Before 21 March 2027**, and only once the new site is proven, every old address still
 works, everyone has moved their payment, and all the documents are safely held by the
@@ -109,12 +119,13 @@ club.
 
 | Step | What members see |
 | --- | --- |
-| 1–5, 7 | **Nothing.** The site carries on exactly as it is |
-| **6** | **They are asked to set up their £2.50 payment again.** The one real ask |
-| 8 | A new website at the same address |
-| 9 | Nothing |
+| 1–7 | **Nothing.** The site carries on exactly as it is |
+| **8** | **They are asked to set up their £2.50 payment again.** The one real ask |
+| 9 | A new website at the same address |
+| 10 | Nothing |
 
-**Only one of the nine steps requires anything from members.**
+**Only one of the ten steps requires anything from members** — and by the time it happens,
+the new site has been running quietly alongside the old one for months.
 
 ---
 
