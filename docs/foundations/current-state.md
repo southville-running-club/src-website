@@ -52,7 +52,11 @@ Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
   taking payments. The club is buying commerce capability and paying for a website plan to
   get it.
 - **Squarespace takes a fee on every payment, on top of the card processing fee.** This
-  applies to the £2.50 running-fee subscription and to event payments.
+  applies to the £2.50 running-fee subscription and to event payments. On Squarespace's
+  published rates, the tier that permits payments at this price carries a **3% platform
+  fee**; commerce tiers charge 0% but cost more per month. **The plan's name and its
+  stated fee have not been read off the account** — see [what the fees are made
+  of](#what-the-fees-are-made-of).
 - **Renewal is in April.** The exact date is not yet established.
 - Any committee member can edit a page visually. This is the club's current editing model.
 - Race results are published by hand, in a format carried over from the previous year.
@@ -240,6 +244,40 @@ non-transferable.
 > **The 94 payers are not necessarily members**, and members are not necessarily among
 > them. Anything that treats "the member fund" as a membership list will be wrong.
 
+#### What the fees are made of
+
+The £340–£450 above is the platform proposal's estimate. It can be decomposed from
+published rates, which narrows it and — more usefully — shows where it comes from.
+
+**This is derived arithmetic, not a figure read off an account.** The inputs it assumes
+are listed below it.
+
+| | Rate applied | Per year | Share |
+| --- | --- | --- | --- |
+| Card processing | 1.5% + 20p per payment, plus 20% VAT → £0.285 × 1,128 payments | **~£321** | 79% |
+| Squarespace's platform fee | 3% of £2,820 gross | **~£85** | 21% |
+| **Total** | | **~£406** | |
+
+That lands at the top of the proposal's £340–£450 range, which is a point in the
+estimate's favour rather than against it.
+
+**Where the cost actually comes from:** the **20p fixed fee is 8% of a £2.50 payment on
+its own**. Across 1,128 payments a year it accounts for **£271 of the £321** in card fees.
+The bill is driven by how often the club charges, not by who processes it — a fact worth
+keeping separate from the choice of platform.
+
+Three things would replace this derivation with fact:
+
+| | Where | Who can reach it |
+| --- | --- | --- |
+| **The plan's name and its stated transaction fee** — £17/month matches both a legacy 3% tier and a current-generation plan, so the price alone does not settle it | Squarespace → Billing | Anyone with Squarespace access |
+| **Which processor is connected**, and therefore the real card rate | Squarespace → Selling → Payments | Anyone with Squarespace access |
+| **Actual gross, fees and net for the last 12 months** | Stripe dashboard | **Treasurer or Membership Officer only** — see [accounts and access](#accounts-and-access) |
+
+The third is worth noting beyond its arithmetic: **the Web Manager cannot see what the
+club pays in fees.** That is the split-access problem showing up in practice rather than
+in principle.
+
 ### 3. SRC membership — £4 a year
 
 Confers membership: the WhatsApp community, and discounts at around a dozen local
@@ -268,7 +306,7 @@ Officer holds the club's member list in the EA myAthletics portal.
 | Line | Per year | Borne by |
 | --- | --- | --- |
 | Squarespace subscription | £170–£420 *(read off invoice)* | Club |
-| Member fund processing fees | ~£340–£450 | Club |
+| Member fund processing fees | ~£340–£450 — *[~£406 derived](#what-the-fees-are-made-of)* | Club |
 | Domain registration | £0–£20 | Club |
 | Hosting and database | £0 (free tiers) | Club |
 | Full On Sport entry fees | ~£230–£280 | **Entrants** |

@@ -506,20 +506,26 @@ the club is not VAT-registered, so the VAT is a real cost, not a reclaim:
 
 | Arrangement | Fee per payment | **Per year** | Effective rate |
 | --- | --- | --- | --- |
-| **Today — Squarespace's cut plus card fee** | — | **~£340–450** *(estimate; needs the payments export)* | ~12–16% |
+| **Today — Squarespace's cut plus card fee** | — | **~£406** *([derived](../foundations/current-state.md#what-the-fees-are-made-of); £321 card + £85 platform)* | ~14% |
 | Stripe card, **monthly** — 1.5% + 20p | £0.285 | **£321** | 11.4% |
 | Stripe card, **annual £30** — 1.5% + 20p | £0.78 | **£73** | 2.6% |
 | **Stripe Bacs Direct Debit** — 1%, no fixed fee, capped £4 | £0.03 | **£34** | **1.2%** |
 
-Two findings, and the second is new:
+Three findings:
 
 1. **Changing processor barely helps; changing the billing frequency does.** Monthly card
    billing is dominated by the 20p fixed fee — confirming what
    [options](options.md#c4--payments) already found.
 2. **Bacs Direct Debit has no fixed fee, which collapses the problem entirely.** At 3p per
    payment it makes *monthly* billing as cheap as annual, so the club would not have to
-   ask 94 people to switch to paying £30 up front. **This is worth roughly £290–£420 a
-   year — more than the entire hosting decision.**
+   ask 94 people to switch to paying £30 up front. **This is worth roughly £370 a year —
+   more than the entire hosting decision.**
+3. **Squarespace's cut is the smallest of the three levers.** Decomposing today's fees
+   puts the platform's 3% at **~£85 of ~£406** — real, and worth removing, but a fifth of
+   the problem. The other four fifths are the fixed fee on a very small, very frequent
+   transaction, and that survives leaving Squarespace unless the billing instrument
+   changes too. Worth stating plainly, because "Squarespace takes a cut" is the memorable
+   fact and it is not where the money goes.
 
 Bacs is not free of friction: mandate setup takes several working days, payments settle in
 about three, and a failed payment costs £5. Those are operational facts to plan around,
@@ -541,12 +547,13 @@ these should be relied on until confirmed in writing from the vendor**, per
 | 3 | Netlify free plan permits commercial use, and the current credit allowance | Decides whether Option D is £15 or £100/yr |
 | 4 | Cloudflare Pages accepts a subdomain custom domain on a zone hosted elsewhere | Decides whether NN ships without a DNS migration |
 | 5 | Netlify serves an apex from third-party DNS via A record | The entire advantage of Option D |
-| 6 | Stripe Bacs Direct Debit: 1%, capped £4, **no fixed fee**, and any minimum | Worth ~£290–£420/yr |
+| 6 | Stripe Bacs Direct Debit: 1%, capped £4, **no fixed fee**, and any minimum | Worth ~£370/yr |
 | 7 | Cloudflare Registrar's actual `.co.uk` renewal price | Currently stated only as "at cost" |
 | 8 | Supabase Free's pause behaviour for a project receiving steady public traffic | Decides £0 vs £237/yr |
-| 9 | The **actual Squarespace invoice and payments export** | Every "today" figure here is the proposal's estimate |
+| 9 | **The Squarespace plan name and its stated transaction fee**, and **which processor is connected** | Both visible in Squarespace admin without Stripe access. They turn the [derived £406](../foundations/current-state.md#what-the-fees-are-made-of) into fact |
+| 10 | Actual gross, fees and net from the payment processor | **Needs Treasurer or Membership Officer** — the Web Manager cannot reach Stripe |
 
-Items 1–5 block the hosting decision. Items 6–9 do not, and can run in parallel.
+Items 1–5 block the hosting decision. Items 6–10 do not, and can run in parallel.
 
 ---
 
