@@ -57,12 +57,41 @@ Proxying any of these breaks club email, and the symptom is silent. This is alre
 document.
 
 **The Squarespace records** — the four apex `A` records, the `www` CNAME, and the
-`verify.squarespace.com` CNAME. **Squarespace's own documentation says its records should
-not be proxied**, and doing so produces TLS errors because Squarespace manages its own
-certificates. Leave them grey.
+`verify.squarespace.com` CNAME.
+
+**Squarespace supports Cloudflare as a DNS provider and publishes a guide to it.** What
+its documentation warns about is the **proxy**, not the DNS hosting — *"the proxy status
+can interfere with the connection"* — because a proxied record puts Cloudflare in the
+traffic path, terminating TLS in front of a service that manages its own certificates.
+
+The distinction is the whole basis of this plan:
+
+| | What happens | Squarespace's position |
+| --- | --- | --- |
+| **DNS-only** *(grey)* | Cloudflare answers the query with Squarespace's IP. The visitor connects **directly to Squarespace** | **Supported** |
+| **Proxied** *(orange)* | Traffic routes *through* Cloudflare to Squarespace | **Warned against** |
+
+**With every record DNS-only, Squarespace cannot tell anything has changed.** It sees an
+ordinary visitor on an ordinary connection and presents its own certificate exactly as it
+does today.
 
 The orange cloud is a decision for later, per record, when the club is serving its own
 traffic. **Not now, and not on anything Squarespace touches.**
+
+### Two cautions that come with this
+
+**Squarespace will not support the club if something breaks.** Its guide states that
+Cloudflare *"falls outside the scope of Squarespace support"*. While Squarespace is still
+serving the live site that is a real, if modest, cost — an odd fault leaves two vendors
+pointing at each other. The mitigation is the rollback that already exists: nameservers
+back to Fasthosts.
+
+**Do not add CAA records.** The zone has [none
+today](../foundations/current-state.md#dns-and-email), which is why nothing blocks
+certificate issuance. Adding one that restricts which authorities may issue could break
+**Squarespace's SSL renewal** — quietly, and weeks later. Cloudflare does not add them
+automatically. Leave the absence alone until the club is serving its own traffic and
+understands which authorities it needs to permit.
 
 ---
 
