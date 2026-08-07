@@ -19,7 +19,7 @@ Companion documents: [DNS and domain](dns-and-domain.md) for the Fasthosts quest
 
 **Prices captured August 2026.** Dollar figures converted at **$1 = £0.79**. Where a
 figure is inferred rather than read off a vendor's own page it says so, and everything
-load-bearing is listed again under [verify before deciding](#verify-before-deciding).
+load-bearing is listed again under [verify before deciding](#validation-register).
 
 ---
 
@@ -801,26 +801,53 @@ relied on**, and it should be tested against what the treasurer needs to reconci
 
 ---
 
-## Verify before deciding
+## Validation register
 
-Everything here that is load-bearing and was taken from a secondary source. **None of
-these should be relied on until confirmed in writing from the vendor**, per
-[options](options.md#questions-to-answer-before-any-of-this-is-decided).
+What is confirmed, where from, and what is still assumption. **Kept current** — several
+items that blocked the decision have since been resolved and are struck through rather
+than deleted.
 
-| # | To confirm | Why it matters |
+### Confirmed from the vendor's own documentation
+
+| | Established | Source |
 | --- | --- | --- |
-| 1 | Vercel's fair-use position on payments and donations on Hobby | It is the reason Option A is rejected |
-| 2 | Cloudflare's terms carry no non-commercial restriction on Workers/Pages free | The whole recommendation rests on it |
-| 3 | Netlify free plan permits commercial use, and the current credit allowance | Decides whether Option D is £15 or £100/yr |
-| 4 | Cloudflare Pages accepts a subdomain custom domain on a zone hosted elsewhere | Decides whether NN ships without a DNS migration |
-| 5 | Netlify serves an apex from third-party DNS via A record | The entire advantage of Option D |
-| 6 | Stripe Bacs Direct Debit: 1%, capped £4, **no fixed fee**, and any minimum | Worth ~£370/yr |
-| 7 | Cloudflare Registrar's actual `.co.uk` renewal price | Currently stated only as "at cost" |
-| 8 | Supabase Free's pause behaviour for a project receiving steady public traffic | Decides £0 vs £237/yr |
-| 9 | ~~Plan name, processor, volumes~~ — **resolved 7 Aug 2026.** Business plan, £204, renewing **21 March 2027**; processor is **Squarespace Payments**; volumes measured | Recorded in [the flow of money](../foundations/current-state.md#the-flow-of-money) |
-| 10 | **Whether the Business plan is legacy (2%) or current (3%)** | Moves Squarespace's cut between £91 and £137/yr. Visible on an invoice |
+| Cloudflare **Pages** serves a subdomain from third-party DNS; the **apex requires Cloudflare nameservers** | Nightingale Nightmare ships without a DNS migration | Cloudflare Pages docs |
+| Cloudflare **Workers custom domains require an active zone** | Why the site must be a Pages project until the nameservers move | Cloudflare Workers docs |
+| Workers Free: 100,000 requests/day, 10 ms CPU. Workers Paid: $5/mo, 10M/month | £47/yr is the planning figure, not £0 | Cloudflare pricing docs |
+| **Cloudflare Email Routing is forwarding only** — no mailboxes | Mailboxes must come from elsewhere | Cloudflare Email docs |
+| Supabase Realtime: **200 concurrent connections free**, 500 on Pro | The binding constraint on keeping Supabase free | Supabase quota docs |
+| `@astrojs/cloudflare` **v13 dropped Pages support**; v14 needs Astro 6 | Static output, no adapter, for the NN build | Astro docs |
+| **Squarespace supports Cloudflare as a DNS provider**; warns on the **proxy**; Cloudflare is outside its support scope | The entire basis of [moving the DNS first](../delivery/dns-first.md) | Squarespace help centre |
+| Squarespace transaction fees: Business **3%** current, **2%** legacy. Squarespace Payments UK **2% + 25p** | Every fee figure in [the flow of money](../foundations/current-state.md#the-flow-of-money) | Squarespace help centre |
+| Migadu Micro sends **20 messages/day** | Why Migadu was proposed and dropped | Migadu pricing page |
+| Cloudflare Registrar accepts `.co.uk` by **IPS tag change**, no fee, no added year | The registrar move is administrative only | Cloudflare Registrar docs |
 
-Items 1–5 block the hosting decision. Items 6–10 do not, and can run in parallel.
+### Confirmed from the club's own accounts, 7 August 2026
+
+| | Established |
+| --- | --- |
+| **Business Plan, £204/yr, auto-renewing 21 March 2027** | The deadline, three weeks earlier than "April" |
+| **Processor is Squarespace Payments**, not Stripe | Mandates cannot outlive the platform |
+| **Two-factor authentication is not enabled** on the payments account | An open risk on the account holding club money |
+| Subscription and ticket volumes, 2025 and 2026 to date | Every figure in the cost analysis |
+| 13,342 pageviews, per-page breakdown, 70% mobile | [What people actually read](../foundations/current-state.md#what-people-actually-read) |
+
+### Still unverified — confirm before acting
+
+| # | To confirm | Why it matters | Blocks |
+| --- | --- | --- | --- |
+| **1** | **Who holds the domain registration** | Every plan changes a setting at the registrar, and Squarespace is being cancelled. One `whois` | **The DNS move** |
+| **2** | **Fasthosts' email sending limits, and the price beyond two mailboxes** | Neither is published. If limits are worse than 20/day the [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) flips | **Buying mailboxes** |
+| **3** | Cloudflare's terms carry no non-commercial restriction on Workers | The recommendation rests on it. Secondary sources only | Taking payments |
+| **4** | Stripe UK rates — 1.5% + 20p, and **Bacs at 1% with no fixed fee** | Worth ~£250/yr. Secondary sources only | The payments decision |
+| **5** | Whether the Business plan is **legacy 2% or current 3%** | Moves Squarespace's cut between £91 and £137/yr. Visible on an invoice | Nothing — accuracy only |
+| **6** | Whether the **Fasthosts email package survives a registrar move** | Decides whether the registrar can ever move | Nothing yet |
+| **7** | Supabase Free's pause behaviour under steady public traffic | £0 vs £237/yr | Nothing — traffic makes it unlikely |
+| **8** | Cloudflare Registrar's actual `.co.uk` renewal price | Stated only as "at cost" | Nothing |
+| ~~9~~ | ~~Netlify free plan commercial use and credit allowance~~ | Moot unless Cloudflare is rejected | — |
+
+**Items 1 and 2 block the next actions.** Everything else can run in parallel or waits on
+a decision that has not been taken.
 
 ---
 

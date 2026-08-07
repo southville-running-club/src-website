@@ -255,7 +255,7 @@ inference.
 - Any change touching the **timing platform**.
 - Anything that would put a **credential in the repository**.
 - Discovering that the free tier's terms differ from [what is
-  recorded](../solutions/platform-options.md#verify-before-deciding).
+  recorded](../solutions/platform-options.md#validation-register).
 
 ---
 

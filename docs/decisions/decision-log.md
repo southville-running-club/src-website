@@ -165,5 +165,5 @@ cannot outlive Squarespace. It is not a decision taken here; see
   subscription. That last one is worth ~£250/yr, more than all three decisions above
   combined
 - **Five vendor facts** listed under
-  [verify before deciding](../solutions/platform-options.md#verify-before-deciding), which
+  [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for

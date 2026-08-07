@@ -191,7 +191,7 @@ one, and that is already settled by the timing platform.
 **One thing to confirm before starting:** Cloudflare **Pages** accepts a custom subdomain
 on a zone hosted elsewhere; Cloudflare **Workers custom domains** do not. While the zone
 stays at Fasthosts, this must be a Pages project. See [platform options, item
-4](../solutions/platform-options.md#verify-before-deciding).
+4](../solutions/platform-options.md#validation-register).
 
 ---
 
@@ -284,7 +284,7 @@ quiet season, with a full race simulation, away from any race.
 | | Likelihood | Cost | Mitigation |
 | --- | --- | --- | --- |
 | The CNAME is added wrong | Low | Minutes — NN does not resolve | Delete it. Nothing existing is touched |
-| Cloudflare Pages will not serve the subdomain from Fasthosts DNS | Low | A day, and a switch to Netlify | [Confirm before starting](../solutions/platform-options.md#verify-before-deciding) |
+| Cloudflare Pages will not serve the subdomain from Fasthosts DNS | Low | A day, and a switch to Netlify | [Confirm before starting](../solutions/platform-options.md#validation-register) |
 | The race date changes after the page is published | **Moderate** | An edit and an email to the interest list | Publish the date only once it is committed |
 | Payments are not ready for September | **Moderate** | Nothing, if decided early | Full On Sport for 2026 |
 | The form collects too much | Moderate | A data-protection problem the club created itself | Name and email. Nothing else. Enforce it at review |
