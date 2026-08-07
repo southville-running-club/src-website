@@ -25,23 +25,27 @@ on top of the card processing fee**. The club absorbs all of it — nobody uses 
 the fees" option.
 
 The club pays three times on the same money: the plan, Squarespace's cut, and the card
-fee. On the £2.50 running-fee subscription that comes to:
+fee. Across the **£4,560 a year** that passes through the site:
 
 | | Per year |
 | --- | --- |
 | The plan, held only because it permits payments | £204 |
-| Squarespace's 3% on every payment | £85 |
-| Card processing | £321 |
-| **Cost of collecting £2,820** | **£610 — 21.6%** |
+| Squarespace's transaction fee on every payment | £91 |
+| Card processing | £424 |
+| **Cost of collecting £4,560** | **£719 — 15.8%** |
 
-**Every £2.50 a member pays becomes £2.14 by the time it reaches the club.**
+**Every £2.50 a member pays becomes £2.15 by the time it reaches the club.**
 
-One number in that table deserves separating from the rest. **£271 of the £321 is the flat
-20p charged per transaction** — which is 8% of £2.50 before any percentage is applied.
-That cost is created by charging 94 people every month for a very small amount, and it
-follows the club to any platform and any processor. Leaving Squarespace removes £289 of
-the £610. The remaining £321 is a question about how the club bills, not about who hosts
-it.
+One number in that table deserves separating from the rest. **£294 of the £424 is the flat
+25p charged per transaction** — which is 10% of £2.50 before any percentage is applied.
+That cost is created by charging around 100 people every month for a very small amount,
+and **it follows the club to any platform and any processor.** Leaving Squarespace removes
+£295 of the £719. The remaining £424 is a question about how the club bills, not about who
+hosts it.
+
+The same fee behaves completely differently on the other flow. A £12 Christmas party
+ticket loses 6.1%; a £2.50 subscription payment loses 14.0%. **The club's cheapest
+transactions are its most expensive to collect**, and no change of platform alters that.
 
 See [the flow of money](current-state.md#the-flow-of-money).
 

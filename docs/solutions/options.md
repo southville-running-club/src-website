@@ -142,13 +142,15 @@ distinguishable, and **no possibility of a lockout on race morning**.
 
 Two different problems; they may have different answers.
 
-**Recurring membership** — 94 mandates, £2.50 each, none transferable.
+**Recurring membership** — around **103 mandates**, £2.50 each, none transferable, and on
+**Squarespace Payments**, so they cannot outlive the platform either. Measured figures in
+[the flow of money](../foundations/current-state.md#the-flow-of-money).
 
 | Option | Fee per payment | Per year | Notes |
 | --- | --- | --- | --- |
-| Current arrangement | ~30–40p (~12–16%) | ~£340–£450 | Club absorbs all of it |
-| Card, monthly | ~24p (9.5%) | ~£268 | Fixed per-transaction fee dominates |
-| Card, annual | 65p/yr (2.2%) | ~£61 | **The pricing change matters more than the processor** |
+| Current arrangement | 35p (14.0%) | **£411** | Club absorbs all of it |
+| Card, monthly | ~28.5p (11.4%) | ~£335 | Fixed per-transaction fee dominates |
+| Card, annual | 78p/yr (2.6%) | ~£76 | **The pricing change matters more than the processor** |
 | Direct debit | ~1% + fixed, capped | Comparable to card | Mandates outlive cards — no expiry churn |
 | Standing order to the club account | **£0** | **£0** | No reconciliation, no central control, members set it up themselves |
 

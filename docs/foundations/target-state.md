@@ -117,9 +117,9 @@ and it is the one that does not show up on an invoice.
   platform; it is not replaced by it.
 - **Not a content management product.** Committee editing is a requirement; a CMS is only
   one way to meet it, and probably not the cheapest.
-- **Not built for scale.** Around 100 teams, 150 solo entries, 94 subscribers, a few
-  hundred spectators on race night. Anything sized larger is complexity the club pays for
-  and does not use.
+- **Not built for scale.** Around 100 teams, 150 solo entries, ~103 subscribers, ~175
+  party tickets a year and roughly 900 site visitors a month. Anything sized larger is
+  complexity the club pays for and does not use.
 - **Not high availability.** The website being down for an hour is an inconvenience; the
   timing system already handles race night through its offline queue rather than through
   uptime engineering.
@@ -134,14 +134,15 @@ capture them before the work starts rather than reconstructing them afterwards.
 
 | Measure | Baseline |
 | --- | --- |
-| Club-borne platform cost per year | £204 + £15.40 + payment fees |
-| Squarespace's cut on payments | **Not yet known** — needs a payments export |
+| Club-borne platform cost per year | **£734** — see [what the club pays](current-state.md#what-the-club-pays) |
+| Squarespace's cut on payments | **£91/yr** at 2%, £137 at 3% |
+| Total payment fees | **£516/yr on £4,560 collected — 11.3%** |
 | Time spent processing a new member | **Not measured** |
 | Time spent publishing race results | **Not measured** |
 | Newsletters published on time | Currently drifting; July 2024 missing |
 | Systems reachable by only one person | **Four** |
 | Race entry data quality | Problems worked around at CSV import |
-| Site usage — what people actually visit | **Not captured** — available from analytics |
+| Site usage — what people actually visit | **Captured**: ~1,114 visits and 926 unique visitors a month, **70% from a phone** — see [what it actually gets used for](current-state.md#what-it-actually-gets-used-for) |
 
 The last one matters more than it looks: it decides what is worth rebuilding and what can
 quietly be dropped.

@@ -19,12 +19,21 @@ carries a finding that qualifies the "not on the critical path" conclusion below
 **working back from an October or November race, paid entries want to open in early
 September, so the commercial-use terms bite four weeks from now rather than in April.**
 
-### 2. Off Squarespace before it renews — April
+### 2. Off Squarespace before it renews — **21 March 2027**
 
-The exact renewal date is not yet established, and it should be, because everything in the
-second half of this document works backwards from it. It also matters whether "off by
-April" means cancelled before renewal or simply not renewed — the first is a harder
-deadline than the second.
+Read from the billing page on 7 August 2026, and it **moves the deadline earlier than the
+"April" this document was written against**. The subscription renews automatically, so
+doing nothing means paying for another year.
+
+That is the date everything in the second half of this document works backwards from. It
+still matters whether the club cancels before renewal or simply lets it lapse — the first
+is the harder deadline — but the date itself is now fixed.
+
+**The processor is Squarespace Payments, not Stripe.** That is worse for the migration
+than the alternative would have been: the processor leaves with the platform, so **every
+one of the ~103 monthly mandates has to be recreated somewhere else**. There is no club
+Stripe account to fall back on, and creating one is itself a lead-time item. See [the flow
+of money](../foundations/current-state.md#the-flow-of-money).
 
 ---
 
@@ -79,7 +88,7 @@ payments decision rather than before it.
 
 ---
 
-## Working backwards from April
+## Working backwards from 21 March 2027
 
 Switching Squarespace off requires three things to be true at once. Each has its own
 chain.
@@ -92,10 +101,15 @@ Squarespace can be switched off ─┼─ member fund fully moved ────�
 
 ### The chain that decides the date
 
-**The member fund is the long pole.** Ninety-four people must each personally re-establish
-a payment; mandates cannot be transferred. That is a communications exercise measured in
-weeks-to-months, and it is the only item here that cannot be accelerated by working
-harder.
+**The member fund is the long pole.** Around **103 people** must each personally
+re-establish a payment; mandates cannot be transferred, and because the processor is
+Squarespace Payments they cannot survive the platform either. That is a communications
+exercise measured in weeks-to-months, and it is the only item here that cannot be
+accelerated by working harder.
+
+**The number is growing, which shortens the runway.** The fund ran at 58 payments a month
+across 2025 and 103 in the last 30 days. Every month of delay adds people who will have to
+be asked to move.
 
 There is a tension worth naming early. The club's preference is a **programmatic payment
 integration on its own website**. That is the better end state — one flow, automatic
@@ -163,7 +177,10 @@ reduce risk immediately:
 - **Establish who holds every account** — domain, hosting, database, payments — and get a
   second person onto each. Every one of them is currently a single point of failure.
 - **Move the timing repository into the club organisation.** One administrative action.
-- **Confirm the Squarespace renewal date** and what cancelling before it requires.
+- ~~Confirm the Squarespace renewal date~~ — **done: 21 March 2027, auto-renewing.** What
+  cancelling before it requires is still open.
+- **Turn on two-factor authentication for Squarespace Payments.** It is not enabled, and
+  that account receives every pound the club takes online.
 - **Settle the Nightingale Nightmare race date.** It blocks race planning, and the
   clocks-change weekend makes it a technical input.
 - **Apply for England Athletics verification access.** The lead time belongs to them, and

@@ -55,8 +55,9 @@ key. Used by race entry systems to verify registration at the point of entry.
 member list. Source of the fallback export if API access is slow.
 
 **Member fund** — the £2.50 recurring payment members make in place of 50p cash at
-sessions. Set up as a Squarespace donation fund in October 2024. 94 active recurring
-payers, roughly £2,820 a year.
+sessions. Set up as a Squarespace donation fund in October 2024. Running at around **103
+payments a month, roughly £2,940 a year**, and growing — it took 697 payments across the
+whole of 2025 and 705 in the first seven months of 2026.
 
 **Single-use link** — the token on our own domain that a welcome email (or its QR code)
 points at. Marked consumed on first use, expires after a set period, then forwards the

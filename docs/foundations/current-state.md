@@ -47,16 +47,19 @@ Manager, rebuilt from an earlier edition, with the Membership Officer assisting.
 
 - **`www` is canonical.** Verified 6 August 2026: the bare domain returns a 301 to
   `https://www.southvillerunningclub.co.uk/`.
-- Cost: **£204 a year.**
+- **Plan: Business Plan.** £204 a year, renewing automatically. Subscribed since
+  **21 March 2024**. *(Read from the billing page, 7 August 2026.)*
 - **The club is on the middle tier and cannot drop below it** — that tier is what permits
   taking payments. The club is buying commerce capability and paying for a website plan to
   get it.
-- **Squarespace takes 3% of every payment, on top of the card processing fee.** This
-  applies to the £2.50 running-fee subscription and to ticket sales. Commerce tiers charge
-  0% but cost more per month. On the subscription alone this is **£85 a year**, so
-  **Squarespace costs the club £289 a year, not £204** — see
-  [the flow of money](#the-flow-of-money).
-- **Renewal is in April.** The exact date is not yet established.
+- **Squarespace takes a transaction fee on every payment, on top of card processing.** The
+  Business plan carries **2%** if it is a legacy plan and **3%** on the current
+  generation; the club subscribed before the 2025 plan overhaul, so legacy at 2% is the
+  likelier reading. Commerce tiers charge 0% but cost more per month. See [the flow of
+  money](#the-flow-of-money).
+- **The processor is Squarespace Payments**, not Stripe. Card processing is **2% + 25p**
+  for UK domestic personal cards on this plan tier.
+- **Renewal: 21 March 2027.** *(Read from the billing page — earlier notes said "April".)*
 - Any committee member can edit a page visually. This is the club's current editing model.
 - Race results are published by hand, in a format carried over from the previous year.
 - **Squarespace commerce is enabled** — the site has a cart, a checkout, customer accounts
@@ -86,6 +89,29 @@ list, a **12-point WhatsApp code of conduct**, and a **mailing list** subscripti
 
 **Race photographs are not on the site** — the 2026 results page directs people to
 Facebook.
+
+### What it actually gets used for
+
+From Squarespace Analytics, 9 July – 7 August 2026:
+
+| | |
+| --- | --- |
+| Visits | **1,114** |
+| Unique visitors | **926** |
+| Pageviews | 2,200 |
+| Bounce rate | 57.7% |
+| Where they come from | Direct 673, Google 314, Facebook 67, Instagram 30 |
+| What they use | **iOS 517, Android 263**, Windows 180, macOS 111 |
+
+**Seventy per cent of visits are from a phone.** That is not a preference to design around
+later; it is the club's audience. It corroborates the [mobile-first
+constraint](requirements.md#users) directly rather than by assumption, and it retires the
+"site usage — not captured" gap in [target
+state](target-state.md#how-we-will-know-it-worked).
+
+Around **900 people a month** reach the site, against roughly 100 subscribers — so most
+visitors are not paying anyone anything, and the site's main job is information rather
+than transaction.
 
 ---
 
@@ -233,47 +259,43 @@ the Club. It is open to members and non-members alike, and can be stopped and st
 often as you wish without any commitment."* Payments are non-refundable and
 non-transferable.
 
-- **94 active recurring payers**, every one at exactly £2.50 — roughly **£2,820 a year**.
-- Processing fees roughly **£340–£450 a year**, all absorbed by the club.
-- **0% of payments use Squarespace's "cover the fees" option.**
-- A payment account is connected under Squarespace, **set up informally**. Whether it is a
-  club Stripe account or Squarespace's own processor is not established; the club only
-  ever provided a bank account for deposits.
+Measured from Squarespace Analytics, 7 August 2026:
 
-> **The 94 payers are not necessarily members**, and members are not necessarily among
-> them. Anything that treats "the member fund" as a membership list will be wrong.
+| Period | Payments | Value |
+| --- | --- | --- |
+| Calendar 2025 | 697 | £1,742.50 |
+| 2026 to 7 August | **705** | **£1,762.50** |
+| Last 30 days | 103 | £257.50 |
+
+**The fund has roughly doubled.** 2025 averaged 58 payments a month; 2026 averages 98, and
+the last 30 days ran at 103. **2026 has already passed the whole of 2025 with nearly five
+months to go.** At the current rate that is **about 1,175 payments a year, or £2,940** —
+not the 94 payers and £2,820 carried in the club's proposal.
+
+- **0% of payments use Squarespace's "cover the fees" option.**
+- The payment account is **Squarespace Payments** — the club's own processor, not Stripe.
+  It was set up informally; the club only ever provided a bank account for deposits.
+
+> **The payers are not necessarily members**, and members are not necessarily among them.
+> Anything that treats "the member fund" as a membership list will be wrong.
 
 #### What each payment is worth
 
-**Every £2.50 loses 36p before it reaches the club. That is 14.4%.**
+**Every £2.50 loses 35p before it reaches the club. That is 14.0%.**
 
 | | Per payment | Per year |
 | --- | --- | --- |
-| Paid by the member | £2.50 | **£2,820** |
-| Card processing — 1.5% + 20p, plus 20% VAT | −28.5p | −£321 |
-| Squarespace's platform fee — 3% | −7.5p | −£85 |
-| **The club receives** | **£2.14** | **£2,414** |
+| Paid by the member | £2.50 | **£2,940** |
+| Card processing — 2% + 25p | −30p | −£353 |
+| Squarespace's transaction fee — 2% | −5p | −£59 |
+| **The club receives** | **£2.15** | **£2,528** |
 
-**The fixed 20p dominates.** On its own it is 8% of a £2.50 payment, and across 1,128
-payments a year it accounts for **£271 of the £321** in card fees. What the club pays is
+**The fixed 25p dominates.** On its own it is 10% of a £2.50 payment, and across 1,175
+payments a year it accounts for **£294 of the £353** in card fees. What the club pays is
 governed by how often it charges, not by who processes the payment.
 
-*Calculated from the providers' published rates at the club's own volumes. The two inputs
-it assumes are listed below.*
-
-#### What is not established about the money
-
-| | Where it is | Who can reach it |
-| --- | --- | --- |
-| **The plan's name and its stated transaction fee.** £17/month matches both a legacy 3% tier and a current-generation plan, so the price alone does not settle it | Squarespace → Billing | Anyone with Squarespace access |
-| **Which processor is connected**, and therefore the exact card rate | Squarespace → Selling → Payments | Anyone with Squarespace access |
-| **Gross, fees and net for the last 12 months** | The processor's dashboard | **Treasurer or Membership Officer only** |
-| **Ticket sales volume** — the second flow through the site | Squarespace → Analytics | Anyone with Squarespace access |
-
-**The Web Manager cannot see what the club pays in fees.** Reconciling the club's payment
-costs requires the Treasurer or the Membership Officer, so the person responsible for the
-website cannot audit what the website costs to run. This is the same split recorded under
-[accounts and access](#accounts-and-access).
+At a 3% transaction fee rather than 2%, Squarespace's share rises from £59 to £88 and the
+total to £441. Card processing is unaffected either way.
 
 ### 3. SRC membership — £4 a year
 
@@ -302,51 +324,104 @@ Officer holds the club's member list in the EA myAthletics portal.
 
 ### What comes in, and where
 
-Six money flows. **Two of them go through the website.**
+Measured from Squarespace Analytics, 7 August 2026. **Two flows go through the website.**
 
 | Flow | Per year | Collected by | Fees borne by |
 | --- | --- | --- | --- |
-| **£2.50 monthly subscription** | **£2,820** | **Squarespace** | **Club** |
-| **Party tickets** | Not established | **Squarespace** | **Club** |
+| **£2.50 monthly subscription** | **£2,940** *(current run rate)* | **Squarespace** | **Club** |
+| **Party tickets** | **£1,620** *(two events)* | **Squarespace** | **Club** |
 | Race entries | ~£2,800 *(proposal's illustrative volumes)* | Full On Sport | **Entrants** |
 | SRC membership — £4/yr | Not established | Web forms, then the EA portal | — |
 | Kit | Not established | External ordering link | — |
 | Session fees — 50p | Not established | Cash on the night | — |
 
-The subscription is the club's largest online flow by a wide margin, and **it is the
-reason the site needs commerce at all**. Party tickets are the only other flow the site
-handles.
+**£4,560 a year passes through the website.** The subscription is about two thirds of it,
+and it is the reason the site needs commerce at all.
 
-### What each party takes from the £2,820
+**A seventh flow existed in 2025 and has stopped.** Track Sessions were sold as weekly
+(£3) and monthly (£12) products — **£1,065 across 328 orders** — and have no sales in
+2026. Worth recording because it shows the club creates and retires paid products as it
+goes, so any replacement must make that easy rather than assume a fixed catalogue.
+
+### Party tickets
+
+**Two events a year**, sold through Squarespace commerce with a cart, checkout and
+customer accounts. Both are real, measured events rather than estimates:
+
+| Event | Price | Tickets | Orders | Revenue |
+| --- | --- | --- | --- | --- |
+| SRC Christmas Party 2025 | £12 | 95 | 86 | **£1,140** |
+| SRC Summer Party 2026 | £6 | 80 | 72 | **£480** |
+| **A two-party year** | | **175** | **158** | **£1,620** |
+
+Three things follow.
+
+**Christmas is the bigger event by a distance** — £1,140 against £480, at double the
+ticket price and more tickets sold. Ticket capability is not a minor convenience; one
+evening a year moves more money than four months of subscriptions.
+
+**People buy in pairs.** 175 tickets arrived in 158 orders. That matters because the fixed
+25p is charged per *order*, not per ticket, so a larger basket is cheaper to process.
+
+**Tickets are the cheap flow and the subscription is the expensive one:**
+
+| | Per transaction | Fee | Effective rate | Club keeps |
+| --- | --- | --- | --- | --- |
+| Subscription | £2.50 | 35p | **14.0%** | £2.15 |
+| Summer ticket | £6 | 49p | **8.2%** | £5.51 |
+| Christmas ticket | £12 | 73p | **6.1%** | £11.27 |
+
+Nothing about the platform differs between them — only the size of the transaction. The
+same 25p is 10% of a £2.50 payment and 2% of a £12 ticket.
+
+**Across both parties the club pays £104 in fees on £1,620, of which Squarespace's share
+is £32.** Leaving Squarespace saves about £32 a year on tickets. **Ticket sales do not, on
+their own, justify a commerce platform** — 158 orders across two evenings is well inside
+what a hosted payment link handles.
+
+### What each party takes
+
+On the £4,560 that passes through the site:
 
 | | Per year | Share of gross |
 | --- | --- | --- |
-| Card processor | £321 | 11.4% |
-| Squarespace's platform fee | £85 | 3.0% |
-| **The club receives** | **£2,414** | **85.6%** |
+| Card processing — Squarespace Payments | £424 | 9.3% |
+| Squarespace's transaction fee | £91 | 2.0% |
+| **The club receives** | **£4,042** | **88.7%** |
 
 ### What the club pays
 
 | Line | Per year | Borne by |
 | --- | --- | --- |
 | Squarespace subscription | **£204** | Club |
-| Squarespace's fee on payments — 3% | **£85** | Club |
-| Card processing on the fund | **£321** | Club |
+| Squarespace's transaction fee — both flows | **£91** | Club |
+| Card processing — both flows | **£424** | Club |
 | Domain and DNS | **£15.40** | Club |
 | Hosting and database | £0 *(free tiers)* | Club |
-| **Club-borne total** | **~£625** | |
+| **Club-borne total** | **£734** | |
 | Full On Sport entry fees | ~£230–£280 | **Entrants** |
 
-**Squarespace costs the club £289 a year, not £204.** The subscription is 70% of it; the
-rest is the 3% taken on every payment, plus 3% of any ticket sales.
+**Squarespace costs the club £295 a year, not £204** — the subscription plus the 2% it
+takes on every payment. At a 3% transaction fee it is £341.
 
-**The club spends £610 a year to collect £2,820** — the plan, Squarespace's cut and the
-card fees together, or **21.6% of the money raised**. Attributing the whole subscription
+**The club spends £719 a year to collect £4,560** — the plan, Squarespace's cut and the
+card fees together, or **15.8% of the money raised**. Attributing the whole subscription
 to payments is fair on the club's own account of it: the club is on this tier *because* it
 is the one that permits taking money, not for the website features.
 
-Ticket volume is not established, so the fees on that flow are not counted above. Every
-other figure here is either read off an invoice or calculated from published rates.
+Volumes are read from Squarespace Analytics on 7 August 2026; rates are the providers'
+published rates for this plan tier. **One input remains open** — whether the Business plan
+is legacy (2%) or current-generation (3%) — see
+[what is not established](#what-is-not-established-about-the-money).
+
+### What is not established about the money
+
+| | Where it is | Who can reach it |
+| --- | --- | --- |
+| **Whether the Business plan is legacy (2%) or current (3%).** The subscription predates the 2025 plan overhaul, which favours legacy, but the fee line on an invoice would settle it | A Squarespace invoice | Anyone with Squarespace access |
+| **Whether VAT is charged on top of processing fees** | A Squarespace invoice | Anyone with Squarespace access |
+| **Actual fees and net paid out over 12 months** | Squarespace Payments → Payouts | **Treasurer or Membership Officer** |
+| **SRC membership and kit volumes** | Not held in any one system | Membership Officer, Quarter Master |
 
 ---
 
@@ -354,6 +429,7 @@ other figure here is either read off an invoice or calculated from published rat
 
 | Asset | Who can reach it |
 | --- | --- |
+| **Squarespace Payments** — every pound the club takes online | Squarespace account holders. **Two-factor authentication is not enabled** *(prompted on the Finance page, 7 August 2026)* |
 | **Fasthosts** — domain, DNS, email forwarding | **Web Manager only** |
 | **Supabase** — the platform database and results archive | **Membership Officer only** |
 | **Vercel** — the timing platform's hosting | **Membership Officer only** |

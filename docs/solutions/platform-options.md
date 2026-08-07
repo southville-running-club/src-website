@@ -504,31 +504,41 @@ Included because a cost analysis that ignored it would understate the picture by
 of magnitude. This does not re-open
 [C4](../foundations/requirements.md#c4--take-payments); it prices it.
 
-On **94 subscribers at £2.50/month (£2,820/yr)**, with Stripe UK rates and 20% VAT added —
-the club is not VAT-registered, so the VAT is a real cost, not a reclaim:
+Volumes are measured — see [the flow of
+money](../foundations/current-state.md#the-flow-of-money). The subscription runs at about
+**1,175 payments a year (£2,940)**; party tickets add **£1,620 across 158 orders**. Stripe
+rows below add 20% VAT, since the club is not VAT-registered and cannot reclaim it.
+
+**On the subscription**, which is where the cost is:
 
 | Arrangement | Fee per payment | **Per year** | Effective rate |
 | --- | --- | --- | --- |
-| **Today — Squarespace's cut plus card fee** | — | **£406** *([£321 card + £85 platform](../foundations/current-state.md#what-each-payment-is-worth))* | 14.4% |
-| Stripe card, **monthly** — 1.5% + 20p | £0.285 | **£321** | 11.4% |
-| Stripe card, **annual £30** — 1.5% + 20p | £0.78 | **£73** | 2.6% |
-| **Stripe Bacs Direct Debit** — 1%, no fixed fee, capped £4 | £0.03 | **£34** | **1.2%** |
+| **Today — Squarespace Payments, 2% + 25p, plus Squarespace's 2%** | £0.35 | **£411** | 14.0% |
+| Stripe card, **monthly** — 1.5% + 20p | £0.285 | **£335** | 11.4% |
+| Stripe card, **annual £30** — 1.5% + 20p | £0.78 | **£76** | 2.6% |
+| **Stripe Bacs Direct Debit** — 1%, no fixed fee, capped £4 | £0.03 | **£35** | **1.2%** |
 
 Three things follow from it:
 
 1. **Changing processor barely helps; changing the billing frequency does.** Monthly card
-   billing is dominated by the 20p fixed fee — as
+   billing is dominated by the fixed fee — as
    [options](options.md#c4--payments) sets out.
 2. **Bacs Direct Debit has no fixed fee, which collapses the problem entirely.** At 3p per
    payment it makes *monthly* billing as cheap as annual, so the club would not have to
-   ask 94 people to switch to paying £30 up front. **This is worth roughly £370 a year —
+   ask ~100 people to switch to paying £30 up front. **This is worth roughly £375 a year —
    more than the entire hosting decision.**
-3. **Squarespace's cut is the smallest of the three levers.** The platform's 3% is **£85
-   of the £406** — real, and worth removing, but a fifth of the problem. The other four
-   fifths are the fixed fee on a very small, very frequent transaction, and that follows
-   the club to any platform unless the billing instrument changes too. Worth stating
-   plainly, because "Squarespace takes a cut" is the memorable fact and it is not where
-   the money goes.
+3. **Squarespace's cut is the smallest of the three levers.** Its transaction fee across
+   both flows is **£91 of the £516** in total fees — real, and worth removing, but under a
+   fifth of the problem. The rest is the fixed fee on a very small, very frequent
+   transaction, and that follows the club to any platform unless the billing instrument
+   changes too. Worth stating plainly, because "Squarespace takes a cut" is the memorable
+   fact and it is not where the money goes.
+
+**Tickets need a different answer from the subscription.** At 6.1% on a £12 ticket they
+are already cheap to process, they happen twice a year, and 158 orders is well inside what
+a hosted payment link handles with no platform at all. If the subscription moves to Direct
+Debit, **the club's remaining commerce requirement is two evenings a year** — which
+changes what the website has to be.
 
 Bacs is not free of friction: mandate setup takes several working days, payments settle in
 about three, and a failed payment costs £5. Those are operational facts to plan around,
@@ -553,8 +563,8 @@ these should be relied on until confirmed in writing from the vendor**, per
 | 6 | Stripe Bacs Direct Debit: 1%, capped £4, **no fixed fee**, and any minimum | Worth ~£370/yr |
 | 7 | Cloudflare Registrar's actual `.co.uk` renewal price | Currently stated only as "at cost" |
 | 8 | Supabase Free's pause behaviour for a project receiving steady public traffic | Decides £0 vs £237/yr |
-| 9 | **The Squarespace plan name and its stated transaction fee**, and **which processor is connected** | Both visible in Squarespace admin without Stripe access. They confirm the rates behind [the flow of money](../foundations/current-state.md#the-flow-of-money) |
-| 10 | Actual gross, fees and net from the payment processor | **Needs Treasurer or Membership Officer** — the Web Manager cannot reach Stripe |
+| 9 | ~~Plan name, processor, volumes~~ — **resolved 7 Aug 2026.** Business plan, £204, renewing **21 March 2027**; processor is **Squarespace Payments**; volumes measured | Recorded in [the flow of money](../foundations/current-state.md#the-flow-of-money) |
+| 10 | **Whether the Business plan is legacy (2%) or current (3%)** | Moves Squarespace's cut between £91 and £137/yr. Visible on an invoice |
 
 Items 1–5 block the hosting decision. Items 6–10 do not, and can run in parallel.
 
