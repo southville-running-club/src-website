@@ -55,8 +55,9 @@ key. Used by race entry systems to verify registration at the point of entry.
 member list. Source of the fallback export if API access is slow.
 
 **Member fund** — the £2.50 recurring payment members make in place of 50p cash at
-sessions. Set up as a Squarespace donation fund in October 2024. 94 active recurring
-payers, roughly £2,820 a year.
+sessions. Set up as a Squarespace donation fund in October 2024. Running at around **103
+payments a month, roughly £2,940 a year**, and growing — it took 697 payments across the
+whole of 2025 and 705 in the first seven months of 2026.
 
 **Single-use link** — the token on our own domain that a welcome email (or its QR code)
 points at. Marked consumed on first use, expires after a set period, then forwards the
@@ -73,7 +74,7 @@ results. Proven in production at Pass the Buck 2026.
 **Front door** — one of the three user-facing surfaces onto the shared platform.
 
 **Decision record** — a short document capturing a decision, its context, its consequences
-and its exit cost. See [decision log](decision-log.md).
+and its exit cost. See [decision log](../decisions/decision-log.md).
 
 **Preview deployment** — a deployed URL for a pull request, so a change can be looked at
 before it is real.
@@ -95,26 +96,26 @@ version working against the new schema, so rollback stays possible.
 **Authoritative nameserver** — the server that gives the definitive answer for a domain's
 records. Which provider is authoritative is set at the registrar.
 
-**Delegation** — changing which nameservers are authoritative. Slow to take effect and slow
-to reverse, because the change is cached across the internet for up to 48 hours.
+**Delegation** — changing which nameservers are authoritative. Slow to take effect and
+slow to reverse, because the change is cached across the internet for up to 48 hours.
 
 **Apex** — the bare domain, `southvillerunningclub.co.uk`, with no subdomain.
 
-**Cutover** — repointing an existing record at a new destination. Distinct from delegation:
-much faster to make and to reverse, once the club controls the records.
+**Cutover** — repointing an existing record at a new destination. Distinct from
+delegation: much faster to make and to reverse, once the club controls the records.
 
 **Additive record** — a new record for a name that did not previously exist. Cannot break
 anything that already works, because nothing was resolving that name before. Deleting it
 restores the previous state exactly.
 
 **Proxied vs DNS-only** — whether a DNS provider passes traffic through its own network or
-simply answers with the destination address. Some records must not be proxied, notably mail
-hostnames and third-party verification records.
+simply answers with the destination address. Some records must not be proxied, notably
+mail hostnames and third-party verification records.
 
 ## External services in use today
 
-**Full On Sport** — the current race entry provider. 5.9% + 20p plus VAT, **added on top of
-the entry price and paid by entrants**, not by the club.
+**Full On Sport** — the current race entry provider. 5.9% + 20p plus VAT, **added on top
+of the entry price and paid by entrants**, not by the club.
 
 **Fasthosts** — the domain registrar, authoritative DNS provider, and the club's mail
 provider (livemail), with forwarding-only mailboxes.

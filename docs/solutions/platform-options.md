@@ -1,0 +1,866 @@
+# Platform options — named candidates, costed
+
+[Options](options.md) sets out the solution space by category and deliberately names no
+candidates. This document does the next step: **named products, real prices, and an honest
+assessment of what each one would take to action.**
+
+It answers the three questions
+[options](options.md#questions-to-answer-before-any-of-this-is-decided) left open —
+commercial-use terms, whether a candidate needs control of the domain's DNS, and bundled
+versus assembled — because nothing can be built until they are answered.
+
+**This is analysis, not a decision.** The [decision log](../decisions/decision-log.md)
+stays empty until the committee chooses. Read
+[requirements](../foundations/requirements.md) first; the criteria used here are the seven
+in [options](options.md#how-to-judge).
+
+Companion documents: [DNS and domain](dns-and-domain.md) for the Fasthosts question, and
+[Nightingale Nightmare first](../delivery/nn-first-delivery.md) for what gets built first.
+
+**Prices captured August 2026.** Dollar figures converted at **$1 = £0.79**. Where a
+figure is inferred rather than read off a vendor's own page it says so, and everything
+load-bearing is listed again under [verify before deciding](#validation-register).
+
+---
+
+## The two questions that eliminate
+
+Before comparing anything on features or elegance, two questions remove candidates
+outright.
+
+### 1. Does the free or cheap tier permit taking payments?
+
+The club takes money. This is not a detail — it is the reason the club is on Squarespace's
+middle tier in the first place.
+
+| Candidate | Free tier permits commercial use? | Consequence |
+| --- | --- | --- |
+| **Vercel** | **No.** Hobby is restricted to non-commercial personal use; Vercel's fair-use guidance names *processing payment* and *asking for donations* as commercial | Payments force **Pro at $20/user/month** |
+| **Cloudflare** | **Yes.** Workers Free and Pages carry no non-commercial restriction | Free tier is a legitimate permanent home |
+| **Netlify** | **Yes.** Netlify states commercial projects may be deployed on the free plan | Free tier is legitimate; see the credit cap below |
+| **GitHub Pages** | **No.** Pages terms exclude running an online business or e-commerce site | Disqualified for anything that takes money |
+| **AWS / VPS** | **Yes** — it is rented infrastructure, not a hosted tier | No restriction |
+| **Render / Railway / Fly.io** | **Yes** — paid from the start, or trivially small free allowances | No restriction |
+
+> **This single line is the most consequential finding in this document.** The club's
+> existing pattern — Vercel Hobby — is the one that does not survive contact with the
+> club's own requirements. It is fine for the timing platform, which takes no money. It is
+> not fine for a website with a £2.50 subscription and race entries on it.
+
+### 2. Can it serve a club hostname without controlling the domain's DNS?
+
+This is the trap
+[priorities](../delivery/priorities.md#the-two-week-deadline-is-not-as-tight-as-it-looks)
+warned about, and the answer differs *within* a single vendor.
+
+| Candidate | Subdomain (`nn.…`) from external DNS | Apex (`southvillerunningclub.co.uk`) from external DNS |
+| --- | --- | --- |
+| **Vercel** | Yes — CNAME | Yes — A record at Vercel's address |
+| **Netlify** | Yes — CNAME | Yes — A record at Netlify's load balancer |
+| **Cloudflare Pages** | **Yes** — CNAME, after associating the domain in the dashboard | **No** — apex requires Cloudflare nameservers |
+| **Cloudflare Workers custom domains** | **No** — requires an active Cloudflare zone | **No** |
+| **AWS / VPS / container hosts** | Yes — A or CNAME | Yes — A record |
+
+Two things follow, and they matter more than they look.
+
+**Nightingale Nightmare is unblocked on every candidate.** A subdomain needs one additive
+CNAME at Fasthosts. Nothing existing is touched, club email cannot break, and deleting the
+record restores exactly today's behaviour. The two-week deadline never required a DNS
+migration.
+
+**Cloudflare at the apex does require the nameservers to move.** That is a real cost, it
+is specific to Cloudflare, and it is analysed properly in [DNS and
+domain](dns-and-domain.md). It does not have to happen before Nightingale Nightmare, and
+it should not.
+
+Note the split inside Cloudflare: **Pages** accepts a subdomain from third-party DNS,
+**Workers custom domains** do not. Anything built for the NN deadline must therefore be a
+Pages project while the zone stays at Fasthosts.
+
+---
+
+## Language and framework
+
+**TypeScript, and the case for it is not preference.**
+
+The club's one proven asset is a Next.js 16 / TypeScript race-timing application with
+row-level security, an offline capture queue and a tested timezone path.
+[Convergence](../foundations/requirements.md#convergence) is a stated requirement: the
+website, Nightingale Nightmare and the timing platform end up as one platform. A second
+language means a second set of types for the same entities, a second build pipeline, and a
+second thing a third volunteer has to learn.
+
+Alternatives, considered and rejected in writing so they are visibly rejected rather than
+overlooked:
+
+| | Why it was considered | Why not |
+| --- | --- | --- |
+| **Go** | Single binary, trivial to self-host, fast | Nothing in the club's stack is Go; loses type sharing with the timing app; smaller pool of people who could pick it up |
+| **Python (Django)** | Batteries-included admin would answer committee editing almost for free | Divergent runtime; the Django admin is a strong pull, but it buys one capability at the cost of every other |
+| **PHP (Laravel / WordPress)** | Cheapest possible hosting; WordPress solves committee editing outright | Reintroduces exactly what the club is leaving — a database-backed CMS edited by clicking, with a patching burden and no meaningful convergence |
+| **Rust / Elixir** | Genuinely good at the realtime part | Fails ["boring" as a hard requirement](../foundations/requirements.md#people) |
+
+### Framework, which is a separate question from language
+
+| | Fit | Trade-off |
+| --- | --- | --- |
+| **Next.js 16** *(incumbent)* | Already known, already proven, shared types with the timing app | Best on Vercel. Elsewhere it runs through an adapter — `@opennextjs/cloudflare` on Cloudflare, an official plugin on Netlify. Workable, but it is the framework most coupled to the host the club cannot afford |
+| **Astro** | Excellent for a content-heavy site: markdown content collections, islands for the interactive parts, first-class adapters for Cloudflare, Netlify and Node | A second framework in the club's world. Mitigated by the fact that the website and the timing app have genuinely different shapes |
+| **SvelteKit** | Small, fast, adapter-per-host by design | Third framework family; nobody in the club uses it today |
+| **Remix / React Router** | React, runs well on Workers | No advantage over Astro here, and less suited to a mostly-static site |
+| **Hono** | Tiny, ideal on Workers | An API framework, not a site framework. Useful *inside* another choice |
+
+**The honest position:** for a site that is 60 pages of content, a document archive and a
+results archive — all of which are static by nature — Astro is a better fit than Next.js,
+and its markdown content collections are a direct, cheap answer to the ["what lives in
+code and what lives in a
+database"](../foundations/target-state.md#open-questions-this-raises) question. Policies,
+page structure and the pace guide become files in the repository, reviewed by pull
+request. Results, newsletters and entries stay in the database.
+
+Using Astro for the website and leaving the timing app on Next.js is a deliberate split
+along a real seam, not divergence for its own sake. Both are TypeScript, both share the
+same database and the same generated types.
+
+---
+
+## The candidates
+
+Six shapes. Each states what it is, what it costs, what it takes to action, and what
+leaving costs.
+
+---
+
+### Option A — Vercel + Supabase (extend the incumbent pattern)
+
+The timing platform already runs this way. The obvious move is to do the website the same
+way.
+
+**It is the most expensive option in this document, by a factor of ten.**
+
+| Line | Cost |
+| --- | --- |
+| Vercel Pro — required the moment the site takes payments, **$20 per member per month** | $40/mo for two members → **£379/yr** |
+| Supabase Pro — $25/mo, required to guarantee the archive never pauses | $25/mo → **£237/yr** |
+| Domain and DNS at Fasthosts | **£15.40/yr** |
+| **Total** | **~£631/yr** |
+
+That is **three times what Squarespace costs today**, to save volunteer time the club
+could also save on a £47/yr platform. It fails the [money
+constraint](../foundations/requirements.md#money) outright.
+
+**Could the club stay free?** Only by breaking one of its own requirements:
+
+- *One Vercel seat instead of two* — £190/yr, and it recreates a system reachable by one
+  person.
+- *Vercel Hobby with payments live* — a terms violation, and the failure mode is the
+  club's website being suspended rather than a bill.
+- *Supabase Free* — 500 MB, two active projects, and **projects pause after a week of
+  inactivity**. A live public site generates requests, so pausing is unlikely in practice;
+  but "unlikely to pause" is not the same as
+  [permanent](../foundations/requirements.md#continuity), and the two-project ceiling is
+  already half-used by the timing platform.
+
+**How it gets actioned:** fastest of any option. Both volunteers know it, deployment is a
+git push, and the timing app's patterns transfer directly. First week: repository, Next.js
+scaffold, CNAME at Fasthosts, deployed. Nothing to learn.
+
+**Exit cost:** low on the hosting side — a Next.js app moves to Netlify or a container
+with an adapter change. High on the data side if Supabase Realtime and Auth are used,
+which is the [bundling trade-off](options.md#a-structural-observation-before-the-options)
+already identified.
+
+**Verdict:** *keep it for the timing platform, where the free tier is legitimate because
+no money changes hands.* Do not put the website on it.
+
+---
+
+### Option B — Cloudflare, bundled (Pages/Workers + D1 + R2 + Access)
+
+One vendor for serving, data, files and staff authentication.
+
+| Line | Cost |
+| --- | --- |
+| Workers Free — 100,000 requests/day, D1 5 GB, R2 10 GB, KV, Durable Objects | **£0** |
+| Workers Paid, if ever needed — $5/mo minimum, covers Workers, Pages Functions, KV, D1, Durable Objects | **£47/yr** |
+| Cloudflare DNS | **£0** |
+| Domain, if transferred to Cloudflare Registrar (at cost) | **under £10/yr** — see [DNS and domain](dns-and-domain.md) |
+| **Total** | **£0–£57/yr** |
+
+At roughly 1,900 pageviews a month the club is nowhere near 100,000 requests a day for 364
+days of the year, and unlike Vercel's the free tier permits taking payments. **But race
+night alone exceeds it** — see [why Cloudflare is free, and when it stops
+being](#why-cloudflare-is-free-and-when-it-stops-being). **£47/yr is the figure to plan
+on**, not £0.
+
+R2 deserves a specific mention: 10 GB free with **no egress charge**, which is the right
+home for the 45 club documents and the images being [rescued from Squarespace's
+CDN](../foundations/requirements.md#c14--publish-newsletters-and-club-documents) before
+the subscription lapses. Cloudflare's old restriction on serving non-HTML content on free
+plans no longer applies to content hosted on its own services.
+
+Cloudflare Access covers
+[C7](../foundations/requirements.md#c7--authenticate-and-authorise-staff) free to 50 users
+— the club needs single figures.
+
+**What it costs the club that the table does not show:**
+
+- **D1 is SQLite, not Postgres.** The timing platform is Postgres with row-level security
+  from its first migration. Choosing D1 means the convergence in
+  [requirements](../foundations/requirements.md#convergence) eventually requires rewriting
+  the timing app's data layer — re-opening race-tested code, which is precisely what the
+  [risk constraint](../foundations/requirements.md#risk) says not to do.
+- **Durable Objects are the stickiest dependency in the stack** and would become the
+  answer to
+  [C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators).
+- **Next.js needs an adapter.** Astro does not.
+
+**How it gets actioned:** first week is Cloudflare account (club-owned, both volunteers as
+admins), Pages project from the repository, one CNAME at Fasthosts, deployed. D1 schema by
+migration file. Wrangler configuration is committed, so infrastructure-as-code is met
+natively. Nameservers do not move until the apex does.
+
+**Exit cost:** **the highest of any option.** D1's SQLite dialect, Durable Objects, KV and
+the Workers runtime are four vendor-specific things at once, and only R2 is genuinely
+commodity.
+
+**Verdict:** *the cheapest option and the one with the worst exit cost.* Recommended only
+if the club consciously accepts pinning itself to Cloudflare.
+
+---
+
+### Option C — Cloudflare for serving, Supabase for data *(recommended)*
+
+Split on a clean seam: Cloudflare serves, Supabase holds the data. Two vendors, not five
+things assembled.
+
+| Line | Cost |
+| --- | --- |
+| Cloudflare Workers Paid — **race night needs it**, free covers the rest of the year | **£47/yr** |
+| Supabase Free — 500 MB, `eu-west-2` London, already in use | **£0** |
+| R2 for documents and images | **£0** within 10 GB, then £0.014/GB/month |
+| DNS at Cloudflare | **£0** |
+| **Total, planning figure** | **£47/yr** |
+| Supabase Pro, **if the live leaderboard is served from Supabase Realtime** | +£237/yr → **£284** |
+
+**Why this is the recommendation:**
+
+1. **It is the only shape where the cheap tier permits taking payments and the data stays
+   Postgres.** Vercel fails the first; Cloudflare-bundled fails the second.
+2. **Convergence costs nothing.** The timing platform's database, row-level security,
+   Realtime and Auth stay exactly where they are, in London, and the website reads from
+   the same place. The results archive stops being a transcription job by *reading the
+   table that already exists*.
+3. **The cost floor survives the payments switch-on.** Every other option's price changes
+   the day Stripe goes live. This one does not.
+4. **Nightingale Nightmare ships on one additive CNAME**, with no decision foreclosed.
+5. **The split is on a real seam.** Serving is close to a commodity and cheap to leave.
+   Data is sticky, so it stays with the vendor the club is already proven on.
+
+**Costs knowingly accepted:**
+
+- **Two vendors, two accounts, two sets of credentials** to put a second person on.
+- **Supabase Free's ceilings are real** — 500 MB, two projects, pause-on-inactivity. The
+  mitigation is to run website and timing data in *one* project, which convergence wants
+  anyway. The trigger to move to Pro should be written into the decision record, not
+  discovered.
+- **Next.js on Cloudflare goes through an adapter.** Choosing Astro for the website
+  removes this entirely; keeping Next.js means living with OpenNext.
+- **The apex still needs Cloudflare nameservers.** See [DNS and
+  domain](dns-and-domain.md).
+
+**How it gets actioned:**
+
+| Week | |
+| --- | --- |
+| 1 | Club-owned Cloudflare account, both volunteers as admins. Pages project. Astro scaffold. One CNAME at Fasthosts. `nn.southvillerunningclub.co.uk` live |
+| 2 | Sign-up form writing to a Supabase table. Second volunteer added to Supabase. Timing repository moved into the club organisation |
+| 3–6 | Website content migrated; documents and images pulled off Squarespace's CDN into R2 **while the subscription is still live** |
+| Ahead of April | Zone pre-staged in Cloudflare, diffed record by record, nameservers moved, apex cut over |
+
+**Exit cost:** *low on serving* — an Astro site with a Cloudflare adapter becomes an Astro
+site with a Netlify or Node adapter in an afternoon; R2 is S3-compatible. *Medium-to-high
+on data* — the [Supabase bundling
+trade-off](options.md#a-structural-observation-before-the-options) is inherited unchanged,
+but it is inherited rather than newly incurred, and the club is already exposed to it
+through the timing platform.
+
+---
+
+### Option D — Netlify + Supabase
+
+Identical in shape to Option C, with one significant advantage and one significant flaw.
+
+| Line | Cost |
+| --- | --- |
+| Netlify Free — commercial use permitted | **£0** |
+| Netlify Personal, if the free credit pool is too tight | $9/mo → **£85/yr** |
+| Netlify Pro, if two seats are needed | $20/seat/mo → £379/yr |
+| Supabase Free | **£0** |
+| Domain and DNS at Fasthosts, unchanged | **£15.40/yr** |
+| **Total** | **£15–£100/yr** |
+
+**The advantage: the nameservers never have to move.** Netlify serves an apex from a
+third-party DNS provider via a plain A record. The whole [DNS
+migration](dns-and-domain.md) — with its email risk and its slow rollback — simply does
+not arise. For a club whose stated position is that moving away from Fasthosts is *not
+ideal*, that is worth real money.
+
+**The flaw: the free plan stops serving traffic when the credit pool runs out.** Netlify's
+free tier moved to a shared 300-credit monthly pool (bandwidth at 20 credits/GB,
+production deploys 15 credits each), with no auto-recharge. A club site would sit well
+inside it in a normal month — but ["permanent" is a hard
+requirement](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically),
+and a results archive that goes dark because a busy race week plus a run of deploys
+exhausted a credit pool fails it. The mitigation is Personal at £85/yr, which is still
+comfortably inside the money constraint.
+
+**How it gets actioned:** effectively identical to Option C, minus the DNS project.
+Netlify's build-from-git model and adapter story are mature and boring in the good sense.
+
+**Exit cost:** **the lowest of any managed option.** Netlify holds nothing but a build
+configuration and a deployment. Everything of value is in Supabase and the repository.
+
+**Verdict:** *the strongest alternative, and the right answer if the club decides against
+moving the nameservers.* It trades roughly £85/yr for the entire DNS migration risk. That
+is a defensible trade.
+
+---
+
+### Option E — Self-hosted on AWS
+
+Genuine control, UK region, and the operational burden that comes with it.
+
+The shape matters enormously here, because "AWS" spans two orders of magnitude:
+
+| Shape | Cost | Assessment |
+| --- | --- | --- |
+| **Lightsail VPS** — one 2 GB instance, Postgres and the app on it, `eu-west-2` | $5–7/mo + ~$1 snapshots → **£57–£75/yr** | The only affordable AWS shape |
+| **S3 + CloudFront static** | Pennies a month | Fine for pages; the dynamic parts need somewhere else |
+| **Amplify Hosting** | Build minutes + GB served; small at club scale | Managed, but the free allowance is time-limited and it is Vercel-shaped pricing without Vercel's ergonomics |
+| **Lambda + API Gateway + RDS** | `db.t4g.micro` alone is ~$13/mo → **£123/yr** before anything else | Over budget for the database alone |
+| **Aurora Serverless v2** | 0.5 ACU minimum ≈ $43/mo → **£408/yr** | Enterprise-shaped. Disqualified |
+
+So the honest AWS answer is **a £60–£75/yr Lightsail box** — competitive on price, and
+then the bill arrives in a currency that is not money.
+
+**What lands on one volunteer:** operating-system patching, TLS renewal, Postgres
+upgrades, backup *and a tested restore*, monitoring, disk-full incidents, and being the
+person who fixes it on a Sunday. [Requirements](../foundations/requirements.md#people)
+makes "a third person can pick this up cold" a hard requirement, and a hand-built box is
+the hardest thing in this document to hand over.
+
+**Where it genuinely wins:** total control, `eu-west-2` London for [data
+residency](../foundations/requirements.md#c10--hold-personal-data-lawfully), no free-tier
+terms to be changed underneath the club, and no vendor able to suspend the site. If the
+club's overriding concern were sovereignty rather than volunteer time, this would be the
+answer.
+
+**How it gets actioned:** the slowest start of any option — instance, firewall, reverse
+proxy, certificates, Postgres, backup job, restore test, deploy pipeline, monitoring.
+Realistically a month of evenings before the first page is served in a state anyone should
+trust. Terraform or OpenTofu would make it code, which the club requires, and adds its own
+learning curve.
+
+**Exit cost:** **the lowest of all** — it is a Linux box running Postgres and a Node
+process. Nothing is proprietary.
+
+**Verdict:** *rejected on criterion 3 and criterion 6, not on price.* It fails
+["maintainable by one volunteer"](options.md#how-to-judge) and it fails it on the axis the
+club can least afford — the same volunteer time the whole programme is meant to recover.
+Worth revisiting only if a volunteer genuinely wants to run infrastructure.
+
+---
+
+### Option F — Plain VPS elsewhere (Hetzner, Mythic Beasts, DigitalOcean)
+
+The same trade as Option E, cheaper, with a data-residency wrinkle.
+
+| Provider | Cost | Note |
+| --- | --- | --- |
+| **Hetzner CX22** | ~€3.79/mo → **£39/yr** | No UK region — Germany or Finland. EU, not UK |
+| **Mythic Beasts** | ~£5–10/mo → **£60–£120/yr** | **UK-based, UK-hosted**, well regarded, small and stable |
+| **DigitalOcean** | $6/mo → **£57/yr** | London region available |
+
+Adding Dokku or Coolify gives a git-push deploy experience on top, which recovers some of
+the ergonomics. It is still a box somebody has to run.
+
+**Verdict:** *same rejection as Option E, for the same reason.* Mythic Beasts is worth
+remembering as the option that would satisfy a strict UK-hosting position if one is ever
+adopted.
+
+---
+
+### Option G — Container hosts (Render, Railway, Fly.io)
+
+The middle ground: fewer runtime surprises than serverless, less operational burden than a
+VPS.
+
+| Provider | Cost | Assessment |
+| --- | --- | --- |
+| **Render** | Free tier **spins down after 15 minutes idle**, ~1 minute cold start. Pro is a flat $25/mo workspace → **£237/yr** | The free tier's cold start is a poor experience for a permanent archive; Pro is over budget for what it adds |
+| **Railway** | Hobby $5/mo minimum → **£47/yr**; the free plan is $1/month of credit | Competitive on price, pleasant to use, smaller and younger than the alternatives |
+| **Fly.io** | **No free tier as of 2026** — a trial only. Realistically $5–15/mo → **£47–£142/yr** | Good technology, and the free tier the club might have relied on is gone |
+
+**Verdict:** *no candidate here beats Option C or D on any criterion.* They cost more than
+Cloudflare, carry more operational burden than Netlify, and offer nothing the club needs
+that those do not. Listed so they are visibly considered.
+
+---
+
+## Side by side
+
+The candidates, each analysed in full above:
+
+| | |
+| --- | --- |
+| **Vercel + Supabase** | Extend the incumbent pattern — what the timing app runs on today |
+| **Cloudflare, bundled** | One vendor for everything: Workers, D1, R2, Access |
+| **Cloudflare + Supabase** ⭐ | Cloudflare serves, Supabase holds the data. **Recommended** |
+| **Netlify + Supabase** | Same shape, different host. The strongest alternative |
+| **Amazon Lightsail** | Self-hosted on a virtual server inside AWS |
+| **Hetzner or Mythic Beasts** | A plain virtual server the club administers |
+| **Render, Railway, Fly.io** | Container hosts |
+
+### The complete cost picture
+
+Every option, every cost, cheapest first. **Annual, ex-VAT, at the club's measured
+volumes** — 1,175 subscription payments and 158 ticket orders, £4,560 collected through
+the site.
+
+Five things the club pays for, and only the first two are what people usually mean by
+"hosting":
+
+| | What it is |
+| --- | --- |
+| **Hosting** | Serving the website |
+| **Database** | Holding results, members, entrants and orders |
+| **Platform's cut** | What the website platform takes from each payment, on top of the card fee |
+| **Card processing** | What the payment processor charges |
+| **Domain and DNS** | Registration and name resolution |
+
+| Option | Hosting | Database | Platform's cut | Card processing | Domain and DNS | **Total a year** | **vs today** | Over 3 years | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Cloudflare + Supabase, with Direct Debit** | £47 | £0 | £0 | **£85** | £15 | **£148** | **+£587** | £443 | Same platform as the recommendation; the saving comes from how the club bills, not where it hosts |
+| **Netlify free + Supabase free** | £0 | £0 | £0 | £335 | £15 | **£350** | +£385 | £1,051 | Free plan **stops serving traffic** when its credit pool runs out |
+| **Hetzner virtual server, self-hosted database** | £39 | £0 | £0 | £335 | £15 | **£389** | +£346 | £1,168 | **Plus volunteer hours.** No UK region |
+| **Cloudflare + Supabase free** ⭐ | £47 | £0 | £0 | £335 | £15 | **£397** | **+£338** | £1,192 | **Recommended.** £47 is Workers Paid, which race night needs |
+| **Cloudflare + Cloudflare D1** | £47 | £0 | £0 | £335 | £15 | **£397** | +£338 | £1,192 | Same price, but D1 is not Postgres — breaks convergence with the timing platform |
+| **Amazon Lightsail, self-hosted database** | £66 | £0 | £0 | £335 | £15 | **£416** | +£319 | £1,249 | **Plus volunteer hours.** London region |
+| **Netlify Personal + Supabase free** | £85 | £0 | £0 | £335 | £15 | **£435** | +£300 | £1,306 | **No nameserver move needed** — the whole DNS migration disappears |
+| **Mythic Beasts virtual server, self-hosted database** | £90 | £0 | £0 | £335 | £15 | **£440** | +£295 | £1,321 | **Plus volunteer hours.** UK-hosted throughout |
+| **Railway + Railway Postgres** | £47 | £47 | £0 | £335 | £15 | **£444** | +£291 | £1,333 | Smaller, younger vendor |
+| **Fly.io + Fly Postgres** | £95 | £47 | £0 | £335 | £15 | **£492** | +£243 | £1,477 | No free tier as of 2026 |
+| **Cloudflare + Supabase Pro** | £47 | £237 | £0 | £335 | £15 | **£634** | **+£101** | £1,903 | What the recommendation costs if the live leaderboard forces the paid data tier |
+| **Render Pro + Render Postgres** | £237 | £66 | £0 | £335 | £15 | **£653** | +£82 | £1,960 | Free tier sleeps after 15 minutes |
+| **Netlify Personal + Supabase Pro** | £85 | £237 | £0 | £335 | £15 | **£672** | +£63 | £2,017 | |
+| **Squarespace — today** | £204 | included | **£91** | **£424** | £15 | **£735** | — | £2,205 | Squarespace Payments at 2% + 25p, plus Squarespace's own 2% |
+| **Vercel Pro (2 seats) + Supabase Pro** | £379 | £237 | £0 | £335 | £15 | **£966** | **−£231** | £2,899 | Extending the incumbent pattern. **Costs more than staying** |
+
+Domain and DNS is held at £15.40 throughout so the comparison is like-for-like; moving the
+registration to Cloudflare would take it under £10 on any of the Cloudflare rows.
+
+**Mailboxes are not in these figures, deliberately.** [Email](email.md) recommends two
+paid Fasthosts mailboxes at **~£30/yr** so committee replies come from the club rather
+than a volunteer's Gmail. That cost is **identical on every row**, so it changes no
+ranking — and it buys something the club does not have today, which makes it a new
+capability rather than a cost of moving. Counted in, the recommendation is **£427/yr
+against £735**, still a **£308** saving.
+
+**Card processing is £335 on every row except Squarespace's**, because leaving Squarespace
+means leaving Squarespace Payments, and Stripe's UK rate — 1.5% + 20p — is cheaper than
+the 2% + 25p the club pays now. That £89 difference is a consequence of the platform
+decision, not a separate one.
+
+**Six readings of that table.**
+
+**Everything beats staying, except the incumbent pattern.** Thirteen of the fourteen
+alternatives cost less than Squarespace. The exception is Vercel Pro with Supabase Pro at
+**£966 — £231 a year worse than doing nothing**, while delivering less commerce
+capability.
+
+**The saving is £338, not £204.** Two thirds of it is the subscription; the rest is
+Squarespace's 2% cut and the better processor rate, neither of which appears in a
+hosting-only comparison.
+
+**The gap between the sensible options is small.** Cloudflare, Netlify, Lightsail, a
+Hetzner box and Railway all land between £389 and £444. **About £55 a year separates
+them**, which is less than the cost of getting the decision wrong in any other dimension —
+so criteria 3 to 7 should decide this, not price.
+
+**The self-hosted rows are cheaper than they look and dearer than they are.** Hetzner at
+£389 is genuinely the second-cheapest line, but the missing column is volunteer hours:
+patching, backups, a tested restore, TLS renewal and being the person who fixes it on a
+Sunday. The programme exists to *recover* volunteer time, which is why these are rejected
+on [criterion 3](options.md#how-to-judge) rather than on price.
+
+**The paid data tier is the real risk.** Supabase Pro moves the recommendation from £397
+to £634 and cuts the saving from £338 to £101. Nothing else on this table moves by £237.
+[What would trigger it, and how to avoid it](#what-it-costs-as-the-club-grows).
+
+**The largest single lever is not on the hosting axis at all.** Direct Debit takes the
+total to £148 — a £587 saving — on exactly the same platform as the recommendation. **£250
+of that has nothing to do with where the website lives.** See [what payments actually
+cost](#what-payments-actually-cost).
+
+### What each option actually saves
+
+The same table read as money kept rather than money spent. **Today the club spends £735 a
+year — 16.1% of everything it collects — on the platform and the fees to run payments
+through it.**
+
+| Option | Cost a year | **Saves a year** | Over 3 years | Over 5 years | Cost as % of income |
+| --- | --- | --- | --- | --- | --- |
+| **Cloudflare + Supabase, with Direct Debit** | £148 | **£587** | **£1,762** | **£2,936** | **3.2%** |
+| Netlify free + Supabase free | £350 | £385 | £1,154 | £1,923 | 7.7% |
+| Hetzner server, self-hosted database | £389 | £346 | £1,037 | £1,728 | 8.5% |
+| **Cloudflare + Supabase free** ⭐ | £397 | **£338** | **£1,013** | **£1,688** | 8.7% |
+| Amazon Lightsail, self-hosted database | £416 | £319 | £956 | £1,593 | 9.1% |
+| Netlify Personal + Supabase free | £435 | £300 | £899 | £1,498 | 9.6% |
+| Mythic Beasts server, self-hosted database | £440 | £295 | £884 | £1,473 | 9.7% |
+| Railway + Railway Postgres | £444 | £291 | £872 | £1,453 | 9.8% |
+| Fly.io + Fly Postgres | £492 | £243 | £728 | £1,213 | 10.8% |
+| Cloudflare + Supabase Pro | £634 | £101 | £302 | £503 | 13.9% |
+| Render Pro + Render Postgres | £653 | £82 | £245 | £408 | 14.3% |
+| Netlify Personal + Supabase Pro | £672 | £63 | £188 | £313 | 14.8% |
+| **Squarespace — today** | £735 | — | — | — | **16.1%** |
+| Vercel Pro (2 seats) + Supabase Pro | £966 | **−£231** | **−£694** | **−£1,157** | 21.2% |
+
+#### Where the recommended saving comes from
+
+Four separate movements, and only one of them is the subscription everybody talks about:
+
+| | |
+| --- | --- |
+| Squarespace subscription removed | **+£204** |
+| Squarespace's 2% cut on every payment removed | **+£91** |
+| Cheaper processor — Stripe at 1.5% + 20p instead of Squarespace Payments at 2% + 25p | **+£89** |
+| New hosting cost — Cloudflare Workers Paid | **−£47** |
+| **Platform saving** | **£338 a year** |
+| Direct Debit instead of card on the £2.50 subscription | **+£250** |
+| **Total available** | **£587 a year** |
+
+**These are two independent levers and they stack.** The platform change is worth £338 and
+needs a build. The billing change is worth £250, needs no build at all, and is available
+on *any* platform including the current one — so it should not be presented as part of the
+case for moving.
+
+#### Three honest qualifications
+
+**The saving is modest against what the club raises.** £338 a year set against £2,940 of
+subscription income is real but not transformative. **The stated return on this programme
+was never the money** — see the [problem
+statement](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do),
+where volunteer time is named as the larger cost and it appears on no invoice.
+
+**£237 of the saving is contingent.** If the live leaderboard forces Supabase Pro, the
+recommendation drops from saving £338 to saving £101 — still positive, but a third of the
+case. [What would trigger it](#what-it-costs-as-the-club-grows).
+
+**Two rows save money the club would pay back in evenings.** Hetzner at £346 and Lightsail
+at £319 look competitive with the recommendation. They are, on the invoice. The difference
+is patching, backups, tested restores and someone being on call — which is the very cost
+this programme exists to reduce.
+
+### Why Cloudflare is free, and when it stops being
+
+**£0 is a real number for the website as scoped, and a misleading one to plan on.**
+
+Cloudflare's free tier is not a trial or a loss-leader with a cliff; it is a genuine
+allowance, and the club's measured traffic sits far inside it:
+
+| | Free allowance | Club's measured usage |
+| --- | --- | --- |
+| Requests | 100,000/day | ~1,900 pageviews/**month** |
+| Static assets | Unlimited on Pages | 60 pages |
+| R2 object storage | 10 GB, **no egress charge** | 45 documents, some images |
+| D1 database | 5 GB | Not needed — data is in Supabase |
+| Workers KV | 100k reads/day | Trivial |
+| Cron Triggers | **5 per account**, on the free plan | One, for the newsletter mirror |
+| Zero Trust access | 50 users | Single figures |
+
+Two real limits sit behind that, and one of them binds.
+
+**The 10ms CPU ceiling.** Free Workers get 10 milliseconds of CPU per request. Serving
+static Astro output and handling a form POST is comfortably inside it. Anything doing real
+computation per request — deriving a leaderboard, hashing a password, generating a PDF —
+is not, and the failure mode is a request that dies rather than one that runs slowly.
+Workers Paid raises this to 30 seconds.
+
+**Race night breaks it outright.**
+[C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) wants a
+leaderboard updating within about a second, for a few hundred spectators. Against a
+100,000-request daily allowance:
+
+| Polling interval | Requests over a 90-minute race, 300 spectators | |
+| --- | --- | --- |
+| Every 1s | 1,620,000 | **60× over** |
+| Every 5s | 324,000 | **3× over** |
+| Every 10s | 162,000 | **over** |
+| Every 30s | 54,000 | within — but no longer "live" |
+
+**The free tier survives every day of the year except the one that matters.** Workers Paid
+at **$5/month — £47/yr — covers 10 million requests a month**, which turns race night from
+a constraint into a non-event, and lifts the CPU ceiling at the same time.
+
+**So £47/yr is the planning figure, and £0 is the pleasant surprise if the club never
+needs it.** The recommendation is unchanged either way; £47 is still an order of magnitude
+inside the [money constraint](../foundations/requirements.md#money).
+
+### Does this stack actually do everything?
+
+Checked against every capability in
+[requirements](../foundations/requirements.md#capabilities), because "it's all free" is
+not the same as "it all works".
+
+| | Capability | Where it lands | Honest status |
+| --- | --- | --- | --- |
+| C1 | Publish club information | Astro pages, markdown in git | ✅ |
+| C2 | Results, permanent and automatic | Supabase Postgres → static pages at build, or served by Worker | ✅ |
+| C3 | Race sign-ups and entries | Pages Function → Postgres | ✅ |
+| C4 | Take payments | Stripe Checkout + webhook to a Worker | ✅ |
+| C5 | Timing capture | **Unchanged — stays on Vercel/Supabase** | ✅ not touched |
+| C6 | Live leaderboard | Supabase Realtime, or Durable Objects | ⚠️ **the binding constraint — see below** |
+| C7 | Staff authentication | Supabase Auth magic links, or Cloudflare Access (free to 50) | ✅ |
+| C8 | Send email as the club | Resend or SES — see [email](email.md) | ✅ |
+| C9 | File storage | R2, 10 GB free, no egress fee | ✅ |
+| C10 | Hold personal data lawfully | Supabase `eu-west-2`, row-level security | ✅ |
+| C11 | England Athletics verification | External dependency, unaffected by hosting | ✅ |
+| C12 | Membership records | Postgres tables | ✅ |
+| C13 | Gate the members' community | Application logic + WhatsApp invite | ⚠️ as weak as the invite link, on any platform |
+| C14 | Newsletters and documents | Cron Trigger pulls Mailchimp; documents on R2 | ✅ **but not on Pages** — Cron Triggers are a Workers feature |
+| C15 | Merchandise and tickets | Stripe + Postgres | ✅ build effort, not a platform gap |
+| C16 | Member benefits directory | Markdown or a table | ✅ |
+| C17 | Form submissions | Pages Function → Postgres | ✅ |
+| C18 | Reduce manual work | Cron Triggers, webhooks, database reads | ✅ |
+
+**Two genuine caveats, and neither is fatal.**
+
+**Cron Triggers do not run on Pages.** They are a Workers feature. While the zone stays at
+Fasthosts the club must use Pages, so the newsletter mirror needs either a GitHub Actions
+schedule (free, and arguably better — the schedule lives in the repository as code) or a
+separate small Worker on `workers.dev`. Once the nameservers move and the site becomes a
+Worker, this disappears.
+
+**C6 is the one capability that shapes the bill.** Three routes, and they cost
+differently:
+
+| Route | Cost | Trade-off |
+| --- | --- | --- |
+| **Supabase Realtime** | Free to **200 concurrent**, then Pro at £237/yr | Zero integration work — the timing app already uses it. 200 is plausibly fewer than a race-night crowd |
+| **Durable Objects + WebSockets** | Included in Workers Paid, **£47/yr** | Cheapest robust answer; a new thing to learn, and the stickiest dependency in the stack |
+| **Polling every 30s** | Free | Meets the load, misses the "within a second" requirement |
+
+**The cheapest way to keep Supabase on its free tier is to serve the leaderboard from
+Cloudflare rather than from Supabase Realtime.** That is a £190/year decision, and it
+should be taken deliberately when C6 is built rather than by default.
+
+### What it costs as the club grows
+
+The requirements are [explicit that this is not built for
+scale](../foundations/target-state.md#what-this-is-not), so growth here means *more
+capability*, not more users. What each future step actually costs:
+
+| Future step | Effect on the bill |
+| --- | --- |
+| **Nightingale Nightmare added as a second timed race** | £0 — same tables, same hosting |
+| **Race photographs** ([C9](../foundations/requirements.md#c9--store-files)) | R2 beyond 10 GB is **£0.014/GB/month** — 50 GB of photos is about **£7/yr**, and R2 charges no egress, which is what makes image hosting expensive elsewhere |
+| **Membership system replacing the EA portal round-trip** | £0 — Postgres rows |
+| **Kit catalogue with variants and stock** | £0 in infrastructure; the cost is build time, and [1.1% of traffic](../foundations/current-state.md#what-people-actually-read) says re-scope it |
+| **Live leaderboard at full crowd** | £47/yr via Workers Paid, **or** £237/yr via Supabase Pro |
+| **Committee editing interface** | £0 with a git-backed editor; a hosted CMS would be a new recurring line |
+| **Results archive growing every year** | Negligible — a decade of results is a few megabytes |
+| **The archive outgrowing Supabase free (500 MB)** | £237/yr. On results and members alone this is **years away**; storing images or logs in Postgres would bring it forward, so do not |
+
+**The shape of the risk:** nothing about *more members, more races or more years* moves
+the club off free tiers. **Only two things do — race-night concurrency and putting large
+files in the wrong place.** Both are design decisions the club controls, not growth it
+cannot.
+
+### Against the seven criteria
+
+Scored 1–5, 5 best. Criteria from [options](options.md#how-to-judge).
+
+| | 1 Cost | 2 Terms | 3 One volunteer | 4 Exit | 5 Fit | 6 Ops | 7 Data | **Total** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **A — Vercel + Supabase** | 1 | **1** | 5 | 3 | 5 | 5 | 4 | **24** |
+| **B — Cloudflare bundled** | 5 | 5 | 4 | **2** | 2 | 5 | 4 | **27** |
+| **C — Cloudflare + Supabase** | 5 | 5 | 4 | 3 | **5** | 5 | 4 | **31** |
+| **D — Netlify + Supabase** | 5 | 5 | **5** | 4 | 4 | 5 | 4 | **32** |
+| **E — AWS Lightsail** | 4 | 5 | **1** | 5 | 3 | **1** | 5 | **24** |
+| **F — VPS elsewhere** | 4 | 5 | **1** | 5 | 3 | **1** | 3 | **22** |
+| **G — Container hosts** | 3 | 5 | 4 | 4 | 3 | 4 | 4 | **27** |
+
+Read the scores as a way of showing the working, not as an answer. Two things they make
+visible are worth stating plainly.
+
+**Option A loses on terms alone**, before cost is considered — which is unusual, and is
+why [the eliminating questions](#the-two-questions-that-eliminate) come first in this
+document.
+
+**D scores one point above C, and C is still the recommendation.** That is a real tension,
+not an oversight. The seven criteria are the right ones for comparing *hosts*, and on
+those Netlify is marginally the better host. What they do not score is a club requirement
+that sits outside hosting: [everything defined as
+code](../foundations/requirements.md#everything-is-defined-as-code) and [no system
+reachable by one person](../foundations/requirements.md#shared-ownership). Cloudflare's
+route carries DNS with it and closes both gaps; Netlify's leaves DNS exactly as it is.
+Anyone who weighs that differently should reach a different answer, and the scores are
+here so they can.
+
+---
+
+## The recommendation
+
+> **Cloudflare Pages for serving, Supabase Postgres in `eu-west-2` for data, R2 for files,
+> Stripe for payments. TypeScript throughout: Astro for the website, Next.js retained for
+> the timing platform.**
+>
+> **Fall back to Netlify in place of Cloudflare if the club decides against moving the
+> nameservers.** Everything else in the recommendation is unchanged by that choice.
+
+Restated as a decision the committee can take:
+
+| | |
+| --- | --- |
+| **Requirement served** | All of [C1–C18](../foundations/requirements.md#capabilities); decisively [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically) and the [money constraint](../foundations/requirements.md#money) |
+| **Decision** | Serving on Cloudflare Pages; data on Supabase Postgres; files on R2; payments on Stripe; TypeScript, Astro for the site |
+| **Platform cost** | **£47/yr** — Workers Paid, which race night requires. Free every other day of the year, and unchanged when payments switch on |
+| **Total cost of collecting the club's money** | **£397/yr against £734 today — a £337 saving.** £295 is the plan and Squarespace's cut; £89 is the better processor rate that comes with leaving; £47 is Workers Paid, which race night requires. A further £250 is available from Bacs Direct Debit, independently of this decision |
+| **The risk to that figure** | **Supabase Pro at £237/yr would cut the saving to £100.** Avoidable by serving the live leaderboard from Cloudflare rather than Supabase Realtime, and by keeping files in R2 rather than Postgres |
+| **Consequences accepted** | Two vendors; Supabase's bundling exposure inherited; the apex requires Cloudflare nameservers; a second framework alongside Next.js |
+| **Exit cost** | Serving: an afternoon. Files: S3-compatible, near zero. Data: unchanged from today's exposure |
+| **Revisit when** | Cloudflare's free tier gains a commercial-use restriction; Supabase Free's ceilings are reached; or a volunteer arrives who wants to run infrastructure |
+
+### The one question that decides between Cloudflare and Netlify
+
+**Is the club willing to move authoritative DNS to Cloudflare?**
+
+- **Yes** → **Cloudflare.** Cheapest, DNS becomes code, one fewer single point of failure,
+  and the live leaderboard can avoid Supabase Pro. Cost: a carefully staged migration that
+  carries club email with it.
+- **No** → **Netlify.** It serves the apex from Fasthosts' DNS, so the migration never
+  happens. Cost: about £38/yr and a £237 exposure on the leaderboard.
+
+**Both are defensible, and the two are compared properly in [Cloudflare or
+Netlify](cloudflare-vs-netlify.md)** — including what the apex move actually takes, and
+where paid mailboxes fit. [DNS and domain](dns-and-domain.md) sets out the risk honestly
+enough for the question to be answered rather than guessed.
+
+**Neither choice blocks Nightingale Nightmare**, which is the point of settling it now
+rather than under deadline pressure.
+
+---
+
+## What payments actually cost
+
+Included because a cost analysis that ignored it would understate the picture by an order
+of magnitude. This does not re-open
+[C4](../foundations/requirements.md#c4--take-payments); it prices it.
+
+Volumes are measured — see [the flow of
+money](../foundations/current-state.md#the-flow-of-money). The subscription runs at about
+**1,175 payments a year (£2,940)**; party tickets add **£1,620 across 158 orders**. Stripe
+rows below add 20% VAT, since the club is not VAT-registered and cannot reclaim it.
+
+**On the subscription**, which is where the cost is:
+
+| Arrangement | Fee per payment | **Per year** | Effective rate |
+| --- | --- | --- | --- |
+| **Today — Squarespace Payments, 2% + 25p, plus Squarespace's 2%** | £0.35 | **£411** | 14.0% |
+| Stripe card, **monthly** — 1.5% + 20p | £0.285 | **£335** | 11.4% |
+| Stripe card, **annual £30** — 1.5% + 20p | £0.78 | **£76** | 2.6% |
+| **Stripe Bacs Direct Debit** — 1%, no fixed fee, capped £4 | £0.03 | **£35** | **1.2%** |
+
+Three things follow from it:
+
+1. **Changing processor barely helps; changing the billing frequency does.** Monthly card
+   billing is dominated by the fixed fee — as
+   [options](options.md#c4--payments) sets out.
+2. **Bacs Direct Debit has no fixed fee, which collapses the problem entirely.** At 3p per
+   payment it makes *monthly* billing as cheap as annual, so the club would not have to
+   ask ~100 people to switch to paying £30 up front. **This is worth roughly £375 a year —
+   more than the entire hosting decision.**
+3. **Squarespace's cut is the smallest of the three levers.** Its transaction fee across
+   both flows is **£91 of the £516** in total fees — real, and worth removing, but under a
+   fifth of the problem. The rest is the fixed fee on a very small, very frequent
+   transaction, and that follows the club to any platform unless the billing instrument
+   changes too. Worth stating plainly, because "Squarespace takes a cut" is the memorable
+   fact and it is not where the money goes.
+
+**Tickets need a different answer from the subscription.** At 6.1% on a £12 ticket they
+are already cheap to process, they happen twice a year, and 158 orders is well inside what
+a hosted payment link handles with no platform at all. If the subscription moves to Direct
+Debit, **the club's remaining commerce requirement is two evenings a year** — which
+changes what the website has to be.
+
+Bacs is not free of friction: mandate setup takes several working days, payments settle in
+about three, and a failed payment costs £5. Those are operational facts to plan around,
+not reasons to dismiss it. **This should be verified directly with Stripe before it is
+relied on**, and it should be tested against what the treasurer needs to reconcile.
+
+---
+
+## Validation register
+
+What is confirmed, where from, and what is still assumption. **Kept current** — several
+items that blocked the decision have since been resolved and are struck through rather
+than deleted.
+
+### Confirmed from the vendor's own documentation
+
+| | Established | Source |
+| --- | --- | --- |
+| Cloudflare **Pages** serves a subdomain from third-party DNS; the **apex requires Cloudflare nameservers** | Nightingale Nightmare ships without a DNS migration | Cloudflare Pages docs |
+| Cloudflare **Workers custom domains require an active zone** | Why the site must be a Pages project until the nameservers move | Cloudflare Workers docs |
+| Workers Free: 100,000 requests/day, 10 ms CPU. Workers Paid: $5/mo, 10M/month | £47/yr is the planning figure, not £0 | Cloudflare pricing docs |
+| **Cloudflare Email Routing is forwarding only** — no mailboxes | Mailboxes must come from elsewhere | Cloudflare Email docs |
+| Supabase Realtime: **200 concurrent connections free**, 500 on Pro | The binding constraint on keeping Supabase free | Supabase quota docs |
+| `@astrojs/cloudflare` **v13 dropped Pages support**; v14 needs Astro 6 | Static output, no adapter, for the NN build | Astro docs |
+| **Squarespace supports Cloudflare as a DNS provider**; warns on the **proxy**; Cloudflare is outside its support scope | The entire basis of [moving the DNS first](../delivery/dns-first.md) | Squarespace help centre |
+| Squarespace transaction fees: Business **3%** current, **2%** legacy. Squarespace Payments UK **2% + 25p** | Every fee figure in [the flow of money](../foundations/current-state.md#the-flow-of-money) | Squarespace help centre |
+| Migadu Micro sends **20 messages/day** | Why Migadu was proposed and dropped | Migadu pricing page |
+| Cloudflare Registrar accepts `.co.uk` by **IPS tag change**, no fee, no added year | The registrar move is administrative only | Cloudflare Registrar docs |
+
+### Confirmed from the club's own accounts, 7 August 2026
+
+| | Established |
+| --- | --- |
+| **Business Plan, £204/yr, auto-renewing 21 March 2027** | The deadline, three weeks earlier than "April" |
+| **Processor is Squarespace Payments**, not Stripe | Mandates cannot outlive the platform |
+| **Two-factor authentication is not enabled** on the payments account | An open risk on the account holding club money |
+| Subscription and ticket volumes, 2025 and 2026 to date | Every figure in the cost analysis |
+| 13,342 pageviews, per-page breakdown, 70% mobile | [What people actually read](../foundations/current-state.md#what-people-actually-read) |
+
+### Still unverified — confirm before acting
+
+| # | To confirm | Why it matters | Blocks |
+| --- | --- | --- | --- |
+| ~~1~~ | ~~Who holds the domain registration~~ — **resolved.** Fasthosts, under the Web Manager's **personal** account | Replaced by a governance question: a club asset is held by an individual, and the Fasthosts account should move to a club identity | Nothing technical |
+| **1a** | **A club-owned email address, before any account is created** | Accounts created under a personal address rebuild the single-point-of-failure the programme exists to remove | **Every account** |
+| **2** | **Fasthosts' email sending limits, and the price beyond two mailboxes** | Neither is published. If limits are worse than 20/day the [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) flips | **Buying mailboxes** |
+| **3** | Cloudflare's terms carry no non-commercial restriction on Workers | The recommendation rests on it. Secondary sources only | Taking payments |
+| **4** | Stripe UK rates — 1.5% + 20p, and **Bacs at 1% with no fixed fee** | Worth ~£250/yr. Secondary sources only | The payments decision |
+| **5** | Whether the Business plan is **legacy 2% or current 3%** | Moves Squarespace's cut between £91 and £137/yr. Visible on an invoice | Nothing — accuracy only |
+| **6** | Whether the **Fasthosts email package survives a registrar move** | Decides whether the registrar can ever move | Nothing yet |
+| **7** | Supabase Free's pause behaviour under steady public traffic | £0 vs £237/yr | Nothing — traffic makes it unlikely |
+| **8** | Cloudflare Registrar's actual `.co.uk` renewal price | Stated only as "at cost" | Nothing |
+| ~~9~~ | ~~Netlify free plan commercial use and credit allowance~~ | Moot unless Cloudflare is rejected | — |
+
+**Items 1 and 2 block the next actions.** Everything else can run in parallel or waits on
+a decision that has not been taken.
+
+---
+
+## What this document does not decide
+
+- **The payments choice.** Priced here, decided in
+  [C4](../foundations/requirements.md#c4--take-payments) with the treasurer, behind the
+  [governance gates](../foundations/requirements.md#legal-and-governance).
+- **Whether the timing platform moves.** It works where it is. This recommendation is
+  chosen so that it *can* move later, cheaply, without requiring it.
+- **How the committee edits content.** [Deliberately
+  deferred](../delivery/priorities.md#what-can-safely-be-decided-later) until it is known
+  what they actually ask to change. Astro's markdown collections plus a git-backed editor
+  is the cheapest starting point, and adding one later costs nothing now.
+- **The domain registrar.** See [DNS and domain](dns-and-domain.md).

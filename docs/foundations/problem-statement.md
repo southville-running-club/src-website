@@ -3,11 +3,12 @@
 Why the club is doing this at all.
 
 Everything else in this repository — [requirements](requirements.md),
-[options](options.md), [priorities](priorities.md) — exists to answer the problems set out
-here. If a proposed change does not address one of them, it is not in scope.
+[options](../solutions/options.md), [priorities](../delivery/priorities.md) — exists to
+answer the problems set out here. If a proposed change does not address one of them, it is
+not in scope.
 
-Derived from the club's [platform proposal](reference/platform-proposal-v8.md) and from the
-[current state](current-state.md) as observed.
+Derived from the club's [platform proposal](../reference/platform-proposal-v8.md) and from
+the [current state](current-state.md) as observed.
 
 ---
 
@@ -20,12 +21,33 @@ website features, but because that tier is what permits taking payments. The clu
 buying commerce capability and paying for a website plan to get it.
 
 On top of the subscription, Squarespace **takes a fee of its own on every payment, layered
-on top of the card processing fee**. On the £2.50 running-fee subscription and on event
-payments, that is a percentage of a very small transaction, and the club absorbs all of it —
-nobody uses the "cover the fees" option.
+on top of the card processing fee**. The club absorbs all of it — nobody uses the "cover
+the fees" option.
 
-So the club pays three times on the same money: the plan, Squarespace's cut, and the card
-fee.
+The club pays three times on the same money: the plan, Squarespace's cut, and the card
+fee. Across the **£4,560 a year** that passes through the site:
+
+| | Per year |
+| --- | --- |
+| The plan, held only because it permits payments | £204 |
+| Squarespace's transaction fee on every payment | £91 |
+| Card processing | £424 |
+| **Cost of collecting £4,560** | **£719 — 15.8%** |
+
+**Every £2.50 a member pays becomes £2.15 by the time it reaches the club.**
+
+One number in that table deserves separating from the rest. **£294 of the £424 is the flat
+25p charged per transaction** — which is 10% of £2.50 before any percentage is applied.
+That cost is created by charging around 100 people every month for a very small amount,
+and **it follows the club to any platform and any processor.** Leaving Squarespace removes
+£295 of the £719. The remaining £424 is a question about how the club bills, not about who
+hosts it.
+
+The same fee behaves completely differently on the other flow. A £12 Christmas party
+ticket loses 6.1%; a £2.50 subscription payment loses 14.0%. **The club's cheapest
+transactions are its most expensive to collect**, and no change of platform alters that.
+
+See [the flow of money](current-state.md#the-flow-of-money).
 
 ## 2. It cannot do what the club needs
 
@@ -71,11 +93,12 @@ Not one point of failure: several, each resting on one person.
 | Stripe | Treasurer and one other |
 
 The club's race-day-critical software and its entire results archive are reachable by one
-volunteer. Its domain and email are reachable by a different one. Neither can cover for the
-other, and there is no shared ownership of anything.
+volunteer. Its domain and email are reachable by a different one. Neither can cover for
+the other, and there is no shared ownership of anything.
 
-The site itself compounds this: changes are made by clicking in a browser session. There is
-no history of what changed, no review before it goes live, and no way to roll anything back.
+The site itself compounds this: changes are made by clicking in a browser session. There
+is no history of what changed, no review before it goes live, and no way to roll anything
+back.
 
 ## 5. Three systems that do not talk to each other
 
@@ -98,16 +121,16 @@ years of hand-typed results.
 **Volunteer time back.** Automating the manual chain above is where the real return is.
 
 **Shared ownership.** Two people building it in the open, with the infrastructure defined
-as code, means neither is a single point of failure and a third person can pick it up. This
-is the difference between a club asset and a personal favour.
+as code, means neither is a single point of failure and a third person can pick it up.
+This is the difference between a club asset and a personal favour.
 
 **The ability to change things.** Infrastructure as code, tested, reviewable, reversible —
 so a change is something anyone can propose and verify rather than something one person
-does by clicking. It also makes the platform legible to automated tooling, which is how two
-volunteers with day jobs get to punch above their weight.
+does by clicking. It also makes the platform legible to automated tooling, which is how
+two volunteers with day jobs get to punch above their weight.
 
-**Its own data.** Entrant records, results and membership under club control, in one place,
-permanently.
+**Its own data.** Entrant records, results and membership under club control, in one
+place, permanently.
 
 ---
 
