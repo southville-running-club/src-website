@@ -79,29 +79,88 @@ server.
 
 That is the whole fix. It does not require anybody to move, migrate, or learn anything.
 
+### Cloudflare does not do this
+
+Worth answering directly, because moving DNS to Cloudflare makes it a natural assumption.
+
+| Cloudflare feature | What it is | Does it help? |
+| --- | --- | --- |
+| **Email Routing** | Free inbound **forwarding** to an address you already have | **No.** It is the club's current arrangement with a different logo — replies still come from Gmail |
+| **Email Sending** | Transactional sending from a Worker, on the paid plan | **Not for humans.** It is the [C8](../foundations/requirements.md#c8--send-email-as-the-club) answer, not a mailbox |
+
+**Cloudflare has no mailbox product.** There is nothing to log into, no IMAP, no archive.
+Whatever happens to the club's DNS, **mailboxes have to come from somewhere else.**
+
+### The club's shape is many addresses, few people
+
+This is the thing that decides which provider is right, and it is easy to miss.
+
+The committee has **around ten roles** — chair, secretary, treasurer, membership, welfare,
+web, quarter master — and each wants an address. It does **not** have ten people who need
+separate inboxes, and it never will.
+
+**Almost every mail provider charges per user.** That prices a club as if it were a small
+company, and it is why Google Workspace comes out at £850. A provider that charges a flat
+rate regardless of mailbox count fits the club's actual shape far better.
+
 ### Options
 
-Prices ex-VAT, captured August 2026, for the club's realistic shape.
+Prices ex-VAT, captured August 2026. Costed at **two mailboxes now** and at **six role
+addresses later**, because the difference between the pricing models only becomes visible
+in the second column.
 
-| Option | Per year | DNS change | Assessment |
-| --- | --- | --- | --- |
-| **Keep forwarding** | £0 | — | Free, and fixes nothing |
-| **Cloudflare Email Routing** | £0 | **Yes — MX** | Free and removes the Fasthosts dependency, but it is still forwarding, so the actual complaint survives |
-| **Fasthosts Standard Email** — 2 mailboxes | **~£26–£33** | **None** | MX already points here. Intro pricing ~£1/mo rising to £2.19–£2.75/mo |
-| **Fasthosts Exchange Basic** | ~£39/mailbox | None | Full Exchange mailboxes. More than the club needs |
-| **Zoho Mail Lite**, 2 users | ~£19 | **Yes — MX** | Cheapest per user, good webmail. Saves ~£10/yr in exchange for repointing MX |
-| **Microsoft 365 Business Basic** ×10 | ~£552 | **Yes — MX** | Priced for staff, not committees |
-| **Google Workspace Starter** ×10 | **~£850 +VAT** | **Yes — MX** | **Four times the Squarespace bill.** Fails the [money constraint](../foundations/requirements.md#money) outright |
+| Option | Two mailboxes | Six role addresses | DNS change | Assessment |
+| --- | --- | --- | --- | --- |
+| **Keep forwarding** | £0 | £0 | — | Free, and fixes nothing |
+| **Cloudflare Email Routing** | £0 | £0 | **Yes — MX** | Still forwarding. Does not solve the complaint |
+| **Migadu Micro** | **~£15** | **~£15** | **Yes — MX** | **Flat rate, unlimited mailboxes and domains.** Priced by volume, not people. Swiss; 5 GB, 200 sent/day |
+| **Zoho Mail Lite** | ~£19 | ~£57 | **Yes — MX** | Good webmail, per user |
+| **mailbox.org** | ~£20 | ~£61 | **Yes — MX** | German, privacy-focused, per user |
+| **Fasthosts Standard Email** | **~£26–£33** | **Unknown — check** | **None** | MX already points here. Intro ~£1/mo rising to £2.19–£2.75/mo. Cost beyond two mailboxes is not published |
+| **Fasthosts Exchange Basic** | ~£78 | ~£234 | None | Full Exchange. More than the club needs |
+| **Fastmail** | ~£96 | ~£288 | **Yes — MX** | Excellent product, priced per user |
+| **Microsoft 365 Business Basic** | ~£110 | ~£331 | **Yes — MX** | Priced for staff, not committees |
+| **Google Workspace Starter** | ~£142 +VAT | **~£425 +VAT** | **Yes — MX** | Fails the [money constraint](../foundations/requirements.md#money) outright |
+| **Self-hosted mail server** | Server cost | Server cost | **Yes — MX** | **No.** Deliverability, spam, blocklists and patching, for a volunteer, on the club's most visible service |
 
-### The recommendation, and the reason is not price
+**Migadu is cheaper for six addresses than Fasthosts is for two**, and the price does not
+move as the committee grows. That is the pricing model matching the problem rather than
+fighting it.
 
-> **Fasthosts Standard Email, two role mailboxes, ~£26–£33/yr — chosen because it requires
-> no DNS change at all.**
+### So does it still make sense to use Fasthosts?
 
-The MX record already points at Fasthosts. Every alternative saves at most £10 a year in
-exchange for repointing **the single riskiest record in the zone**, and [DNS and
-domain](dns-and-domain.md#move-3--move-authoritative-dns-the-only-genuinely-risky-move)
-sets out at length why that is not a trade worth making casually.
+**It depends entirely on a decision that has not been made yet: whether the club keeps its
+domain registered at Fasthosts.**
+
+| If the registrar… | Then | Because |
+| --- | --- | --- |
+| **stays at Fasthosts** | **Fasthosts email is the right answer** | Fasthosts is a vendor and a bill either way. Adding mail costs no DNS change at all, and consolidating on a vendor you are keeping is worth more than £10 |
+| **moves to Cloudflare** | **Migadu, or another independent provider** | Fasthosts would exist *solely* to hold email. Paying an otherwise-unused vendor to keep one service, at a higher price than the alternative, for a club trying to reduce vendor sprawl |
+
+**Moving authoritative DNS to Cloudflare does not settle this**, which is the trap in the
+question. DNS and registration are
+[four separable things](dns-and-domain.md#four-separable-things) — the club can serve its
+apex from Cloudflare while the domain stays registered at Fasthosts, and in that world
+Fasthosts email remains sensible.
+
+**So the order is: registrar decision → email decision.** Not the other way round, and not
+both at once.
+
+### The recommendation, stated conditionally because it has to be
+
+> **Keep the registrar at Fasthosts → buy Fasthosts Standard Email, ~£26–£33/yr.** No DNS
+> change, one fewer vendor, and the lowest-risk path to fixing the actual complaint.
+> **Move the registrar to Cloudflare → buy Migadu Micro, ~£15/yr.** Cheaper, unlimited
+> role addresses, and independent of both the registrar and the DNS provider — so it never
+> has to move again.
+
+**Either way the club gets what it actually wants**: real mailboxes with authenticated
+SMTP, so committee members keep working in Gmail via *Send mail as* but their replies
+leave from the club's address, SPF-aligned.
+
+**What is not on the table is Cloudflare**, because it does not sell mailboxes, and **not
+self-hosting**, because running a mail server is the one piece of infrastructure where a
+mistake is invisible to you and obvious to everyone who emails the club.
 
 Zoho is genuinely the better product for the money. It is not worth touching MX for £10.
 
@@ -186,11 +245,25 @@ lifted across when the committee agrees:
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club), and the [shared ownership](../foundations/requirements.md#shared-ownership) constraint |
-| **Decision** | Two Fasthosts role mailboxes for human mail, used via Gmail *Send mail as*; Resend on a dedicated sending subdomain for application mail |
-| **Cost** | ~£30/yr |
-| **Consequences** | Replies come from the club, not a volunteer. Mail is SPF-aligned. A path to `DMARC p=quarantine` opens. Fasthosts dependency continues, but no deeper than today |
+| **Blocked on** | **The registrar decision.** Fasthosts if the domain stays there; Migadu if it does not |
+| **Decision** | Role mailboxes for human mail, used via Gmail *Send mail as*; Resend on a dedicated sending subdomain for application mail |
+| **Cost** | **~£30/yr** at Fasthosts, **~£15/yr** at Migadu with unlimited role addresses |
+| **Consequences** | Replies come from the club, not a volunteer. Mail is SPF-aligned. A path to `DMARC p=quarantine` opens |
 | **Exit cost** | **Low.** Mailboxes: export and repoint MX. Transactional: swap an `include:` and a set of DKIM records. Neither holds data the club needs to keep |
-| **Revisit when** | The Resend 100/day cap is hit; a third role address is needed; or the club leaves Fasthosts entirely |
+| **Revisit when** | The Resend 100/day cap is hit; the committee wants an address per role; or the registrar moves |
+
+### Sequencing, which differs by provider
+
+The advice depends on which answer the club takes, and getting it backwards means two
+mail-affecting changes instead of one.
+
+| | |
+| --- | --- |
+| **Fasthosts mailboxes** | **Buy them before moving DNS.** Fasthosts will configure its own mail records automatically while it still controls the zone; the club then copies a settled, verified zone once |
+| **Migadu or another provider** | **Treat the MX change as its own project.** Do it well before or well after the nameserver move — **never in the same week.** Two mail-affecting changes at once means an outage with two candidate causes |
+
+Both routes want the same discipline: one change, one observation window, one thing to
+blame if the phone rings.
 
 ---
 

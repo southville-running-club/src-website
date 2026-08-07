@@ -153,23 +153,28 @@ Worth stating, because the decision feels heavier than it is.
 
 ## How this interacts with mailboxes
 
-[Email](email.md) recommends two paid Fasthosts mailboxes so replies come from the club.
-That recommendation holds under both options, but the **sequencing** differs:
+**Neither Cloudflare nor Netlify sells mailboxes.** Cloudflare Email Routing is inbound
+forwarding only — the club's current arrangement with a different logo — and Cloudflare
+Email Sending is transactional mail from a Worker, not something a person logs into.
+**Mailboxes come from a third vendor whichever host is chosen**, and cost the same either
+way.
+
+What the hosting choice *does* affect is care and sequencing:
 
 | | Cloudflare | Netlify |
 | --- | --- | --- |
-| Mailboxes work | Yes — MX still points at Fasthosts, records copied into the Cloudflare zone | Yes — nothing about the zone changes |
+| Mailboxes work | Yes — MX unchanged, records copied into the Cloudflare zone | Yes — nothing about the zone changes |
 | Extra care needed | **Yes.** Mail records must be copied exactly and kept **DNS-only**, never proxied | None |
-| **Do it in this order** | **Buy mailboxes first, then move DNS** | Any order |
+| Sequencing | **Matters** — see [email](email.md#sequencing-which-differs-by-provider) | Any order |
 
-**Buy the mailboxes before moving DNS.** Provisioning them at Fasthosts may add records —
-autodiscover, or a changed MX — and letting Fasthosts configure its own service
-automatically, then copying a settled and verified zone once, is far safer than moving DNS
-and afterwards hand-adding records for a mail service in a control panel that no longer
-controls the zone.
+**The mailbox provider is settled by the registrar decision, not by this one.** If the
+domain stays registered at Fasthosts, Fasthosts mailboxes are the low-friction answer at
+~£30/yr with no DNS change. If the registration moves to Cloudflare, Fasthosts would exist
+solely to hold email, and an independent provider — **Migadu at ~£15/yr with unlimited
+role addresses** — is cheaper and cleaner.
+[Email](email.md#so-does-it-still-make-sense-to-use-fasthosts) sets out the comparison.
 
-One thing to confirm before relying on this: **whether the Fasthosts email package
-survives if the club later moves the domain registration away.** DNS moving is fine;
-registration moving may not be, and
-[email](email.md#verify-on-the-upgrade-page-before-buying) already lists it as a question
-for the account holder.
+One thing to confirm either way: **whether the Fasthosts email package survives if the
+club later moves the domain registration away.** DNS moving is fine; registration moving
+may not be, and [email](email.md#verify-on-the-upgrade-page-before-buying) lists it as a
+question for the account holder.
