@@ -1,167 +1,155 @@
 # The plan
 
-Step by step, from today to Squarespace switched off.
+Everything to do, in order, from today until Squarespace is switched off.
 
-**This is the operational document.** The reasoning behind each choice lives elsewhere and
-is linked where it matters — [decisions](../decisions/decision-log.md), [the DNS
-move](dns-first.md), [Nightingale Nightmare](nn-first-delivery.md), [the build
-brief](nn-build-brief.md), [email](../solutions/email.md).
+**One numbered list.** The reasoning behind each choice is elsewhere and linked where it
+matters — [decisions](../decisions/decision-log.md), [the DNS move](dns-first.md),
+[Nightingale Nightmare](nn-first-delivery.md), [the build brief](nn-build-brief.md),
+[email](../solutions/email.md).
 
-**Steps are numbered continuously and grouped into stages.** Stages A–C can run in
-parallel once A1–A6 are done. Nothing after that reorders safely.
-
----
-
-## The two real dates
-
-| | |
-| --- | --- |
-| **Nightingale Nightmare** | 25 October or **1 November 2026** — unconfirmed, and 25 October is clocks-change morning |
-| **Squarespace renews** | **21 March 2027, automatically.** Silence costs £204 |
-
-## The critical path is not technical
-
-**Around 103 people must each personally re-establish a payment**, the mandates cannot be
-transferred, and because the processor is Squarespace Payments they cannot outlive the
-platform. It is growing by roughly 45 payments a month against a fixed date.
-
-**Stage F is the one that can run out of road.** Everything else has slack.
+**Two dates are real.** The Nightingale Nightmare race, 25 October or 1 November 2026 — still
+unconfirmed. And **Squarespace renews automatically on 21 March 2027**; silence costs £204.
 
 ---
 
-## Stage A — Identity, before anything can be owned
+## Get the club an identity
 
-*The club cannot own an account without an address of its own. Nothing else starts here.*
+1. **Ask Fasthosts two questions** — what are the mailbox sending limits, and what does a
+   third or fourth mailbox cost. *If sending is capped below about 20 a day, the
+   [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) needs
+   reopening before anything is bought.*
+2. **Buy one admin mailbox** on the club domain. A role address, not a person's name.
+3. **Send and receive a test email** on it.
+4. **Set up Gmail to send as that address**, using the Fasthosts SMTP details. *Check a reply
+   actually arrives from the club address, not a volunteer's.*
+5. **Point that mailbox's own password-recovery address** at something the club controls, not
+   a personal Gmail.
+6. **Create a club Cloudflare account** using the new address.
+7. **Create a club Supabase account** using the new address.
+8. **Sort out the club GitHub organisation** so it runs under that address too. *It currently
+   sits under `srcdmin@gmail.com` — the typo is in the address itself.*
+9. **Add the second volunteer as a full admin** on Cloudflare, Supabase and GitHub — their own
+   login, not a shared one.
+10. **Turn on two-factor authentication** on all three, and on **Squarespace Payments, where it
+    is currently switched off.**
+11. **Move the race-timing repository** into the club GitHub organisation.
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **A1** | **Ask Fasthosts two questions**: what are the mailbox sending limits, and what does a third and fourth mailbox cost? | Answers in writing. **If sending is capped below ~20/day, [reopen the email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts)** |
-| **A2** | **Buy one admin mailbox** — a role address, not a person's | It exists |
-| **A3** | **Send and receive a test message** on it | Both directions work |
-| **A4** | **Configure Gmail *Send mail as*** using the Fasthosts SMTP credentials | A reply **leaves from the club address**, and passes SPF |
-| **A5** | **Set the mailbox's own recovery address** to something club-controlled, not a personal Gmail | Not a volunteer's personal account |
-| **A6** | **Create the club Cloudflare account** under the new address | Login works |
-| **A7** | **Create the Supabase account** under it; **regularise the GitHub organisation**, which today sits under `srcdmin@gmail.com` | Both club-owned |
-| **A8** | **Add the second volunteer as a full admin** on Cloudflare, Supabase and GitHub — in their own right, not a shared login | Each can log in independently |
-| **A9** | **Turn on two-factor authentication** on all four, including **Squarespace Payments, where it is currently off** | Enrolled on each |
-| **A10** | **Move the timing repository into the club organisation** | It no longer sits in a personal account |
+> **Stop if steps 3 or 4 fail.** Everything after this assumes the club has a working address
+> of its own.
 
-> **Stop here if A3 or A4 fails.** Everything downstream assumes the club has a working
-> address of its own.
+## Rescue what disappears when Squarespace is cancelled
 
-## Stage B — Rescue what cannot be recovered later
+*Free to do now. Impossible later. Can run alongside everything below.*
 
-*Free now. Impossible after cancellation. Do it early and do not treat it as tidying.*
+12. **Download every club document** from Squarespace — around 45 of them.
+13. **Retrieve the seven documents** that live on Google Drive.
+14. **Download all 33 newsletters and every image** on the site.
+15. **Store the lot somewhere the club controls**, and write down what was retrieved.
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **B1** | **Download all ~45 club documents** from Squarespace's CDN | Count matches the [inventory](../reference/existing-site.md) |
-| **B2** | **Retrieve the 7 documents held on Google Drive** | Outside club control today |
-| **B3** | **Download all 33 newsletters** and every image on the site | Nothing left only on the CDN |
-| **B4** | **Store them where the club controls them** and record what was retrieved | A second person can find them |
+## Get Nightingale Nightmare started
 
-## Stage C — Nightingale Nightmare
+*Needs step 6. Nothing else.*
 
-*Needs A6 to deploy. Nothing else. Runs alongside Stage D — but not in the same week.*
+16. **Confirm the race date.** *1 November avoids the clocks change; 25 October is the morning
+    they go back.*
+17. **Create the NN repository** in the club organisation and scaffold it per the
+    [build brief](nn-build-brief.md).
+18. **Deploy it to its free `pages.dev` address** — no DNS needed.
+19. **Create the sign-up table** in Supabase: name, email, consent, timestamp. **Nothing else.**
+20. **Build the page, the form and the privacy notice.** Keep the race date in one file so
+    changing it is a one-line edit.
+21. **Test it properly** — with JavaScript off, with a duplicate submission, with bad input, on
+    a 320-pixel screen.
+22. **Decide by the end of August** whether 2026 entries go through the club's own site or
+    stay with Full On Sport. *Paid entries want to open in early September.*
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **C1** | **Repository in the club organisation**, Astro scaffold per the [build brief](nn-build-brief.md) — static output, no adapter | CI green |
-| **C2** | **Deploy to `<project>.pages.dev`** | Real HTTPS, no DNS involved |
-| **C3** | **Supabase table**: name, email, consent, timestamp. **Nothing else** | Row-level security on, anon key only |
-| **C4** | **Page, form and privacy notice.** Hold the race date in `race.json`; publish it only once committed | Reads correctly *without* a date |
-| **C5** | **Test properly**: JavaScript disabled, duplicate submission, malformed input, axe clean, 320 px wide | Every [acceptance criterion](nn-build-brief.md#definition-of-done) |
-| **C6** | **Decide NN 2026 entries — club-built or Full On Sport** | **By end of August.** Paid entries want to open in early September |
+## Move the DNS to Cloudflare, changing nothing else
 
-## Stage D — Move the DNS, change nothing
+*Needs steps 1–10 done, and the mailbox working, so Fasthosts has finished setting up its own
+mail records before the zone is copied. Detail in [move the DNS first](dns-first.md).*
 
-*Needs A1–A9 complete, especially the mailbox verified — Fasthosts must finish configuring
-its own mail records before the zone is captured. Full analysis: [move the DNS
-first](dns-first.md).*
+23. **Write down every DNS record at Fasthosts** and commit it to this repository. *This is the
+    rollback reference.*
+24. **Check what you wrote down matches a live lookup.** There should be 18 records.
+25. **Lower every record's timing to 5 minutes** at Fasthosts, then **wait an hour.**
+26. **Add the domain to Cloudflare** and let it import the records. **Do not change the
+    nameservers yet.**
+27. **Turn the orange cloud off on eleven records** — the four apex ones, `mail`, `mailserver`,
+    `smtp`, `webmail`, `mcp`, `www`, and the Squarespace verification record. *Cloudflare turns
+    the proxy on by default. Nothing should be orange.*
+28. **Add anything the import missed**, by hand.
+29. **Say no if Cloudflare offers to take over your email.** It would replace the MX records.
+30. **Check Cloudflare gives identical answers to Fasthosts**, record by record.
+31. **Have the second volunteer check it too**, independently.
+32. **Change the nameservers at Fasthosts to Cloudflare's.** A quiet weekday morning, with the
+    rest of the day free.
+33. **Immediately send and receive a test email.** *Mail first, always.*
+34. **Check the website still loads** and still resolves to Squarespace's addresses — not a
+    Cloudflare one. *A Cloudflare address means something is still proxied.*
+35. **Wait 48 hours and change nothing in either zone.** *Both nameserver sets are live during
+    this window and must agree.*
+36. **Put the DNS records into code** in the repository. **Leave the Fasthosts zone alone for a
+    month** as the rollback.
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **D1** | **Capture the zone** from Fasthosts and **commit it to this repository** | 18 records. It is the rollback reference |
-| **D2** | **Diff the capture against a live query** of `ns1.livedns.co.uk` | They agree. Anything missing is found now, not later |
-| **D3** | **Lower every TTL at Fasthosts to 300s.** Wait **one hour** — current TTLs are 3600 | `dig` shows 300 |
-| **D4** | **Add the zone to Cloudflare** and let it scan. **Do not change the nameservers yet** | Zone shows "pending" |
-| **D5** | **Turn 11 records grey.** The 4 apex `A`, `mail`, `mailserver`, `smtp`, `webmail`, `mcp`, `www`, and the Squarespace verification CNAME | **Zero orange clouds in the zone** |
-| **D6** | **Add anything the scan missed**, by hand, against D1 | All 18 present |
-| **D7** | **Decline Email Routing** if Cloudflare offers it | MX records untouched |
-| **D8** | **Diff Cloudflare's nameservers against Fasthosts'**, record by record | **Byte-identical answers** |
-| **D9** | **Second volunteer checks the diff** | Independently confirmed |
-| **D10** | **Change the nameservers at Fasthosts** to Cloudflare's. Quiet weekday morning, day free | One action |
-| **D11** | **Immediately: send and receive on a club address** | **Mail first, always** |
-| **D12** | **Confirm the apex still returns Squarespace's four addresses** — not a Cloudflare address | A Cloudflare address means something is proxied |
-| **D13** | **Confirm the site loads**, on mobile data as well as broadband | Unchanged for members |
-| **D14** | **Wait 48 hours. Change nothing in either zone** | Both nameserver sets are live and must agree |
-| **D15** | **Raise TTLs. Commit the zone as code** (Terraform or OpenTofu). **Leave the Fasthosts zone intact for a month** | The next change is a pull request |
+> **If anything breaks, fix it at Cloudflare** — that takes 5 minutes. Reverting the
+> nameservers takes up to 48 hours and is the last resort.
 
-> **If something breaks: repair forward at Cloudflare** — effective in 300 seconds.
-> Reverting the nameservers takes **up to 48 hours**, and is the last resort.
+## Put Nightingale Nightmare on the club domain
 
-## Stage E — Nightingale Nightmare live
+37. **Add the `nn` record.** *Associate the domain in the Cloudflare dashboard first, then add
+    the record — the other way round gives a 522 error.*
+38. **Test the whole thing end to end** — the page loads over HTTPS and a sign-up actually
+    lands in the table.
+39. **Announce it.** Not before step 38 — an address that doesn't resolve is remembered as not
+    existing for an hour.
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **E1** | **Add `nn`** — a record inside Cloudflare if D is done, otherwise [one additive CNAME at Fasthosts](../solutions/dns-and-domain.md#move-1--add-a-record-no-risk) | Associate the domain in the Cloudflare dashboard **first**, or you get a 522 |
-| **E2** | **Confirm HTTPS and the form end to end** | A row lands; both volunteers can see it |
-| **E3** | **Announce.** Not before E2 — a name that does not resolve is cached as non-existent for an hour | |
+## Move the member fund ⚠️ *the long pole — start as early as governance allows*
 
-## Stage F — Payments and the member fund ⚠️ *the critical path*
+*Around 103 people must each personally re-establish their payment, and the mandates die with
+Squarespace Payments. **This does not need the new website.***
 
-*Starts as early as governance allows. Runs for months. **Does not need the website.***
+40. **Get data-protection advice.** This is a gate, not a formality.
+41. **Put treasurer-controlled payment arrangements in place.**
+42. **Decide card or Direct Debit — before anybody is asked to move.** *Direct Debit is worth
+    about £250 a year, and deciding late means asking 103 people twice.*
+43. **Set up the payment pages.** Hosted pages need no website at all.
+44. **Tell the payers**, with a deadline, and repeat it.
+45. **Track it until everyone has moved**, keeping a list of who has and who hasn't.
+46. **Confirm the treasurer can reconcile** all four money flows on the new arrangement.
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **F1** | **Obtain data-protection advice** | A gate, not a formality |
-| **F2** | **Put treasurer-controlled payment arrangements in place** | The club, not an individual |
-| **F3** | **Decide card or Direct Debit — before anyone is asked to move** | Direct Debit is worth **~£250/yr**. Getting this wrong means asking 103 people twice |
-| **F4** | **Set up the processor** and hosted payment pages — **no website required** | A payment can be taken |
-| **F5** | **Communicate to the ~103 payers**, with a deadline | Sent, and repeated |
-| **F6** | **Track migration to completion** | A list of who has and has not moved |
-| **F7** | **Confirm the treasurer can reconcile** all four money flows | Before Stage I |
+## Rebuild the website
 
-> **F3 before F5.** Everything else in this stage is communications.
+*Ordered by [what people actually read](../foundations/current-state.md#what-people-actually-read).*
 
-## Stage G — Rebuild the website
+47. **Build the results archive first**, publishing itself from the timing data. *16.6% of
+    traffic, the longest-read page on the site, and typed by hand today.*
+48. **Build the main pages** — home, runner information, about the club. *61% of traffic
+    between them.*
+49. **Automate the newsletter mirror** from Mailchimp.
+50. **Move the documents and policies** onto club-controlled storage with stable addresses.
+    *Hosting, not a browsing experience — 0.9% of traffic.*
+51. **Rebuild the membership pages and forms.**
+52. **Re-scope the kit section before building it.** *1.1% of traffic against the largest build
+    in the requirements.*
+53. **Set up redirects for every existing address**, including the
+    [old paths still getting traffic](../foundations/current-state.md#legacy-urls-still-receiving-traffic).
+54. **Check accessibility and phone performance.** *70% of visitors are on a phone.*
 
-*Ordered by [what people actually
-read](../foundations/current-state.md#what-people-actually-read).*
+## Switch the apex over
 
-| # | Do | Why in this order |
-| --- | --- | --- |
-| **G1** | **Results archive, published from the timing data** | **16.6% of traffic, 6:08 dwell — the most-read page on the site, and typed by hand today** |
-| **G2** | Home, runner information, about the club | 61% of traffic between them. Mostly markdown in the repository |
-| **G3** | Newsletter mirror from Mailchimp — scheduled job | Removes the process the club is already failing to keep up with |
-| **G4** | Membership pages and forms | |
-| **G5** | Documents and policies onto club-controlled storage | **Stable URLs, not a product.** 0.9% of traffic |
-| **G6** | **Kit — re-scope before building** | 1.1% of traffic against the largest build in the requirements |
-| **G7** | **Redirects for every existing URL**, including the [legacy paths still taking traffic](../foundations/current-state.md#legacy-urls-still-receiving-traffic) | A condition of cutover |
-| **G8** | Accessibility and performance pass — WCAG 2.2 AA, 70% of visitors are on a phone | |
+55. **Point the apex and `www` at the new site.** *A record change inside Cloudflare — seconds
+    to do, seconds to undo.*
+56. **Tidy the SPF record** by dropping the now-pointless `a` mechanism.
+57. **Walk every old address** and confirm nothing 404s.
+58. **Leave it running** while members actually use it.
 
-## Stage H — Cut the apex over
+## Switch Squarespace off
 
-| # | Do | Verify |
-| --- | --- | --- |
-| **H1** | **Repoint the apex and `www`** at the new site — a record change **inside Cloudflare** | Seconds to make, seconds to reverse |
-| **H2** | **Drop the now-pointless `a` mechanism** from the SPF record | It authorises whatever the apex points at |
-| **H3** | **Walk every URL** from the sitemap and the legacy list | Nothing 404s |
-| **H4** | **Leave it running** while members use it | Before anything is cancelled |
-
-## Stage I — Switch Squarespace off
-
-**Before 21 March 2027.** All five must be true:
-
-- [ ] The website is rebuilt, proven, and serving the apex *(H)*
-- [ ] Every URL still resolves *(G7, H3)*
-- [ ] The member fund has fully moved — or the old fund page is
-  [redirected](priorities.md#the-escape-hatch) *(F)*
-- [ ] Every document, newsletter and image is held by the club *(B)*
-- [ ] The treasurer can reconcile on the new arrangement *(F7)*
-
-Then cancel, and confirm afterwards that mail, the site and the results archive all still
-work.
+59. **Confirm all five are true:** the site is rebuilt and serving the apex; every URL
+    resolves; the member fund has moved; every document, newsletter and image is held by the
+    club; and the treasurer can reconcile.
+60. **Cancel Squarespace — before 21 March 2027.**
+61. **Check afterwards** that email, the website and the results archive all still work.
 
 ---
 
@@ -171,28 +159,26 @@ work.
 | --- | --- |
 | Today | **£735** |
 | After | **£427** |
-| With Direct Debit | **£177** |
+| With Direct Debit as well | **£177** |
 
-**The money was never the point.** The larger return is the [manual
-chain](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do),
-and the one measure still uncaptured is volunteer time.
+**The money was never the point.** The larger return is the
+[manual work](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do)
+this removes, and volunteer time is the one measure still uncaptured.
 
-## What gets worse if this waits
+## What gets worse if it waits
 
-| | |
-| --- | --- |
-| **The member fund** | Grows ~45 payments a month. More people to ask, same deadline |
-| **Content on Squarespace's CDN** | Retrievable now, gone at cancellation |
-| **Accounts reachable by one person** | Deteriorates purely with time |
-| **The renewal** | Automatic. Silence costs £204 |
+- **The member fund** grows by about 45 payments a month. Same deadline, more people to ask.
+- **Content on Squarespace** is retrievable now and gone at cancellation.
+- **Accounts reachable by one person** deteriorate purely with time.
+- **The renewal is automatic.** Silence costs £204.
 
-## Still to decide, and by when
+## Still to decide
 
 | | By |
 | --- | --- |
-| **The Nightingale Nightmare date** | Now — it blocks race planning |
-| **NN 2026 entries: club-built or Full On Sport** | End of August *(C6)* |
-| **Card or Direct Debit** | Before anyone is asked to move *(F3)* |
-| **A second mailbox** | After A1 answers what it costs |
-| **Whether the domain moves to a club-held account** | No deadline. Governance, not technical |
-| **Committee editing** | [Deferred](priorities.md#what-can-safely-be-decided-later) until it is known what they ask to change |
+| The race date | Now — it blocks race planning *(step 16)* |
+| NN 2026 entries: own site or Full On Sport | End of August *(step 22)* |
+| Card or Direct Debit | Before anyone is asked to move *(step 42)* |
+| A second mailbox | Once step 1 says what it costs |
+| Whether the domain moves to a club-held account | No deadline. Governance, not technical |
+| Committee editing | [Deferred](priorities.md#what-can-safely-be-decided-later) until it is known what they ask to change |
