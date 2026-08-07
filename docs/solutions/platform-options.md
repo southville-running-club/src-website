@@ -460,6 +460,13 @@ Five things the club pays for, and only the first two are what people usually me
 Domain and DNS is held at £15.40 throughout so the comparison is like-for-like; moving the
 registration to Cloudflare would take it under £10 on any of the Cloudflare rows.
 
+**Mailboxes are not in these figures, deliberately.** [Email](email.md) recommends two
+paid Fasthosts mailboxes at **~£30/yr** so committee replies come from the club rather
+than a volunteer's Gmail. That cost is **identical on every row**, so it changes no
+ranking — and it buys something the club does not have today, which makes it a new
+capability rather than a cost of moving. Counted in, the recommendation is **£427/yr
+against £735**, still a **£308** saving.
+
 **Card processing is £335 on every row except Squarespace's**, because leaving Squarespace
 means leaving Squarespace Payments, and Stripe's UK rate — 1.5% + 20p — is cheaper than
 the 2% + 25p the club pays now. That £89 difference is a consequence of the platform
@@ -725,17 +732,20 @@ Restated as a decision the committee can take:
 | **Exit cost** | Serving: an afternoon. Files: S3-compatible, near zero. Data: unchanged from today's exposure |
 | **Revisit when** | Cloudflare's free tier gains a commercial-use restriction; Supabase Free's ceilings are reached; or a volunteer arrives who wants to run infrastructure |
 
-### The one question that decides between C and D
+### The one question that decides between Cloudflare and Netlify
 
 **Is the club willing to move authoritative DNS to Cloudflare?**
 
-- **Yes** → Option C. Cheapest, DNS becomes code, £15.40/yr saved, one fewer single point
-  of failure. Cost: a carefully staged migration that carries club email with it.
-- **No** → Option D. Netlify serves the apex from Fasthosts' DNS, so the migration never
-  happens. Cost: about £85/yr and a free tier that can stop serving.
+- **Yes** → **Cloudflare.** Cheapest, DNS becomes code, one fewer single point of failure,
+  and the live leaderboard can avoid Supabase Pro. Cost: a carefully staged migration that
+  carries club email with it.
+- **No** → **Netlify.** It serves the apex from Fasthosts' DNS, so the migration never
+  happens. Cost: about £38/yr and a £237 exposure on the leaderboard.
 
-Both are defensible. [DNS and domain](dns-and-domain.md) sets out the risk honestly enough
-for that question to be answered rather than guessed.
+**Both are defensible, and the two are compared properly in [Cloudflare or
+Netlify](cloudflare-vs-netlify.md)** — including what the apex move actually takes, and
+where paid mailboxes fit. [DNS and domain](dns-and-domain.md) sets out the risk honestly
+enough for the question to be answered rather than guessed.
 
 **Neither choice blocks Nightingale Nightmare**, which is the point of settling it now
 rather than under deadline pressure.

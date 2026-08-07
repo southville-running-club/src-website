@@ -168,9 +168,9 @@ Business-plan feature. On the free plan it is full nameserver delegation or noth
 there is no halfway house where Cloudflare serves the apex while Fasthosts keeps the zone.
 
 That is exactly why [platform
-options](platform-options.md#the-one-question-that-decides-between-c-and-d) frames Netlify
-as the alternative: it serves an apex from third-party DNS, so Move 3 never has to happen
-at all.
+options](platform-options.md#the-one-question-that-decides-between-cloudflare-and-netlify)
+frames Netlify as the alternative: it serves an apex from third-party DNS, so Move 3 never
+has to happen at all.
 
 ### Move 4 — Transfer the registration. **Administrative risk only.**
 
@@ -239,6 +239,65 @@ If the club decides it does not want to move DNS at all, **that is a supportable
 position** — choose Netlify, accept about £85/yr, and this document's Move 3 never
 happens. What is *not* supportable is choosing Cloudflare for hosting and then discovering
 the nameserver requirement afterwards.
+
+---
+
+## What moving the apex to Cloudflare actually involves
+
+The four moves above are the mechanics. This is the shape of the whole thing end to end,
+in the order it would actually happen, because "move the apex" sounds like one action and
+is eight.
+
+**Only step 5 is dangerous.** Everything before it is reversible in minutes and everything
+after it is a change inside Cloudflare, which is fast and safe.
+
+| | Step | Risk | Reversal |
+| --- | --- | --- | --- |
+| **1** | **Establish who holds the registration.** One `whois`. Nothing proceeds until this is answered | None | — |
+| **2** | **Buy the mailboxes, if the club wants them.** Do this *before* the DNS move, so Fasthosts configures its own mail records automatically and the zone that gets copied is complete and verified | None — additive | Cancel |
+| **3** | **Club-owned Cloudflare account**, both volunteers as admins. Build and prove the new site on `pages.dev` and on `nn.` | None | Delete |
+| **4** | **Pre-stage the zone in Cloudflare.** Let the scanner import, then add every missing record by hand, set all mail records to **DNS-only**, and diff record by record against the Fasthosts export. **Do not switch anything** | None — nothing is authoritative yet | Delete the zone |
+| **5** | **Lower TTLs at Fasthosts to 300s, wait 48 hours, then change the nameservers.** Test club email immediately | **Real — email** | Nameservers back; **up to 48 hours** |
+| **6** | **Watch for 48 hours.** Send and receive on club addresses daily; read DMARC reports | — | — |
+| **7** | **Repoint the apex and `www` at the Pages project.** Now a change *inside* Cloudflare | Low — website only | Change back, within the TTL |
+| **8** | **Verify every old URL still resolves**, including the [legacy paths still taking traffic](../foundations/current-state.md#legacy-urls-still-receiving-traffic) | Low | Fix forward |
+
+**The site is not live on the apex until step 7**, which means steps 1–6 can all happen
+while Squarespace continues serving the website exactly as it does today. The club is
+never in a state where the DNS has moved but the site is not ready.
+
+### What it costs in effort
+
+| | |
+| --- | --- |
+| Steps 1–3 | An evening, mostly account admin |
+| Step 4 | **The real work.** An evening to stage and diff 18 records, plus a second person to check it |
+| Step 5 | Fifteen minutes, on a quiet weekday morning, with the rest of the day free |
+| Steps 6–8 | Passive watching, then an hour |
+
+**Total: two or three evenings and one morning**, spread over at least a fortnight because
+of the TTL wait and the observation window. Almost none of it is on the critical path —
+steps 1–4 can happen any time before the deadline, and step 5 should be nowhere near a
+race or the Squarespace renewal.
+
+### When not to do it
+
+- **Not before Nightingale Nightmare** — NN needs only [Move
+  1](#move-1--add-a-record-no-risk).
+- **Not in race week**, and not in the week before or after.
+- **Not in the same fortnight as the Squarespace cancellation.**
+- **Not on a Friday.**
+- **Not combined with a registrar transfer or a mail-provider change.** One mail-affecting
+  change at a time, each with its own observation window.
+
+### What it buys, restated
+
+Because the risk section above is longer than the benefit section, and that is misleading:
+
+- The apex can be served by the cheapest option in the [analysis](platform-options.md)
+- **DNS becomes code** — a record change becomes a reviewed pull request
+- **A club-owned account replaces one person's Fasthosts login**
+- £15.40 a year, and the "restore automatic updates" button stops being a hazard
 
 ---
 

@@ -23,6 +23,7 @@ deliberate.
 | [Options](docs/solutions/options.md) | The solution space per capability, and the criteria to judge by |
 | [Platform options](docs/solutions/platform-options.md) | **Named candidates, priced** — Vercel, Cloudflare, Netlify, AWS, VPS — with a recommendation |
 | [DNS and domain](docs/solutions/dns-and-domain.md) | Whether to move off Fasthosts, what it risks, and the cutover runbook |
+| [Cloudflare or Netlify](docs/solutions/cloudflare-vs-netlify.md) | **The one open question** — the apex, the DNS move, and what each forecloses |
 | [Email](docs/solutions/email.md) | Getting off forwarding-to-Gmail, and how the platform sends mail — ~£30/yr |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
