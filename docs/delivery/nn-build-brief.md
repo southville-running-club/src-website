@@ -55,6 +55,12 @@ migrates with it.
 **Do not pin adapter v12 to get SSR on Pages.** It starts new work on a superseded
 toolchain to buy something v1 does not need.
 
+**This constraint disappears if the nameservers move first.** [Move the DNS
+first](dns-first.md#what-this-unblocks) sets out that ordering — once the zone is on
+Cloudflare, Workers custom domains and the current Astro adapter both become available.
+Even then, static output plus one function remains the right shape for a page and a form;
+what changes is that the *website rebuild* is no longer boxed in.
+
 ---
 
 ## Stack

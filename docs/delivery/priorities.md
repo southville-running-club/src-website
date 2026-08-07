@@ -29,6 +29,10 @@ That is the date everything in the second half of this document works backwards 
 still matters whether the club cancels before renewal or simply lets it lapse — the first
 is the harder deadline — but the date itself is now fixed.
 
+**The DNS migration should happen now, not near this date.** [Move the DNS
+first](dns-first.md) sets out the case: taking the riskiest change in the programme while
+nothing depends on it turns the March apex cutover into a five-minute record edit.
+
 **The processor is Squarespace Payments, not Stripe.** That is worse for the migration
 than the alternative would have been: the processor leaves with the platform, so **every
 one of the ~103 monthly mandates has to be recreated somewhere else**. There is no club
