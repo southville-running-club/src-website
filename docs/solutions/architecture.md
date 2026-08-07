@@ -6,14 +6,16 @@ Where the code lives, where the data lives, and how each reaches production.
 thing built on them** — which is the next question, and the one that is expensive to
 change later because it is the question every file's path answers.
 
-Three decisions and one hazard:
+**One question genuinely open, two proposals, and one hazard:**
 
 | | |
 | --- | --- |
-| [**One repository**](#1-one-repository-not-one-per-service), not one per service | The timing app joins it later, deliberately |
+| ❓ [**Repository shape**](#1-repository-shape--open) | **Undecided.** Four candidate shapes, and the criteria conflict |
 | [**One Supabase project**](#2-one-database-separated-by-schema), separated by Postgres schema | Forced by [C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically), not chosen for tidiness |
 | [**Git-integration deploys**](#4-deployment) for Cloudflare, **CI migrations** for Supabase | Different risk, different answer |
-| ⚠️ [**Migration ownership**](#3-who-owns-the-migrations) | Two repositories migrating one database is the one way to break this badly |
+| ⚠️ [**Migration ownership**](#3-who-owns-the-migrations) | More than one repository migrating one database is the one way to break this badly |
+
+Tracked as [#1](https://github.com/southville-running-club/src-website/issues/1).
 
 ---
 
@@ -42,74 +44,92 @@ proven, so it moves last and on purpose.
 
 ---
 
-## 1. One repository, not one per service
+## 1. Repository shape — open
 
-**No separate repositories per service.** The club builds a monorepo.
+**This is not decided, and it should not be settled by whoever writes the first file.**
 
-### Why not microservices
+Four shapes are candidates. Nothing has been built yet, so this is the cheapest moment to
+choose — and the criteria in [requirements](../foundations/requirements.md) genuinely
+conflict, which is why no recommendation is offered here.
 
-Worth stating explicitly, because "a repo per thing" is the reflex and it is wrong here:
+### The candidates
 
-| Requirement | What it says about this |
+| | Shape |
 | --- | --- |
-| [Not scale](../foundations/requirements.md#what-the-club-is-not-asking-for) | ~94 members, ~100 teams, a few hundred spectators on the busiest evening of the year. Service boundaries solve a problem the club does not have |
-| [People](../foundations/requirements.md#people) | Two volunteers with day jobs. Every extra repository is another CI configuration, another dependency bump, another README, another place a third person has to look |
-| [Convergence](../foundations/requirements.md#convergence) | Splitting now means merging later. Nothing is gained by taking the cost twice |
-| [Everything as code](../foundations/requirements.md#everything-is-defined-as-code) | "Patterns established once serve the website, Nightingale Nightmare and the timing platform rather than being solved three times" — that is a monorepo, described |
+| **A — one monorepo** | `apps/www`, `apps/nn`, `apps/ptb`, `packages/db`, `packages/shared`, `docs/` in this repository |
+| **B — a repository per surface** | `src-core-website`, `src-nn`, `src-ptb`, `src-race-timing`, `src-db` — each deploying itself |
+| **C — hybrid** | A repository per front door, plus **one repository owning all schema** and publishing generated types as a package |
+| **D — split by risk** | One repository for everything that is not race-critical; `src-race-timing` left permanently alone |
 
-**Separate repositories are the right answer when separate teams deploy on separate
-cadences.** The club is two people who will often be changing the website and the race
-site in the same evening.
+### What each buys and costs
 
-### The proposed shape
+| | Buys | Costs |
+| --- | --- | --- |
+| **A** | One CI, one dependency bump, one place a third person looks. Shared code is an import. A migration and the code using it land in **one** pull request | Build filtering becomes load-bearing ([A1](#confirm-before-relying-on-it)). Access is all-or-nothing. Converges things that may not be ready |
+| **B** | **Blast-radius isolation** — freeze the timing repository for race season while website work carries on. Independent access. Pages git integration is per-repository already, so A1 stops mattering | Shared code is duplicated or published as packages — real overhead for two volunteers. Cross-cutting changes are N pull requests. Convergence deferred, not avoided |
+| **C** | **Dissolves the migration hazard** in [§3](#3-who-owns-the-migrations) by construction — schema has exactly one owner. Surfaces stay independently deployable | A migration and its consuming code cannot land atomically. Mitigated by expand–migrate–contract, which is required anyway |
+| **D** | Matches the constraint that actually differs — [risk](../foundations/requirements.md#risk) applies to timing and to nothing else | Leaves the timing app permanently outside, against convergence being a *stated goal* rather than an option |
 
-```
-src-website/                       ← this repository
-├── docs/                          unchanged
-├── apps/
-│   ├── www/                       the club website          → www Pages project
-│   └── nn/                        Nightingale Nightmare     → nn Pages project
-├── packages/
-│   ├── db/                        migrations, RLS policies, generated types
-│   └── shared/                    Zod schemas, glossary types, Europe/London helpers
-├── .github/workflows/
-└── package.json                   npm workspaces
-```
+### "What owns what" is the more useful question
 
-**npm workspaces, not a monorepo tool.** No Turborepo, no Nx, no pnpm. The
-[build brief](../delivery/nn-build-brief.md#stack) already picked npm on the grounds that
-boring beats better, and two applications do not need a build orchestrator.
+**A race repository need not own race data.** `src-ptb` and `src-nn` could be *front doors*
+— page, sign-up, entry flow — with the timing app the sole owner of events, crossings and
+results. That is coherent, and it keeps
+[C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)'s
+single archive intact.
 
-**`packages/shared` is where convergence actually happens.** The timing app's
-`lib/london-time.ts` exists because [an hour of drift is a real
-foot-gun](../reference/timing-app-review.md#what-is-strong) and Nightingale Nightmare sits
-on the clocks-change weekend. That module should be shared, not copied — and it is the
-strongest single argument for one repository.
+What is **not** coherent is a race repository owning its own copy of the event model.
+`events.format` has carried `'relay' | 'solo'` [since the timing app's first
+migration](../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know),
+and duplicating it forks the results archive, the bib scheme and the categories. See
+[§2](#nightingale-nightmare-does-not-get-its-own-schema-for-race-data).
 
-### What stays out, for now
+**A database repository is a boundary, not a service.** Option C is attractive precisely
+because the desync in [§3](#3-who-owns-the-migrations) is a *repository* problem, and
+giving schema one owner dissolves it however many application repositories exist.
 
-**`src-race-timing` stays where it is.** It moves into this repository when the timing app
-moves to Cloudflare, not before.
+### The criteria, and which way each pulls
 
-| | |
+| | Pulls towards |
 | --- | --- |
-| **Why not now** | [Risk](../foundations/requirements.md#risk) — it is proven in production, race-day critical, and a race cannot be re-run. The [build brief already prohibits touching it](../delivery/nn-build-brief.md#hard-rules) |
-| **What it costs to wait** | One duplicated Supabase client configuration and one duplicated timezone helper, until it lands |
-| **When it comes in** | With the Cloudflare port, after Nightingale Nightmare 2026 and outside any [change freeze](../foundations/glossary.md#platform-and-delivery) |
+| [People](../foundations/requirements.md#people) — two volunteers, day jobs, boring as a hard requirement | **Fewer.** Every extra repository is another CI config, another README, another place to look |
+| [Convergence](../foundations/requirements.md#convergence) — *"one place, not three things that happen to share a club"* | **Fewer**, or a stated date when they merge |
+| [Everything as code](../foundations/requirements.md#everything-is-defined-as-code) — *"patterns established once serve the website, NN and the timing platform"* | **Fewer** — that sentence describes a monorepo |
+| [Risk](../foundations/requirements.md#risk) — race-day critical, cannot be re-run | **More separation**, for one repository specifically |
+| [Exit cost](../foundations/requirements.md#exit-cost) | Neutral. Splitting later is easy; **merging later is the one that never happens** |
+| [Not scale](../foundations/requirements.md#what-the-club-is-not-asking-for) | Against service-shaped splits done for their own sake |
 
-Plan step 11 moves it into the club **organisation**, which is the governance fix and is
-independent of this. Organisation now; monorepo later.
+Three pull towards fewer, one pulls hard the other way for one repository. **That shape is
+option C or D** — but the trade is the club's to make, not the document's.
 
-### This changes plan step 17
+### Whatever wins, three things have to be answered
 
-[The plan](../delivery/plan.md) currently says *"create the NN repository"*. Under this
-decision it becomes **create `apps/nn` in this repository**. The
-[build brief's project structure](../delivery/nn-build-brief.md#project-structure) is
-otherwise unchanged — the same files, one directory deeper.
+**Shared code.** The timing app's `lib/london-time.ts` exists because [an hour of drift is
+a real foot-gun](../reference/timing-app-review.md#what-is-strong), and Nightingale
+Nightmare sits on the clocks-change weekend. That module must reach both. Under A or C it
+is an import; under B or D it is a published package, a submodule, or accepted drift —
+**all three worse than an import**, so B and D need a real answer here rather than good
+intentions.
 
-**Cloudflare Pages supports this.** A Pages project takes a *root directory* and *build
-watch paths*, so one repository serves two Pages projects that build independently. This
-is on the [list to confirm](#confirm-before-relying-on-it) rather than assumed.
+**Where `src-race-timing` ends up.** A and C absorb it eventually; B and D never do. If
+absorbed, it should be after Nightingale Nightmare 2026 and outside a [change
+freeze](../foundations/glossary.md#platform-and-delivery) — *"eventually"* is not a plan,
+so this wants a date or an explicit never.
+
+Independent of all of it: **plan step 11 moves that repository into the club
+organisation.** That is the governance fix and does not wait for this decision.
+
+**Plan step 17.** [The plan](../delivery/plan.md) says *"create the NN repository"*, which
+assumes B or D. Under A or C it becomes *"create `apps/nn`"*. Either way the [build brief's
+structure](../delivery/nn-build-brief.md#project-structure) is unchanged — the same files,
+possibly one directory deeper. **This is the only thing blocking the Nightingale Nightmare
+scaffold**, so it is the part of this question that wants answering first.
+
+### If a monorepo wins, npm workspaces
+
+No Turborepo, no Nx, no pnpm. The [build brief](../delivery/nn-build-brief.md#stack)
+already picked npm because boring beats better, and two applications do not need a build
+orchestrator.
 
 ---
 
@@ -220,10 +240,20 @@ running `supabase db push` against one project will desync** — each CLI sees t
 migrations as missing, and the failure surfaces at the worst moment, which is when
 somebody is trying to ship a fix.
 
-The club is about to have exactly that: `src-race-timing` owns `public`, and this
-repository will own `club` and `intake`, both against one database.
+The club is about to have exactly that: `src-race-timing` owns `public`, and whatever
+builds the website owns `club` and `intake`, both against one database.
 
-### The rule
+### It is a repository-shape question in disguise
+
+How bad this is depends entirely on [§1](#1-repository-shape--open):
+
+| Under | What happens |
+| --- | --- |
+| **C — a dedicated schema repository** | **Dissolved by construction.** One owner, one migration history. This is option C's main argument |
+| **A — monorepo** | Dissolved once timing is absorbed. The hazard exists only in the window before that |
+| **B or D — timing stays separate** | **Real and permanent.** The rule below has to hold indefinitely |
+
+### The rule, if the hazard is managed rather than designed away
 
 > **One schema has exactly one owning repository, and no repository ever runs a
 > whole-database operation against the shared project.**
@@ -233,29 +263,22 @@ In practice:
 | | |
 | --- | --- |
 | `public`, `private` | Migrated from `src-race-timing`, as today |
-| `club`, `intake` | Migrated from `packages/db` in this repository |
+| `club`, `intake` | Migrated from whichever repository owns the website's schema |
 | **`supabase db reset` against the shared remote** | **Never.** It is a local-only command and treating it otherwise destroys the other application |
 | Diffing and pushing | **Schema-scoped**, so neither repository proposes dropping the other's tables |
 
 **Schema-scoped diff and push is the load-bearing assumption here** and it is on the
-[list to confirm](#confirm-before-relying-on-it) before any migration runs. If the Supabase
-CLI cannot scope reliably, the fallback is to consolidate all migrations into
-`packages/db` early — which is the end state anyway, just brought forward at the cost of
-touching a race-critical repository sooner than
-[risk](../foundations/requirements.md#risk) would like.
-
-### The end state
-
-When the timing app moves into this repository, its migrations move with it and
-`packages/db` becomes the single migration home. **The rule above is scaffolding for the
-period where two repositories share one database — not the destination.**
+[list to confirm](#confirm-before-relying-on-it) before any migration runs. **If the
+Supabase CLI cannot scope reliably, option C stops being one choice among four and becomes
+the only shape that works without hand-coordination.**
 
 ### Generated types are how the seam stays honest
 
-`supabase gen types typescript` output is **committed** to `packages/db`, and CI fails if
-it is stale. That gives the website compile-time knowledge of the timing schema without
-reaching into the timing repository, which is what
-[convergence](../foundations/requirements.md#convergence) is asking for at this stage.
+`supabase gen types typescript` output is **committed** — as a package under B and C, as a
+workspace directory under A — and CI fails if it is stale. That gives the website
+compile-time knowledge of the timing schema without reaching into the timing repository,
+which is what [convergence](../foundations/requirements.md#convergence) is asking for at
+this stage.
 
 ---
 
@@ -272,7 +295,7 @@ Unchanged from the [build brief](../delivery/nn-build-brief.md#stack):
 | **Trigger** | Push to `main` deploys production; every pull request gets a preview deployment |
 | **Mechanism** | Cloudflare Pages git integration — Cloudflare pulls from GitHub and builds |
 | **Why not `wrangler` from GitHub Actions** | It needs a Cloudflare API token as a repository secret. Git integration needs none, and **a credential that does not exist cannot leak** |
-| **Monorepo** | Root directory and build watch paths per Pages project, so `apps/nn` and `apps/www` build independently |
+| **If a monorepo** | Root directory and build watch paths per Pages project, so each app builds independently. Under a repository-per-surface shape this is automatic — one repository, one Pages project |
 | **Config as code** | `wrangler.jsonc` committed per app if any binding is needed |
 
 Preview deployments are already in the [glossary](../foundations/glossary.md#platform-and-delivery)
@@ -401,12 +424,11 @@ main website build starts, which is another argument for its ordering.
 
 | | Why not |
 | --- | --- |
-| **A repository per service** | Two volunteers, no scale requirement, and convergence is a stated goal. Splitting now means merging later |
 | **A second Supabase project for the website** | The results archive must read timing data, and two projects cannot join. Also spends the free tier's spare slot that staging needs |
 | **A second Supabase project for Nightingale Nightmare** | Same, plus it would fork the event model that already supports solo races |
 | **Prisma or Drizzle over the Supabase client** | The timing app uses `@supabase/supabase-js` and RLS does the enforcing. A second data-access idiom for the same database fails [boring](../foundations/requirements.md#people) |
 | **Cloudflare D1 for the website** | [Already rejected](platform-options.md#option-b--cloudflare-bundled-pagesworkers--d1--r2--access) — SQLite breaks convergence with a Postgres timing app |
-| **Turborepo / Nx / pnpm workspaces** | Two applications. npm workspaces is enough and is the boring option |
+| **Turborepo / Nx / pnpm workspaces** | Two applications. If a monorepo wins, npm workspaces is enough and is the boring option |
 | **`wrangler deploy` from GitHub Actions** | Puts a Cloudflare API token in CI for no gain over git integration |
 | **Migrations applied by hand from a laptop** | Unreviewed and unlogged. Fails [everything as code](../foundations/requirements.md#everything-is-defined-as-code) |
 
@@ -419,7 +441,7 @@ blocks something specific.
 
 | | To confirm | Blocks |
 | --- | --- | --- |
-| **A1** | **Cloudflare Pages monorepo support** — root directory and build watch paths, so two Pages projects build independently from one repository | The repository shape |
+| **A1** | **Cloudflare Pages monorepo support** — root directory and build watch paths, so two Pages projects build independently from one repository. Without it every push rebuilds everything and spends the 500-builds/month allowance on no-ops | [§1](#1-repository-shape--open), **only if A or C** |
 | **A2** | **Supabase CLI schema-scoped diff and push**, so two repositories can migrate one project without desyncing | Any migration against the shared project |
 | **A3** | Whether **Durable Objects are available on the Workers free plan**, or require Workers Paid | Worth £190/yr — it is the difference between [C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) costing £47 and Supabase Pro costing £237 |
 | **A4** | **Supabase free tier is two active projects per organisation**, so a staging project is genuinely free | The staging environment |
@@ -433,9 +455,8 @@ Not oversights — genuinely undecided, and each is tracked as an issue.
 
 | | |
 | --- | --- |
-| **Does this repository get renamed?** | `src-website` holding the race site and eventually the timing app is a misleading name. Renaming is cheap and GitHub redirects; doing it before there are clones is cheaper than after |
-| **When does `src-race-timing` come in?** | Proposed: with the Cloudflare port, after November 2026. Needs a date, not a feeling |
-| **Astro for `apps/www` as well as `apps/nn`?** | [Platform options recommends it](platform-options.md#framework-which-is-a-separate-question-from-language); it has not been recorded as a decision |
+| **Does this repository get renamed?** | Only bites under A, C or D, where `src-website` would hold the race sites and possibly the timing app. Renaming is cheap and GitHub redirects; doing it before there are clones is cheaper than after |
+| **Astro for the main website as well as Nightingale Nightmare?** | [Platform options recommends it](platform-options.md#framework-which-is-a-separate-question-from-language); it has not been recorded as a decision |
 | **Does the website need its own auth, or reuse Supabase Auth?** | [C7](../foundations/requirements.md#c7--authenticate-and-authorise-staff) is answered for staff by the timing app's `staff_assignments`. Members logging in to the website is a different question and may not be needed at all |
 | **Where do documents actually live?** | R2 is decided; the naming scheme and the stable-URL contract for [C14](../foundations/requirements.md#c14--publish-newsletters-and-club-documents) are not |
 | **What is the backup position?** | The free tier has no automated backups, and [continuity](../foundations/requirements.md#continuity) says a 2026 URL resolves in 2036. A scheduled `pg_dump` to R2 is the obvious answer and has not been decided |
