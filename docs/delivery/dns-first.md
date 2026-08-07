@@ -140,6 +140,28 @@ The third case is the one Squarespace warns about, and it is a checkbox away.
 
 ---
 
+### There is no cutover moment for the website
+
+Worth stating plainly, because "changing nameservers" sounds like a switch being thrown.
+
+**The website's address never changes.** It is `198.185.159.144` and friends before, and
+the same afterwards. What changes is *who gets asked* for that address, not what the
+answer is.
+
+So during the 48 hours when some resolvers still ask Fasthosts and others ask Cloudflare,
+**both are giving the same answer and both work.** There is no window in which the site is
+unreachable, because nothing about where the site lives has moved.
+
+The same is true of mail. `MX` still names `mail.southvillerunningclub.co.uk`, which still
+resolves to `213.171.216.40`, and sending servers still connect straight to Fasthosts.
+
+**And this is why proxying a mail record breaks mail** — worth understanding rather than
+just obeying. Cloudflare proxies HTTP and HTTPS only. A proxied `mail` record would return
+Cloudflare's address, and nothing there listens on port 25. Mail would stop, with no error
+anybody sees.
+
+---
+
 ## The proxy default is the real hazard
 
 > **When Cloudflare imports a zone it turns the proxy ON by default for every record that
