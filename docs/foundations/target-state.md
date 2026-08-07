@@ -101,17 +101,21 @@ without a handover meeting.
 
 | | Today | Target |
 | --- | --- | --- |
-| Website platform | **£204/yr**, middle tier required only to take payments | **£0–£57/yr** |
+| Website platform | **£204/yr**, middle tier required only to take payments | **£47/yr** — free tier covers every day except race night |
+| Database and storage | Included in the plan | **£0** on Supabase's free tier, **£237** if the live leaderboard needs Pro |
 | Platform's cut on payments | **£91/yr** — 2% of everything collected | **£0** — infrastructure does not take a cut |
 | Card processing | **£424/yr** — Squarespace Payments at 2% + 25p | **£335/yr** on Stripe at 1.5% + 20p, or **£85** on Direct Debit |
 | Domain and DNS | £15.40/yr | £0–£15.40/yr |
-| **Total cost of collecting £4,560** | **£734/yr** | **£350/yr**, or **£100** with Direct Debit |
+| **Total cost of collecting £4,560** | **£734/yr** | **£397/yr**, or **£147** with Direct Debit |
 | Volunteer hours | The manual chain in the [problem statement](problem-statement.md#3-volunteers-are-doing-work-the-system-should-do) | Substantially reduced |
 
-**The saving is £384 a year, not the £204 subscription** — because leaving also removes
+**The saving is £337 a year, not the £204 subscription** — because leaving also removes
 the 2% Squarespace takes on every payment and moves the club onto a cheaper processor. A
 further £250 is available from changing how the club bills rather than where it hosts.
-Figures and workings in [platform
+
+**The figure that would undo it is Supabase Pro at £237**, which the live leaderboard
+could trigger and which would cut the saving to £100. Avoidable, but only by deciding
+deliberately how the leaderboard is served. Figures and workings in [platform
 options](../solutions/platform-options.md#total-cost-of-collecting-the-clubs-money).
 
 Even so: **the volunteer time is the larger return**, and it is the one that does not show
