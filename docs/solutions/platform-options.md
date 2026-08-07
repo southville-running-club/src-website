@@ -410,94 +410,91 @@ that those do not. Listed so they are visibly considered.
 
 ## Side by side
 
-The candidates, so the letters below can be read without scrolling back:
+The candidates, each analysed in full above:
 
-| | | |
-| --- | --- | --- |
-| **A** | Vercel + Supabase | Extend the incumbent pattern — what the timing app runs on today |
-| **B** | Cloudflare, bundled | One vendor for everything: Pages/Workers, D1, R2, Access |
-| **C** ⭐ | **Cloudflare + Supabase** | Cloudflare serves, Supabase holds the data. **Recommended** |
-| **D** | Netlify + Supabase | Same shape as C, different host. The strongest alternative |
-| **E** | AWS Lightsail | Self-hosted on a VPS inside AWS |
-| **F** | Plain VPS | Hetzner, Mythic Beasts or DigitalOcean |
-| **G** | Container hosts | Render, Railway, Fly.io |
+| | |
+| --- | --- |
+| **Vercel + Supabase** | Extend the incumbent pattern — what the timing app runs on today |
+| **Cloudflare, bundled** | One vendor for everything: Workers, D1, R2, Access |
+| **Cloudflare + Supabase** ⭐ | Cloudflare serves, Supabase holds the data. **Recommended** |
+| **Netlify + Supabase** | Same shape, different host. The strongest alternative |
+| **Amazon Lightsail** | Self-hosted on a virtual server inside AWS |
+| **Hetzner or Mythic Beasts** | A plain virtual server the club administers |
+| **Render, Railway, Fly.io** | Container hosts |
 
-Rows labelled *"on Supabase Pro"* are the same option with the paid data tier, shown
-separately because that £237 is the single largest risk to the cost case.
+### The complete cost picture
 
-### Platform cost alone
+Every option, every cost, cheapest first. **Annual, ex-VAT, at the club's measured
+volumes** — 1,175 subscription payments and 158 ticket orders, £4,560 collected through
+the site.
 
-| | Hosting | Data | Domain/DNS | **Per year** | **3 years** |
-| --- | --- | --- | --- | --- | --- |
-| **Today — Squarespace** | £204 | — | £15.40 | **£219** | **£657** |
-| **A — Vercel Pro + Supabase Pro** | £379 | £237 | £15.40 | **£631** | **£1,894** |
-| **B — Cloudflare bundled** | £47 | £0 | £0–10 | **£47–57** | **£141–171** |
-| **C — Cloudflare + Supabase** ⭐ | £47 | £0 | £0–10 | **£47–57** | **£141–171** |
-| **C on Supabase Pro** — as above, paid data tier | £47 | £237 | £0–10 | **£284–294** | **£852–882** |
-| **D — Netlify + Supabase** | £0–85 | £0 | £15.40 | **£15–100** | **£45–300** |
-| **E — AWS Lightsail** | £57–75 | included | £15.40 | **£72–90** | **£216–270** + ops hours |
-| **F — VPS (Hetzner / Mythic)** | £39–120 | included | £15.40 | **£54–135** | **£162–405** + ops hours |
-| **G — Railway / Render** | £47–237 | +£0–47 | £15.40 | **£62–300** | **£186–900** |
+Five things the club pays for, and only the first two are what people usually mean by
+"hosting":
 
-**That table is not the comparison the club should decide on**, and it took measured
-figures to see why.
+| | What it is |
+| --- | --- |
+| **Hosting** | Serving the website |
+| **Database** | Holding results, members, entrants and orders |
+| **Platform's cut** | What the website platform takes from each payment, on top of the card fee |
+| **Card processing** | What the payment processor charges |
+| **Domain and DNS** | Registration and name resolution |
 
-### Total cost of collecting the club's money
+| Option | Hosting | Database | Platform's cut | Card processing | Domain and DNS | **Total a year** | **vs today** | Over 3 years | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Cloudflare + Supabase, with Direct Debit** | £47 | £0 | £0 | **£85** | £15 | **£148** | **+£587** | £443 | Same platform as the recommendation; the saving comes from how the club bills, not where it hosts |
+| **Netlify free + Supabase free** | £0 | £0 | £0 | £335 | £15 | **£350** | +£385 | £1,051 | Free plan **stops serving traffic** when its credit pool runs out |
+| **Hetzner virtual server, self-hosted database** | £39 | £0 | £0 | £335 | £15 | **£389** | +£346 | £1,168 | **Plus volunteer hours.** No UK region |
+| **Cloudflare + Supabase free** ⭐ | £47 | £0 | £0 | £335 | £15 | **£397** | **+£338** | £1,192 | **Recommended.** £47 is Workers Paid, which race night needs |
+| **Cloudflare + Cloudflare D1** | £47 | £0 | £0 | £335 | £15 | **£397** | +£338 | £1,192 | Same price, but D1 is not Postgres — breaks convergence with the timing platform |
+| **Amazon Lightsail, self-hosted database** | £66 | £0 | £0 | £335 | £15 | **£416** | +£319 | £1,249 | **Plus volunteer hours.** London region |
+| **Netlify Personal + Supabase free** | £85 | £0 | £0 | £335 | £15 | **£435** | +£300 | £1,306 | **No nameserver move needed** — the whole DNS migration disappears |
+| **Mythic Beasts virtual server, self-hosted database** | £90 | £0 | £0 | £335 | £15 | **£440** | +£295 | £1,321 | **Plus volunteer hours.** UK-hosted throughout |
+| **Railway + Railway Postgres** | £47 | £47 | £0 | £335 | £15 | **£444** | +£291 | £1,333 | Smaller, younger vendor |
+| **Fly.io + Fly Postgres** | £95 | £47 | £0 | £335 | £15 | **£492** | +£243 | £1,477 | No free tier as of 2026 |
+| **Cloudflare + Supabase Pro** | £47 | £237 | £0 | £335 | £15 | **£634** | **+£101** | £1,903 | What the recommendation costs if the live leaderboard forces the paid data tier |
+| **Render Pro + Render Postgres** | £237 | £66 | £0 | £335 | £15 | **£653** | +£82 | £1,960 | Free tier sleeps after 15 minutes |
+| **Netlify Personal + Supabase Pro** | £85 | £237 | £0 | £335 | £15 | **£672** | +£63 | £2,017 | |
+| **Squarespace — today** | £204 | included | **£91** | **£424** | £15 | **£735** | — | £2,205 | Squarespace Payments at 2% + 25p, plus Squarespace's own 2% |
+| **Vercel Pro (2 seats) + Supabase Pro** | £379 | £237 | £0 | £335 | £15 | **£966** | **−£231** | £2,899 | Extending the incumbent pattern. **Costs more than staying** |
 
-Two things change with the platform that the table above misses.
+Domain and DNS is held at £15.40 throughout so the comparison is like-for-like; moving the
+registration to Cloudflare would take it under £10 on any of the Cloudflare rows.
 
-**Squarespace's transaction fee disappears.** It takes 2% of every payment — **£91 a
-year** — and **no other candidate takes a cut at all.** Cloudflare, Netlify, AWS and a VPS
-are infrastructure; they do not sit between the club and its money.
+**Card processing is £335 on every row except Squarespace's**, because leaving Squarespace
+means leaving Squarespace Payments, and Stripe's UK rate — 1.5% + 20p — is cheaper than
+the 2% + 25p the club pays now. That £89 difference is a consequence of the platform
+decision, not a separate one.
 
-**The processor changes too, and it is not a wash.** The club is on **Squarespace
-Payments**, which cannot outlive the platform. Its UK rate is **2% + 25p**. Stripe's is
-**1.5% + 20p** — lower on both the percentage *and* the fixed fee, and the fixed fee is
-what dominates a £2.50 transaction. So leaving Squarespace forces a processor change that
-happens to be an improvement.
+**Six readings of that table.**
 
-On measured volumes — 1,175 subscription payments and 158 ticket orders, £4,560 gross:
+**Everything beats staying, except the incumbent pattern.** Thirteen of the fourteen
+alternatives cost less than Squarespace. The exception is Vercel Pro with Supabase Pro at
+**£966 — £231 a year worse than doing nothing**, while delivering less commerce
+capability.
 
-| | Plan | Platform's cut | Processing | Domain | **Per year** | **Saving** |
-| --- | --- | --- | --- | --- | --- | --- |
-| **Today — Squarespace + Squarespace Payments** | £204 | £91 | £424 | £15.40 | **£734** | — |
-| **C — Cloudflare free + Supabase free** | £0 | £0 | **£0** | £335 | £15.40 | **£350** | £384 |
-| **C — Cloudflare Paid + Supabase free** ⭐ *(plan on this)* | £47 | £0 | **£0** | £335 | £15.40 | **£397** | **£337** |
-| **C on Supabase Pro** — Cloudflare Paid + paid data tier | £47 | £237 | **£0** | £335 | £15.40 | **£634** | **£100** |
-| **D — Netlify Personal + Supabase free** | £85 | £0 | **£0** | £335 | £15.40 | **£435** | £299 |
-| **D on Supabase Pro** — Netlify Personal + paid data tier | £85 | £237 | **£0** | £335 | £15.40 | **£672** | £62 |
-| **A — Vercel Pro + Supabase Pro** | £379 | £237 | **£0** | £335 | £15.40 | **£966** | **−£232** |
-| **C + Bacs Direct Debit on the subscription** | £47 | £0 | **£0** | £85 | £15.40 | **£147** | **£587** |
+**The saving is £338, not £204.** Two thirds of it is the subscription; the rest is
+Squarespace's 2% cut and the better processor rate, neither of which appears in a
+hosting-only comparison.
 
-**Data is a separate column because Supabase is part of every managed option, not just
-Vercel's.** Cloudflare and Netlify serve pages; they do not hold the club's relational
-data. Collapsing that into "hosting" is how a £0 estimate turns into a £237 bill.
+**The gap between the sensible options is small.** Cloudflare, Netlify, Lightsail, a
+Hetzner box and Railway all land between £389 and £444. **About £55 a year separates
+them**, which is less than the cost of getting the decision wrong in any other dimension —
+so criteria 3 to 7 should decide this, not price.
 
-Ex-VAT throughout, so the comparison is like-for-like; VAT applies to both sides and does
-not change the ranking.
+**The self-hosted rows are cheaper than they look and dearer than they are.** Hetzner at
+£389 is genuinely the second-cheapest line, but the missing column is volunteer hours:
+patching, backups, a tested restore, TLS renewal and being the person who fixes it on a
+Sunday. The programme exists to *recover* volunteer time, which is why these are rejected
+on [criterion 3](options.md#how-to-judge) rather than on price.
 
-**Four readings of that table.**
+**The paid data tier is the real risk.** Supabase Pro moves the recommendation from £397
+to £634 and cuts the saving from £338 to £101. Nothing else on this table moves by £237.
+[What would trigger it, and how to avoid it](#what-it-costs-as-the-club-grows).
 
-**The platform saving is £337, not £219.** Half of it — £180 — is the platform's cut plus
-the better processor rate, neither of which appears in a hosting comparison.
-
-**£0 is not the number to plan on. £47 is.** See [why Cloudflare is free, and when it
-stops being](#why-cloudflare-is-free-and-when-it-stops-being) — the free tier does not
-survive race night.
-
-**If Supabase Pro becomes necessary, most of the saving goes.** £634 against £734 is a
-£100 saving, not £337. **That is the largest financial risk in the recommendation**, and
-[what would trigger it](#what-it-costs-as-the-club-grows) should be understood now rather
-than discovered on a renewal notice.
-
-**Option A does not merely cost more, it costs more than staying.** Vercel Pro and
-Supabase Pro at £966 is **£232 a year worse than Squarespace** while delivering less
-commerce capability. That is the clearest possible statement of why the incumbent pattern
-cannot carry the website.
-
-**The biggest single lever is still not the platform.** Bacs Direct Debit on the
-subscription takes the total to **£147 — a £587 saving**, and £250 of that has nothing to
-do with hosting. See [what payments actually cost](#what-payments-actually-cost).
+**The largest single lever is not on the hosting axis at all.** Direct Debit takes the
+total to £148 — a £587 saving — on exactly the same platform as the recommendation. **£250
+of that has nothing to do with where the website lives.** See [what payments actually
+cost](#what-payments-actually-cost).
 
 ### Why Cloudflare is free, and when it stops being
 

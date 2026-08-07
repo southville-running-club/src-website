@@ -116,7 +116,7 @@ further £250 is available from changing how the club bills rather than where it
 **The figure that would undo it is Supabase Pro at £237**, which the live leaderboard
 could trigger and which would cut the saving to £100. Avoidable, but only by deciding
 deliberately how the leaderboard is served. Figures and workings in [platform
-options](../solutions/platform-options.md#total-cost-of-collecting-the-clubs-money).
+options](../solutions/platform-options.md#the-complete-cost-picture).
 
 Even so: **the volunteer time is the larger return**, and it is the one that does not show
 up on an invoice.
