@@ -125,18 +125,18 @@ nothing here authorises payment work.
 | **Exit cost** | **Low for the data itself** — a standard Postgres dump. Higher if Supabase Auth and Realtime become load-bearing |
 | **Revisit when** | The database approaches 500 MB; Realtime concurrency is needed beyond 200; or the free tier's terms change |
 
-## 003 — Move club mailboxes to Migadu
+## 003 — Buy mailboxes from Fasthosts
 
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club), and [shared ownership](../foundations/requirements.md#shared-ownership) |
 | **Context** | Club mail is forwarding-only into personal Gmail accounts, so replies leave from a volunteer's address, forwarding breaks SPF, and no archive is club-held. **Cloudflare sells no mailbox product**, so moving DNS there does not answer this |
-| **Options** | [Email](../solutions/email.md#options) — flat-rate providers fit a committee of many roles and few people far better than per-user pricing |
-| **Decision** | **Migadu**, with real mailboxes used through Gmail *Send mail as*, so replies leave from the club address and are SPF-aligned. Transactional mail stays separate, on Resend, from a dedicated sending subdomain |
-| **Open before purchase** | **Which Migadu tier.** Micro is ~£15/yr but sends only **20 messages a day across the whole account**, and every committee reply counts against it. Check a week of real outbound volume in the club's Gmail accounts first. If 20 is too tight, **Zoho Mail Lite is the better answer than Migadu Mini** — similar money, generous sending |
-| **Consequences** | An **MX change**, which is a mail-affecting change in its own right. **It must not happen in the same week as the nameserver move.** Fasthosts is reduced to registrar only |
+| **Options** | [Email](../solutions/email.md#options) — costed at two mailboxes and at six role addresses, because per-user pricing and flat-rate pricing diverge sharply |
+| **Decision** | **Fasthosts Standard Email**, ~£26–£33/yr, two role mailboxes, used through Gmail *Send mail as* so replies leave from the club address SPF-aligned. Transactional mail stays separate, on Resend, from a dedicated sending subdomain |
+| **Why not Migadu** | **Migadu was proposed first and dropped the same day.** Its flat-rate model fits a committee of many roles and few people, and £15 looked decisive — but Micro sends only **20 messages a day**, which is exactly what the club would be buying it for, and Mini costs £71. **Fasthosts needs no MX change**, and removing a second mail-affecting change from a programme that already has one is worth more than £15/yr |
+| **Consequences** | **No MX change — the club's mail routing does not move.** Fasthosts remains a vendor, which it is anyway as registrar. Mailboxes are bought *before* the nameserver move, so Fasthosts configures its own records while it still controls the zone and the club copies one settled, verified zone into Cloudflare |
 | **Exit cost** | **Low.** Export mailboxes, repoint MX. Standard IMAP, no lock-in |
-| **Revisit when** | The daily send limit is hit; the committee wants an address per role; or the registrar moves and consolidation becomes attractive |
+| **Revisit when** | Fasthosts will not state its sending limits, or they are worse than 20/day; a third mailbox costs more than a whole Migadu plan; or the registrar moves away from Fasthosts, at which point the consolidation argument disappears |
 
 ---
 
@@ -146,11 +146,11 @@ nothing here authorises payment work.
 | --- | --- |
 | Cloudflare Workers Paid *(zone on the Free plan)* | £47 |
 | Supabase — free tier | £0 |
-| Migadu Micro | £15 |
+| Fasthosts Standard Email — two mailboxes | £30 |
 | Domain, still at Fasthosts | £15.40 |
 | Card processing — Stripe at 1.5% + 20p | £335 |
-| **Total** | **£412** |
-| **Against £735 today** | **Saves £323 a year** |
+| **Total** | **£427** |
+| **Against £735 today** | **Saves £308 a year** |
 
 Payment processing is shown because it changes with the platform — Squarespace Payments
 cannot outlive Squarespace. It is not a decision taken here; see
@@ -160,7 +160,7 @@ cannot outlive Squarespace. It is not a decision taken here; see
 
 - **The registrar.** Fasthosts for now. Moving it is optional, later, and worth doing for
   consolidation rather than the ~£7
-- **The Migadu tier**, pending the outbound-volume check above
+- **Fasthosts' sending limits and its price beyond two mailboxes**, neither published
 - **Payments** — processor, flow, and whether Direct Debit replaces card on the £2.50
   subscription. That last one is worth ~£250/yr, more than all three decisions above
   combined

@@ -173,27 +173,54 @@ Fasthosts email remains sensible.
 **So the order is: registrar decision → email decision.** Not the other way round, and not
 both at once.
 
-### The recommendation, stated conditionally because it has to be
+### The recommendation
 
-> **Keep the registrar at Fasthosts → buy Fasthosts Standard Email, ~£26–£33/yr.** No DNS
-> change, one fewer vendor, and the lowest-risk path to fixing the actual complaint.
-> **Move the registrar to Cloudflare → buy Migadu Micro, ~£15/yr.** Cheaper, unlimited
-> role addresses, and independent of both the registrar and the DNS provider — so it never
-> has to move again.
+> **Fasthosts Standard Email, ~£26–£33/yr — because it needs no MX change at all.**
 
-**Either way the club gets what it actually wants**: real mailboxes with authenticated
-SMTP, so committee members keep working in Gmail via *Send mail as* but their replies
-leave from the club's address, SPF-aligned.
+The club is already committed to one mail-affecting change: moving the nameservers to
+Cloudflare. **Every alternative provider adds a second one.** For two volunteers with day
+jobs, removing an entire risky change from the programme is worth more than the £11–£18 a
+year that the cheapest alternative would save.
+
+**The flat-rate argument does not survive contact with the limits.** Migadu's model — pay
+for volume, not people — is genuinely the better fit for a committee of many roles and few
+humans, and at £15 it looked decisive. But [Micro sends 20 messages a
+day](#the-catch-on-migadu-micro-20-messages-sent-per-day), which is the very thing the
+club would be buying it for, and Mini at £71 costs more than Fasthosts. The advantage
+evaporates.
+
+*(Migadu was proposed first, on 7 August 2026, and dropped the same day once the send
+limit was read properly. Recorded because the reasoning is more useful than a tidy
+answer.)*
+
+**Fasthosts also happens to be the low-risk sequence.** Buying mailboxes while Fasthosts
+still controls the zone lets it configure its own mail records automatically; the club
+then verifies mail works and copies **one settled, known-good zone** into Cloudflare. The
+alternative is moving DNS and afterwards hand-adding records for a mail service in a
+control panel that no longer controls the zone.
+
+**What the club gets either way**: real mailboxes with authenticated SMTP, so committee
+members keep working in Gmail via *Send mail as* but their replies leave from the club's
+address, SPF-aligned.
 
 **What is not on the table is Cloudflare**, because it does not sell mailboxes, and **not
 self-hosting**, because running a mail server is the one piece of infrastructure where a
 mistake is invisible to you and obvious to everyone who emails the club.
 
-Zoho is genuinely the better product for the money. It is not worth touching MX for £10.
-
 **Buy role addresses, not people.** Two to start — the club does not need ten mailboxes,
-and per-person provisioning is how this turns into Google Workspace pricing. Scale only if
-two proves too few.
+and per-person provisioning is how this turns into Google Workspace pricing. Ask whether
+aliases onto those two cover the other committee roles; most mail hosts allow unlimited
+aliases, and *Send mail as* can usually send from one.
+
+### Revisit this if
+
+- **Fasthosts will not say what its sending limits are**, or they turn out to be lower
+  than Migadu's 20/day
+- **Adding a third and fourth mailbox costs more than the whole Migadu plan** — the price
+  beyond two is not published
+- **The club moves the registrar away from Fasthosts.** At that point Fasthosts holds
+  nothing else, the consolidation argument disappears, and this should be re-scored on
+  merit
 
 **Google Workspace should be ruled out in writing**, so it is not proposed again later by
 somebody reasoning from what an organisation "normally" uses.
