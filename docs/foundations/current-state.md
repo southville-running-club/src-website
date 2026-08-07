@@ -92,26 +92,93 @@ Facebook.
 
 ### What it actually gets used for
 
-From Squarespace Analytics, 9 July – 7 August 2026:
+From Squarespace Analytics, read 7 August 2026.
+
+**Audience**, 9 July – 7 August 2026:
 
 | | |
 | --- | --- |
 | Visits | **1,114** |
 | Unique visitors | **926** |
-| Pageviews | 2,200 |
+| Pageviews | 2,234 |
 | Bounce rate | 57.7% |
 | Where they come from | Direct 673, Google 314, Facebook 67, Instagram 30 |
 | What they use | **iOS 517, Android 263**, Windows 180, macOS 111 |
 
 **Seventy per cent of visits are from a phone.** That is not a preference to design around
-later; it is the club's audience. It corroborates the [mobile-first
-constraint](requirements.md#users) directly rather than by assumption, and it retires the
-"site usage — not captured" gap in [target
-state](target-state.md#how-we-will-know-it-worked).
+later; it is the club's audience, and it corroborates the [mobile-first
+constraint](requirements.md#users) by measurement rather than assumption.
 
-Around **900 people a month** reach the site, against roughly 100 subscribers — so most
-visitors are not paying anyone anything, and the site's main job is information rather
-than transaction.
+Around **900 people a month** reach the site against roughly 100 subscribers, so most
+visitors are not paying anyone anything. **The site's main job is information, not
+transaction.**
+
+#### What people actually read
+
+**13,342 pageviews, 1 January – 7 August 2026**, up 12% year on year. Grouped by what the
+pages are for:
+
+| | Pageviews | Share |
+| --- | --- | --- |
+| **Home** | 4,482 | **33.6%** |
+| **Race — Pass the Buck and its results** | 2,216 | **16.6%** |
+| **Runner information** — new runners, FAQ, groups, terminology | 1,884 | 14.1% |
+| **About the club** — about us, committee, WhatsApp community | 1,746 | 13.1% |
+| **Newsletters** — index plus 33 issues | 1,234 | 9.2% |
+| **Membership** — information, join, pay, renew, cancel | 1,036 | 7.8% |
+| **Parties and store** | 485 | 3.6% |
+| **Kit** | 141 | **1.1%** |
+| **Club documents** | 93 | 0.7% |
+| **Policies** | 22 | **0.2%** |
+
+The ten most-visited individual pages:
+
+| Page | Views | Time on page |
+| --- | --- | --- |
+| Home | 4,482 | 1:10 |
+| Pass the Buck | 1,458 | 2:25 |
+| About Us | 1,087 | 1:38 |
+| New Runners | 1,086 | 1:33 |
+| **Pass the Buck Results 2026** | 501 | **6:08** |
+| Newsletters (index) | 416 | **0:28** |
+| Frequently Asked Questions | 408 | 1:35 |
+| Membership information | 365 | 1:44 |
+| SRC Summer Party 2026 | 358 | 1:09 |
+| New Members | 355 | 1:40 |
+
+Site average time on page is **90 seconds**.
+
+#### Five things the numbers say
+
+**Results are read, not glanced at.** The 2026 results page holds visitors for **6 minutes
+8 seconds** — over four times the site average and the longest dwell anywhere on the site.
+This is the page currently produced by hand.
+
+**The results archive has a long tail.** All 501 views of the 2026 results fell inside the
+last 30 days — it is a post-race spike. But the **2025** results drew 255 views across the
+year, only 62 of them in that same window. Last year's results are still being looked up
+nine months later, which is what "permanent" means in practice.
+
+**Kit is 1.1% of traffic.** 141 views across seven months, at 1:13. The
+[requirements](requirements.md#c15--sell-merchandise-and-tickets) describe kit as the
+largest single piece of build in the website.
+
+**Policies and documents are governance, not traffic.** 22 and 93 views respectively. The
+documents that *are* opened are read for **four minutes** — a small audience reading
+carefully, rather than a large one browsing.
+
+**The newsletter index does not work.** 416 views at **28 seconds** and a 61% bounce —
+people arrive and leave. Individual recent issues do better (March 2026: 113 views at
+1:43), and the older tail is thin. The archive is used for the last few months, not for
+2023.
+
+#### Legacy URLs still receiving traffic
+
+Old paths that still resolve and are still being hit: `/home`, `/members`,
+`/runners-information`, `/events`, `/contacts-and-links`, `/store`. Low volume — one to
+three views each — but they exist, and [every existing URL still
+resolving](requirements.md#c1--publish-club-information-publicly) is a stated condition of
+the move.
 
 ---
 

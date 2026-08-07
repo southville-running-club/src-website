@@ -122,17 +122,17 @@ fund moved  →  needs a website with payments built in
             →  needs the requirements settled
 ```
 
-Against the April deadline, that is a lot of links. The alternative is to **move the fund
+Against a March deadline, that is a lot of links. The alternative is to **move the fund
 first using hosted payment pages that need no website at all**, and replace them with the
 programmatic integration afterwards. The fund migration then starts immediately and runs
-in parallel with everything else, and April stops depending on the build.
+in parallel with everything else, and March stops depending on the build.
 
 That is a genuine choice, not a foregone one:
 
 | | Programmatic first | Hosted pages first, programmatic later |
 | --- | --- | --- |
 | Fund can start moving | Once the website is built | **Immediately** |
-| April deadline depends on | The whole build chain | Only the website rebuild |
+| March deadline depends on | The whole build chain | Only the website rebuild |
 | Members asked to act | Once | Once — the payment itself does not move again if the same processor is kept |
 | Total work | Less | Slightly more |
 | Risk to the deadline | **High** | Low |
@@ -147,6 +147,52 @@ The old fund page lives on the Squarespace site, so the apex cutover removes it.
 fund has not fully moved by then, the old route can be kept alive by redirecting its path
 to the Squarespace-hosted address directly. **This means a slow-moving payer cannot hold
 the website launch hostage** — worth having in reserve even if it is never used.
+
+---
+
+## What the usage data says about priority
+
+[Target state](../foundations/target-state.md#how-we-will-know-it-worked) said site usage
+"decides what is worth rebuilding and what can quietly be dropped". It is now
+[measured](../foundations/current-state.md#what-people-actually-read), and it does not
+agree with where the effort was heading.
+
+| Area | Share of traffic | Where it sits in the plan today |
+| --- | --- | --- |
+| Home | 33.6% | — |
+| **Race and results** | **16.6%**, longest dwell on the site at 6:08 | A capability, not a headline |
+| Runner information | 14.1% | Assumed to be simple content |
+| About the club | 13.1% | Assumed to be simple content |
+| Newsletters | 9.2% | Automation planned |
+| Membership | 7.8% | Significant build |
+| Parties and store | 3.6% | Significant build |
+| **Kit** | **1.1%** | **"The largest single piece of build in the website"** |
+| Documents and policies | 0.9% | Migration required for governance |
+
+**Three corrections follow.**
+
+**Results should be treated as the flagship, not as a capability.** It is the most engaged
+page on the site by a distance, it is currently typed out by hand, and last year's results
+are still being read nine months on. Automating it removes a manual process *and* improves
+the thing people most want. Nothing else on the list does both.
+
+**Kit is over-specified relative to demand.** 141 views in seven months against a build
+involving variants, sizes, stock and buy-back. That does not mean skip it — the Quarter
+Master's manual work is real and
+[C15](../foundations/requirements.md#c15--sell-merchandise-and-tickets) stands — but a
+full catalogue is disproportionate to 1.1% of traffic, and a simpler order form may serve
+the same purpose. This is worth re-scoping before it is built, not after.
+
+**Documents and policies need hosting, not a product.** 0.9% of traffic, but the documents
+that are opened are read for four minutes. Get them off Squarespace's CDN, give them
+stable URLs, and stop. No browsing experience, no search.
+
+**One thing the data endorses:** the site is overwhelmingly an information surface — 900
+visitors a month against ~100 subscribers, 70% on a phone. A fast, static, mobile-first
+site serves the measured audience better than a commerce platform does, which is
+consistent with [what the platform analysis
+recommends](../solutions/platform-options.md#the-recommendation) for entirely separate
+reasons.
 
 ---
 

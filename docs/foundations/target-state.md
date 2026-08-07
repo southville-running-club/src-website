@@ -129,8 +129,11 @@ and it is the one that does not show up on an invoice.
 
 ## How we will know it worked
 
-Honest position: **the club does not yet have baselines for most of these**, and it should
-capture them before the work starts rather than reconstructing them afterwards.
+**Most of these are now measured** rather than estimated — the cost, the usage and the
+engagement figures were read from the club's own accounts on 7 August 2026. What remains
+unmeasured is volunteer time, which is the largest cost in the programme and the hardest
+to capture. That gap should be closed before the work starts rather than reconstructed
+afterwards.
 
 | Measure | Baseline |
 | --- | --- |
@@ -142,10 +145,15 @@ capture them before the work starts rather than reconstructing them afterwards.
 | Newsletters published on time | Currently drifting; July 2024 missing |
 | Systems reachable by only one person | **Four** |
 | Race entry data quality | Problems worked around at CSV import |
-| Site usage — what people actually visit | **Captured**: ~1,114 visits and 926 unique visitors a month, **70% from a phone** — see [what it actually gets used for](current-state.md#what-it-actually-gets-used-for) |
+| Site usage — what people actually visit | **Captured**: 13,342 pageviews Jan–Aug 2026, ~926 unique visitors a month, **70% from a phone**. Race and results 16.6%, kit 1.1%, policies 0.2% — see [what people actually read](current-state.md#what-people-actually-read) |
+| Results page engagement | **6:08 average time on page** — four times the site average, and the page is currently typed by hand |
+| Newsletter archive engagement | Index: 416 views at **28 seconds**, 61% bounce |
 
-The last one matters more than it looks: it decides what is worth rebuilding and what can
-quietly be dropped.
+The usage figures mattered more than they looked, and now that they exist they have
+[changed the build
+priority](../delivery/priorities.md#what-the-usage-data-says-about-priority): results are
+the most-read thing on the site and are produced by hand, while kit — described in the
+requirements as the largest single piece of build — is 1.1% of traffic.
 
 ---
 
