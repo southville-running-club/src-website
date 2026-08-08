@@ -2,6 +2,9 @@
 
 Getting a working page served at `nn.southvillerunningclub.co.uk`.
 
+Part of [Phase 1](../phases.md#phase-1--nightingale-nightmare-and-timing-on-the-club-domain).
+**Stages here are internal to this runbook** and are not the programme's phases.
+
 **Scope: the network path only.** A hello-world page, proving repository → build → Cloudflare
 → HTTPS → club hostname. **No form, no database.** The sign-up form is
 [the build brief](../nn-build-brief.md)'s job and follows after this, so that when it goes
@@ -9,14 +12,14 @@ wrong there is only one thing it can be.
 
 | | |
 | --- | --- |
-| **Time** | Phase 1 an evening, **plus a separate evening for the workspace root** if this is the first code in the repository. Phase 2 fifteen minutes plus a TTL wait |
+| **Time** | Stage 1 an evening, **plus a separate evening for the workspace root** if this is the first code in the repository. Stage 2 fifteen minutes plus a TTL wait |
 | **Risk** | **None at any step.** Everything here is additive or internal to Cloudflare |
 | **Blocks** | Nothing. **Does not require the [nameserver move](nameserver-move.md)** |
 | **Blocked by** | A Cloudflare account both volunteers can reach |
 
 ---
 
-## Phase 0 — before you start
+## Stage 0 — before you start
 
 Cheap things that make everything after them easier.
 
@@ -24,19 +27,20 @@ Cheap things that make everything after them easier.
 | --- | --- | --- |
 | **0.1** | Cloudflare account is **club-owned** and **both volunteers are admins** | [Shared ownership](../../foundations/requirements.md#shared-ownership). Doing it now avoids a transfer, and transfers are the step that never happens |
 | **0.2** | Two-factor authentication on the Cloudflare account | It can now change where the club's website points |
-| **0.3** | **Agree who runs this — and consider making it the volunteer who did *not* set up the Cloudflare account** | Phase 1 is low-stakes, reversible and touches nothing live, which makes it the ideal way to find out whether *"both volunteers can reach everything"* is **true** rather than asserted. Better to discover it here than during [the nameserver move](nameserver-move.md) |
+| **0.3** | **Agree who runs this — and consider making it the volunteer who did *not* set up the Cloudflare account** | Stage 1 is low-stakes, reversible and touches nothing live, which makes it the ideal way to find out whether *"both volunteers can reach everything"* is **true** rather than asserted. Better to discover it here than during [the nameserver move](nameserver-move.md) |
 | **0.4** | The current Fasthosts zone is **captured and committed** | [Plan](../plan.md) step 23. It is the rollback reference for everything DNS, and you want it before touching the zone at all — not before touching Cloudflare |
-| **0.5** | Decide the **ordering** — [Path A or Path B](#phase-2--the-club-hostname) | Affects Phase 2 only. Phase 1 is identical either way |
+| **0.5** | Decide the **ordering** — [Path A or Path B](#stage-2--the-club-hostname) | Affects Stage 2 only. Stage 1 is identical either way |
+| **0.6** | **The repository is already in the club organisation**, and an org owner can approve the Cloudflare GitHub App | ⚠️ **Order matters.** Moving a repository between a personal account and an organisation **after** connecting Pages is a documented way to desync the link so it cannot cleanly reconnect. Relevant to `src-race-timing`, which [plan](../plan.md) step 11 moves into the org — **move it first, connect Pages afterwards** |
 
-> **Stop condition.** If 0.1 is not true, fix it before Phase 1. A Cloudflare project created
+> **Stop condition.** If 0.1 is not true, fix it before Stage 1. A Cloudflare project created
 > under a personal account is a club asset held personally, which is
 > [the problem this programme exists to fix](../../foundations/problem-statement.md).
 
 ---
 
-## Phase 1 — a page on `pages.dev`, with no DNS involved
+## Stage 1 — a page on `pages.dev`, with no DNS involved
 
-The point of this phase is that **it cannot involve DNS**, so nothing that goes wrong here is
+The point of this stage is that **it cannot involve DNS**, so nothing that goes wrong here is
 a DNS problem.
 
 ### 1.1 — Create the workspace root
@@ -97,7 +101,19 @@ npm --workspace apps/nn run build     # must succeed, and produce dist/
 
 ### 1.3 — Create the Cloudflare Pages project
 
-Dashboard → Workers & Pages → Create → Pages → Connect to Git.
+Dashboard → Workers & Pages → Create → Pages → **Import an existing Git repository**.
+
+> **Not "Drag and drop your files".** Cloudflare is explicit: *"If you choose Direct Upload,
+> you cannot switch to Git integration later. You will have to create a new project."* The
+> reverse **is** possible — a Git-connected project can later disable automatic deployments
+> and be driven by `wrangler pages deploy` instead.
+>
+> **So Git integration keeps both deployment models open and Direct Upload closes one
+> permanently.** And because the project name is the CNAME target, recreating a project means
+> redoing the DNS record and the certificate too.
+>
+> Drag-and-drop is fine for a genuine throwaway that proves the network path — **delete it
+> afterwards.** It also cannot serve Pages Functions, which the sign-up form needs.
 
 | Setting | Value |
 | --- | --- |
@@ -147,7 +163,7 @@ curl -sS "https://$PROJECT" | grep -i nightingale
 
 **Done when** the page loads over HTTPS at `<project>.pages.dev` with a valid certificate.
 
-**Stop condition.** Do not proceed to Phase 2 until this passes. Every failure mode in Phase
+**Stop condition.** Do not proceed to Stage 2 until this passes. Every failure mode in Stage
 2 is DNS or TLS; if the site itself is broken you will misdiagnose it.
 
 ### 1.5 — Confirm a preview deployment appears
@@ -160,7 +176,7 @@ volunteer clicking a link, not reading a diff and imagining it.
 
 ---
 
-## Phase 2 — the club hostname
+## Stage 2 — the club hostname
 
 Two paths. **They differ only in where the record lives**, and both end at the same place.
 
@@ -264,6 +280,29 @@ dig +short southvillerunningclub.co.uk A
 
 ---
 
+## Stage 3 — connect it to Supabase
+
+**The network path is proven, so from here anything that breaks is application code.** That
+separation is the whole reason Stages 1 and 2 involve no database.
+
+[Phase 1](../phases.md#phase-1--nightingale-nightmare-and-timing-on-the-club-domain) is not
+finished until this stage is, but it is
+[the build brief](../nn-build-brief.md)'s territory rather than this runbook's. In outline:
+
+| | |
+| --- | --- |
+| **3.1** | `intake.nn_interest` — name, email, consent, timestamp. **Nothing else.** [ADR-002](../../architecture/decisions/adr-002-schema-layout.md) |
+| **3.2** | RLS: **anonymous `insert` only**, on a schema holding no membership data. The negative test — an anonymous client *cannot read* `club` — is the one that matters |
+| **3.3** | The form as a **Pages Function**, with server-side validation. It must work with **JavaScript disabled** |
+| **3.4** | Migrations applied from CI, schema-scoped. [ADR-003](../../architecture/decisions/adr-003-local-development-and-pipeline.md) |
+| **3.5** | Acceptance tests green, including **axe at zero violations** |
+
+**The anon key is public and belongs in the client. The service role key does not exist
+here** — if the build appears to want it, the RLS policy is wrong and that is the thing to
+fix.
+
+---
+
 ## What could go wrong, and what to do
 
 | Symptom | Cause | Fix |
@@ -281,7 +320,7 @@ dig +short southvillerunningclub.co.uk A
 
 | Stage | Undo | Effective in |
 | --- | --- | --- |
-| Phase 1 | Delete the Pages project | Immediately. Nothing external referenced it |
+| Stage 1 | Delete the Pages project | Immediately. Nothing external referenced it |
 | Path A | Delete the `nn` CNAME at Fasthosts | Within the TTL |
 | Path B | Delete the custom domain in Cloudflare | Seconds |
 

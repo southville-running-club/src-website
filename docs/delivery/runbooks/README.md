@@ -6,10 +6,13 @@ to be done the same way twice.
 **These are executable, not explanatory.** The reasoning lives elsewhere and is linked from
 each step. If a runbook makes you stop and think about *why*, that is a bug in the runbook.
 
-| | |
-| --- | --- |
-| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | Cloudflare project → a page that works → `nn.southvillerunningclub.co.uk` |
-| [**The nameserver move**](nameserver-move.md) | Fasthosts → Cloudflare, carrying club email. **The riskiest change in the programme** |
+| | | Serves |
+| --- | --- | --- |
+| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | Cloudflare project → a page that works → `nn.southvillerunningclub.co.uk` | [Phase 1](../phases.md#phase-1--nightingale-nightmare-and-timing-on-the-club-domain) |
+| [**The nameserver move**](nameserver-move.md) | Fasthosts → Cloudflare, carrying club email. **The riskiest change in the programme** | [Between 1 and 2](../phases.md#between-1-and-2--the-nameserver-move) |
+
+**Stages inside a runbook are internal to it** and are not the programme's
+[phases](../phases.md). A runbook is a procedure; a phase is a chunk of the programme.
 
 ---
 
