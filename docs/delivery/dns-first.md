@@ -185,6 +185,23 @@ the two `TXT` records.
 **So the checklist after import is: eleven grey clouds.** Not "check the proxy settings" —
 eleven, counted.
 
+### There is a checkbox that removes most of this hazard
+
+**Cloudflare's zone-file import has a "Proxy imported DNS records" option that can be
+unselected.** Import the captured BIND file with it off and **nothing arrives orange** —
+which replaces the eleven-item manual pass with a single setting.
+
+That is worth using, because the eleven-item pass is the step most likely to be done at the
+end of a long evening. But it **does not replace the verification**: the count above stays as
+the check, and the [record-by-record diff](#verification-before-and-after) stays mandatory.
+The checkbox changes how the safe state is *reached*, not how it is *confirmed*.
+
+Mechanics, and the runbook that uses it, are in
+[the nameserver-move runbook](runbooks/nameserver-move.md#phase-3--stage-the-zone-in-cloudflare).
+Cloudflare exports these files too, which is what makes
+[the zone a reviewable artefact](../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md)
+without any tooling.
+
 ### The other Cloudflare-specific traps
 
 | | What happens | What to do |

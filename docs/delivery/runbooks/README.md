@@ -1,0 +1,68 @@
+# Runbooks
+
+Step-by-step procedures for things that are done rarely, carry real consequences, and need
+to be done the same way twice.
+
+**These are executable, not explanatory.** The reasoning lives elsewhere and is linked from
+each step. If a runbook makes you stop and think about *why*, that is a bug in the runbook.
+
+| | |
+| --- | --- |
+| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | Cloudflare project → a page that works → `nn.southvillerunningclub.co.uk` |
+| [**The nameserver move**](nameserver-move.md) | Fasthosts → Cloudflare, carrying club email. **The riskiest change in the programme** |
+
+---
+
+## Automate by change frequency, not by category
+
+The principle these runbooks assume, recorded properly in
+[ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md).
+
+| How often it happens | How it is done |
+| --- | --- |
+| **Every commit** — deploys, schema migrations, tests | **Automated.** Git integration and CI, per [ADR-003](../../architecture/decisions/adr-003-local-development-and-pipeline.md) |
+| **Monthly-ish, high consequence** — DNS records | **Manual, but reviewed.** A runbook, and a pull request against the committed zone file |
+| **Once, ever** — creating a project, a bucket, changing nameservers | **Manual, and written down** |
+
+The club's whole infrastructure surface is [roughly thirty dashboard
+actions](../../architecture/investigations/infrastructure-as-code.md#how-much-is-there-actually-to-do)
+across eight months, then almost none. **The high-frequency work is already code.** What is
+left does not earn a tool, and a runbook is the right instrument for it.
+
+---
+
+## Writing and using one
+
+**Before running a runbook**
+
+- Read it through **once, completely**, before doing anything. Several steps here are
+  ordered for a reason that only makes sense from the far end.
+- Check the **stop conditions**. Most of these have a step that says do not continue, and
+  that step is there because somebody would have.
+- Know what "done" looks like for each step before starting it.
+
+**While running it**
+
+- **One step at a time.** Do not batch two changes with two possible causes of failure.
+- **Verify each step before the next**, using the check written into it. "It probably
+  worked" is how a silent failure becomes a mystery a week later.
+- **Write down what you actually did**, including anything you did differently. Per the
+  [pragmatic exception](../../foundations/requirements.md#everything-is-defined-as-code),
+  manual work is acceptable *because* it is recorded: what, why, by whom, and how to redo it.
+
+**Afterwards**
+
+- **Update the runbook** if reality differed from it. A runbook nobody corrects is worse
+  than none, because it is trusted.
+- **Commit the artefact** — the exported zone file, the record of what changed. That is the
+  reviewable output, and it is what makes the manual approach legitimate rather than just
+  convenient.
+
+## When a runbook is the wrong answer
+
+- If it runs **more than about monthly**, automate it instead.
+- If it needs a **credential typed in by hand every time**, that is a hazard, not a
+  procedure.
+- If it cannot be **reversed**, it needs a rehearsal or a second pair of eyes rather than a
+  better checklist. The [nameserver move](nameserver-move.md) is the one item here in that
+  category, which is why it has an independent-verification step.

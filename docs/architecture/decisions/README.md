@@ -8,6 +8,7 @@ Technical decisions the volunteers take themselves.
 | [**ADR-002**](adr-002-schema-layout.md) | **Four schemas in one project**, and NN sign-ups land in `intake` | 8 Aug 2026 |
 | [**ADR-003**](adr-003-local-development-and-pipeline.md) | **Local development on `localhost` with mock data**, acceptance tests in the pipeline | 8 Aug 2026 |
 | [**ADR-004**](adr-004-no-staging-environment.md) | **No staging environment** | 8 Aug 2026 |
+| [**ADR-005**](adr-005-manual-with-a-reviewable-artefact.md) | **DNS stays manual**, with a committed zone file as the reviewable artefact | 8 Aug 2026 |
 
 ---
 

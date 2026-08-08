@@ -103,6 +103,11 @@ Add records; do not modify or delete existing ones. **Mail hostnames are never p
 After any change touching the zone, **send and receive a test email before checking
 anything else.**
 
+**A record change is a pull request against the committed zone file, reviewed before anybody
+opens a dashboard** — then applied by hand, then re-exported to confirm the file still
+matches. [ADR-005](decisions/adr-005-manual-with-a-reviewable-artefact.md): the reviewable
+artefact is what the requirement is asking for; the apply mechanism is not.
+
 *Where from:* [DNS and domain](../solutions/dns-and-domain.md). An
 [additive record](../foundations/glossary.md#domains-and-dns) cannot break anything, because
 nothing resolved that name before — deleting it restores the previous state exactly.

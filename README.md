@@ -30,6 +30,7 @@ in the [decision log](docs/decisions/decision-log.md), pending committee ratific
 | [What is happening, in ten steps](docs/delivery/overview.md) | **Plain summary for the committee** — safe to forward, no technical knowledge assumed |
 | [The plan](docs/delivery/plan.md) | **Start here for what happens when** — end to end, to Squarespace switched off |
 | [Move the DNS first](docs/delivery/dns-first.md) | **The plan** — take the risky change now, while nothing depends on it |
+| [Runbooks](docs/delivery/runbooks/) | **Step by step** — [Nightingale Nightmare onto the club domain](docs/delivery/runbooks/nn-to-club-domain.md), and [the nameserver move](docs/delivery/runbooks/nameserver-move.md) |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decisions/decision-log.md) | **Four decisions proposed** — Cloudflare, Supabase free, Fasthosts email, parallel running |

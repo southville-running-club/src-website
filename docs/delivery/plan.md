@@ -70,7 +70,9 @@ costs £204.
     [build brief](nn-build-brief.md). *Monorepo, per
     [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) — not a separate
     repository.*
-18. **Deploy it to its free `pages.dev` address** — no DNS needed.
+18. **Deploy it to its free `pages.dev` address** — no DNS needed. *Steps 17–18 and 37–39
+    are a runbook: [Nightingale Nightmare onto the club
+    domain](runbooks/nn-to-club-domain.md).*
 19. **Create the sign-up table**: **`intake.nn_interest`** — name, email, consent,
     timestamp. **Nothing else.** *Schema per
     [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
@@ -85,7 +87,10 @@ costs £204.
 ## Move the DNS to Cloudflare, changing nothing else
 
 *Needs steps 1–10 done, and the mailbox working, so Fasthosts has finished setting up its
-own mail records before the zone is copied. Detail in [move the DNS first](dns-first.md).*
+own mail records before the zone is copied. Reasoning in [move the DNS
+first](dns-first.md); **steps 23–36 are written out as an executable checklist in [the
+nameserver-move runbook](runbooks/nameserver-move.md)**, which folds in the
+import-with-proxying-off shortcut for step 27.*
 
 23. **Write down every DNS record at Fasthosts** and commit it to this repository. *This
     is the rollback reference.*

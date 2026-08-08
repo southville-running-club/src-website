@@ -34,6 +34,7 @@ to a requirement or a decision is just somebody's preference that survived.
 | [Database](investigations/database.md) | **Mostly settled** — [ADR-002](decisions/adr-002-schema-layout.md). Backups still open |
 | [Deployment](investigations/deployment.md) | Workers-or-Pages for the main site still open; Nightingale Nightmare is Pages either way |
 | [Local development](investigations/local-development.md) | **Settled** — [ADR-003](decisions/adr-003-local-development-and-pipeline.md), [ADR-004](decisions/adr-004-no-staging-environment.md) |
+| [Infrastructure as code](investigations/infrastructure-as-code.md) | **Settled** — [ADR-005](decisions/adr-005-manual-with-a-reviewable-artefact.md). Counts the work, and concludes no tool earns its keep yet |
 
 ### Decided
 
@@ -43,6 +44,7 @@ to a requirement or a decision is just somebody's preference that survived.
 | [**ADR-002**](decisions/adr-002-schema-layout.md) | `public` / `private` / `club` / `intake`. Nightingale Nightmare sign-ups → `intake.nn_interest` |
 | [**ADR-003**](decisions/adr-003-local-development-and-pipeline.md) | `localhost` with fabricated data; the pipeline brings up the same stack and runs acceptance tests |
 | [**ADR-004**](decisions/adr-004-no-staging-environment.md) | No staging environment. Local plus preview deployments |
+| [**ADR-005**](decisions/adr-005-manual-with-a-reviewable-artefact.md) | DNS stays manual against a committed zone file. **Automate by change frequency, not by category** |
 
 ### Where decisions live
 
