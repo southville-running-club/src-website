@@ -21,6 +21,46 @@ domain](../../solutions/dns-and-domain.md). **This** is the checklist.
 
 ---
 
+## Fasthosts keeps doing the mail. Nothing here changes that
+
+**Read this before anything else.** It is the single most important constraint in the
+runbook, and it is easy to lose sight of while thinking about a website.
+
+**11 of the 18 records are email.** Only 6 are the website. This is a mail zone that happens
+to have a website in it, not the other way round.
+
+| | |
+| --- | --- |
+| **What handles club mail today** | Fasthosts |
+| **What handles club mail after this move** | **Fasthosts. Unchanged.** |
+| **What changes about mail** | **Nothing.** Not the MX target, not SPF, not DKIM, not DMARC, not the mailboxes |
+
+Moving authoritative DNS changes **who answers the question**, not what the answer is. `MX`
+still names `mail.southvillerunningclub.co.uk`, that still resolves to `213.171.216.40`, and
+sending servers still connect straight to Fasthosts.
+
+**So the mail records are copied exactly and then left alone.** They are not an opportunity
+to tidy anything up.
+
+### The three ways this gets broken
+
+**1. Proxying a mail record.** Cloudflare proxies HTTP and HTTPS only. A proxied `mail` record
+returns Cloudflare's address, and **nothing there listens on port 25**. Mail stops, and the
+symptom is silent — inbound defers, then bounces, and nobody is told.
+
+**2. Accepting Cloudflare Email Routing.** Cloudflare sees `MX` records during onboarding and
+may offer to enable its own Email Routing. **It would replace the MX records.** Decline it.
+
+**3. Losing a DKIM CNAME.** Automated scans usually find them; "usually" is not a plan. Losing
+one does not stop mail — it makes it **fail authentication**, and with **DMARC at `p=none`**
+that degrades quietly into spam folders. You would find out from a member saying they never
+got a reply.
+
+> **After every step that touches the zone: send and receive a test message on a club
+> address, before checking anything else.** Mail first, always.
+
+---
+
 ## Stop conditions — do not start if any of these is true
 
 | | |
@@ -62,13 +102,18 @@ cannot be shortened.
 
 *An evening. Zero risk. This is the rollback reference and the diff baseline.*
 
+✅ **Done, 8 August 2026.** Captured from the panel, verified against a live query record by
+record, and committed as
+[`docs/reference/zone-fasthosts-2026-08-08.txt`](../../reference/zone-fasthosts-2026-08-08.txt).
+**18 records, panel and live zone in agreement.** Repeat this only if the zone changes.
+
 **1.1** Export the zone from Fasthosts, or transcribe every record from the control panel.
-*Confirm whether Fasthosts offers a zone-file export — its panel is not publicly documented.*
+Fasthosts: domain → **DNS Settings** → **Configure Advanced DNS**.
 
 **1.2** Commit it to this repository as `docs/reference/zone-fasthosts-<date>.txt`.
 
-**1.3** Confirm the count. **There should be 18 records.** A different number means find out
-why before continuing.
+**1.3** Confirm the count. **There should be 18 records** — 11 mail, 6 Squarespace, 1
+unknown (`mcp`). A different number means find out why before continuing.
 
 **1.4** Verify what you wrote down against a live lookup — do not trust the panel alone:
 
@@ -91,22 +136,28 @@ for i in 1 2 3 4; do dig @$NS +short "livemail$i._domainkey.$D" CNAME; done
 
 ---
 
-## Phase 2 — lower the TTLs
+## Phase 2 — TTLs · likely **skip this phase**
 
-*Fifteen minutes, then about an hour of waiting. Zero risk.*
+**Fasthosts appears to expose no TTL field.** Its support has said so directly, and the live
+zone corroborates it: **uniform 3600 across every record type**, which is the signature of a
+panel that sets TTL globally. Confirmed against the panel on 8 August 2026 — no TTL field on
+the record edit screen.
 
-**2.1** Set **every** record's TTL to **300 seconds** at Fasthosts.
+**If there is no field, skip to Phase 3 and skip the wait with it.** It costs almost nothing,
+for three reasons:
 
-**2.2** Wait about an hour — the old value was 3600, so caches holding it drain within that.
-**Waiting longer buys nothing.** (The 48-hour figure elsewhere refers to the delegation TTL,
-which is a different clock and not affected by this.)
+| | |
+| --- | --- |
+| During the 48-hour window, a "stale" Fasthosts answer **is the correct answer** | Both zones give identical values — that is the whole premise |
+| **Corrections after the switch are governed by Cloudflare's TTL, not Fasthosts'** | Cloudflare's Auto TTL is 300 s, which is where "repair forward in five minutes" comes from |
+| The number that actually matters — the **48-hour registry delegation TTL** — was never editable | Nominet sets it |
 
-**2.3** Confirm:
+**Where this does matter is on the Cloudflare side**, and it is easy to miss: a BIND import
+carries the old TTLs with it, so imported records may arrive at **3600**. Set them to Auto.
+Checked in [Phase 4](#phase-4--diff-and-have-someone-else-check-it).
 
-```bash
-dig @ns1.livedns.co.uk southvillerunningclub.co.uk A | grep -E '^southville' 
-#   the TTL column should read 300
-```
+*If a TTL field does exist, lower every record to 300, wait about an hour — the old value is
+3600, so caches drain within that — and confirm with the command in Phase 4.*
 
 ---
 
@@ -115,6 +166,22 @@ dig @ns1.livedns.co.uk southvillerunningclub.co.uk A | grep -E '^southville'
 *An evening. Zero risk — nothing is authoritative yet.*
 
 **3.1** Add the domain to Cloudflare. **Do not change the nameservers when prompted.**
+
+Dashboard → Domains → **Add a site** → **Connect a domain**.
+
+> **Not "Transfer a domain"** — that moves the *registration*, which is a separate and
+> optional decision for much later, and it cannot happen before the zone is on Cloudflare
+> anyway. **Not "Buy a domain".** You are connecting a domain you already own.
+
+Then: enter `southvillerunningclub.co.uk` → choose the **Free** plan → Cloudflare scans the
+existing zone and imports what it finds → **it shows you two assigned nameservers and asks
+you to change them. Do not.** Leave that screen. The zone sits in **Pending**, and
+Cloudflare's nameservers will answer queries for it anyway — which is what makes Phase 4
+possible.
+
+**Two things about the free plan's pending state:** it **auto-deletes after 28 days** if
+never activated, so do not stage months early; and a pending zone **cannot proxy**, which is
+harmless here because nothing should be orange.
 
 **3.2** **Import the committed zone file, with proxying off.**
 
@@ -181,6 +248,30 @@ for i in 1 2 3 4; do check "livemail$i._domainkey.$D" CNAME; done
 
 **4.2** Confirm no record returns a **Cloudflare** address. If the apex resolves to a
 Cloudflare IP against the new nameservers, something is proxied.
+
+**4.2b** Confirm the **imported TTLs are 300, not 3600**. A BIND import carries the source
+TTLs across, and 3600 would remove the fast-correction property exactly when it is wanted.
+
+```bash
+dig @<cloudflare-ns> southvillerunningclub.co.uk A +noall +answer
+#   TTL column should read 300
+```
+
+**4.2c** Browse the zone as if it were already delegated — **the best test available**, and
+it changes nothing for anyone but you. On macOS:
+
+```bash
+dig +short <cloudflare-ns>                       # get its IP
+sudo mkdir -p /etc/resolver
+printf 'nameserver <that-ip>\n' | sudo tee /etc/resolver/southvillerunningclub.co.uk
+```
+
+Your machine — and only your machine — now resolves this domain and every subdomain through
+Cloudflare. **Load the club site, load `nn.`, send and receive a club email.** Delete the
+file to undo.
+
+> **Turn off DNS-over-HTTPS in your browser first.** Chrome and Firefox otherwise bypass the
+> system resolver entirely, and you will conclude it works without having tested anything.
 
 **4.3** **The second volunteer runs the same check independently**, from their own machine.
 
