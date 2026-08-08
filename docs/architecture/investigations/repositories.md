@@ -4,7 +4,7 @@ How many repositories, what each owns, and how code that belongs to more than on
 gets to both.
 
 **Open.** Five candidates below, none recommended. The criteria in
-[requirements](../foundations/requirements.md) genuinely conflict, and the trade is the
+[requirements](../../foundations/requirements.md) genuinely conflict, and the trade is the
 club's rather than this document's.
 
 ---
@@ -16,7 +16,7 @@ club's rather than this document's.
 | `southville-running-club/src-website` | Club organisation | **Documentation only.** No application code |
 | `bindalshah/src-race-timing` | **A personal account** | Next.js 16, the race-timing platform. Proven in production |
 
-[Plan](../delivery/plan.md) step 11 moves the second into the club organisation. **That is
+[Plan](../../delivery/plan.md) step 11 moves the second into the club organisation. **That is
 a governance fix and is independent of everything below** — it happens whichever shape
 wins.
 
@@ -33,12 +33,12 @@ which cut across every option below.
 **A race repository need not own race data.** `src-ptb` and `src-nn` could be *front doors*
 — page, sign-up form, entry flow — with the timing platform remaining the sole owner of
 events, crossings and results. That is coherent, and it keeps
-[C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)'s
+[C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)'s
 single permanent archive intact.
 
 What is **not** coherent is a race repository owning its own copy of the event model.
 `events.format` has carried `'relay' | 'solo'`
-[since the timing app's first migration](../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know),
+[since the timing app's first migration](../../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know),
 so duplicating it forks the results archive, the bib scheme and the category system. See
 [database](database.md#nightingale-nightmare-is-an-event-not-an-application).
 
@@ -84,7 +84,7 @@ src-platform/
 | --- | --- |
 | **Blast-radius isolation.** Freeze the timing repository for race season with nothing shared to break | **Shared code has no good answer** — see [below](#the-shared-code-problem) |
 | Independent access control per repository | A cross-cutting change is N pull requests, reviewed and merged separately |
-| One repository, one Cloudflare project — no build filtering to configure | [Convergence](../foundations/requirements.md#convergence) is deferred, and deferred merges are the ones that never happen |
+| One repository, one Cloudflare project — no build filtering to configure | [Convergence](../../foundations/requirements.md#convergence) is deferred, and deferred merges are the ones that never happen |
 | Smallest possible checkout for a new contributor | Five READMEs, five CI configs, five dependency-update streams for two volunteers |
 
 ### C — hybrid: front doors separate, schema central
@@ -99,7 +99,7 @@ generated types as a package the others consume.
 | The type package is a real contract, versioned and reviewable | A package publish step, which is infrastructure two volunteers have to keep working |
 
 The atomicity cost is smaller than it sounds:
-[expand–migrate–contract](../foundations/glossary.md#platform-and-delivery) is **already
+[expand–migrate–contract](../../foundations/glossary.md#platform-and-delivery) is **already
 required** by the race-day risk constraint, and it exists precisely so that schema and code
 can ship separately.
 
@@ -110,7 +110,7 @@ schema — and `src-race-timing` left permanently alone.
 
 | Buys | Costs |
 | --- | --- |
-| Matches the constraint that actually differs. [Risk](../foundations/requirements.md#risk) applies to the timing app and to nothing else | Leaves the timing app permanently outside, against convergence being a *stated goal* rather than an option |
+| Matches the constraint that actually differs. [Risk](../../foundations/requirements.md#risk) applies to the timing app and to nothing else | Leaves the timing app permanently outside, against convergence being a *stated goal* rather than an option |
 | Everything new gets monorepo ergonomics from day one | The timing app keeps its own duplicate of the timezone helper indefinitely |
 | Nothing has to be decided about the timing app now | "Permanently" tends to mean "until someone re-opens it under time pressure" |
 
@@ -123,7 +123,7 @@ a real problem appears.
 | --- | --- |
 | **Splitting later is genuinely easy** — `git filter-repo`, a new remote, done in an afternoon | Requires the discipline to actually notice the problem rather than tolerate it |
 | Defers a decision that does not have to be made now, without blocking anything | "We'll split it later" is the same sentence as "we'll merge it later", and one of those is a lie |
-| Matches [exit cost](../foundations/requirements.md#exit-cost) as a first-class criterion | |
+| Matches [exit cost](../../foundations/requirements.md#exit-cost) as a first-class criterion | |
 
 **The asymmetry that makes E worth listing:** splitting a monorepo later is mechanical.
 Merging separate repositories later means reconciling divergent tooling, divergent
@@ -138,7 +138,7 @@ The single most concrete argument in this whole document, and the one that shoul
 decide it.
 
 The timing app's `lib/london-time.ts` exists because
-[an hour of drift is a real foot-gun](../reference/timing-app-review.md#what-is-strong) —
+[an hour of drift is a real foot-gun](../../reference/timing-app-review.md#what-is-strong) —
 the module's own comment says so, and the test suite only passes because `TZ=UTC` is
 pinned. **Nightingale Nightmare sits on or near the clocks-change weekend.**
 
@@ -154,7 +154,7 @@ one race in one year, and getting that wrong in a schema is expensive.
 
 Publishing an npm package means a registry, a versioning discipline, and a release step —
 for two volunteers with day jobs, on a club with [no scale
-requirement](../foundations/requirements.md#what-the-club-is-not-asking-for). Git
+requirement](../../foundations/requirements.md#what-the-club-is-not-asking-for). Git
 submodules are famously the thing a third person picks up wrong. Copying accepts drift in
 exactly the module whose whole purpose is not drifting.
 
@@ -168,12 +168,12 @@ They do not agree, which is why this is open rather than obvious.
 
 | | Pulls towards | Why |
 | --- | --- | --- |
-| [People](../foundations/requirements.md#people) | **Fewer** | Two volunteers, day jobs, boring as a hard requirement, a third person picks it up cold. Every extra repository is another CI config and another README |
-| [Convergence](../foundations/requirements.md#convergence) | **Fewer** | *"One place, not three things that happen to share a club"* — stated as a goal, not an option |
-| [Everything as code](../foundations/requirements.md#everything-is-defined-as-code) | **Fewer** | *"Patterns established once serve the website, NN and the timing platform rather than being solved three times."* That sentence describes a monorepo |
-| [Risk](../foundations/requirements.md#risk) | **More separation** | Race-day critical, cannot be re-run — but this applies to **one** repository, not to the shape generally |
-| [Exit cost](../foundations/requirements.md#exit-cost) | **Fewer, weakly** | Splitting later is cheap; merging later is the one that never happens |
-| [Not scale](../foundations/requirements.md#what-the-club-is-not-asking-for) | **Against splitting for its own sake** | ~94 members, ~100 teams. Service boundaries solve a problem the club does not have |
+| [People](../../foundations/requirements.md#people) | **Fewer** | Two volunteers, day jobs, boring as a hard requirement, a third person picks it up cold. Every extra repository is another CI config and another README |
+| [Convergence](../../foundations/requirements.md#convergence) | **Fewer** | *"One place, not three things that happen to share a club"* — stated as a goal, not an option |
+| [Everything as code](../../foundations/requirements.md#everything-is-defined-as-code) | **Fewer** | *"Patterns established once serve the website, NN and the timing platform rather than being solved three times."* That sentence describes a monorepo |
+| [Risk](../../foundations/requirements.md#risk) | **More separation** | Race-day critical, cannot be re-run — but this applies to **one** repository, not to the shape generally |
+| [Exit cost](../../foundations/requirements.md#exit-cost) | **Fewer, weakly** | Splitting later is cheap; merging later is the one that never happens |
+| [Not scale](../../foundations/requirements.md#what-the-club-is-not-asking-for) | **Against splitting for its own sake** | ~94 members, ~100 teams. Service boundaries solve a problem the club does not have |
 
 **Four pull towards fewer repositories. One pulls hard the other way, for one specific
 repository.** That shape is C, D or E — and the difference between them is mostly about
@@ -206,7 +206,7 @@ the point at which either pattern's scaling properties matter.
 
 | | |
 | --- | --- |
-| **Tooling** | **npm workspaces.** No Turborepo, no Nx, no pnpm — the [build brief](../delivery/nn-build-brief.md#stack) already picked npm because boring beats better, and two applications do not need a build orchestrator |
+| **Tooling** | **npm workspaces.** No Turborepo, no Nx, no pnpm — the [build brief](../../delivery/nn-build-brief.md#stack) already picked npm because boring beats better, and two applications do not need a build orchestrator |
 | **Cloudflare** | One project per app, each with a **root directory** and **build watch paths** so a website change does not rebuild the race site. [Confirmed supported](https://developers.cloudflare.com/pages/configuration/monorepos/) |
 | **Build budget** | The free plan allows **500 builds a month**. Without watch paths every push builds every app, which is how that gets spent on no-ops |
 | **CI** | Path-filtered jobs, so a documentation change does not run Playwright |
@@ -218,18 +218,18 @@ the point at which either pattern's scaling properties matter.
 | --- | --- |
 | **Shared code** | Needs the answer above, written down before the second repository is created |
 | **Schema** | Strongly prefer option C's dedicated repository over letting two application repositories migrate one database. See [database](database.md#migrations) |
-| **Conventions** | The [build brief](../delivery/nn-build-brief.md) conventions have to be copied into each repository and will drift. A shared template repository is the usual mitigation and is itself a thing to maintain |
+| **Conventions** | The [build brief](../../delivery/nn-build-brief.md) conventions have to be copied into each repository and will drift. A shared template repository is the usual mitigation and is itself a thing to maintain |
 | **Documentation** | Decide whether `docs/` stays central or splits. Splitting it defeats the point of having written it down once |
 
 ---
 
 ## What this blocks
 
-**[Plan](../delivery/plan.md) step 17 assumes B or D** — it says *"create the NN
+**[Plan](../../delivery/plan.md) step 17 assumes B or D** — it says *"create the NN
 repository"*. Under A, C or E it becomes *"create `apps/nn`"*.
 
 Either way the [build brief's project
-structure](../delivery/nn-build-brief.md#project-structure) is unchanged — the same files,
+structure](../../delivery/nn-build-brief.md#project-structure) is unchanged — the same files,
 possibly one directory deeper. **This is the only thing in this document blocking the
 Nightingale Nightmare scaffold**, so it is the part worth answering first even if the rest
 stays open.

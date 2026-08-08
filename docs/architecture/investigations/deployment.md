@@ -29,7 +29,7 @@ products have been converging, and Workers is the survivor.
 | **The timing platform port** | Workers. It was always going to be — the Next.js adapter targets Workers |
 | **Nightingale Nightmare v2** | Migrates from Pages to Workers with the rest |
 
-**This is a further argument for [moving the DNS first](../delivery/dns-first.md).** That
+**This is a further argument for [moving the DNS first](../../delivery/dns-first.md).** That
 ordering was chosen to take the risky change in a quiet week; it turns out to also decide
 whether the club's main build starts on the supported path or the legacy one.
 
@@ -41,7 +41,7 @@ Worth stating because it simplifies things rather than complicating them:
 > need the Astro Cloudflare adapter."*
 
 The [build brief's adapter
-analysis](../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
+analysis](../../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
 concluded *"static Astro with no adapter, plus a Pages Function"* — and that conclusion
 survives the Pages/Workers change intact. A static build plus one function endpoint runs on
 either product. **The output is the portable thing**, which is exactly why it was chosen.
@@ -76,7 +76,7 @@ Workers gives three things Pages does not, and one of them matters for race day:
 
 **Gradual deployment is over-engineering for a club website** and worth knowing about for
 exactly one case: the timing platform, where the [risk
-constraint](../foundations/requirements.md#risk) is real and a bad deploy on race night
+constraint](../../foundations/requirements.md#risk) is real and a bad deploy on race night
 cannot be un-run. Even there, a change freeze is the simpler control.
 
 ---
@@ -93,11 +93,11 @@ credential is accepted, and the asymmetry is deliberate rather than an oversight
 | **On a pull request** | Migrations are **validated, not applied**. A preview deployment pointing at production data is a personal-data problem, not a convenience |
 | **Scoping** | `--schema club,intake`, so this repository never proposes dropping the timing app's tables |
 | **Never** | `supabase db reset` against a remote. It is a local command |
-| **Race weeks** | No migrations during a [change freeze](../foundations/glossary.md#platform-and-delivery) |
+| **Race weeks** | No migrations during a [change freeze](../../foundations/glossary.md#platform-and-delivery) |
 
 **Why accept the credential.** The alternative is a volunteer running migrations from a
 laptop — unreviewed, unlogged, invisible to the other volunteer, and a direct failure of
-[everything as code](../foundations/requirements.md#everything-is-defined-as-code). A
+[everything as code](../../foundations/requirements.md#everything-is-defined-as-code). A
 scoped token in GitHub Actions secrets is the smaller risk, and it is the mainstream
 pattern.
 
@@ -112,13 +112,13 @@ End to end, so the shape is concrete rather than implied.
 | **1. Branch** | From `main` |
 | **2. Local** | `supabase start`, edit `supabase/schemas/`, `supabase db diff` to generate the migration, build and test against the local stack. [Local development](local-development.md) |
 | **3. Pull request** | CI runs lint, unit tests, Worker tests, a build, and Playwright with axe. Migrations validate. Cloudflare posts a preview URL |
-| **4. Review** | The other volunteer reads the diff and opens the preview. **This is what [shared ownership](../foundations/requirements.md#shared-ownership) means in practice** |
+| **4. Review** | The other volunteer reads the diff and opens the preview. **This is what [shared ownership](../../foundations/requirements.md#shared-ownership) means in practice** |
 | **5. Merge** | Migrations apply, then Cloudflare builds and deploys |
 | **6. If wrong** | Roll back the Worker version immediately. **Roll the schema forward, never back** — that is what expand–migrate–contract is for |
 
 **Ordering within step 5 matters.** Expand the schema first, deploy code that tolerates
 both shapes, contract later. The timing app's registration migration
-[already documents this by hand](../reference/timing-app-review.md#what-is-strong) because
+[already documents this by hand](../../reference/timing-app-review.md#what-is-strong) because
 it hit a `42703` window in production.
 
 ---
@@ -147,7 +147,7 @@ the test environment.
 | `PUBLIC_SUPABASE_ANON_KEY` | Cloudflare project env vars, `.env` locally | Safe to expose — **RLS enforces access** |
 | `SUPABASE_ACCESS_TOKEN` | GitHub Actions secret | CI only. Never in Cloudflare, never in the browser |
 | Database password | GitHub Actions secret | CI only |
-| Stripe keys | Cloudflare secret binding, when payments exist | Behind the [governance gates](../foundations/requirements.md#legal-and-governance) |
+| Stripe keys | Cloudflare secret binding, when payments exist | Behind the [governance gates](../../foundations/requirements.md#legal-and-governance) |
 | **Service role key** | **Nowhere in any repository or client bundle** | If a build wants it, the RLS policy is wrong |
 
 `.env` is gitignored; `.env.example` is committed with empty values.
@@ -163,6 +163,6 @@ deleted — git history keeps it.
 | --- | --- |
 | **Workers or Pages for the main website** | Cloudflare says Workers. It depends on the DNS move landing first, which is already the plan |
 | **Whether Nightingale Nightmare migrates to Workers**, and when | Not urgent. Sensibly bundled with the main build |
-| **Whether the timing platform keeps deploying from Vercel** during the transition | It works. Moving it is [risk](../foundations/requirements.md#risk), and only the hostname needs to change first |
-| **Who holds the Cloudflare and Supabase billing relationship** | Both volunteers can reach the accounts; only one can hold a card. [Governance](../foundations/requirements.md#shared-ownership) |
+| **Whether the timing platform keeps deploying from Vercel** during the transition | It works. Moving it is [risk](../../foundations/requirements.md#risk), and only the hostname needs to change first |
+| **Who holds the Cloudflare and Supabase billing relationship** | Both volunteers can reach the accounts; only one can hold a card. [Governance](../../foundations/requirements.md#shared-ownership) |
 | **Whether CI enforces the stale-types check** from day one | Cheap to add early, annoying to retrofit |

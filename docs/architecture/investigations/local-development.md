@@ -45,7 +45,7 @@ Fixtures are **committed, deterministic and fabricated**. Never a dump of produc
 | --- | --- |
 | **Only data, never schema** | Schema comes from migrations. A seed file that creates tables will drift from production silently |
 | **Deterministic** | Fixed UUIDs and fixed timestamps, so a test can assert on them. Random fixtures produce tests that fail on Tuesdays |
-| **Realistic shapes, invented people** | ~100 teams, a couple of events, a few marshals, some anomalies. **No real member data ever leaves production** — [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) applies to laptops |
+| **Realistic shapes, invented people** | ~100 teams, a couple of events, a few marshals, some anomalies. **No real member data ever leaves production** — [C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully) applies to laptops |
 | **Includes the awkward cases** | A DNS, a DNF, a duplicate bib, an unresolved anomaly, a walk-in with an override bib. The states that break rendering |
 
 ---
@@ -75,8 +75,8 @@ false comfort.
 | | Why it needs the real thing |
 | --- | --- |
 | **RLS policies** | The club has [no API tier](database.md#row-level-security) — RLS *is* the access control. A mock tests the mock |
-| **RLS recursion** | The timing app has [a migration existing specifically to fix it](../reference/timing-app-review.md#row-level-security). Only a real planner reproduces it |
-| **Triggers** | `private.resolve_crossing_team_id()` resolves bib to team **in SQL**, and the same logic exists in TypeScript. The repository is explicit that [these must stay in lockstep](../reference/timing-app-review.md#crossings) — which is a test, and it needs both sides real |
+| **RLS recursion** | The timing app has [a migration existing specifically to fix it](../../reference/timing-app-review.md#row-level-security). Only a real planner reproduces it |
+| **Triggers** | `private.resolve_crossing_team_id()` resolves bib to team **in SQL**, and the same logic exists in TypeScript. The repository is explicit that [these must stay in lockstep](../../reference/timing-app-review.md#crossings) — which is a test, and it needs both sides real |
 | **Constraints and idempotency** | `upsert(onConflict: 'id')` is what makes the offline queue safe to retry |
 
 **The RLS test that matters most** is the negative one: an anonymous client attempting to
@@ -85,16 +85,16 @@ read `club.members` must fail. Testing that the happy path works proves very lit
 ### Timezone testing is a correctness requirement here
 
 Not a nicety. [Nightingale Nightmare sits on or near the clocks-change
-weekend](../foundations/glossary.md#club-and-races), and the timing app's
+weekend](../../foundations/glossary.md#club-and-races), and the timing app's
 `lib/london-time.ts` exists because [an hour of drift is a real
-foot-gun](../reference/timing-app-review.md#what-is-strong) — its own comment says so, and
+foot-gun](../../reference/timing-app-review.md#what-is-strong) — its own comment says so, and
 the suite only passes because `TZ=UTC` is pinned.
 
 | | |
 | --- | --- |
 | **Pin `TZ=UTC` in the test environment** | As the timing app already does |
 | **Fixture the clocks-change weekend explicitly** | 25 October 2026, 01:59 and 02:01 local. Both directions |
-| **Store UTC, display `Europe/London`** | [A stated requirement](../foundations/requirements.md#time-and-timezone), so it is asserted rather than assumed |
+| **Store UTC, display `Europe/London`** | [A stated requirement](../../foundations/requirements.md#time-and-timezone), so it is asserted rather than assumed |
 | **Never `toLocaleTimeString` without an explicit zone** | The ambient default is the bug |
 
 ---
@@ -152,7 +152,7 @@ migration** end to end: import a zone into Cloudflare, get the proxy settings wr
 discover what a mis-proxied mail record actually looks like, and practise the rollback —
 all against a domain where nothing is at stake.
 
-Set against the [risk](../foundations/requirements.md#risk) constraint, that is the only
+Set against the [risk](../../foundations/requirements.md#risk) constraint, that is the only
 change in the whole programme that *"can break something the club cannot quickly un-break"*
 — **£10 to rehearse it once is cheap.** It also gives a permanent home for staging and for
 mail testing afterwards.
@@ -184,7 +184,7 @@ restored backup — can actually reach the current schema. A migration set that 
 incrementally is a migration set nobody can rebuild from.
 
 **Zero axe violations, not "few".** [Accessibility is a stated
-requirement](../foundations/requirements.md#users) — WCAG 2.2 AA, 70% of visitors on a
+requirement](../../foundations/requirements.md#users) — WCAG 2.2 AA, 70% of visitors on a
 phone, *"sometimes in bright sunlight with cold hands"*. A threshold above zero becomes the
 new normal within a month.
 
@@ -192,7 +192,7 @@ new normal within a month.
 
 ## Commands
 
-From the [build brief](../delivery/nn-build-brief.md#commands), extended for the full
+From the [build brief](../../delivery/nn-build-brief.md#commands), extended for the full
 stack:
 
 ```bash
@@ -220,5 +220,5 @@ difference between a third volunteer contributing on a Sunday afternoon and not.
 | --- | --- |
 | **Does the club buy a throwaway domain** for DNS rehearsal, staging and mail testing? | ~£10/yr, and it de-risks the one irreversible change in the programme |
 | **Is there a staging environment at all**, given a free Supabase project [pauses after a week idle](database.md#what-the-free-tier-actually-allows) | Local plus preview deployments may be enough |
-| **Race simulation stays manual** | The [glossary](../foundations/glossary.md#platform-and-delivery) already defines it: multiple devices, real connectivity loss, the real race date. **No test suite replaces it**, and the timing app's own logs note the two-marshal path is still only partially verified |
+| **Race simulation stays manual** | The [glossary](../../foundations/glossary.md#platform-and-delivery) already defines it: multiple devices, real connectivity loss, the real race date. **No test suite replaces it**, and the timing app's own logs note the two-marshal path is still only partially verified |
 | **Whether CI runs on a schedule** as well as on pull requests | Catches dependency rot and free-tier changes before they surface during a race week |

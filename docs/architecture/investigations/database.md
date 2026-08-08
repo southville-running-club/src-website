@@ -4,7 +4,7 @@ How many Supabase projects, how the data inside one is separated, who may change
 schema, and what happens when it needs restoring.
 
 **Postgres in `eu-west-2` is settled** —
-[decision 002](../decisions/decision-log.md#002--hold-the-clubs-data-in-supabase-on-the-free-tier).
+[decision 002](../../decisions/decision-log.md#002--hold-the-clubs-data-in-supabase-on-the-free-tier).
 Everything below is the shape inside that.
 
 ---
@@ -14,7 +14,7 @@ Everything below is the shape inside that.
 ### One project, not one per application
 
 **This is close to forced rather than chosen**, and the forcing requirement is
-[C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically):
+[C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically):
 
 > A page per race per year... **derived from timing data rather than re-keyed.**
 
@@ -50,7 +50,7 @@ time-sensitive, and it is an argument for doing validation locally instead.
 ### Data residency
 
 `eu-west-2` (London) throughout, for
-[C10](../foundations/requirements.md#c10--hold-personal-data-lawfully). The timing project
+[C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully). The timing project
 is already there; anything new matches it.
 
 ---
@@ -80,7 +80,7 @@ nuisance.
 
 > **The schema boundary is the blast radius.**
 
-[C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) is *"not a feature,
+[C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully) is *"not a feature,
 it is a condition on everything else"*, and this is what that looks like in a schema.
 
 ### Nightingale Nightmare is an event, not an application
@@ -88,19 +88,19 @@ it is a condition on everything else"*, and this is what that looks like in a sc
 A correction worth making before any table exists, because the instinct is to mirror the
 timing app and it would be wrong.
 
-The [glossary](../foundations/glossary.md#club-and-races) defines an **event** as one
+The [glossary](../../foundations/glossary.md#club-and-races) defines an **event** as one
 running of one race in one year, and
 [`events.format` has carried `'relay' | 'solo'` since the timing app's first
-migration](../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know) —
+migration](../../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know) —
 solo is modelled, not hypothetical.
 
 So when Nightingale Nightmare takes **real entries**, they belong in the **same** event and
 entry model as Pass the Buck. A parallel copy would fork the results archive, the bib
 scheme and the category system — and
-[C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
+[C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
 asks for one permanent archive across all of them.
 
-**But v1 is not an entry.** The [build brief](../delivery/nn-build-brief.md#scope) scopes it
+**But v1 is not an entry.** The [build brief](../../delivery/nn-build-brief.md#scope) scopes it
 to *name, email, consent, timestamp* — an expression of interest, with no bib, no category,
 no payment and no event relationship.
 
@@ -108,11 +108,11 @@ no payment and no event relationship.
 > `teams` table.
 
 That resolves the brief's own
-[open item](../delivery/nn-build-brief.md#deliberately-left-open).
+[open item](../../delivery/nn-build-brief.md#deliberately-left-open).
 
 ### Two tables that must not be merged
 
-[C4](../foundations/requirements.md#c4--take-payments) says it in terms:
+[C4](../../foundations/requirements.md#c4--take-payments) says it in terms:
 
 > The £2.50 subscription **is not membership** and its payers are not a membership list —
 > conflating them will produce a wrong data model.
@@ -131,7 +131,7 @@ information at the parser boundary**, before anything reaches the database, and 
 computed `age_on_day` rather than a birth date. The raw CSV in storage is the audit trail;
 the table holds operational data only.
 
-[The review](../reference/timing-app-review.md#runners) calls this *"C10 already
+[The review](../../reference/timing-app-review.md#runners) calls this *"C10 already
 implemented, and the pattern any new entry surface should inherit."*
 
 Nightingale Nightmare needs age bands, so it needs date of birth **at the moment of entry**
@@ -150,7 +150,7 @@ policy mistake load-bearing.
 | **Enabled on every table**, from its first migration. No exceptions, no "we'll add it later" | |
 | **The anon key is public** and appears in client code. **The service role key never reaches the browser and never enters the repository** | If a build seems to want the service role key, the policy is wrong and that is the thing to fix |
 | **Helper functions live in a `private` schema with pinned `search_path`** | The pattern the timing app already uses |
-| **RLS recursion is a known hazard here** | The timing app has [a migration existing specifically to fix it](../reference/timing-app-review.md#row-level-security). Worth reading before writing policies against these tables |
+| **RLS recursion is a known hazard here** | The timing app has [a migration existing specifically to fix it](../../reference/timing-app-review.md#row-level-security). Worth reading before writing policies against these tables |
 | **Policies are tested, not asserted** | See [local development](local-development.md#what-only-a-real-postgres-can-test) |
 
 ---
@@ -215,26 +215,26 @@ written into the conventions.
 `supabase gen types typescript` output is **committed**, and CI fails if it is stale.
 
 That is how the website gets compile-time knowledge of the timing schema without reaching
-into the timing repository — [convergence](../foundations/requirements.md#convergence) at
+into the timing repository — [convergence](../../foundations/requirements.md#convergence) at
 the type level while the code stays separate. Under a monorepo it is a workspace directory;
 under separate repositories it is the published package that makes option C work.
 
 ### Ordering
 
-[Expand–migrate–contract](../foundations/glossary.md#platform-and-delivery), always. The
+[Expand–migrate–contract](../../foundations/glossary.md#platform-and-delivery), always. The
 timing app's registration migration
-[already documents its own deploy-then-migrate sequence](../reference/timing-app-review.md#what-is-strong)
+[already documents its own deploy-then-migrate sequence](../../reference/timing-app-review.md#what-is-strong)
 to avoid a `42703` window in production — expand-migrate-contract reasoning applied by
 hand, before it was named as a convention.
 
 **No migrations during a race [change
-freeze](../foundations/glossary.md#platform-and-delivery).**
+freeze](../../foundations/glossary.md#platform-and-delivery).**
 
 ---
 
 ## C6 and the 200-connection ceiling
 
-[Decision 002](../decisions/decision-log.md#002--hold-the-clubs-data-in-supabase-on-the-free-tier)
+[Decision 002](../../decisions/decision-log.md#002--hold-the-clubs-data-in-supabase-on-the-free-tier)
 carries a **binding design constraint**: the live leaderboard must not be served from
 Supabase Realtime, because a race-night crowd would exceed 200 concurrent connections and
 force Supabase Pro at £237/yr.
@@ -268,7 +268,7 @@ taken deliberately when C6 is built.
 **The Supabase free tier has no automated backups**, and this is currently unanswered
 anywhere in the documentation. It is the largest gap in the data architecture.
 
-[Continuity](../foundations/requirements.md#continuity) is explicit:
+[Continuity](../../foundations/requirements.md#continuity) is explicit:
 
 > The results archive is permanent. Whatever holds it must not sleep, expire, or lose data
 > without a restorable backup. **A URL published in 2026 should resolve in 2036.**
@@ -282,7 +282,7 @@ What still needs deciding, and the last one is the one usually skipped:
 | --- | --- |
 | Frequency and retention | Daily with 30 days is the obvious starting point |
 | Encryption at rest, and who holds the key | It contains member personal data |
-| Who can reach it | Both volunteers, per [shared ownership](../foundations/requirements.md#shared-ownership) |
+| Who can reach it | Both volunteers, per [shared ownership](../../foundations/requirements.md#shared-ownership) |
 | **Whether anyone has actually restored from it** | **An untested backup is a belief, not a backup** |
 
 ---
@@ -295,5 +295,5 @@ What still needs deciding, and the last one is the one usually skipped:
 | **Which repository owns schema** | Follows from [repository shape](repositories.md) |
 | **Is there a staging project at all** | It will pause, the two-project limit is per person, and local development may make it unnecessary |
 | **The backup runbook**, including a tested restore | The biggest gap here |
-| **Retention policy per table** | [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) requires one; nothing is written |
+| **Retention policy per table** | [C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully) requires one; nothing is written |
 | **Whether `intake` rows are ever promoted into `club`** | An interest registration becoming a member is a real flow with a real lawful-basis question |
