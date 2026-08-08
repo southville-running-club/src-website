@@ -30,9 +30,9 @@ to a requirement or a decision is just somebody's preference that survived.
 | | Status |
 | --- | --- |
 | [Repositories](investigations/repositories.md) | **Settled** — [ADR-001](decisions/adr-001-one-monorepo.md), one monorepo |
-| [Networking](investigations/networking.md) | Hostnames, zones, TLS, routing, environments. **The DNS move is the current priority** |
+| [Networking](investigations/networking.md) | **The zone moved to Cloudflare on 8 Aug 2026.** Hostnames, TLS, routing, and the proxy rule that now has two halves |
 | [Database](investigations/database.md) | **Mostly settled** — [ADR-002](decisions/adr-002-schema-layout.md). Backups still open |
-| [Deployment](investigations/deployment.md) | Workers-or-Pages for the main site still open; Nightingale Nightmare is Pages either way |
+| [Deployment](investigations/deployment.md) | **Settled** — Workers throughout, since the nameservers moved on 8 Aug 2026 |
 | [Local development](investigations/local-development.md) | **Settled** — [ADR-003](decisions/adr-003-local-development-and-pipeline.md), [ADR-004](decisions/adr-004-no-staging-environment.md) |
 | [Infrastructure as code](investigations/infrastructure-as-code.md) | **Settled** — [ADR-005](decisions/adr-005-manual-with-a-reviewable-artefact.md). Counts the work, and concludes no tool earns its keep yet |
 
@@ -57,37 +57,31 @@ layout, test strategy) go in [decisions/](decisions/). When in doubt, the decisi
 
 ## Open questions
 
-**Nothing architectural is blocking any more.** The four decisions above clear the path to
-building Nightingale Nightmare and to moving the DNS. What remains can be answered as it is
-reached. Tracked in
-[#1](https://github.com/southville-running-club/src-website/issues/1).
+**Nothing architectural is blocking any more.** The five decisions above, plus the completed
+nameserver move, clear the path to building. What remains can be answered as it is reached.
+Tracked in [#1](https://github.com/southville-running-club/src-website/issues/1).
 
-### Next, and it is a delivery question rather than an architectural one
+### ✅ The DNS move is done
 
-**The DNS move.** [Move the DNS first](../delivery/dns-first.md) and
-[DNS and domain](../solutions/dns-and-domain.md) cover the reasoning; the runbook is
-[plan](../delivery/plan.md) steps 23–36. It is the only change in the programme that
-[cannot be quickly un-broken](investigations/networking.md#failure-modes-and-how-fast-each-reverses),
-and it carries club email.
+**8 August 2026.** The zone is on Cloudflare, which was the last infrastructural blocker —
+Workers custom domains are now available, so
+[Phases 4 and 6](../delivery/phases.md) are unblocked and everything new is a Worker.
 
-> **It does not block Nightingale Nightmare, and Nightingale Nightmare must not wait for
-> it.** A subdomain needs [one additive
-> CNAME](investigations/networking.md#what-gets-added) at Fasthosts — nothing existing is
-> touched, mail cannot break, and deleting the record restores today exactly. With sign-ups
-> opening in about two weeks, putting a 48-hour-rollback change in front of a hard date
-> would invert the risk logic the rest of the plan is built on.
+**Next is code**, not architecture:
+[Phase 3](../delivery/phases.md#phase-3--hello-world-for-nightingale-nightmare) — the
+workspace root, then `apps/nn`, then a Worker on the club domain writing to Supabase.
 
 ### Before the main website build
 
 | | Note |
 | --- | --- |
-| **Workers or Pages for the main site** | Cloudflare says Workers for new projects, and Workers needs the DNS move landed first. Not urgent, but it decides whether the main build starts on the supported path |
+| ~~Workers or Pages for the main site~~ | ✅ **Settled — Workers.** The nameserver move on 8 Aug 2026 removed the constraint that forced Pages |
 | **Declarative schemas or imperative migrations** | Cheaper to choose before there are migrations to convert |
 | **Astro for the main website**, as a record | Recommended everywhere, recorded nowhere. Already fixed for Nightingale Nightmare by the build brief |
 | **Does the website need member-facing auth at all?** | Answering *no* removes a large amount of build **and** a large amount of personal data |
 | **The backup runbook**, with a tested restore | The free tier has **no automated backups**, and continuity says a 2026 URL resolves in 2036. **The largest remaining gap** |
 | **Document naming and the stable-URL contract** | A limited company's public record back to 2015. Every scheme chosen later breaks URLs published earlier |
-| **A ~£10/yr throwaway domain?** | Now the *only* way to rehearse the DNS move or test mail authentication, since [ADR-004](decisions/adr-004-no-staging-environment.md) declined a staging environment |
+| ~~A ~£10/yr throwaway domain to rehearse the DNS move?~~ | **Moot — the move is done**, and the pre-flight testing (`/etc/resolver` against a pending zone) proved sufficient. Still the only way to test **mail authentication** without touching production |
 
 ### Before the timing platform is touched
 
@@ -118,10 +112,10 @@ Four things in the existing documentation turned out to be wrong or out of date.
 money.
 
 **Cloudflare now tells new projects to use Workers, not Pages.** *"Pages continues to work,
-but new features and optimizations are focused on Workers."* Nightingale Nightmare v1 stays
-on Pages regardless — Workers custom domains need an active zone and the club's is still at
-Fasthosts — but the main website should not start on the legacy path. **Another argument for
-[moving the DNS first](../delivery/dns-first.md).**
+but new features and optimizations are focused on Workers."* This was the finding that made
+the nameserver move urgent — Workers custom domains need an active zone, so while the zone sat
+at Fasthosts the club was boxed into Pages. **The nameservers moved on 8 August 2026 and
+everything new is a Worker.**
 
 **The live leaderboard may not need Workers Paid at all.** The £47/yr in
 [platform options](../solutions/platform-options.md#why-cloudflare-is-free-and-when-it-stops-being)

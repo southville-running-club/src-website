@@ -518,7 +518,7 @@ fails quietly here.
 | | |
 | --- | --- |
 | **Workers custom domains** | Previously impossible on the club domain |
-| **The current Astro Cloudflare adapter** | The [Pages/Workers pincer](../nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything) disappears, and the main website can start on the path Cloudflare actually supports |
+| **The current Astro Cloudflare adapter** | The [Pages/Workers pincer](../nn-build-brief.md#build-it-as-a-worker) disappears, and the main website can start on the path Cloudflare actually supports |
 | **Cron Triggers** | A Workers feature — the newsletter mirror stops needing a GitHub Actions workaround |
 | **The March apex cutover** | Becomes a record change **inside** Cloudflare. Seconds to make, seconds to reverse |
 | **DNS as a reviewable artefact** | [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) |

@@ -8,7 +8,13 @@ Two systems, two different answers, and the difference is entirely about **crede
 
 ## Pages or Workers
 
-**The most time-sensitive open question in this folder.**
+> ## ✅ Settled — **Workers**, since 8 August 2026
+>
+> The nameservers moved, so Workers custom domains became available and the constraint that
+> forced Pages is gone. **Everything new is a Worker**: Nightingale Nightmare, the timing app,
+> the website. Kept below because the reasoning explains the sequencing.
+
+**This was the most time-sensitive open question in this folder.**
 
 Cloudflare's own position changed, and the existing documentation predates it:
 
@@ -41,7 +47,7 @@ Worth stating because it simplifies things rather than complicating them:
 > need the Astro Cloudflare adapter."*
 
 The [build brief's adapter
-analysis](../../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
+analysis](../../delivery/nn-build-brief.md#build-it-as-a-worker)
 concluded *"static Astro with no adapter, plus a Pages Function"* — and that conclusion
 survives the Pages/Workers change intact. A static build plus one function endpoint runs on
 either product. **The output is the portable thing**, which is exactly why it was chosen.

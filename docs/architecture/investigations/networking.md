@@ -30,7 +30,7 @@ domains require an active zone. [Phase 3](../../delivery/phases.md) was gated on
 longer is.
 
 **Nightingale Nightmare's constraint is also gone.** The
-[build brief](../../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
+[build brief](../../delivery/nn-build-brief.md#build-it-as-a-worker)
 specified static Astro with no adapter *because* Pages was the only option on a
 Fasthosts-hosted zone. That output is still the right shape for a page and a form — but it is
 now a choice rather than a corner.

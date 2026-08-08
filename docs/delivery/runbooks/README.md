@@ -9,8 +9,8 @@ each step. If a runbook makes you stop and think about *why*, that is a bug in t
 | | | Serves |
 | --- | --- | --- |
 | [**Adding a hostname**](adding-a-hostname.md) | **Where DNS records go now.** Short answer: Cloudflare, and usually the service creates it for you | Any |
-| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | Cloudflare project → a page that works → `nn.southvillerunningclub.co.uk` | [Phase 1](../phases.md#phase-1--hello-world-on-the-club-domain) |
-| [**The nameserver move**](nameserver-move.md) ✅ | Fasthosts → Cloudflare, carrying club email. **Executed 8 Aug 2026** | [Phase 4](../phases.md#phase-4--move-the-nameservers) |
+| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | A Worker → a page that works → `nn.southvillerunningclub.co.uk` | [Phase 3](../phases.md#phase-3--hello-world-for-nightingale-nightmare) |
+| [**The nameserver move**](nameserver-move.md) ✅ | Fasthosts → Cloudflare, carrying club email. **Executed 8 Aug 2026** | [Phase 2](../phases.md#phase-2--move-the-nameservers) |
 
 **Stages inside a runbook are internal to it** and are not the programme's
 [phases](../phases.md). A runbook is a procedure; a phase is a chunk of the programme.

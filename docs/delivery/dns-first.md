@@ -293,7 +293,7 @@ Three mitigations, in order of usefulness:
 ## What this unblocks
 
 A constraint documented in the [build
-brief](nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
+brief](nn-build-brief.md#build-it-as-a-worker)
 exists **only because the zone is at Fasthosts**:
 
 | | Zone at Fasthosts | Zone at Cloudflare |

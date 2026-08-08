@@ -20,7 +20,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 
 ---
 
-## Phase 1 · Get the club an identity
+## Phases 1-3 · Get the club an identity
 
 1. ~~**Ask Fasthosts two questions**~~ — **done.** Sending limits are fine and the package
    allows **five mailboxes** at no extra cost, so the
@@ -51,7 +51,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 > **Stop if steps 3 or 4 fail.** Everything after this assumes the club has a working
 > address of its own.
 
-## Alongside Phase 1 · Rescue what disappears when Squarespace is cancelled
+## Alongside · Rescue what disappears when Squarespace is cancelled
 
 *Free to do now. Impossible later. Can run alongside everything below.*
 
@@ -60,7 +60,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 14. **Download all 33 newsletters and every image** on the site.
 15. **Store the lot somewhere the club controls**, and write down what was retrieved.
 
-## Phases 1–2 · Get Nightingale Nightmare started
+## Phases 3 and 5 · Get Nightingale Nightmare started
 
 *Needs step 6. Nothing else.*
 
@@ -74,7 +74,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
     [build brief](nn-build-brief.md). *Monorepo, per
     [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) — not a separate
     repository.*
-18. **Deploy it to its free `pages.dev` address** — no DNS needed. *Steps 17–18 and 37–39
+18. **Deploy it to its free `workers.dev` address** — no DNS needed. *Steps 17–18 and 37–39
     are a runbook: [Nightingale Nightmare onto the club
     domain](runbooks/nn-to-club-domain.md).*
 19. **Create the sign-up table**: **`intake.nn_interest`** — name, email, consent,
@@ -88,7 +88,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 22. **Decide by the end of August** whether 2026 entries go through the club's own site or
     stay with Full On Sport. *Paid entries want to open in early September.*
 
-## Phase 4 · Move the DNS to Cloudflare, changing nothing else ✅
+## Phase 2 · Move the DNS to Cloudflare, changing nothing else ✅
 
 > **Steps 23–35 done, 8 August 2026.** Delegation is
 > `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`. All 18 records verified identical,
@@ -135,16 +135,17 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 > **If anything breaks, fix it at Cloudflare** — that takes 5 minutes. Reverting the
 > nameservers takes up to 48 hours and is the last resort.
 
-## Phases 1–2 · Put Nightingale Nightmare on the club domain
+## Phase 3 · Put Nightingale Nightmare on the club domain
 
-37. **Add the `nn` record.** *Associate the domain in the Cloudflare dashboard first, then
-    add the record — the other way round gives a 522 error.*
+37. **Attach `nn.southvillerunningclub.co.uk` as a custom domain on the Worker.**
+    *Cloudflare creates the DNS record and the certificate. Nothing at Fasthosts — its panel
+    is no longer authoritative. This record **is** proxied; Cloudflare is the origin.*
 38. **Test the whole thing end to end** — the page loads over HTTPS and a sign-up actually
     lands in the table.
 39. **Announce it.** Not before step 38 — an address that doesn't resolve is remembered as
     not existing for an hour.
 
-## Phase 3 · Rebuild the timing app on Cloudflare
+## Phases 4 and 6 · The timing app on Cloudflare
 
 ⚠️ ***The only phase touching a system that cannot be re-run.*** **After the Nightingale
 Nightmare race, not before** — NN 2026 runs on the existing Vercel deployment, because
@@ -154,12 +155,12 @@ constraint](../foundations/requirements.md#risk) exists to prevent.
 > **This phase depends on steps 23–36 having happened.** The app is Next.js using Node APIs,
 > so it needs `@opennextjs/cloudflare`, which targets **Workers** — and **Workers custom
 > domains require an active Cloudflare zone**. See
-> [the ordering problem](phases.md#phase-3-depended-on-phase-4-resolved).
+> [the ordering problem](phases.md#phase-2--move-the-nameservers).
 
 40. **Port the app to Workers** with `@opennextjs/cloudflare`, and **move the repository into
     the monorepo** — into the club organisation *first*, then connect Cloudflare, or the git
     link desyncs.
-41. **Add `timing.southvillerunningclub.co.uk`** as a Workers custom domain.
+41. **Attach `timing.southvillerunningclub.co.uk`** as a custom domain on the Worker.
 42. **Update the Supabase Auth redirect addresses** and anything with the old domain written
     into it. *Magic links break silently if this is missed.*
 43. **Rebuild the live leaderboard on Durable Objects**, not Supabase Realtime. *Realtime
@@ -172,7 +173,7 @@ constraint](../foundations/requirements.md#risk) exists to prevent.
 > idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
 > `Europe/London` pinning.
 
-## Phase 5 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
+## Phase 7 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
 
 *The old site keeps running throughout — [what the requirements always asked
 for](../foundations/requirements.md#continuity). The new one grows beside it at
@@ -189,7 +190,7 @@ is proven long before anything switches.*
     a month, and every one is somebody who would otherwise have to be asked to move
     twice.*
 
-## Phase 6 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
+## Phase 8 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
 
 *Around 103 people must each personally re-establish their payment; the mandates die with
 Squarespace Payments. **Needs step 45, not the finished website.***
@@ -204,7 +205,7 @@ Squarespace Payments. **Needs step 45, not the finished website.***
     arriving at Squarespace and at the new page. *Time-box it rather than letting it
     drift.*
 
-## Phase 5 · Build the rest of the new site
+## Phase 7 · Build the rest of the new site
 
 *On `new.`, with paths mirroring the old site. Ordered by [what people actually
 read](../foundations/current-state.md#what-people-actually-read).*
@@ -225,7 +226,7 @@ read](../foundations/current-state.md#what-people-actually-read).*
     *Because the paths align, this can be checked for real rather than promised.*
 63. **Check accessibility and phone performance.** *70% of visitors are on a phone.*
 
-## Phase 7 · The switch
+## Phase 9 · The switch
 
 *One coordinated moment, because Squarespace 301-redirects every secondary domain to its
 primary — so the old site cannot be reachable at `old.` while it is still serving `www`.*
@@ -242,7 +243,7 @@ primary — so the old site cannot be reachable at `old.` while it is still serv
 68. **Walk every old address** and confirm nothing 404s.
 69. **Leave it running** while members actually use it.
 
-## Phase 7 · Switch Squarespace off
+## Phase 9 · Switch Squarespace off
 
 70. **Confirm all five are true:** the site is rebuilt and serving the apex; every URL
     resolves; the member fund has moved; every document, newsletter and image is held by
