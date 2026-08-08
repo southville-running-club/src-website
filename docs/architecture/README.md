@@ -18,7 +18,7 @@ re-argued.
 | | | Read it when |
 | --- | --- | --- |
 | [**Principles**](principles.md) | **The as-is.** What is already true and stays true | **Before writing any code.** If you read one thing here, read this |
-| [**Investigations**](investigations/) | Options, trade-offs and research. **Nothing decided** | You are about to argue about one of them |
+| [**Investigations**](investigations/) | Options, trade-offs and research. **The working, not the answer** | You are about to argue about one of them, or want to know why a decision went the way it did |
 | [**Decisions**](decisions/) | Records of what was chosen, and why | You want to know why something is the way it is |
 
 The flow is one way: an investigation narrows to a decision, and a decision that stops being
@@ -29,11 +29,20 @@ to a requirement or a decision is just somebody's preference that survived.
 
 | | Status |
 | --- | --- |
-| [Repositories](investigations/repositories.md) | **Open** — five candidates, criteria genuinely conflict |
-| [Networking](investigations/networking.md) | Hostnames, zones, TLS, routing, environments |
-| [Database](investigations/database.md) | Project topology, schemas, RLS, migrations, backups |
-| [Deployment](investigations/deployment.md) | Cloudflare and Supabase. **Time-sensitive** — the Pages/Workers change |
-| [Local development](investigations/local-development.md) | The local stack, the test suite, validating without the club domain |
+| [Repositories](investigations/repositories.md) | **Settled** — [ADR-001](decisions/adr-001-one-monorepo.md), one monorepo |
+| [Networking](investigations/networking.md) | Hostnames, zones, TLS, routing, environments. **The DNS move is the current priority** |
+| [Database](investigations/database.md) | **Mostly settled** — [ADR-002](decisions/adr-002-schema-layout.md). Backups still open |
+| [Deployment](investigations/deployment.md) | Workers-or-Pages for the main site still open; Nightingale Nightmare is Pages either way |
+| [Local development](investigations/local-development.md) | **Settled** — [ADR-003](decisions/adr-003-local-development-and-pipeline.md), [ADR-004](decisions/adr-004-no-staging-environment.md) |
+
+### Decided
+
+| | |
+| --- | --- |
+| [**ADR-001**](decisions/adr-001-one-monorepo.md) | One monorepo, npm workspaces. `src-race-timing` joins with the Cloudflare port |
+| [**ADR-002**](decisions/adr-002-schema-layout.md) | `public` / `private` / `club` / `intake`. Nightingale Nightmare sign-ups → `intake.nn_interest` |
+| [**ADR-003**](decisions/adr-003-local-development-and-pipeline.md) | `localhost` with fabricated data; the pipeline brings up the same stack and runs acceptance tests |
+| [**ADR-004**](decisions/adr-004-no-staging-environment.md) | No staging environment. Local plus preview deployments |
 
 ### Where decisions live
 
@@ -46,54 +55,57 @@ layout, test strategy) go in [decisions/](decisions/). When in doubt, the decisi
 
 ## Open questions
 
-Everything unresolved across the five investigations, grouped by **when it has to be
-answered** rather than by topic. Tracked in
+**Nothing architectural is blocking any more.** The four decisions above clear the path to
+building Nightingale Nightmare and to moving the DNS. What remains can be answered as it is
+reached. Tracked in
 [#1](https://github.com/southville-running-club/src-website/issues/1).
 
-### Blocking now
+### Next, and it is a delivery question rather than an architectural one
 
-| | Why it blocks | Where |
-| --- | --- | --- |
-| **Repository shape** — one of five | **The Nightingale Nightmare scaffold cannot start.** [Plan](../delivery/plan.md) step 17 says *"create the NN repository"*, which presumes one of the answers | [repositories](investigations/repositories.md) |
-| **Where NN v1 sign-ups land** | The form cannot persist anything. Proposed: `intake.nn_interest` | [database](investigations/database.md#nightingale-nightmare-is-an-event-not-an-application) |
-| **The race date** | Not architectural, but it blocks race planning and it is the committee's first ask | [plan](../delivery/plan.md) step 16 |
+**The DNS move.** [Move the DNS first](../delivery/dns-first.md) and
+[DNS and domain](../solutions/dns-and-domain.md) cover the reasoning; the runbook is
+[plan](../delivery/plan.md) steps 23–36. It is the only change in the programme that
+[cannot be quickly un-broken](investigations/networking.md#failure-modes-and-how-fast-each-reverses),
+and it carries club email.
 
-### Before the website build starts
+> **It does not block Nightingale Nightmare, and Nightingale Nightmare must not wait for
+> it.** A subdomain needs [one additive
+> CNAME](investigations/networking.md#what-gets-added) at Fasthosts — nothing existing is
+> touched, mail cannot break, and deleting the record restores today exactly. With sign-ups
+> opening in about two weeks, putting a 48-hour-rollback change in front of a hard date
+> would invert the risk logic the rest of the plan is built on.
 
-| | Note | Where |
-| --- | --- | --- |
-| **Workers or Pages for the main site** | **Time-sensitive.** Cloudflare says Workers for new projects; Workers needs the DNS move to have landed | [deployment](investigations/deployment.md#pages-or-workers) |
-| **Who owns migrations** | Follows from repository shape. Two repositories pushing to one project desync silently | [database](investigations/database.md#migrations) |
-| **Declarative schemas or imperative migrations** | Cheaper to choose before there are migrations to convert | [database](investigations/database.md#declarative-schemas-are-probably-the-better-tool) |
-| **Astro for the main website** | Recommended everywhere, recorded nowhere | [platform options](../solutions/platform-options.md#framework-which-is-a-separate-question-from-language) |
-| **Does the website need member-facing auth at all?** | Answering *no* removes a large amount of build **and** a large amount of personal data. Answering it late means building around an assumption | [#1](https://github.com/southville-running-club/src-website/issues/1) |
-| **A ~£10/yr throwaway domain?** | The only way to rehearse the DNS move and test mail authentication. The one change that cannot be quickly un-broken | [local development](investigations/local-development.md#what-cannot-be-tested-without-a-real-domain) |
-| **The backup runbook** | Free tier has **no automated backups**, and continuity says a 2026 URL resolves in 2036. **The largest gap in the data architecture** | [database](investigations/database.md#backups) |
-| **Document naming and the stable-URL contract** | A limited company's public record back to 2015. Every scheme chosen later breaks URLs published earlier | [#1](https://github.com/southville-running-club/src-website/issues/1) |
+### Before the main website build
+
+| | Note |
+| --- | --- |
+| **Workers or Pages for the main site** | Cloudflare says Workers for new projects, and Workers needs the DNS move landed first. Not urgent, but it decides whether the main build starts on the supported path |
+| **Declarative schemas or imperative migrations** | Cheaper to choose before there are migrations to convert |
+| **Astro for the main website**, as a record | Recommended everywhere, recorded nowhere. Already fixed for Nightingale Nightmare by the build brief |
+| **Does the website need member-facing auth at all?** | Answering *no* removes a large amount of build **and** a large amount of personal data |
+| **The backup runbook**, with a tested restore | The free tier has **no automated backups**, and continuity says a 2026 URL resolves in 2036. **The largest remaining gap** |
+| **Document naming and the stable-URL contract** | A limited company's public record back to 2015. Every scheme chosen later breaks URLs published earlier |
+| **A ~£10/yr throwaway domain?** | Now the *only* way to rehearse the DNS move or test mail authentication, since [ADR-004](decisions/adr-004-no-staging-environment.md) declined a staging environment |
 
 ### Before the timing platform is touched
 
-| | Note | Where |
-| --- | --- | --- |
-| **Where `src-race-timing` ends up, and when** | Two shapes absorb it, two never do. *"Eventually"* is not a plan — this wants a date or an explicit never | [repositories](investigations/repositories.md) |
-| **Does it keep deploying from Vercel** during the transition? | It works. Only the hostname has to change first | [deployment](investigations/deployment.md) |
-| **How shared code travels**, if repositories stay split | The `Europe/London` module has to be correct in two places. Package, submodule, or accepted drift — **all three worse than an import** | [repositories](investigations/repositories.md#the-shared-code-problem) |
+| | Note |
+| --- | --- |
+| **When `src-race-timing` joins the monorepo** | [ADR-001](decisions/adr-001-one-monorepo.md) says with the Cloudflare port, after the 2026 race. **Still wants a date rather than a milestone** |
+| **Does it keep deploying from Vercel** during the transition? | It works. Only the hostname has to change first |
 
 ### Can wait, but should not be forgotten
 
 | | |
 | --- | --- |
-| **Is there a staging environment at all?** | A free project [pauses after a week idle](investigations/database.md#what-the-free-tier-actually-allows), and the two-project limit is **per person, not per club** |
-| **Is this repository renamed?** | Cheapest before anyone has clones. Only bites under some shapes |
-| **Does `docs/` stay in one place** if repositories split? | Splitting it defeats the point of writing it once |
+| **Is this repository renamed?** | It will hold the race sites and eventually the timing platform. Cheapest before anyone has clones |
 | **Retention policy per table** | [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully) requires one; nothing is written |
 | **Are `intake` rows ever promoted into `club`?** | An interest registration becoming a member is a real flow with a lawful-basis question |
 | **Does Pass the Buck get a subdomain?** | `nn.` exists because that race had no presence at all. PtB already has one |
 | **What the transactional sending subdomain is called** | Cosmetic, but permanent |
-| **DNS as code — Terraform or OpenTofu**, and in which repository | [Plan](../delivery/plan.md) step 36 |
+| **DNS as code — Terraform or OpenTofu**, and where | [Plan](../delivery/plan.md) step 36 |
 | **Whether the registrar moves to Cloudflare** | [Governance, not technical](../solutions/dns-and-domain.md) |
 | **Who holds the billing relationship** | Both volunteers can reach the accounts; only one can hold a card |
-| **Does CI enforce the stale-types check from day one?** | Cheap early, annoying to retrofit |
 | **Does CI run on a schedule** as well as on pull requests? | Catches dependency rot and free-tier changes before a race week does |
 
 ---

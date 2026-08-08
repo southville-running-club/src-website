@@ -18,16 +18,22 @@ costs £204.
 
 ## Get the club an identity
 
-1. **Ask Fasthosts two questions** — what are the mailbox sending limits, and what does a
-   third or fourth mailbox cost. *If sending is capped below about 20 a day, the
-   [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) needs
-   reopening before anything is bought.*
+1. ~~**Ask Fasthosts two questions**~~ — **done.** Sending limits are fine and the package
+   allows **five mailboxes** at no extra cost, so the
+   [email decision](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts) stands
+   and the "a second mailbox" question below is answered.
 2. **Buy one admin mailbox** on the club domain. A role address, not a person's name.
-3. **Send and receive a test email** on it.
+   ✅ **Done.**
+3. ~~**Send and receive a test email** on it.~~ ✅ **Done** — both directions confirmed.
 4. **Set up Gmail to send as that address**, using the Fasthosts SMTP details. *Check a
    reply actually arrives from the club address, not a volunteer's.*
-5. **Point that mailbox's own password-recovery address** at something the club controls,
-   not a personal Gmail.
+5. **Make sure the mailbox has a recovery route both volunteers can reach.** *A Fasthosts
+   mailbox is a resource under the hosting account, not an identity — it has no recovery
+   address of its own, and **the Fasthosts control panel is its only recovery path.** So:
+   confirm the **Fasthosts account's** recovery address is **not** on the club domain, or a
+   mail outage locks the club out of the panel that fixes mail; and make sure both
+   volunteers can reach that panel, because the club mailbox is the account address for
+   Cloudflare, Supabase and GitHub.*
 6. **Create a club Cloudflare account** using the new address.
 7. **Create a club Supabase account** using the new address.
 8. **Sort out the club GitHub organisation** so it runs under that address too. *It
@@ -54,13 +60,21 @@ costs £204.
 
 *Needs step 6. Nothing else.*
 
-16. **Confirm the race date.** *1 November avoids the clocks change; 25 October is the
-    morning they go back.*
-17. **Create the NN repository** in the club organisation and scaffold it per the
-    [build brief](nn-build-brief.md).
+16. **Confirm the race date.** **Halloween weekend — 31 October or 1 November 2026.** *Not
+    yet exact, and it does not need to be: the page is built to read correctly without a
+    date, and every race fact lives in one file. **The clocks go back on Sunday 25
+    October**, so a Halloween-weekend race is safely the following weekend, in GMT — the
+    hazard the earlier "25 October or 1 November" wording was warning about is gone.
+    Timezone discipline still applies to anything spanning the change.*
+17. **Create `apps/nn` in this repository** and scaffold it per the
+    [build brief](nn-build-brief.md). *Monorepo, per
+    [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) — not a separate
+    repository.*
 18. **Deploy it to its free `pages.dev` address** — no DNS needed.
-19. **Create the sign-up table** in Supabase: name, email, consent, timestamp. **Nothing
-    else.**
+19. **Create the sign-up table**: **`intake.nn_interest`** — name, email, consent,
+    timestamp. **Nothing else.** *Schema per
+    [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
+    confined to `intake`, which holds no membership data.*
 20. **Build the page, the form and the privacy notice.** Keep the race date in one file so
     changing it is a one-line edit.
 21. **Test it properly** — with JavaScript off, with a duplicate submission, with bad
@@ -225,9 +239,9 @@ this removes, and volunteer time is the one measure still uncaptured.
 
 | | By |
 | --- | --- |
-| The race date | Now — it blocks race planning *(step 16)* |
+| ~~The race date~~ | **Halloween weekend.** Exact day still to fix, and nothing waits on it *(step 16)* |
 | NN 2026 entries: own site or Full On Sport | End of August *(step 22)* |
 | Card or Direct Debit | Before anyone is asked to move *(step 42)* |
-| A second mailbox | Once step 1 says what it costs |
+| ~~A second mailbox~~ | **Answered** — five are included at no extra cost |
 | Whether the domain moves to a club-held account | No deadline. Governance, not technical |
 | Committee editing | [Deferred](priorities.md#what-can-safely-be-decided-later) until it is known what they ask to change |

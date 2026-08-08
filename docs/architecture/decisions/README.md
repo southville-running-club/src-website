@@ -1,6 +1,13 @@
 # Architecture decision records
 
-Technical decisions the volunteers take themselves. **Nothing recorded here yet.**
+Technical decisions the volunteers take themselves.
+
+| | | Accepted |
+| --- | --- | --- |
+| [**ADR-001**](adr-001-one-monorepo.md) | **One monorepo, npm workspaces** | 8 Aug 2026 |
+| [**ADR-002**](adr-002-schema-layout.md) | **Four schemas in one project**, and NN sign-ups land in `intake` | 8 Aug 2026 |
+| [**ADR-003**](adr-003-local-development-and-pipeline.md) | **Local development on `localhost` with mock data**, acceptance tests in the pipeline | 8 Aug 2026 |
+| [**ADR-004**](adr-004-no-staging-environment.md) | **No staging environment** | 8 Aug 2026 |
 
 ---
 
@@ -75,18 +82,14 @@ a tidy file."*
 
 ## What is waiting to be recorded here
 
-Each of these is a decision this folder exists for. All are
-[open](https://github.com/southville-running-club/src-website/issues/1); none should be
-recorded until it is actually taken.
+Still [open](https://github.com/southville-running-club/src-website/issues/1). None should
+be recorded until it is actually taken.
 
 | | Investigation | Blocks |
 | --- | --- | --- |
-| **Repository shape** — one of five candidates | [repositories](../investigations/repositories.md) | **The Nightingale Nightmare scaffold** ([plan](../../delivery/plan.md) step 17) |
-| **Schema layout** — `public` / `private` / `club` / `intake` | [database](../investigations/database.md#schema-design) | Any table creation |
-| **Where Nightingale Nightmare v1 rows land** | [database](../investigations/database.md#nightingale-nightmare-is-an-event-not-an-application) | The sign-up form persisting anything |
-| **Who owns migrations**, and whether schema is scoped or centralised | [database](../investigations/database.md#migrations) | The first migration against the shared project |
-| **Declarative schemas or imperative migrations** | [database](../investigations/database.md#declarative-schemas-are-probably-the-better-tool) | Not blocking, but cheaper to choose before there are migrations |
-| **Workers or Pages for the main website** | [deployment](../investigations/deployment.md#pages-or-workers) | The website build. Time-sensitive — it depends on the DNS move landing first |
-| **Astro for the main website** | [platform options](../../solutions/platform-options.md#framework-which-is-a-separate-question-from-language) | Recommended everywhere, recorded nowhere |
-| **The local stack and test strategy** | [local development](../investigations/local-development.md) | Nothing, but it sets the shape of every pull request |
-| **The backup runbook** | [database](../investigations/database.md#backups) | Nothing yet. **The largest gap in the data architecture** |
+| **Declarative schemas or imperative migrations** | [database](../investigations/database.md#declarative-schemas-are-probably-the-better-tool) | Not blocking, but cheaper to choose before there are migrations to convert |
+| **Workers or Pages for the main website** | [deployment](../investigations/deployment.md#pages-or-workers) | The website build. Depends on the DNS move landing first, so not urgent — but it decides whether the main build starts on the supported path |
+| **Astro for the main website** | [platform options](../../solutions/platform-options.md#framework-which-is-a-separate-question-from-language) | Recommended everywhere, recorded nowhere. Already fixed for Nightingale Nightmare by the build brief |
+| **The backup runbook**, including a tested restore | [database](../investigations/database.md#backups) | Nothing yet. **The largest gap in the data architecture** |
+| **Does the website need member-facing authentication?** | — | Answering *no* removes a large amount of build **and** a large amount of personal data |
+| **Document naming and the stable-URL contract** | — | [Plan](../../delivery/plan.md) step 57, and ideally before step 12 downloads them |
