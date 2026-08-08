@@ -2,7 +2,7 @@
 
 Getting a working page served at `nn.southvillerunningclub.co.uk`.
 
-Part of [Phase 1](../phases.md#phase-1--nightingale-nightmare-and-timing-on-the-club-domain).
+Part of [Phase 1](../phases.md#phase-1--hello-world-on-the-club-domain).
 **Stages here are internal to this runbook** and are not the programme's phases.
 
 **Scope: the network path only.** A hello-world page, proving repository → build → Cloudflare
@@ -285,7 +285,7 @@ dig +short southvillerunningclub.co.uk A
 **The network path is proven, so from here anything that breaks is application code.** That
 separation is the whole reason Stages 1 and 2 involve no database.
 
-[Phase 1](../phases.md#phase-1--nightingale-nightmare-and-timing-on-the-club-domain) is not
+[Phase 1](../phases.md#phase-1--hello-world-on-the-club-domain) is not
 finished until this stage is, but it is
 [the build brief](../nn-build-brief.md)'s territory rather than this runbook's. In outline:
 

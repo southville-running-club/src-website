@@ -10,7 +10,7 @@ matters — [decisions](../decisions/decision-log.md), [the DNS move](dns-first.
 [Nightingale Nightmare](nn-first-delivery.md), [the build brief](nn-build-brief.md),
 [email](../solutions/email.md).
 
-**For the shape rather than the detail, read [the four phases](phases.md)** — every heading
+**For the shape rather than the detail, read [the seven phases](phases.md)** — every heading
 below is labelled with the phase it belongs to, and the two documents describe the same
 programme at different resolutions. **Procedures live in [the runbooks](runbooks/).**
 
@@ -60,7 +60,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 14. **Download all 33 newsletters and every image** on the site.
 15. **Store the lot somewhere the club controls**, and write down what was retrieved.
 
-## Phase 1 · Get Nightingale Nightmare started
+## Phases 1–2 · Get Nightingale Nightmare started
 
 *Needs step 6. Nothing else.*
 
@@ -88,7 +88,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 22. **Decide by the end of August** whether 2026 entries go through the club's own site or
     stay with Full On Sport. *Paid entries want to open in early September.*
 
-## Between Phases 1 and 2 · Move the DNS to Cloudflare, changing nothing else
+## Phase 4 · Move the DNS to Cloudflare, changing nothing else
 
 *Needs steps 1–10 done, and the mailbox working, so Fasthosts has finished setting up its
 own mail records before the zone is copied. Reasoning in [move the DNS
@@ -126,7 +126,7 @@ import-with-proxying-off shortcut for step 27.*
 > **If anything breaks, fix it at Cloudflare** — that takes 5 minutes. Reverting the
 > nameservers takes up to 48 hours and is the last resort.
 
-## Phase 1 · Put Nightingale Nightmare on the club domain
+## Phases 1–2 · Put Nightingale Nightmare on the club domain
 
 37. **Add the `nn` record.** *Associate the domain in the Cloudflare dashboard first, then
     add the record — the other way round gives a 522 error.*
@@ -135,95 +135,111 @@ import-with-proxying-off shortcut for step 27.*
 39. **Announce it.** Not before step 38 — an address that doesn't resolve is remembered as
     not existing for an hour.
 
-## Phase 1 · Put the timing app behind the club domain
+## Phase 3 · Rebuild the timing app on Cloudflare
 
-*Additive and low risk — but it touches a race-critical system. **Do this in August, or
-after the race in November. Not in the weeks between.***
+⚠️ ***The only phase touching a system that cannot be re-run.*** **After the Nightingale
+Nightmare race, not before** — NN 2026 runs on the existing Vercel deployment, because
+racing on a freshly ported system is exactly what the [risk
+constraint](../foundations/requirements.md#risk) exists to prevent.
 
-40. **Add `timing.southvillerunningclub.co.uk`** as a custom domain in Vercel, and the
-    matching record in DNS. *The timing app stays on Vercel — only its address changes.*
-41. **Update the Supabase Auth redirect addresses** and anything with the old domain
-    written into it. *Magic links break silently if this is missed.*
-42. **Test a marshal sign-in and an offline capture** on the new address before relying on
-    it.
+> **This phase depends on steps 23–36 having happened.** The app is Next.js using Node APIs,
+> so it needs `@opennextjs/cloudflare`, which targets **Workers** — and **Workers custom
+> domains require an active Cloudflare zone**. See
+> [the ordering problem](phases.md#phase-3-depends-on-phase-4).
 
-## Phase 2 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
+40. **Port the app to Workers** with `@opennextjs/cloudflare`, and **move the repository into
+    the monorepo** — into the club organisation *first*, then connect Cloudflare, or the git
+    link desyncs.
+41. **Add `timing.southvillerunningclub.co.uk`** as a Workers custom domain.
+42. **Update the Supabase Auth redirect addresses** and anything with the old domain written
+    into it. *Magic links break silently if this is missed.*
+43. **Rebuild the live leaderboard on Durable Objects**, not Supabase Realtime. *Realtime
+    caps at 200 concurrent connections and Pro is £237/yr; hibernatable WebSockets on the
+    free plan make this close to free. This is a rebuild, not a port.*
+44. **Run a full manual race simulation** — multiple devices, real connectivity loss, the
+    real race date. *No test suite replaces it, and it is the sign-off.*
+
+> **Three things a port must not break:** the IndexedDB offline queue and its
+> idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
+> `Europe/London` pinning.
+
+## Phase 5 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
 
 *The old site keeps running throughout — [what the requirements always asked
 for](../foundations/requirements.md#continuity). The new one grows beside it at
 `new.southvillerunningclub.co.uk`, with **paths matching the old site** so every address
 is proven long before anything switches.*
 
-43. **Create the new site project** and serve it at `new.southvillerunningclub.co.uk`.
-44. **Set `noindex` across the whole subdomain.** *Two copies of the same content
+45. **Create the new site project** and serve it at `new.southvillerunningclub.co.uk`.
+46. **Set `noindex` across the whole subdomain.** *Two copies of the same content
     otherwise split the club's search results — 314 visits a month arrive from Google.*
-45. **Build the payment page first**, before anything else on the site.
-46. **Take one real payment end to end** and confirm the treasurer can see it.
-47. **Send every new subscriber to the new page from that day on.** ***This is the point
+47. **Build the payment page first**, before anything else on the site.
+48. **Take one real payment end to end** and confirm the treasurer can see it.
+49. **Send every new subscriber to the new page from that day on.** ***This is the point
     of doing it early: the old list stops growing.*** *It currently adds about 45 payments
     a month, and every one is somebody who would otherwise have to be asked to move
     twice.*
 
-## Phase 3 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
+## Phase 6 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
 
 *Around 103 people must each personally re-establish their payment; the mandates die with
 Squarespace Payments. **Needs step 45, not the finished website.***
 
-48. **Get data-protection advice.** This is a gate, not a formality.
-49. **Put treasurer-controlled payment arrangements in place.**
-50. **Decide card or Direct Debit — before anybody is asked to move.** *Direct Debit is
+50. **Get data-protection advice.** This is a gate, not a formality.
+51. **Put treasurer-controlled payment arrangements in place.**
+52. **Decide card or Direct Debit — before anybody is asked to move.** *Direct Debit is
     worth about £250 a year, and deciding late means asking 103 people twice.*
-51. **Tell the existing payers**, with a deadline, and repeat it.
-52. **Track it until everyone has moved**, keeping a list of who has and who hasn't.
-53. **Accept that two payment sources are being reconciled** while this runs — money
+53. **Tell the existing payers**, with a deadline, and repeat it.
+54. **Track it until everyone has moved**, keeping a list of who has and who hasn't.
+55. **Accept that two payment sources are being reconciled** while this runs — money
     arriving at Squarespace and at the new page. *Time-box it rather than letting it
     drift.*
 
-## Phase 2 · Build the rest of the new site
+## Phase 5 · Build the rest of the new site
 
 *On `new.`, with paths mirroring the old site. Ordered by [what people actually
 read](../foundations/current-state.md#what-people-actually-read).*
 
-54. **Build the results archive**, publishing itself from the timing data. *16.6% of
+56. **Build the results archive**, publishing itself from the timing data. *16.6% of
     traffic, the longest-read page on the site, and typed by hand today.*
-55. **Build the main pages** — home, runner information, about the club. *61% of traffic
+57. **Build the main pages** — home, runner information, about the club. *61% of traffic
     between them.*
-56. **Automate the newsletter mirror** from Mailchimp.
-57. **Move the documents and policies** onto club-controlled storage with stable
+58. **Automate the newsletter mirror** from Mailchimp.
+59. **Move the documents and policies** onto club-controlled storage with stable
     addresses. *Hosting, not a browsing experience — 0.9% of traffic.*
-58. **Rebuild the membership pages and forms.**
-59. **Re-scope the kit section before building it.** *1.1% of traffic against the largest
+60. **Rebuild the membership pages and forms.**
+61. **Re-scope the kit section before building it.** *1.1% of traffic against the largest
     build in the requirements.*
-60. **Confirm every old address has a match on the new site**, including the [old paths
+62. **Confirm every old address has a match on the new site**, including the [old paths
     still getting
     traffic](../foundations/current-state.md#legacy-urls-still-receiving-traffic).
     *Because the paths align, this can be checked for real rather than promised.*
-61. **Check accessibility and phone performance.** *70% of visitors are on a phone.*
+63. **Check accessibility and phone performance.** *70% of visitors are on a phone.*
 
-## Phase 4 · The switch
+## Phase 7 · The switch
 
 *One coordinated moment, because Squarespace 301-redirects every secondary domain to its
 primary — so the old site cannot be reachable at `old.` while it is still serving `www`.*
 
-62. **Decide where the old site lives afterwards.** Either
+64. **Decide where the old site lives afterwards.** Either
     **`old.southvillerunningclub.co.uk`** — which means changing Squarespace's primary
     domain — or simply its **built-in Squarespace address**, which needs no DNS and no
     change at all. *The second is free and adequate for a treasurer and a few stragglers.*
-63. **In one sitting:** point the apex and `www` at the new site, and switch Squarespace's
+65. **In one sitting:** point the apex and `www` at the new site, and switch Squarespace's
     primary domain if using `old.`
-64. **Tidy the SPF record** by dropping the now-pointless `a` mechanism.
-65. **Remove `noindex`, and redirect `new.` to the apex.** *Anyone who bookmarked it is
+66. **Tidy the SPF record** by dropping the now-pointless `a` mechanism.
+67. **Remove `noindex`, and redirect `new.` to the apex.** *Anyone who bookmarked it is
     not stranded.*
-66. **Walk every old address** and confirm nothing 404s.
-67. **Leave it running** while members actually use it.
+68. **Walk every old address** and confirm nothing 404s.
+69. **Leave it running** while members actually use it.
 
-## Phase 4 · Switch Squarespace off
+## Phase 7 · Switch Squarespace off
 
-68. **Confirm all five are true:** the site is rebuilt and serving the apex; every URL
+70. **Confirm all five are true:** the site is rebuilt and serving the apex; every URL
     resolves; the member fund has moved; every document, newsletter and image is held by
     the club; and the treasurer can reconcile.
-69. **Cancel Squarespace — before 21 March 2027.**
-70. **Check afterwards** that email, the website and the results archive all still work.
+71. **Cancel Squarespace — before 21 March 2027.**
+72. **Check afterwards** that email, the website and the results archive all still work.
 
 ---
 

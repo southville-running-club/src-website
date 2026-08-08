@@ -145,7 +145,7 @@ differs at each end.
 ## When this should change
 
 Conditions, not hopes — the [decision log's own
-standard](../../decisions/decision-log.md#revisit-when-not-revisit-if).
+standard](../../decisions/decision-log.md#the-shape-of-a-record).
 
 **Adopt DNSControl** when any of these becomes true:
 
