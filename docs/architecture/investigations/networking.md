@@ -10,26 +10,37 @@ risk and [move the DNS first](../../delivery/dns-first.md) covers the runbook; t
 
 ---
 
-## Two eras, and almost everything depends on which one you are in
+## The zone moved to Cloudflare on 8 August 2026
 
-The club's zone is authoritative at **Fasthosts** today and moves to **Cloudflare** before
-April. That single fact decides what is technically possible.
+**This section used to describe two eras and which constraints applied in each. The club is
+now in the second one**, so it is kept as the record of what changed and why it mattered.
 
-| | Zone at Fasthosts *(today)* | Zone at Cloudflare *(after the move)* |
+| | Zone at Fasthosts *(until 8 Aug 2026)* | **Zone at Cloudflare — now** |
 | --- | --- | --- |
-| **Subdomain served by Cloudflare** | ✅ Pages only, via CNAME | ✅ Pages or Workers |
+| **Subdomain served by Cloudflare** | Pages only, via a hand-added CNAME | ✅ **Pages or Workers**, record created automatically |
 | **Apex served by Cloudflare** | ❌ Not possible | ✅ |
 | **Workers custom domains** | ❌ Requires an active zone | ✅ |
-| **DNS as code** | ❌ A control panel | ✅ Terraform/OpenTofu |
-| **Automatic certificates** | ✅ For Pages custom domains | ✅ Everywhere |
-| **Cron Triggers** | ❌ Not on Pages | ✅ Workers feature |
+| **`@astrojs/cloudflare` adapter** | ❌ Unusable — static output only | ✅ |
+| **Cron Triggers** | ❌ Not on Pages | ✅ |
+| **Records as a reviewable artefact** | ❌ A control panel with no history | ✅ [ADR-005](../decisions/adr-005-manual-with-a-reviewable-artefact.md) |
 
-**This is why Nightingale Nightmare v1 must be a Pages project**, and why the
+**What this unblocked**, and it is the reason the move happened when it did: the timing app
+is Next.js needing `@opennextjs/cloudflare`, which targets **Workers**, and Workers custom
+domains require an active zone. [Phase 3](../../delivery/phases.md) was gated on this and no
+longer is.
+
+**Nightingale Nightmare's constraint is also gone.** The
 [build brief](../../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything)
-specifies static Astro with no adapter. It is also
-[the strongest argument for moving the DNS early](../../delivery/dns-first.md) — the
-constraint disappears the moment the nameservers change, and everything after it gets
-easier.
+specified static Astro with no adapter *because* Pages was the only option on a
+Fasthosts-hosted zone. That output is still the right shape for a page and a form — but it is
+now a choice rather than a corner.
+
+**Where records go now:** [adding a hostname](../../delivery/runbooks/adding-a-hostname.md).
+Short version — Cloudflare, and usually the service creates the record itself.
+
+> ⚠️ **The Fasthosts DNS panel is no longer authoritative but is still editable.** A change
+> made there saves successfully and does nothing. The zone is kept until **8 September 2026**
+> as the rollback, then cleared.
 
 ---
 
@@ -84,17 +95,25 @@ requires URLs that resolve in 2036.
 Cloudflare's orange cloud decides whether traffic passes through Cloudflare's network or
 whether Cloudflare simply answers with the destination address.
 
+**The migration ran on "nothing is proxied", and that was correct — every record pointed at
+somebody else's infrastructure.** Now that the club serves its own traffic, the rule has a
+second half:
+
+> **Orange only when Cloudflare is the thing serving it.**
+
 | Record | Setting | Why |
 | --- | --- | --- |
-| Anything Cloudflare serves — Pages, Workers | **Proxied** | Required. This is how the certificate and the CDN work |
-| **Every mail hostname** | **DNS-only** | Proxying a mail host breaks mail. Non-negotiable |
-| Apex and `www`, while Squarespace serves them | **DNS-only** | [Squarespace supports Cloudflare as a DNS provider but warns on the proxy](../../solutions/platform-options.md#validation-register) |
-| Third-party verification records | **DNS-only** | Proxying changes what the verifier sees |
-| `timing`, while on Vercel | **DNS-only** | Vercel issues its own certificate |
+| **A Worker or Pages project** | 🟠 **Proxied** | Cloudflare is the origin. Custom Domains set this automatically |
+| **Every mail hostname** | ⬜ **DNS-only** | Proxying a mail host breaks mail. Non-negotiable |
+| Apex and `www`, while Squarespace serves them | ⬜ **DNS-only** | [Squarespace supports Cloudflare as a DNS provider but warns on the proxy](../../solutions/platform-options.md#validation-register) |
+| Third-party verification records | ⬜ **DNS-only** | Proxying changes what the verifier sees |
+| `timing`, while on Vercel | ⬜ **DNS-only** | Vercel issues its own certificate. **Becomes proxied when it moves to Workers** |
 
-**The check that catches this:** after the nameserver move, resolve the apex and confirm it
-returns **Squarespace's** addresses, not a Cloudflare one. A Cloudflare address means
-something is still proxied. That is [plan step 34](../../delivery/plan.md).
+**The check that catches a mistake:** resolve the apex and confirm it returns **Squarespace's**
+addresses, not a Cloudflare one. A `104.x` or `172.6x` there means something is proxied that
+should not be.
+
+**As at 8 August 2026: all 18 records DNS-only**, verified after the move.
 
 ---
 

@@ -88,24 +88,33 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 22. **Decide by the end of August** whether 2026 entries go through the club's own site or
     stay with Full On Sport. *Paid entries want to open in early September.*
 
-## Phase 4 · Move the DNS to Cloudflare, changing nothing else
+## Phase 4 · Move the DNS to Cloudflare, changing nothing else ✅
 
-*Needs steps 1–10 done, and the mailbox working, so Fasthosts has finished setting up its
-own mail records before the zone is copied. Reasoning in [move the DNS
-first](dns-first.md); **steps 23–36 are written out as an executable checklist in [the
-nameserver-move runbook](runbooks/nameserver-move.md)**, which folds in the
-import-with-proxying-off shortcut for step 27.*
+> **Steps 23–35 done, 8 August 2026.** Delegation is
+> `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`. All 18 records verified identical,
+> nothing proxied, site and mail unaffected. **Step 36 outstanding** — the zone export is
+> committed after the 48-hour window closes on 10 August.
+>
+> Reasoning in [move the DNS first](dns-first.md); the executable checklist and
+> [what actually happened](runbooks/nameserver-move.md#what-actually-happened-8-august-2026)
+> are in [the runbook](runbooks/nameserver-move.md). **Three steps below did not survive
+> contact** and are annotated accordingly.
 
 23. **Write down every DNS record at Fasthosts** and commit it to this repository. *This
     is the rollback reference.*
 24. **Check what you wrote down matches a live lookup.** There should be 18 records.
-25. **Lower every record's timing to 5 minutes** at Fasthosts, then **wait an hour.**
+25. ~~**Lower every record's timing to 5 minutes**~~ — **not possible. Fasthosts has no TTL
+    field**, which is why the zone showed a uniform 3600. Skipped, along with the wait, and
+    it cost nothing: Cloudflare's records came in at Auto/1 min, which is where the
+    fast-correction property actually lives.
 26. **Add the domain to Cloudflare** and let it import the records. **Do not change the
     nameservers yet.**
-27. **Turn the orange cloud off on eleven records** — the four apex ones, `mail`,
-    `mailserver`, `smtp`, `webmail`, `mcp`, `www`, and the Squarespace verification
-    record. *Cloudflare turns the proxy on by default. Nothing should be orange.*
-28. **Add anything the import missed**, by hand.
+27. **Turn the orange cloud off.** *Nine arrived proxied; the two proxiable records the scan
+    missed arrived orange when added, making eleven in total, as documented.*
+28. ⚠️ **Add anything the import missed** — **the scan found 12 of 18.** It missed **all four
+    DKIM CNAMEs**, the Squarespace verification CNAME, and `mcp`. *Proceeding without this
+    would have kept mail flowing while silently breaking DKIM. **Count the records against
+    the committed zone; do not glance at the list.***
 29. **Say no if Cloudflare offers to take over your email.** It would replace the MX
     records.
 30. **Check Cloudflare gives identical answers to Fasthosts**, record by record.
@@ -145,7 +154,7 @@ constraint](../foundations/requirements.md#risk) exists to prevent.
 > **This phase depends on steps 23–36 having happened.** The app is Next.js using Node APIs,
 > so it needs `@opennextjs/cloudflare`, which targets **Workers** — and **Workers custom
 > domains require an active Cloudflare zone**. See
-> [the ordering problem](phases.md#phase-3-depends-on-phase-4).
+> [the ordering problem](phases.md#phase-3-depended-on-phase-4-resolved).
 
 40. **Port the app to Workers** with `@opennextjs/cloudflare`, and **move the repository into
     the monorepo** — into the club organisation *first*, then connect Cloudflare, or the git

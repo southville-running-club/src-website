@@ -1,5 +1,16 @@
 # Runbook — moving the nameservers from Fasthosts to Cloudflare
 
+> ## ✅ Executed 8 August 2026, 15:54 UTC
+>
+> **Delegation now `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`**, confirmed at both
+> `.uk` registry servers. All 18 records verified identical before and after. Nothing
+> proxied. Site serving from Squarespace, mail routing unchanged through Fasthosts, all four
+> DKIM chains resolving to live public keys.
+>
+> **Kept as a record and as a reusable procedure**, with
+> [what actually happened](#what-actually-happened-8-august-2026) folded in — the scan missed
+> six records, and two of the verification commands here were wrong.
+
 **The riskiest change in the programme.** It carries club email, and it is the only change
 here that takes up to 48 hours to reverse.
 
@@ -433,6 +444,74 @@ Two cautions that come with it:
 - [ ] TTLs raised; **the Cloudflare zone exported and committed**
 - [ ] The Fasthosts zone **left intact**, with a note saying it is no longer authoritative
 - [ ] What was done by hand is written down
+
+## What actually happened, 8 August 2026
+
+Kept because the surprises are more useful than the plan was.
+
+### Cloudflare's scan found 12 of 18 records
+
+The zone-onboarding scan reported *"8 A, 1 CNAME, 1 MX, 2 TXT"*. **It missed six**, including
+**all four DKIM CNAMEs**, the Squarespace verification CNAME, and the `mcp` A record. It
+found exactly one of six CNAMEs.
+
+`dns-first.md` said *"assume the scan missed something; it usually misses at least one
+CNAME."* That was right in spirit and badly understated in degree.
+
+**Proceeding at that point would have kept mail flowing while silently breaking DKIM** — and
+with DMARC at `p=none`, that degrades into spam folders over weeks rather than failing
+visibly.
+
+> **Count the records against the committed zone before doing anything else.** The count is
+> the check, not a glance at the list.
+
+### Nine records arrived proxied and had to be turned grey by hand
+
+As predicted, and the documented figure of eleven was right — nine were imported orange, and
+the two missing proxiable records (`mcp`, the verify CNAME) arrived orange when added.
+
+**The import-with-proxying-off route was not available**, because Fasthosts offers no BIND
+export — the zone was transcribed from the panel, so the scan-then-fix path is what actually
+happens. Treat the checkbox as a bonus if a zone file exists, not as the plan.
+
+### Fasthosts has no TTL field
+
+Confirmed in the panel. [Phase 2](#phase-2--ttls--likely-skip-this-phase) was skipped
+entirely and cost nothing. Cloudflare's imported records came in at Auto/1 min, which is what
+was wanted anyway.
+
+### Two commands in this runbook were wrong
+
+Both would have produced a false "it failed" during the most stressful part.
+
+**The registry query needs `+noall +authority`.** A registry server returns the delegation in
+the **authority** section, so `dig @dns1.nic.uk ... NS +short` reads **empty** — which looks
+exactly like "the change didn't take". Corrected throughout.
+
+**`curl --resolve` needs an IP, not a CNAME target.** Checking `www` means resolving
+`ext-cust.squarespace.com` to an address first, then forcing the connection to that.
+
+### The pre-flight tests were worth more than the runbook credited
+
+The `/etc/resolver` override — resolving the domain through Cloudflare on one laptop, before
+any delegation — proved the whole chain end to end: the real site served by Squarespace with
+its own valid certificate, from answers given entirely by Cloudflare. **That is the test that
+made the switch a formality.**
+
+Two things it needs that are easy to miss: **`dig` ignores `/etc/resolver` on macOS** (it
+reads `/etc/resolv.conf`, so use `dscacheutil`, `curl` or a browser), and **browser
+DNS-over-HTTPS must be off** or nothing is being tested.
+
+> **Remove the override before switching.** Left in place, the machine resolves via Cloudflare
+> regardless of the delegation — so everything looks fine afterwards and proves nothing.
+
+### "Email works" is not "email authenticates"
+
+Send and receive confirms delivery. It does **not** confirm DKIM, and DKIM is the thing that
+fails quietly here.
+
+**Send from a club address to a Gmail account, open ⋮ → Show original, and confirm
+`dkim=pass`, `spf=pass`, `dmarc=pass`.** This runbook did not ask for that and should have.
 
 ## What this unblocks
 

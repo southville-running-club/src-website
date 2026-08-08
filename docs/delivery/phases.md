@@ -8,7 +8,7 @@ numbered steps and the [runbooks](runbooks/) for the procedures.
 | **[1](#phase-1--hello-world-on-the-club-domain)** | Hello-world at `nn.<apex>`, on Supabase, defined as code | A page reaches production through the whole pipeline and writes to the club's database |
 | **[2](#phase-2--nightingale-nightmare-built-out)** | Nightingale Nightmare built out | Sign-ups are open and working |
 | **[3](#phase-3--the-timing-app-rebuilt-on-cloudflare)** | The timing app **rebuilt on Cloudflare**, off Vercel, same database | `timing.<apex>` serves the timing platform from Cloudflare |
-| **[4](#phase-4--move-the-nameservers)** | Nameservers move to Cloudflare | Cloudflare answers for the zone, nothing else has changed |
+| **[4](#phase-4--move-the-nameservers)** ✅ | ~~Nameservers move to Cloudflare~~ — **done 8 Aug 2026** | Cloudflare answers for the zone, nothing else changed |
 | **[5](#phase-5--the-new-website-at-newapex)** | The new website at `new.<apex>` | Every page the old site has, the new one has |
 | **[6](#phase-6--move-the-member-payments)** | Member payments move to the new site | All ~103 payers have re-established their payment |
 | **[7](#phase-7--decommission-squarespace)** | Decommission Squarespace | Cancelled, **before 21 March 2027** |
@@ -19,13 +19,16 @@ out that detail written now would be rewritten before it was used. Phase 4 in pa
 
 ---
 
-## ⚠️ Two ordering problems to resolve before Phase 3
+## Two ordering problems
 
-Both are dependencies rather than objections, and both point the same way.
+### Phase 3 depended on Phase 4 (resolved)
 
-### Phase 3 depends on Phase 4
+**Phase 4 was brought forward and executed**, so this dependency is discharged. Workers
+custom domains are available and Phase 3 is unblocked. The reasoning is kept below because it
+explains why the order changed.
 
-**The timing app cannot serve `timing.<apex>` from Cloudflare until the nameservers move.**
+**The timing app could not serve `timing.<apex>` from Cloudflare until the nameservers
+moved.**
 
 | | |
 | --- | --- |
@@ -37,11 +40,11 @@ Both are dependencies rather than objections, and both point the same way.
 third-party DNS, Workers does not. It is the same constraint that put Nightingale Nightmare
 on Pages in the first place.
 
-> **Recommendation: swap 3 and 4.** Move the nameservers, *then* rebuild the timing app.
-> Otherwise Phase 3 either stalls on Phase 4 or ships a race-critical system onto a hostname
-> Cloudflare tells you not to use in production.
+> **This was actioned.** The nameservers moved on 8 August 2026, ahead of Phases 2 and 3,
+> which is also where [move the DNS first](dns-first.md) always argued it belonged — taken in
+> a quiet week when nothing depended on it.
 
-### Phase 3 must come after the Nightingale Nightmare race
+### Phase 3 must still come after the race
 
 [NN needs the timing app to work on race day.](../foundations/requirements.md#risk)
 Rebuilding it beforehand means racing on a rebuilt system — and *a race happens once a year
@@ -145,7 +148,7 @@ exist. Firm gates.
 **Off Vercel, onto Cloudflare, pointing at the same Supabase database.** The most technically
 demanding phase and the only one touching a system that cannot be re-run.
 
-**Read the [ordering problems](#-two-ordering-problems-to-resolve-before-phase-3) first.**
+**Read the [ordering problems](#two-ordering-problems) first.**
 
 ### What it involves
 
@@ -174,7 +177,7 @@ real race date. No test suite replaces it.
 
 | | |
 | --- | --- |
-| **Does the nameserver move come first?** | [Recommended, and close to required](#phase-3-depends-on-phase-4) |
+| **Does the nameserver move come first?** | [Recommended, and close to required](#phase-3-depended-on-phase-4-resolved) |
 | **The Workers bundle-size ceiling** | 3 MB compressed free, 10 MB paid. Unmeasured for this app |
 | **The 10 ms CPU limit** on free Workers | Against server-rendered pages. May force Workers Paid |
 | **[C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) — the live leaderboard** | **Durable Objects, not Supabase Realtime.** Realtime caps at 200 concurrent and Pro is £237/yr. Hibernatable WebSockets on the free plan make this roughly free — but it is a rebuild of the leaderboard, not a port |
@@ -185,7 +188,21 @@ real race date. No test suite replaces it.
 
 ## Phase 4 — move the nameservers
 
-**Flagged as needing its own investigation and decision, and that is right.**
+> ## ✅ Done — 8 August 2026, 15:54 UTC
+>
+> Delegation is `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`, confirmed at both `.uk`
+> registry servers. All 18 records verified identical before and after; nothing proxied; the
+> site serving from Squarespace; mail routing unchanged through Fasthosts; all four DKIM
+> chains resolving to live public keys.
+>
+> **Brought forward ahead of Phases 2 and 3**, because Phase 3 was gated on it and
+> [move the DNS first](dns-first.md) always argued for taking the risk in a quiet week.
+>
+> **Still open:** the 48-hour observation window closes 10 August; the Cloudflare zone export
+> needs committing; the Fasthosts zone is kept until **8 September** as the rollback.
+> [What actually happened](runbooks/nameserver-move.md#what-actually-happened-8-august-2026).
+
+**It was flagged as needing its own investigation, and it got one.**
 
 | | |
 | --- | --- |
@@ -206,7 +223,7 @@ Triggers, and it turns Phase 7's apex cutover into a record edit that reverses i
 | | |
 | --- | --- |
 | **When** | Not race week, not near the Squarespace renewal, not the week NN launches, not a Friday |
-| **Whether it moves before Phase 3** | [The dependency above](#phase-3-depends-on-phase-4) says it should |
+| **Whether it moves before Phase 3** | [The dependency above](#phase-3-depended-on-phase-4-resolved) says it should |
 | **Whether a ~£10 throwaway domain is bought to rehearse** | The only way to practise this or test mail authentication, since [ADR-004](../architecture/decisions/adr-004-no-staging-environment.md) declined a staging environment |
 | **Who does the independent verification** | Non-negotiable, and it needs a named second person |
 
