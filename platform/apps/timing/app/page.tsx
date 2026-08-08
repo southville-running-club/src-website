@@ -1,4 +1,5 @@
-import { createAnonClient, fetchHealth } from '@src/shared';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { createAnonClient, fetchHealth, type SupabaseConfig } from '@src/shared';
 
 // Rendered on every request, never cached.
 //
@@ -64,15 +65,41 @@ async function readHealth() {
   // A failure is rendered rather than thrown: this page's job is to report whether the
   // connection works, so "it does not" is the useful answer, not a 500.
   try {
-    const client = createAnonClient({
-      url: process.env.PUBLIC_SUPABASE_URL ?? '',
-      anonKey: process.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
-    });
-    return await fetchHealth(client);
+    return await fetchHealth(createAnonClient(await readSupabaseConfig()));
   } catch (cause) {
     return {
       ok: false as const,
       error: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
+}
+
+/**
+ * Where the two Supabase variables come from, which is **not the same place in every
+ * environment** — and getting this wrong is silent until a page renders an error.
+ *
+ * Deployed, OpenNext puts the Worker's `vars` into `process.env`, so that alone would
+ * work. Under `next dev` it does not: `wrangler.jsonc` vars are Worker configuration and
+ * Next reads `.env` files, so the page rendered "could not reach the database" on the fast
+ * loop while working perfectly under `preview`.
+ *
+ * `getCloudflareContext()` is the bridge. It is exactly what
+ * `initOpenNextCloudflareForDev()` in `next.config.ts` exists to populate, so one code
+ * path now works in both — no `.env` file to keep in step, and one less thing that is true
+ * on a laptop and false in production.
+ */
+async function readSupabaseConfig(): Promise<SupabaseConfig> {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    return {
+      url: env.PUBLIC_SUPABASE_URL ?? process.env.PUBLIC_SUPABASE_URL ?? '',
+      anonKey: env.PUBLIC_SUPABASE_ANON_KEY ?? process.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
+    };
+  } catch {
+    // No Cloudflare context — a plain Node render. `process.env` is the whole answer.
+    return {
+      url: process.env.PUBLIC_SUPABASE_URL ?? '',
+      anonKey: process.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
     };
   }
 }
