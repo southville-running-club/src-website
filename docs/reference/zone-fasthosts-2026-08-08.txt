@@ -1,0 +1,53 @@
+# southvillerunningclub.co.uk — authoritative zone as held at Fasthosts
+#
+# Captured from the Fasthosts control panel, 8 August 2026.
+# Every record below was independently verified against a live query to
+# ns1.livedns.co.uk on the same day. Panel and live zone agree.
+#
+# THIS FILE IS THE ROLLBACK REFERENCE AND THE DIFF BASELINE.
+# Do not edit it to reflect intended changes — capture reality, then diff.
+#
+# 18 records. Uniform TTL 3600 (Fasthosts exposes no TTL field).
+# No CAA records. No DNSSEC. Registry delegation TTL 172800 (48h, Nominet).
+#
+# ─────────────────────────────────────────────────────────────────────────
+# MAIL — 11 of the 18. FASTHOSTS CONTINUES TO HANDLE ALL CLUB EMAIL.
+# Copy exactly. Never proxy. Nothing about mail routing changes.
+# ─────────────────────────────────────────────────────────────────────────
+A       mail            213.171.216.40
+A       mailserver      213.171.216.40
+A       smtp            213.171.216.50
+A       webmail         213.171.216.231
+MX      @               mail.southvillerunningclub.co.uk        priority 0
+TXT     @               "v=spf1 mx a include:_spf.livemail.co.uk ~all"
+TXT     _dmarc          "v=DMARC1; p=none;"
+CNAME   livemail1._domainkey    livemail1._domainkey.366995.dkim.livemail.co.uk
+CNAME   livemail2._domainkey    livemail2._domainkey.366995.dkim.livemail.co.uk
+CNAME   livemail3._domainkey    livemail3._domainkey.366995.dkim.livemail.co.uk
+CNAME   livemail4._domainkey    livemail4._domainkey.366995.dkim.livemail.co.uk
+
+# NOTE: MX points INSIDE this zone. mail.southvillerunningclub.co.uk resolves
+# via the `mail` A record above, so that record is load-bearing for ALL
+# inbound club mail. Drop or mistype it and mail stops with no obvious cause.
+#
+# NOTE: the DKIM CNAMEs carry a Fasthosts account number (366995). Losing them
+# does not stop mail — it makes it fail authentication, and with DMARC at
+# p=none that degrades quietly into spam folders rather than announcing itself.
+
+# ─────────────────────────────────────────────────────────────────────────
+# SQUARESPACE — 6 of the 18. Must stay DNS-only or Squarespace's TLS breaks.
+# ─────────────────────────────────────────────────────────────────────────
+A       @               198.49.23.144
+A       @               198.49.23.145
+A       @               198.185.159.144
+A       @               198.185.159.145
+CNAME   www             ext-cust.squarespace.com
+CNAME   9sw9cgfs3d8e53r2xcx5    verify.squarespace.com
+
+# ─────────────────────────────────────────────────────────────────────────
+# UNKNOWN — 1 of the 18.
+# ─────────────────────────────────────────────────────────────────────────
+A       mcp             213.171.195.10
+
+# Purpose not established. Copy it, keep it DNS-only, and find out what it
+# serves before taking responsibility for the zone.

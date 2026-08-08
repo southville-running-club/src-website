@@ -133,7 +133,7 @@ captures their interest.
 | **The form** | **Name and email address only** |
 | **The storage** | One table. Name, email, consent, timestamp |
 | **The confirmation** | An on-page acknowledgement. Email confirmation is not required for v1 |
-| **The hostname** | One additive CNAME at Fasthosts. See [Move 1](../solutions/dns-and-domain.md#move-1--add-a-record-no-risk) |
+| **The hostname** | **Attached as a custom domain on the Worker** — Cloudflare creates the record. Nothing at Fasthosts |
 
 ### What it must not do
 
@@ -167,7 +167,7 @@ repeating because time pressure erodes exactly these:
 
 ## The stack, and why deciding it now is safe
 
-**Astro on Cloudflare Pages, writing to Supabase Postgres in `eu-west-2`** — the target
+**Astro on Cloudflare Workers, writing to Supabase Postgres in `eu-west-2`** — the target
 recommendation from [platform
 options](../solutions/platform-options.md#option-c--cloudflare-for-serving-supabase-for-data-recommended).
 
@@ -188,7 +188,7 @@ build.** Both serve a subdomain from a CNAME at Fasthosts, both build from git, 
 run the same Astro output. The decision that would be expensive to defer is the *data*
 one, and that is already settled by the timing platform.
 
-**One thing to confirm before starting:** Cloudflare **Pages** accepts a custom subdomain
+**No longer a constraint:** Cloudflare **Pages** accepted a custom subdomain
 on a zone hosted elsewhere; Cloudflare **Workers custom domains** do not. While the zone
 stays at Fasthosts, this must be a Pages project. See [platform options, item
 4](../solutions/platform-options.md#validation-register).

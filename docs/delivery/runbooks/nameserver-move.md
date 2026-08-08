@@ -1,0 +1,524 @@
+# Runbook — moving the nameservers from Fasthosts to Cloudflare
+
+> ## ✅ Executed 8 August 2026, 15:54 UTC
+>
+> **Delegation now `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`**, confirmed at both
+> `.uk` registry servers. All 18 records verified identical before and after. Nothing
+> proxied. Site serving from Squarespace, mail routing unchanged through Fasthosts, all four
+> DKIM chains resolving to live public keys.
+>
+> **Kept as a record and as a reusable procedure**, with
+> [what actually happened](#what-actually-happened-8-august-2026) folded in — the scan missed
+> six records, and two of the verification commands here were wrong.
+
+**The riskiest change in the programme.** It carries club email, and it is the only change
+here that takes up to 48 hours to reverse.
+
+**Why** it is worth doing and why now is [move the DNS
+first](../dns-first.md). **What** each DNS move risks is [DNS and
+domain](../../solutions/dns-and-domain.md). **This** is the checklist.
+
+| | |
+| --- | --- |
+| **What changes** | One setting at Fasthosts: the nameservers |
+| **What does not change** | Registration, mail routing, where the website is served, every record's value |
+| **Effort** | Three evenings and one morning, spread over ~2 weeks because of two waiting periods |
+| **Reversal** | **Up to 48 hours.** Which is why phases 1–4 carry the weight, not phase 5 |
+
+> **The work is entirely in the diff, not in the switch.** The switch itself causes no
+> downtime — during propagation both providers answer, and if they answer identically nobody
+> notices. **A wrong record causes downtime**, for as long as it takes to notice plus the time
+> to fix.
+
+---
+
+## Fasthosts keeps doing the mail. Nothing here changes that
+
+**Read this before anything else.** It is the single most important constraint in the
+runbook, and it is easy to lose sight of while thinking about a website.
+
+**11 of the 18 records are email.** Only 6 are the website. This is a mail zone that happens
+to have a website in it, not the other way round.
+
+| | |
+| --- | --- |
+| **What handles club mail today** | Fasthosts |
+| **What handles club mail after this move** | **Fasthosts. Unchanged.** |
+| **What changes about mail** | **Nothing.** Not the MX target, not SPF, not DKIM, not DMARC, not the mailboxes |
+
+Moving authoritative DNS changes **who answers the question**, not what the answer is. `MX`
+still names `mail.southvillerunningclub.co.uk`, that still resolves to `213.171.216.40`, and
+sending servers still connect straight to Fasthosts.
+
+**So the mail records are copied exactly and then left alone.** They are not an opportunity
+to tidy anything up.
+
+### The three ways this gets broken
+
+**1. Proxying a mail record.** Cloudflare proxies HTTP and HTTPS only. A proxied `mail` record
+returns Cloudflare's address, and **nothing there listens on port 25**. Mail stops, and the
+symptom is silent — inbound defers, then bounces, and nobody is told.
+
+**2. Accepting Cloudflare Email Routing.** Cloudflare sees `MX` records during onboarding and
+may offer to enable its own Email Routing. **It would replace the MX records.** Decline it.
+
+**3. Losing a DKIM CNAME.** Automated scans usually find them; "usually" is not a plan. Losing
+one does not stop mail — it makes it **fail authentication**, and with **DMARC at `p=none`**
+that degrades quietly into spam folders. You would find out from a member saying they never
+got a reply.
+
+> **After every step that touches the zone: send and receive a test message on a club
+> address, before checking anything else.** Mail first, always.
+
+---
+
+## Stop conditions — do not start if any of these is true
+
+| | |
+| --- | --- |
+| ❌ | It is **race week**, the week before, or the week after |
+| ❌ | It is **within a fortnight of the Squarespace renewal** (21 March 2027) |
+| ❌ | It is **the week Nightingale Nightmare launches** — if something breaks, debug one thing |
+| ❌ | It is **Friday**, or the day before anyone is away |
+| ❌ | The **mailbox purchase is not finished and verified** — Fasthosts must have written its own mail records while it still controls the zone |
+| ❌ | A **registrar transfer or mail-provider change** is planned in the same window. One mail-affecting change at a time |
+| ❌ | The **second volunteer is unavailable** for phase 4 |
+
+**Choose a quiet weekday morning with the rest of the day free.**
+
+---
+
+## What the zone actually looks like
+
+Measured against the authoritative nameservers, 7 August 2026. Three of the four things that
+usually wreck this migration **do not apply here**.
+
+| | Measured | Consequence |
+| --- | --- | --- |
+| Nameservers | `ns1`, `ns2`, `ns3.livedns.co.uk` | Fasthosts, three of them |
+| **DNSSEC** | **Not enabled** | **The worst failure mode cannot happen.** A stale `DS` record makes a domain vanish entirely for validating resolvers |
+| **CAA records** | **None** | Nothing can block Squarespace's certificate renewal — **and do not add one** |
+| Record TTL | **3600**, uniform | Governs how fast a *record* fix propagates |
+| **Registry delegation TTL** | **172,800 — exactly 48 hours** | **Not under club control.** Governs the switch and the rollback |
+| Hidden records | **None found** — a 15-host probe returned nothing | The documented 18 appear to be the whole zone |
+| Zone transfer | Refused | Capture from the panel; it cannot be pulled |
+
+**Two clocks, and confusing them is how people mis-plan this.** The 3600 s record TTL is
+yours to lower and drains in about an hour. The 48-hour delegation TTL is the registry's and
+cannot be shortened.
+
+---
+
+## Phase 1 — capture and commit the zone
+
+*An evening. Zero risk. This is the rollback reference and the diff baseline.*
+
+✅ **Done, 8 August 2026.** Captured from the panel, verified against a live query record by
+record, and committed as
+[`docs/reference/zone-fasthosts-2026-08-08.txt`](../../reference/zone-fasthosts-2026-08-08.txt).
+**18 records, panel and live zone in agreement.** Repeat this only if the zone changes.
+
+**1.1** Export the zone from Fasthosts, or transcribe every record from the control panel.
+Fasthosts: domain → **DNS Settings** → **Configure Advanced DNS**.
+
+**1.2** Commit it to this repository as `docs/reference/zone-fasthosts-<date>.txt`.
+
+**1.3** Confirm the count. **There should be 18 records** — 11 mail, 6 Squarespace, 1
+unknown (`mcp`). A different number means find out why before continuing.
+
+**1.4** Verify what you wrote down against a live lookup — do not trust the panel alone:
+
+```bash
+D=southvillerunningclub.co.uk
+NS=ns1.livedns.co.uk
+
+for h in @ www mail mailserver smtp webmail mcp; do
+  n=$([ "$h" = "@" ] && echo "$D" || echo "$h.$D")
+  echo "== $n"; dig @$NS +short "$n" A; dig @$NS +short "$n" CNAME
+done
+dig @$NS +short "$D" MX
+dig @$NS +short "$D" TXT
+dig @$NS +short "_dmarc.$D" TXT
+for i in 1 2 3 4; do dig @$NS +short "livemail$i._domainkey.$D" CNAME; done
+```
+
+> **Stop condition.** If the committed file and the live lookup disagree, resolve it now. A
+> baseline you do not trust is worse than none.
+
+---
+
+## Phase 2 — TTLs · likely **skip this phase**
+
+**Fasthosts appears to expose no TTL field.** Its support has said so directly, and the live
+zone corroborates it: **uniform 3600 across every record type**, which is the signature of a
+panel that sets TTL globally. Confirmed against the panel on 8 August 2026 — no TTL field on
+the record edit screen.
+
+**If there is no field, skip to Phase 3 and skip the wait with it.** It costs almost nothing,
+for three reasons:
+
+| | |
+| --- | --- |
+| During the 48-hour window, a "stale" Fasthosts answer **is the correct answer** | Both zones give identical values — that is the whole premise |
+| **Corrections after the switch are governed by Cloudflare's TTL, not Fasthosts'** | Cloudflare's Auto TTL is 300 s, which is where "repair forward in five minutes" comes from |
+| The number that actually matters — the **48-hour registry delegation TTL** — was never editable | Nominet sets it |
+
+**Where this does matter is on the Cloudflare side**, and it is easy to miss: a BIND import
+carries the old TTLs with it, so imported records may arrive at **3600**. Set them to Auto.
+Checked in [Phase 4](#phase-4--diff-and-have-someone-else-check-it).
+
+*If a TTL field does exist, lower every record to 300, wait about an hour — the old value is
+3600, so caches drain within that — and confirm with the command in Phase 4.*
+
+---
+
+## Phase 3 — stage the zone in Cloudflare
+
+*An evening. Zero risk — nothing is authoritative yet.*
+
+**3.1** Add the domain to Cloudflare. **Do not change the nameservers when prompted.**
+
+Dashboard → Domains → **Add a site** → **Connect a domain**.
+
+> **Not "Transfer a domain"** — that moves the *registration*, which is a separate and
+> optional decision for much later, and it cannot happen before the zone is on Cloudflare
+> anyway. **Not "Buy a domain".** You are connecting a domain you already own.
+
+Then: enter `southvillerunningclub.co.uk` → choose the **Free** plan → Cloudflare scans the
+existing zone and imports what it finds → **it shows you two assigned nameservers and asks
+you to change them. Do not.** Leave that screen. The zone sits in **Pending**, and
+Cloudflare's nameservers will answer queries for it anyway — which is what makes Phase 4
+possible.
+
+**Two things about the free plan's pending state:** it **auto-deletes after 28 days** if
+never activated, so do not stage months early; and a pending zone **cannot proxy**, which is
+harmless here because nothing should be orange.
+
+**3.2** **Import the committed zone file, with proxying off.**
+
+DNS → Records → **Import and Export** → Import → select the file → **unselect "Proxy imported
+DNS records"**.
+
+> **This is the single most valuable step in the runbook.** Cloudflare's onboarding scan turns
+> the proxy **on** by default for every proxiable record, and
+> [eleven of the eighteen are proxiable](../dns-first.md#the-proxy-default-is-the-real-hazard).
+> Proxying a mail record breaks club email **silently**. Importing with proxying off means
+> nothing arrives orange, which replaces an eleven-item manual checklist with one checkbox.
+>
+> It does **not** replace phase 4. Verify anyway.
+
+*Zone files: 256 KiB limit, API rate limit 3 requests/minute. Both irrelevant at 18 records.
+CNAME, MX and NS targets need fully-qualified names with a trailing dot.*
+
+**3.3** Compare the imported count against 18 and **add anything missing by hand.** Assume
+something was missed.
+
+**3.4** Confirm **every record is DNS-only (grey)**. The safe state is *nothing proxied* —
+including the apex and `www`, because Squarespace is still serving them.
+
+**3.5** **Decline Cloudflare Email Routing** if offered. It would **replace the MX records**.
+
+**3.6** **Do not add a CAA record.** The zone has none, which is why nothing blocks
+Squarespace's certificate renewal. Adding one could break it quietly, weeks later.
+
+**3.7** Note Cloudflare's assigned nameservers. You will need them in phase 4 and phase 5.
+
+---
+
+## Phase 4 — diff, and have someone else check it
+
+*Same evening. **This is the phase that decides whether phase 5 is safe.***
+
+**4.1** Query both nameserver sets and compare. Do not eyeball the dashboard.
+
+```bash
+D=southvillerunningclub.co.uk
+OLD=ns1.livedns.co.uk
+NEW=<cloudflare-ns>          # from step 3.7
+
+fail=0
+check() {  # $1 = name, $2 = type
+  a=$(dig @$OLD +short "$1" "$2" | sort)
+  b=$(dig @$NEW +short "$1" "$2" | sort)
+  if [ "$a" != "$b" ]; then
+    printf 'DIFFERS  %-40s %-6s\n  old: %s\n  new: %s\n' "$1" "$2" "${a:-<none>}" "${b:-<none>}"
+    fail=1
+  fi
+}
+
+for h in "" www. mail. mailserver. smtp. webmail. mcp.; do
+  check "$h$D" A; check "$h$D" CNAME
+done
+check "$D" MX
+check "$D" TXT
+check "_dmarc.$D" TXT
+for i in 1 2 3 4; do check "livemail$i._domainkey.$D" CNAME; done
+
+[ $fail -eq 0 ] && echo "IDENTICAL — safe to proceed" || echo "RESOLVE THE ABOVE FIRST"
+```
+
+**4.2** Confirm no record returns a **Cloudflare** address. If the apex resolves to a
+Cloudflare IP against the new nameservers, something is proxied.
+
+**4.2b** Confirm the **imported TTLs are 300, not 3600**. A BIND import carries the source
+TTLs across, and 3600 would remove the fast-correction property exactly when it is wanted.
+
+```bash
+dig @<cloudflare-ns> southvillerunningclub.co.uk A +noall +answer
+#   TTL column should read 300
+```
+
+**4.2c** Browse the zone as if it were already delegated — **the best test available**, and
+it changes nothing for anyone but you. On macOS:
+
+```bash
+dig +short <cloudflare-ns>                       # get its IP
+sudo mkdir -p /etc/resolver
+printf 'nameserver <that-ip>\n' | sudo tee /etc/resolver/southvillerunningclub.co.uk
+```
+
+Your machine — and only your machine — now resolves this domain and every subdomain through
+Cloudflare. **Load the club site, load `nn.`, send and receive a club email.** Delete the
+file to undo.
+
+> **Turn off DNS-over-HTTPS in your browser first.** Chrome and Firefox otherwise bypass the
+> system resolver entirely, and you will conclude it works without having tested anything.
+
+**4.3** **The second volunteer runs the same check independently**, from their own machine.
+
+This is exactly the change the [review
+requirement](../../foundations/requirements.md#everything-is-defined-as-code) exists for, and
+the only step in the programme where an independent check is non-negotiable.
+
+> **Stop condition.** Anything other than `IDENTICAL` means do not proceed.
+
+---
+
+## Phase 5 — the switch
+
+*Fifteen minutes. **The only step that carries real risk.***
+
+**5.1** Confirm none of the [stop conditions](#stop-conditions--do-not-start-if-any-of-these-is-true)
+has become true.
+
+**5.2** At **Fasthosts**, change the nameservers to Cloudflare's.
+
+*Look for nameserver or delegation settings on the domain, not in the DNS-records screen —
+**confirm the exact location in the panel**. Replace all three `livedns.co.uk` entries with
+Cloudflare's two.*
+
+**5.3** **Send and receive a test message on a club address. Immediately.**
+
+**Mail first, always.** Everything else can wait a few minutes; this cannot.
+
+**5.4** Confirm the website still resolves to **Squarespace**:
+
+```bash
+dig +short southvillerunningclub.co.uk A
+#   expect: Squarespace's four addresses
+#   a Cloudflare address means something is proxied — fix at Cloudflare now
+```
+
+**5.5** Load the site over HTTPS, **from mobile data as well as home broadband** — different
+resolvers, and during propagation they may be asking different nameservers.
+
+**5.6** Confirm the delegation actually changed:
+
+```bash
+dig +short NS southvillerunningclub.co.uk
+whois southvillerunningclub.co.uk | grep -iA3 'name server'
+```
+
+---
+
+## Phase 6 — watch for 48 hours
+
+*Passive. **Both nameserver sets are live during this window and must keep agreeing.***
+
+**6.1** Send **and** receive on club addresses daily.
+
+**6.2** Read DMARC reports. `p=none` means reports arrive and nothing is rejected — use them
+rather than waiting for somebody to say a reply never came.
+
+**6.3** **Edit neither zone.**
+
+- **Not Fasthosts** — it is not a stale copy yet; it is still answering for half the internet.
+- **Not Cloudflare** either, unless fixing something broken. A change there is invisible to
+  anyone still resolving through Fasthosts.
+
+**6.4** Re-run the phase 4 diff once a day. It should stay `IDENTICAL`.
+
+---
+
+## Phase 7 — settle
+
+*An evening, after the 48 hours.*
+
+**7.1** Raise TTLs back to something sensible — 3600.
+
+**7.2** **Export the zone from Cloudflare and commit it.** This replaces the Fasthosts export
+as the live reference and is the artefact that makes future record changes reviewable —
+[ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md).
+
+**7.3** **Leave the Fasthosts zone intact for at least a month.** It is the rollback.
+
+**7.4** Write down, in this repository, **which provider is authoritative** — and put a note
+in the Fasthosts account too.
+
+> **The footgun this defuses:** once the 48 hours pass, the Fasthosts zone becomes a divergent
+> copy that is still editable. A volunteer editing DNS in the familiar panel would see the
+> change save successfully and **do nothing at all.**
+
+---
+
+## Rollback
+
+| Stage | If it goes wrong | Effective in |
+| --- | --- | --- |
+| Phases 1–4 | Delete the Cloudflare zone. Nothing is live | **Immediately** |
+| After the switch — a wrong record | **Fix it at Cloudflare.** It is authoritative now | **~300 seconds** (the lowered TTL) |
+| After the switch — something fundamental | Point the nameservers back at Fasthosts, whose zone is untouched | **Up to 48 hours** |
+
+> **Repair forward, not back.** Once Cloudflare is authoritative, correcting a record there is
+> two orders of magnitude faster than reverting the delegation. Reverting is the last resort —
+> which is exactly why phases 1–4 carry the weight.
+
+---
+
+## Impact on the Squarespace site
+
+**None, if nothing is proxied.** This is the crux of the whole plan.
+
+```
+BEFORE
+  browser → resolver → ns1.livedns.co.uk → "198.185.159.144"
+  browser ─────────────────────────────────────────→ Squarespace
+
+AFTER, every record DNS-only
+  browser → resolver → Cloudflare NS     → "198.185.159.144"   ← identical answer
+  browser ─────────────────────────────────────────→ Squarespace   ← identical connection
+
+IF PROXIED — must not happen
+  browser → resolver → Cloudflare NS     → "104.x.x.x"         ← Cloudflare's address
+  browser → Cloudflare edge ───────────────────────→ Squarespace   ← TLS terminated between
+```
+
+**In the middle case Cloudflare never touches a packet of club traffic.** It answers a
+question and steps out of the way. Squarespace receives exactly the connection it receives
+today and presents its own certificate. **It cannot tell anything changed.**
+
+**There is no cutover moment for the website.** Its address is the same before and after —
+what changes is *who gets asked*, not what the answer is. So during propagation both
+nameserver sets give the same answer and both work.
+
+Two cautions that come with it:
+
+| | |
+| --- | --- |
+| **Squarespace will not support the club on Cloudflare** | Its own guide puts Cloudflare outside its support scope. While Squarespace still serves the live site, an odd fault leaves two vendors pointing at each other. The mitigation is the rollback |
+| **Do not add CAA records** | Could break Squarespace's SSL renewal quietly, weeks later |
+
+---
+
+## What must not happen
+
+- **Nothing is proxied.** Not the apex, not `www`, and above all **not the mail records**.
+- **The apex is not repointed in the same change.** Two changes means an outage with two
+  candidate causes. The apex moves months later, when the new site is proven.
+- **Not in the same week as the Nightingale Nightmare launch.**
+- **Not in race week, not on a Friday**, not near the Squarespace renewal.
+- **The Fasthosts zone is not deleted** for at least a month.
+- **Neither zone is edited** during the 48-hour window.
+
+---
+
+## Done when
+
+- [ ] The committed Fasthosts export matched a live lookup, at **18 records**
+- [ ] Cloudflare answers **identically** to Fasthosts on every record
+- [ ] **Both volunteers** verified the diff independently
+- [ ] Nameservers changed, and `whois` confirms it
+- [ ] **Club email sent and received** after the switch
+- [ ] The apex resolves to **Squarespace**, not Cloudflare
+- [ ] 48 hours passed with no divergence and no zone edits
+- [ ] TTLs raised; **the Cloudflare zone exported and committed**
+- [ ] The Fasthosts zone **left intact**, with a note saying it is no longer authoritative
+- [ ] What was done by hand is written down
+
+## What actually happened, 8 August 2026
+
+Kept because the surprises are more useful than the plan was.
+
+### Cloudflare's scan found 12 of 18 records
+
+The zone-onboarding scan reported *"8 A, 1 CNAME, 1 MX, 2 TXT"*. **It missed six**, including
+**all four DKIM CNAMEs**, the Squarespace verification CNAME, and the `mcp` A record. It
+found exactly one of six CNAMEs.
+
+`dns-first.md` said *"assume the scan missed something; it usually misses at least one
+CNAME."* That was right in spirit and badly understated in degree.
+
+**Proceeding at that point would have kept mail flowing while silently breaking DKIM** — and
+with DMARC at `p=none`, that degrades into spam folders over weeks rather than failing
+visibly.
+
+> **Count the records against the committed zone before doing anything else.** The count is
+> the check, not a glance at the list.
+
+### Nine records arrived proxied and had to be turned grey by hand
+
+As predicted, and the documented figure of eleven was right — nine were imported orange, and
+the two missing proxiable records (`mcp`, the verify CNAME) arrived orange when added.
+
+**The import-with-proxying-off route was not available**, because Fasthosts offers no BIND
+export — the zone was transcribed from the panel, so the scan-then-fix path is what actually
+happens. Treat the checkbox as a bonus if a zone file exists, not as the plan.
+
+### Fasthosts has no TTL field
+
+Confirmed in the panel. [Phase 2](#phase-2--ttls--likely-skip-this-phase) was skipped
+entirely and cost nothing. Cloudflare's imported records came in at Auto/1 min, which is what
+was wanted anyway.
+
+### Two commands in this runbook were wrong
+
+Both would have produced a false "it failed" during the most stressful part.
+
+**The registry query needs `+noall +authority`.** A registry server returns the delegation in
+the **authority** section, so `dig @dns1.nic.uk ... NS +short` reads **empty** — which looks
+exactly like "the change didn't take". Corrected throughout.
+
+**`curl --resolve` needs an IP, not a CNAME target.** Checking `www` means resolving
+`ext-cust.squarespace.com` to an address first, then forcing the connection to that.
+
+### The pre-flight tests were worth more than the runbook credited
+
+The `/etc/resolver` override — resolving the domain through Cloudflare on one laptop, before
+any delegation — proved the whole chain end to end: the real site served by Squarespace with
+its own valid certificate, from answers given entirely by Cloudflare. **That is the test that
+made the switch a formality.**
+
+Two things it needs that are easy to miss: **`dig` ignores `/etc/resolver` on macOS** (it
+reads `/etc/resolv.conf`, so use `dscacheutil`, `curl` or a browser), and **browser
+DNS-over-HTTPS must be off** or nothing is being tested.
+
+> **Remove the override before switching.** Left in place, the machine resolves via Cloudflare
+> regardless of the delegation — so everything looks fine afterwards and proves nothing.
+
+### "Email works" is not "email authenticates"
+
+Send and receive confirms delivery. It does **not** confirm DKIM, and DKIM is the thing that
+fails quietly here.
+
+**Send from a club address to a Gmail account, open ⋮ → Show original, and confirm
+`dkim=pass`, `spf=pass`, `dmarc=pass`.** This runbook did not ask for that and should have.
+
+## What this unblocks
+
+| | |
+| --- | --- |
+| **Workers custom domains** | Previously impossible on the club domain |
+| **The current Astro Cloudflare adapter** | The [Pages/Workers pincer](../nn-build-brief.md#build-it-as-a-worker) disappears, and the main website can start on the path Cloudflare actually supports |
+| **Cron Triggers** | A Workers feature — the newsletter mirror stops needing a GitHub Actions workaround |
+| **The March apex cutover** | Becomes a record change **inside** Cloudflare. Seconds to make, seconds to reverse |
+| **DNS as a reviewable artefact** | [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) |

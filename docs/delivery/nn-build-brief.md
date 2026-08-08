@@ -18,48 +18,42 @@ Cloudflare, [DNS and domain](../solutions/dns-and-domain.md) for the hostname.
 
 | | |
 | --- | --- |
-| **Build** | A public page describing the race, and a form capturing name and email |
-| **Host** | Cloudflare Pages, custom subdomain `nn.southvillerunningclub.co.uk` |
+| **Build** | A public page describing the race, a sign-up form, and **Stripe payment** |
+| **Host** | **Cloudflare Workers** with static assets, custom domain `nn.southvillerunningclub.co.uk` |
 | **Store** | Supabase Postgres, `eu-west-2` |
-| **Do not build** | Payments, entry forms, results, accounts, admin surfaces |
+| **Do not build** | Results, accounts, admin surfaces. **Payments are in scope** — see below |
 
 This is one page and one form. Scope creep is the main risk to the deadline, and the
 second main risk is collecting personal data nobody asked for.
 
 ---
 
-## The adapter constraint — read this before choosing anything
+## Build it as a Worker
 
-**`@astrojs/cloudflare` v13 (March 2026) dropped Cloudflare Pages support** in favour of
-Workers, and v14 requires Astro 6. The last adapter version supporting Pages was v12.
+> **This section used to describe a pincer.** `@astrojs/cloudflare` v13 dropped Pages
+> support, while Workers custom domains needed an active Cloudflare zone the club did not
+> have — so v1 was boxed into Pages. **The nameservers moved on 8 August 2026 and the pincer
+> is gone.** Kept here because the conclusion survived and the reasoning explains why.
 
-Cloudflare Workers, meanwhile, **cannot serve a hostname whose nameservers are not managed
-by Cloudflare** — and the club's zone is at Fasthosts until the apex cutover before April.
-
-That is a genuine pincer, and it has a clean way out:
-
-> **Build the site as static Astro with no adapter at all, and write the form endpoint
-> as a plain Cloudflare Pages Function.**
+> **Build the site as static Astro, and deploy it as a Worker with static assets plus one
+> Worker route for the form.**
 
 | | |
 | --- | --- |
-| **Static Astro** needs no adapter, so the Pages-support question never arises | No version pinning, no deprecated toolchain |
-| **Pages Functions** are Cloudflare's own convention — a `functions/` directory, framework-agnostic | Full Workers runtime for the dynamic part |
-| **Pages serves a subdomain from third-party DNS** | One CNAME at Fasthosts, nothing existing touched |
+| **Static Astro still needs no adapter** | Astro pre-renders at build time; for a static-only site the Cloudflare adapter is not required at all |
+| **Workers is where Cloudflare is investing** | *"If you are starting a new project, use Workers instead of Pages"* — Pages keeps working but gets no new work |
+| **The output is the portable thing** | Static HTML plus one handler runs on Workers, on Pages, or on Netlify. Nothing here is a one-way door |
 
-For a page and a form this costs nothing — there is no server-rendered content in v1. When
-the nameservers move to Cloudflare before April, the site can adopt Astro 6 with the
-`@astrojs/cloudflare` adapter on Workers for the full website build, and this project
-migrates with it.
+**What changed in practice:** `assets.directory` points at `dist/`, `main` points at the form
+handler, and the custom domain is attached in the Worker — **Cloudflare creates the DNS
+record and the certificate itself.** No CNAME at Fasthosts, and no
+associate-the-domain-first-or-get-a-522 ordering trap.
 
-**Do not pin adapter v12 to get SSR on Pages.** It starts new work on a superseded
-toolchain to buy something v1 does not need.
+**Do not pin `@astrojs/cloudflare` v12 to get SSR on Pages.** That was wrong when Pages was
+forced and it is worse now.
 
-**This constraint disappears if the nameservers move first.** [Move the DNS
-first](dns-first.md#what-this-unblocks) sets out that ordering — once the zone is on
-Cloudflare, Workers custom domains and the current Astro adapter both become available.
-Even then, static output plus one function remains the right shape for a page and a form;
-what changes is that the *website rebuild* is no longer boxed in.
+**When SSR is genuinely wanted** — the main website rebuild, not this — Astro 6 with the
+current `@astrojs/cloudflare` adapter on Workers is available and supported.
 
 ---
 
@@ -72,8 +66,8 @@ request saying why.
 | --- | --- | --- |
 | **Language** | TypeScript, `strict: true` | [Convergence](../foundations/requirements.md#convergence) with the timing platform |
 | **Framework** | **Astro**, current stable (6.x) | Content-shaped site; ships zero JS by default; adapters for every candidate host, so the hosting decision stays cheap |
-| **Render mode** | `output: 'static'` — **no adapter** | Sidesteps the Pages/Workers adapter split entirely. See above |
-| **Dynamic endpoint** | **Cloudflare Pages Function** in `functions/` | Framework-agnostic, full Workers runtime, survives a framework change |
+| **Render mode** | `output: 'static'` — **no adapter** | A static-only Astro site needs no Cloudflare adapter. See above |
+| **Dynamic endpoint** | **A Worker route**, `main` in `wrangler.jsonc` | Full Workers runtime, survives a framework change |
 | **Runtime (tooling)** | Node.js LTS (22.x), pinned in `.nvmrc` | Boring |
 | **Package manager** | **npm**, lockfile committed | [Boring is a hard requirement](../foundations/requirements.md#people). pnpm is better and less universally known |
 | **Styling** | Vanilla CSS with custom properties, one stylesheet | A third volunteer can read it cold. No build step, no framework vocabulary to learn, smallest payload on poor signal |
@@ -83,7 +77,7 @@ request saying why.
 | **Browser tests** | **Playwright**, with `@axe-core/playwright` | Accessibility is a stated requirement, so it is tested, not asserted |
 | **Lint / format** | ESLint + Prettier | Mainstream over fast |
 | **CI** | GitHub Actions | Already where the club's code lives |
-| **Deploy** | Cloudflare Pages git integration, build on push to `main`, preview per pull request | No deploy credentials in CI to leak |
+| **Deploy** | Cloudflare **Workers Builds** git integration, build on push to `main`, preview URL per version | No deploy credentials in CI to leak |
 | **Config as code** | `wrangler.jsonc` committed if any binding is needed | [Everything defined as code](../foundations/requirements.md#everything-is-defined-as-code) |
 
 ### Rejected, so nobody re-litigates them
@@ -99,13 +93,13 @@ request saying why.
 
 ## Project structure
 
+*Per [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) this lives at `apps/nn`
+in the monorepo, not in its own repository.*
+
 ```
-nn-src/
-├── .github/workflows/ci.yml
+apps/nn/
 ├── .nvmrc
-├── functions/
-│   └── api/
-│       └── signup.ts          Pages Function — POST handler
+├── wrangler.jsonc             assets.directory -> dist, main -> worker/index.ts
 ├── src/
 │   ├── content/
 │   │   └── race.json          Race facts as data, not prose in markup
@@ -114,6 +108,8 @@ nn-src/
 │   │   ├── index.astro
 │   │   └── privacy.astro
 │   └── styles/
+├── worker/
+│   └── index.ts               POST /api/signup — the form handler
 ├── tests/
 │   ├── unit/
 │   └── e2e/
@@ -121,6 +117,8 @@ nn-src/
 ├── tsconfig.json
 └── README.md                  How to run it, and every manual step taken
 ```
+
+*CI lives at the repository root, not per app.*
 
 **`src/content/race.json` is load-bearing.** The race date is unconfirmed, so every fact
 that might change — date, time, distance, price, location — lives in one file as data.
@@ -142,19 +140,28 @@ Violating any of these is a defect, not a judgement call.
 - The **anon key only** in client-visible code. The service role key never reaches the
   browser and never enters the repository. Row-level security does the enforcing.
 
-**Payments**
+**Payments — in scope, and gated**
 
-- **No payment code of any kind.** No Stripe dependency, no price in a checkout, no
-  "coming soon" button that takes a card. The [governance
-  gates](../foundations/requirements.md#legal-and-governance) are not satisfied, and
-  free-tier commercial-use terms turn on this.
+- **Stripe Checkout, hosted by Stripe**, with a webhook recording the result. **Card details
+  never touch club systems**, which is what keeps this out of PCI scope.
+- **Do not start the payment flow until the
+  [governance gates](../foundations/requirements.md#legal-and-governance) are cleared** —
+  data-protection advice, treasurer-controlled arrangements, a written refund policy, and a
+  confirmed entry price. These are on the critical path for 22 August.
+- **Store the Stripe reference, not the payment instrument.** What else is stored against a
+  payment is [deferred to the schema design](phases.md#deferred-to-the-next-pull-request).
+- The **sign-up path must keep working if payment is unavailable.** A failed checkout must not
+  lose the entry.
 
-**DNS**
+**DNS** — *simplified since the nameservers moved on 8 August 2026*
 
-- **One CNAME**, `nn` → `<project>.pages.dev`, added at Fasthosts.
-- **Associate the custom domain in the Cloudflare dashboard first**, then add the CNAME.
-  Reversing the order produces a 522.
+- **Attach `nn.southvillerunningclub.co.uk` as a custom domain on the Worker.** Cloudflare
+  creates the record and issues the certificate. **Do not hand-add anything.**
+- **Nothing at Fasthosts.** Its DNS panel is no longer authoritative — a change there saves
+  successfully and does nothing.
 - **Never modify or delete an existing record.** Additive only.
+- The `nn` record **is** proxied. It is one of the few that should be: Cloudflare is the
+  origin. See [adding a hostname](runbooks/adding-a-hostname.md).
 
 **Correctness and access**
 
@@ -191,8 +198,8 @@ From the [repository README](../../README.md), and they apply here:
 
 | Name | Where it lives | Notes |
 | --- | --- | --- |
-| `PUBLIC_SUPABASE_URL` | Pages project env vars, and `.env` locally | Safe to expose |
-| `PUBLIC_SUPABASE_ANON_KEY` | Pages project env vars, and `.env` locally | Safe to expose; RLS enforces access |
+| `PUBLIC_SUPABASE_URL` | Worker vars, and `.env` locally | Safe to expose |
+| `PUBLIC_SUPABASE_ANON_KEY` | Worker vars, and `.env` locally | Safe to expose; RLS enforces access |
 
 `.env` is gitignored. `.env.example` is committed with empty values. **No third variable
 should be needed** — if the build seems to want a service role key, the row-level security
@@ -280,7 +287,7 @@ Worth stating, because it is the property that justified starting before the pla
 decision was final.
 
 The output is **static HTML plus one function**. If the club later chooses Netlify, the
-Astro build is unchanged and the Pages Function becomes a Netlify Function — a file move
+Astro build is unchanged and the Worker route becomes a Netlify Function — a file move
 and a signature change. If it chooses Workers after the nameserver move, the same code
 runs with an adapter added. **The data never moves at all.**
 

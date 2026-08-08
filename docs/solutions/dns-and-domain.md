@@ -13,6 +13,15 @@ Baseline facts — the 18 records, the mail arrangement — are in [current
 state](../foundations/current-state.md#dns-and-email). The hosting candidates that make
 this question live are in [platform options](platform-options.md).
 
+> **Superseded in part, 8 August 2026.** The nameservers moved to Cloudflare, so the
+> constraint running through this document — *Cloudflare Pages only, via a CNAME at
+> Fasthosts, because Workers custom domains need an active zone* — **no longer applies**.
+> Everything new is a **Worker**, and attaching a custom domain creates its own DNS record.
+>
+> **The vendor analysis and the costings stand.** Kept as the record of how the choice was
+> made. For what to do now, see [the phases](../delivery/phases.md) and
+> [adding a hostname](../delivery/runbooks/adding-a-hostname.md).
+
 ---
 
 ## Four separable things

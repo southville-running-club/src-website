@@ -21,6 +21,15 @@ Companion documents: [DNS and domain](dns-and-domain.md) for the Fasthosts quest
 figure is inferred rather than read off a vendor's own page it says so, and everything
 load-bearing is listed again under [verify before deciding](#validation-register).
 
+> **Superseded in part, 8 August 2026.** The nameservers moved to Cloudflare, so the
+> constraint running through this document — *Cloudflare Pages only, via a CNAME at
+> Fasthosts, because Workers custom domains need an active zone* — **no longer applies**.
+> Everything new is a **Worker**, and attaching a custom domain creates its own DNS record.
+>
+> **The vendor analysis and the costings stand.** Kept as the record of how the choice was
+> made. For what to do now, see [the phases](../delivery/phases.md) and
+> [adding a hostname](../delivery/runbooks/adding-a-hostname.md).
+
 ---
 
 ## The two questions that eliminate

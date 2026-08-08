@@ -9,6 +9,15 @@ club's to answer rather than the analysis's.
 TypeScript for the build. Only the serving layer differs, and it is the cheapest layer to
 change.
 
+> **Superseded in part, 8 August 2026.** The nameservers moved to Cloudflare, so the
+> constraint running through this document — *Cloudflare Pages only, via a CNAME at
+> Fasthosts, because Workers custom domains need an active zone* — **no longer applies**.
+> Everything new is a **Worker**, and attaching a custom domain creates its own DNS record.
+>
+> **The vendor analysis and the costings stand.** Kept as the record of how the choice was
+> made. For what to do now, see [the phases](../delivery/phases.md) and
+> [adding a hostname](../delivery/runbooks/adding-a-hostname.md).
+
 ---
 
 ## The one difference that decides it
@@ -67,7 +76,7 @@ moving.
 | **Live leaderboard without paying Supabase** | **Durable Objects, included in the £47** | Would need Supabase Realtime → **£237/yr past 200 connections** |
 | **Staff access control** | Zero Trust, free to 50 users | Netlify Identity or build it |
 | **Scheduled jobs** | Cron Triggers *(Workers only, not Pages)* | Scheduled Functions |
-| **Framework friction** | Astro adapter dropped Pages support at v13 — [use static output](../delivery/nn-build-brief.md#the-adapter-constraint--read-this-before-choosing-anything) | Mature adapter, no equivalent trap |
+| **Framework friction** | Astro adapter dropped Pages support at v13 — [use static output](../delivery/nn-build-brief.md#build-it-as-a-worker) | Mature adapter, no equivalent trap |
 | **Exit cost** | Low for serving; DNS would have to move back | **Lowest of any option** — Netlify holds only a build config |
 
 ### The two that carry real weight
