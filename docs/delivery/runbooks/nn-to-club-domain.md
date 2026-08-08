@@ -2,7 +2,7 @@
 
 Getting a working page served at `nn.southvillerunningclub.co.uk`.
 
-Part of [Phase 3](../phases.md#phase-3--hello-world-for-nightingale-nightmare).
+Part of [Phase 3](../phases.md#phase-3--nightingale-nightmare-live).
 **Stages here are internal to this runbook** and are not the programme's phases.
 
 **Scope: the network path only.** A hello-world page, proving repository → build → Worker →
@@ -176,7 +176,7 @@ as not existing for an hour.
 **The network path is proven, so from here anything that breaks is application code.** That
 separation is the whole reason Stages 1 and 2 involve no database.
 
-[Phase 3](../phases.md#phase-3--hello-world-for-nightingale-nightmare) is not finished until
+[Phase 3](../phases.md#phase-3--nightingale-nightmare-live) is not finished until
 this stage is, but it is [the build brief](../nn-build-brief.md)'s territory. In outline:
 
 | | |

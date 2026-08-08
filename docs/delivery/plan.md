@@ -14,13 +14,13 @@ matters — [decisions](../decisions/decision-log.md), [the DNS move](dns-first.
 below is labelled with the phase it belongs to, and the two documents describe the same
 programme at different resolutions. **Procedures live in [the runbooks](runbooks/).**
 
-**Two dates are real.** Nightingale Nightmare — **Halloween weekend 2026**, with sign-ups
-opening around late August; the exact day is not yet fixed and nothing waits on it. And
-**Squarespace renews automatically on 21 March 2027**; silence costs £204.
+**Four dates are real.** **NN sign-ups and payment live ~22 August 2026.** **The timing app
+race-ready by mid-October.** **Race day 31 October / 1 November.** And **Squarespace renews
+automatically on 21 March 2027**; silence costs £204.
 
 ---
 
-## Phases 1-3 · Get the club an identity
+## Phase 3 · Get the club an identity
 
 1. ~~**Ask Fasthosts two questions**~~ — **done.** Sending limits are fine and the package
    allows **five mailboxes** at no extra cost, so the
@@ -60,7 +60,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 14. **Download all 33 newsletters and every image** on the site.
 15. **Store the lot somewhere the club controls**, and write down what was retrieved.
 
-## Phases 3 and 5 · Get Nightingale Nightmare started
+## Phase 3 · Nightingale Nightmare — live by ~22 August
 
 *Needs step 6. Nothing else.*
 
@@ -85,8 +85,8 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
     changing it is a one-line edit.
 21. **Test it properly** — with JavaScript off, with a duplicate submission, with bad
     input, on a 320-pixel screen.
-22. **Decide by the end of August** whether 2026 entries go through the club's own site or
-    stay with Full On Sport. *Paid entries want to open in early September.*
+22. ~~**Decide whether 2026 entries go through the club's own site or stay with Full On
+    Sport**~~ — **decided: the club's own site**, with Stripe. That is what Phase 3 builds.
 
 ## Phase 2 · Move the DNS to Cloudflare, changing nothing else ✅
 
@@ -145,7 +145,7 @@ opening around late August; the exact day is not yet fixed and nothing waits on 
 39. **Announce it.** Not before step 38 — an address that doesn't resolve is remembered as
     not existing for an hour.
 
-## Phases 4 and 6 · The timing app on Cloudflare
+## Phase 4 · The timing app on Cloudflare — race-ready by mid-October
 
 ⚠️ ***The only phase touching a system that cannot be re-run.*** **After the Nightingale
 Nightmare race, not before** — NN 2026 runs on the existing Vercel deployment, because
@@ -173,7 +173,7 @@ constraint](../foundations/requirements.md#risk) exists to prevent.
 > idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
 > `Europe/London` pinning.
 
-## Phase 7 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
+## Phase 5 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
 
 *The old site keeps running throughout — [what the requirements always asked
 for](../foundations/requirements.md#continuity). The new one grows beside it at
@@ -190,7 +190,7 @@ is proven long before anything switches.*
     a month, and every one is somebody who would otherwise have to be asked to move
     twice.*
 
-## Phase 8 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
+## Phase 6 · Move the member fund ⚠️ *the long pole — but now a fixed number, not a growing one*
 
 *Around 103 people must each personally re-establish their payment; the mandates die with
 Squarespace Payments. **Needs step 45, not the finished website.***
@@ -205,7 +205,7 @@ Squarespace Payments. **Needs step 45, not the finished website.***
     arriving at Squarespace and at the new page. *Time-box it rather than letting it
     drift.*
 
-## Phase 7 · Build the rest of the new site
+## Phase 5 · Build the rest of the new site
 
 *On `new.`, with paths mirroring the old site. Ordered by [what people actually
 read](../foundations/current-state.md#what-people-actually-read).*
@@ -226,7 +226,7 @@ read](../foundations/current-state.md#what-people-actually-read).*
     *Because the paths align, this can be checked for real rather than promised.*
 63. **Check accessibility and phone performance.** *70% of visitors are on a phone.*
 
-## Phase 9 · The switch
+## Phase 7 · The switch
 
 *One coordinated moment, because Squarespace 301-redirects every secondary domain to its
 primary — so the old site cannot be reachable at `old.` while it is still serving `www`.*
@@ -243,7 +243,7 @@ primary — so the old site cannot be reachable at `old.` while it is still serv
 68. **Walk every old address** and confirm nothing 404s.
 69. **Leave it running** while members actually use it.
 
-## Phase 9 · Switch Squarespace off
+## Phase 7 · Switch Squarespace off
 
 70. **Confirm all five are true:** the site is rebuilt and serving the apex; every URL
     resolves; the member fund has moved; every document, newsletter and image is held by

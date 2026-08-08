@@ -3,68 +3,65 @@
 The shape of the programme, end to end. **Start here**, then use [the plan](plan.md) for the
 numbered steps and the [runbooks](runbooks/) for the procedures.
 
-| | | Ends when |
+| | | Deadline |
 | --- | --- | --- |
 | **[1](#phase-1--prove-the-hosting-path)** ✅ | ~~Prove the hosting path~~ | **Done 8 Aug 2026** |
 | **[2](#phase-2--move-the-nameservers)** ✅ | ~~Nameservers to Cloudflare~~ | **Done 8 Aug 2026** |
-| **[3](#phase-3--hello-world-for-nightingale-nightmare)** | **Hello-world for NN** — Workers + Supabase, defined as code | A page reaches production through the whole pipeline and writes to the club's database |
-| **[4](#phase-4--hello-world-for-timing)** | **Hello-world for timing** — same shape, same database | `timing.<apex>` serves a Worker. **The real app is untouched** |
-| **[5](#phase-5--nightingale-nightmare-built-out)** | Nightingale Nightmare built out | Sign-ups open — **late August** |
-| **[6](#phase-6--port-the-timing-app)** | The timing app **ported for real**, off Vercel | **After the race.** Race simulation signed off |
-| **[7](#phase-7--the-new-website)** | The new website at `new.<apex>` | Every page the old site has, the new one has |
-| **[8](#phase-8--move-the-member-payments)** | Member payments move | All ~103 payers have re-established their payment |
-| **[9](#phase-9--decommission-squarespace)** | Decommission Squarespace | Cancelled, **before 21 March 2027** |
+| **[3](#phase-3--nightingale-nightmare-live)** | **Nightingale Nightmare live** — sign-ups and Stripe payment | **~22 August 2026** — two weeks |
+| **[4](#phase-4--the-timing-app-on-cloudflare)** | **The timing app on Cloudflare**, same database | **Race-ready by mid-October** |
+| **🏁** | **Nightingale Nightmare — race day** | **31 Oct / 1 Nov 2026** |
+| **[5](#phase-5--the-new-website)** | The new website at `new.<apex>` | From November |
+| **[6](#phase-6--move-the-member-payments)** | Member payments move | The long pole — starts during Phase 5 |
+| **[7](#phase-7--decommission-squarespace)** | Decommission Squarespace | **Before 21 March 2027** |
 
-**Phases 3–6 are defined below. 7–9 are sketches** — far enough out that detail written now
-would be rewritten before anyone used it.
-
-> **Splitting "hello-world" from "built out" is the good idea in this plan**, and it applies
-> twice. Phase 3 proves the *pipeline* — repository, build, deploy, hostname, TLS, database —
-> with a page that has nothing to get wrong. Phase 5 then builds the real thing knowing every
-> remaining failure is application code.
->
-> **Phase 4 does the same for timing, and it is what makes Phase 6 safe.** A hello-world
-> Worker at `timing.<apex>` proves the deployment path — Workers Builds, custom domain,
-> Supabase connectivity — **without touching the race-critical application at all.** So it can
-> happen before the race, while [the port itself cannot](#phase-6--port-the-timing-app).
+**Phases 3 and 4 both complete before the race**, and the race uses the migrated timing app
+on Cloudflare, reading the same database as Nightingale Nightmare.
 
 ---
 
-## Everything is a Worker now
+## The dates that are real
 
-Phases 1 and 2 changed what is possible, and the documentation has been brought in line.
+| | When | Why it is fixed |
+| --- | --- | --- |
+| **NN sign-ups and payment live** | **~22 August 2026** | Entries want to open in early September; the race needs a lead time to fill |
+| **Timing app race-ready** | **Mid-October 2026** | Leaves a fortnight for the race simulation and anything it finds |
+| **Race day** | **31 October / 1 November 2026** | Halloween weekend. The clocks go back on **Sunday 25 October**, so the race is the following weekend, in GMT |
+| **Squarespace renewal** | **21 March 2027** | Automatic. Silence costs £204 |
+
+**Two months separate Phase 3 from race day, and one month separates Phase 4 from it.** The
+timing app's own deadline is *race-ready*, not *deployed* — the
+[race simulation](#the-gate-on-phase-4) is the gate, and it needs slack behind it.
+
+---
+
+## One database, several schemas
+
+**Everything runs on a single Supabase Postgres project**, separated by schema — the timing
+app, Nightingale Nightmare, and eventually the website.
+
+That is [ADR-002](../architecture/decisions/adr-002-schema-layout.md), and it is what makes
+[C2](../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
+possible: the results archive reads the timing tables directly rather than re-keying them.
+Two projects would be two Postgres instances and could not join.
+
+**The detailed schema design is deferred to the next pull request** — including where race
+entries and payment records land, and how `intake` promotes into `club`.
+
+---
+
+## Everything is a Worker
+
+Phases 1 and 2 changed what is possible, and the documentation is in line.
 
 | | Before 8 Aug 2026 | **Now** |
 | --- | --- | --- |
-| Serving a club hostname | **Pages only** — Workers custom domains need an active zone | **Workers**, which is where Cloudflare is investing |
+| Serving a club hostname | **Pages only** — Workers custom domains need an active zone | **Workers** |
 | Adding the DNS record | By hand at Fasthosts, in the right order or 522 | **Cloudflare creates it**, with the certificate |
-| `@astrojs/cloudflare` adapter | Unusable — static output only | Available, if SSR is ever wanted |
-| Next.js on Cloudflare | Impossible on the club domain | **`@opennextjs/cloudflare` on Workers** — what Phase 6 needs |
+| Next.js on Cloudflare | Impossible on the club domain | **`@opennextjs/cloudflare` on Workers** |
 
-**Static Astro still needs no adapter.** A static build plus one Worker route is still the
-right shape for a page and a form — what changed is that it deploys as a **Worker with static
-assets** rather than a Pages project, and the hostname attaches itself.
-
-*Pages is not deprecated and the NN build would still work on it. But Cloudflare's guidance
-for new projects is Workers, and there is no longer a reason to take the other path.*
-
----
-
-## What "defined as code" means here
-
-Phases 3 and 4 say *via IaC*. Pinned down so it does not quietly conflict with
-[ADR-005](../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md): **it means
-the frontend and its pipeline**, not the DNS records.
-
-| | |
-| --- | --- |
-| **Code** | The app, `wrangler.jsonc`, schema and RLS as migrations, the CI pipeline, local stack and seed data, generated types |
-| **Manual, and written down** | Creating the Worker, creating the Supabase project, secrets, any hand-added DNS |
-
-**Everything that changes often is code. Everything once-ever is manual and documented** —
-see [infrastructure as code](../architecture/investigations/infrastructure-as-code.md) for the
-arithmetic. Note there is now *less* manual DNS than a week ago, because attaching a custom
-domain creates its own record.
+**Static Astro still needs no adapter.** A static build plus one Worker route is the right
+shape for NN — it just deploys as a Worker with static assets, and the hostname attaches
+itself.
 
 ---
 
@@ -72,18 +69,14 @@ domain creates its own record.
 
 > ## ✅ Done — 8 August 2026
 >
-> A throwaway project served a page at `nn.southvillerunningclub.co.uk` over HTTPS, via a
-> Pages project and a CNAME at Fasthosts. **Deleted afterwards** — its whole purpose was to
-> prove the path before anything depended on it.
+> A throwaway project served a page at `nn.southvillerunningclub.co.uk` over HTTPS, then was
+> deleted. Its whole purpose was to prove the path before anything depended on it.
 
-**What it established:** Cloudflare could serve a club hostname from third-party DNS, the
-certificate issued automatically, and the ordering trap was real — associate the custom
-domain first, or get a 522.
+**What it established:** Cloudflare could serve a club hostname, the certificate issued
+automatically, and the ordering trap was real.
 
-**What it cost:** an afternoon, with nothing at stake at any point.
-
-*The pattern is worth repeating: prove the path with something disposable, then build the real
-thing knowing the path works. That is exactly what Phases 3 and 4 are.*
+*The pattern is worth repeating — prove the path with something disposable, then build the
+real thing knowing the path works.*
 
 ---
 
@@ -92,193 +85,157 @@ thing knowing the path works. That is exactly what Phases 3 and 4 are.*
 > ## ✅ Done — 8 August 2026, 15:54 UTC
 >
 > Delegation is `bonnie.ns.cloudflare.com` / `hans.ns.cloudflare.com`, confirmed at both `.uk`
-> registry servers. All 18 records verified identical before and after; nothing proxied; the
-> site still served by Squarespace; mail routing unchanged through Fasthosts; all four DKIM
-> chains resolving to live public keys.
+> registry servers. All 18 records verified identical before and after; nothing proxied; site
+> still served by Squarespace; mail routing unchanged through Fasthosts; all four DKIM chains
+> resolving to live public keys.
 >
 > **Outstanding:** the 48-hour window closes 10 August; the Cloudflare zone export needs
 > committing; the Fasthosts zone is kept until **8 September** as the rollback.
 
-**Why it happened this early.** It was the riskiest change in the programme — the only one
-carrying club email and the only one reversible in *up to 48 hours* rather than minutes. So it
-was taken in a quiet week when nothing depended on it, which is what
-[move the DNS first](dns-first.md) always argued for.
+**What it unblocked:** Workers custom domains, and therefore Phase 4. Also the current Astro
+adapter, Cron Triggers, and a Phase 7 apex cutover that is now a record edit.
 
-**What it unblocked:** Workers custom domains — and therefore Phases 4 and 6 — plus the
-current Astro adapter, Cron Triggers, and a Phase 9 apex cutover that is now a record edit
-rather than a migration.
-
-[What actually happened](runbooks/nameserver-move.md#what-actually-happened-8-august-2026) is
-worth reading before any similar change: **Cloudflare's scan found 12 of 18 records**, missing
-all four DKIM CNAMEs.
+[What actually happened](runbooks/nameserver-move.md#what-actually-happened-8-august-2026) —
+**Cloudflare's scan found 12 of 18 records**, missing all four DKIM CNAMEs.
 
 ---
 
-## Phase 3 — hello-world for Nightingale Nightmare
+## Phase 3 — Nightingale Nightmare live
 
-**A page reaching production through the whole pipeline, on the club's domain, writing to the
-club's own database.** Everything after this is more of the same shape.
+**Deadline: ~22 August 2026.**
 
-Each piece is proven separately — build, deploy, hostname, TLS, database — so a failure has
-one candidate cause.
+A public page, a sign-up link, and **payment through Stripe**. This is the club's first
+transaction on its own infrastructure.
 
 | | |
 | --- | --- |
-| **The monorepo exists** | Workspace root, `apps/nn`, `packages/db`. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) |
-| **The pipeline exists** | `localhost` with fabricated data; CI brings up the same stack and runs acceptance tests. [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
-| **A Worker**, git-connected, `main` deploys production | Static Astro output plus one Worker route |
-| **`nn.<apex>`** | Attached as a **custom domain on the Worker** — Cloudflare creates the record |
-| **Supabase** | `intake.nn_interest`, RLS, migrations applied from CI. [ADR-002](../architecture/decisions/adr-002-schema-layout.md) |
+| **The monorepo and pipeline** | Workspace root, `apps/nn`, `packages/db`; local stack, CI, acceptance tests. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md), [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
+| **A Worker**, git-connected, `main` deploys production | Static Astro plus Worker routes |
+| **`nn.<apex>`** | Attached as a custom domain — Cloudflare creates the record |
+| **Sign-up** | Into the shared Supabase project |
+| **Stripe payment** | Checkout plus a webhook into a Worker |
 
-**Procedure:** [Nightingale Nightmare onto the club domain](runbooks/nn-to-club-domain.md).
+**Procedure:** [Nightingale Nightmare onto the club domain](runbooks/nn-to-club-domain.md)
+covers the hosting path. The page, form and payment flow are
+[the build brief](nn-build-brief.md)'s.
+
+### Prerequisites for the payment half
+
+These are [club governance requirements](../foundations/requirements.md#legal-and-governance),
+so they are prerequisites rather than build tasks — and they sit on the critical path for
+22 August:
+
+- [ ] **Data-protection advice** obtained
+- [ ] **Treasurer-controlled payment arrangements** in place
+- [ ] **Stripe account** under the club identity, with both volunteers able to reach it
+- [ ] **Refund policy** written, since money is being taken from the public
+- [ ] **Entry price confirmed** — assumed £8–£10
+
+**Card data never touches club systems.** Stripe Checkout, hosted by Stripe, with a webhook
+recording the result. That is what keeps this inside
+[C4](../foundations/requirements.md#c4--take-payments) and out of PCI scope.
 
 ### Running alongside, and it should start now
 
 **Rescue everything Squarespace deletes at cancellation** — ~45 documents, 33 newsletters,
-every image, plus the seven on Google Drive. Free today, **impossible after cancellation**,
-and depends on nothing. [Plan](plan.md) steps 12–15.
+every image, plus the seven on Google Drive. Free today, impossible after cancellation, and
+depends on nothing.
 
 ### Done when
 
 - [ ] `nn.<apex>` serves over HTTPS with a valid certificate
-- [ ] A submission writes exactly one row to `intake.nn_interest`
-- [ ] An anonymous client **cannot** read anything in `club`
+- [ ] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
+- [ ] **A real payment completes end to end**, and the treasurer can see it
+- [ ] An anonymous client **cannot** read member data
 - [ ] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero
-- [ ] A pull request produces a preview URL
 - [ ] **Club email still works**
-- [ ] **Both volunteers** can reach the repository, the Worker and Supabase
-
-### Unknowns
-
-| | |
-| --- | --- |
-| **The Worker name** | Becomes the `workers.dev` preview hostname. Pick a *pattern* — there will be at least three |
-| **Git-integration builds, or CI-driven deploy?** | Git integration needs no credential but leaves build config in the dashboard. Switchable later |
+- [ ] **Both volunteers** can reach the repository, the Worker, Supabase and Stripe
 
 ---
 
-## Phase 4 — hello-world for timing
+## Phase 4 — the timing app on Cloudflare
 
-**The same shape, the same database, a different hostname — and deliberately nothing to do
-with the timing application itself.**
+**Deadline: race-ready by mid-October 2026.** It runs Nightingale Nightmare.
 
-| | |
-| --- | --- |
-| **A second Worker** in the monorepo | Proves the pattern generalises beyond one app |
-| **`timing.<apex>`** | Attached as a custom domain. The hostname does not exist today, so this breaks nothing |
-| **Reads from Supabase** | The *existing* project — `public` schema, read-only. Proves cross-app database access works |
-| **The real timing app** | **Untouched, still on Vercel, still serving races** |
-
-### Why this phase exists
-
-**It de-risks Phase 6 without any of Phase 6's risk.** The port has to prove several things at
-once — OpenNext on Workers, the bundle-size ceiling, the CPU limit, Supabase Auth redirects,
-the offline queue. Doing the *deployment* half first, with a page that does nothing, means the
-port only has to prove the application half.
-
-**And it can happen before the race**, because it touches nothing race-critical.
-
-### Unknowns
+Off Vercel, onto Workers, reading the **same Supabase project** as NN.
 
 | | |
 | --- | --- |
-| **Does hello-world go on `timing.<apex>` or a scratch hostname?** | `timing.` is unused and unpublished, so it is probably fine — but the moment it is announced, it has to keep working |
-| **Does it read real data or fabricated?** | Read-only against `public` proves more. It also means a production credential in a toy app |
-
----
-
-## Phase 5 — Nightingale Nightmare built out
-
-The real page, the real form, sign-ups open. **Hard date: late August**, with the race on
-Halloween weekend.
-
-| | |
-| --- | --- |
-| The page, the form and the **privacy notice** | [Build brief](nn-build-brief.md) |
-| **Name, email, consent, timestamp. Nothing else** | Adding a field is a committee decision, not a build decision |
-| Race facts in **one file** | The exact day is not fixed and nothing waits on it |
-| Tested with **JavaScript off**, duplicate submission, bad input, at 320 px | |
-
-### Unknowns
-
-| | |
-| --- | --- |
-| **2026 entries — own site or Full On Sport?** | **Due now.** Own site pulls [C3](../foundations/requirements.md#c3--accept-race-sign-ups-and-entries), [C4](../foundations/requirements.md#c4--take-payments) and the governance gates forward |
-| **The exact race date** | 31 October or 1 November. Clocks go back **Sunday 25 October**, so either is safely after |
-| **Entry price** | Assumed £8–£10, unconfirmed, not needed for sign-ups |
-| **Page copy** | The committee's to write |
-
-**No payment code** until data-protection advice and treasurer-controlled arrangements exist.
-Firm gates.
-
----
-
-## Phase 6 — port the timing app
-
-**Off Vercel, onto Workers, same Supabase database.** The most technically demanding phase and
-the only one touching a system that cannot be re-run.
-
-> ### ⚠️ After the Nightingale Nightmare race, not before
->
-> NN needs the timing app on race day. Rebuilding it first means racing on a freshly ported
-> system, and *a race happens once a year and cannot be re-run*. **NN 2026 runs on the existing
-> Vercel deployment.** Same conclusion [ADR-001](../architecture/decisions/adr-001-one-monorepo.md)
-> reached independently.
-
-| | |
-| --- | --- |
-| **`@opennextjs/cloudflare`** on Workers | Not Pages — `@cloudflare/next-on-pages` is **deprecated** and Edge-runtime only |
+| **`@opennextjs/cloudflare`** on Workers | Not Pages — `@cloudflare/next-on-pages` is deprecated and Edge-runtime only |
 | **The repository joins the monorepo** | **Move it into the club org *first*, then connect Cloudflare** — doing it after desyncs the git link |
-| **`timing.<apex>`** switches from the Phase 4 hello-world to the real app | The hostname is already proven |
-| Database unchanged | Same project; `public` and `private` untouched |
+| **`timing.<apex>`** | Attached as a custom domain on the Worker |
+| **Same database** | One project, schema-separated. Nothing migrates |
 
-### Three things a port must not break
+### Do the deployment half first
+
+**Stand up a hello-world Worker on `timing.<apex>` early** — proving Workers Builds, the
+custom domain and Supabase connectivity with a page that has nothing in it. Then the port only
+has to prove the application half, and every failure after that is application code.
+
+This costs an afternoon and it is the single best thing available for de-risking the
+deadline.
+
+### The gate on Phase 4
+
+**A full manual race simulation signs this off** — multiple devices, real connectivity loss,
+the real race date. [No test suite replaces
+it](../foundations/glossary.md#platform-and-delivery), and the timing app's own logs note the
+two-marshal path is still only partially verified.
+
+**Mid-October is the deadline so the simulation has a fortnight behind it.** If the simulation
+finds something in the last week, there needs to be room to fix it — and the fallback is the
+existing Vercel deployment, which stays available until the simulation passes.
+
+### Three things the port must not break
 
 From the [architecture review](../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know),
 each learned the hard way:
 
 1. **The IndexedDB offline queue** and its idempotent-upsert contract.
-2. **The TypeScript/SQL lockstep** on bib resolution — the same logic in `lib/bib.ts` and
-   `private.resolve_crossing_team_id()`.
-3. **`Europe/London` pinning.** One tested path, `TZ=UTC` in tests.
+2. **The TypeScript/SQL lockstep** on bib resolution.
+3. **`Europe/London` pinning.** The race is the weekend after the clocks change.
 
-**Sign-off is a full manual race simulation** — multiple devices, real connectivity loss, the
-real race date. No test suite replaces it.
-
-### Unknowns
+### Known work beyond a straight port
 
 | | |
 | --- | --- |
-| **The Workers bundle-size ceiling** | 3 MB compressed free, 10 MB paid. Unmeasured for this app |
-| **The 10 ms CPU limit** on free Workers | Against server-rendered pages. May force Workers Paid |
-| **[C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) — the live leaderboard** | **Durable Objects, not Supabase Realtime.** Realtime caps at 200 concurrent and Pro is £237/yr; hibernatable WebSockets on the free plan make this close to free. **A rebuild, not a port** |
+| **The live leaderboard** | **Durable Objects, not Supabase Realtime.** Realtime caps at 200 concurrent; hibernatable WebSockets on the free plan make this close to free. A rebuild, not a port |
+| **Solo-race gaps** | The leaderboard derivation is relay-shaped; **age-band categories do not exist yet** and NN needs them |
 | **Multi-event hardcoding** | `LOCATION_LABEL = "Ashton Court"` and evening-start copy |
-| **Solo-race gaps** | The leaderboard derivation is relay-shaped; age-band categories do not exist yet |
+| **Bundle size and CPU limits** | 3 MB compressed on free Workers, 10 ms CPU. Unmeasured for this app |
 
 ---
 
-## Phase 7 — the new website
+## 🏁 Race day — 31 October / 1 November 2026
 
-*Sketch.*
+Nightingale Nightmare, timed on the club's own platform, on the club's own domain, reading the
+club's own database.
+
+**Change freeze from the week before.** No deploys, no migrations, nothing.
+
+---
+
+## Phase 5 — the new website
+
+*From November.*
 
 The old site keeps running throughout; the new one grows beside it at `new.<apex>` with
 **paths matching the old site**, so every address is proven long before anything switches.
-[Decision 004](../decisions/decision-log.md).
 
-**Order within the phase is the important part.** The **payment page is built first**, and
-every *new* subscriber is sent to it from that day — the old list grows by about **45 payments
-a month**, and this is what turns Phase 8 from a growing problem into a fixed one. Then the
-results archive (16.6% of traffic, typed by hand today), the main pages (61%), the newsletter
-mirror, documents, membership forms, and the kit section **re-scoped before it is built**.
+**The payment page is built first** — and by then Stripe is already proven by Phase 3, which
+removes most of its risk. Every *new* subscriber goes to it from that day; the old list grows
+by about **45 payments a month**, and this is what turns Phase 6 from a growing problem into a
+fixed one.
 
-`noindex` across the subdomain until cutover, or two copies of the same content split the
-club's search results.
+Then the results archive (16.6% of traffic, and it publishes itself from the timing data), the
+main pages (61%), the newsletter mirror, documents, membership forms, and the kit section
+**re-scoped before it is built**.
+
+`noindex` across the subdomain until cutover.
 
 ---
 
-## Phase 8 — move the member payments
-
-*Sketch.*
+## Phase 6 — move the member payments
 
 ⚠️ **The one part that asks anything of members.** ~103 people, each personally
 re-establishing a payment, because Squarespace Payments mandates cannot be transferred.
@@ -286,23 +243,21 @@ re-establishing a payment, because Squarespace Payments mandates cannot be trans
 **A communications exercise measured in months.** The longest part of the programme and the
 only part that cannot be sped up by working harder.
 
-**Gates, in order:** data-protection advice; treasurer-controlled payment arrangements; and
-**decide card or Direct Debit before anybody is asked to move** — worth about £250/yr, and
+**Decide card or Direct Debit before anybody is asked to move** — worth about £250/yr, and
 deciding late means asking 103 people twice.
 
-**Starts during Phase 7, not after it.** It needs the payment page, not the finished website.
+**Starts during Phase 5, not after it.** It needs the payment page, not the finished website.
 
 ---
 
-## Phase 9 — decommission Squarespace
+## Phase 7 — decommission Squarespace
 
-*Sketch.* **Phase 2 already unblocked this** — Cloudflare is authoritative, so the apex
-cutover is a record change rather than a migration.
+**Before 21 March 2027.** Phase 2 already unblocked this — Cloudflare is authoritative, so the
+apex cutover is a record change rather than a migration.
 
 **One coordinated moment**, because Squarespace 301-redirects every secondary domain to its
-primary, so the old site cannot live at `old.` while it still serves `www`. Decide first where
-the old site goes — `old.<apex>`, or simply its built-in `*.squarespace.com` address, which
-needs no DNS at all.
+primary. Decide first where the old site goes — `old.<apex>`, or its built-in
+`*.squarespace.com` address, which needs no DNS at all.
 
 Then point the apex and `www` at the new site, tidy the SPF record, remove `noindex`, redirect
 `new.` → apex, and walk every old address for 404s.
@@ -311,8 +266,6 @@ Then point the apex and `www` at the new site, tidy the SPF record, remove `noin
 resolves; the member fund has moved; every document, newsletter and image is held by the club;
 and the treasurer can reconcile.
 
-**Then cancel — before 21 March 2027.**
-
 ---
 
 ## What it costs when this is done
@@ -320,9 +273,16 @@ and the treasurer can reconcile.
 | | Per year |
 | --- | --- |
 | Today | **£735** |
-| After Phase 9 | **£427** |
+| After Phase 7 | **£427** |
 | With Direct Debit as well | **£177** |
 
 **The money was never the point.** The larger return is the [manual
 work](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do)
 this removes.
+
+## Deferred to the next pull request
+
+- **Schema design in detail** — where race entries and payment records land, and how `intake`
+  promotes into `club`
+- **The Stripe data model** — what is stored against a payment, and what is deliberately not
+- **The backup runbook**, with a tested restore

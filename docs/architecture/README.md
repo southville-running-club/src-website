@@ -68,7 +68,7 @@ Workers custom domains are now available, so
 [Phases 4 and 6](../delivery/phases.md) are unblocked and everything new is a Worker.
 
 **Next is code**, not architecture:
-[Phase 3](../delivery/phases.md#phase-3--hello-world-for-nightingale-nightmare) — the
+[Phase 3](../delivery/phases.md#phase-3--nightingale-nightmare-live) — the
 workspace root, then `apps/nn`, then a Worker on the club domain writing to Supabase.
 
 ### Before the main website build
@@ -83,12 +83,14 @@ workspace root, then `apps/nn`, then a Worker on the club domain writing to Supa
 | **Document naming and the stable-URL contract** | A limited company's public record back to 2015. Every scheme chosen later breaks URLs published earlier |
 | ~~A ~£10/yr throwaway domain to rehearse the DNS move?~~ | **Moot — the move is done**, and the pre-flight testing (`/etc/resolver` against a pending zone) proved sufficient. Still the only way to test **mail authentication** without touching production |
 
-### Before the timing platform is touched
+### Before the timing platform is touched — **now on the critical path**
 
 | | Note |
 | --- | --- |
-| **When `src-race-timing` joins the monorepo** | [ADR-001](decisions/adr-001-one-monorepo.md) says with the Cloudflare port, after the 2026 race. **Still wants a date rather than a milestone** |
-| **Does it keep deploying from Vercel** during the transition? | It works. Only the hostname has to change first |
+| **`src-race-timing` joins the monorepo in [Phase 4](../delivery/phases.md#phase-4--the-timing-app-on-cloudflare)** | **Race-ready by mid-October**, because it runs Nightingale Nightmare. **Move it into the club org *before* connecting Cloudflare**, or the git link desyncs |
+| **Age-band categories do not exist yet** | The leaderboard derivation is relay-shaped, and NN is a solo race with Vet 40/50/60. **New work, not a port** |
+| **The live leaderboard** | Durable Objects rather than Supabase Realtime — a rebuild, and worth £237/yr |
+| **Bundle size and CPU limits** | 3 MB compressed on free Workers, 10 ms CPU. Unmeasured for this app |
 
 ### Can wait, but should not be forgotten
 

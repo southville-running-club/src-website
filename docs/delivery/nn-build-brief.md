@@ -18,10 +18,10 @@ Cloudflare, [DNS and domain](../solutions/dns-and-domain.md) for the hostname.
 
 | | |
 | --- | --- |
-| **Build** | A public page describing the race, and a form capturing name and email |
+| **Build** | A public page describing the race, a sign-up form, and **Stripe payment** |
 | **Host** | **Cloudflare Workers** with static assets, custom domain `nn.southvillerunningclub.co.uk` |
 | **Store** | Supabase Postgres, `eu-west-2` |
-| **Do not build** | Payments, entry forms, results, accounts, admin surfaces |
+| **Do not build** | Results, accounts, admin surfaces. **Payments are in scope** — see below |
 
 This is one page and one form. Scope creep is the main risk to the deadline, and the
 second main risk is collecting personal data nobody asked for.
@@ -140,12 +140,18 @@ Violating any of these is a defect, not a judgement call.
 - The **anon key only** in client-visible code. The service role key never reaches the
   browser and never enters the repository. Row-level security does the enforcing.
 
-**Payments**
+**Payments — in scope, and gated**
 
-- **No payment code of any kind.** No Stripe dependency, no price in a checkout, no
-  "coming soon" button that takes a card. The [governance
-  gates](../foundations/requirements.md#legal-and-governance) are not satisfied, and
-  free-tier commercial-use terms turn on this.
+- **Stripe Checkout, hosted by Stripe**, with a webhook recording the result. **Card details
+  never touch club systems**, which is what keeps this out of PCI scope.
+- **Do not start the payment flow until the
+  [governance gates](../foundations/requirements.md#legal-and-governance) are cleared** —
+  data-protection advice, treasurer-controlled arrangements, a written refund policy, and a
+  confirmed entry price. These are on the critical path for 22 August.
+- **Store the Stripe reference, not the payment instrument.** What else is stored against a
+  payment is [deferred to the schema design](phases.md#deferred-to-the-next-pull-request).
+- The **sign-up path must keep working if payment is unavailable.** A failed checkout must not
+  lose the entry.
 
 **DNS** — *simplified since the nameservers moved on 8 August 2026*
 

@@ -45,11 +45,17 @@ where merging repositories later is not.
 └── package.json
 ```
 
-**`src-race-timing` stays out for now.** It moves in with the Cloudflare port, after the
-2026 race and outside a [change
-freeze](../../foundations/glossary.md#platform-and-delivery). [Plan](../../delivery/plan.md)
-step 11 moves it into the club **organisation** regardless — that is the governance fix and
-does not wait for this.
+**`src-race-timing` joins with the Cloudflare port.**
+
+> **Amended 8 August 2026.** This originally said *after* the 2026 race. The club's plan is
+> now that **the timing app runs Nightingale Nightmare from Cloudflare**, so the port is
+> [Phase 4](../../delivery/phases.md#phase-4--the-timing-app-on-cloudflare) and lands
+> **before** the race, race-ready by mid-October. **The gate is a full manual race
+> simulation**, with the existing Vercel deployment available as the fallback until it passes.
+
+[Plan](../../delivery/plan.md) step 11 moves it into the club **organisation** regardless —
+that is the governance fix, and it must happen **before** Cloudflare is connected to it, or
+the git integration desyncs.
 
 ## Consequences
 
