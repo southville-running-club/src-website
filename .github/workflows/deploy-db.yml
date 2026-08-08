@@ -1,0 +1,84 @@
+name: Deploy database
+
+# Migrations for the schemas **this repository owns**, applied on merge to main.
+#
+# This is the one place a deploy credential is accepted, and the asymmetry is deliberate
+# rather than an oversight. Cloudflare needs none — its git integration pulls from GitHub,
+# and a credential that does not exist cannot leak. A database has no equivalent, and the
+# alternative is a volunteer running migrations from a laptop: unreviewed, unlogged, and
+# invisible to the other volunteer.
+#
+# ## Two things to know about the ordering
+#
+# **Nothing sequences this against the Cloudflare deploy.** Workers Builds triggers on the
+# push itself, not on a green run of this workflow, so the migration and the code that
+# uses it go out concurrently and in no guaranteed order.
+#
+# That is survivable only because **expand–migrate–contract is a non-negotiable
+# principle**: every schema change keeps the previously deployed code working, so the
+# order genuinely does not matter. Roll code back; roll schema forward. If a change ever
+# needs the migration to land first, that change is the thing to fix — not this workflow.
+#
+# **No migrations during a race-week change freeze.**
+#
+# See docs/architecture/investigations/deployment.md
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'platform/packages/db/supabase/migrations/**'
+      - '.github/workflows/deploy-db.yml'
+
+  # Available by hand for the case the path filter misses, and for re-running a failure.
+  workflow_dispatch:
+
+concurrency:
+  # Never two migration runs at once against one database.
+  group: deploy-db
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: platform/packages/db
+
+jobs:
+  push:
+    name: supabase db push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: platform/.nvmrc
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+
+      - name: Install dependencies
+        working-directory: platform
+        run: npm ci
+
+      - name: Link the project
+        run: npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Show what would be applied
+        # Logged before it happens, so the run itself is the record of what changed.
+        run: npx supabase migration list --linked
+
+      - name: Apply migrations
+        # **`db push`, never `db reset`.** `reset` is a local command; against the shared
+        # remote it would destroy the timing platform's data.
+        #
+        # Two repositories share one Postgres until the timing app joins the monorepo, so
+        # Supabase keeps a single migration history for both. This repository owns `club`
+        # and `intake` and must never propose a change to `public` or `private`.
+        run: npx supabase db push --linked

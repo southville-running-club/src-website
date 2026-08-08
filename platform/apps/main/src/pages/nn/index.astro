@@ -1,0 +1,62 @@
+---
+import Base from '../../layouts/Base.astro';
+
+// Deliberately says nothing about the race.
+//
+// The date is unconfirmed, the price is unconfirmed, and the copy is the committee's to
+// write. Inventing any of them here is a "stop and ask" trigger, not a placeholder — so
+// this page describes the deployment and nothing else.
+//
+// See docs/architecture/principles.md#stop-and-ask
+
+// The `nn.` hostname serves this page at `/`, so that is the address to be indexed under
+// rather than the `/nn/` form the Worker also answers.
+const canonical = 'https://nn.southvillerunningclub.co.uk/';
+---
+
+<Base
+  title="Nightingale Nightmare — deployment skeleton"
+  description="A placeholder page proving the club's hosting and database path end to end."
+  canonical={canonical}
+>
+  <h1>Nightingale Nightmare</h1>
+
+  <p class="lede">
+    There is nothing here yet. This page exists to prove the path that the real one will
+    be built on — a Cloudflare Worker on the club's own domain, reading from the club's
+    own database.
+  </p>
+
+  <h2>What this page proves</h2>
+
+  <p>
+    The timestamp below was fetched from Postgres by the Worker while it served this
+    request. It is rendered server-side, so it is here with JavaScript disabled. If it
+    reads as an error, the connection is genuinely broken and that is the useful answer.
+  </p>
+
+  <dl class="status">
+    <dt>Database time, Europe/London</dt>
+    <dd>
+      {
+        /* The Worker fills this in while serving the request — see worker/index.ts. The
+          `datetime` attribute carries UTC and the text carries Europe/London, which is
+          the storage-and-display rule expressed in one element. */
+      }
+      <time data-health="pending">Not fetched — the Worker did not run.</time>
+    </dd>
+
+    <dt>Served by</dt>
+    <dd>Cloudflare Workers, static assets plus one handler</dd>
+
+    <dt>Application</dt>
+    <dd>apps/main</dd>
+  </dl>
+
+  <footer>
+    <p>
+      Southville Running Club. Race details will be published once the committee has
+      confirmed them.
+    </p>
+  </footer>
+</Base>

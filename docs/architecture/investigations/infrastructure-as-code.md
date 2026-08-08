@@ -24,6 +24,7 @@ Before asking which tool, ask what is actually uncovered.
 | **Local environment** | ✅ | `supabase/config.toml`, `seed.sql`, `.nvmrc` |
 | Supabase project settings | Mostly | `config.toml` covers most; a few dashboard-only |
 | Cloudflare build config — root directory, watch paths | ❌ | Dashboard. Set **once per app** |
+| **Cloudflare custom domains** | ✅ | **Corrected 8 August 2026** — `routes` with `custom_domain: true` in `wrangler.jsonc`. Cloudflare creates the record and the certificate from it, so a new hostname is a reviewed pull request. [ADR-006](../decisions/adr-006-apps-main-and-hostnames-as-code.md) |
 | R2 buckets | Mostly | wrangler |
 | Secrets and environment variables | ❌ | **Correctly not code** |
 | **DNS records** | ❌ | **The actual gap** |

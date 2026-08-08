@@ -1,0 +1,125 @@
+name: CI
+
+# Every pull request, and every push to main. All gates must pass before review is
+# meaningful — the other volunteer reading a diff should be reading a diff that works.
+#
+# The whole stack comes up here: `supabase start` runs in Actions, so this pipeline tests
+# against a **real Postgres** rather than a substitute. That matters because there is no
+# API tier between the browser and the database — row-level security is the access
+# control, and a mocked database would only ever test the mock.
+#
+# See docs/architecture/decisions/adr-003-local-development-and-pipeline.md
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # The npm project lives in platform/; the repository root is documentation.
+    working-directory: platform
+
+jobs:
+  verify:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # Pinned for the same reason the timing app pins it: without this the suite passes
+      # or fails depending on the runner's timezone, and Nightingale Nightmare is raced
+      # the weekend after the clocks change.
+      TZ: UTC
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: platform/.nvmrc
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start the local Supabase stack
+        working-directory: platform/packages/db
+        run: npx supabase start
+
+      - name: Export the local Supabase credentials
+        working-directory: platform/packages/db
+        run: |
+          echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------------------------
+      # The gates, in order. Cheapest first, so a formatting slip does not wait on
+      # Playwright.
+      # ---------------------------------------------------------------------------------
+
+      - name: Lint and format
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Generated types are current
+        # Fails if `supabase gen types` would produce something other than what is
+        # committed. Cheap to have from day one; annoying to retrofit, and the failure it
+        # prevents is silent — types describing a schema the database no longer has.
+        run: npm run db:types:check
+
+      - name: Unit and database tests
+        run: npm test
+
+      - name: Migrations apply from zero
+        working-directory: platform/packages/db
+        # The only thing that proves a new volunteer, or a restored backup, can actually
+        # reach the current schema. A migration set that only works incrementally is one
+        # nobody can rebuild from.
+        #
+        # `db reset` is a **local** command. Running it against the shared remote would
+        # destroy the timing platform's data — see ADR-002.
+        run: npx supabase db reset
+
+      - name: Build
+        run: npm run build
+
+      - name: Bundle the Workers
+        # `opennextjs-cloudflare build` for apps/timing — the artefact that actually
+        # deploys, so it is worth failing on here rather than on Cloudflare.
+        #
+        # A separate step from `build` on purpose: OpenNext produces the Next.js output by
+        # running the package's own `build` script, so the two must never be the same
+        # script. They were, once, and it recursed until the machine died.
+        run: npm run build:worker
+
+      - name: Worker tests
+        # Inside the real Workers runtime via Miniflare, against the real build output.
+        run: npm run test:worker
+
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Acceptance tests
+        # Playwright, including axe at **zero** violations. Not "few" — any threshold
+        # above zero becomes the new normal within a month, and 70% of visitors are on a
+        # phone.
+        #
+        # `playwright test` directly rather than `npm run test:e2e`, because that script
+        # builds first and the Build gate above has already done it.
+        run: npx playwright test
+
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: platform/playwright-report/
+          retention-days: 7

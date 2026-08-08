@@ -9,8 +9,10 @@ permanent results archive around a race-timing system it already owns and runs. 
 the requirements written down before the products means a choice can be re-opened later
 without starting the thinking over.
 
-**There is no application code yet.** The first four decisions are proposed and recorded
-in the [decision log](docs/decisions/decision-log.md), pending committee ratification.
+**The first application code landed on 8 August 2026** — a skeleton in
+[`platform/`](platform/), which proves the hosting, database and pipeline path end to end
+and does nothing else. The first four decisions are proposed and recorded in the
+[decision log](docs/decisions/decision-log.md), pending committee ratification.
 
 ## Start here
 
@@ -36,6 +38,7 @@ in the [decision log](docs/decisions/decision-log.md), pending committee ratific
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decisions/decision-log.md) | **Four decisions proposed** — Cloudflare, Supabase free, Fasthosts email, parallel running |
 | [Architecture decisions](docs/architecture/decisions/) | Technical decisions the build takes, and [which log a choice belongs in](docs/architecture/decisions/README.md#two-decision-homes-and-which-one-a-choice-belongs-in) |
+| [The platform](platform/README.md) | **The code.** How to run it, and what will bite you |
 
 Supporting material:
 
@@ -79,8 +82,13 @@ See [priorities](docs/delivery/priorities.md).
 
 ## Working here
 
-Documentation only for now. Every change by pull request; documentation ships with the
-change it describes; markdown wraps at roughly 90 characters.
+Documentation lives at the root; the application code lives in
+[`platform/`](platform/README.md) and is where every build command runs. Start there if you
+are writing code — it lists the commands, and the four things that will otherwise cost you
+an evening.
+
+Every change by pull request; documentation ships with the change it describes; markdown
+wraps at roughly 90 characters.
 
 Use the [glossary](docs/foundations/glossary.md)'s words exactly — an "event" is one
 running of one race in one year, a "race" is the recurring thing, and a "team" is the unit

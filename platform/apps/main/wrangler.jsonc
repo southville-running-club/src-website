@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "src-main",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-08",
+
+  // `@supabase/supabase-js` reaches for a small number of Node built-ins. Without this
+  // the Worker builds and then fails at runtime, which is the worst place to find out.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+
+    // The Worker runs before static assets are matched, which is what makes hostname
+    // routing possible at all — otherwise `nn.<apex>/` would match `dist/index.html`
+    // directly and never reach the handler. It costs one invocation per request against
+    // a 100,000/day free allowance.
+    "run_worker_first": true,
+  },
+
+  // **The hostname is code.** Cloudflare creates the DNS record and issues the
+  // certificate from this entry; nothing is added by hand at the registrar or in the
+  // dashboard. A second hostname — `new.`, the apex, `www` — is another entry here and a
+  // reviewed pull request, which is exactly what "everything is defined as code" asks for.
+  //
+  // `nn.` is proxied, which is correct: Cloudflare is the origin. Mail hostnames are
+  // never proxied, and nothing here touches one.
+  "routes": [
+    {
+      "pattern": "nn.southvillerunningclub.co.uk",
+      "custom_domain": true,
+    },
+  ],
+
+  // Local development values only — the local Supabase stack prints these, and they are
+  // the same on every machine. Both are safe to expose by design: row-level security is
+  // what enforces access, not the key.
+  //
+  // **Production values are set as Worker variables in the dashboard**, so this file
+  // never needs to carry them. If a third variable ever appears here, and especially if
+  // it is a service role key, the row-level security policy is wrong and that is the
+  // thing to fix.
+  "vars": {
+    "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
+    "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+}

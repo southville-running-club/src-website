@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "src-timing",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-08",
+
+  // Both are required by OpenNext rather than chosen: `nodejs_compat` for Next.js's own
+  // Node API use, and `global_fetch_strictly_public` so a `fetch()` to the Worker's own
+  // hostname goes out to the internet and back rather than short-circuiting internally.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+
+  // OpenNext needs to be able to call itself — this is its own binding, not a second
+  // Worker. The name must match the Worker's own `name` above.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "src-timing",
+    },
+  ],
+
+  // **The hostname is code**, exactly as in apps/main. Cloudflare creates the DNS record
+  // and issues the certificate; nothing is added by hand.
+  //
+  // This is an *additive* record — nothing resolved `timing.southvillerunningclub.co.uk`
+  // before, so it cannot break anything that exists, and removing it restores the
+  // previous state exactly. It is proxied, which is correct: Cloudflare is the origin.
+  "routes": [
+    {
+      "pattern": "timing.southvillerunningclub.co.uk",
+      "custom_domain": true,
+    },
+  ],
+
+  // Local development values only. Both are safe to expose — row-level security is what
+  // enforces access. Production values are set as Worker variables in the dashboard.
+  "vars": {
+    "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
+    "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+}

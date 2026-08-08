@@ -1,0 +1,19 @@
+{
+  "name": "@src/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Code both front doors share — timezone, Supabase client, validation",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles/base.css": "./styles/base.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@src/db": "*",
+    "@supabase/supabase-js": "^2.112.2",
+    "zod": "^4.4.3"
+  }
+}

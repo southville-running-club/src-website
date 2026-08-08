@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.next/
+.open-next/
+.wrangler/
+.astro/
+coverage/
+playwright-report/
+test-results/
+package-lock.json
+
+# Markdown is hand-wrapped at roughly 90 characters, which is a repository convention
+# rather than a tool's output. Prettier re-aligns tables into very long lines and undoes it.
+*.md
+
+# Generated or vendored — rewritten by a tool, so formatting it is noise in a diff.
+packages/db/src/database.types.ts
+packages/db/supabase/.temp/
+apps/timing/next-env.d.ts

@@ -1,0 +1,29 @@
+---
+import Base from '../layouts/Base.astro';
+
+// What the *unprefixed* root serves — `localhost`, a `*.workers.dev` preview, and one day
+// the apex. It is not reachable on `nn.southvillerunningclub.co.uk`, which serves
+// `/nn/` at its own root instead. See worker/routing.ts.
+---
+
+<Base
+  title="Southville Running Club — platform skeleton"
+  description="Index of the club platform's deployment skeleton."
+>
+  <h1>Platform skeleton</h1>
+
+  <p class="lede">
+    The club website is not built yet. This build currently holds one front door, and this
+    index exists so a preview URL shows what is in it.
+  </p>
+
+  <ul>
+    <li>
+      <a href="/nn/">Nightingale Nightmare</a> — served at nn.southvillerunningclub.co.uk
+    </li>
+  </ul>
+
+  <footer>
+    <p>Southville Running Club.</p>
+  </footer>
+</Base>

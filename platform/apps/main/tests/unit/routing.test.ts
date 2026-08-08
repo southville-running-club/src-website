@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest';
+import { NN_HOST, resolveRoute } from '../../worker/routing';
+
+const OTHER_HOSTS = ['localhost', 'src-main.workers.dev', 'southvillerunningclub.co.uk'];
+
+describe('the nn. hostname serves Nightingale Nightmare at its own root', () => {
+  it('maps / to /nn/', () => {
+    expect(resolveRoute(NN_HOST, '/')).toEqual({
+      path: '/nn/',
+      isNightingaleNightmare: true,
+    });
+  });
+
+  it('maps a sub-path into /nn/', () => {
+    expect(resolveRoute(NN_HOST, '/privacy/').path).toBe('/nn/privacy/');
+  });
+
+  it('does not prefix twice when the path is already addressed', () => {
+    expect(resolveRoute(NN_HOST, '/nn/').path).toBe('/nn/');
+    expect(resolveRoute(NN_HOST, '/nn/privacy/').path).toBe('/nn/privacy/');
+    expect(resolveRoute(NN_HOST, '/nn').path).toBe('/nn');
+  });
+
+  it('serves shared build assets unprefixed, so styling resolves', () => {
+    // The regression this guards: prefixing `/_astro/x.css` to `/nn/_astro/x.css` gives a
+    // 404 and an unstyled page, and it would only be noticed by looking.
+    expect(resolveRoute(NN_HOST, '/_astro/index.a1b2c3.css')).toEqual({
+      path: '/_astro/index.a1b2c3.css',
+      isNightingaleNightmare: false,
+    });
+    expect(resolveRoute(NN_HOST, '/favicon.svg').path).toBe('/favicon.svg');
+  });
+});
+
+describe('the nn. hostname cannot reach anything that is not the race', () => {
+  // The assertion this file exists for.
+  //
+  // From Phase 5 the club website is in this same build, unfinished. Nothing in it may be
+  // publicly reachable on the race domain, and "we will remember to check" is not a
+  // control. Every one of these resolves inside /nn/, where no such page exists, so each
+  // 404s.
+  it.each([
+    '/membership/',
+    '/results/',
+    '/about/',
+    '/newsletter/2026-01/',
+    '/kit/',
+    '/index.html',
+  ])('sends %s inside /nn/, where it does not exist', (path) => {
+    const route = resolveRoute(NN_HOST, path);
+    expect(route.path.startsWith('/nn/')).toBe(true);
+    expect(route.isNightingaleNightmare).toBe(true);
+  });
+
+  it('cannot be escaped by asking for the root index directly', () => {
+    expect(resolveRoute(NN_HOST, '/index.html').path).toBe('/nn/index.html');
+  });
+});
+
+describe('every other hostname passes through untouched', () => {
+  it.each(OTHER_HOSTS)('leaves %s alone', (host) => {
+    expect(resolveRoute(host, '/').path).toBe('/');
+    expect(resolveRoute(host, '/membership/').path).toBe('/membership/');
+    // The preview URL shows the whole build on purpose — reviewing it is the point.
+    expect(resolveRoute(host, '/nn/').path).toBe('/nn/');
+  });
+
+  it('still recognises Nightingale Nightmare content by its real path', () => {
+    expect(resolveRoute('localhost', '/nn/').isNightingaleNightmare).toBe(true);
+    expect(resolveRoute('localhost', '/').isNightingaleNightmare).toBe(false);
+  });
+});

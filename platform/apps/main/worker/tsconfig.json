@@ -1,0 +1,11 @@
+{
+  // The Worker is typed against the Workers runtime, not against Node and not against
+  // Astro's DOM types. Keeping it in its own project is what stops a Node API — which
+  // would not exist in production — from typechecking here by accident.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2022"]
+  },
+  "include": ["./**/*.ts", "../tests/worker/**/*.ts"]
+}

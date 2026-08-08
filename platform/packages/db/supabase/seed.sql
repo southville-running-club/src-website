@@ -1,0 +1,23 @@
+-- Local fixtures. Applied on `supabase start` and on every `supabase db reset`.
+--
+-- **Empty on purpose.** The skeleton creates two schemas and one function and no tables,
+-- so there is nothing to seed yet. The rules are written down now rather than when the
+-- first row is added, because by then they are easy to break without noticing.
+--
+--   * **Data only, never schema.** Schema comes from migrations. A seed file that creates
+--     a table drifts from production silently, and nobody finds out until a restore.
+--
+--   * **Deterministic.** Fixed UUIDs, fixed timestamps. A test can then assert on them.
+--     Random fixtures produce tests that fail on Tuesdays.
+--
+--   * **Realistic shapes, invented people.** Never a dump of production, and not on a
+--     laptop either — C10 applies to laptops exactly as it applies to servers.
+--
+--   * **Include the awkward states.** A DNS, a DNF, a duplicate bib, an unresolved
+--     anomaly, a walk-in with an override bib. Those are what break rendering, and a seed
+--     containing only happy rows is a seed that proves the easy half.
+--
+--   * **Fixture the clocks change.** 25 October 2026, either side of 02:00 local, both
+--     directions. Nightingale Nightmare is raced the following weekend.
+--
+-- See docs/architecture/decisions/adr-003-local-development-and-pipeline.md

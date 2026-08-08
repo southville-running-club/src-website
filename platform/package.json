@@ -1,0 +1,58 @@
+{
+  "name": "src-platform",
+  "private": true,
+  "type": "module",
+  "description": "Southville Running Club platform — one repository, npm workspaces (ADR-001)",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "setup": "npm run db:start && npm run db:reset && npm run dev",
+    "dev": "npm run dev --workspace=apps/main",
+    "dev:worker": "npm run dev:worker --workspace=apps/main",
+    "dev:timing": "npm run dev --workspace=apps/timing",
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run --project unit --project db",
+    "test:worker": "npm run test:worker --workspaces --if-present",
+    "test:e2e": "npm run build && npm run build:worker && playwright test",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:start": "npm run db:start --workspace=packages/db",
+    "db:stop": "npm run db:stop --workspace=packages/db",
+    "db:reset": "npm run db:reset --workspace=packages/db",
+    "db:types": "npm run db:types --workspace=packages/db",
+    "db:types:check": "npm run db:types:check --workspace=packages/db",
+    "build:worker": "npm run build:worker --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^3.1.0",
+    "prettier": "^3.9.6",
+    "prettier-plugin-astro": "^0.14.1",
+    "supabase": "^2.113.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "sharp@0.34.5": true,
+    "sharp@0.35.2": true,
+    "sharp@0.35.3": true,
+    "esbuild@0.25.4": true,
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true,
+    "workerd@1.20260801.1": true
+  }
+}

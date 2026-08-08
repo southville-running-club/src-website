@@ -1,7 +1,11 @@
-# Secrets — never commit real values. See P9 in docs/principles.md
+# Secrets — never commit real values.
+# A secret that was ever committed is compromised and must be **rotated**, not deleted —
+# git history keeps it. See docs/architecture/principles.md
 .env
 .env.*
 !.env.example
+.dev.vars
+.dev.vars.*
 
 # Dependencies
 node_modules/
@@ -13,9 +17,11 @@ node_modules/
 out/
 build/
 dist/
+.astro/
 .open-next/
 .vercel/
 .wrangler/
+next-env.d.ts
 
 # Test and coverage output
 coverage/
@@ -32,8 +38,8 @@ blob-report/
 # Local database volumes and dumps
 *.sql.gz
 *.dump
-supabase/.temp/
-supabase/.branches/
+**/supabase/.temp/
+**/supabase/.branches/
 
 # Editors and OS
 .DS_Store
