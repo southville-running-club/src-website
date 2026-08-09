@@ -74,6 +74,15 @@ jobs:
         # access token, which reads like a broken migration rather than an empty settings
         # page. **The first merge to main will hit this**, because the secrets cannot be
         # added until the Supabase project details are to hand.
+        #
+        # **Runs from the workspace root, not the job's platform/packages/db default.**
+        # This step is the one thing in the job that runs *before* `actions/checkout` —
+        # deliberately, so a missing secret fails in seconds rather than after a checkout,
+        # an `npm ci` and a `supabase link`. But `platform/packages/db` does not exist yet
+        # on a bare runner; only the workspace root does. Without this override the step
+        # never reaches its own logic — bash itself fails to start with "No such file or
+        # directory", which reads exactly like a missing-secrets failure and is not one.
+        working-directory: .
         run: |
           missing=()
           [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing+=("SUPABASE_ACCESS_TOKEN")
