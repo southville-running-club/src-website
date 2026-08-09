@@ -79,8 +79,22 @@ anything that exists.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
-| _Create the Worker and connect Workers Builds_ | No deploy credential in CI | _pending_ | Root directory `platform/apps/timing`, build command `npm run build:worker`, watch path `platform/apps/timing/**` plus `platform/packages/**` |
-| _Set the production Supabase variables_ | Both safe to expose | _pending_ | Worker → Settings → Variables |
+| _Create the Worker and connect Workers Builds_ | No deploy credential in CI | _pending_ | See the settings below |
+| _Set the production Supabase variables_ | Both safe to expose | _pending_ | Worker → Settings → Variables. **Must be the same project as `src-main`** |
+
+### Workers Builds settings
+
+| | |
+| --- | --- |
+| **Root directory** | **`platform`** — *not* `platform/apps/timing` |
+| **Build command** | `npm run build:worker --workspace=apps/timing` |
+| **Deploy command** | `npx wrangler deploy --config apps/timing/wrangler.jsonc` |
+| **Build watch paths** | `platform/apps/timing/**`, `platform/packages/**`, `platform/package-lock.json` |
+
+**The root directory is the part that is easy to get wrong.** `@src/shared` and `@src/db`
+are npm workspace links that exist only because the install ran at `platform/`. Rooting the
+build at `platform/apps/timing` installs there instead, never creates the links, and fails
+on `Cannot find module '@src/shared'`.
 
 **Move `src-race-timing` into the club organisation before connecting Cloudflare to it** —
 doing it afterwards desynchronises the git integration. That is also the governance fix:

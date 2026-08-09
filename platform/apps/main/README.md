@@ -68,12 +68,27 @@ by hand at the registrar or in the DNS dashboard.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
-| _Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | Cloudflare dashboard → Workers → connect the repository. Root directory `platform/apps/main`, build command `npm run build`, watch path `platform/apps/main/**` plus `platform/packages/**` |
+| _Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | See the settings below |
 | _Set the production Supabase variables_ | They differ from the local ones; both are safe to expose | _pending_ | Worker → Settings → Variables. `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` |
+
+### Workers Builds settings
+
+| | |
+| --- | --- |
+| **Root directory** | **`platform`** — *not* `platform/apps/main` |
+| **Build command** | `npm run build --workspace=apps/main` |
+| **Deploy command** | `npx wrangler deploy --config apps/main/wrangler.jsonc` |
+| **Build watch paths** | `platform/apps/main/**`, `platform/packages/**`, `platform/package-lock.json` |
+
+**The root directory is the part that is easy to get wrong.** `@src/shared` and `@src/db`
+are npm workspace links, and they only exist because the install ran at `platform/`. Point
+the root directory at `platform/apps/main` and Cloudflare installs *there* instead, the
+links are never created, and the build fails on `Cannot find module '@src/shared'`.
 
 **Build watch paths are not optional.** The free plan allows 500 builds a month, and
 without them every push rebuilds every application — which is how that allowance gets spent
-on no-ops.
+on no-ops. `platform/packages/**` must be in the list: a change to the shared timezone
+module has to rebuild both applications.
 
 After anything touching the zone, **send and receive a test email on a club address.** A
 Worker custom domain cannot affect mail, and confirming it costs a minute.
