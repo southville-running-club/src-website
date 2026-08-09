@@ -3,6 +3,16 @@
 **Accepted**, 8 August 2026. Amends
 [ADR-001](adr-001-one-monorepo.md); does not supersede it.
 
+> **⚠️ Partly superseded, 9 August 2026.** The *hostname* decision below — a subdomain per
+> surface, `nn.<apex>` and `timing.<apex>` — is replaced by
+> [ADR-007](adr-007-one-hostname-paths-not-subdomains.md): **one hostname, told apart by
+> path.** Everything else here stands: `apps/main` as one application for every club
+> surface, hostnames declared in `wrangler.jsonc` rather than clicked, and the npm project
+> under `platform/`.
+>
+> The `/nn` layout this ADR chose turned out to be exactly right — it is now the address
+> rather than a build location waiting for one.
+
 | | |
 | --- | --- |
 | **Requirement** | [Everything as code](../../foundations/requirements.md#everything-is-defined-as-code), [convergence](../../foundations/requirements.md#convergence), [people](../../foundations/requirements.md#people) |

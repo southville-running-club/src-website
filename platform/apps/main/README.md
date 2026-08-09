@@ -1,104 +1,91 @@
-# `apps/main` — the club's main front door
+# `apps/main` — the club website, and Nightingale Nightmare under `/nn`
 
-Static Astro plus one Worker. Serves **Nightingale Nightmare** today at
-`nn.southvillerunningclub.co.uk`, and will gain `new.<apex>`, the apex and `www` without
-moving anywhere —
-[ADR-006](../../../docs/architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md).
+Static Astro plus one Worker, serving `new.southvillerunningclub.co.uk`. At the Squarespace
+cutover the hostname changes and nothing else does —
+[ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
-**Currently a skeleton.** One page saying so, and a timestamp fetched from Postgres by the
-Worker while it serves the request.
+**Currently a skeleton.** A holding page saying a new site is coming, and the race page at
+`/nn/` with a timestamp fetched from Postgres by the Worker while it serves the request.
 
 ## Layout
 
 ```
-src/pages/nn/     Nightingale Nightmare. Lives at /nn/ from day one, so <apex>/nn/
-                  already works the moment the apex lands
-src/pages/        index and 404 — what the apex and preview URLs serve
-worker/routing.ts Which asset answers a request, given its hostname. Pure and tested
-worker/index.ts   The handler: route, then fill in the health timestamp server-side
+src/pages/index.astro   The holding page — new.<apex>/
+src/pages/nn/           Nightingale Nightmare — new.<apex>/nn
+src/pages/404.astro
+worker/routing.ts       Whether a path belongs to the timing Worker. Pure and tested
+worker/index.ts         Forward /timing locally, then fill in the health timestamp
 ```
 
-## How the hostname routing works, and why it matters
+## The one routing decision
 
-`nn.<apex>/` serves `/nn/`. Every other path on that hostname is prefixed too, so
-`nn.<apex>/membership/` resolves to `/nn/membership/` and 404s.
+Everything on the hostname is this Worker's, **except `/timing`**.
 
-**`/nn/` is a build location, not an address here.** `nn.<apex>/nn/` gets prefixed like
-anything else, resolves to `/nn/nn/`, and 404s. The pages sit under `/nn/` so that
-`new.<apex>/nn` can serve them later without anything moving — until then **Cloudflare
-serves no `/nn` path at all**, and the apex is Squarespace's anyway.
+In production Cloudflare dispatches `/timing/*` to `apps/timing` at the edge — a route
+carrying a path beats a Custom Domain on the same hostname — so those requests never reach
+this code. Locally there is no edge, so this Worker forwards them when `TIMING_ORIGIN` is
+set.
 
-**That negative is the load-bearing part.** From Phase 5 this build also contains the
-unfinished club website, and none of it may be publicly reachable on the race domain.
-"We will remember to check" is not a control, so it is asserted in three places:
-`tests/unit/routing.test.ts`, `tests/worker/serves.test.ts`, and `tests/e2e/nn.spec.ts`.
+**`TIMING_ORIGIN` is set at the top level and absent from `env.production`, and that
+absence is load-bearing.** If it were ever set in production, the platform would be
+proxying itself through an extra hop.
 
-Build assets Astro emits at the root — `/_astro/*`, the favicon — are served unprefixed,
-because otherwise the page would load unstyled. That allowlist is deliberately tiny; adding
-to it makes something reachable on every hostname.
+`isTimingPath` matches `/timing` and everything beneath it and nothing else — `/timings/`
+and `/timing-results/` stay with the website, because those are addresses a future page
+could legitimately want. That is asserted, not assumed.
 
-**Locally it is the same rule**, because any hostname whose first label is `nn` counts:
-
-| | |
-| --- | --- |
-| http://nn.localhost:8787/ | Nightingale Nightmare |
-| http://nn.localhost:8787/nn/ | **404** — no `/nn` address on this hostname |
-| http://nn.localhost:8787/membership/ | **404**, as it must be |
-| http://localhost:8787/ | The platform index — what the apex will serve, after Squarespace |
-
-Browsers resolve `*.localhost` to 127.0.0.1 with no `/etc/hosts` entry, so the local shape
-is the public shape rather than an approximation of it.
-
-**This only works because `routes` live under `env.production`.** While they sat at the top
-level, `wrangler dev` rewrote `request.url` to the custom domain and ignored the incoming
-`Host` header entirely — every local request looked like the live hostname and nothing
-could change it. Worth knowing if routes ever move back up.
+| Local | | |
+| --- | --- | --- |
+| http://localhost:8787/ | the holding page | this Worker |
+| http://localhost:8787/nn/ | Nightingale Nightmare | this Worker |
+| http://localhost:8787/timing | race timing | forwarded to :8788 |
+| http://localhost:8787/membership/ | **404** | nothing built yet |
 
 ## Commands
 
 ```bash
-npm run dev          # astro dev, fast loop
-npm run dev:worker   # wrangler dev, the real runtime
+npm run dev          # astro dev, fast loop — no Worker, so no timestamp
+npm run dev:worker   # wrangler dev on :8787, the real runtime
 npm run build        # static output to dist/
 npm run test:worker  # Workers runtime tests. Needs dist/ — build first
 ```
 
 ## Environment
 
-Both values live in `wrangler.jsonc` — **local at the top level, production under
+Both Supabase values live in `wrangler.jsonc` — **local at the top level, production under
 `env.production`** — and both are safe to expose by design: row-level security is what
 enforces access, not the key.
 
 That split is the safe direction. A plain `wrangler deploy`, which is the command somebody
 runs by accident, publishes a Worker with **no hostname and an unreachable database**.
-Loud and harmless. The inverse would put localhost config on the live race domain.
+Loud and harmless. The inverse would put localhost config on the live domain.
 
 `env.production`'s Supabase block is byte-identical to `apps/timing`'s, and
 `packages/shared/tests/unit/supabase-config.test.ts` fails if that ever stops being true —
-because one database behind both front doors is what makes a results archive derived from
+because one database behind both applications is what makes a results archive derived from
 timing data possible at all.
 
-**No third variable should be needed.** If the build appears to want a service role key,
+**No further variable should be needed.** If the build appears to want a service role key,
 the row-level security policy is wrong and that is the thing to fix.
 
 ## Manual steps
 
 The [accepted exception](../../../docs/foundations/requirements.md#everything-is-defined-as-code)
-to everything-as-code: what was done, why, by whom, and how to redo it.
+to everything-as-code: what was done, why, by whom, and how to redo it. The full procedure
+is the [Cloudflare runbook](../../../docs/delivery/runbooks/cloudflare-setup.md).
 
-**The custom domain is not on this list.** It is the `routes` entry in `wrangler.jsonc`,
-and Cloudflare creates the DNS record and issues the certificate from it. Nothing is added
-by hand at the registrar or in the DNS dashboard.
+**The hostname is not on this list.** It is the `routes` entry in `wrangler.jsonc`, and
+Cloudflare creates the DNS record and issues the certificate from it.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
 | _Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | See the settings below |
-| _Set the production Supabase variables_ | They differ from the local ones; both are safe to expose | _pending_ | Worker → Settings → Variables. `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` |
 
 ### Workers Builds settings
 
 | | |
 | --- | --- |
+| **Worker name** | `src-main-production` |
 | **Root directory** | **`platform`** — *not* `platform/apps/main` |
 | **Build command** | `npm run build --workspace=apps/main` |
 | **Deploy command** | `npx wrangler deploy --env production --config apps/main/wrangler.jsonc` |

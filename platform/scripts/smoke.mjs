@@ -11,23 +11,32 @@
  * CI run, so a smoke test starting immediately after a merge is racing the deploy.
  *
  *   npm run smoke                    # the live site
- *   npm run smoke -- --local         # nn.localhost:8787 and timing.localhost:8788
+ *   npm run smoke -- --local         # localhost:8787, with both Workers running
  *
  * Exit code 0 if everything passed. Anything else is a real failure worth waking up for.
  */
 
 const LOCAL = process.argv.includes('--local');
 
-const MAIN = LOCAL
-  ? 'http://nn.localhost:8787'
-  : 'https://nn.southvillerunningclub.co.uk';
-const TIMING = LOCAL
-  ? 'http://timing.localhost:8788'
-  : 'https://timing.southvillerunningclub.co.uk';
+/**
+ * One hostname, three paths — the same shape locally and in production, which is the whole
+ * argument for paths over subdomains. At the Squarespace cutover only `SITE` changes.
+ */
+const SITE = LOCAL ? 'http://localhost:8787' : 'https://new.southvillerunningclub.co.uk';
 
 /** Total time to keep retrying before calling it a failure. */
 const DEADLINE_MS = LOCAL ? 30_000 : 5 * 60_000;
 const RETRY_MS = LOCAL ? 1_000 : 15_000;
+
+/** The database check both applications share. */
+function reachesDatabase(body) {
+  if (body.includes('data-health="error"')) {
+    const [, message] = /data-health="error"[^>]*>([^<]*)/.exec(body) ?? [];
+    return `the page reports a database error: ${message?.trim() ?? 'unknown'}`;
+  }
+  if (!body.includes('data-health="ok"')) return 'the health element was never filled in';
+  return null;
+}
 
 /**
  * The checks. Each is deliberately small and says what it proves, because a smoke-test
@@ -35,10 +44,22 @@ const RETRY_MS = LOCAL ? 1_000 : 15_000;
  */
 const CHECKS = [
   {
-    name: 'Nightingale Nightmare is served over HTTPS',
-    url: `${MAIN}/`,
+    name: 'the club website is served',
+    url: `${SITE}/`,
     proves:
       'the Worker is deployed, the custom domain resolves, the certificate is valid',
+    check: async (response) => {
+      if (response.status !== 200) return `expected 200, got ${response.status}`;
+      const body = await response.text();
+      if (!body.includes('A new Southville Running Club'))
+        return 'the root is not the holding page';
+      return null;
+    },
+  },
+  {
+    name: 'Nightingale Nightmare is served at /nn',
+    url: `${SITE}/nn/`,
+    proves: 'the race sign-up page is reachable at the address it will keep',
     check: async (response) => {
       if (response.status !== 200) return `expected 200, got ${response.status}`;
       const body = await response.text();
@@ -48,37 +69,15 @@ const CHECKS = [
   },
   {
     name: 'Nightingale Nightmare reaches the database',
-    url: `${MAIN}/`,
+    url: `${SITE}/nn/`,
     proves: 'the Worker can reach Supabase, and the anon key and grants are right',
-    check: async (response) => {
-      const body = await response.text();
-      if (body.includes('data-health="error"')) {
-        const [, message] = /data-health="error"[^>]*>([^<]*)/.exec(body) ?? [];
-        return `the page reports a database error: ${message?.trim() ?? 'unknown'}`;
-      }
-      if (!body.includes('data-health="ok"'))
-        return 'the health element was never filled in';
-      return null;
-    },
+    check: async (response) => reachesDatabase(await response.text()),
   },
   {
-    name: 'the race hostname serves nothing but the race',
-    url: `${MAIN}/membership/`,
-    proves: 'no unfinished club-website page is reachable on the race domain',
-    check: async (response) =>
-      response.status === 404 ? null : `expected 404, got ${response.status}`,
-  },
-  {
-    name: 'the race hostname has no /nn address of its own',
-    url: `${MAIN}/nn/`,
-    proves: 'Cloudflare serves no /nn path while the club is still on Squarespace',
-    check: async (response) =>
-      response.status === 404 ? null : `expected 404, got ${response.status}`,
-  },
-  {
-    name: 'race timing is served over HTTPS',
-    url: `${TIMING}/`,
-    proves: 'the OpenNext Worker is deployed and its custom domain resolves',
+    name: 'race timing is served at /timing',
+    url: `${SITE}/timing`,
+    proves:
+      'the path route beats the custom domain, so a second Worker answers on one hostname',
     check: async (response) => {
       if (response.status !== 200) return `expected 200, got ${response.status}`;
       const body = await response.text();
@@ -88,18 +87,29 @@ const CHECKS = [
   },
   {
     name: 'race timing reaches the same database',
-    url: `${TIMING}/`,
-    proves: 'both front doors are talking to one Supabase project',
+    url: `${SITE}/timing`,
+    proves: 'both applications are talking to one Supabase project',
+    check: async (response) => reachesDatabase(await response.text()),
+  },
+  {
+    name: "race timing's own assets resolve under /timing",
+    url: `${SITE}/timing`,
+    proves: 'basePath is set, so the app is not served unstyled and half-broken',
     check: async (response) => {
       const body = await response.text();
-      if (body.includes('data-health="error"')) {
-        const [, message] = /data-health="error"[^>]*>([^<]*)/.exec(body) ?? [];
-        return `the page reports a database error: ${message?.trim() ?? 'unknown'}`;
-      }
-      if (!body.includes('data-health="ok"'))
-        return 'the health element was never filled in';
-      return null;
+      const asset = /["'](\/timing\/_next\/[^"']+\.css)["']/.exec(body)?.[1];
+      if (!asset) return 'the page links no stylesheet under /timing/_next/';
+
+      const css = await fetch(`${SITE}${asset}`);
+      return css.ok ? null : `the stylesheet ${asset} returned ${css.status}`;
     },
+  },
+  {
+    name: 'nothing unbuilt is reachable',
+    url: `${SITE}/membership/`,
+    proves: 'the site serves only what exists, rather than a stray index',
+    check: async (response) =>
+      response.status === 404 ? null : `expected 404, got ${response.status}`,
   },
 ];
 
@@ -119,7 +129,7 @@ const started = Date.now();
 const failures = new Map(CHECKS.map((spec) => [spec.name, 'not yet run']));
 
 console.log(`Smoke testing ${LOCAL ? 'the local stack' : 'the live platform'}`);
-console.log(`  ${MAIN}\n  ${TIMING}\n`);
+console.log(`  ${SITE}\n`);
 
 // Retry the whole set until it is clean or the deadline passes. Retrying everything rather
 // than only the failures keeps the final report a true snapshot of one moment.

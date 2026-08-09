@@ -9,7 +9,8 @@ Technical decisions the volunteers take themselves.
 | [**ADR-003**](adr-003-local-development-and-pipeline.md) | **Local development on `localhost` with mock data**, acceptance tests in the pipeline | 8 Aug 2026 |
 | [**ADR-004**](adr-004-no-staging-environment.md) | **No staging environment** | 8 Aug 2026 |
 | [**ADR-005**](adr-005-manual-with-a-reviewable-artefact.md) | **DNS stays manual**, with a committed zone file as the reviewable artefact | 8 Aug 2026 |
-| [**ADR-006**](adr-006-apps-main-and-hostnames-as-code.md) | **`apps/main` serves every club hostname**, declared in `wrangler.jsonc`; the npm project lives in `platform/` | 8 Aug 2026 |
+| [**ADR-006**](adr-006-apps-main-and-hostnames-as-code.md) | **`apps/main` serves every club hostname**, declared in `wrangler.jsonc`; the npm project lives in `platform/`. *Its hostname decision is superseded by ADR-007* | 8 Aug 2026 |
+| [**ADR-007**](adr-007-one-hostname-paths-not-subdomains.md) | **One hostname, told apart by path** — `new.<apex>`, `/nn`, `/timing`. Two Workers, one origin | 9 Aug 2026 |
 
 ---
 

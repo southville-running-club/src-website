@@ -9,9 +9,9 @@ import Base from '../../layouts/Base.astro';
 //
 // See docs/architecture/principles.md#stop-and-ask
 
-// The `nn.` hostname serves this page at `/`, so that is the address to be indexed under
-// rather than the `/nn/` form the Worker also answers.
-const canonical = 'https://nn.southvillerunningclub.co.uk/';
+// One address, and it is a path rather than a subdomain — so at the Squarespace cutover
+// the hostname changes and this page does not move.
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
 ---
 
 <Base

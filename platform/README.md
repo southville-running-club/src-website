@@ -9,8 +9,8 @@ explains the layout and the name.
 
 ```
 apps/
-  main/       Astro 7, static, plus one Worker    → nn.southvillerunningclub.co.uk
-  timing/     Next.js 16 + @opennextjs/cloudflare → timing.southvillerunningclub.co.uk
+  main/       Astro 7, static, plus one Worker    → new.<apex>/  and  /nn
+  timing/     Next.js 16 + @opennextjs/cloudflare → new.<apex>/timing
 packages/
   db/         Supabase config, migrations, generated types
   shared/     Europe/London, the Supabase client, the stylesheet
@@ -36,31 +36,29 @@ Nothing to configure: the local Supabase values are already in each app's
 
 ## The local site
 
-`npm run dev:all` gives you **the public shape, not an approximation of it**. Browsers
-resolve `*.localhost` to 127.0.0.1 with no `/etc/hosts` entry, so the hostnames work as
-they do in production.
+`npm run dev:all` gives you **the public shape, not an approximation of it** — one origin
+serving the whole site, with the paths identical to production:
 
-| Local | Production | Serves |
-| --- | --- | --- |
-| **http://nn.localhost:8787/** | `nn.southvillerunningclub.co.uk` | **Nightingale Nightmare** |
-| **http://timing.localhost:8788/** | `timing.southvillerunningclub.co.uk` | **Race timing** |
-| http://localhost:8787/ | *(nothing yet)* | The platform index — what the apex will serve after Squarespace |
+| Local | Production | Serves | From |
+| --- | --- | --- | --- |
+| http://localhost:8787/ | `new.<apex>/` | The club website | `apps/main` |
+| http://localhost:8787/nn/ | `new.<apex>/nn` | **Nightingale Nightmare** | `apps/main` |
+| http://localhost:8787/timing | `new.<apex>/timing` | **Race timing** | `apps/timing` |
 
-**There is one address per page.** `nn.<apex>/nn/` 404s — it is prefixed like anything
-else. The pages sit at `/nn/` inside the build so `new.<apex>/nn` can serve them one
-day, but that is a build location, not an address to publish — and while the club is on
-Squarespace the apex is not Cloudflare's at all, so **no `/nn` path is served anywhere**.
+At the Squarespace cutover the hostname changes and **nothing else does** — `<apex>/nn` and
+`<apex>/timing` are the same paths on a different name. The website can be built up around
+the race and the timing platform without either of them moving.
+[ADR-007](../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
-Two ports, 8787 and 8788, because each Worker is its own runtime — exactly as each is its
-own Worker in production. `wrangler dev` exposes only one Worker per port and there is no
-hostname routing between them, so one port would need a proxy that production does not
-have. This repository has already been bitten twice by local tools that lie; the ports are
-the honest option.
+**`/timing` is a different Worker**, on :8788. In production Cloudflare dispatches it at
+the edge, because a route carrying a path beats a Custom Domain on the same hostname.
+Locally `apps/main` forwards it, which is a stand-in for that router rather than a
+difference in behaviour — so **you only ever need :8787**.
 
 **Both apps read the same database.** Locally that is the Supabase stack in Docker; in
 production it is one project, asserted by a test rather than trusted to two dashboards.
 
-Check it end to end at any time — the same six assertions CI runs against production:
+Check it end to end at any time — the same seven assertions CI runs against production:
 
 ```bash
 npm run smoke -- --local
@@ -76,11 +74,11 @@ content and CSS, misleading for anything else.
 
 |  |  |
 | --- | --- |
-| `npm run dev:all` | **Both front doors**, real Workers runtime — :8787 and :8788 |
+| `npm run dev:all` | **The whole site on :8787.** Starts both Workers |
 | `npm run dev` | `astro dev` — the fast loop, `apps/main`, :4321 |
 | `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
-| `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788 |
-| `npm run smoke` | The six checks against **production**. `-- --local` for localhost |
+| `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
+| `npm run smoke` | The seven checks against **production**. `-- --local` for localhost |
 | `npm test` | Vitest: unit and database |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
 | `npm run test:e2e` | Playwright + axe. **Builds first, then starts both servers** |
@@ -109,11 +107,12 @@ development build while the build expects production, and reports it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.
 
-**Keep `routes` under `env.production`, not at the top level.** With routes at the top
-level, `wrangler dev` rewrites `request.url` to the custom domain and ignores the `Host`
-header — every local request looks like the live hostname, and `nn.localhost` stops
-working. That is also why a plain `wrangler deploy` is harmless: no routes outside
-production.
+**Keep `routes` under `env.production`, not at the top level.** It is why a plain
+`wrangler deploy` is harmless — no hostname outside production — and why `wrangler dev`
+does not rewrite `request.url` to the live domain.
+
+**`TIMING_ORIGIN` must never appear in `env.production`.** Its absence is what makes
+`/timing` Cloudflare's job at the edge rather than an extra proxy hop through `apps/main`.
 
 **Two copies of React or Next in the workspace break the build** in ways that read as
 application bugs. After changing a version, `npm dedupe` and check there is one copy.

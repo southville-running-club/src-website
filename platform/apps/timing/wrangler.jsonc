@@ -43,17 +43,22 @@
   // ---------------------------------------------------------------------------------
   "env": {
     "production": {
-      // **The hostname is code**, exactly as in apps/main. Cloudflare creates the DNS
-      // record and issues the certificate; nothing is added by hand.
+      // **A path route, not a custom domain**, and the difference matters.
       //
-      // This is an *additive* record — nothing resolved
-      // `timing.southvillerunningclub.co.uk` before, so it cannot break anything that
-      // exists, and removing it restores the previous state exactly. It is proxied,
-      // which is correct: Cloudflare is the origin.
+      // `new.<apex>` belongs to apps/main as a Custom Domain. Cloudflare matches routes
+      // most-specific-first, and a route carrying a path beats a Custom Domain on the
+      // same hostname — so `/timing/*` is dispatched here at the edge and never reaches
+      // apps/main at all.
+      //
+      // Because this is a route rather than a custom domain, **Cloudflare does not create
+      // a DNS record for it.** It does not need to: apps/main's Custom Domain already
+      // created the proxied `new` record, and this route attaches to that hostname.
+      //
+      // Next.js is configured with `basePath: '/timing'` to match, so the application's
+      // own links and assets resolve under the same prefix.
       "routes": [
         {
-          "pattern": "timing.southvillerunningclub.co.uk",
-          "custom_domain": true,
+          "pattern": "new.southvillerunningclub.co.uk/timing/*",
         },
       ],
 

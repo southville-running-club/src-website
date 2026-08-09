@@ -46,11 +46,10 @@ export default defineConfig({
   globalTimeout: 10 * 60_000,
 
   use: {
-    // The race hostname, not plain localhost. Now that `routes` live under
-    // `env.production`, `wrangler dev` respects the `Host` header — so the tests exercise
-    // the same routing the public will, and `localhost:8787` correctly serves the index
-    // instead.
-    baseURL: 'http://nn.localhost:8787',
+    // One origin for the whole site, exactly as in production. `/timing` is a different
+    // Worker — forwarded by `apps/main` locally, dispatched by a Cloudflare route live —
+    // but the browser cannot tell, which is the point.
+    baseURL: 'http://localhost:8787',
     trace: 'on-first-retry',
     // Europe/London, so the browser sees what a club member's phone sees. The *unit*
     // suite pins UTC; this one deliberately does not.
@@ -96,7 +95,7 @@ export default defineConfig({
     },
     {
       command: 'npm run preview --workspace=apps/timing',
-      url: 'http://localhost:8788',
+      url: 'http://localhost:8788/timing',
       reuseExistingServer: !process.env.CI,
       timeout: 90_000,
       stdout: 'ignore',

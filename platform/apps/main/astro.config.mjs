@@ -14,7 +14,7 @@ import { defineConfig } from 'astro/config';
 // See docs/delivery/nn-build-brief.md#build-it-as-a-worker
 export default defineConfig({
   output: 'static',
-  site: 'https://nn.southvillerunningclub.co.uk',
+  site: 'https://new.southvillerunningclub.co.uk',
 
   // Trailing slashes are load-bearing once a Worker is rewriting paths by hostname:
   // `/nn` and `/nn/` must not be two different answers. Astro is told to be strict so the

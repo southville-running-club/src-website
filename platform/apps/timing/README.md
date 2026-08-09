@@ -1,7 +1,28 @@
 # `apps/timing` — the race-timing platform on Cloudflare
 
-Next.js 16 under `@opennextjs/cloudflare`, deployed as a Worker at
-`timing.southvillerunningclub.co.uk`.
+Next.js 16 under `@opennextjs/cloudflare`, deployed as a Worker serving
+**`new.southvillerunningclub.co.uk/timing`**.
+
+## A path, not a subdomain — and what that costs
+
+`new.<apex>` belongs to `apps/main` as a Custom Domain. This app attaches to the *same*
+hostname with a **route carrying a path**, `new.<apex>/timing/*`. Cloudflare matches
+most-specific-first and a path route beats a Custom Domain, so `/timing/*` is dispatched
+here at the edge and never reaches `apps/main`.
+[ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md)
+records why, and what it costs.
+
+Two consequences the port has to carry:
+
+**`basePath: '/timing'`** in `next.config.ts`. The application's routes stay written as
+root paths (`/live/…`, `/admin/…`, `/marshal/…`) and Next prefixes them at build time. One
+setting, but it touches every link and asset the app serves — the smoke test checks a
+stylesheet resolves under `/timing/_next/`, because without it the app arrives unstyled and
+half-broken in a way that looks like a CSS bug.
+
+**The service worker scope becomes `/timing/`.** That is the offline capture queue — the
+single most important thing in this application — and anyone with the app already installed
+holds a registration for the old scope. **Rehearse this during the port; do not assume it.**
 
 **This is the deployment half of [Phase
 4](../../../docs/delivery/phases.md#phase-4--the-timing-app-on-cloudflare), done early and
@@ -50,10 +71,9 @@ npm run build:worker   # the OpenNext bundle
 npm run preview        # the real Workers runtime on :8788, against an existing bundle
 ```
 
-Locally it answers on **http://timing.localhost:8788/**, alongside
-`http://nn.localhost:8787/` — the same shape as the two live subdomains. Unlike `apps/main`
-there is no hostname routing here: this Worker serves everything at the root, exactly as
-the timing application's own routes (`/live/…`, `/admin/…`, `/marshal/…`) expect.
+Locally it answers on **http://localhost:8788/timing** directly, and on
+**http://localhost:8787/timing** through `apps/main`, which forwards `/timing/*` as a
+stand-in for Cloudflare's edge router. Use :8787 — it is the shape the public gets.
 
 `preview` deliberately does **not** build. `npm run test:e2e` at the workspace root builds
 first, so the Playwright servers start against a build that already exists.
@@ -77,20 +97,19 @@ out about.
 
 ## Manual steps
 
-The custom domain is **not** here — it is the `routes` entry in `wrangler.jsonc`, and
-Cloudflare creates the DNS record and issues the certificate from it. That record is
-additive: nothing resolved `timing.southvillerunningclub.co.uk` before, so it cannot break
-anything that exists.
+**No DNS record is created for this Worker**, and none is needed — it attaches by route to
+a hostname `apps/main`'s Custom Domain already created. Full procedure in the
+[Cloudflare runbook](../../../docs/delivery/runbooks/cloudflare-setup.md).
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
 | _Create the Worker and connect Workers Builds_ | No deploy credential in CI | _pending_ | See the settings below |
-| _Set the production Supabase variables_ | Both safe to expose | _pending_ | Worker → Settings → Variables. **Must be the same project as `src-main`** |
 
 ### Workers Builds settings
 
 | | |
 | --- | --- |
+| **Worker name** | `src-timing-production` |
 | **Root directory** | **`platform`** — *not* `platform/apps/timing` |
 | **Build command** | `npm run build:worker --workspace=apps/timing` |
 | **Deploy command** | `npx wrangler deploy --env production --config apps/timing/wrangler.jsonc` |
@@ -100,6 +119,9 @@ anything that exists.
 are npm workspace links that exist only because the install ran at `platform/`. Rooting the
 build at `platform/apps/timing` installs there instead, never creates the links, and fails
 on `Cannot find module '@src/shared'`.
+
+**Deploy `apps/main` first.** Its Custom Domain is what creates the `new` DNS record; a
+route has nothing to attach to until that exists.
 
 **Move `src-race-timing` into the club organisation before connecting Cloudflare to it** —
 doing it afterwards desynchronises the git integration. That is also the governance fix:

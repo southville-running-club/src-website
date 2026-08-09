@@ -109,9 +109,9 @@ transaction on its own infrastructure.
 
 | | |
 | --- | --- |
-| **The monorepo and pipeline** | Workspace root, `apps/nn`, `packages/db`; local stack, CI, acceptance tests. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md), [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
+| **The monorepo and pipeline** | Workspace root, `apps/main`, `packages/db`; local stack, CI, acceptance tests. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md), [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
 | **A Worker**, git-connected, `main` deploys production | Static Astro plus Worker routes |
-| **`nn.<apex>`** | Attached as a custom domain — Cloudflare creates the record |
+| **`new.<apex>/nn`** | A path, not a subdomain. `new.<apex>` is the Worker's custom domain and Cloudflare creates the record — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
 | **Sign-up** | Into the shared Supabase project |
 | **Stripe payment** | Checkout plus a webhook into a Worker |
 
@@ -163,7 +163,7 @@ Off Vercel, onto Workers, reading the **same Supabase project** as NN.
 | --- | --- |
 | **`@opennextjs/cloudflare`** on Workers | Not Pages — `@cloudflare/next-on-pages` is deprecated and Edge-runtime only |
 | **The repository joins the monorepo** | **Move it into the club org *first*, then connect Cloudflare** — doing it after desyncs the git link |
-| **`timing.<apex>`** | Attached as a custom domain on the Worker |
+| **`new.<apex>/timing`** | A **route** on the same hostname, not a custom domain. Needs `basePath: '/timing'`, and the service worker scope moves with it — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
 | **Same database** | One project, schema-separated. Nothing migrates |
 
 ### Do the deployment half first

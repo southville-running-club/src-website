@@ -1,114 +1,46 @@
 /**
- * Which asset a request should be served, given its hostname.
+ * The one routing decision this Worker still makes.
  *
- * Pure, and separated from the Worker itself so it can be tested without a runtime.
+ * ## The shape it serves
  *
- * ## Why any of this exists
+ * Everything the club owns sits on **one hostname**, `new.southvillerunningclub.co.uk`,
+ * and is told apart by path:
  *
- * A Cloudflare Worker is **not** one app per hostname — it can carry many custom domains.
- * That is what lets `apps/main` serve `nn.southvillerunningclub.co.uk` today and gain
- * `new.`, the apex and `www` later without a repository move, a project move, or a URL
- * breaking.
+ *   /          the club website          apps/main   (this Worker)
+ *   /nn        Nightingale Nightmare     apps/main   (this Worker)
+ *   /timing    the race-timing platform  apps/timing (a different Worker)
  *
- * The content lives at `/nn/` in the build from day one, so `<apex>/nn/` already works the
- * moment the apex lands. All this module does is make `nn.<apex>/` an alias for it.
+ * At the Squarespace cutover the hostname changes and nothing else does — `<apex>/nn`
+ * and `<apex>/timing` are the same paths on a different name. That is the point of the
+ * arrangement: **the new site can be built up around NN and timing without either of them
+ * moving.**
  *
- * ## The part that is load-bearing
+ * ## Why `/timing` is not this Worker's problem in production
  *
- * From Phase 5 onwards this build also contains the club website, unfinished and
- * `noindex`. Those pages must not be reachable on the race domain. Prefixing every path
- * with `/nn` is what guarantees that: `nn.<apex>/membership/` resolves to
- * `/nn/membership/`, which does not exist, so it 404s. There is no path through this
- * function that serves a non-`/nn/` page on the `nn.` hostname — except the shared build
- * assets below, which cannot be pages.
+ * Cloudflare routes are matched most-specific-first, and a route with a path beats a
+ * Custom Domain on the same hostname. So `new.<apex>/timing/*` is dispatched to the timing
+ * Worker at the edge and **never reaches this code**.
  *
- * ## Locally it is the same rule, on `nn.localhost`
+ * Locally there is no edge to do that, so this module does the same dispatch itself —
+ * which is why `TIMING_ORIGIN` is set in local configuration and absent in production. It
+ * is a stand-in for Cloudflare's router, not a difference in behaviour.
  *
- * Any hostname whose first label is `nn` is Nightingale Nightmare's, so
- * `http://nn.localhost:8787/` behaves exactly as the live subdomain does and the local
- * shape matches the public one. Browsers resolve `*.localhost` to 127.0.0.1 without an
- * `/etc/hosts` entry.
- *
- * **This only works because `routes` live under `env.production`.** While they were at the
- * top level, `wrangler dev` rewrote `request.url` to the custom domain and ignored the
- * incoming `Host` header entirely — every local request looked like the live hostname, and
- * no `curl -H "Host: ..."` could change it. Moving them fixed it. Worth knowing if routes
- * ever migrate back up.
- *
- * See docs/architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md
+ * See docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md
  */
 
-/** The hostname Nightingale Nightmare is served on in production. */
-export const NN_HOST = 'nn.southvillerunningclub.co.uk';
+/** Where the timing platform lives, on every hostname. */
+export const TIMING_PREFIX = '/timing';
 
-/**
- * True for the live hostname and for its local equivalent, `nn.localhost`.
- *
- * Matching on the first label rather than the full string is what lets one rule serve
- * both, so the local shape is the public shape rather than an approximation of it. The
- * club owns one domain and there is no other `nn.` host to collide with.
- */
-export function isNightingaleNightmareHost(hostname: string): boolean {
-  return hostname === NN_HOST || hostname.startsWith('nn.');
-}
-
-/** Where Nightingale Nightmare's pages live in the build output. */
+/** Where Nightingale Nightmare lives. */
 export const NN_PREFIX = '/nn';
 
 /**
- * Build output shared by every hostname, which Astro emits at the root and which can
- * never be a page. These are served unprefixed so that stylesheets and fonts still
- * resolve on the `nn.` hostname.
+ * True when this request belongs to the timing Worker rather than to this one.
  *
- * Keep this list tight. Anything added here is reachable on every hostname, which is
- * exactly what the prefixing exists to prevent for pages.
+ * Matches `/timing` and anything beneath it, and nothing else — `/timings` and
+ * `/timing-results` are this Worker's, which is the behaviour a future website page would
+ * want.
  */
-const SHARED_ASSET_PREFIXES = ['/_astro/'];
-const SHARED_ROOT_FILES = ['/favicon.ico', '/favicon.svg', '/robots.txt'];
-
-export interface Route {
-  /** The path to request from the static-assets binding. */
-  path: string;
-  /** True when this request is for Nightingale Nightmare's own content. */
-  isNightingaleNightmare: boolean;
-}
-
-function isSharedAsset(path: string): boolean {
-  return (
-    SHARED_ASSET_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
-    SHARED_ROOT_FILES.includes(path)
-  );
-}
-
-/**
- * Resolve a hostname and path to the asset that should answer it.
- *
- * Hostnames other than `nn.` — `localhost`, `*.workers.dev` previews, and the apex when
- * it lands — pass through untouched. That is deliberate: the preview URL should show the
- * whole build, because reviewing it is the point.
- */
-export function resolveRoute(hostname: string, pathname: string): Route {
-  if (!isNightingaleNightmareHost(hostname)) {
-    return {
-      path: pathname,
-      isNightingaleNightmare: pathname.startsWith(`${NN_PREFIX}/`),
-    };
-  }
-
-  if (isSharedAsset(pathname)) {
-    return { path: pathname, isNightingaleNightmare: false };
-  }
-
-  // **There is one address for this race and it is `nn.<apex>/`.** No special case for
-  // `/nn` here, deliberately: it gets prefixed like everything else, so `nn.<apex>/nn/`
-  // resolves to `/nn/nn/`, which does not exist, and 404s.
-  //
-  // `/nn/` is where the pages sit *in the build*, so that `new.<apex>/nn` serves them
-  // without anything moving. It is not an address on this hostname.
-  //
-  // Everything else on this hostname is Nightingale Nightmare's, whether it exists or not.
-  // `/` becomes `/nn/`; `/membership/` becomes `/nn/membership/` and 404s, which is the
-  // whole point.
-  const suffix = pathname === '/' ? '/' : pathname;
-  return { path: `${NN_PREFIX}${suffix}`, isNightingaleNightmare: true };
+export function isTimingPath(pathname: string): boolean {
+  return pathname === TIMING_PREFIX || pathname.startsWith(`${TIMING_PREFIX}/`);
 }

@@ -137,7 +137,8 @@ automatically on 21 March 2027**; silence costs £204.
 
 ## Phase 3 · Put Nightingale Nightmare on the club domain
 
-37. **Attach `nn.southvillerunningclub.co.uk` as a custom domain on the Worker.**
+37. **Attach `new.southvillerunningclub.co.uk` as a custom domain on the Worker**, serving
+    the site at `/` and Nightingale Nightmare at `/nn` — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
     *Cloudflare creates the DNS record and the certificate. Nothing at Fasthosts — its panel
     is no longer authoritative. This record **is** proxied; Cloudflare is the origin.*
 38. **Test the whole thing end to end** — the page loads over HTTPS and a sign-up actually
@@ -160,7 +161,8 @@ constraint](../foundations/requirements.md#risk) exists to prevent.
 40. **Port the app to Workers** with `@opennextjs/cloudflare`, and **move the repository into
     the monorepo** — into the club organisation *first*, then connect Cloudflare, or the git
     link desyncs.
-41. **Attach `timing.southvillerunningclub.co.uk`** as a custom domain on the Worker.
+41. **Add the route `new.southvillerunningclub.co.uk/timing/*`** to the timing Worker — a
+    route, not a custom domain, so it needs no DNS record of its own.
 42. **Update the Supabase Auth redirect addresses** and anything with the old domain written
     into it. *Magic links break silently if this is missed.*
 43. **Rebuild the live leaderboard on Durable Objects**, not Supabase Realtime. *Realtime

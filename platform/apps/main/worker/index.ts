@@ -1,25 +1,25 @@
 import { createAnonClient, fetchHealth } from '@src/shared';
-import { resolveRoute } from './routing';
+import { isTimingPath } from './routing';
 
 /**
- * The club's main Worker.
+ * The club's main Worker — the website, and Nightingale Nightmare under `/nn`.
  *
- * Two jobs, and for now that is all:
+ * Two jobs:
  *
- *   1. **Route by hostname.** `nn.<apex>` serves `/nn/` from the build; every other
- *      hostname passes through. See `routing.ts` for why.
+ *   1. **Stand in for Cloudflare's router locally.** In production `/timing/*` is
+ *      dispatched to the timing Worker at the edge and never arrives here. On a laptop
+ *      there is no edge, so when `TIMING_ORIGIN` is set this Worker forwards those
+ *      requests itself — which is what lets one port serve the whole site locally.
  *   2. **Fill in the health timestamp**, server-side, by rewriting the served HTML.
  *
- * The second is the skeleton's whole reason for existing. Doing it in the Worker rather
- * than in the browser proves something a client-side `fetch` would not: that the **Worker
- * itself** can reach Supabase, in the real runtime, over the real network. It also means
- * the page works with JavaScript disabled, which is a requirement here rather than a
- * nicety — runners and marshals are on phones, on poor signal, sometimes in bright
- * sunlight with cold hands.
+ * The second is the skeleton's reason for existing. Doing it in the Worker rather than in
+ * the browser proves the **Worker itself** can reach Supabase, in the real runtime, over
+ * the real network — and it means the page works with JavaScript disabled, which is a
+ * requirement here rather than a nicety.
  *
- * `run_worker_first` is set in wrangler.jsonc, so this handler sees every request. That
- * costs one Worker invocation per request against a 100,000/day free allowance, which for
- * a running club is not a constraint.
+ * `run_worker_first` is set in wrangler.jsonc, so this handler sees every request that is
+ * not routed away. That costs one Worker invocation per request against a 100,000/day
+ * free allowance.
  */
 
 interface Env {
@@ -28,16 +28,26 @@ interface Env {
   PUBLIC_SUPABASE_URL: string;
   /** Safe to expose — row-level security is what enforces access. */
   PUBLIC_SUPABASE_ANON_KEY: string;
+  /**
+   * Where the timing Worker is, **for local development only**.
+   *
+   * Absent in production, where Cloudflare's own route dispatches `/timing/*` before this
+   * Worker runs. If this is ever set in `env.production`, something has gone wrong: it
+   * would mean the platform proxying itself through an extra hop.
+   */
+  TIMING_ORIGIN?: string;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const route = resolveRoute(url.hostname, url.pathname);
 
-    const assetUrl = new URL(url);
-    assetUrl.pathname = route.path;
-    const response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    if (env.TIMING_ORIGIN && isTimingPath(url.pathname)) {
+      const target = new URL(url.pathname + url.search, env.TIMING_ORIGIN);
+      return fetch(new Request(target, request));
+    }
+
+    const response = await env.ASSETS.fetch(request);
 
     // Only HTML gets rewritten, and only when it was served successfully. An asset, a
     // redirect or a 404 passes straight through.

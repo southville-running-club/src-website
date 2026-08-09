@@ -32,6 +32,12 @@
   "vars": {
     "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
     "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+
+    // **Local only, and its absence in production is load-bearing.** Cloudflare dispatches
+    // `/timing/*` to the timing Worker at the edge, so in production those requests never
+    // reach this Worker. On a laptop there is no edge, so this Worker forwards them
+    // itself — which is what lets one port serve the whole site locally.
+    "TIMING_ORIGIN": "http://localhost:8788",
   },
 
   "observability": {
@@ -48,16 +54,23 @@
   // repeated per environment. That is why the production database appears here in full.
   "env": {
     "production": {
+      // **One hostname for everything the club owns**, told apart by path:
+      //
+      //   /         the website        this Worker
+      //   /nn       Nightingale Nightmare  this Worker
+      //   /timing   race timing        apps/timing, via a more specific route
+      //
+      // At the Squarespace cutover the hostname changes and nothing else does. That is
+      // the point: the new site can be built up around NN and timing without either of
+      // them moving.
+      //
       // **The hostname is code.** Cloudflare creates the DNS record and issues the
       // certificate from this entry; nothing is added by hand at the registrar or in the
-      // dashboard. A second hostname — `new.`, the apex, `www` — is another entry here
-      // and a reviewed pull request.
-      //
-      // `nn.` is proxied, which is correct: Cloudflare is the origin. Mail hostnames are
-      // never proxied, and nothing here touches one.
+      // dashboard. It is proxied, which is correct: Cloudflare is the origin. Mail
+      // hostnames are never proxied, and nothing here touches one.
       "routes": [
         {
-          "pattern": "nn.southvillerunningclub.co.uk",
+          "pattern": "new.southvillerunningclub.co.uk",
           "custom_domain": true,
         },
       ],

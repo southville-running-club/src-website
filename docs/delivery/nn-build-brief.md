@@ -19,7 +19,7 @@ Cloudflare, [DNS and domain](../solutions/dns-and-domain.md) for the hostname.
 | | |
 | --- | --- |
 | **Build** | A public page describing the race, a sign-up form, and **Stripe payment** |
-| **Host** | **Cloudflare Workers** with static assets, custom domain `nn.southvillerunningclub.co.uk` |
+| **Host** | **Cloudflare Workers** with static assets, at `new.southvillerunningclub.co.uk/nn` — a path rather than a subdomain, per [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
 | **Store** | Supabase Postgres, `eu-west-2` |
 | **Do not build** | Results, accounts, admin surfaces. **Payments are in scope** — see below |
 
@@ -153,10 +153,14 @@ Violating any of these is a defect, not a judgement call.
 - The **sign-up path must keep working if payment is unavailable.** A failed checkout must not
   lose the entry.
 
-**DNS** — *simplified since the nameservers moved on 8 August 2026*
+**DNS** — *simplified since the nameservers moved on 8 August 2026, and again by
+[ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) on
+9 August*
 
-- **Attach `nn.southvillerunningclub.co.uk` as a custom domain on the Worker.** Cloudflare
+- **Attach `new.southvillerunningclub.co.uk` as a custom domain on the Worker.** Cloudflare
   creates the record and issues the certificate. **Do not hand-add anything.**
+- **The race is a path on it, `/nn`** — not a subdomain. At the Squarespace cutover the
+  hostname changes and the path does not, so the page never moves.
 - **Nothing at Fasthosts.** Its DNS panel is no longer authoritative — a change there saves
   successfully and does nothing.
 - **Never modify or delete an existing record.** Additive only.

@@ -40,6 +40,22 @@ strict ordering instead, the cost is a `CLOUDFLARE_API_TOKEN` and a
 **Do not add any DNS record by hand in this runbook.** The custom domains come from
 `wrangler.jsonc`, and Cloudflare creates the records and certificates itself.
 
+## The shape you are building
+
+**One hostname, two Workers, told apart by path.**
+[ADR-007](../../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
+
+| | Worker | Attached by |
+| --- | --- | --- |
+| `new.<apex>/` and `/nn` | `src-main-production` | **Custom Domain** — creates the DNS record and certificate |
+| `new.<apex>/timing/*` | `src-timing-production` | **Route** — no DNS record of its own |
+
+Cloudflare matches most-specific-first, and a route carrying a path beats a Custom Domain
+on the same hostname, so `/timing/*` is dispatched to the timing Worker at the edge.
+
+**Order matters: `src-main-production` first.** Its Custom Domain creates the `new` record;
+until that exists, the timing route has no hostname to attach to.
+
 ## 2. Create the `src-main-production` Worker
 
 **Workers & Pages → Create → Workers → Import a repository.**
@@ -80,6 +96,8 @@ platform/package-lock.json
 
 ## 3. Create the `src-timing-production` Worker
 
+**After `src-main-production` has deployed at least once**, so the `new` DNS record exists.
+
 The same again, with three differences:
 
 | Setting | Value |
@@ -92,6 +110,11 @@ The same again, with three differences:
 
 `build:worker`, not `build` — it runs the OpenNext bundle, which is what actually deploys.
 
+- [ ] After it deploys, check **Workers → src-timing-production → Settings → Domains &
+      Routes**. It should show the **route** `new.southvillerunningclub.co.uk/timing/*`,
+      and **no Custom Domain**. A Custom Domain here would take the whole hostname and
+      break the website.
+
 ## 4. Let the first build run
 
 - [ ] Watch **Deployments**. A build takes a few minutes.
@@ -100,10 +123,11 @@ The same again, with three differences:
 
 Cloudflare will have created, from `wrangler.jsonc` and without being asked:
 
-- [ ] A proxied `nn` record and its certificate.
-- [ ] A proxied `timing` record and its certificate — **additive**: nothing resolved that
-      name before, so it cannot break anything, and deleting it restores the previous state
-      exactly.
+- [ ] **One** proxied `new` record and its certificate — **additive**: nothing resolved
+      that name before, so it cannot break anything, and deleting it restores the previous
+      state exactly.
+- [ ] **No record for `timing`**, and none is needed. The timing Worker attaches by route
+      to the same hostname.
 - [ ] **No existing record was modified or deleted.** Confirm in **DNS → Records**.
 
 ## 5. Confirm the club's email still works
@@ -121,13 +145,14 @@ From a laptop:
 cd platform && npm run smoke
 ```
 
-Six checks against the real hostnames: both sites served over HTTPS with valid
-certificates, both reaching the database, `nn.<apex>/membership/` returning 404, and
-`nn.<apex>/nn/` redirecting so there is one public URL per page.
+Seven checks against the real hostname: the website, `/nn` and `/timing` all served over
+HTTPS with a valid certificate, both applications reaching the database, the timing app's
+assets resolving under `/timing/_next/` — which is what proves `basePath` is right — and an
+unbuilt page returning 404.
 
-- [ ] All six pass.
+- [ ] All seven pass.
 
-**The same six run automatically** on every push to `main`, and daily at 08:17 — because
+**The same seven run automatically** on every push to `main`, and daily at 08:17 — because
 [permanent means permanent](../../foundations/requirements.md#continuity), and a free tier
 that quietly stops serving is exactly the failure nobody notices until somebody tries to
 enter a race.

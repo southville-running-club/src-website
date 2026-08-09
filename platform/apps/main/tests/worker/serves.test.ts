@@ -2,67 +2,74 @@ import { describe, expect, it } from 'vitest';
 import { SELF } from 'cloudflare:test';
 
 /**
- * The routing rules again, but through the real runtime and the real build output.
+ * The Worker, in the real runtime, against the real build output.
  *
- * `tests/unit/routing.test.ts` proves the function returns the right path. This proves
- * the Worker, the static-assets binding and `run_worker_first` actually combine to serve
- * it — which is the part that would still be broken if `run_worker_first` were left off,
- * with the unit tests entirely green.
+ * `tests/unit/routing.test.ts` proves the dispatch decision. This proves the Worker and
+ * the static-assets binding actually combine to serve the site — the part that would still
+ * be broken if `run_worker_first` were left off, with the unit tests entirely green.
+ *
+ * `/timing` is not exercised here: in this configuration it is forwarded to a second
+ * Worker that is not running, and in production Cloudflare routes it away before this
+ * Worker sees it. It is covered end to end by the E2E and smoke suites, where both
+ * Workers are up.
  */
 
-const NN = 'https://nn.southvillerunningclub.co.uk';
+const SITE = 'https://new.southvillerunningclub.co.uk';
 
-describe('nn.southvillerunningclub.co.uk', () => {
-  it('serves the Nightingale Nightmare page at the root', async () => {
-    const response = await SELF.fetch(`${NN}/`);
+describe('the club website', () => {
+  it('serves the holding page at the root', async () => {
+    const response = await SELF.fetch(`${SITE}/`);
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
-    await expect(response.text()).resolves.toContain('Nightingale Nightmare');
+    await expect(response.text()).resolves.toContain('A new Southville Running Club');
   });
 
-  it('404s anything that is not the race', async () => {
-    // The leak test. From Phase 5 the club website is in this same build, and none of it
-    // may be reachable here.
-    for (const path of ['/membership/', '/results/', '/about/']) {
-      const response = await SELF.fetch(`${NN}${path}`);
-      expect(response.status, `${path} should not be served`).toBe(404);
-    }
-  });
+  it('links to both of the things that already exist', async () => {
+    const page = await (await SELF.fetch(`${SITE}/`)).text();
 
-  it('has no /nn address of its own', async () => {
-    // One address for the race, and it is the root of this hostname. `/nn/` is a build
-    // location so that `new.<apex>/nn` works later; it is not an address here.
-    const response = await SELF.fetch(`${NN}/nn/`);
-
-    expect(response.status).toBe(404);
-  });
-
-  it('does not serve the build root index', async () => {
-    // `/` maps to `/nn/`, so the platform index page must be unreachable here even
-    // though it exists in `dist/`.
-    const response = await SELF.fetch(`${NN}/`);
-    await expect(response.text()).resolves.not.toContain('Platform skeleton');
-  });
-
-  it('serves the stylesheet, so the page is not unstyled', async () => {
-    const page = await (await SELF.fetch(`${NN}/`)).text();
-    const href = /href="(\/_astro\/[^"]+\.css)"/.exec(page)?.[1];
-
-    expect(href, 'the page should link a built stylesheet').toBeTruthy();
-
-    const css = await SELF.fetch(`${NN}${href}`);
-    expect(css.status).toBe(200);
+    expect(page).toContain('href="/nn/"');
+    expect(page).toContain('href="/timing"');
   });
 });
 
-describe('other hostnames', () => {
-  it('serve the build root untouched', async () => {
-    const response = await SELF.fetch('https://src-main.workers.dev/');
+describe('Nightingale Nightmare', () => {
+  it('is served at /nn/', async () => {
+    const response = await SELF.fetch(`${SITE}/nn/`);
 
     expect(response.status).toBe(200);
-    await expect(response.text()).resolves.toContain('Platform skeleton');
+    await expect(response.text()).resolves.toContain('Nightingale Nightmare');
   });
+
+  it('is the only address it has', async () => {
+    // No subdomain, and no second path. At the Squarespace cutover the hostname changes
+    // and this page does not move.
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(page).toContain(
+      'rel="canonical" href="https://new.southvillerunningclub.co.uk/nn/"',
+    );
+  });
+
+  it('states no facts about the race', async () => {
+    // The date, price and distance are unconfirmed, and inventing one is a "stop and ask"
+    // trigger rather than a placeholder.
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(page).not.toMatch(/£\s?\d/);
+    expect(page).not.toMatch(/\b(October|November)\s+\d{1,2}\b/);
+  });
+});
+
+describe('what does not exist', () => {
+  it.each(['/membership/', '/results/', '/newsletter/2026-01/'])(
+    '404s %s',
+    async (path) => {
+      const response = await SELF.fetch(`${SITE}${path}`);
+
+      expect(response.status).toBe(404);
+    },
+  );
 });
 
 describe('the health placeholder', () => {
@@ -70,7 +77,7 @@ describe('the health placeholder', () => {
     // Proves the HTMLRewriter ran. Whether it reached the database is a separate matter —
     // the local stack may not be up in every environment — so this asserts the handler
     // replaced the content, not what it replaced it with.
-    const page = await (await SELF.fetch(`${NN}/`)).text();
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
     expect(page).not.toContain('Not fetched — the Worker did not run.');
     expect(page).toMatch(/data-health="(ok|error)"/);
