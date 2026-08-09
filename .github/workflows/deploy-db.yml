@@ -47,7 +47,17 @@ jobs:
     name: supabase db push
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: production
+
+    # **No `environment: production` here, and it is not an omission.**
+    #
+    # GitHub's own wording: *"Organizations with GitHub Team and users with GitHub Pro can
+    # configure environments for private repositories."* This repository is private on the
+    # free plan, so declaring an environment would fail the job outright.
+    #
+    # What it would buy, when the plan question is settled: a **required reviewer** on the
+    # one action that can destroy the timing platform's data. That is the strongest
+    # argument for paying, and it is recorded rather than lost —
+    # docs/decisions/decision-log.md.
 
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

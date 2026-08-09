@@ -171,6 +171,9 @@ cannot outlive Squarespace. It is not a decision taken here; see
 
 ## What is still open
 
+- **Whether to pay for GitHub Team**, ~£70–90/yr for two seats. **Deferred 9 August 2026,
+  deliberately.** See below — it is the only open item here that is a *technical control*
+  rather than a price
 - **The registrar.** Fasthosts for now. Moving it is optional, later, and worth doing for
   consolidation rather than the ~£7
 - **Fasthosts' sending limits and its price beyond two mailboxes**, neither published
@@ -180,3 +183,69 @@ cannot outlive Squarespace. It is not a decision taken here; see
 - **Five vendor facts** listed under
   [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for
+
+---
+
+## Deferred — GitHub Team, and what the free plan does not give us
+
+**Raised 9 August 2026, while setting the repository up. Not decided.**
+
+`src-website` is **private on GitHub Free**, and that withholds two things. Both were
+discovered by trying to configure them, which is the cheapest possible moment.
+
+### What is actually missing
+
+**Pull requests and code review work fine.** Open, review, comment, approve, request
+changes — all available, today, at no cost. CI runs on every pull request and a red check
+is visible on it.
+
+What GitHub Free withholds on a private repository is **enforcement**:
+
+| | |
+| --- | --- |
+| **Branch protection** | Nothing *requires* a pull request, *requires* CI to pass, or blocks a direct push to `main`. `403 — Upgrade to GitHub Pro or make this repository public` |
+| **Actions environments** | *"Organizations with GitHub Team and users with GitHub Pro can configure environments for private repositories."* A workflow declaring one fails outright, so `deploy-db.yml` does not declare one |
+
+> **The convention is available. Only its enforcement is not.**
+
+### Why the environment half is the part that matters
+
+Branch protection guards against a slip. The environment guards against something worse: it
+is what would let the **other volunteer be a required reviewer on `supabase db push`** — a
+second pair of eyes on the one automated action that can reach the timing platform's
+database.
+
+Without it, merging a migration applies it unsupervised. Two things narrow that and neither
+closes it: migrations are scoped `--schema club,intake`, so this repository cannot propose
+dropping the timing app's tables; and `supabase db reset`, the destructive one, is a local
+command that appears in no workflow.
+
+### The options
+
+| | Cost | |
+| --- | --- | --- |
+| **A CI guard** | £0 | A workflow failing loudly when a commit reaches `main` without a pull request. Detection, not prevention. Does **not** give the migration reviewer |
+| **GitHub Team** | ~£70–90/yr | Both. Verify the exact figure before committing — it is not published on the plans page |
+| **Make the repository public** | £0 | Both, plus unlimited Actions minutes. Needs the [DNS zone export](../reference/zone-fasthosts-2026-08-08.txt) moved or redacted, and makes the club's infrastructure reasoning readable by anyone |
+
+### Why it is deferred rather than taken
+
+The club is spending this programme reducing £735/yr to £427. A new recurring cost needs to
+earn its place, and the gap it closes is one the club has **already accepted elsewhere**:
+[ADR-005](../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) chose
+exactly this trade for DNS — a reviewable artefact and a runbook, with nothing technically
+preventing somebody clicking — on the reasoning that *"for two volunteers who trust each
+other, that is the acceptable gap."*
+
+**Nothing is blocked by leaving it open.** The pipeline works, the tests run, and the
+deploys happen.
+
+### Revisit when
+
+- **Before the first migration against real member data.** The unsupervised-migration risk
+  is theoretical while `club` is empty and stops being theoretical the day it is not
+- **A third maintainer arrives**, so enforcement starts to matter more than trust — the same
+  trigger ADR-005 names
+- **Somebody pushes to `main` by accident**, which is the evidence that the convention needs
+  teeth
+- **Any month the repository is made public for another reason**, since it comes free then

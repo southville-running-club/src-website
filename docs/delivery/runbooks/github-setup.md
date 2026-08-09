@@ -35,21 +35,41 @@ Worth stating plainly, because the asymmetry looks like an oversight and is not:
 > happen **before** Cloudflare is connected to it or the git integration desynchronises.
 > Not this runbook, but do not lose it.
 
-## 2. Protect `main`
+## 2. Protecting `main` — **not available yet, and the decision is open**
 
-**Settings → Rules → Rulesets → New branch ruleset**, targeting `main`.
+> **Skip this step for now.** It is here so that nobody spends an evening discovering why
+> the setting is missing.
 
-- [ ] **Require a pull request before merging.** This is what makes shared ownership a
-      property of the workflow rather than a promise.
-- [ ] **Require status checks to pass** — select **`Lint, types, tests, build`**. It only
-      appears in the list once CI has run at least once, so if it is missing, open a pull
-      request first and come back.
-- [ ] **Require branches to be up to date before merging.**
-- [ ] **Block force pushes.**
+**`src-website` is private on the GitHub Free plan, and branch protection on a private
+repository requires GitHub Team.** The rulesets API answers plainly:
+`403 — Upgrade to GitHub Pro or make this repository public to enable this feature.` Being
+an organisation does not help; GitHub Free *for organizations* excludes it too.
 
-Leave **required approvals at zero** if you are two people and one of you is on holiday —
-requiring an approval you cannot get is how the rule ends up disabled at the worst moment.
-The pull request itself is the control; the approval is the courtesy.
+**What still works today, and it is most of what matters:**
+
+| | |
+| --- | --- |
+| Pull requests | ✅ Open, review, comment, approve, request changes — all of it |
+| CI on every pull request | ✅ Runs and reports, and a red check is visible on the PR |
+| **Requiring** a pull request before merge | ❌ Needs Team |
+| **Requiring** CI to pass before merge | ❌ Needs Team |
+| Blocking a direct push to `main` | ❌ Needs Team |
+
+So **the convention is available; only its enforcement is not.** You can work by pull
+request from today. What you cannot do is stop yourself deviating from it.
+
+### The three ways out, and none is urgent
+
+| | Cost | |
+| --- | --- | --- |
+| **A CI guard** | £0 | A workflow that fails loudly when a commit reaches `main` without a pull request. Detection rather than prevention — exactly the trade [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) already ratified for DNS |
+| **GitHub Team** | ~£70–90/yr for two | Real enforcement, and it also unlocks the environment protection in step 4 |
+| **Make the repository public** | £0 | Full enforcement and unlimited Actions minutes. Needs the [DNS zone export](../../reference/zone-fasthosts-2026-08-08.txt) moved or redacted first, and makes the club's infrastructure reasoning public |
+
+**Deliberately not decided.** It is a recurring cost against a programme trying to reduce
+one, and the gap it leaves is the same gap the club has already accepted elsewhere. Recorded
+in the [decision log](../../decisions/decision-log.md) so it is a deferral rather than an
+oversight.
 
 ## 3. Actions permissions
 
@@ -60,18 +80,28 @@ The pull request itself is the control; the approval is the courtesy.
 - [ ] **Workflow permissions: Read repository contents.** Nothing here writes to the
       repository, so nothing needs write.
 
-## 4. The production environment
+## 4. The production environment — **also unavailable, same reason**
 
-`deploy-db.yml` runs in an environment named `production`, which is what makes the
-migration step attributable and, later, gateable.
+> **Skip this step too.** `deploy-db.yml` does *not* declare an environment, deliberately.
 
-**Settings → Environments → New environment → `production`.**
+GitHub's wording: *"Organizations with GitHub Team and users with GitHub Pro can configure
+environments for private repositories."* On the free plan a workflow declaring
+`environment: production` **fails outright**, so the workflow does not declare one.
 
-- [ ] Created.
-- [ ] **Optional, and worth it before the first real migration:** add the other volunteer
-      as a **required reviewer**. A schema change against the shared database then waits for
-      a second pair of eyes. It is the cheapest possible guard on the one action that can
-      destroy the timing platform's data.
+**This is the strongest argument for paying, and it is worth stating plainly.** With an
+environment you could add the other volunteer as a **required reviewer** on
+`supabase db push` — a second pair of eyes on the one automated action that can destroy the
+timing platform's data. Without it, a merge that touches a migration applies it
+unsupervised.
+
+Two things reduce that risk in the meantime, and neither removes it:
+
+- Migrations are **scoped** — `--schema club,intake` — so this repository cannot propose
+  dropping the timing app's tables.
+- `supabase db reset`, the destructive one, is a **local command** and appears nowhere in
+  any workflow.
+
+Carried in the [decision log](../../decisions/decision-log.md) with the plan question.
 
 ## 5. The three secrets
 
