@@ -2,6 +2,15 @@
 
 Getting the database half of the platform deployable. **About twenty minutes**, done once.
 
+> **What is actually manual here is small, and that is the point.** Create the project,
+> issue a token, note the password, put three secrets into GitHub. **Everything else — the
+> schemas, the grants, the policies, the exposed-schema list — is applied by
+> `deploy-db.yml` on merge to `main`**, from the repository, reviewably.
+>
+> If you find yourself clicking something in the Supabase dashboard that is not on that
+> list, stop: it probably belongs in `config.toml` or a migration, and doing it by hand
+> means the next merge overwrites it.
+
 **Prerequisites:** you can sign in to the club's Supabase account, and you are an admin on
 the `southville-running-club` GitHub organisation.
 
@@ -38,24 +47,18 @@ the `southville-running-club` GitHub organisation.
       [no system is reachable by only one person](../../architecture/principles.md#no-system-is-reachable-by-only-one-person)
       is being broken right now, and this is the moment to fix it.
 
-## 2. Expose the `intake` schema — from `config.toml`, not the dashboard
+## 2. Expose the `intake` schema — **nothing to do; the pipeline does it**
 
-**This is not a dashboard step.** `supabase config push` sends the committed
-`config.toml` to the linked project, so the exposed-schema list is code like everything
-else and the dashboard reflects the repository rather than the other way round.
+**This is not a dashboard step, and it is not a laptop step either.** The exposed-schema
+list lives in the committed `config.toml`, and `deploy-db.yml` applies it with
+`supabase config push` on every merge to `main` — alongside the migrations, in the same
+run, from the same credentials.
 
 That answers one of the open
 ["which Supabase settings are dashboard-only"](../../architecture/investigations/infrastructure-as-code.md#still-to-answer)
 questions: **this one is not.**
 
-```bash
-cd platform/packages/db
-npx supabase login                                  # browser, once per machine
-npx supabase link --project-ref ketipxpyjjglwpqazsft # asks for the database password
-npx supabase config push
-```
-
-- [ ] `config.toml` already declares it — confirm before pushing:
+- [ ] Confirm the committed file says what you expect. That is the whole of this step:
 
 ```toml
 [api]
@@ -65,10 +68,34 @@ schemas = ["public", "graphql_public", "intake"]
 - [ ] **`club` is deliberately absent.** Even if a grant on a `club` table were wrong one
       day, PostgREST would have no route to it. Adding it is a decision, not a convenience.
 
-> ⚠️ **`config push` pushes all of `config.toml`, not only the `[api]` block** — auth,
-> storage, and email settings travel with it. On a fresh project with defaults that is
-> harmless, which is why it is worth adopting now. On an established project, read the diff
-> it prints before confirming: it will happily overwrite something set by hand.
+> ⚠️ **`config push` sends the whole file**, not only the `[api]` block — auth, storage and
+> email settings travel with it. That is the point, and also the hazard: **anything changed
+> by hand in the dashboard is overwritten on the next merge.** If you need a setting, put it
+> in the file.
+
+### Local, branch CI and production all read this one file
+
+Which is what makes a pull request meaningful — it exercises the real exposure rules rather
+than an approximation:
+
+| | How it is applied |
+| --- | --- |
+| **Local** | `supabase start` reads `config.toml` into the Docker containers |
+| **Branch CI** | The same, in Actions |
+| **Production** | `supabase config push`, on merge to `main` |
+
+Guarded twice: `tests/unit/config.test.ts` asserts the list directly, and
+`tests/schemas.test.ts` catches the same mistake by its effect when `club` stops returning
+`PGRST106`. Adding `club` to the list fails both, immediately.
+
+**If you ever need it by hand** — bootstrapping before the secrets exist, or debugging:
+
+```bash
+cd platform/packages/db
+npx supabase login                                   # browser, once per machine
+npx supabase link --project-ref ketipxpyjjglwpqazsft # asks for the database password
+npx supabase config push
+```
 
 ### The three layers, because they are easy to confuse
 

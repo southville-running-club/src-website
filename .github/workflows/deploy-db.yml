@@ -1,6 +1,7 @@
 name: Deploy database
 
-# Migrations for the schemas **this repository owns**, applied on merge to main.
+# Migrations and project configuration for the schemas **this repository owns**, applied
+# on merge to main.
 #
 # This is the one place a deploy credential is accepted, and the asymmetry is deliberate
 # rather than an oversight. Cloudflare needs none — its git integration pulls from GitHub,
@@ -28,6 +29,9 @@ on:
     branches: [main]
     paths:
       - 'platform/packages/db/supabase/migrations/**'
+      # `config.toml` carries the exposed-schema list, which is as load-bearing as any
+      # migration: a schema that is not on it is unreachable whatever its grants say.
+      - 'platform/packages/db/supabase/config.toml'
       - '.github/workflows/deploy-db.yml'
 
   # Available by hand for the case the path filter misses, and for re-running a failure.
@@ -44,7 +48,7 @@ defaults:
 
 jobs:
   push:
-    name: supabase db push
+    name: supabase db push, then config push
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -104,9 +108,24 @@ jobs:
 
       - name: Apply migrations
         # **`db push`, never `db reset`.** `reset` is a local command; against the shared
-        # remote it would destroy the timing platform's data.
+        # remote it would destroy everything, including — once the timing platform is
+        # ported onto this project — the club's race history.
         #
-        # Two repositories share one Postgres until the timing app joins the monorepo, so
-        # Supabase keeps a single migration history for both. This repository owns `club`
-        # and `intake` and must never propose a change to `public` or `private`.
+        # This repository owns `club` and `intake` and must never propose a change to
+        # `public` or `private`.
         run: npx supabase db push --linked
+
+      - name: Apply project configuration
+        # The exposed-schema list, and it belongs here rather than in a dashboard. A schema
+        # that is not on it is unreachable whatever its grants say, so it is as
+        # load-bearing as any migration — and this is what makes it code.
+        #
+        # **After the migrations, deliberately.** Exposing a schema that does not exist yet
+        # is harmless but meaningless; this way the thing is created and then made
+        # reachable, in that order.
+        #
+        # ⚠️ It pushes the **whole** `config.toml` — auth, storage and email settings travel
+        # with it. That is the point (the file is the source of truth) and also the hazard:
+        # anything changed by hand in the dashboard is overwritten on the next run. If you
+        # need a setting, put it in the file.
+        run: npx supabase config push --yes

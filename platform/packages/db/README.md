@@ -61,9 +61,28 @@ Something is reachable only when **both** the second and third permit it. That i
 `club` is blocked twice — not exposed, and not granted — and why `intake.nn_interest` holds
 seven seeded rows that no anonymous caller can read.
 
-`npm run db:config:push` is what applies the middle layer to the linked project, so the
-dashboard reflects this repository rather than the other way round. **It pushes the whole
-file**, not just `[api]` — read the diff it prints.
+### One file, three environments
+
+The middle layer is the one that could plausibly drift, so it deliberately does not have
+three sources of truth:
+
+| | How `[api] schemas` gets applied |
+| --- | --- |
+| **Local** | `supabase start` reads `config.toml` straight into the Docker containers |
+| **Branch CI** | The same — `supabase start` runs in Actions and reads the same file |
+| **Production** | `deploy-db.yml` runs `supabase config push` on merge to `main` |
+
+So **a schema exposed here is exposed everywhere, and one missing here is missing
+everywhere.** A pull request tests the real exposure rules rather than an approximation of
+them, which is the whole argument for the list living in the repository.
+
+Guarded twice over: `tests/unit/config.test.ts` asserts the list directly — no Docker, a
+few milliseconds — and `tests/schemas.test.ts` catches the same mistake by its effect, when
+`club` stops returning `PGRST106`.
+
+`npm run db:config:push` runs it by hand for bootstrapping or debugging. **It pushes the
+whole file**, not just `[api]` — read the diff it prints, and remember that anything set by
+hand in the dashboard is overwritten on the next merge.
 
 `database.types.ts` is **generated**. Editing it by hand will be silently undone, and CI
 fails when it drifts.
