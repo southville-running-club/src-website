@@ -136,6 +136,19 @@ curl -H "apikey: <publishable-key>" -H "Accept-Profile: club" \
 - [ ] Returns **`PGRST106 — Invalid schema: club`**. Anything else, and `club` is reachable
       when it should not be. Stop and fix that before going further.
 
+And the table that *is* in an exposed schema, which should still be unreachable:
+
+```bash
+curl -H "apikey: <publishable-key>" -H "Accept-Profile: intake" \
+  https://ovpvzabtjxbszsqschqy.supabase.co/rest/v1/nn_interest
+```
+
+- [ ] Returns **`42501 — permission denied for table nn_interest`**. It has row-level
+      security enabled and no policies, so nothing reaches it through the API. The
+      anonymous-insert policy arrives with the sign-up form, in the pull request that can
+      test it. **If this returns rows, stop** — that is a personal-data surface open to the
+      internet.
+
 ---
 
 ## What is still true afterwards

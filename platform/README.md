@@ -24,15 +24,19 @@ fetched from Postgres. There is no sign-up form, no Stripe, and no timing applic
 **Docker must be running** — the local stack is a real Postgres, which is the only way
 row-level security can be tested rather than mocked.
 
+**From the repository root, one command does everything** — starts Docker if it is not
+running, brings up the database, seeds it, builds both applications, starts both Workers
+and opens the site:
+
 ```bash
-nvm use              # Node 22, per .nvmrc
-npm install
-npm run db:start     # Postgres, auth, storage — Docker
-npm run dev:all      # both front doors, in the real Workers runtime
+./dev up
 ```
 
 Nothing to configure: the local Supabase values are already in each app's
 `wrangler.jsonc`, and they are the same on every machine.
+
+The npm commands below all work too, from **this** directory — `npm` at the repository
+root has no `package.json` to find.
 
 ## The local site
 

@@ -33,7 +33,7 @@ and does nothing else. The first four decisions are proposed and recorded in the
 | [The seven phases](docs/delivery/phases.md) | **Start here for shape** — NN, the timing rebuild, the nameservers, the new site, payments, decommission |
 | [The plan](docs/delivery/plan.md) | **What happens when** — 72 numbered steps, labelled by phase |
 | [Move the DNS first](docs/delivery/dns-first.md) | **The plan** — take the risky change now, while nothing depends on it |
-| [Runbooks](docs/delivery/runbooks/) | **Step by step** — [Supabase setup](docs/delivery/runbooks/supabase-setup.md), [Cloudflare setup](docs/delivery/runbooks/cloudflare-setup.md), [adding a hostname](docs/delivery/runbooks/adding-a-hostname.md), [Nightingale Nightmare onto the club domain](docs/delivery/runbooks/nn-to-club-domain.md), and [the nameserver move](docs/delivery/runbooks/nameserver-move.md) ✅ |
+| [Runbooks](docs/delivery/runbooks/) | **Step by step** — setting up [GitHub](docs/delivery/runbooks/github-setup.md), [Supabase](docs/delivery/runbooks/supabase-setup.md) and [Cloudflare](docs/delivery/runbooks/cloudflare-setup.md), [adding a hostname](docs/delivery/runbooks/adding-a-hostname.md), and [the nameserver move](docs/delivery/runbooks/nameserver-move.md) ✅ |
 | [Nightingale Nightmare first](docs/delivery/nn-first-delivery.md) | **What gets built first**, and what it forces to be decided |
 | [Priorities](docs/delivery/priorities.md) | The two fixed dates, and everything else in dependency order |
 | [Decision log](docs/decisions/decision-log.md) | **Four decisions proposed** — Cloudflare, Supabase free, Fasthosts email, parallel running |
@@ -82,10 +82,19 @@ See [priorities](docs/delivery/priorities.md).
 
 ## Working here
 
+```bash
+./dev up      # the whole site on http://localhost:8787
+./dev test    # the acceptance tests, then stop everything
+./dev down    # stop the Workers and the database
+```
+
 Documentation lives at the root; the application code lives in
-[`platform/`](platform/README.md) and is where every build command runs. Start there if you
-are writing code — it lists the commands, and the four things that will otherwise cost you
-an evening.
+[`platform/`](platform/README.md), which is where `npm` works — **not the root, which has
+no `package.json` on purpose.** `./dev` knows the difference so you do not have to.
+
+[`CLAUDE.md`](CLAUDE.md) is the short version of how to work here, for a person or an
+agent: the non-negotiables, the stop-and-ask triggers, and the traps that have already cost
+somebody an evening.
 
 Every change by pull request; documentation ships with the change it describes; markdown
 wraps at roughly 90 characters.
