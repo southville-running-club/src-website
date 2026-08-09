@@ -67,9 +67,14 @@ Tracked in [#1](https://github.com/southville-running-club/src-website/issues/1)
 Workers custom domains are now available, so
 [Phases 4 and 6](../delivery/phases.md) are unblocked and everything new is a Worker.
 
-**Next is code**, not architecture:
+**Next was code**, not architecture:
 [Phase 3](../delivery/phases.md#phase-3--nightingale-nightmare-live) — the
-workspace root, then `apps/nn`, then a Worker on the club domain writing to Supabase.
+workspace root, then the skeleton, then a Worker on the club domain writing to Supabase.
+**That skeleton now exists** — `apps/main` (not the `apps/nn` sketched here; see
+[ADR-006](decisions/adr-006-apps-main-and-hostnames-as-code.md) and
+[ADR-007](decisions/adr-007-one-hostname-paths-not-subdomains.md)) and `apps/timing`, both
+serving a hello-world page from Postgres. What is left of Phase 3 is the sign-up form
+itself, per [the build brief](../delivery/nn-build-brief.md).
 
 ### Before the main website build
 

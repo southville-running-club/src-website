@@ -87,6 +87,20 @@ ensure_database() {
   ok "the database is up"
 }
 
+# `packages/db/tests` reads SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_DB_URL — the anon
+# client checks what can be *reached*, the privileged DB_URL connection checks what is *in*
+# a table, and testing an access boundary from one side only proves half of it. `ci.yml`
+# exports the same three from `supabase status -o env`; this mirrors it so `./dev check`
+# does not just advertise the database tests but actually runs them.
+export_supabase_env() {
+  local env_output
+  env_output="$(cd "$PLATFORM/packages/db" && npx --no-install supabase status -o env)"
+  export SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_DB_URL
+  SUPABASE_URL="$(printf '%s\n' "$env_output" | grep '^API_URL=' | cut -d= -f2- | tr -d '"')"
+  SUPABASE_ANON_KEY="$(printf '%s\n' "$env_output" | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '"')"
+  SUPABASE_DB_URL="$(printf '%s\n' "$env_output" | grep '^DB_URL=' | cut -d= -f2- | tr -d '"')"
+}
+
 # ---------------------------------------------------------------------------------------
 # Builds. Deliberately separate commands: `build` produces the Next.js output that OpenNext
 # then bundles, and merging them makes OpenNext invoke itself. See apps/timing/README.md.
@@ -216,7 +230,7 @@ cmd_test() {
   build_site
 
   step "Acceptance tests"
-  info "Playwright drives the servers itself — 39 tests across three browser engines"
+  info "Playwright drives the servers itself — 39 tests across three browser projects"
   # Playwright starts and stops its own servers, so ours must not be holding the ports.
   stop_workers >/dev/null 2>&1 || true
 
@@ -248,7 +262,12 @@ cmd_check() {
   (cd "$PLATFORM" && npm run typecheck >/dev/null)
   ok "no errors"
 
+  step "Migrations stay inside club and intake"
+  (cd "$PLATFORM" && npm run db:migrations:check-scope >/dev/null)
+  ok "no migration touches public or private"
+
   step "Unit and database tests"
+  export_supabase_env
   (cd "$PLATFORM" && npm test)
 }
 

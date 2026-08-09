@@ -11,6 +11,7 @@ Technical decisions the volunteers take themselves.
 | [**ADR-005**](adr-005-manual-with-a-reviewable-artefact.md) | **DNS stays manual**, with a committed zone file as the reviewable artefact | 8 Aug 2026 |
 | [**ADR-006**](adr-006-apps-main-and-hostnames-as-code.md) | **`apps/main` serves every club hostname**, declared in `wrangler.jsonc`; the npm project lives in `platform/`. *Its hostname decision is superseded by ADR-007* | 8 Aug 2026 |
 | [**ADR-007**](adr-007-one-hostname-paths-not-subdomains.md) | **One hostname, told apart by path** — `new.<apex>`, `/nn`, `/timing`. Two Workers, one origin | 9 Aug 2026 |
+| [**ADR-008**](adr-008-timing-port-before-the-race.md) | **The timing port lands before the race**, gated on a simulation with Vercel as the standing fallback. *Reverses the plan's earlier "after the race"* | 9 Aug 2026 |
 
 ---
 

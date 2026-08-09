@@ -54,3 +54,60 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas().sort()).toEqual(['graphql_public', 'intake', 'public']);
   });
 });
+
+/**
+ * The `[auth]` block, asserted for the same reason as the schema list: `deploy-db.yml`
+ * pushes this **whole file** to production on every merge that touches a migration, so
+ * whatever is committed here is not a local setting — it is what production runs with
+ * from the next merge onward.
+ *
+ * `site_url` and `additional_redirect_urls` are what a Supabase Auth magic link is built
+ * from. The CLI's own scaffolded default is `http://127.0.0.1:3000` — harmless while
+ * nothing uses auth, and a silent production outage the moment
+ * [ADR-008](../../../../docs/architecture/decisions/adr-008-timing-port-before-the-race.md)'s
+ * port lands and somebody clicks a sign-in email. This is the guard that keeps a reverted
+ * or freshly-scaffolded `config.toml` from shipping that placeholder again.
+ */
+function authConfig(): { key: string; value: string }[] {
+  const lines = CONFIG.split('\n');
+  const authStart = lines.findIndex((line) => line.trim() === '[auth]');
+  if (authStart === -1) throw new Error('config.toml has no [auth] section');
+  const nextSection = lines.findIndex(
+    (line, i) => i > authStart && /^\[/.test(line.trim()),
+  );
+  const block = lines.slice(authStart, nextSection === -1 ? undefined : nextSection);
+
+  return block
+    .map((line) => /^(\w+)\s*=\s*(.+)$/.exec(line.trim()))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .map((match) => ({ key: match[1]!, value: match[2]! }));
+}
+
+function authValue(key: string): string {
+  const found = authConfig().find((entry) => entry.key === key);
+  if (!found) throw new Error(`config.toml [auth] has no ${key}`);
+  return found.value;
+}
+
+describe('the auth block that ships to production on every migration merge', () => {
+  it('site_url is the club hostname, not the CLI placeholder', () => {
+    // Not 127.0.0.1, not localhost, not port 3000 — the exact failure mode this test
+    // exists to catch is the scaffolded default surviving into a committed file.
+    expect(authValue('site_url')).toBe('"https://new.southvillerunningclub.co.uk"');
+  });
+
+  it('the redirect allowlist includes the production hostname', () => {
+    expect(authValue('additional_redirect_urls')).toContain(
+      'https://new.southvillerunningclub.co.uk',
+    );
+  });
+
+  it('signup is closed until the platform decides it needs member-facing auth', () => {
+    // The anon key is public, so an open signup endpoint is reachable by anyone who can
+    // see the client bundle — independent of RLS. Whether the platform needs
+    // member-facing authentication at all is still an open question; until it is
+    // answered, this stays closed rather than defaulting open.
+    expect(authValue('enabled')).toBe('true');
+    expect(authValue('enable_signup')).toBe('false');
+  });
+});

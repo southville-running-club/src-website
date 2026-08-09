@@ -229,6 +229,11 @@ including by an agent.
 - Any change touching the **timing platform**
 - Anything that would put a **credential in the repository**
 - Discovering that a **free tier's terms differ** from what is recorded
+- **Changing `[auth]` in `packages/db/supabase/config.toml`** — `site_url`, any redirect
+  URL, or `enable_signup`. This block ships to the shared production project on every
+  merge that touches a migration, and it is what a Supabase Auth magic link is built from.
+  `enable_signup` in particular is currently **off** because whether the platform needs
+  member-facing authentication at all is still undecided — turning it on is that decision
 
 *Where from:* the [build brief](../delivery/nn-build-brief.md#stop-and-ask), generalised
 beyond Nightingale Nightmare because none of these are specific to it.

@@ -70,13 +70,15 @@ automatically on 21 March 2027**; silence costs £204.
     October**, so a Halloween-weekend race is safely the following weekend, in GMT — the
     hazard the earlier "25 October or 1 November" wording was warning about is gone.
     Timezone discipline still applies to anything spanning the change.*
-17. **Create `apps/nn` in this repository** and scaffold it per the
-    [build brief](nn-build-brief.md). *Monorepo, per
+17. ~~**Create `apps/nn` in this repository**~~ — **done differently: it lives at `/nn`
+    inside `apps/main`**, per [ADR-006](../architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md)
+    and [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
+    Scaffolded per the [build brief](nn-build-brief.md). *Monorepo, per
     [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) — not a separate
-    repository.*
-18. **Deploy it to its free `workers.dev` address** — no DNS needed. *Steps 17–18 and 37–39
-    are a runbook: [Nightingale Nightmare onto the club
-    domain](runbooks/nn-to-club-domain.md).*
+    repository, and not a separate application either.*
+18. **Connect `apps/main` to Cloudflare Workers Builds**, deploying it to its free
+    `workers.dev` address — no DNS needed yet. *Steps 17–18 and 37–39 are now one runbook:
+    [Cloudflare setup](runbooks/cloudflare-setup.md).*
 19. **Create the sign-up table**: **`intake.nn_interest`** — name, email, consent,
     timestamp. **Nothing else.** *Schema per
     [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
@@ -148,10 +150,17 @@ automatically on 21 March 2027**; silence costs £204.
 
 ## Phase 4 · The timing app on Cloudflare — race-ready by mid-October
 
-⚠️ ***The only phase touching a system that cannot be re-run.*** **After the Nightingale
-Nightmare race, not before** — NN 2026 runs on the existing Vercel deployment, because
-racing on a freshly ported system is exactly what the [risk
-constraint](../foundations/requirements.md#risk) exists to prevent.
+⚠️ ***The only phase touching a system that cannot be re-run.*** **Before the race, and
+Nightingale Nightmare 2026 is timed on it** —
+[ADR-008](../architecture/decisions/adr-008-timing-port-before-the-race.md), which reverses
+the earlier *"after the race, not before"* recorded here.
+
+> The [risk constraint](../foundations/requirements.md#risk) is honoured by **the rehearsal
+> and the fallback, not by the calendar**. The [race
+> simulation](phases.md#the-gate-on-phase-4) is the sign-off, mid-October is chosen so it
+> has a fortnight behind it, and **the existing Vercel deployment stays live until the
+> simulation passes.** If it does not pass, the race runs on Vercel and no further decision
+> is needed.
 
 > **This phase depends on steps 23–36 having happened.** The app is Next.js using Node APIs,
 > so it needs `@opennextjs/cloudflare`, which targets **Workers** — and **Workers custom

@@ -26,15 +26,18 @@ holds a registration for the old scope. **Rehearse this during the port; do not 
 
 **This is the deployment half of [Phase
 4](../../../docs/delivery/phases.md#phase-4--the-timing-app-on-cloudflare), done early and
-on purpose.** The phases document asks for exactly this:
+on purpose — and it is done.** The phases document asked for exactly this:
 
-> Stand up a hello-world Worker on `timing.<apex>` early — proving Workers Builds, the
-> custom domain and Supabase connectivity with a page that has nothing in it. Then the port
-> only has to prove the application half, and every failure after that is application code.
+> Stand up a hello-world Worker on the club hostname early — proving Workers Builds, the
+> route and Supabase connectivity with a page that has nothing in it. Then the port only
+> has to prove the application half, and every failure after that is application code.
 
 **No timing application code lives here yet**, and none should until the port happens
-deliberately. The real application is `src-race-timing`, it still runs from Vercel, and it
-stays the fallback until a full manual race simulation passes.
+deliberately. Per
+[ADR-008](../../../docs/architecture/decisions/adr-008-timing-port-before-the-race.md), the
+port lands before Nightingale Nightmare 2026, gated on a full manual race simulation — the
+real application, `src-race-timing`, still runs from Vercel and stays the fallback until
+that simulation passes.
 
 ## What it proves
 

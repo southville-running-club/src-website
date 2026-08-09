@@ -16,6 +16,10 @@ numbered steps and the [runbooks](runbooks/) for the procedures.
 
 **Phases 3 and 4 both complete before the race**, and the race uses the migrated timing app
 on Cloudflare, reading the same database as Nightingale Nightmare.
+[ADR-008](../architecture/decisions/adr-008-timing-port-before-the-race.md) records why the
+port lands *before* the race rather than after, and what makes that the lower-risk answer:
+**the [race simulation](#the-gate-on-phase-4) is the sign-off, and the existing Vercel
+deployment stays live until it passes.**
 
 ---
 
@@ -115,9 +119,9 @@ transaction on its own infrastructure.
 | **Sign-up** | Into the shared Supabase project |
 | **Stripe payment** | Checkout plus a webhook into a Worker |
 
-**Procedure:** [Nightingale Nightmare onto the club domain](runbooks/nn-to-club-domain.md)
-covers the hosting path. The page, form and payment flow are
-[the build brief](nn-build-brief.md)'s.
+**Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
+path — the two Workers, one hostname told apart by path. The page, form and payment flow
+are [the build brief](nn-build-brief.md)'s.
 
 ### Prerequisites for the payment half
 
@@ -143,7 +147,7 @@ depends on nothing.
 
 ### Done when
 
-- [ ] `nn.<apex>` serves over HTTPS with a valid certificate
+- [ ] `new.<apex>/nn` serves over HTTPS with a valid certificate
 - [ ] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
 - [ ] **A real payment completes end to end**, and the treasurer can see it
 - [ ] An anonymous client **cannot** read member data
@@ -168,12 +172,17 @@ Off Vercel, onto Workers, reading the **same Supabase project** as NN.
 
 ### Do the deployment half first
 
-**Stand up a hello-world Worker on `timing.<apex>` early** — proving Workers Builds, the
-custom domain and Supabase connectivity with a page that has nothing in it. Then the port only
+> ✅ **Done, 9 August 2026** — as `apps/timing`, a hello-world Worker on
+> `new.<apex>/timing` (a route, not the subdomain this step originally named; see
+> [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md)).
+
+**Stand up a hello-world Worker on the club hostname early** — proving Workers Builds, the
+route and Supabase connectivity with a page that has nothing in it. Then the port only
 has to prove the application half, and every failure after that is application code.
 
-This costs an afternoon and it is the single best thing available for de-risking the
-deadline.
+This cost an afternoon and was the single best thing available for de-risking the
+deadline. What remains for Phase 4 is the application half: the port itself, described
+below.
 
 ### The gate on Phase 4
 

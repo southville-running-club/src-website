@@ -33,6 +33,9 @@ re-run.
 - **Any change touching the timing platform** — `src-race-timing`, or the `public` and
   `private` schemas.
 - **Anything that would put a credential in the repository.**
+- **Changing `[auth]` in `packages/db/supabase/config.toml`.** It ships to production on
+  every merge that touches a migration, and `enable_signup` is off because member-facing
+  authentication is not yet a decided requirement.
 - Discovering that a **free tier's terms differ** from what is recorded.
 
 ---

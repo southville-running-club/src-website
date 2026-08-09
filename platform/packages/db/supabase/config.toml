@@ -164,11 +164,26 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+#
+# **This is the value the CLI ships as a placeholder, and it must not stay that way.**
+# `supabase config push` sends this whole block to the shared production project on every
+# merge that touches a migration (deploy-db.yml) — so a localhost site_url here is not a
+# local setting, it is what production would actually run with. The timing app's port
+# (ADR-008) uses Supabase Auth magic links, and a magic link is built from this value: get
+# it wrong and sign-in breaks the moment somebody clicks the email, not the moment the code
+# merges. `tests/unit/config.test.ts` asserts this is the real hostname, not the CLI default.
+#
+# `new.` because that is still the club's one public hostname — ADR-007. It drops at the
+# Squarespace cutover along with everything else that names it.
+site_url = "https://new.southvillerunningclub.co.uk"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# A list of URLs auth providers are permitted to redirect to post authentication. Despite the
+# "exact URLs" wording Supabase ships in this comment, `**` wildcards are honoured — worth
+# knowing, because the timing app's own callback path is not decided yet (Phase 4's
+# territory, not this skeleton's), so the production entry is deliberately broad rather than
+# a guessed exact path. Local entries stay so `supabase start` keeps working on a laptop.
+additional_redirect_urls = ["https://new.southvillerunningclub.co.uk/**", "http://127.0.0.1:3000/**", "http://localhost:8787/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -181,7 +196,15 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+#
+# **Off, deliberately.** The anon key is public, so with this on, anybody who can see the
+# client bundle can call the signup endpoint and create an authenticated account —
+# independent of RLS. Nothing in this skeleton has decided the platform needs member-facing
+# authentication at all; that question is still
+# [open](../../../../docs/architecture/decisions/README.md#what-is-waiting-to-be-recorded-here).
+# The timing app's marshal and admin accounts (Phase 4) are provisioned some other way, not
+# through public self-service, until a decision says otherwise.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -226,7 +249,10 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+#
+# Off, matching the top-level `[auth] enable_signup` — belt and braces rather than relying
+# on the master switch alone.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true

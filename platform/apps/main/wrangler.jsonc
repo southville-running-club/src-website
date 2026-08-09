@@ -12,10 +12,12 @@
     "directory": "./dist",
     "binding": "ASSETS",
 
-    // The Worker runs before static assets are matched, which is what makes hostname
-    // routing possible at all — otherwise `nn.<apex>/` would match `dist/index.html`
-    // directly and never reach the handler. It costs one invocation per request against
-    // a 100,000/day free allowance.
+    // The Worker runs before static assets are matched, which is what lets it fill in
+    // the health timestamp on every HTML response via HTMLRewriter — without this, a
+    // request would be served straight from `dist/` and never reach the handler that
+    // does the rewrite. It is also what lets it forward `/timing/*` locally, standing in
+    // for the Cloudflare route that does the same thing in production. It costs one
+    // Worker invocation per request against a 100,000/day free allowance.
     "run_worker_first": true,
   },
 

@@ -12,8 +12,14 @@ each step. If a runbook makes you stop and think about *why*, that is a bug in t
 | [**Supabase setup**](supabase-setup.md) **②** | Expose `intake`, collect the keys, apply the migrations | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
 | [**Cloudflare setup**](cloudflare-setup.md) **③** | The two Workers. **GitHub needs no Cloudflare credential** | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
 | [**Adding a hostname**](adding-a-hostname.md) | **Where DNS records go now.** Short answer: Cloudflare, and usually the service creates it for you | Any |
-| [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | A Worker → a page that works → `nn.southvillerunningclub.co.uk` | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
 | [**The nameserver move**](nameserver-move.md) ✅ | Fasthosts → Cloudflare, carrying club email. **Executed 8 Aug 2026** | [Phase 2](../phases.md#phase-2--move-the-nameservers) |
+
+> **Retired:** *Nightingale Nightmare onto the club domain* — it described attaching
+> `nn.southvillerunningclub.co.uk` directly, which
+> [ADR-007](../../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md)
+> ruled out before it was ever run. **The Cloudflare runbook above is now Phase 3's
+> hosting procedure**; the page, form and payment flow are
+> [the build brief](../nn-build-brief.md)'s.
 
 **Stages inside a runbook are internal to it** and are not the programme's
 [phases](../phases.md). A runbook is a procedure; a phase is a chunk of the programme.

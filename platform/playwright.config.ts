@@ -5,9 +5,10 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * ## Read this before changing the server or worker settings
  *
- * This suite drives two `workerd` servers and up to three browser engines at once, so it
- * is the heaviest thing in the repository by a wide margin. Two rules keep it from taking
- * a laptop down, and both have been broken once already:
+ * This suite drives two `workerd` servers and up to three browser projects at once —
+ * Chromium, WebKit, and Chromium again with JavaScript off — so it is the heaviest thing
+ * in the repository by a wide margin. Two rules keep it from taking a laptop down, and
+ * both have been broken once already:
  *
  * 1. **The servers must not build.** `npm run test:e2e` builds first, then starts
  *    `preview` on an existing build. A `webServer` command that builds turns every run

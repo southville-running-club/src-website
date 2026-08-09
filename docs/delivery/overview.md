@@ -3,7 +3,7 @@
 A plain summary for the committee. **No technical knowledge assumed**, and safe to
 forward.
 
-The detail behind every step is in [the plan](plan.md) — 70 numbered tasks — and the
+The detail behind every step is in [the plan](plan.md) — 72 numbered tasks — and the
 reasoning is in the rest of this repository. This page is the shape of it.
 
 ---
@@ -63,15 +63,22 @@ deadline.*
 
 ### 5. Put the Nightingale Nightmare page on the club's own address
 
-It moves from a temporary address to `nn.southvillerunningclub.co.uk`.
+It moves from a temporary address to **`new.southvillerunningclub.co.uk/nn`**.
+
+*Everything the club owns goes on one address, told apart by what follows the slash. That
+way, when the new website eventually takes over the main address, this page does not move
+again — it just loses the `new.` from the front.*
 
 ### 6. Put the race timing system on the club's address
 
 The timing app currently lives at a supplier's web address. It moves to
-`timing.southvillerunningclub.co.uk`.
+**`new.southvillerunningclub.co.uk/timing`**.
 
-*Nothing about how it works changes. Done well away from race season, because it is the
-one system the club cannot afford to disturb.*
+*Nothing about how it works changes.* **This happens before the race, and Nightingale
+Nightmare 2026 is timed on it.** *That sounds like the riskier choice and is not: it is
+signed off by a full race rehearsal in mid-October — real devices, real loss of signal —
+and the supplier's existing system stays switched on until that rehearsal passes. If it
+does not pass, the race runs on the old system exactly as it would have anyway.*
 
 ### 7. Build the new website alongside the old one
 

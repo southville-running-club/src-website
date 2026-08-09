@@ -93,29 +93,38 @@ request saying why.
 
 ## Project structure
 
-*Per [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) this lives at `apps/nn`
-in the monorepo, not in its own repository.*
+> **Superseded by [ADR-006](../architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md)
+> and [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).**
+> There is no `apps/nn`. Nightingale Nightmare lives inside **`apps/main`**, at `/nn` —
+> one application serving every club hostname rather than one app per race. The tree below
+> is corrected to that location; everything else on this page still applies.
+
+*Per [ADR-001](../architecture/decisions/adr-001-one-monorepo.md) this lives in the
+monorepo, not in its own repository — and per ADR-006/007, inside the one application that
+serves every club surface.*
 
 ```
-apps/nn/
-├── .nvmrc
-├── wrangler.jsonc             assets.directory -> dist, main -> worker/index.ts
+platform/apps/main/            Already built — this brief adds the sign-up form to it
+├── wrangler.jsonc              assets.directory -> dist, main -> worker/index.ts
 ├── src/
 │   ├── content/
-│   │   └── race.json          Race facts as data, not prose in markup
+│   │   └── race.json          Race facts as data, not prose in markup — not yet built
 │   ├── layouts/
+│   │   └── Base.astro          Already built
 │   ├── pages/
-│   │   ├── index.astro
-│   │   └── privacy.astro
+│   │   ├── index.astro         Already built — the club holding page
+│   │   ├── 404.astro           Already built
+│   │   └── nn/
+│   │       ├── index.astro     Already built; this brief adds the form and privacy notice
+│   │       └── privacy.astro
 │   └── styles/
 ├── worker/
-│   └── index.ts               POST /api/signup — the form handler
+│   ├── index.ts                Already built — routing and the health rewrite
+│   └── nn-signup.ts            POST handler for the form — this brief's addition
 ├── tests/
 │   ├── unit/
 │   └── e2e/
-├── astro.config.mjs
-├── tsconfig.json
-└── README.md                  How to run it, and every manual step taken
+└── README.md                   How to run it, and every manual step taken
 ```
 
 *CI lives at the repository root, not per app.*
@@ -242,11 +251,14 @@ feel.
 8. Malformed input is rejected server-side with a message attached to the offending field.
 9. The page is legible and operable at 320 px width.
 10. Lighthouse accessibility ≥ 95; no render-blocking third-party requests.
-11. Deployed to `<project>.pages.dev` and reachable.
-12. Custom domain associated in the dashboard, CNAME added,
-    `nn.southvillerunningclub.co.uk` serves over HTTPS with a valid certificate.
+11. Deployed via Workers Builds and reachable at its `workers.dev` address.
+12. `new.southvillerunningclub.co.uk/nn` serves over HTTPS with a valid certificate —
+    the Custom Domain that [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md)
+    puts on `apps/main`, not a CNAME added by hand. See the [Cloudflare
+    runbook](runbooks/cloudflare-setup.md).
 13. **Club email still works** — send and receive a test message on a club address
-    afterwards. The CNAME cannot affect mail, and confirming it costs a minute.
+    afterwards. A Worker custom domain cannot affect mail, and confirming it costs a
+    minute.
 14. Both volunteers can reach the Cloudflare project, the Supabase project and the
     repository.
 
@@ -280,8 +292,7 @@ and flag it.
 | **Race date** | Unconfirmed — 25 October or 1 November 2026. Build so the page reads correctly *without* a date |
 | **Page copy** | Committee's to write |
 | **Entry price** | Assumed £8–£10, unconfirmed, and not needed for v1 |
-| **Where the rows land** | New schema in the existing Supabase project, or a second project. Needs deciding before the form persists anything |
-| **Cloudflare or Netlify long-term** | Does not affect this build. Both serve a subdomain by CNAME and both run this output unchanged |
+| **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md) and already migrated. Only the anonymous-insert policy and the form itself remain |
 
 ---
 
