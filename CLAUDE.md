@@ -53,7 +53,7 @@ Use `./dev`, or `cd platform` first.
 
 ```bash
 ./dev up      # the whole site on http://localhost:8787, browser opened
-./dev test    # 39 acceptance tests, then everything stopped
+./dev test    # 45 acceptance tests, then everything stopped
 ./dev check   # lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```

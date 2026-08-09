@@ -56,6 +56,7 @@ export type Database = {
     }
     Functions: {
       health: { Args: never; Returns: string }
+      ping: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

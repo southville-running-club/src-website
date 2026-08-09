@@ -83,3 +83,13 @@ describe('the health placeholder', () => {
     expect(page).toMatch(/data-health="(ok|error)"/);
   });
 });
+
+describe('the pipeline-check placeholder', () => {
+  it('is rewritten by the same Worker, via a second HTMLRewriter handler', async () => {
+    // intake.ping() proves a migration added after health() reaches this page the same
+    // way — a second handler on a second selector, not a special case of the first.
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(page).toMatch(/data-pipeline-check="(ok|error)"/);
+  });
+});

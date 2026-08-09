@@ -1,4 +1,4 @@
-import { createAnonClient, fetchHealth } from '@src/shared';
+import { createAnonClient, fetchHealth, fetchPing } from '@src/shared';
 import { isTimingPath } from './routing';
 
 /**
@@ -10,12 +10,15 @@ import { isTimingPath } from './routing';
  *      dispatched to the timing Worker at the edge and never arrives here. On a laptop
  *      there is no edge, so when `TIMING_ORIGIN` is set this Worker forwards those
  *      requests itself — which is what lets one port serve the whole site locally.
- *   2. **Fill in the health timestamp**, server-side, by rewriting the served HTML.
+ *   2. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
+ *      rewriting the served HTML.
  *
  * The second is the skeleton's reason for existing. Doing it in the Worker rather than in
  * the browser proves the **Worker itself** can reach Supabase, in the real runtime, over
  * the real network — and it means the page works with JavaScript disabled, which is a
- * requirement here rather than a nicety.
+ * requirement here rather than a nicety. `intake.ping()` exists alongside
+ * `intake.health()` to prove the same thing a second time, for a migration added *after*
+ * the first deploy rather than only the original one.
  *
  * `run_worker_first` is set in wrangler.jsonc, so this handler sees every request that is
  * not routed away. That costs one Worker invocation per request against a 100,000/day
@@ -58,6 +61,7 @@ export default {
 
     return new HTMLRewriter()
       .on('[data-health]', new HealthHandler(env))
+      .on('[data-pipeline-check]', new PingHandler(env))
       .transform(response);
   },
 } satisfies ExportedHandler<Env>;
@@ -91,6 +95,41 @@ class HealthHandler {
       }
     } catch (cause) {
       element.setAttribute('data-health', 'error');
+      element.setInnerContent(
+        `Could not reach the database — ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Replaces the contents of `<... data-pipeline-check>` with the result of `intake.ping()`.
+ *
+ * `intake.ping()` exists to prove that a *new* migration — added after the skeleton's
+ * first deploy — reaches this Worker through the same path `intake.health()` proved once
+ * already. Same rendering shape as `HealthHandler`, deliberately: a failure here is read
+ * the same way a reader has already learned to read a health failure.
+ */
+class PingHandler {
+  constructor(private readonly env: Env) {}
+
+  async element(element: Element): Promise<void> {
+    try {
+      const client = createAnonClient({
+        url: this.env.PUBLIC_SUPABASE_URL,
+        anonKey: this.env.PUBLIC_SUPABASE_ANON_KEY,
+      });
+      const ping = await fetchPing(client);
+
+      if (ping.ok) {
+        element.setAttribute('data-pipeline-check', 'ok');
+        element.setInnerContent(ping.value);
+      } else {
+        element.setAttribute('data-pipeline-check', 'error');
+        element.setInnerContent(`Could not reach the database — ${ping.error}`);
+      }
+    } catch (cause) {
+      element.setAttribute('data-pipeline-check', 'error');
       element.setInnerContent(
         `Could not reach the database — ${cause instanceof Error ? cause.message : String(cause)}`,
       );

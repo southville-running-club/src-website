@@ -98,10 +98,10 @@ content and CSS, misleading for anything else.
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.
 
 **`npm run test:e2e` is fine, and the guards are why.** Measured on 9 August 2026: two
-builds then **39 tests in 23 seconds**, one Playwright worker, nothing left running. It
-took a laptop down once — that was the OpenNext build recursion below, not the suite
-itself. Raising `workers` above one means three browser engines against two `workerd`
-servers, so know what you are asking for.
+builds then **45 tests in around 22 seconds**, one Playwright worker, nothing left
+running. It took a laptop down once — that was the OpenNext build recursion below, not the
+suite itself. Raising `workers` above one means three browser projects against two
+`workerd` servers, so know what you are asking for.
 
 **Never point `apps/timing`'s `build` script at `opennextjs-cloudflare build`.** OpenNext
 builds Next.js by running one of this package's own npm scripts, so that makes it invoke

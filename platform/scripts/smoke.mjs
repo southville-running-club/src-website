@@ -39,6 +39,25 @@ function reachesDatabase(body) {
 }
 
 /**
+ * The second database check both applications share — `intake.ping()`, added after
+ * `intake.health()`. This is what actually proves the point: the same smoke test that
+ * already caught a live deploy failure once (the wrangler route schema error) now also
+ * proves a *migration* landed correctly on the shared project, not just that the two
+ * Workers can reach it at all.
+ */
+function reachesPipelineCheck(body) {
+  if (body.includes('data-pipeline-check="error"')) {
+    const [, message] = /data-pipeline-check="error"[^>]*>([^<]*)/.exec(body) ?? [];
+    return `the page reports a pipeline-check error: ${message?.trim() ?? 'unknown'}`;
+  }
+  if (!body.includes('data-pipeline-check="ok"'))
+    return 'the pipeline-check element was never filled in';
+  if (!body.includes('pipeline-ok'))
+    return 'the pipeline-check element did not contain the expected value';
+  return null;
+}
+
+/**
  * The checks. Each is deliberately small and says what it proves, because a smoke-test
  * failure is read by somebody in a hurry.
  */
@@ -74,6 +93,12 @@ const CHECKS = [
     check: async (response) => reachesDatabase(await response.text()),
   },
   {
+    name: "Nightingale Nightmare's pipeline check passes",
+    url: `${SITE}/nn/`,
+    proves: 'a migration added after the first deploy reached production the same way',
+    check: async (response) => reachesPipelineCheck(await response.text()),
+  },
+  {
     name: 'race timing is served at /timing',
     url: `${SITE}/timing`,
     proves:
@@ -90,6 +115,12 @@ const CHECKS = [
     url: `${SITE}/timing`,
     proves: 'both applications are talking to one Supabase project',
     check: async (response) => reachesDatabase(await response.text()),
+  },
+  {
+    name: "race timing's pipeline check passes",
+    url: `${SITE}/timing`,
+    proves: 'the same migration reached the second application too, not just the first',
+    check: async (response) => reachesPipelineCheck(await response.text()),
   },
   {
     name: "race timing's own assets resolve under /timing",
