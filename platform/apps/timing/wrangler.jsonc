@@ -76,10 +76,8 @@
       // database behind both front doors. Asserted by
       // `../main/tests/unit/supabase-config.test.ts`.
       "vars": {
-        "PUBLIC_SUPABASE_URL": "https://ovpvzabtjxbszsqschqy.supabase.co",
-        // TODO: the publishable (anon) key from the Supabase dashboard. Safe to commit —
-        // public by design, and it appears in client code.
-        "PUBLIC_SUPABASE_ANON_KEY": "REPLACE_ME_publishable_key",
+        "PUBLIC_SUPABASE_URL": "https://ketipxpyjjglwpqazsft.supabase.co",
+        "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_reN3BxHbZfvKF75bee6n3w_8hfq1FXg",
       },
 
       "observability": {

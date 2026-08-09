@@ -67,7 +67,7 @@ for the wrong reason.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
-| _Create the Supabase project_ | Cannot be code | Already done — project `ovpvzabtjxbszsqschqy`, `eu-west-2` | — |
+| _Create the Supabase project_ | Cannot be code | Already done — project `ketipxpyjjglwpqazsft`, `eu-west-2` | — |
 | _Add the GitHub Actions secrets_ | Migrations need a credential; Cloudflare does not | _pending_ | Repository → Settings → Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` |
 | _Confirm `intake` is exposed on the remote_ | `config.toml` may not reach that setting | _pending_ | Dashboard → Settings → API → exposed schemas. **Record the answer here** — it is one of the open "which settings are dashboard-only" questions |
 

@@ -5,10 +5,24 @@ Getting the database half of the platform deployable. **About twenty minutes**, 
 **Prerequisites:** you can sign in to the club's Supabase account, and you are an admin on
 the `southville-running-club` GitHub organisation.
 
-> **The Supabase project already exists** — `ovpvzabtjxbszsqschqy`, in `eu-west-2`. It holds
-> the timing platform's `public` and `private` schemas and it is
+> **The project is `ketipxpyjjglwpqazsft`, created fresh on a club-owned account on
+> 9 August 2026.** It is empty apart from what this repository puts in it.
+>
+> **This is not the project the timing platform runs on.** That one — `ovpvzabtjxbszsqschqy`,
+> under a personal account — still holds Pass the Buck 2026's data and is
 > [the club's single most valuable asset](../../reference/timing-app-review.md#governance-findings).
-> Nothing in this runbook touches those schemas. If a step seems to, stop.
+> Nothing here touches it.
+>
+> **The consequence, and it is deferred rather than solved:** until the timing platform is
+> ported onto this project, there is no race data here for a results archive to derive
+> from, so [C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
+> cannot be met. That port is [Phase 4](../phases.md#phase-4--the-timing-app-on-cloudflare),
+> and it is the moment the two databases become one.
+>
+> One thing that gets easier meanwhile: with no `public`/`private` schemas here yet,
+> [ADR-002's rule about two repositories sharing one migration
+> history](../../architecture/decisions/adr-002-schema-layout.md#who-may-migrate-what) does
+> not bite. It will when the port lands, so the schema scoping stays.
 
 ---
 
@@ -16,7 +30,7 @@ the `southville-running-club` GitHub organisation.
 
 **Dashboard → your organisation → the project.**
 
-- [ ] The project reference is **`ovpvzabtjxbszsqschqy`**. It is in the URL, and under
+- [ ] The project reference is **`ketipxpyjjglwpqazsft`**. It is in the URL, and under
       **Settings → General**.
 - [ ] The region is **West EU (London)**. If it is not, stop — [C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully)
       is a legal constraint, not a preference, and moving a project is not a runbook step.
@@ -44,7 +58,7 @@ the `southville-running-club` GitHub organisation.
 
 **Settings → API keys.**
 
-- [ ] Copy the **Project URL** — `https://ovpvzabtjxbszsqschqy.supabase.co`.
+- [ ] Copy the **Project URL** — `https://ketipxpyjjglwpqazsft.supabase.co`.
 - [ ] Copy the **publishable** key (labelled `anon` on older dashboards). It begins
       `sb_publishable_` or is a long JWT.
 
@@ -83,8 +97,10 @@ This is the one that **is** secret.
 **Settings → Database → Database password.**
 
 - [ ] If nobody knows it, **Reset database password** and copy the new one. Resetting is
-      safe: it does not affect the anon key, so the timing application keeps working.
-- [ ] Store it in the club's password manager, not just in GitHub.
+      safe here: nothing else uses this project yet, and it does not affect the publishable
+      key.
+- [ ] Store it in the club's password manager, not just in GitHub. GitHub secrets cannot be
+      read back.
 
 ## 6. Put the three secrets into GitHub
 
@@ -94,7 +110,7 @@ Actions → New repository secret.**
 | Name | Value | From |
 | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | the token from step 4 | Account → Access Tokens |
-| `SUPABASE_PROJECT_REF` | `ovpvzabtjxbszsqschqy` | Settings → General |
+| `SUPABASE_PROJECT_REF` | `ketipxpyjjglwpqazsft` | Settings → General |
 | `SUPABASE_DB_PASSWORD` | the password from step 5 | Settings → Database |
 
 Or from a terminal, which avoids the value ever being in a browser field:
@@ -121,7 +137,7 @@ Check by hand, substituting the publishable key:
 ```bash
 curl -X POST -H "apikey: <publishable-key>" -H "Content-Profile: intake" \
   -H "Content-Type: application/json" \
-  https://ovpvzabtjxbszsqschqy.supabase.co/rest/v1/rpc/health -d '{}'
+  https://ketipxpyjjglwpqazsft.supabase.co/rest/v1/rpc/health -d '{}'
 ```
 
 - [ ] A timestamp comes back. **That single call proves** the migration applied, the schema
@@ -130,7 +146,7 @@ curl -X POST -H "apikey: <publishable-key>" -H "Content-Profile: intake" \
 
 ```bash
 curl -H "apikey: <publishable-key>" -H "Accept-Profile: club" \
-  https://ovpvzabtjxbszsqschqy.supabase.co/rest/v1/members
+  https://ketipxpyjjglwpqazsft.supabase.co/rest/v1/members
 ```
 
 - [ ] Returns **`PGRST106 — Invalid schema: club`**. Anything else, and `club` is reachable
@@ -140,7 +156,7 @@ And the table that *is* in an exposed schema, which should still be unreachable:
 
 ```bash
 curl -H "apikey: <publishable-key>" -H "Accept-Profile: intake" \
-  https://ovpvzabtjxbszsqschqy.supabase.co/rest/v1/nn_interest
+  https://ketipxpyjjglwpqazsft.supabase.co/rest/v1/nn_interest
 ```
 
 - [ ] Returns **`42501 — permission denied for table nn_interest`**. It has row-level
@@ -161,5 +177,7 @@ principle: every schema change must keep the previously deployed code working.
 
 **No migrations during a race-week [change freeze](../../foundations/glossary.md#platform-and-delivery).**
 
-**`supabase db reset` is a local command.** Against the shared remote it destroys the timing
-platform's data. There is no version of this runbook where you run it against production.
+**`supabase db reset` is a local command.** It drops everything and rebuilds from
+migrations. Today that would cost this project's sign-ups; after the timing platform is
+ported onto it, it would cost the club its race history. There is no version of this
+runbook where you run it against production.

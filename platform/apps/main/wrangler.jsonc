@@ -80,11 +80,8 @@
       // possible at all, and two projects cannot join. Asserted by
       // `tests/unit/supabase-config.test.ts` so it cannot drift unnoticed.
       "vars": {
-        "PUBLIC_SUPABASE_URL": "https://ovpvzabtjxbszsqschqy.supabase.co",
-        // TODO: the publishable (anon) key from the Supabase dashboard. Safe to commit —
-        // it is public by design and appears in client code. Until it is filled in, the
-        // page will render "Could not reach the database", which is the correct answer.
-        "PUBLIC_SUPABASE_ANON_KEY": "REPLACE_ME_publishable_key",
+        "PUBLIC_SUPABASE_URL": "https://ketipxpyjjglwpqazsft.supabase.co",
+        "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_reN3BxHbZfvKF75bee6n3w_8hfq1FXg",
       },
 
       "observability": {

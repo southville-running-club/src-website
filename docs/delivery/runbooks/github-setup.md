@@ -112,7 +112,7 @@ All three come from [the Supabase runbook](supabase-setup.md) — do that one to
 | Name | What it is | Where it comes from |
 | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | A personal access token | Supabase → Account → Access Tokens |
-| `SUPABASE_PROJECT_REF` | `ovpvzabtjxbszsqschqy` | Supabase → Settings → General |
+| `SUPABASE_PROJECT_REF` | `ketipxpyjjglwpqazsft` | Supabase → Settings → General |
 | `SUPABASE_DB_PASSWORD` | The database password | Supabase → Settings → Database |
 
 Or from a terminal, which keeps the value out of a browser field and out of your clipboard
