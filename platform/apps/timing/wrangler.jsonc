@@ -63,7 +63,15 @@
       // `wrangler deploy`, never locally and never in CI (neither ever deploys for real).
       // The string form is the plain-route case exactly: no zone binding needed, because
       // it attaches to the zone `apps/main`'s Custom Domain already created.
-      "routes": ["new.southvillerunningclub.co.uk/timing/*"],
+      //
+      // **Two routes, not one.** `/timing/*` only matches paths that already have a
+      // trailing segment after `/timing/` — the bare `/timing` request (no trailing
+      // slash) does not match it, falls through to apps/main's Custom Domain, and 404s
+      // there. The exact-path route covers that case.
+      "routes": [
+        "new.southvillerunningclub.co.uk/timing",
+        "new.southvillerunningclub.co.uk/timing/*",
+      ],
 
       // OpenNext needs to call itself. **The service name must match the deployed Worker,
       // which carries the `-production` suffix** — pointing it at `src-timing` here would
