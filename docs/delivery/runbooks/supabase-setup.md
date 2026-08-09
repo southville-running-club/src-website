@@ -38,21 +38,50 @@ the `southville-running-club` GitHub organisation.
       [no system is reachable by only one person](../../architecture/principles.md#no-system-is-reachable-by-only-one-person)
       is being broken right now, and this is the moment to fix it.
 
-## 2. Expose the `intake` schema to the API
+## 2. Expose the `intake` schema — from `config.toml`, not the dashboard
 
-**Settings → API → Exposed schemas.**
+**This is not a dashboard step.** `supabase config push` sends the committed
+`config.toml` to the linked project, so the exposed-schema list is code like everything
+else and the dashboard reflects the repository rather than the other way round.
 
-- [ ] The list contains `public`, `graphql_public` and **`intake`**. Add `intake` if it is
-      missing, and save.
-- [ ] **`club` is *not* in the list.** Its absence is a deliberate second lock: even if a
-      grant on a `club` table were wrong one day, PostgREST would have no route to it.
-      Adding it is a decision, not a convenience.
+That answers one of the open
+["which Supabase settings are dashboard-only"](../../architecture/investigations/infrastructure-as-code.md#still-to-answer)
+questions: **this one is not.**
 
-> **Then write down what you found**, in
-> [`platform/packages/db/README.md`](../../../platform/packages/db/README.md) — whether
-> `intake` was already there, or you had to add it. It answers one of the open
-> ["which Supabase settings are dashboard-only"](../../architecture/investigations/infrastructure-as-code.md#still-to-answer)
-> questions, and nobody will remember otherwise.
+```bash
+cd platform/packages/db
+npx supabase login                                  # browser, once per machine
+npx supabase link --project-ref ketipxpyjjglwpqazsft # asks for the database password
+npx supabase config push
+```
+
+- [ ] `config.toml` already declares it — confirm before pushing:
+
+```toml
+[api]
+schemas = ["public", "graphql_public", "intake"]
+```
+
+- [ ] **`club` is deliberately absent.** Even if a grant on a `club` table were wrong one
+      day, PostgREST would have no route to it. Adding it is a decision, not a convenience.
+
+> ⚠️ **`config push` pushes all of `config.toml`, not only the `[api]` block** — auth,
+> storage, and email settings travel with it. On a fresh project with defaults that is
+> harmless, which is why it is worth adopting now. On an established project, read the diff
+> it prints before confirming: it will happily overwrite something set by hand.
+
+### The three layers, because they are easy to confuse
+
+`public` is the name of a Postgres schema. It has **nothing** to do with public access.
+
+| | Where it is controlled | |
+| --- | --- | --- |
+| **Does it exist?** | Migrations | `create schema`, `create table` |
+| **Can the API route to it?** | `config.toml` → `[api] schemas` | Off the list means `PGRST106`, whatever the grants say |
+| **Who may do what?** | Migrations | `grant`, and RLS policies |
+
+All three are code. A schema is only reachable when **both** the second and third say so,
+which is why `club` is blocked twice and `intake.nn_interest` holds rows nobody can read.
 
 ## 3. Collect the two public values
 

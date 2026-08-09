@@ -15,7 +15,9 @@
     "db:push": "supabase db push --include-all",
     "db:types": "supabase gen types typescript --local --schema club,intake > src/database.types.ts",
     "db:types:check": "node ./scripts/check-types-current.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:link": "supabase link --project-ref",
+    "db:config:push": "supabase config push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2"

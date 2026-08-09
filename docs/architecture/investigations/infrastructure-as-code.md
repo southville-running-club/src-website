@@ -206,6 +206,6 @@ it.**
 | | |
 | --- | --- |
 | **Does R2's S3-compatible backend support state locking?** | Only matters under Terraform, which is not being adopted |
-| **Which Supabase project settings are dashboard-only** and cannot reach `config.toml` | Small, but they are the ones that will drift |
+| ~~**Which Supabase project settings are dashboard-only**~~ | **Partly answered, 9 August 2026.** `supabase config push` sends the committed `config.toml` to the linked project, so **the exposed-schema list is code**, not a click. It pushes the whole file — auth, storage, email travel with it — so read the diff. What remains genuinely dashboard-only is still unmeasured |
 | **Where the committed zone file lives** | Proposed `docs/reference/`. It is a reference artefact, not documentation |
 | **Does anything enforce the re-export-and-diff step**, or is it discipline? | Discipline for now. A scheduled CI job that exports and diffs would automate the *detection* without automating the apply — cheap, and worth considering later |

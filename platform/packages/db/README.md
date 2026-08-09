@@ -43,7 +43,27 @@ npm run db:reset        # migrations from zero, then seed
 npm run db:diff         # generate a migration, scoped to club,intake
 npm run db:types        # regenerate src/database.types.ts
 npm run db:types:check  # fails if the committed types are stale
+npm run db:config:push  # send config.toml to the linked project
 ```
+
+## Three layers, and all three are code
+
+Worth separating, because `public` is the name of a Postgres schema and has **nothing** to
+do with public access.
+
+| | Controlled in | |
+| --- | --- | --- |
+| **Does it exist?** | `supabase/migrations/` | `create schema`, `create table` |
+| **Can the API route to it?** | `supabase/config.toml` → `[api] schemas` | Off the list means `PGRST106`, whatever the grants say |
+| **Who may do what?** | `supabase/migrations/` | `grant`, and RLS policies |
+
+Something is reachable only when **both** the second and third permit it. That is why
+`club` is blocked twice — not exposed, and not granted — and why `intake.nn_interest` holds
+seven seeded rows that no anonymous caller can read.
+
+`npm run db:config:push` is what applies the middle layer to the linked project, so the
+dashboard reflects this repository rather than the other way round. **It pushes the whole
+file**, not just `[api]` — read the diff it prints.
 
 `database.types.ts` is **generated**. Editing it by hand will be silently undone, and CI
 fails when it drifts.
