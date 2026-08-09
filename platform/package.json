@@ -29,7 +29,8 @@
     "db:types": "npm run db:types --workspace=packages/db",
     "db:types:check": "npm run db:types:check --workspace=packages/db",
     "build:worker": "npm run build:worker --workspaces --if-present",
-    "dev:all": "concurrently --kill-others --names main,timing --prefix-colors green,cyan \"npm run dev:worker\" \"npm run dev:timing\""
+    "dev:all": "concurrently --kill-others --names main,timing --prefix-colors green,cyan \"npm run dev:worker\" \"npm run dev:timing\"",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

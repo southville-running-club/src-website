@@ -4,9 +4,9 @@
   "private": true,
   "description": "The race-timing platform on Cloudflare — hello-world ahead of the port",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 8788",
     "build": "NODE_ENV=production next build",
-    "preview": "opennextjs-cloudflare preview --port 8789",
+    "preview": "opennextjs-cloudflare preview --port 8788",
     "deploy": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "typecheck": "tsc --noEmit",
     "build:worker": "NODE_ENV=production opennextjs-cloudflare build",

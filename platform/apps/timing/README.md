@@ -45,10 +45,15 @@ worker.
 ## Commands
 
 ```bash
-npm run dev            # next dev on :3000
+npm run dev            # next dev on :8788
 npm run build:worker   # the OpenNext bundle
-npm run preview        # wrangler dev on :8789, against an existing bundle
+npm run preview        # the real Workers runtime on :8788, against an existing bundle
 ```
+
+Locally it answers on **http://timing.localhost:8788/**, alongside
+`http://nn.localhost:8787/` — the same shape as the two live subdomains. Unlike `apps/main`
+there is no hostname routing here: this Worker serves everything at the root, exactly as
+the timing application's own routes (`/live/…`, `/admin/…`, `/marshal/…`) expect.
 
 `preview` deliberately does **not** build. `npm run test:e2e` at the workspace root builds
 first, so the Playwright servers start against a build that already exists.

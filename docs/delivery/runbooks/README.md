@@ -8,6 +8,8 @@ each step. If a runbook makes you stop and think about *why*, that is a bug in t
 
 | | | Serves |
 | --- | --- | --- |
+| [**Supabase setup**](supabase-setup.md) | Expose `intake`, collect the keys, and put **three secrets** into GitHub Actions | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
+| [**Cloudflare setup**](cloudflare-setup.md) | The two Workers, connected to the repository. **GitHub needs no Cloudflare credential** | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
 | [**Adding a hostname**](adding-a-hostname.md) | **Where DNS records go now.** Short answer: Cloudflare, and usually the service creates it for you | Any |
 | [**Nightingale Nightmare onto the club domain**](nn-to-club-domain.md) | A Worker → a page that works → `nn.southvillerunningclub.co.uk` | [Phase 3](../phases.md#phase-3--nightingale-nightmare-live) |
 | [**The nameserver move**](nameserver-move.md) ✅ | Fasthosts → Cloudflare, carrying club email. **Executed 8 Aug 2026** | [Phase 2](../phases.md#phase-2--move-the-nameservers) |

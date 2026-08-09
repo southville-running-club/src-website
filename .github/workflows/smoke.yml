@@ -1,0 +1,53 @@
+name: Smoke test
+
+# Does the **deployed** platform actually work?
+#
+# Every other gate in this repository runs against a laptop or a CI runner. This one runs
+# against what the public gets — the real hostname, the real certificate, the real Worker,
+# the real database. It is the only check that catches a deploy which built cleanly and
+# serves nothing.
+#
+# It retries for five minutes, because Cloudflare Workers Builds deploys on the push rather
+# than on a green CI run: a smoke test starting the moment a merge lands is racing the
+# deploy it is meant to be checking.
+#
+# **This will fail until the Workers exist.** That is correct — it is reporting that
+# nothing is deployed. See platform/apps/main/README.md for the Cloudflare setup.
+
+on:
+  push:
+    branches: [main]
+
+  # Daily, because "permanent means permanent" — a URL published in 2026 should resolve in
+  # 2036, and a free tier that quietly stops serving is exactly the failure nobody notices
+  # until somebody tries to enter a race.
+  schedule:
+    - cron: '17 8 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  smoke:
+    name: The live platform responds
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: platform/.nvmrc
+
+      # No `npm ci` — the script uses only built-in `fetch`. Installing the whole workspace
+      # to run one file would make this slower than the thing it is testing.
+      - name: Smoke test
+        run: node scripts/smoke.mjs

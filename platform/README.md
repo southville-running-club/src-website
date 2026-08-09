@@ -42,36 +42,45 @@ they do in production.
 
 | Local | Production | Serves |
 | --- | --- | --- |
-| http://localhost:8787/ | the apex, eventually | The platform index |
 | **http://nn.localhost:8787/** | `nn.southvillerunningclub.co.uk` | **Nightingale Nightmare** |
-| http://localhost:8787/nn/ | `<apex>/nn/` | The same page, by path |
-| **http://localhost:3000/** | `timing.southvillerunningclub.co.uk` | **Race timing** |
+| **http://timing.localhost:8788/** | `timing.southvillerunningclub.co.uk` | **Race timing** |
+| http://localhost:8787/ | *(nothing yet)* | The platform index — what the apex will serve after Squarespace |
 
-Two ports rather than one, because a Worker is a Worker: each is its own runtime, exactly
-as each is its own Worker in production. Routing between them is Cloudflare's job there and
-the hostname's job here — putting a proxy in front locally would be a fiction, and this
-repository has already been bitten twice by local tools that lie.
+**There is one public URL per page.** `nn.<apex>/nn/` permanently redirects to
+`nn.<apex>/`. The pages sit at `/nn/` inside the build so that the apex can serve them one
+day, but that is a build location, not an address to publish — and while the club is on
+Squarespace the apex is not Cloudflare's at all, so **no `/nn` path is served anywhere**.
+
+Two ports, 8787 and 8788, because each Worker is its own runtime — exactly as each is its
+own Worker in production. `wrangler dev` exposes only one Worker per port and there is no
+hostname routing between them, so one port would need a proxy that production does not
+have. This repository has already been bitten twice by local tools that lie; the ports are
+the honest option.
 
 **Both apps read the same database.** Locally that is the Supabase stack in Docker; in
 production it is one project, asserted by a test rather than trusted to two dashboards.
 
-### The two other dev servers
+Check it end to end at any time — the same six assertions CI runs against production:
+
+```bash
+npm run smoke -- --local
+```
+
+### The other dev server
 
 `npm run dev` is `astro dev` on **:4321** — instant reload, but **no Worker runs**, so the
 database timestamp stays at its placeholder and hostname routing does not apply. Good for
 content and CSS, misleading for anything else.
 
-`npm run preview --workspace=apps/timing` is **:8789** — the timing app as it actually
-deploys, through the OpenNext bundle. Needs `npm run build:worker` first.
-
 ## Commands
 
 |  |  |
 | --- | --- |
-| `npm run dev:all` | **Both front doors**, real Workers runtime — :8787 and :3000 |
+| `npm run dev:all` | **Both front doors**, real Workers runtime — :8787 and :8788 |
 | `npm run dev` | `astro dev` — the fast loop, `apps/main`, :4321 |
 | `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
-| `npm run dev:timing` | `next dev` — `apps/timing` alone, :3000 |
+| `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788 |
+| `npm run smoke` | The six checks against **production**. `-- --local` for localhost |
 | `npm test` | Vitest: unit and database |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
 | `npm run test:e2e` | Playwright + axe. **Builds first, then starts both servers** |

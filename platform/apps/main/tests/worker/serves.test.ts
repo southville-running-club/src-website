@@ -30,6 +30,15 @@ describe('nn.southvillerunningclub.co.uk', () => {
     }
   });
 
+  it('redirects /nn/ to the canonical address', async () => {
+    // One public URL per page. Cloudflare must not be serving a `/nn` path anywhere while
+    // the club is still on Squarespace.
+    const response = await SELF.fetch(`${NN}/nn/`, { redirect: 'manual' });
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get('location')).toBe(`${NN}/`);
+  });
+
   it('does not serve the build root index', async () => {
     // `/` maps to `/nn/`, so the platform index page must be unreachable here even
     // though it exists in `dist/`.

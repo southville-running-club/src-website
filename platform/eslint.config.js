@@ -58,7 +58,12 @@ export default [
     // declared — `@types/node` is what supplies them everywhere else.
     files: ['**/scripts/**/*.{js,mjs,ts}'],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+      },
     },
     rules: { 'no-console': 'off' },
   },

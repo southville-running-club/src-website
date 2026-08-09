@@ -12,7 +12,7 @@ import AxeBuilder from '@axe-core/playwright';
  * Absolute URLs, because this app is on its own port rather than the config's `baseURL`.
  */
 
-const TIMING = 'http://localhost:8789';
+const TIMING = 'http://timing.localhost:8788';
 
 test.describe('the timing skeleton', () => {
   test('renders under OpenNext in the Workers runtime', async ({ page }) => {
