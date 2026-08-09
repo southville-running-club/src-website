@@ -23,10 +23,10 @@ worker/index.ts   The handler: route, then fill in the health timestamp server-s
 `nn.<apex>/` serves `/nn/`. Every other path on that hostname is prefixed too, so
 `nn.<apex>/membership/` resolves to `/nn/membership/` and 404s.
 
-**`/nn/` is a build location, not an address.** Asking for `nn.<apex>/nn/` gets a permanent
-redirect to `nn.<apex>/`, so the same page is never at two URLs. The pages live under
-`/nn/` only so the apex can serve them once the club is off Squarespace — until then the
-apex is not Cloudflare's, and **no `/nn` path is served anywhere.**
+**`/nn/` is a build location, not an address here.** `nn.<apex>/nn/` gets prefixed like
+anything else, resolves to `/nn/nn/`, and 404s. The pages sit under `/nn/` so that
+`new.<apex>/nn` can serve them later without anything moving — until then **Cloudflare
+serves no `/nn` path at all**, and the apex is Squarespace's anyway.
 
 **That negative is the load-bearing part.** From Phase 5 this build also contains the
 unfinished club website, and none of it may be publicly reachable on the race domain.
@@ -42,7 +42,7 @@ to it makes something reachable on every hostname.
 | | |
 | --- | --- |
 | http://nn.localhost:8787/ | Nightingale Nightmare |
-| http://nn.localhost:8787/nn/ | **301** to `/` — one public URL per page |
+| http://nn.localhost:8787/nn/ | **404** — no `/nn` address on this hostname |
 | http://nn.localhost:8787/membership/ | **404**, as it must be |
 | http://localhost:8787/ | The platform index — what the apex will serve, after Squarespace |
 

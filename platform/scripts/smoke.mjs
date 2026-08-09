@@ -69,16 +69,11 @@ const CHECKS = [
       response.status === 404 ? null : `expected 404, got ${response.status}`,
   },
   {
-    name: 'there is one public URL for the race',
+    name: 'the race hostname has no /nn address of its own',
     url: `${MAIN}/nn/`,
-    redirect: 'manual',
-    proves: 'Cloudflare is not serving a /nn path while the club is still on Squarespace',
-    check: async (response) => {
-      if (response.status !== 301) return `expected 301, got ${response.status}`;
-      const location = response.headers.get('location');
-      if (location !== `${MAIN}/`) return `redirects to ${location}, expected ${MAIN}/`;
-      return null;
-    },
+    proves: 'Cloudflare serves no /nn path while the club is still on Squarespace',
+    check: async (response) =>
+      response.status === 404 ? null : `expected 404, got ${response.status}`,
   },
   {
     name: 'race timing is served over HTTPS',

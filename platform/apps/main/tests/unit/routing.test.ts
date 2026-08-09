@@ -32,19 +32,13 @@ describe('the nn. hostname serves Nightingale Nightmare at its own root', () => 
     expect(resolveRoute(NN_HOST, '/privacy/').path).toBe('/nn/privacy/');
   });
 
-  it('redirects /nn/ away rather than serving the page at two addresses', () => {
-    // There is one public URL for this race and it is `nn.<apex>/`. `/nn/` is where the
-    // pages sit in the build so the apex could serve them one day — it is not an address
-    // to publish, and the club is not off Squarespace yet.
-    expect(resolveRoute(NN_HOST, '/nn/').redirectTo).toBe('/');
-    expect(resolveRoute(NN_HOST, '/nn/privacy/').redirectTo).toBe('/privacy/');
-    expect(resolveRoute(NN_HOST, '/nn').redirectTo).toBe('/');
-  });
-
-  it('does not redirect anything else', () => {
-    expect(resolveRoute(NN_HOST, '/').redirectTo).toBeUndefined();
-    expect(resolveRoute(NN_HOST, '/privacy/').redirectTo).toBeUndefined();
-    expect(resolveRoute(NN_HOST, '/_astro/x.css').redirectTo).toBeUndefined();
+  it('has no /nn address of its own — it is prefixed like anything else', () => {
+    // There is one address for this race and it is `nn.<apex>/`. `/nn/` is where the
+    // pages sit *in the build*, so `new.<apex>/nn` will serve them without anything
+    // moving — but it is not an address on this hostname, so it resolves to `/nn/nn/`
+    // and 404s like any other path that is not the race.
+    expect(resolveRoute(NN_HOST, '/nn/').path).toBe('/nn/nn/');
+    expect(resolveRoute(NN_HOST, '/nn/privacy/').path).toBe('/nn/nn/privacy/');
   });
 
   it('serves shared build assets unprefixed, so styling resolves', () => {

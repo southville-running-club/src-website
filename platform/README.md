@@ -46,8 +46,8 @@ they do in production.
 | **http://timing.localhost:8788/** | `timing.southvillerunningclub.co.uk` | **Race timing** |
 | http://localhost:8787/ | *(nothing yet)* | The platform index — what the apex will serve after Squarespace |
 
-**There is one public URL per page.** `nn.<apex>/nn/` permanently redirects to
-`nn.<apex>/`. The pages sit at `/nn/` inside the build so that the apex can serve them one
+**There is one address per page.** `nn.<apex>/nn/` 404s — it is prefixed like anything
+else. The pages sit at `/nn/` inside the build so `new.<apex>/nn` can serve them one
 day, but that is a build location, not an address to publish — and while the club is on
 Squarespace the apex is not Cloudflare's at all, so **no `/nn` path is served anywhere**.
 

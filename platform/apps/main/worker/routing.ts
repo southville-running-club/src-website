@@ -71,14 +71,6 @@ export interface Route {
   path: string;
   /** True when this request is for Nightingale Nightmare's own content. */
   isNightingaleNightmare: boolean;
-  /**
-   * Set when the request should be answered with a permanent redirect instead of a body.
-   *
-   * Used for exactly one case: `/nn/...` on the race hostname. `/nn/` is where the pages
-   * live *in the build*, not an address the public should ever see, so asking for it
-   * lands you on the canonical one.
-   */
-  redirectTo?: string;
 }
 
 function isSharedAsset(path: string): boolean {
@@ -107,19 +99,13 @@ export function resolveRoute(hostname: string, pathname: string): Route {
     return { path: pathname, isNightingaleNightmare: false };
   }
 
-  // `/nn/...` asked for explicitly on this hostname — redirect to the canonical address
-  // rather than serve it.
+  // **There is one address for this race and it is `nn.<apex>/`.** No special case for
+  // `/nn` here, deliberately: it gets prefixed like everything else, so `nn.<apex>/nn/`
+  // resolves to `/nn/nn/`, which does not exist, and 404s.
   //
-  // **There is one public URL for this race, and it is `nn.<apex>/`.** `/nn/` is where the
-  // pages sit in the build so that the apex can serve them one day; it is not an address
-  // to publish, and serving both would put the same page at two URLs. Until the club is
-  // off Squarespace the apex is not Cloudflare's at all, so `<apex>/nn/` resolves to
-  // nothing anywhere.
-  if (pathname === NN_PREFIX || pathname.startsWith(`${NN_PREFIX}/`)) {
-    const stripped = pathname.slice(NN_PREFIX.length) || '/';
-    return { path: stripped, isNightingaleNightmare: true, redirectTo: stripped };
-  }
-
+  // `/nn/` is where the pages sit *in the build*, so that `new.<apex>/nn` serves them
+  // without anything moving. It is not an address on this hostname.
+  //
   // Everything else on this hostname is Nightingale Nightmare's, whether it exists or not.
   // `/` becomes `/nn/`; `/membership/` becomes `/nn/membership/` and 404s, which is the
   // whole point.

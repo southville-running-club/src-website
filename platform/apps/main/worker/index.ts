@@ -35,13 +35,6 @@ export default {
     const url = new URL(request.url);
     const route = resolveRoute(url.hostname, url.pathname);
 
-    // One public URL per page. `/nn/` is a build location, not an address to publish.
-    if (route.redirectTo) {
-      const target = new URL(url);
-      target.pathname = route.redirectTo;
-      return Response.redirect(target.toString(), 301);
-    }
-
     const assetUrl = new URL(url);
     assetUrl.pathname = route.path;
     const response = await env.ASSETS.fetch(new Request(assetUrl, request));

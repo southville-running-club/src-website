@@ -30,13 +30,12 @@ describe('nn.southvillerunningclub.co.uk', () => {
     }
   });
 
-  it('redirects /nn/ to the canonical address', async () => {
-    // One public URL per page. Cloudflare must not be serving a `/nn` path anywhere while
-    // the club is still on Squarespace.
-    const response = await SELF.fetch(`${NN}/nn/`, { redirect: 'manual' });
+  it('has no /nn address of its own', async () => {
+    // One address for the race, and it is the root of this hostname. `/nn/` is a build
+    // location so that `new.<apex>/nn` works later; it is not an address here.
+    const response = await SELF.fetch(`${NN}/nn/`);
 
-    expect(response.status).toBe(301);
-    expect(response.headers.get('location')).toBe(`${NN}/`);
+    expect(response.status).toBe(404);
   });
 
   it('does not serve the build root index', async () => {
