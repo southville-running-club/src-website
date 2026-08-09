@@ -520,16 +520,25 @@ is legacy (2%) or current-generation (3%) — see
 | Squarespace | Several people, with varying roles |
 | Stripe | Treasurer, and the Membership Officer |
 | `src-race-timing` repository | A personal GitHub account |
-| GitHub organisation | Created under a club account, `srcdmin@gmail.com` *(the typo is in the address itself)* |
+| GitHub `southville-running-club` | A **shared personal account**, not an organisation, under the club address `srcdmin@gmail.com` *(the typo is in the address itself)*. Both volunteers are collaborators |
 | The payment account connected under Squarespace | **Unconfirmed** — set up informally |
 
 **Four systems are reachable by exactly one person each**, and the two volunteers cannot
 cover for one another: the domain, DNS and email sit with one; the database, hosting and
 membership record sit with the other.
 
-A GitHub organisation exists under the club-owned `srcdmin@gmail.com` account. The
-intended shape is a repository for the website core, with separate repositories for the
-timing app and Nightingale Nightmare — not fixed.
+**`southville-running-club` is a personal GitHub account rather than an organisation** —
+confirmed 9 August 2026, `type: User`. It is club-owned and both volunteers are
+collaborators on it, so the code is reachable by either. What it lacks is a **named login
+each**: it is a shared password, so actions taken as the account are attributable to nobody
+in particular, and access cannot be revoked for one person without revoking it for both.
+
+That is a milder version of the problem above rather than an instance of it, and it is
+[recorded with the conditions that would reopen it](../decisions/decision-log.md). Converting
+to an organisation is free; the reasons for not doing it yet are recorded there too.
+
+The repository shape is settled: [one monorepo](../architecture/decisions/adr-001-one-monorepo.md),
+with `src-race-timing` joining when it is ported.
 
 ---
 

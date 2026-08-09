@@ -3,7 +3,14 @@
 Getting the repository into a state where the pipeline can deploy. **About fifteen
 minutes**, done once.
 
-**Prerequisites:** you are an admin on the `southville-running-club` organisation.
+**Prerequisites:** you can sign in as, or are a collaborator on, `southville-running-club`.
+
+> **`southville-running-club` is a personal account, not an organisation** — `type: User`,
+> with both volunteers added as collaborators. That is club-owned, which is most of what
+> [shared ownership](../../foundations/requirements.md#shared-ownership) asks for, but it is
+> a shared password rather than a named login each.
+> [Recorded and left as it is](../../decisions/decision-log.md), with the conditions that
+> would reopen it.
 
 **Do this one first.** Both the [Supabase](supabase-setup.md) and
 [Cloudflare](cloudflare-setup.md) runbooks end by pushing something through this pipeline.
@@ -25,10 +32,11 @@ Worth stating plainly, because the asymmetry looks like an oversight and is not:
 
 **Settings → Collaborators and teams.**
 
-- [ ] **Both volunteers are admins.** [No system is reachable by only one
+- [ ] **Both volunteers appear under Collaborators**, so neither depends on the other to
+      reach the code. [No system is reachable by only one
       person](../../architecture/principles.md#no-system-is-reachable-by-only-one-person) is
       a principle, and the club is currently failing it on four systems. Not this one.
-- [ ] The repository is in the **organisation**, not a personal account.
+- [ ] The repository is owned by **`southville-running-club`**, not by an individual.
 
 > **`src-race-timing` is still in a personal account.** Moving it is [a small action with a
 > large effect](../../reference/timing-app-review.md#governance-findings), and it must
@@ -41,9 +49,13 @@ Worth stating plainly, because the asymmetry looks like an oversight and is not:
 > the setting is missing.
 
 **`src-website` is private on the GitHub Free plan, and branch protection on a private
-repository requires GitHub Team.** The rulesets API answers plainly:
-`403 — Upgrade to GitHub Pro or make this repository public to enable this feature.` Being
-an organisation does not help; GitHub Free *for organizations* excludes it too.
+repository requires a paid plan.** The rulesets API answers plainly:
+`403 — Upgrade to GitHub Pro or make this repository public to enable this feature.`
+
+**Converting to an organisation would not help** — GitHub Free *for organizations* excludes
+protected branches on private repositories exactly as Free for users does. The two
+questions are orthogonal, and
+[both are recorded](../../decisions/decision-log.md).
 
 **What still works today, and it is most of what matters:**
 

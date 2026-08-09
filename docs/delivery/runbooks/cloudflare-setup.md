@@ -40,7 +40,7 @@ from what most people assume.
 **Cloudflare holds a credential for GitHub. GitHub holds nothing for Cloudflare.**
 
 The joining piece is a **GitHub App** called *Cloudflare Workers and Pages*, installed on
-the club's GitHub organisation. Once installed:
+the club's GitHub account. Once installed:
 
 ```
    push to main
@@ -62,7 +62,7 @@ nothing in the repository needs to know Cloudflare exists beyond `wrangler.jsonc
 | --- | --- |
 | **No Cloudflare token in GitHub** | The thing this arrangement buys. There is no secret to rotate, leak, or forget to scope |
 | **But Cloudflare can read the repository** | The installation token is real. **Cloudflare account access is therefore read access to private club code** — which is an argument for both volunteers holding named logins on a club-owned Cloudflare account, not a shared one |
-| **Installing it is an organisation-level action** | You must be an **organisation owner**, or hold the **GitHub App Manager** role. A repository admin cannot do it alone |
+| **Installing it is an account-level action** | On `southville-running-club` — a personal account — sign in as it. Were it ever an organisation, it would need an **owner** or the **GitHub App Manager** role |
 | **Scope it to one repository** | The install offers *All repositories* or *Only select repositories*. **Choose the latter and pick `src-website`.** It is the difference between Cloudflare being able to read one private repository and every one the club ever creates |
 
 ### Read the permission screen
@@ -73,8 +73,8 @@ list, and it can change. What it asks for should be recognisable as "clone this 
 and report build status": repository contents, metadata, and the ability to write commit
 statuses and deployments.
 
-If it asks for anything you cannot account for — organisation administration, member
-management, write access to code — **stop and ask** before continuing.
+If it asks for anything you cannot account for — account administration, member management,
+write access to code — **stop and ask** before continuing.
 
 ### The kill switch, and it is on the right side
 
@@ -90,7 +90,7 @@ repositories* — which is the same screen and the gentler version.
 
 ### The ordering trap
 
-**Move a repository into the club organisation *before* connecting Cloudflare to it.**
+**Move a repository to its final owner *before* connecting Cloudflare to it.**
 
 The App installation is bound to the account that owned the repository at connect time, so
 transferring it afterwards desynchronises the git link and builds stop with an unhelpful
@@ -129,13 +129,14 @@ until that exists, the timing route has no hostname to attach to.
 
 **Workers & Pages → Create → Workers → Import a repository.**
 
-- [ ] Authorise the **`southville-running-club`** organisation, not a personal account.
+- [ ] Authorise **`southville-running-club`** — the account that owns the repository.
 - [ ] Choose **Only select repositories** → **`src-website`**. Not *All repositories*.
 - [ ] **Read the permission screen** before authorising — see
       [how the two are joined](#read-the-permission-screen) above.
 
-If the organisation does not appear as an option, you are not an organisation owner and do
-not hold the GitHub App Manager role. That is the fix, not a workaround.
+If the account does not appear as an option, you are signed in to GitHub as somebody else.
+Installed apps for it live at **github.com/settings/installations**, not under any
+`/organizations/` path — that URL 404s, because there is no organisation.
 
 Then the settings that matter. **The root directory is the one people get wrong:**
 
