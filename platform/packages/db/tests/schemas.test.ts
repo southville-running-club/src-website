@@ -50,6 +50,15 @@ describe('intake — reachable, but only just', () => {
     // requirement; what the page does with it is london-time.ts's problem.
     expect(data as string).toMatch(/(\+00:00|Z)$/);
   });
+
+  it('lets an anonymous client call ping() — a migration added after health()', async () => {
+    // Proves the same thing health() did, for a migration that landed later: the pipeline
+    // still reaches production the same way for a second, independent change.
+    const { data, error } = await anon.schema('intake').rpc('ping');
+
+    expect(error).toBeNull();
+    expect(data).toBe('pipeline-ok');
+  });
 });
 
 describe('club — closed', () => {

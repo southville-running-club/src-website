@@ -56,11 +56,14 @@
       //
       // Next.js is configured with `basePath: '/timing'` to match, so the application's
       // own links and assets resolve under the same prefix.
-      "routes": [
-        {
-          "pattern": "new.southvillerunningclub.co.uk/timing/*",
-        },
-      ],
+      //
+      // **A plain string, not `{ pattern: ... }`.** Wrangler's schema requires the object
+      // form to carry one of `zone_id`, `zone_name` or `custom_domain` — a bare `pattern`
+      // fails validation with "these weren't valid", which only surfaces on a real
+      // `wrangler deploy`, never locally and never in CI (neither ever deploys for real).
+      // The string form is the plain-route case exactly: no zone binding needed, because
+      // it attaches to the zone `apps/main`'s Custom Domain already created.
+      "routes": ["new.southvillerunningclub.co.uk/timing/*"],
 
       // OpenNext needs to call itself. **The service name must match the deployed Worker,
       // which carries the `-production` suffix** — pointing it at `src-timing` here would

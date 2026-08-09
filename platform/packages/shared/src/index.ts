@@ -12,3 +12,5 @@ export {
 export { createAnonClient, type AnonClient, type SupabaseConfig } from './supabase';
 
 export { fetchHealth, type HealthResult } from './health';
+
+export { fetchPing, type PingResult } from './ping';

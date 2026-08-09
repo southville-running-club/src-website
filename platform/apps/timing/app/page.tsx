@@ -1,5 +1,10 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import { createAnonClient, fetchHealth, type SupabaseConfig } from '@src/shared';
+import {
+  createAnonClient,
+  fetchHealth,
+  fetchPing,
+  type SupabaseConfig,
+} from '@src/shared';
 
 // Rendered on every request, never cached.
 //
@@ -11,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function Page() {
   const health = await readHealth();
+  const ping = await readPing();
 
   return (
     <>
@@ -44,6 +50,22 @@ export default async function Page() {
           )}
         </dd>
 
+        <dt>Pipeline check</dt>
+        <dd>
+          {
+            // A second, independent database round trip — intake.ping(), added after the
+            // skeleton's first deploy to prove a *new* migration reaches this page the
+            // same way the one above already did.
+          }
+          {ping.ok ? (
+            <span data-pipeline-check="ok">{ping.value}</span>
+          ) : (
+            <span data-pipeline-check="error">
+              Could not reach the database — {ping.error}
+            </span>
+          )}
+        </dd>
+
         <dt>Served by</dt>
         <dd>Cloudflare Workers, via @opennextjs/cloudflare</dd>
 
@@ -66,6 +88,17 @@ async function readHealth() {
   // connection works, so "it does not" is the useful answer, not a 500.
   try {
     return await fetchHealth(createAnonClient(await readSupabaseConfig()));
+  } catch (cause) {
+    return {
+      ok: false as const,
+      error: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
+}
+
+async function readPing() {
+  try {
+    return await fetchPing(createAnonClient(await readSupabaseConfig()));
   } catch (cause) {
     return {
       ok: false as const,

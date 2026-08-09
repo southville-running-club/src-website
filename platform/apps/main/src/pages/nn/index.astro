@@ -46,6 +46,16 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       <time data-health="pending">Not fetched — the Worker did not run.</time>
     </dd>
 
+    <dt>Pipeline check</dt>
+    <dd>
+      {
+        /* A second, independent database round trip — intake.ping(), added after the
+          skeleton's first deploy to prove a *new* migration reaches this page the same
+          way the one above already did. */
+      }
+      <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
+    </dd>
+
     <dt>Served by</dt>
     <dd>Cloudflare Workers, static assets plus one handler</dd>
 

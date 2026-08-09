@@ -230,7 +230,7 @@ cmd_test() {
   build_site
 
   step "Acceptance tests"
-  info "Playwright drives the servers itself — 39 tests across three browser projects"
+  info "Playwright drives the servers itself — 45 tests across three browser projects"
   # Playwright starts and stops its own servers, so ours must not be holding the ports.
   stop_workers >/dev/null 2>&1 || true
 

@@ -53,6 +53,16 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     await expect(health).toHaveText(/\d{1,2} \w+ \d{4} at \d{2}:\d{2} (GMT|BST)/);
   });
 
+  test('renders a second, independent database round trip', async ({ page }) => {
+    // intake.ping() — added after health() to prove a later migration reaches this page
+    // the same way the first one already did.
+    await page.goto('/nn/');
+
+    const ping = page.locator('[data-pipeline-check]');
+    await expect(ping).toHaveAttribute('data-pipeline-check', 'ok');
+    await expect(ping).toHaveText('pipeline-ok');
+  });
+
   test('states no facts about the race', async ({ page }) => {
     await page.goto('/nn/');
     const body = (await page.locator('body').textContent()) ?? '';
@@ -92,6 +102,16 @@ test.describe('race timing, at /timing', () => {
     await page.goto('/timing');
 
     await expect(page.locator('[data-health]')).toHaveAttribute('data-health', 'ok');
+  });
+
+  test('renders the same second database round trip as the website', async ({ page }) => {
+    // The same intake.ping() call, reached by a different application — proving the
+    // pipeline reaches both front doors, not just the one it was first proven on.
+    await page.goto('/timing');
+
+    const ping = page.locator('[data-pipeline-check]');
+    await expect(ping).toHaveAttribute('data-pipeline-check', 'ok');
+    await expect(ping).toHaveText('pipeline-ok');
   });
 });
 
