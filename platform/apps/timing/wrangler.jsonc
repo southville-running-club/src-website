@@ -23,21 +23,12 @@
     },
   ],
 
-  // **The hostname is code**, exactly as in apps/main. Cloudflare creates the DNS record
-  // and issues the certificate; nothing is added by hand.
-  //
-  // This is an *additive* record — nothing resolved `timing.southvillerunningclub.co.uk`
-  // before, so it cannot break anything that exists, and removing it restores the
-  // previous state exactly. It is proxied, which is correct: Cloudflare is the origin.
-  "routes": [
-    {
-      "pattern": "timing.southvillerunningclub.co.uk",
-      "custom_domain": true,
-    },
-  ],
-
-  // Local development values only. Both are safe to expose — row-level security is what
-  // enforces access. Production values are set as Worker variables in the dashboard.
+  // ---------------------------------------------------------------------------------
+  // Top level is **local development**. No routes, and a localhost database.
+  // ---------------------------------------------------------------------------------
+  // The safe default, exactly as in apps/main: a plain `wrangler deploy` publishes a
+  // Worker with no hostname and an unreachable database, rather than putting localhost
+  // config on a live domain.
   "vars": {
     "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
     "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
@@ -45,5 +36,50 @@
 
   "observability": {
     "enabled": true,
+  },
+
+  // ---------------------------------------------------------------------------------
+  // `--env production` is what actually deploys. Worker name: `src-timing-production`.
+  // ---------------------------------------------------------------------------------
+  "env": {
+    "production": {
+      // **The hostname is code**, exactly as in apps/main. Cloudflare creates the DNS
+      // record and issues the certificate; nothing is added by hand.
+      //
+      // This is an *additive* record — nothing resolved
+      // `timing.southvillerunningclub.co.uk` before, so it cannot break anything that
+      // exists, and removing it restores the previous state exactly. It is proxied,
+      // which is correct: Cloudflare is the origin.
+      "routes": [
+        {
+          "pattern": "timing.southvillerunningclub.co.uk",
+          "custom_domain": true,
+        },
+      ],
+
+      // OpenNext needs to call itself. **The service name must match the deployed Worker,
+      // which carries the `-production` suffix** — pointing it at `src-timing` here would
+      // bind to a Worker that does not exist.
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "src-timing-production",
+        },
+      ],
+
+      // **Byte-identical to apps/main's production block, and that is the point.** One
+      // database behind both front doors. Asserted by
+      // `../main/tests/unit/supabase-config.test.ts`.
+      "vars": {
+        "PUBLIC_SUPABASE_URL": "https://ovpvzabtjxbszsqschqy.supabase.co",
+        // TODO: the publishable (anon) key from the Supabase dashboard. Safe to commit —
+        // public by design, and it appears in client code.
+        "PUBLIC_SUPABASE_ANON_KEY": "REPLACE_ME_publishable_key",
+      },
+
+      "observability": {
+        "enabled": true,
+      },
+    },
   },
 }

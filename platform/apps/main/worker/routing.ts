@@ -22,23 +22,35 @@
  * function that serves a non-`/nn/` page on the `nn.` hostname — except the shared build
  * assets below, which cannot be pages.
  *
- * ## One thing `wrangler dev` cannot show you
+ * ## Locally it is the same rule, on `nn.localhost`
  *
- * When `routes` are configured, **`wrangler dev` rewrites `request.url` to the custom
- * domain** and ignores the incoming `Host` header entirely. Every local request therefore
- * looks like `nn.southvillerunningclub.co.uk`, and no amount of `curl -H "Host: ..."`
- * changes it. That makes the dev server useless for exercising the branch below.
+ * Any hostname whose first label is `nn` is Nightingale Nightmare's, so
+ * `http://nn.localhost:8787/` behaves exactly as the live subdomain does and the local
+ * shape matches the public one. Browsers resolve `*.localhost` to 127.0.0.1 without an
+ * `/etc/hosts` entry.
  *
- * The Worker tests are the honest check here: `vitest-pool-workers` runs the same runtime
- * but preserves the URL, so `tests/worker/serves.test.ts` can ask for a `workers.dev`
- * hostname and get a real answer. Verified on 8 August 2026 — worth knowing before
- * concluding from a local `curl` that the routing is broken.
+ * **This only works because `routes` live under `env.production`.** While they were at the
+ * top level, `wrangler dev` rewrote `request.url` to the custom domain and ignored the
+ * incoming `Host` header entirely — every local request looked like the live hostname, and
+ * no `curl -H "Host: ..."` could change it. Moving them fixed it. Worth knowing if routes
+ * ever migrate back up.
  *
  * See docs/architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md
  */
 
-/** The hostname Nightingale Nightmare is served on. */
+/** The hostname Nightingale Nightmare is served on in production. */
 export const NN_HOST = 'nn.southvillerunningclub.co.uk';
+
+/**
+ * True for the live hostname and for its local equivalent, `nn.localhost`.
+ *
+ * Matching on the first label rather than the full string is what lets one rule serve
+ * both, so the local shape is the public shape rather than an approximation of it. The
+ * club owns one domain and there is no other `nn.` host to collide with.
+ */
+export function isNightingaleNightmareHost(hostname: string): boolean {
+  return hostname === NN_HOST || hostname.startsWith('nn.');
+}
 
 /** Where Nightingale Nightmare's pages live in the build output. */
 export const NN_PREFIX = '/nn';
@@ -76,7 +88,7 @@ function isSharedAsset(path: string): boolean {
  * whole build, because reviewing it is the point.
  */
 export function resolveRoute(hostname: string, pathname: string): Route {
-  if (hostname !== NN_HOST) {
+  if (!isNightingaleNightmareHost(hostname)) {
     return {
       path: pathname,
       isNightingaleNightmare: pathname.startsWith(`${NN_PREFIX}/`),

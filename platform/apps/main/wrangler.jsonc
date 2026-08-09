@@ -19,28 +19,16 @@
     "run_worker_first": true,
   },
 
-  // **The hostname is code.** Cloudflare creates the DNS record and issues the
-  // certificate from this entry; nothing is added by hand at the registrar or in the
-  // dashboard. A second hostname — `new.`, the apex, `www` — is another entry here and a
-  // reviewed pull request, which is exactly what "everything is defined as code" asks for.
+  // ---------------------------------------------------------------------------------
+  // Top level is **local development**. No routes, and a localhost database.
+  // ---------------------------------------------------------------------------------
+  // Deliberately the safe default. A plain `wrangler deploy` — the command somebody runs
+  // by accident — publishes a Worker with no hostname and a database it cannot reach.
+  // That is loud and harmless. The inverse arrangement would put localhost config on the
+  // live race domain, which is neither.
   //
-  // `nn.` is proxied, which is correct: Cloudflare is the origin. Mail hostnames are
-  // never proxied, and nothing here touches one.
-  "routes": [
-    {
-      "pattern": "nn.southvillerunningclub.co.uk",
-      "custom_domain": true,
-    },
-  ],
-
-  // Local development values only — the local Supabase stack prints these, and they are
-  // the same on every machine. Both are safe to expose by design: row-level security is
-  // what enforces access, not the key.
-  //
-  // **Production values are set as Worker variables in the dashboard**, so this file
-  // never needs to carry them. If a third variable ever appears here, and especially if
-  // it is a service role key, the row-level security policy is wrong and that is the
-  // thing to fix.
+  // Both values are safe to expose by design: row-level security is what enforces access,
+  // not the key. They are the fixed ones every `supabase start` prints.
   "vars": {
     "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
     "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
@@ -48,5 +36,47 @@
 
   "observability": {
     "enabled": true,
+  },
+
+  // ---------------------------------------------------------------------------------
+  // `--env production` is what actually deploys. Worker name: `src-main-production`.
+  // ---------------------------------------------------------------------------------
+  // Wrangler appends the environment to the name and will not let it be overridden, so
+  // the suffix is a fact rather than a choice.
+  //
+  // **`vars` are not inherited from the top level.** Cloudflare's own rule — they must be
+  // repeated per environment. That is why the production database appears here in full.
+  "env": {
+    "production": {
+      // **The hostname is code.** Cloudflare creates the DNS record and issues the
+      // certificate from this entry; nothing is added by hand at the registrar or in the
+      // dashboard. A second hostname — `new.`, the apex, `www` — is another entry here
+      // and a reviewed pull request.
+      //
+      // `nn.` is proxied, which is correct: Cloudflare is the origin. Mail hostnames are
+      // never proxied, and nothing here touches one.
+      "routes": [
+        {
+          "pattern": "nn.southvillerunningclub.co.uk",
+          "custom_domain": true,
+        },
+      ],
+
+      // **This must stay byte-identical to apps/timing's production block.** One database
+      // behind both front doors is what makes a results archive derived from timing data
+      // possible at all, and two projects cannot join. Asserted by
+      // `tests/unit/supabase-config.test.ts` so it cannot drift unnoticed.
+      "vars": {
+        "PUBLIC_SUPABASE_URL": "https://ovpvzabtjxbszsqschqy.supabase.co",
+        // TODO: the publishable (anon) key from the Supabase dashboard. Safe to commit —
+        // it is public by design and appears in client code. Until it is filled in, the
+        // page will render "Could not reach the database", which is the correct answer.
+        "PUBLIC_SUPABASE_ANON_KEY": "REPLACE_ME_publishable_key",
+      },
+
+      "observability": {
+        "enabled": true,
+      },
+    },
   },
 }

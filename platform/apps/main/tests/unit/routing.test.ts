@@ -3,6 +3,23 @@ import { NN_HOST, resolveRoute } from '../../worker/routing';
 
 const OTHER_HOSTS = ['localhost', 'src-main.workers.dev', 'southvillerunningclub.co.uk'];
 
+describe('the local hostname behaves as the live one', () => {
+  // So `http://nn.localhost:8787/` is the public shape rather than an approximation of
+  // it. Browsers resolve `*.localhost` to 127.0.0.1 with no `/etc/hosts` entry.
+  it.each(['nn.localhost', 'nn.localhost:8787', NN_HOST])(
+    'treats %s as the race host',
+    (host) => {
+      expect(resolveRoute(host, '/').path).toBe('/nn/');
+      expect(resolveRoute(host, '/membership/').path).toBe('/nn/membership/');
+    },
+  );
+
+  it('does not mistake the bare apex for the race host', () => {
+    expect(resolveRoute('southvillerunningclub.co.uk', '/').path).toBe('/');
+    expect(resolveRoute('localhost', '/').path).toBe('/');
+  });
+});
+
 describe('the nn. hostname serves Nightingale Nightmare at its own root', () => {
   it('maps / to /nn/', () => {
     expect(resolveRoute(NN_HOST, '/')).toEqual({

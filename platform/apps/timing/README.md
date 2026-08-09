@@ -88,7 +88,7 @@ anything that exists.
 | --- | --- |
 | **Root directory** | **`platform`** — *not* `platform/apps/timing` |
 | **Build command** | `npm run build:worker --workspace=apps/timing` |
-| **Deploy command** | `npx wrangler deploy --config apps/timing/wrangler.jsonc` |
+| **Deploy command** | `npx wrangler deploy --env production --config apps/timing/wrangler.jsonc` |
 | **Build watch paths** | `platform/apps/timing/**`, `platform/packages/**`, `platform/package-lock.json` |
 
 **The root directory is the part that is easy to get wrong.** `@src/shared` and `@src/db`

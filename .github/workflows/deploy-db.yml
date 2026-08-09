@@ -55,6 +55,24 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
     steps:
+      - name: Check the secrets exist
+        # Without this the Supabase CLI fails several steps later with something about an
+        # access token, which reads like a broken migration rather than an empty settings
+        # page. **The first merge to main will hit this**, because the secrets cannot be
+        # added until the Supabase project details are to hand.
+        run: |
+          missing=()
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing+=("SUPABASE_ACCESS_TOKEN")
+          [ -n "$SUPABASE_PROJECT_REF" ] || missing+=("SUPABASE_PROJECT_REF")
+          [ -n "$SUPABASE_DB_PASSWORD" ] || missing+=("SUPABASE_DB_PASSWORD")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            echo "Add them under Settings → Secrets and variables → Actions."
+            echo "See platform/packages/db/README.md for what each one is."
+            exit 1
+          fi
+          echo "All three secrets are set."
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5

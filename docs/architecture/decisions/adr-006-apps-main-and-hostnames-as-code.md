@@ -50,10 +50,34 @@ remembered: a unit test, a Worker-runtime test, and a browser test.
 ### 2. Hostnames are declared in `wrangler.jsonc`, not clicked
 
 ```jsonc
-"routes": [{ "pattern": "nn.southvillerunningclub.co.uk", "custom_domain": true }]
+"env": {
+  "production": {
+    "routes": [{ "pattern": "nn.southvillerunningclub.co.uk", "custom_domain": true }],
+    "vars": { "PUBLIC_SUPABASE_URL": "https://<project>.supabase.co", ... }
+  }
+}
 ```
 
 Cloudflare creates the DNS record and issues the certificate from that entry.
+
+> **Amended 9 August 2026.** Routes and production variables sit under `env.production`
+> rather than at the top level, and deployment is `wrangler deploy --env production`. Three
+> reasons, and the first two were found the hard way:
+>
+> 1. **A plain `wrangler deploy` becomes harmless.** Top level carries no routes and a
+>    localhost database, so the accidental command publishes a Worker with no hostname and
+>    an unreachable database. The inverse arrangement puts localhost config on the live race
+>    domain.
+> 2. **Local hostname routing starts working.** Top-level routes make `wrangler dev` rewrite
+>    `request.url` to the custom domain and ignore the `Host` header entirely.
+>    `nn.localhost` behaves as the live subdomain once they move.
+> 3. **`vars` are not inherited by environments** — Cloudflare's own rule — so the
+>    production database is stated in full in each app, and a test asserts the two are
+>    identical.
+>
+> The cost: Wrangler appends the environment to the Worker name and will not let it be
+> overridden, so the deployed Workers are `src-main-production` and `src-timing-production`.
+> OpenNext's `WORKER_SELF_REFERENCE` must name the suffixed Worker.
 
 **This corrects
 [infrastructure-as-code.md](../investigations/infrastructure-as-code.md#most-of-it-is-already-code)**,
@@ -97,7 +121,7 @@ Recorded because each cost time and none is written down anywhere else.
 | | |
 | --- | --- |
 | **Migration and deploy are not sequenced** | Workers Builds triggers on the push, not on a green GitHub Actions run. Nothing orders `supabase db push` before the code that uses it. **This is survivable only because [expand–migrate–contract](../principles.md#expand-migrate-contract) is a principle** — if a change ever needs the migration first, that change is what to fix. The alternative costs a Cloudflare API token in CI, which [is the thing git integration was chosen to avoid](../investigations/deployment.md#cloudflare--git-integration-no-credential-in-ci) |
-| **`wrangler dev` cannot exercise hostname routing** | With `routes` configured it rewrites `request.url` to the custom domain and ignores the incoming `Host` header entirely. ADR-003 calls `wrangler dev` "the honest one"; for this it is not. `@cloudflare/vitest-pool-workers` runs the same runtime and preserves the URL, so the Worker tests are the real check |
+| **`routes` at the top level break local hostname routing** | With them there, `wrangler dev` rewrites `request.url` to the custom domain and ignores the incoming `Host` header entirely. **Fixed by moving them under `env.production`**, which is where they belong anyway — see the amendment below. `nn.localhost` then works exactly as the live subdomain does |
 | **An ambient `NODE_ENV=development` breaks the Next.js build** | It resolves React's development build while the build expects production, and surfaces as `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody wrote. Pinned in the build script. Cost an hour, and would have cost the same hour again in Phase 4 |
 | **Duplicate React or Next in the workspace breaks it differently** | Same root cause, different symptom — `Expected workStore to be initialized`. Version churn in one workspace leaves a nested copy behind. `npm dedupe`, and check |
 | **`opennextjs-cloudflare build` runs one of the app's own npm scripts** | So naming that script `opennextjs-cloudflare build` makes it invoke itself. It **recursed 205 levels deep and took the laptop down**. `buildCommand` now names a dedicated `build:next` script that does nothing else, so the loop cannot form however `build` is later edited. The three build scripts in `apps/timing` are deliberately redundant and must not be merged |

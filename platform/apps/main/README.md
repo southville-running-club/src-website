@@ -32,10 +32,21 @@ Build assets Astro emits at the root — `/_astro/*`, the favicon — are served
 because otherwise the page would load unstyled. That allowlist is deliberately tiny; adding
 to it makes something reachable on every hostname.
 
-**`wrangler dev` cannot show you any of this.** With `routes` configured it rewrites
-`request.url` to the custom domain and ignores the `Host` header, so every local request
-looks like the `nn.` hostname no matter what you send. `npm run test:worker` runs the same
-runtime and preserves the URL — that is the honest check.
+**Locally it is the same rule**, because any hostname whose first label is `nn` counts:
+
+| | |
+| --- | --- |
+| http://localhost:8787/ | The platform index — what the apex will serve |
+| http://nn.localhost:8787/ | Nightingale Nightmare |
+| http://nn.localhost:8787/membership/ | **404**, as it must be |
+
+Browsers resolve `*.localhost` to 127.0.0.1 with no `/etc/hosts` entry, so the local shape
+is the public shape rather than an approximation of it.
+
+**This only works because `routes` live under `env.production`.** While they sat at the top
+level, `wrangler dev` rewrote `request.url` to the custom domain and ignored the incoming
+`Host` header entirely — every local request looked like the live hostname and nothing
+could change it. Worth knowing if routes ever move back up.
 
 ## Commands
 
@@ -48,12 +59,19 @@ npm run test:worker  # Workers runtime tests. Needs dist/ — build first
 
 ## Environment
 
-| Name | Where | Notes |
-| --- | --- | --- |
-| `PUBLIC_SUPABASE_URL` | `wrangler.jsonc` (local), Worker vars (production) | Safe to expose |
-| `PUBLIC_SUPABASE_ANON_KEY` | `wrangler.jsonc` (local), Worker vars (production) | Safe to expose — RLS enforces access |
+Both values live in `wrangler.jsonc` — **local at the top level, production under
+`env.production`** — and both are safe to expose by design: row-level security is what
+enforces access, not the key.
 
-The local values in `wrangler.jsonc` are the fixed ones every `supabase start` prints.
+That split is the safe direction. A plain `wrangler deploy`, which is the command somebody
+runs by accident, publishes a Worker with **no hostname and an unreachable database**.
+Loud and harmless. The inverse would put localhost config on the live race domain.
+
+`env.production`'s Supabase block is byte-identical to `apps/timing`'s, and
+`packages/shared/tests/unit/supabase-config.test.ts` fails if that ever stops being true —
+because one database behind both front doors is what makes a results archive derived from
+timing data possible at all.
+
 **No third variable should be needed.** If the build appears to want a service role key,
 the row-level security policy is wrong and that is the thing to fix.
 
@@ -77,7 +95,7 @@ by hand at the registrar or in the DNS dashboard.
 | --- | --- |
 | **Root directory** | **`platform`** — *not* `platform/apps/main` |
 | **Build command** | `npm run build --workspace=apps/main` |
-| **Deploy command** | `npx wrangler deploy --config apps/main/wrangler.jsonc` |
+| **Deploy command** | `npx wrangler deploy --env production --config apps/main/wrangler.jsonc` |
 | **Build watch paths** | `platform/apps/main/**`, `platform/packages/**`, `platform/package-lock.json` |
 
 **The root directory is the part that is easy to get wrong.** `@src/shared` and `@src/db`

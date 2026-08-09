@@ -27,20 +27,51 @@ row-level security can be tested rather than mocked.
 ```bash
 nvm use              # Node 22, per .nvmrc
 npm install
-npm run setup        # starts Supabase, resets, seeds, then astro dev
+npm run db:start     # Postgres, auth, storage — Docker
+npm run dev:all      # both front doors, in the real Workers runtime
 ```
 
-`npm run setup` prints the local Supabase credentials. Copy `.env.example` to `.env` and
-paste in `API_URL` and the publishable key if you want them outside the Worker; the
-Workers themselves already have them in `wrangler.jsonc`.
+Nothing to configure: the local Supabase values are already in each app's
+`wrangler.jsonc`, and they are the same on every machine.
+
+## The local site
+
+`npm run dev:all` gives you **the public shape, not an approximation of it**. Browsers
+resolve `*.localhost` to 127.0.0.1 with no `/etc/hosts` entry, so the hostnames work as
+they do in production.
+
+| Local | Production | Serves |
+| --- | --- | --- |
+| http://localhost:8787/ | the apex, eventually | The platform index |
+| **http://nn.localhost:8787/** | `nn.southvillerunningclub.co.uk` | **Nightingale Nightmare** |
+| http://localhost:8787/nn/ | `<apex>/nn/` | The same page, by path |
+| **http://localhost:3000/** | `timing.southvillerunningclub.co.uk` | **Race timing** |
+
+Two ports rather than one, because a Worker is a Worker: each is its own runtime, exactly
+as each is its own Worker in production. Routing between them is Cloudflare's job there and
+the hostname's job here — putting a proxy in front locally would be a fiction, and this
+repository has already been bitten twice by local tools that lie.
+
+**Both apps read the same database.** Locally that is the Supabase stack in Docker; in
+production it is one project, asserted by a test rather than trusted to two dashboards.
+
+### The two other dev servers
+
+`npm run dev` is `astro dev` on **:4321** — instant reload, but **no Worker runs**, so the
+database timestamp stays at its placeholder and hostname routing does not apply. Good for
+content and CSS, misleading for anything else.
+
+`npm run preview --workspace=apps/timing` is **:8789** — the timing app as it actually
+deploys, through the OpenNext bundle. Needs `npm run build:worker` first.
 
 ## Commands
 
 |  |  |
 | --- | --- |
-| `npm run dev` | `astro dev` — the fast loop, `apps/main` |
-| `npm run dev:worker` | `wrangler dev` — the real Workers runtime, `apps/main` |
-| `npm run dev:timing` | `next dev` — `apps/timing` |
+| `npm run dev:all` | **Both front doors**, real Workers runtime — :8787 and :3000 |
+| `npm run dev` | `astro dev` — the fast loop, `apps/main`, :4321 |
+| `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
+| `npm run dev:timing` | `next dev` — `apps/timing` alone, :3000 |
 | `npm test` | Vitest: unit and database |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
 | `npm run test:e2e` | Playwright + axe. **Builds first, then starts both servers** |
@@ -69,10 +100,11 @@ development build while the build expects production, and reports it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.
 
-**`wrangler dev` cannot test hostname routing.** With `routes` configured it rewrites
-`request.url` to the custom domain and ignores the `Host` header, so every local request
-looks like `nn.southvillerunningclub.co.uk`. Use `npm run test:worker`, which runs the same
-runtime and preserves the URL.
+**Keep `routes` under `env.production`, not at the top level.** With routes at the top
+level, `wrangler dev` rewrites `request.url` to the custom domain and ignores the `Host`
+header — every local request looks like the live hostname, and `nn.localhost` stops
+working. That is also why a plain `wrangler deploy` is harmless: no routes outside
+production.
 
 **Two copies of React or Next in the workspace break the build** in ways that read as
 application bugs. After changing a version, `npm dedupe` and check there is one copy.
