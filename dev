@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+#
+# The one command for working on this platform locally.
+#
+# It exists because the npm project lives in `platform/` while the repository root is
+# documentation, so `npm run …` at the root finds nothing. Rather than asking everybody to
+# remember a `cd`, this script knows where things are and does the whole job: Docker, the
+# database, the seed, the builds, both Workers, and tidying up afterwards.
+#
+#   ./dev up        bring the whole site up and open it
+#   ./dev test      run the acceptance tests, then stop everything
+#                   --keep-up leaves the site running afterwards
+#   ./dev check     lint, types, unit and database tests — no browsers, no builds
+#   ./dev smoke     the seven live-site assertions, against localhost
+#   ./dev reset     rebuild the database from migrations and re-seed
+#   ./dev down      stop the Workers and the database
+#   ./dev logs      tail the running Workers
+#
+# Everything is idempotent. Running `up` twice is fine; so is `down` when nothing is up.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM="$REPO_ROOT/platform"
+RUN_DIR="$REPO_ROOT/.dev"
+
+MAIN_PORT=8787
+TIMING_PORT=8788
+SITE="http://localhost:$MAIN_PORT"
+
+mkdir -p "$RUN_DIR"
+
+# ---------------------------------------------------------------------------------------
+# Output. Plain enough to read in a CI log, clear enough to read at speed.
+# ---------------------------------------------------------------------------------------
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; RED=$'\033[31m'; RESET=$'\033[0m'
+else
+  BOLD=''; DIM=''; GREEN=''; RED=''; RESET=''
+fi
+
+step() { printf '\n%s==>%s %s%s\n' "$BOLD" "$RESET" "$BOLD" "$1$RESET"; }
+info() { printf '    %s%s%s\n' "$DIM" "$1" "$RESET"; }
+ok()   { printf '    %s✓%s %s\n' "$GREEN" "$RESET" "$1"; }
+die()  { printf '\n%serror%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------------------
+# Docker, and waiting for it properly
+# ---------------------------------------------------------------------------------------
+ensure_docker() {
+  if docker info >/dev/null 2>&1; then
+    ok "Docker is running"
+    return
+  fi
+
+  command -v docker >/dev/null 2>&1 || die "Docker is not installed. It is required: the
+    local stack is a real Postgres, which is the only way row-level security can be
+    tested rather than mocked."
+
+  step "Starting Docker"
+  case "$(uname -s)" in
+    Darwin) open -a Docker 2>/dev/null || die "Could not start Docker Desktop. Start it by hand." ;;
+    *)      die "Docker is not running. Start it, then try again." ;;
+  esac
+
+  info "waiting for the daemon (this takes a minute on a cold start)"
+  local waited=0
+  until docker info >/dev/null 2>&1; do
+    sleep 2
+    waited=$((waited + 2))
+    [ "$waited" -lt 120 ] || die "Docker did not start within two minutes."
+  done
+  ok "Docker is running"
+}
+
+ensure_database() {
+  # `supabase status` is the honest check — containers can exist but not be serving.
+  if (cd "$PLATFORM/packages/db" && npx --no-install supabase status >/dev/null 2>&1); then
+    ok "the database is up"
+    return
+  fi
+
+  step "Starting the database"
+  info "Postgres, auth, storage and Studio, in Docker"
+  (cd "$PLATFORM" && npm run db:start >"$RUN_DIR/db.log" 2>&1) \
+    || { tail -20 "$RUN_DIR/db.log"; die "the database did not start — see $RUN_DIR/db.log"; }
+  ok "the database is up"
+}
+
+# ---------------------------------------------------------------------------------------
+# Builds. Deliberately separate commands: `build` produces the Next.js output that OpenNext
+# then bundles, and merging them makes OpenNext invoke itself. See apps/timing/README.md.
+# ---------------------------------------------------------------------------------------
+build_site() {
+  step "Building"
+  info "apps/main — static Astro"
+  (cd "$PLATFORM" && npm run build >"$RUN_DIR/build.log" 2>&1) \
+    || { tail -30 "$RUN_DIR/build.log"; die "the build failed — see $RUN_DIR/build.log"; }
+  info "apps/timing — the OpenNext Worker bundle"
+  (cd "$PLATFORM" && npm run build:worker >>"$RUN_DIR/build.log" 2>&1) \
+    || { tail -30 "$RUN_DIR/build.log"; die "the Worker bundle failed — see $RUN_DIR/build.log"; }
+  ok "both applications built"
+}
+
+# ---------------------------------------------------------------------------------------
+# The Workers
+# ---------------------------------------------------------------------------------------
+port_is_serving() { curl -sf -o /dev/null --max-time 2 "$1" 2>/dev/null; }
+
+wait_for() {
+  local url="$1" name="$2" waited=0
+  until port_is_serving "$url"; do
+    sleep 1
+    waited=$((waited + 1))
+    [ "$waited" -lt 90 ] || die "$name did not come up within 90s."
+  done
+}
+
+# Start a long-running server and **fully detach it**, so `./dev up` returns to the prompt.
+#
+# All three streams are redirected and stdin is closed: a child that still holds the
+# terminal keeps the shell waiting for it, which is exactly what `up` must not do. `disown`
+# then removes it from this shell's job table so no exit trap can reap it.
+spawn() {
+  local name="$1" dir="$2"; shift 2
+  (
+    cd "$dir" || exit 1
+    nohup "$@" >"$RUN_DIR/$name.log" 2>&1 </dev/null &
+    echo $! >"$RUN_DIR/$name.pid"
+    disown
+  )
+}
+
+start_workers() {
+  step "Starting the site"
+
+  if port_is_serving "$SITE/"; then
+    ok "already running at $SITE"
+    return
+  fi
+
+  # `apps/timing` first: `apps/main` forwards /timing to it, so starting the other way
+  # round gives a window where the site is up and /timing 502s.
+  spawn timing "$PLATFORM/apps/timing" \
+    npx --no-install opennextjs-cloudflare preview --port "$TIMING_PORT"
+  wait_for "http://localhost:$TIMING_PORT/timing" "the timing Worker"
+  info "timing  → :$TIMING_PORT"
+
+  spawn main "$PLATFORM/apps/main" \
+    npx --no-install wrangler dev --port "$MAIN_PORT" --ip 127.0.0.1
+  wait_for "$SITE/" "the website"
+  info "website → :$MAIN_PORT"
+
+  ok "the site is up"
+}
+
+stop_workers() {
+  local stopped=0
+  for name in main timing; do
+    local pidfile="$RUN_DIR/$name.pid"
+    [ -f "$pidfile" ] || continue
+    local pid; pid="$(cat "$pidfile")"
+    if kill -0 "$pid" 2>/dev/null; then
+      # The npx wrapper spawns workerd as a child, so kill the group.
+      kill -- "-$(ps -o pgid= "$pid" | tr -d ' ')" 2>/dev/null || kill "$pid" 2>/dev/null || true
+      stopped=1
+    fi
+    rm -f "$pidfile"
+  done
+
+  # Belt and braces: this repository has been taken down once by processes that outlived
+  # their parent, so a stray workerd is never left behind quietly.
+  pkill -f "wrangler dev --port $MAIN_PORT" 2>/dev/null && stopped=1 || true
+  pkill -f "opennextjs-cloudflare preview --port $TIMING_PORT" 2>/dev/null && stopped=1 || true
+  sleep 1
+  pkill -f workerd 2>/dev/null || true
+
+  [ "$stopped" -eq 1 ] && ok "the site is stopped" || info "nothing was running"
+}
+
+open_browser() {
+  case "$(uname -s)" in
+    Darwin) open "$SITE/" 2>/dev/null || true ;;
+    Linux)  xdg-open "$SITE/" >/dev/null 2>&1 || true ;;
+  esac
+}
+
+show_urls() {
+  printf '\n    %sThe site%s\n' "$BOLD" "$RESET"
+  printf '      %-38s the club website\n' "$SITE/"
+  printf '      %-38s Nightingale Nightmare\n' "$SITE/nn/"
+  printf '      %-38s race timing\n' "$SITE/timing"
+  printf '      %-38s database studio\n' "http://localhost:54323"
+  printf '\n    %s./dev down%s when you are finished.\n\n' "$DIM" "$RESET"
+}
+
+# ---------------------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------------------
+cmd_up() {
+  ensure_docker
+  ensure_database
+  build_site
+  start_workers
+  show_urls
+  open_browser
+}
+
+cmd_test() {
+  local keep_up=0
+  [ "${1:-}" = "--keep-up" ] && keep_up=1
+
+  ensure_docker
+  ensure_database
+  cmd_reset_quiet
+  build_site
+
+  step "Acceptance tests"
+  info "Playwright drives the servers itself — 39 tests across three browser engines"
+  # Playwright starts and stops its own servers, so ours must not be holding the ports.
+  stop_workers >/dev/null 2>&1 || true
+
+  local status=0
+  (cd "$PLATFORM" && npx --no-install playwright test --reporter=list) || status=$?
+
+  if [ "$keep_up" -eq 1 ]; then
+    start_workers
+    show_urls
+  else
+    # Everything down, including the database. A test run should leave the machine as it
+    # found it — `./dev test --keep-up` is there for when you are iterating.
+    cmd_down
+  fi
+
+  [ "$status" -eq 0 ] || die "the acceptance tests failed."
+  ok "all tests passed"
+}
+
+cmd_check() {
+  ensure_docker
+  ensure_database
+
+  step "Lint and format"
+  (cd "$PLATFORM" && npm run lint)
+  ok "clean"
+
+  step "Types"
+  (cd "$PLATFORM" && npm run typecheck >/dev/null)
+  ok "no errors"
+
+  step "Unit and database tests"
+  (cd "$PLATFORM" && npm test)
+}
+
+cmd_smoke() {
+  port_is_serving "$SITE/" || die "the site is not running. ./dev up first."
+  (cd "$PLATFORM" && npm run smoke -- --local)
+}
+
+cmd_reset_quiet() {
+  step "Resetting the database"
+  info "migrations from zero, then the seed"
+  (cd "$PLATFORM" && npm run db:reset >"$RUN_DIR/reset.log" 2>&1) \
+    || { tail -20 "$RUN_DIR/reset.log"; die "the reset failed — see $RUN_DIR/reset.log"; }
+  ok "schema rebuilt and seeded"
+}
+
+cmd_reset() { ensure_docker; ensure_database; cmd_reset_quiet; }
+
+cmd_down() {
+  step "Stopping"
+  stop_workers
+  if (cd "$PLATFORM/packages/db" && npx --no-install supabase status >/dev/null 2>&1); then
+    (cd "$PLATFORM" && npm run db:stop >/dev/null 2>&1) || true
+    ok "the database is stopped"
+  else
+    info "the database was not running"
+  fi
+}
+
+cmd_logs() { tail -f "$RUN_DIR"/main.log "$RUN_DIR"/timing.log; }
+
+usage() {
+  # The comment block at the top of this file is the help text, so the two cannot drift.
+  # Stops at the first line that is not a comment.
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+  exit "${1:-0}"
+}
+
+case "${1:-up}" in
+  up)     cmd_up ;;
+  test)   shift; cmd_test "$@" ;;
+  check)  cmd_check ;;
+  smoke)  cmd_smoke ;;
+  reset)  cmd_reset ;;
+  down)   cmd_down ;;
+  logs)   cmd_logs ;;
+  -h|--help|help) usage 0 ;;
+  *)      printf '%sUnknown command:%s %s\n' "$RED" "$RESET" "$1" >&2; usage 1 ;;
+esac

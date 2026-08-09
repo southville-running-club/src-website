@@ -54,9 +54,14 @@ jobs:
 
       - name: Export the local Supabase credentials
         working-directory: platform/packages/db
+        # All three are the fixed local-stack values, not secrets. `SUPABASE_DB_URL` is the
+        # privileged connection the seed tests use to check what is *in* a table while the
+        # anon client checks what can be *reached* — testing an access boundary from one
+        # side only proves half of it.
         run: |
           echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
           echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+          echo "SUPABASE_DB_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
 
       # ---------------------------------------------------------------------------------
       # The gates, in order. Cheapest first, so a formatting slip does not wait on

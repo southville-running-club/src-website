@@ -58,3 +58,6 @@ pnpm-debug.log*
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Local dev run state — logs and pid files from ./dev
+.dev/
