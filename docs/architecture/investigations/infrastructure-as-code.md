@@ -24,6 +24,7 @@ Before asking which tool, ask what is actually uncovered.
 | **Local environment** | ✅ | `supabase/config.toml`, `seed.sql`, `.nvmrc` |
 | Supabase project settings | Mostly | `config.toml` covers most; a few dashboard-only |
 | Cloudflare build config — root directory, watch paths | ❌ | Dashboard. Set **once per app** |
+| **Cloudflare custom domains** | ✅ | **Corrected 8 August 2026** — `routes` with `custom_domain: true` in `wrangler.jsonc`. Cloudflare creates the record and the certificate from it, so a new hostname is a reviewed pull request. [ADR-006](../decisions/adr-006-apps-main-and-hostnames-as-code.md) |
 | R2 buckets | Mostly | wrangler |
 | Secrets and environment variables | ❌ | **Correctly not code** |
 | **DNS records** | ❌ | **The actual gap** |
@@ -205,6 +206,6 @@ it.**
 | | |
 | --- | --- |
 | **Does R2's S3-compatible backend support state locking?** | Only matters under Terraform, which is not being adopted |
-| **Which Supabase project settings are dashboard-only** and cannot reach `config.toml` | Small, but they are the ones that will drift |
+| ~~**Which Supabase project settings are dashboard-only**~~ | **Partly answered, 9 August 2026.** `supabase config push` sends the committed `config.toml` to the linked project, so **the exposed-schema list is code**, not a click. It pushes the whole file — auth, storage, email travel with it — so read the diff. What remains genuinely dashboard-only is still unmeasured |
 | **Where the committed zone file lives** | Proposed `docs/reference/`. It is a reference artefact, not documentation |
 | **Does anything enforce the re-export-and-diff step**, or is it discipline? | Discipline for now. A scheduled CI job that exports and diffs would automate the *detection* without automating the apply — cheap, and worth considering later |

@@ -1,0 +1,38 @@
+---
+// One stylesheet, shared by both front doors from `packages/shared`.
+//
+// This is the monorepo earning its keep in miniature. Under separate repositories this
+// would travel as a published package, a submodule, or — realistically — a copy that
+// drifts. Here it is an import, and the two apps cannot disagree about what the club
+// looks like.
+import '@src/shared/styles/base.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** The address this page should be indexed under, when it has two. */
+  canonical?: string;
+}
+
+const { title, description, canonical } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    {/* Nothing here is finished, and none of it should be found in a search yet. */}
+    <meta name="robots" content="noindex" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <main id="main">
+      <slot />
+    </main>
+  </body>
+</html>

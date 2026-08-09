@@ -127,6 +127,21 @@ both shapes, contract later. The timing app's registration migration
 [already documents this by hand](../../reference/timing-app-review.md#what-is-strong) because
 it hit a `42703` window in production.
 
+> **⚠️ Step 5 is not actually ordered — found while building the skeleton, 8 August 2026.**
+>
+> Cloudflare's git integration triggers on the **push**, not on a green GitHub Actions run.
+> Nothing sequences `supabase db push` before the Worker deploy; they run concurrently.
+>
+> **This makes expand–migrate–contract load-bearing rather than good practice.** If every
+> schema change keeps the previously deployed code working, the order genuinely does not
+> matter — which is the whole point of the rule. If a change ever needs the migration to
+> land first, that change is the thing to fix, not the pipeline.
+>
+> The alternative is deploying with `wrangler deploy` from Actions, which buys exact
+> ordering at the cost of a Cloudflare API token in CI — the thing git integration was
+> chosen to avoid. Recorded in
+> [ADR-006](../decisions/adr-006-apps-main-and-hostnames-as-code.md).
+
 ---
 
 ## Environments

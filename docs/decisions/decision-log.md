@@ -171,6 +171,10 @@ cannot outlive Squarespace. It is not a decision taken here; see
 
 ## What is still open
 
+- **The GitHub account's shape** — `southville-running-club` is a shared personal login
+  rather than an organisation — **and whether to pay for branch protection.** Two separate
+  questions, both **left as they are on 9 August 2026, deliberately.** See below: they are
+  the only open items here that are *technical controls* rather than prices
 - **The registrar.** Fasthosts for now. Moving it is optional, later, and worth doing for
   consolidation rather than the ~£7
 - **Fasthosts' sending limits and its price beyond two mailboxes**, neither published
@@ -180,3 +184,155 @@ cannot outlive Squarespace. It is not a decision taken here; see
 - **Five vendor facts** listed under
   [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for
+
+---
+
+## Deferred — the GitHub account's shape, and what the free plan does not give us
+
+**Raised 9 August 2026, while setting the repository up. Both left as they are, on
+purpose.**
+
+Two separate questions surfaced together and are easy to conflate. They are orthogonal:
+one is about **who is accountable**, the other about **what is enforced**.
+
+> **Both were found by trying to configure them**, which is the cheapest possible moment,
+> and neither blocks anything. The pipeline works, the tests run, the deploys happen.
+
+---
+
+### Question one — `southville-running-club` is a personal account, not an organisation
+
+**`type: User`.** The repository is owned by a shared personal login, with `chessser` and
+`bindalshah` added as collaborators with write access.
+
+That is **club-owned**, which is most of what
+[shared ownership](../foundations/requirements.md#shared-ownership) asks for — either
+volunteer can reach the code, and it does not sit in one person's name. But
+[the principle](../architecture/principles.md#no-system-is-reachable-by-only-one-person)
+asks for one thing more:
+
+> Club-owned accounts rather than personal ones, code in the club's organisation, access
+> granted by role, and **a named login each where the product supports one**.
+
+**A shared account is a shared password.** Actions taken as `southville-running-club` are
+attributable to nobody in particular, and the credential cannot be revoked for one person
+without revoking it for both. That is a milder version of the problem this whole programme
+exists to fix, and it is worth being honest that it is the same shape.
+
+**Converting to an organisation is free**, and GitHub supports it directly: repositories
+come across with their history and settings, and both volunteers become owners under their
+own logins. Two catches:
+
+- **You can no longer log in as `southville-running-club`.** It stops being a login and
+  becomes a container. Both owners need their own accounts first — they have them.
+- **Keys and tokens on the account do not carry over.** Nothing depends on them today, so
+  the conversion is free right now. It stops being free once Cloudflare's GitHub App is
+  bound to the account.
+
+**Left as it is.** The account is club-owned, both volunteers can reach it, and the work in
+front of the club is a race in ten weeks. Converting mid-setup would invalidate the login
+being used to do the setup.
+
+### Question two — enforcement, and it is *not* solved by converting
+
+The natural assumption is that becoming an organisation brings branch protection. **It does
+not.**
+
+| Account shape | Repo | Branch protection? |
+| --- | --- | --- |
+| User, Free | private | ❌ |
+| **User, Pro** | private | ✅ |
+| **Org, Free** | private | ❌ — *no better than today* |
+| Org, Team | private | ✅ |
+| Either | **public** | ✅ **free** |
+
+GitHub Free *for organizations* excludes protected branches on private repositories exactly
+as GitHub Free for users does. Converting buys governance, not enforcement.
+
+**And the pricing runs the other way from the intuition.** Pro is billed per *account*;
+Team is billed per *seat*. Staying a personal account and buying Pro is one subscription;
+converting and buying Team is two — roughly double, for the same enforcement. Figures are
+approximate: GitHub does not publish them on its plans page, so **check billing before
+committing to either.**
+
+---
+
+### What the free plan actually withholds
+
+**Pull requests and code review work fine.** Open, review, comment, approve, request
+changes — all available, today, at no cost. CI runs on every pull request and a red check
+is visible on it.
+
+What GitHub Free withholds on a private repository is **enforcement**:
+
+| | |
+| --- | --- |
+| **Branch protection** | Nothing *requires* a pull request, *requires* CI to pass, or blocks a direct push to `main`. `403 — Upgrade to GitHub Pro or make this repository public` |
+| **Actions environments** | *"Organizations with GitHub Team and users with GitHub Pro can configure environments for private repositories."* A workflow declaring one fails outright, so `deploy-db.yml` does not declare one |
+
+> **The convention is available. Only its enforcement is not.**
+
+### Why the environment half is the part that matters
+
+Branch protection guards against a slip. The environment guards against something worse: it
+is what would let the **other volunteer be a required reviewer on `supabase db push`** — a
+second pair of eyes on the one automated action that can reach the timing platform's
+database.
+
+Without it, merging a migration applies it unsupervised. Two things narrow that and neither
+closes it: migrations are scoped `--schema club,intake`, so this repository cannot propose
+dropping the timing app's tables; and `supabase db reset`, the destructive one, is a local
+command that appears in no workflow.
+
+### The options
+
+| | Cost | |
+| --- | --- | --- |
+| **A CI guard** | £0 | A workflow failing loudly when a commit reaches `main` without a pull request. Detection, not prevention. Does **not** give the migration reviewer |
+| **GitHub Pro**, staying a personal account | ~£38/yr *(one account)* | Both. **The cheapest route to enforcement** |
+| **Convert, then GitHub Team** | ~£77/yr *(two seats)* | Both, plus named logins. Roughly double, for the same enforcement |
+| **Make the repository public** | £0 | Both, plus unlimited Actions minutes. Needs the [DNS zone export](../reference/zone-fasthosts-2026-08-08.txt) moved or redacted, and makes the club's infrastructure reasoning readable by anyone |
+
+### Why both are left as they are
+
+**The enforcement gap is one the club has already accepted elsewhere.**
+[ADR-005](../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) chose
+exactly this trade for DNS — a reviewable artefact and a runbook, with nothing technically
+preventing somebody clicking — on the reasoning that *"for two volunteers who trust each
+other, that is the acceptable gap."* Paying to close it here while accepting it there would
+be inconsistent, and the club is spending this programme reducing £735/yr to £427.
+
+**The account shape is a governance improvement, not a fix for anything broken.** The
+account is club-owned and both volunteers can reach it. What it lacks is attribution, and
+attribution matters most when something goes wrong — which is a reason to do it before the
+platform carries real member data, not a reason to do it today.
+
+**And the sequencing argues for waiting.** Converting invalidates the login currently being
+used to set Cloudflare up. Doing it mid-setup would mean redoing the GitHub App
+installation.
+
+> **Nothing is blocked by leaving both open.** The pipeline works, the tests run, the
+> deploys happen, and pull requests can be reviewed today.
+
+### Revisit when
+
+Conditions, not hopes — [the log's own standard](#the-shape-of-a-record).
+
+**For enforcement:**
+
+- **Before the first migration against real member data.** The unsupervised-migration risk
+  is theoretical while `club` is empty, and stops being theoretical the day it is not.
+  **This is the trigger most likely to fire first**
+- **Somebody pushes to `main` by accident** — the evidence that the convention needs teeth
+- **Any month the repository is made public for another reason**, since it comes free then
+
+**For the account shape:**
+
+- **A third person needs access.** A shared password cannot be granted to three people and
+  revoked from one; this is the point at which the current arrangement stops working rather
+  than merely being untidy
+- **Either volunteer leaves the club**, since the shared credential goes with them
+- **Before the timing platform moves in.** `src-race-timing` is in a personal account and
+  has to move anyway; moving it once, into the final shape, is cheaper than moving it twice
+- **The club buys GitHub Pro or Team**, since the plan choice and the account shape interact
+  — Pro only helps a personal account, Team only an organisation

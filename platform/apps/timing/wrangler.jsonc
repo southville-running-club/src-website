@@ -1,0 +1,88 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "src-timing",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-08",
+
+  // Both are required by OpenNext rather than chosen: `nodejs_compat` for Next.js's own
+  // Node API use, and `global_fetch_strictly_public` so a `fetch()` to the Worker's own
+  // hostname goes out to the internet and back rather than short-circuiting internally.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+
+  // OpenNext needs to be able to call itself — this is its own binding, not a second
+  // Worker. The name must match the Worker's own `name` above.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "src-timing",
+    },
+  ],
+
+  // ---------------------------------------------------------------------------------
+  // Top level is **local development**. No routes, and a localhost database.
+  // ---------------------------------------------------------------------------------
+  // The safe default, exactly as in apps/main: a plain `wrangler deploy` publishes a
+  // Worker with no hostname and an unreachable database, rather than putting localhost
+  // config on a live domain.
+  "vars": {
+    "PUBLIC_SUPABASE_URL": "http://127.0.0.1:54321",
+    "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // ---------------------------------------------------------------------------------
+  // `--env production` is what actually deploys. Worker name: `src-timing-production`.
+  // ---------------------------------------------------------------------------------
+  "env": {
+    "production": {
+      // **A path route, not a custom domain**, and the difference matters.
+      //
+      // `new.<apex>` belongs to apps/main as a Custom Domain. Cloudflare matches routes
+      // most-specific-first, and a route carrying a path beats a Custom Domain on the
+      // same hostname — so `/timing/*` is dispatched here at the edge and never reaches
+      // apps/main at all.
+      //
+      // Because this is a route rather than a custom domain, **Cloudflare does not create
+      // a DNS record for it.** It does not need to: apps/main's Custom Domain already
+      // created the proxied `new` record, and this route attaches to that hostname.
+      //
+      // Next.js is configured with `basePath: '/timing'` to match, so the application's
+      // own links and assets resolve under the same prefix.
+      "routes": [
+        {
+          "pattern": "new.southvillerunningclub.co.uk/timing/*",
+        },
+      ],
+
+      // OpenNext needs to call itself. **The service name must match the deployed Worker,
+      // which carries the `-production` suffix** — pointing it at `src-timing` here would
+      // bind to a Worker that does not exist.
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "src-timing-production",
+        },
+      ],
+
+      // **Byte-identical to apps/main's production block, and that is the point.** One
+      // database behind both front doors. Asserted by
+      // `../main/tests/unit/supabase-config.test.ts`.
+      "vars": {
+        "PUBLIC_SUPABASE_URL": "https://ketipxpyjjglwpqazsft.supabase.co",
+        "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_reN3BxHbZfvKF75bee6n3w_8hfq1FXg",
+      },
+
+      "observability": {
+        "enabled": true,
+      },
+    },
+  },
+}

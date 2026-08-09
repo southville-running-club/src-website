@@ -68,7 +68,7 @@ change to a live system. Those are the six-plus-eleven that carried the migratio
 **1. Verify it resolves and serves.**
 
 ```bash
-H=nn.southvillerunningclub.co.uk
+H=new.southvillerunningclub.co.uk
 dig +short "$H"
 curl -sS -o /dev/null -w 'http=%{http_code} tls=%{ssl_verify_result}\n' "https://$H"
 ```
@@ -87,16 +87,21 @@ else can see.*
 
 ## The `nn` case specifically
 
-`nn.southvillerunningclub.co.uk` does **not** exist right now — the CNAME was removed with
-the throwaway `test-nn` project, and the Cloudflare zone never had it.
+> **Superseded by [ADR-007](../../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).**
+> `nn.southvillerunningclub.co.uk` is **never created.** Nightingale Nightmare lives at
+> `/nn`, a path on `new.southvillerunningclub.co.uk` — the one hostname the whole club
+> shares, told apart by path rather than subdomain. This section is kept as the worked
+> example of *"do not add a record you do not need"*: the throwaway `test-nn` project's
+> CNAME was removed and never came back, and that was the right call.
 
-When Nightingale Nightmare is rebuilt:
+This is already built and live — see the [Cloudflare runbook](cloudflare-setup.md) for the
+procedure that created it:
 
-1. Create the Pages project (or Worker) from the monorepo
-2. Attach `nn.southvillerunningclub.co.uk` as a custom domain **in the project**
-3. **Do not add a CNAME at Fasthosts** — that was the old way and would now do nothing
-4. Cloudflare creates a proxied record and issues the certificate
-5. Verify, then commit the updated zone export
+1. `apps/main`'s `wrangler.jsonc` declares `new.<apex>` as a Custom Domain under
+   `env.production` — one entry, reviewed as a pull request.
+2. Cloudflare creates the record and the certificate from that entry on deploy. **No CNAME
+   is added at Fasthosts, and none is added by hand at Cloudflare either.**
+3. `/nn` is a page within that same application, not a second hostname or a second record.
 
 ---
 

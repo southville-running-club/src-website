@@ -1,0 +1,30 @@
+{
+  "name": "@src/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Schema, migrations and generated types for the club and intake schemas",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff --schema club,intake",
+    "db:push": "supabase db push",
+    "db:types": "supabase gen types typescript --local --schema club,intake > src/database.types.ts",
+    "db:types:check": "node ./scripts/check-types-current.mjs",
+    "db:migrations:check-scope": "node ./scripts/check-migration-scope.mjs",
+    "typecheck": "tsc --noEmit",
+    "db:link": "supabase link --project-ref",
+    "db:config:push": "supabase config push"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.2"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.21.0",
+    "pg": "^8.23.0"
+  }
+}
