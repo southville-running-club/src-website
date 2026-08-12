@@ -112,10 +112,19 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
 
       <h2>Prizes</h2>
 
-      <dl class="nn-schedule">
+      {
+        /* **A grid rather than the schedule's list, because these are not in an order.**
+        The morning is a sequence and reads down; the prizes are four independent things
+        and read as tiles. Still a `<dl>` — each is a term and its detail — with a `<div>`
+        per pair, which is valid inside a `<dl>` and is what makes a tile.
+
+        Which one is yellow is `highlight` in `race.json` rather than a class written here,
+        so moving the emphasis is a committee edit and not a CSS change. */
+      }
+      <dl class="nn-prizes">
         {
-          race.prizes.map(({ category, detail }) => (
-            <div class="nn-schedule-row">
+          race.prizes.map(({ category, detail, highlight }) => (
+            <div class:list={['nn-prize', highlight && 'nn-prize-highlight']}>
               <dt>{category}</dt>
               <dd>{detail}</dd>
             </div>
@@ -123,11 +132,27 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
         }
       </dl>
 
+      <p class="nn-medal">{race.finisherPrize}</p>
+
       <p>
         Prizegiving is at HQ once the last finisher is in. Standing around for it is the
         polite thing to do and usually the more entertaining one.
       </p>
     </div>
+
+    {
+      /* The same call to action as the other two content pages — see the note on
+    course.astro for why it is not on `/nn/`. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
 
     <footer>
       <p>

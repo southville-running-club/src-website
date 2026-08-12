@@ -99,6 +99,20 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
       </p>
     </div>
 
+    {
+      /* The same call to action as the other two content pages — see the note on
+    course.astro for why it is not on `/nn/`. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
+
     <footer>
       <p>
         Southville Running Club. The full list of race facts, including anything still to

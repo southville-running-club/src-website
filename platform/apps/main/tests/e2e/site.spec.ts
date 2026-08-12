@@ -155,6 +155,82 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
   });
 
+  test('the loudest control offers the only thing this site can do', async ({ page }) => {
+    // **This is the assertion that keeps a payment link off a site with no payment.** The
+    // mockup's primary button is "Enter the race — from £15" — an unconfirmed price on a
+    // control that goes to a checkout. Registering interest is the whole of what `/nn/`
+    // does, so it has to be the whole of what the loudest control offers.
+    await page.goto('/nn/');
+
+    const primary = page.locator('.nn-cta').first();
+    await expect(primary).toHaveText('Register your interest');
+    await expect(primary).toHaveAttribute('href', '#register');
+
+    // Nothing anywhere on the page may lead somewhere that takes money.
+    const hrefs = await page
+      .getByRole('link')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    for (const href of hrefs) {
+      expect(href).not.toMatch(/stripe|checkout|pay|entr(y|ies)\b.*\.(com|co\.uk)/i);
+    }
+  });
+
+  test('the content pages end with a call to action, and /nn/ does not', async ({
+    page,
+  }) => {
+    // The panel exists because course, race day and spectators otherwise end with nothing
+    // to do. `/nn/` has the form on it, so a panel there would only scroll somebody back
+    // up to something they already walked past.
+    for (const path of ['/nn/course/', '/nn/race-day/', '/nn/spectators/']) {
+      await page.goto(path);
+
+      const panel = page.locator('.nn-panel');
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole('link')).toHaveAttribute('href', '/nn/#register');
+
+      // It must not promise entry, which is the one thing it cannot deliver.
+      await expect(panel).toContainText('Entries are not open yet');
+      expect(await panel.textContent()).not.toMatch(/dare to enter|enter the race/i);
+    }
+
+    await page.goto('/nn/');
+    await expect(page.locator('.nn-panel')).toHaveCount(0);
+  });
+
+  test('the prize grid highlights whatever race.json says to @requires-js', async ({
+    page,
+  }) => {
+    // Which tile is yellow is data, not a class written into the page — so the committee
+    // can move the emphasis without a CSS change. Exactly one, or the accent means nothing.
+    await page.goto('/nn/race-day/');
+
+    await expect(page.locator('.nn-prize')).toHaveCount(4);
+    await expect(page.locator('.nn-prize-highlight')).toHaveCount(1);
+    await expect(page.locator('.nn-prize-highlight dt')).toHaveText('Fancy dress');
+
+    // Four tiles in a three-wide grid leave an orphan, so the floor is set to make it a
+    // 2x2. **The viewport is pinned**, because the answer is width-dependent by design:
+    // one column on a phone is the same rule working, not a different one, and asserting
+    // "2" from whatever viewport the project happens to use tests the device instead.
+    await page.setViewportSize({ width: 1100, height: 900 });
+    const wide = await page
+      .locator('.nn-prizes')
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    expect(wide).toBe(2);
+
+    // And the floor must not overflow a card narrower than itself — `min(240px, 100%)`.
+    await page.setViewportSize({ width: 320, height: 640 });
+    const narrow = await page
+      .locator('.nn-prizes')
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    expect(narrow).toBe(1);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+  });
+
   test('the hero fog stops for anyone who asked for no motion @requires-js', async ({
     page,
   }) => {

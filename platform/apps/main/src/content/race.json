@@ -21,18 +21,28 @@
     }
   ],
   "prizes": [
-    { "category": "Fancy dress", "detail": "Three prizes." },
-    { "category": "Overall", "detail": "1st, 2nd and 3rd — female and male." },
+    {
+      "category": "Fancy dress",
+      "detail": "Three prizes, and the category with the most effort in it.",
+      "highlight": true
+    },
+    {
+      "category": "Overall",
+      "detail": "1st, 2nd and 3rd — female and male.",
+      "highlight": false
+    },
     {
       "category": "Veterans",
-      "detail": "1st Vet 40, Vet 50 and Vet 60 — female and male."
+      "detail": "1st Vet 40, Vet 50 and Vet 60 — female and male.",
+      "highlight": false
     },
     {
       "category": "Marshals",
-      "detail": "A runner-voted award for the best marshalling station."
-    },
-    { "category": "Every finisher", "detail": "A medal." }
+      "detail": "A runner-voted award for the best marshalling station.",
+      "highlight": false
+    }
   ],
+  "finisherPrize": "A medal for every finisher, and that means every finisher.",
   "spectating": {
     "viewpoint": "The top of Nightingale Valley, through the gate on North Road",
     "viewpointPostcode": "BS8 3PL",

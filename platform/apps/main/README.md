@@ -64,9 +64,29 @@ as a blank or an invention. Three still are, and each for a different reason:
 | `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
 | `privacy.*` | The controller, the removal address and the retention period. A wrong answer on that page is a legal claim rather than a typo |
 
+**Presentation is data too, where the committee should own it.** `prizes[].highlight` is
+which tile the campaign's one accent colour lands on — the fancy-dress prize, because that
+is what makes this race this race rather than any other 10 km. Moving the emphasis is a
+one-word edit to `race.json` and not a CSS change.
+
 **The page copy is a draft pending committee approval.** It is written to be edited, not
 decided on their behalf — see [the phases](../../../docs/delivery/phases.md#what-the-race-pages-still-need-from-the-committee)
 for that and for the six questions the draft could not answer.
+
+## What the event theme deliberately does not do
+
+**No `@view-transition`.** Four lines of CSS, no JavaScript, and it breaks the sign-up form
+with scripting disabled: after the POST/422 the `::view-transition` overlay swallows the
+click on the error summary's link, silently. It reproduced 5 times out of 5 and **passes
+with scripting on**, which is what makes it easy to ship by accident. The full note is at
+the foot of `packages/shared/styles/nn-theme.css`, and
+`tests/e2e/nn-signup.spec.ts`'s "links from the summary to the field it is about" is the
+guard that caught it.
+
+**The motion that is there** is a slow fog across the hero and an 18-pixel rise on content
+cards as they scroll in. Both stop under `prefers-reduced-motion`; neither changes opacity,
+so no text is ever at a contrast ratio nobody computed; and the rise is kept off the form
+and the notices, because a moving box under a pointer is a click waiting to miss.
 
 ## The sign-up form
 

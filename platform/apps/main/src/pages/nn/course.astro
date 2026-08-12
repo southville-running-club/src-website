@@ -86,7 +86,7 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/course/';
 
       <h2>What is on the route</h2>
 
-      <ul>
+      <ul class="nn-arrows">
         <li>One water station on the route, and one at the finish.</li>
         <li>
           Marshals throughout — and a prize afterwards for the station the runners vote
@@ -97,6 +97,26 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/course/';
         </li>
       </ul>
     </div>
+
+    {
+      /* **The panel is on this page and not on `/nn/`**, which already has the form. A
+      call to action whose only effect is to scroll somebody back up to something they
+      walked past is furniture. This page, race day and spectators are the three that
+      otherwise end with nothing to do.
+
+      "Dare to enter?" is the mockup's heading and it is not used: entering is not what
+      this offers, and a heading that promises the thing the button cannot do is worse
+      than no heading. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
 
     <footer>
       <p>

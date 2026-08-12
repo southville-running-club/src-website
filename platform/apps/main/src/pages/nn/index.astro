@@ -38,7 +38,13 @@ const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
 // it is the honest thing to render if a future edit ever empties the field again: a blank
 // date line reads as a page that failed to load, and the qualifier belongs welded to the
 // claim rather than styled smaller beside it.
-const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confirmed';
+//
+// **The start time joins it now that both are confirmed**, which is what the campaign
+// artwork does and what somebody actually wants from one line. It is composed rather than
+// stored as a third field, so there is still exactly one place a date lives.
+const dateLine = race.date
+  ? `${race.date}${race.startTime ? ` · ${race.startTime}` : ''}`
+  : 'Halloween weekend 2026 — exact date to be confirmed';
 ---
 
 <Base
@@ -73,11 +79,38 @@ const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confi
 
       <p class="nn-dateline">{dateLine}</p>
 
+      {
+        /* **The three answers somebody wants before they read a sentence.** A real list,
+        because that is what it is, with the bullets taken off — a screen reader still says
+        "list, three items" and gets the same summary a sighted reader gets from the row.
+
+        The mockup has a fourth item here, a live "238 of 250 places remaining" bar. That
+        is demo data; how many places are *left* belongs to the entries application, and it
+        would be wrong within a day of anybody entering. How big the race is does not
+        change, so that is what this says. */
+      }
+      <ul class="nn-facts">
+        <li>{race.distance}</li>
+        <li>{race.places} places</li>
+        <li>Fancy dress encouraged</li>
+      </ul>
+
       <p class="lede">
         The club is putting on this race again. The date is settled and the course has not
         got any kinder — what is not settled is what it costs and when entries open. Leave
         your name and the club will email you once, when they do.
       </p>
+
+      {
+        /* **The loud button is the one this site can actually honour.** The mockup's is
+        "Enter the race — from £15", which is a price nobody has confirmed attached to a
+        payment flow that does not exist. Registering interest is the whole of what this
+        page does, so it is the whole of what the primary control offers. */
+      }
+      <div class="nn-herobtns">
+        <a class="nn-cta" href="#register">Register your interest</a>
+        <a class="nn-ghost" href="/nn/race-day/">Race-day plan</a>
+      </div>
 
       <NnNav />
     </div>
@@ -128,6 +161,38 @@ const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confi
       <dt>ARC permit</dt>
       <dd>{orTbc(race.permit)}</dd>
     </dl>
+
+    {
+      /* **A summary that ends in a link, not a second copy of the course page.** Four
+      things somebody should know before they leave their name, and then the page that
+      says the rest. The mockup has a fifth line here — "Minimum age 18 on race day" —
+      which is inferred from the prize categories rather than stated as a rule anywhere,
+      and is still an open decision. It is not here, and it is not softened into "18+
+      probably" either. */
+    }
+    <div class="nn-card nn-prose">
+      <h2>Know what you are in for</h2>
+
+      <ul class="nn-arrows">
+        <li>
+          A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
+          <strong>Trail shoes recommended</strong>, road shoes acceptable.
+        </li>
+        <li><strong>No headphones of any type during the race.</strong></li>
+        <li>
+          One water station on the route, one at the finish, and marshals throughout.
+        </li>
+        <li>
+          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
+          together at 10:30, so there is nothing to find on your own.
+        </li>
+      </ul>
+
+      <p>
+        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
+        <a href="/nn/race-day/">the whole running order for the day</a>.
+      </p>
+    </div>
 
     <h2 id="register">Register your interest</h2>
 

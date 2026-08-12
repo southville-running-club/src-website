@@ -72,6 +72,37 @@
  *   blood on card            schedule / prize term 9.01:1    4.5 (AA)     ok — new
  *   card-muted on card       row separator         1.12:1    —            see below
  *
+ * Added by the richer layout — the fact chips, the buttons, the prize grid and the panel:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            hero fact chips       8.43:1    4.5 (AA)     ok
+ *   bone border on blood     ghost button edge     8.43:1    3.0 (1.4.11) ok
+ *   ink on pus               primary button        10.93:1   4.5 (AA)     ok
+ *   ink on card-muted        prize tile category   16.12:1   4.5 (AA)     ok
+ *   slate on card-muted      prize tile detail      7.40:1   4.5 (AA)     ok — new
+ *   ink on pus               fancy-dress tile      10.93:1   4.5 (AA)     ok
+ *   blood on card            arrow bullet marker    9.01:1   3.0          ok
+ *   bone on aubergine        panel text            14.51:1   4.5 (AA)     ok
+ *   pus on aubergine         panel accent line      9.37:1   4.5 (AA)     ok — new
+ *   aubergine on blood       panel fill vs page     1.72:1   —            see below
+ *   aubergine on blood-deep  panel fill, page foot  1.14:1   —            see below
+ *   rule on aubergine        panel edge, page top   3.78:1   3.0 (1.4.11) ok — new
+ *   rule on aubergine        panel edge, page foot  3.04:1   3.0 (1.4.11) ok — new
+ *   plum on aubergine        rejected               2.31:1   4.5 (AA)     *** fails ***
+ *
+ * **`plum` on `aubergine` is 2.31:1 and is not used anywhere.** It is recorded because the
+ * theme carries `--nn-plum` as a secondary accent and the call-to-action panel is the
+ * obvious place to spend it. It fails, and badly. The number is more use here than the
+ * idea is.
+ *
+ * **The panel's fill is 1.72:1 against the page and it stays that way**, for the reason
+ * the row separator does: it groups, it identifies nothing, and everything inside it is at
+ * 9.37:1 or better. What was *not* acceptable was leaving it edgeless — at the foot of a
+ * scrolling page the gradient is `blood-deep` and the fill is 1.14:1 against it, which is
+ * a panel nobody can see the shape of, in precisely the place it lives. The hairline fixes
+ * that from the side with the contrast to spare.
+ *
  * **`blood` on white is 9.01:1**, which is the only genuinely new text pair in this pass.
  * It sets the times down the left of the race-day schedule and the categories in the prize
  * list, in mono, as the mockup does — and unlike the mockup's `--danger`, it needed no
@@ -822,6 +853,335 @@ body.theme-nn {
 
 .theme-nn footer > :last-child {
   margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The hero's fact chips, and the two buttons under them
+ * -------------------------------------------------------------------------------------
+ * The three things somebody wants before they read a word of prose: how far, how many
+ * places, and whether they need a costume. Mono, because that is this theme's voice for a
+ * factual row, and `flex-wrap` so they stack rather than push at 320px.
+ *
+ * **The primary button says "Register your interest", not "Enter the race".** Entries are
+ * a separate application and this site links to nothing that takes money — so the loudest
+ * control on the page has to be the one thing it can actually deliver. The mockup's
+ * "Enter the race — from £15" is two blocked facts and a payment link in one button.
+ *
+ * The ghost button is a real 2px bone border at 8.43:1, well past the 3:1 that 1.4.11 asks
+ * of a control boundary — which matters here because, unlike the yellow one, its edge is
+ * the only thing identifying it as a control.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+  font-family: var(--nn-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--nn-bone);
+}
+
+.theme-nn .nn-herobtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.theme-nn .nn-cta,
+.theme-nn .nn-ghost {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: var(--nn-r-btn);
+  font-size: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.theme-nn .nn-cta {
+  border: 2px solid var(--nn-pus);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-weight: 700;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.theme-nn .nn-cta:hover {
+  transform: translateY(-2px);
+}
+
+.theme-nn .nn-ghost {
+  border: 2px solid var(--nn-bone);
+  background: transparent;
+  color: var(--nn-bone);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Arrow bullets
+ * -------------------------------------------------------------------------------------
+ * The mockup's list treatment, and it earns its keep: these are the four things somebody
+ * has to actually know, and a disc bullet reads as prose where an arrow reads as a
+ * checklist. The marker is `blood` on white at 9.01:1 — decorative, but there is no reason
+ * for it not to clear AA when the colour is free.
+ *
+ * `list-style: none` removes the semantics in some screen readers, so the arrow is a
+ * `::before` on a real `<li>` inside a real `<ul>` — the list stays a list, and the arrow
+ * is `aria-hidden` by being generated content, which is never announced.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-arrows {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-arrows li {
+  position: relative;
+  padding: 12px 0 12px 28px;
+  border-bottom: 1.5px solid var(--nn-card-muted);
+  font-size: 15px;
+}
+
+.theme-nn .nn-arrows li:first-child {
+  padding-top: 0;
+}
+
+.theme-nn .nn-arrows li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.theme-nn .nn-arrows li::before {
+  content: '→';
+  position: absolute;
+  top: 12px;
+  left: 0;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  color: var(--nn-blood);
+}
+
+.theme-nn .nn-arrows li:first-child::before {
+  top: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The prize grid
+ * -------------------------------------------------------------------------------------
+ * `auto-fit` with a 240px floor, so four prizes land as **two rows of two** rather than a
+ * row of three and an orphan — with no breakpoint written down and none to remember. The
+ * mockup has the orphan; four things in a three-wide grid always will.
+ *
+ * **`min(240px, 100%)` rather than a bare `240px`, and that is not a flourish.** A track
+ * floor larger than its container does not collapse — it overflows. Inside a card at 320px
+ * there are 232 pixels to play with, a bare `minmax(240px, 1fr)` would lay out a 240px
+ * column, and the page would scroll sideways. `min()` clamps the floor to the space that
+ * actually exists. This is the same failure the hands artwork caused once already, arriving
+ * by a different route.
+ *
+ * **The yellow tile is the fancy-dress prize, and that is a content decision rather than a
+ * decorative one.** This is a Halloween race; the costume prize is the thing that makes it
+ * this race rather than any other 10 km, and the campaign's one accent colour should be
+ * spent on the campaign's one distinctive fact. Which tile gets it is `highlight` in
+ * `race.json`, so the committee can move it without touching CSS.
+ *
+ * ink on pus is 10.93:1 and ink on card-muted is 16.12:1, so the highlight costs nothing.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-prizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
+.theme-nn .nn-prize {
+  padding: 16px;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card-muted);
+}
+
+.theme-nn .nn-prize-highlight {
+  background: var(--nn-pus);
+}
+
+.theme-nn .nn-prize dt {
+  margin-bottom: 6px;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-prize dd {
+  margin: 0;
+  font-size: 14px;
+  /* 7.40:1 on the muted tile — computed. The highlight tile overrides it below, because
+     slate on yellow is not a pair anybody checked and does not need to be. */
+  color: var(--nn-slate);
+}
+
+.theme-nn .nn-prize-highlight dd {
+  color: var(--nn-ink);
+}
+
+/* The medal, which is not a category — everybody gets one, so it is a note under the grid
+   rather than a fifth tile competing with the four that are won. */
+.theme-nn .nn-medal {
+  padding: 12px 16px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-card-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The call-to-action panel
+ * -------------------------------------------------------------------------------------
+ * The aubergine block at the foot of the three content pages. **Not on `/nn/`**, which
+ * already has the form on it — a panel whose only job is to scroll somebody back up to a
+ * form they have already passed is furniture, not a call to action. Course, race day and
+ * spectators are the pages that end with nothing to do, and this is what they end with.
+ *
+ * ## The border is doing real work, not tidying an edge
+ *
+ * aubergine on blood is **1.72:1**, and on `blood-deep` — which is where this panel
+ * actually sits, at the foot of a scrolling page — it is **1.14:1**. Left bare it would be
+ * a panel you cannot see the edge of, in exactly the position it occupies. The hairline is
+ * `--colour-rule`, this theme's existing bone-at-35%, and against the panel's own fill it
+ * reads **3.78:1** at the top of the gradient and **3.04:1** at the bottom. The edge is
+ * legible from the side that has the contrast to spare, which is how an edge works.
+ *
+ * The fill itself stays a flagged 1.72:1: it is a grouping device, everything inside it is
+ * a heading, a sentence and a button at 14.51:1 or better, and nothing about the content
+ * is lost if a reader cannot see where the panel stops.
+ *
+ * **plum on aubergine is 2.31:1 and is rejected.** The theme carries `--nn-plum` as a
+ * secondary accent and this is the obvious place to reach for it; it fails badly, and the
+ * next person to have the idea should find the number rather than the idea.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-panel {
+  margin: 34px 0 0;
+  padding: 32px 24px;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--nn-r-card);
+  background: var(--nn-aubergine);
+  color: var(--nn-bone);
+  text-align: center;
+}
+
+/* Nosifer, and allowed to be: this is a heading with no instruction in it. Nothing a
+   person has to act on is ever set in the display face — see the note at the head of the
+   file, and the schedule, which is not. */
+.theme-nn .nn-panel h2 {
+  margin: 0 0 12px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(20px, 4.5vw, 26px);
+  line-height: 1.7;
+}
+
+.theme-nn .nn-panel p {
+  margin: 0 auto 18px;
+  max-width: 34rem;
+  font-size: 15px;
+}
+
+/* 9.37:1 on the aubergine — computed, and the reason this line is allowed to be the one
+   coloured thing in the panel. */
+.theme-nn .nn-panel .nn-panel-note {
+  margin-bottom: 20px;
+  font-family: var(--nn-mono);
+  font-size: 13px;
+  color: var(--nn-pus);
+}
+
+.theme-nn .nn-panel .nn-cta {
+  /* The panel's focus ring: the card rule turns rings to ink, which would vanish here. */
+  --colour-accent: var(--nn-pus);
+}
+
+/* The panel is a card for focus purposes but is not `.nn-card`, so the ink ring rule does
+   not reach it — and yellow on aubergine is the right ring anyway. */
+.theme-nn .nn-panel :focus-visible {
+  outline-color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The view transition that is deliberately NOT here
+ * -------------------------------------------------------------------------------------
+ * Moving between the four pages with a cross-document view transition is the obvious next
+ * thing to add. Astro ships a `<ClientRouter />` that does it with a router; the browser
+ * does it natively with four lines of CSS and no JavaScript at all, which on a site whose
+ * whole argument is that it works with scripting off looks like the free win of the year.
+ *
+ * It was built, it worked, and it was taken out again.
+ * ------------------------------------------------------------------------------------- */
+
+/* **It is not here, and the four lines are written out so nobody re-derives them:**
+ *
+ *     @view-transition { navigation: auto; }
+ *     .theme-nn .nn-logo { view-transition-name: nn-logo; }
+ *
+ * That is all it takes, it costs no JavaScript, and **it breaks the sign-up form.**
+ *
+ * What was observed, in Chromium with scripting disabled: submit the form with a bad name,
+ * the Worker answers 422 by re-serving the page, and the error summary appears with a link
+ * to the offending field. Clicking that link does nothing. Playwright reports the element
+ * as "visible, enabled and stable" and then `<html> intercepts pointer events` — the
+ * signature of a full-viewport overlay sitting above the page, which is what the
+ * `::view-transition` pseudo-element tree is. It reproduced 5 times out of 5 with the rule
+ * in and passed 3 times out of 3 with it removed. The same test passes with scripting on,
+ * which is what makes this worth writing down rather than obvious.
+ *
+ * **The exact mechanism was not chased further, because the trade was already decided.**
+ * This site's headline property is that the form works with JavaScript disabled; that is
+ * the primary path, not a fallback. A decorative page transition that can swallow a click
+ * on that path — silently, with the person simply finding that nothing happens — is not
+ * something to ship and then scope around.
+ *
+ * `apps/main/tests/e2e/nn-signup.spec.ts`, "links from the summary to the field it is
+ * about", is the guard. It was written for a different reason and caught this one.
+ *
+ * If a future pass wants the effect: prove that test green, in the `no-javascript`
+ * project, several runs in a row, before believing it. */
+
+/* -------------------------------------------------------------------------------------
+ * Cards rising as they are scrolled to
+ * -------------------------------------------------------------------------------------
+ * **`transform` only, and deliberately no fade.** The obvious version of this animates
+ * opacity from 0, and the obvious version is a trap twice over: a browser that supports
+ * neither the `@supports` guard nor scroll timelines would leave the whole page invisible,
+ * and an accessibility check run against a page mid-scroll sees text at an opacity nobody
+ * computed a contrast ratio for. An 18px rise has neither failure mode — every word is at
+ * full contrast at every moment, including before the animation has run at all.
+ *
+ * `@supports` is still there, because `animation-timeline` is young enough that the
+ * fallback matters, and the fallback here is simply a page that does not move.
+ * ------------------------------------------------------------------------------------- */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .theme-nn .nn-prose,
+    .theme-nn .nn-panel {
+      animation: nn-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+
+@keyframes nn-rise {
+  from {
+    transform: translateY(18px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* -------------------------------------------------------------------------------------

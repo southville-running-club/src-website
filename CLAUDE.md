@@ -171,6 +171,13 @@ on a live hostname.
 **Detach background servers properly** — `nohup`, redirected streams, closed stdin. A child
 holding the terminal makes the parent never return.
 
+**A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
+no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
+click on the error summary's link — silently, so the person just finds that nothing happens.
+Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting *on*, which is
+what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the field it is
+about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
+
 ---
 
 ## What is not built yet
