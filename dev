@@ -45,6 +45,51 @@ ok()   { printf '    %s✓%s %s\n' "$GREEN" "$RESET" "$1"; }
 die()  { printf '\n%serror%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------------------
+# Prerequisites. `supabase`, `wrangler` and everything else this script calls are local
+# devDependencies invoked bare from npm scripts — npm puts platform/node_modules/.bin on
+# PATH for the duration of `npm run`, which only exists once `npm install` has been run
+# there. `./dev` is meant to be the single touch point, so it runs that install itself
+# rather than sending someone to a second command — but only node and npm themselves are
+# left for a human, since there is no safe way to install a language runtime for them.
+# ---------------------------------------------------------------------------------------
+check_prerequisites() {
+  step "Checking prerequisites"
+
+  command -v node >/dev/null 2>&1 || die "node is not installed. It is required to run
+    anything in platform/. Install it — nodejs.org, or a version manager such as nvm —
+    matching the version in platform/.nvmrc."
+
+  command -v npm >/dev/null 2>&1 || die "npm is not installed. It ships with node normally;
+    if node is present but npm is not, reinstall node from nodejs.org or your version
+    manager."
+
+  # A stale install is treated the same as a missing one. Comparing package-lock.json
+  # alone misses the case of a hand-edited package.json that nobody has run `npm install`
+  # against yet — an every-workspace `add a dependency` is exactly that — so the stamp is
+  # checked against every package.json in the workspace, not just the lockfile.
+  local stamp="$PLATFORM/node_modules/.dev-install-stamp"
+  local needs_install=0
+  [ -d "$PLATFORM/node_modules" ] || needs_install=1
+  [ -x "$PLATFORM/node_modules/.bin/supabase" ] || needs_install=1
+  [ -f "$stamp" ] || needs_install=1
+  if [ "$needs_install" -eq 0 ]; then
+    [ "$PLATFORM/package-lock.json" -nt "$stamp" ] && needs_install=1
+    find "$PLATFORM" -name package.json -not -path '*/node_modules/*' -newer "$stamp" \
+      2>/dev/null | grep -q . && needs_install=1
+  fi
+
+  if [ "$needs_install" -eq 1 ]; then
+    step "Installing dependencies"
+    (cd "$PLATFORM" && npm install >"$RUN_DIR/install.log" 2>&1) \
+      || { tail -30 "$RUN_DIR/install.log"; die "npm install failed — see $RUN_DIR/install.log"; }
+    touch "$stamp"
+    ok "dependencies installed"
+  fi
+
+  ok "node, npm and project dependencies are present"
+}
+
+# ---------------------------------------------------------------------------------------
 # Docker, and waiting for it properly
 # ---------------------------------------------------------------------------------------
 ensure_docker() {
@@ -307,6 +352,12 @@ usage() {
 }
 
 case "${1:-up}" in
+  -h|--help|help) usage 0 ;;
+esac
+
+check_prerequisites
+
+case "${1:-up}" in
   up)     cmd_up ;;
   test)   shift; cmd_test "$@" ;;
   check)  cmd_check ;;
@@ -314,6 +365,5 @@ case "${1:-up}" in
   reset)  cmd_reset ;;
   down)   cmd_down ;;
   logs)   cmd_logs ;;
-  -h|--help|help) usage 0 ;;
   *)      printf '%sUnknown command:%s %s\n' "$RED" "$RESET" "$1" >&2; usage 1 ;;
 esac
