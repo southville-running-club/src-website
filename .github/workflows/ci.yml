@@ -1,7 +1,14 @@
 name: CI
 
-# Every pull request, and every push to main. All gates must pass before review is
-# meaningful — the other volunteer reading a diff should be reading a diff that works.
+# Every pull request. All gates must pass before review is meaningful — the other
+# volunteer reading a diff should be reading a diff that works.
+#
+# Not on push to main: branch protection requires this check to pass against an
+# up-to-date branch before a pull request can merge, so the code landing on main has
+# already run this suite against exactly what main becomes. Running it a second time
+# after the merge would test nothing new — deploying and checking the deployment are
+# `smoke.yml` and `deploy-db.yml`'s jobs, and both already trigger on push to main
+# independently of this workflow.
 #
 # The whole stack comes up here: `supabase start` runs in Actions, so this pipeline tests
 # against a **real Postgres** rather than a substitute. That matters because there is no
@@ -12,8 +19,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
