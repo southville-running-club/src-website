@@ -12,6 +12,8 @@
 #                   --keep-up leaves the site running afterwards
 #   ./dev check     lint, types, unit and database tests — no browsers, no builds
 #   ./dev smoke     the seven live-site assertions, against localhost
+#                   --live checks the deployed site at new.southvillerunningclub.co.uk
+#                   instead — the same check smoke.yml runs after every push to main
 #   ./dev reset     rebuild the database from migrations and re-seed
 #   ./dev down      stop the Workers and the database
 #   ./dev logs      tail the running Workers
@@ -317,6 +319,14 @@ cmd_check() {
 }
 
 cmd_smoke() {
+  if [ "${1:-}" = "--live" ]; then
+    step "Smoke testing the live site"
+    info "https://new.southvillerunningclub.co.uk — up to five minutes, retrying while a"
+    info "just-merged deploy catches up"
+    (cd "$PLATFORM" && npm run smoke)
+    return
+  fi
+
   port_is_serving "$SITE/" || die "the site is not running. ./dev up first."
   (cd "$PLATFORM" && npm run smoke -- --local)
 }
@@ -361,7 +371,7 @@ case "${1:-up}" in
   up)     cmd_up ;;
   test)   shift; cmd_test "$@" ;;
   check)  cmd_check ;;
-  smoke)  cmd_smoke ;;
+  smoke)  shift; cmd_smoke "$@" ;;
   reset)  cmd_reset ;;
   down)   cmd_down ;;
   logs)   cmd_logs ;;
