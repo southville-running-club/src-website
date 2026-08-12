@@ -4,22 +4,69 @@ Static Astro plus one Worker, serving `new.southvillerunningclub.co.uk`. At the 
 cutover the hostname changes and nothing else does —
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
-A holding page saying a new site is coming, the race page at `/nn/` with **a sign-up form**
-and a timestamp fetched from Postgres by the Worker while it serves the request, and the
-privacy notice that form is required to have.
+A holding page saying a new site is coming, **five Nightingale Nightmare pages** — the race
+page and its sign-up form, three content pages, and the privacy notice that form is required
+to have — and a timestamp fetched from Postgres by the Worker while it serves the request.
 
 ## Layout
 
 ```
-src/content/race.json      Race facts and privacy specifics as data. Every one is null
-src/pages/index.astro      The holding page — new.<apex>/
-src/pages/nn/index.astro   Nightingale Nightmare, and the sign-up form
-src/pages/nn/privacy.astro What the club does with a sign-up
+src/content/race.json          Every race fact, as data. See below
+src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
+src/layouts/Base.astro         The document, and the optional `theme` prop
+src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
-worker/routing.ts          Which paths belong to whom. Pure and tested
-worker/index.ts            Forward /timing locally, take the POST, fill in the timestamp
-worker/nn-signup.ts        Validate a sign-up, record it, and render the outcome
+src/pages/nn/index.astro       Nightingale Nightmare, the facts, and the sign-up form
+src/pages/nn/course.astro      Course and terrain
+src/pages/nn/race-day.astro    Race day — HQ, the morning in order, prizes
+src/pages/nn/spectators.astro  Watching the race
+src/pages/nn/privacy.astro     What the club does with a sign-up
+worker/routing.ts              Which paths belong to whom. Pure and tested
+worker/index.ts                Forward /timing locally, take the POST, fill in the timestamp
+worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
 ```
+
+## The routes
+
+| | |
+| --- | --- |
+| `/nn/` | The race, the facts, and the sign-up form. **The only one the Worker does anything to** — it takes the POST here and reveals the acknowledgement on `?signup=ok` |
+| `/nn/course/` | Course and terrain |
+| `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
+| `/nn/spectators/` | Watching the race — where to stand, where to park |
+| `/nn/privacy/` | What the club does with a sign-up |
+
+The first four carry `src/components/NnNav.astro`, which links them and marks the current
+one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
+rather than taking a prop**, because a prop is a second place to state the same thing and a
+page that passes the wrong one renders a nav that lies with no other symptom.
+
+`/nn/privacy/` is deliberately outside that nav: it is a legal notice reached from the form,
+it has no entry in the four, and a nav with nothing marked current is worse than no nav.
+
+## Where race facts live
+
+**`src/content/race.json` holds every fact, and the pages hold none of them.** Prose is the
+page's; a value is the file's — a date, a time, a distance, an address, a postcode, a count,
+a schedule row, a prize category. The committee edits one file.
+
+**It was tested by exactly the thing it was built for.** The race date was confirmed on
+12 August 2026, and landing it was a one-line edit with **no change to any page**: the date
+line, the facts list and three content pages all picked it up without a line of markup
+moving.
+
+**A `null` is a fact nobody has confirmed, and it renders as "To be confirmed"** rather than
+as a blank or an invention. Three still are, and each for a different reason:
+
+| | |
+| --- | --- |
+| `price`, `entriesOpen` | **The entries application's, not this site's.** So are the transfer deadline and live capacity, which is why there is no field for either. This site does not quote a figure it does not own |
+| `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
+| `privacy.*` | The controller, the removal address and the retention period. A wrong answer on that page is a legal claim rather than a typo |
+
+**The page copy is a draft pending committee approval.** It is written to be edited, not
+decided on their behalf — see [the phases](../../../docs/delivery/phases.md#what-the-race-pages-still-need-from-the-committee)
+for that and for the six questions the draft could not answer.
 
 ## The sign-up form
 

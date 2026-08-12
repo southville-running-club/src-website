@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import NnNav from '../../components/NnNav.astro';
 import race from '../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
@@ -8,11 +9,16 @@ import '@src/shared/styles/nn-theme.css';
 
 // Still says nothing about the race that nobody has confirmed.
 //
-// The date is unconfirmed, the price is unconfirmed, and the copy is the committee's to
-// write. Inventing any of them here is a "stop and ask" trigger, not a placeholder — so
-// every one of them lives in `src/content/race.json` as `null` and renders below as "To be
-// confirmed". **Confirming a fact is then an edit to one line of one file**, not a search
-// through markup, which is the property that makes an unconfirmed date safe to build on.
+// **The date arrived, and it arrived as a one-line edit to `src/content/race.json` with no
+// change to this file at all.** That was the property the arrangement was built for and it
+// is worth recording that it held: `race.date` and `race.startTime` went from `null` to
+// values, and the date line, the facts list below and three new pages picked them up
+// without a line of markup moving.
+//
+// What is still `null` is still genuinely undecided rather than merely unwritten — the
+// entry fee and the opening date belong to the entries application and this site does not
+// quote figures it does not own, and the 2026 ARC permit number has not been issued.
+// Inventing any of them here is a "stop and ask" trigger, not a placeholder.
 //
 // See docs/architecture/principles.md#stop-and-ask
 
@@ -25,13 +31,13 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
 // what somebody deciding whether to come back next week actually needs to know.
 const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
 
-// **The one sentence about when this race happens, and it is driven by the same `null`.**
+// **The one sentence about when this race happens.**
 //
-// "Halloween weekend 2026" is as much as the committee has settled, and it is supplied
-// rather than inferred — a phase document mentioning a month is not the committee saying
-// one. It is a single string on purpose: the qualifier is not a footnote to be styled
-// smaller or dropped in a redesign, because the first half on its own is a promise about a
-// date nobody has fixed. The moment `race.date` is filled in, this whole line becomes it.
+// It is now `race.date` — Sunday 1 November 2026, settled by the club's published campaign
+// artwork and confirmed by the maintainer. The fallback stays because it costs one `??` and
+// it is the honest thing to render if a future edit ever empties the field again: a blank
+// date line reads as a page that failed to load, and the qualifier belongs welded to the
+// claim rather than styled smaller beside it.
 const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confirmed';
 ---
 
@@ -68,10 +74,12 @@ const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confi
       <p class="nn-dateline">{dateLine}</p>
 
       <p class="lede">
-        The club is putting on this race again, and this page is where it is being built.
-        The details below are not settled yet — leave your name and the club will email
-        you once, when entries open.
+        The club is putting on this race again. The date is settled and the course has not
+        got any kinder — what is not settled is what it costs and when entries open. Leave
+        your name and the club will email you once, when they do.
       </p>
+
+      <NnNav />
     </div>
   </header>
 
@@ -93,14 +101,32 @@ const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confi
       <dt>Distance</dt>
       <dd>{orTbc(race.distance)}</dd>
 
-      <dt>Location</dt>
+      <dt>Race HQ</dt>
       <dd>{orTbc(race.location)}</dd>
+
+      {
+        /* **The field size, not how much of it is left.** The mockup carries a live
+        "238 of 250 places remaining" counter and a bar to go with it; both are demo data,
+        and remaining capacity is the entries application's to know and to answer for. 250
+        is how big the race is, which does not change during the week somebody is deciding
+        whether to come. */
+      }
+      <dt>Field size</dt>
+      <dd>{race.places} places</dd>
 
       <dt>Entry fee</dt>
       <dd>{orTbc(race.price)}</dd>
 
       <dt>Entries open</dt>
       <dd>{orTbc(race.entriesOpen)}</dd>
+
+      {
+        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
+        on record and it belongs to the 2023 race; putting it here would be a claim that
+        this year's race is permitted, which is a different sort of wrong from a typo. */
+      }
+      <dt>ARC permit</dt>
+      <dd>{orTbc(race.permit)}</dd>
     </dl>
 
     <h2 id="register">Register your interest</h2>
@@ -311,8 +337,11 @@ const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confi
 
     <footer>
       <p>
-        Southville Running Club. Race details will be published once the committee has
-        confirmed them.
+        Southville Running Club. Anything above reading "to be confirmed" is with the
+        committee, and this page is updated when it is settled.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
       </p>
       <p>
         <a href="/nn/privacy/">What the club does with your details</a>

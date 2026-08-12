@@ -62,6 +62,43 @@
  *   field border on card     input boundary        3.23:1    3.0 (1.4.11) corrected
  *   pus on card              button fill on white  1.65:1    —            see below
  *
+ * Added by the content pages — the navigation, the schedule and the fog:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            nav link, resting     8.43:1    4.5 (AA)     ok
+ *   pus on blood             nav link, current     5.44:1    4.5 (AA)     ok
+ *   pus on blood             the rule beneath it   5.44:1    3.0 (1.4.11) ok
+ *   blood on card            schedule / prize term 9.01:1    4.5 (AA)     ok — new
+ *   card-muted on card       row separator         1.12:1    —            see below
+ *
+ * **`blood` on white is 9.01:1**, which is the only genuinely new text pair in this pass.
+ * It sets the times down the left of the race-day schedule and the categories in the prize
+ * list, in mono, as the mockup does — and unlike the mockup's `--danger`, it needed no
+ * correction to get there.
+ *
+ * **The row separator is 1.12:1 and stays that way.** It is the same `card-muted` hairline
+ * already ruling the privacy notice's headings. 1.4.11 asks 3:1 of a graphical object
+ * *required to understand the content*; a schedule reads identically with the lines removed
+ * because the grouping is carried by the `<dl>` itself and by the mono time at the head of
+ * each row. Making it a 3:1 rule would draw six dark lines across a white card to restate
+ * something the markup already says. Flagged rather than silently kept.
+ *
+ * ## The fog, and why it darkens
+ *
+ * The hero carries a slow two-blob wash of `blood-deep` at 30% over the gradient. **It can
+ * only darken**, so every pair above improves rather than degrades: at the fog's densest
+ * point the hero background is `#80170d`, where bone reads **9.60:1** and pus **6.20:1**
+ * against the 8.43:1 and 5.44:1 recorded for bare `blood`. **The worst case in this table
+ * is therefore still bare `blood`, unchanged by the flourish**, which is the property that
+ * made this version of it the one to ship.
+ *
+ * A *lightening* fog was the first attempt and was abandoned on the arithmetic: bone over
+ * blood with a 10% bone wash is 6.92:1 and pus is **4.47:1 — a real AA failure** on the
+ * date line, from an effect nobody would have noticed was there. The numbers are kept here
+ * because the next person to reach for atmosphere on this page will reach for the same
+ * thing first.
+ *
  * **pus on blood is 5.44:1**, so the date line clears AA at any size — its size is a design
  * choice rather than a contrast constraint. The mockup's assumption that yellow-on-red was
  * large-text-only turns out to be more cautious than it needed to be.
@@ -250,9 +287,21 @@ body.theme-nn {
 
 /* -------------------------------------------------------------------------------------
  * The hero
+ * -------------------------------------------------------------------------------------
+ * `position: relative` and the stacking of the wrap above it are both here for the fog —
+ * see the fog section below. The bottom padding is not decoration: the navigation is the
+ * last thing in the hero, and a focus ring is drawn 2px outside the element it belongs to.
+ * Without room for it, the ring on the last nav link would sit on the boundary.
  * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-hero {
+  position: relative;
   padding-top: 40px;
+  padding-bottom: 14px;
+}
+
+.theme-nn .nn-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* The club's wordmark, where the mockup sets the name in bold type. It is supplied as a
@@ -307,13 +356,15 @@ body.theme-nn {
   line-height: 1.75;
 }
 
-/* **The only date wording on this site.** It is one string on purpose — the qualifier is
-   not a footnote to be styled away from the claim, because "Halloween weekend 2026" on its
-   own would be a promise the committee has not made.
+/* **The date, and the only place on this site it is set in the display face.** It reads
+   "Sunday 1 November 2026" now that the date is confirmed; before that it was a whole
+   sentence carrying its own qualifier, because "Halloween weekend 2026" on its own would
+   have been a promise the committee had not made.
 
-   Which is also why the leading is 2 rather than the mockup's 1.7. The mockup's badge is a
-   confirmed date on one line; this is a sentence, and it wraps to two lines on a laptop and
-   three on a phone, where 1.7 leaves the drips falling through the line below. */
+   **The generous leading is kept even though the string got shorter.** The mockup's badge
+   is one line at every width; this one still wraps on a narrow phone, where 1.7 leaves the
+   face's drips falling through the line below — and if the committee ever moves the date to
+   something longer, the rule should not have to be rediscovered. */
 .theme-nn .nn-dateline {
   margin: 0 0 22px;
   font-family: var(--nn-display);
@@ -330,6 +381,56 @@ body.theme-nn {
   font-size: 18px;
   line-height: 1.6;
   color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The navigation
+ * -------------------------------------------------------------------------------------
+ * Four links, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
+ * the four labels and their gaps come to about 300px, so on a 320px screen (280px inside
+ * the column's padding) the row breaks itself in two and needs nobody to have predicted
+ * the width at which it would.
+ *
+ * **The resting links keep their underline**, which is the rule the rest of this file
+ * follows: bone on bone is a shade rather than a signal, and a nav that drops the underline
+ * is relying on position alone to say these are links.
+ *
+ * **The current page is marked three ways and colour is not one of them on its own** —
+ * `aria-current="page"` for anything reading the markup, 700 weight, and a solid pus rule
+ * beneath it. It is the one item *without* a text underline, so the two states differ in
+ * shape as well as in colour. Somebody who cannot separate the yellow from the cream still
+ * has the weight and the rule.
+ *
+ * Targets are ~34px tall against WCAG 2.2's 24px floor, and 18px apart.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-nav {
+  margin-top: 20px;
+}
+
+.theme-nn .nn-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-nav a {
+  display: inline-block;
+  padding: 8px 0;
+  border-bottom: 3px solid transparent;
+  color: var(--nn-bone);
+  font-size: 15px;
+  font-weight: 600;
+  text-underline-offset: 0.15em;
+}
+
+.theme-nn .nn-nav a[aria-current='page'] {
+  border-bottom-color: var(--nn-pus);
+  color: var(--nn-pus);
+  font-weight: 700;
+  text-decoration: none;
 }
 
 /* -------------------------------------------------------------------------------------
@@ -462,6 +563,75 @@ body.theme-nn {
 .theme-nn .nn-prose ul {
   margin: 0 0 1rem;
   padding-left: 1.25rem;
+}
+
+/* Inline mono, for the one postcode that is read off a screen and typed into a car.
+   `0.9em` for the same reason `.nn-card code` has it: JetBrains Mono sets optically larger
+   than Inter at a matched pixel size, and an unsized mono run in a paragraph reads as
+   emphasis nobody meant. `nowrap` so a postcode never breaks across two lines. */
+.theme-nn .nn-mono {
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The schedule, and the prize list
+ * -------------------------------------------------------------------------------------
+ * Both are a `<dl>` of short term and longer detail, so both get the same treatment. On a
+ * white card, in Inter, at full contrast — **the race-day schedule is the one thing on
+ * this site somebody reads outdoors in November while working out whether they are late**,
+ * and the display face gets nowhere near it.
+ *
+ * **`flex-wrap` again, and again with no breakpoint.** The term holds an 82px column and
+ * the detail asks for 160px; below about 256px of usable width the detail cannot have its
+ * basis and drops to a row of its own, which is the stacked layout a 320px screen wants.
+ * Nothing had to guess where that happens — flexbox works it out from the content.
+ *
+ * The `<div>` wrapping each pair is valid inside a `<dl>` and is what makes a pair a flex
+ * row at all. Axe allows it; a `<dl>` of loose `<dt>`/`<dd>` siblings could not do this
+ * without a subgrid.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-schedule {
+  margin: 0 0 1rem;
+}
+
+.theme-nn .nn-schedule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 12px 0;
+  /* 1.12:1, and decorative — see the contrast note at the head of this file. */
+  border-bottom: 1.5px solid var(--nn-card-muted);
+}
+
+.theme-nn .nn-schedule-row:first-child {
+  padding-top: 0;
+}
+
+.theme-nn .nn-schedule-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.theme-nn .nn-schedule dt {
+  flex: 0 0 82px;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.7;
+  /* 9.01:1 on the card — computed, not assumed. */
+  color: var(--nn-blood);
+}
+
+.theme-nn .nn-schedule dd {
+  flex: 1 1 160px;
+  /* So a long word shrinks the flex item rather than pushing the card sideways. */
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  overflow-wrap: break-word;
 }
 
 /* -------------------------------------------------------------------------------------
@@ -699,9 +869,73 @@ body.theme-nn {
 }
 
 /* -------------------------------------------------------------------------------------
+ * The fog
+ * -------------------------------------------------------------------------------------
+ * Two soft blobs of `blood-deep` drifting across the hero over a minute and a half. The
+ * whole of the atmosphere this pass adds, and it is deliberately the only new motion.
+ *
+ * **It darkens.** The arithmetic is at the head of this file and it is the reason this is
+ * the version that shipped: a wash that lightens the red erodes every contrast pair the
+ * page has, and at 10% it puts the date line at 4.47:1, which is a failure. A wash that
+ * darkens can only improve them, so the worst case on this page is still bare `blood` and
+ * the recorded table needs no second column for "while the fog is over it".
+ *
+ * **It is `background-position` rather than `transform`, and that is what keeps it safe at
+ * 320px.** A transformed pseudo-element has to be bigger than its parent to have anywhere
+ * to move to, which means `overflow: hidden` on the hero and a clipped focus ring on the
+ * last nav link. A moving background paints inside the element's own box: `inset: 0` and
+ * it cannot reach past the hero, so there is nothing to clip and nothing that can make a
+ * phone scroll sideways. That failure mode has already cost this page once — see the note
+ * on the hands artwork.
+ *
+ * **The cost of that choice is real and is paid knowingly**: a moving background repaints
+ * where a moving transform would only composite, and an editor will say so. Over 90
+ * seconds, on one hero-sized box, on an animation browsers throttle the moment it is
+ * scrolled out of view, it is worth paying to remove a class of layout bug that has
+ * already broken this page once at 320px.
+ *
+ * It carries no meaning, sits under `aria-hidden`-equivalent treatment by being a
+ * pseudo-element with no content, moves no text, and never flashes: 90 seconds,
+ * `alternate`, and two colours three shades apart.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(45% 65% at 20% 35%, var(--nn-blood-deep) 0%, transparent 72%),
+    radial-gradient(38% 55% at 75% 70%, var(--nn-blood-deep) 0%, transparent 72%);
+  background-size: 160% 160%;
+  opacity: 0.3;
+  pointer-events: none;
+  animation: nn-fog 90s ease-in-out infinite alternate;
+}
+
+@keyframes nn-fog {
+  from {
+    background-position:
+      0% 40%,
+      100% 60%;
+  }
+
+  to {
+    background-position:
+      40% 60%,
+      60% 40%;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
  * Reduced motion
  * -------------------------------------------------------------------------------------
- * The button's lift is the only motion on these pages, and it is the first thing to go.
+ * The button's lift and the hero fog are the only motion on these pages, and both are the
+ * first thing to go.
+ *
+ * **The fog stops rather than disappears.** It is a static wash at the same 30%, so a
+ * reader who has asked for no motion gets the same page in the same colours — which is
+ * what "no motion" asked for, rather than a different-looking page as a punishment for
+ * having a preference set.
  * ------------------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .theme-nn .button {
@@ -710,5 +944,9 @@ body.theme-nn {
 
   .theme-nn .button:hover {
     transform: none;
+  }
+
+  .theme-nn .nn-hero::before {
+    animation: none;
   }
 }

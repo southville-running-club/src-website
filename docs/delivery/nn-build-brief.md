@@ -130,9 +130,12 @@ platform/apps/main/            Built, including the sign-up form
 
 *CI lives at the repository root, not per app.*
 
-**`src/content/race.json` is load-bearing.** The race date is unconfirmed, so every fact
-that might change — date, time, distance, price, location — lives in one file as data.
-Changing the date must be a one-line edit, not a search through markup.
+**`src/content/race.json` is load-bearing**, and it has now been tested by the thing it was
+built for. Every fact that might change — date, time, distance, price, location, and since
+the content pages the schedule, the prizes and the spectating points — lives in one file as
+data. When the date was confirmed on 12 August 2026 it went in as **a one-line edit with no
+change to any page**: the date line, the facts list and three new pages all picked it up
+without a line of markup moving. That is the property, and it held.
 
 ---
 
@@ -290,8 +293,9 @@ and flag it.
 
 | | Status |
 | --- | --- |
-| **Race date** | Unconfirmed — 31 October or 1 November 2026. **The page is built to read correctly without one**: every race fact lives in `apps/main/src/content/race.json` as `null` and renders as "To be confirmed", so confirming one is a one-line edit |
-| **Page copy** | Committee's to write |
+| ~~**Race date**~~ | **Confirmed 12 August 2026 — Sunday 1 November 2026, start 11:00.** Settled by the club's published campaign artwork. It went in as the one-line edit this row predicted, with no change to any page |
+| **2026 ARC permit number** | **Not yet issued**, and now the only race fact outstanding. `race.permit` is `null` and renders as "To be confirmed". **The 2023 number is not a stand-in for it** |
+| **Page copy** | **Committee's to write, and still is.** The four Nightingale Nightmare pages now carry a draft written to be edited rather than a decision taken on the committee's behalf. Six questions the draft could not answer are listed under [what the race pages still need](phases.md#what-the-race-pages-still-need-from-the-committee) |
 | **Entry price** | Assumed £8–£10, unconfirmed, and not needed for v1 |
 | **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md), migrated, and **now reachable**: the column-scoped grant, the anonymous-insert policy and the form all landed together, in the pull request that could test them |
 | **The privacy notice's specifics** | **Open, and blocking nothing.** The data controller's contact, the address to write to for removal, and the retention period are all `null` in `race.json` and render as "To be confirmed" on `/nn/privacy/`. Inventing any of them would be a legal claim nobody authorised |

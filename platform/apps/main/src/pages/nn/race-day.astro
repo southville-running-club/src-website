@@ -1,0 +1,148 @@
+---
+import Base from '../../layouts/Base.astro';
+import NnNav from '../../components/NnNav.astro';
+import race from '../../content/race.json';
+
+// The same event theme as the rest of Nightingale Nightmare — see
+// packages/shared/styles/nn-theme.css.
+//
+// **This is the page with the most horror on it and the least horror in it.** Everything
+// below the hero is a time, an address or an instruction, and every one of them is ink on
+// white in Inter. The schedule in particular is never set in the display face: somebody
+// reads it on a phone, outdoors, in November, deciding whether they are late.
+import '@src/shared/styles/nn-theme.css';
+
+// The times, the address and the prize categories are `race.json`'s rather than this
+// page's, for the reason the file exists: a committee correcting the briefing time should
+// edit one line of one file, not search four pages of markup for it.
+//
+// **What is deliberately absent is as considered as what is here.** The mockup this
+// campaign is drawn from carries an entry price, a transfer deadline, an entry-opening
+// time and a live places-remaining counter. All four belong to the entries application,
+// which is a separate piece of work; this site does not quote figures it does not own. It
+// also carries "clocks change the night before", which was true in 2023 and is false for
+// 2026 — the clocks go back on 25 October and this race is a week later, in GMT.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
+---
+
+<Base
+  title="Race day — Nightingale Nightmare"
+  description="Where Nightingale Nightmare starts from, when everything happens on the day, and what is at race HQ."
+  canonical={canonical}
+  theme="nn"
+>
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      {
+        /* The club's wordmark, as on every Nightingale Nightmare page — see the note on the
+      race page. */
+      }
+      <img
+        class="nn-logo"
+        src="/logo.svg"
+        alt="Southville Running Club"
+        width="176"
+        height="54"
+      />
+
+      <h1>Race day</h1>
+
+      <NnNav />
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      <p class="lede">
+        {race.date}. The race starts at {race.startTime}, and the morning before it has
+        rather more in it than that.
+      </p>
+
+      <h2>Race HQ</h2>
+
+      <p><strong>{race.location}</strong></p>
+
+      <p>
+        Everything that is not the race itself happens here: registration, the briefing,
+        your bag, and the cake afterwards. There is <strong>free parking on site</strong>,
+        along with toilets, shelter, bag drop and somewhere to change.
+      </p>
+
+      <p>
+        <strong>Please lift-share if you can.</strong> There is no on-street parking for this
+        race — people live on those streets, and they did not enter it.
+      </p>
+
+      <h2>The morning, in order</h2>
+
+      {
+        /* A description list rather than a table: each row is one time and one thing, with
+        no second column of data to line up. It is also what degrades best at 320px, where a
+        two-column table either scrolls sideways or squeezes the words to one per line.
+
+        **The `<div>` around each pair is deliberate and is valid inside a `<dl>`.** It is
+        what lets a row be a grid — time in its own column, wrapping to a stacked row on a
+        narrow screen — without the two halves of a pair drifting apart in the markup. */
+      }
+      <dl class="nn-schedule">
+        {
+          race.schedule.map(({ time, what }) => (
+            <div class="nn-schedule-row">
+              <dt>{time}</dt>
+              <dd>{what}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <p>
+        <strong>The start and the finish are not at HQ.</strong> That is why the walk down is
+        on the list rather than left to you — go with everybody else at 10:30 and you cannot
+        get it wrong. There is a bag drop at HQ and another one at the start.
+      </p>
+
+      <h2>Fancy dress</h2>
+
+      <p>
+        <strong>Strongly encouraged</strong>, and that goes for anyone who comes to watch
+        you as well. It is a Halloween race and it looks like one.
+      </p>
+
+      <h2>Prizes</h2>
+
+      <dl class="nn-schedule">
+        {
+          race.prizes.map(({ category, detail }) => (
+            <div class="nn-schedule-row">
+              <dt>{category}</dt>
+              <dd>{detail}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <p>
+        Prizegiving is at HQ once the last finisher is in. Standing around for it is the
+        polite thing to do and usually the more entertaining one.
+      </p>
+    </div>
+
+    <footer>
+      <p>
+        Southville Running Club. The full list of race facts, including anything still to
+        be confirmed, is on <a href="/nn/">the race page</a>.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the other Nightingale Nightmare pages, and empty for
+    the same reason — it is a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

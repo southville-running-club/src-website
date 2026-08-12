@@ -51,13 +51,39 @@ describe('Nightingale Nightmare', () => {
     );
   });
 
-  it('states no facts about the race', async () => {
-    // The date, price and distance are unconfirmed, and inventing one is a "stop and ask"
-    // trigger rather than a placeholder.
+  it('states the confirmed date, and none of what is still open', async () => {
+    // The date is confirmed — Sunday 1 November 2026 — and the entry fee, the opening date
+    // and the 2026 ARC permit number are not. Inventing one of those is a "stop and ask"
+    // trigger rather than a placeholder, which is why they are `null` in `race.json` and
+    // render as "To be confirmed" instead.
     const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
+    expect(page).toContain('Sunday 1 November 2026');
     expect(page).not.toMatch(/£\s?\d/);
-    expect(page).not.toMatch(/\b(October|November)\s+\d{1,2}\b/);
+  });
+
+  it.each(['/nn/course/', '/nn/race-day/', '/nn/spectators/'])(
+    'serves %s from the same build',
+    async (path) => {
+      const response = await SELF.fetch(`${SITE}${path}`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toContain('text/html');
+    },
+  );
+
+  it("keeps the event theme off the club's own pages", async () => {
+    // **The theme is imported by the pages that use it, never from `Base.astro`.** That is
+    // what stops 94 kB of horror webfonts reaching the holding page and the 404 — and it is
+    // the sort of thing a later "tidy up the imports" would undo without any page looking
+    // wrong. The navigation is scoped the same way, and for the same reason.
+    for (const path of ['/', '/404.html']) {
+      const page = await (await SELF.fetch(`${SITE}${path}`)).text();
+
+      expect(page).not.toContain('nn-theme');
+      expect(page).not.toContain('theme-nn');
+      expect(page).not.toContain('nn-nav');
+    }
   });
 });
 

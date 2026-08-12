@@ -15,8 +15,8 @@ below is labelled with the phase it belongs to, and the two documents describe t
 programme at different resolutions. **Procedures live in [the runbooks](runbooks/).**
 
 **Four dates are real.** **NN sign-ups and payment live ~22 August 2026.** **The timing app
-race-ready by mid-October.** **Race day 31 October / 1 November.** And **Squarespace renews
-automatically on 21 March 2027**; silence costs £204.
+race-ready by mid-October.** **Race day Sunday 1 November 2026, 11:00** — confirmed on
+12 August. And **Squarespace renews automatically on 21 March 2027**; silence costs £204.
 
 ---
 
@@ -64,12 +64,14 @@ automatically on 21 March 2027**; silence costs £204.
 
 *Needs step 6. Nothing else.*
 
-16. **Confirm the race date.** **Halloween weekend — 31 October or 1 November 2026.** *Not
-    yet exact, and it does not need to be: the page is built to read correctly without a
-    date, and every race fact lives in one file. **The clocks go back on Sunday 25
-    October**, so a Halloween-weekend race is safely the following weekend, in GMT — the
-    hazard the earlier "25 October or 1 November" wording was warning about is gone.
-    Timezone discipline still applies to anything spanning the change.*
+16. ~~**Confirm the race date.**~~ — **done, 12 August 2026: Sunday 1 November 2026, start
+    11:00.** Settled by the club's published campaign artwork. *It landed as a one-line edit
+    to `apps/main/src/content/race.json` with **no change to any page**, which is the
+    property the file was built for and is worth recording as having held. **The clocks go
+    back on Sunday 25 October**, so the race is the following weekend and runs in GMT.
+    Timezone discipline still applies to anything spanning the change.* **The 2026 ARC
+    permit number is the one race fact still outstanding** — `null`, rendering as "to be
+    confirmed", and not filled with 2023's.*
 17. ~~**Create `apps/nn` in this repository**~~ — **done differently: it lives at `/nn`
     inside `apps/main`**, per [ADR-006](../architecture/decisions/adr-006-apps-main-and-hostnames-as-code.md)
     and [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
@@ -83,13 +85,15 @@ automatically on 21 March 2027**; silence costs £204.
     timestamp. **Nothing else.** *Schema per
     [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
     confined to `intake`, which holds no membership data.*
-20. ~~**Build the page, the form and the privacy notice**~~ — **done.** The form takes
-    name, email and consent and nothing else; the privacy notice is at `/nn/privacy/`.
-    *Every race fact, and every privacy specific nobody has confirmed, lives in
-    `apps/main/src/content/race.json` as `null` and renders as "To be confirmed" — so
-    confirming the date is the one-line edit this step asked for.* **Two things are still
-    the committee's**: the [privacy specifics and the consent
-    decision](phases.md#two-things-the-sign-up-still-needs-from-the-committee).
+20. ~~**Build the page, the form and the privacy notice**~~ — **done**, and since extended
+    with the confirmed date and three content pages: `/nn/course/`, `/nn/race-day/` and
+    `/nn/spectators/`, with a four-item navigation across them. The form takes name, email
+    and consent and nothing else; the privacy notice is at `/nn/privacy/`. *Every race fact,
+    and every privacy specific nobody has confirmed, lives in
+    `apps/main/src/content/race.json` — confirmed ones as values, unconfirmed ones as `null`
+    rendering as "To be confirmed".* **The page copy is a draft pending committee approval**,
+    and the rest is [what the race pages still need from the
+    committee](phases.md#what-the-race-pages-still-need-from-the-committee).
 21. ~~**Test it properly**~~ — **done.** With JavaScript off in a third Playwright project,
     with a duplicate submission, with bad input, at 320 pixels, and with axe at zero
     violations. *The assertion that matters is the negative one: an anonymous client can
@@ -295,7 +299,9 @@ this removes, and volunteer time is the one measure still uncaptured.
 
 | | By |
 | --- | --- |
-| ~~The race date~~ | **Halloween weekend.** Exact day still to fix, and nothing waits on it *(step 16)* |
+| ~~The race date~~ | **Settled — Sunday 1 November 2026, 11:00**, confirmed 12 August *(step 16)* |
+| The 2026 ARC permit number | Not yet issued. The one race fact still outstanding *(step 16)* |
+| The Nightingale Nightmare page copy | **Committee's to approve.** What is on the site is a draft written to be edited *(step 20)* |
 | NN 2026 entries: own site or Full On Sport | End of August *(step 22)* |
 | Card or Direct Debit | Before anyone is asked to move *(step 42)* |
 | ~~A second mailbox~~ | **Answered** — five are included at no extra cost |

@@ -1,0 +1,47 @@
+---
+// The navigation across the four Nightingale Nightmare pages.
+//
+// **The smallest thing that works.** Four links in a list, no JavaScript, no dropdown and
+// no hamburger — at four items a menu that has to be opened is more machinery than the
+// thing it hides. It wraps to two rows at 320px and that is the whole of its responsive
+// behaviour.
+//
+// ## Why the current page is derived rather than passed in
+//
+// A `current` prop would be a second place to state which page this is, and the failure it
+// invites is silent: a page that passes the wrong one renders a nav that lies about where
+// you are, and nothing catches it but a person noticing. `Astro.url.pathname` is already
+// the answer, so it is the one used. The trailing slash is normalised because
+// `trailingSlash: 'always'` makes `/nn/course/` the only real address and a mismatch here
+// would simply drop `aria-current` with no other symptom.
+//
+// ## `aria-current="page"`, and why the styling does not stand in for it
+//
+// The yellow and the underline say "you are here" to somebody looking at it. `aria-current`
+// says it to somebody who is not, and it is the attribute — not the colour — that assistive
+// technology reads. Both are present because neither covers the other's reader.
+const links = [
+  { href: '/nn/', label: 'Race' },
+  { href: '/nn/course/', label: 'Course' },
+  { href: '/nn/race-day/', label: 'Race day' },
+  { href: '/nn/spectators/', label: 'Spectators' },
+] as const;
+
+const path = Astro.url.pathname.endsWith('/')
+  ? Astro.url.pathname
+  : `${Astro.url.pathname}/`;
+---
+
+<nav class="nn-nav" aria-label="Nightingale Nightmare">
+  <ul>
+    {
+      links.map(({ href, label }) => (
+        <li>
+          <a href={href} aria-current={href === path ? 'page' : undefined}>
+            {label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

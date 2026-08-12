@@ -25,6 +25,17 @@ and field treatment, the artwork placement, the focus and motion rules. That is 
 `packages/shared/styles/nn-theme.css` takes from it, and that file records which of the
 mockup's colour pairs failed a contrast check and what was changed instead.
 
-The one piece of race wording the committee has settled is "Halloween weekend 2026 — exact
-date to be confirmed", and it is driven by `race.date` being `null` in
-`apps/main/src/content/race.json` rather than written into markup.
+**The date the mockup shows turned out to be the right one.** "Sunday 1st November 2026 ·
+11:00" was confirmed on 12 August 2026 as the club's published campaign date, and it now
+drives the site from `race.date` in `apps/main/src/content/race.json` rather than from
+markup — as does the distance, the race HQ, the schedule, the prizes and the spectating
+points.
+
+**That is not licence to take the rest of the mockup at face value.** Several things on it
+still read like facts and are not: the entry prices and the transfer deadline belong to the
+entries application, the "238 of 250 places remaining" counter is demo data, the course
+profile drawing is a sketch rather than a survey, the minimum age is inferred from the
+prize categories rather than stated, and **"clocks change the night before" is simply false
+for 2026** — the clocks go back on 25 October and the race is a week later. Each of those
+is listed against the page that had to decide about it, in the comment at the head of
+`apps/main/src/pages/nn/course.astro` and `race-day.astro`.
