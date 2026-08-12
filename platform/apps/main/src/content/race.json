@@ -1,11 +1,44 @@
 {
   "name": "Nightingale Nightmare",
-  "date": null,
-  "startTime": null,
-  "distance": null,
-  "location": null,
+  "date": "Sunday 1 November 2026",
+  "startTime": "11:00",
+  "distance": "10 km, off-road",
+  "location": "Ashton Park School, Blackmoors Lane, Bower Ashton, Bristol BS3 2JL",
   "price": null,
   "entriesOpen": null,
+  "permit": null,
+  "places": 250,
+  "contact": "nightingalenightmare@gmail.com",
+  "schedule": [
+    { "time": "09:15", "what": "Registration opens at HQ. Collect your number." },
+    { "time": "10:15", "what": "Race briefing at HQ." },
+    { "time": "10:30", "what": "Walk to the start together." },
+    { "time": "10:45", "what": "Group warm-up at the start." },
+    { "time": "11:00", "what": "The race starts." },
+    {
+      "time": "Afterwards",
+      "what": "Free hot drinks and cake back at HQ, with a donation tin out for charity. Prizegiving at HQ once the last finisher is in."
+    }
+  ],
+  "prizes": [
+    { "category": "Fancy dress", "detail": "Three prizes." },
+    { "category": "Overall", "detail": "1st, 2nd and 3rd — female and male." },
+    {
+      "category": "Veterans",
+      "detail": "1st Vet 40, Vet 50 and Vet 60 — female and male."
+    },
+    {
+      "category": "Marshals",
+      "detail": "A runner-voted award for the best marshalling station."
+    },
+    { "category": "Every finisher", "detail": "A medal." }
+  ],
+  "spectating": {
+    "viewpoint": "The top of Nightingale Valley, through the gate on North Road",
+    "viewpointPostcode": "BS8 3PL",
+    "parking": "Brunel Lock Road",
+    "footbridge": "Ashton Avenue Bridge"
+  },
   "privacy": {
     "controller": null,
     "removalAddress": null,

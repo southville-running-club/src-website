@@ -22,8 +22,13 @@ because a wrong guess here is expensive in money, in law, or in a race that cann
 re-run.
 
 - **A factual claim about a race** that has not been supplied — date, price, distance,
-  location, start time. The Nightingale Nightmare date is *unconfirmed*. Do not invent one,
-  do not infer one from a phase document, and do not put a plausible placeholder in markup.
+  location, start time. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
+  2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
+  the spectating points; all of them live in `apps/main/src/content/race.json`. **The 2026
+  ARC permit number is not**, and the 2023 number is not a substitute for it. The entry
+  price, the transfer deadline, the entry-opening time and live capacity all belong to the
+  entries application and this site does not quote them. Do not invent a fact, do not infer
+  one from a phase document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision.
 - **Taking payment**, or linking to something that does.
@@ -170,9 +175,13 @@ holding the terminal makes the parent never return.
 
 ## What is not built yet
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no sign-up
-form**, no Stripe, no timing application code, and no policies on `intake.nn_interest`. The
-skeleton proves the path; the features come next.
+So you do not go looking for it, or assume it is missing by mistake: there is **no Stripe
+and no timing application code**.
+
+Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
+three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
+column-scoped anonymous-insert policy on `intake.nn_interest`. **Entries are a separate
+application** — this site takes no payment and links to nothing that does.
 
 The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).
