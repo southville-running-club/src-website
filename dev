@@ -32,6 +32,11 @@ SITE="http://localhost:$MAIN_PORT"
 
 mkdir -p "$RUN_DIR"
 
+# Set for the duration of start_workers — a Ctrl-C or a failure partway through leaves
+# whichever Worker had already started running, disowned and otherwise unkillable except
+# by hand, unless something is watching for exactly that window.
+STARTING_WORKERS=0
+
 # ---------------------------------------------------------------------------------------
 # Output. Plain enough to read in a CI log, clear enough to read at speed.
 # ---------------------------------------------------------------------------------------
@@ -44,7 +49,20 @@ fi
 step() { printf '\n%s==>%s %s%s\n' "$BOLD" "$RESET" "$BOLD" "$1$RESET"; }
 info() { printf '    %s%s%s\n' "$DIM" "$1" "$RESET"; }
 ok()   { printf '    %s✓%s %s\n' "$GREEN" "$RESET" "$1"; }
-die()  { printf '\n%serror%s %s\n\n' "$RED" "$RESET" "$1" >&2; exit 1; }
+
+die() {
+  printf '\n%serror%s %s\n\n' "$RED" "$RESET" "$1" >&2
+  [ "$STARTING_WORKERS" -eq 1 ] && stop_workers >/dev/null 2>&1
+  exit 1
+}
+
+# A Ctrl-C mid-startup means "cancel this", not "leave whatever came up running" — the
+# opposite of what `disown` is there for once startup has actually finished.
+interrupted() {
+  [ "$STARTING_WORKERS" -eq 1 ] && stop_workers >/dev/null 2>&1
+  exit 130
+}
+trap interrupted INT TERM
 
 # ---------------------------------------------------------------------------------------
 # Prerequisites. `supabase`, `wrangler` and everything else this script calls are local
@@ -200,6 +218,8 @@ start_workers() {
     return
   fi
 
+  STARTING_WORKERS=1
+
   # `apps/timing` first: `apps/main` forwards /timing to it, so starting the other way
   # round gives a window where the site is up and /timing 502s.
   spawn timing "$PLATFORM/apps/timing" \
@@ -212,6 +232,7 @@ start_workers() {
   wait_for "$SITE/" "the website"
   info "website → :$MAIN_PORT"
 
+  STARTING_WORKERS=0
   ok "the site is up"
 }
 
@@ -244,6 +265,11 @@ open_browser() {
     Darwin) open "$SITE/" 2>/dev/null || true ;;
     Linux)  xdg-open "$SITE/" >/dev/null 2>&1 || true ;;
   esac
+}
+
+remind_down() {
+  printf '\n    %sThe database is still running in Docker.%s %s./dev down%s when you are finished.\n\n' \
+    "$DIM" "$RESET" "$BOLD" "$RESET"
 }
 
 show_urls() {
@@ -316,6 +342,8 @@ cmd_check() {
   step "Unit and database tests"
   export_supabase_env
   (cd "$PLATFORM" && npm test)
+
+  remind_down
 }
 
 cmd_smoke() {
@@ -339,7 +367,7 @@ cmd_reset_quiet() {
   ok "schema rebuilt and seeded"
 }
 
-cmd_reset() { ensure_docker; ensure_database; cmd_reset_quiet; }
+cmd_reset() { ensure_docker; ensure_database; cmd_reset_quiet; remind_down; }
 
 cmd_down() {
   step "Stopping"
