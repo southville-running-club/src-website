@@ -16,6 +16,12 @@
   --colour-accent: #16543f;
   --colour-rule: #d8d8d4;
 
+  /* 7.3:1 against the page background. Used for error text and error rules only, and
+     never as the sole carrier of the meaning — see the form section at the foot. */
+  --colour-error: #a4231a;
+  /* What sits on top of an accent-filled button. 8.9:1 against --colour-accent. */
+  --colour-on-accent: #ffffff;
+
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
@@ -30,6 +36,12 @@
     --colour-muted: #a9a9b0;
     --colour-accent: #6fd3a8;
     --colour-rule: #33333a;
+
+    /* 10.6:1 against the dark page background. A red dark enough to read on paper is
+       unreadable here, which is why this is a separate value rather than the same one. */
+    --colour-error: #ffb4ab;
+    /* 9.9:1 against the dark scheme's lighter accent. */
+    --colour-on-accent: #16161a;
   }
 }
 
@@ -125,6 +137,157 @@ footer {
   margin-top: calc(var(--space) * 3);
   padding-top: var(--space);
   border-top: 1px solid var(--colour-rule);
+  color: var(--colour-muted);
+  font-size: 0.9375rem;
+}
+
+/* -----------------------------------------------------------------------------------------
+ * The sign-up form
+ * -----------------------------------------------------------------------------------------
+ * Serving the acknowledgement, the failure notice and the error summary hidden and letting
+ * the Worker reveal them means this stylesheet has to be trusted not to override `hidden`.
+ * A single `display` declaration on one of those classes would put a stale error on the page
+ * for everybody, so the guard is stated once, here, rather than relied on by convention.
+ */
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Notices — the acknowledgement, the failure, the error summary
+ * ---------------------------------------------------------------------------------------
+ * **Colour is decoration on all three.** Each one says in words what it is: "Thank you",
+ * "Sorry", "There is a problem". Somebody who cannot tell the green rule from the red one —
+ * or who is reading this in bright sunlight on a phone, which is the common case rather
+ * than the edge one — loses nothing but the emphasis.
+ *
+ * They take focus when revealed, which is why they are outlined at all: `tabindex="-1"`
+ * plus the Worker's `autofocus` lands somebody on the reason their submission bounced.
+ */
+.notice {
+  margin: calc(var(--space) * 1.5) 0;
+  padding: var(--space);
+  border: 1px solid var(--colour-rule);
+  border-left-width: 5px;
+  border-radius: 6px;
+}
+
+.notice > :last-child {
+  margin-bottom: 0;
+}
+
+.notice h3 {
+  margin: 0 0 calc(var(--space) * 0.5);
+  font-size: 1.05rem;
+}
+
+.notice-ok {
+  border-left-color: var(--colour-accent);
+}
+
+.notice-bad {
+  border-left-color: var(--colour-error);
+}
+
+.notice-bad a {
+  color: var(--colour-error);
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Fields
+ * --------------------------------------------------------------------------------------- */
+.signup {
+  margin: calc(var(--space) * 1.5) 0;
+}
+
+.field {
+  margin-bottom: calc(var(--space) * 1.5);
+}
+
+.field-label {
+  display: block;
+  font-weight: 600;
+}
+
+.field-hint,
+.field-error {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+}
+
+.field-hint {
+  color: var(--colour-muted);
+}
+
+/* The message itself is the signal; the colour and the bar beside it are emphasis. */
+.field-error {
+  padding-left: 0.625rem;
+  border-left: 4px solid var(--colour-error);
+  color: var(--colour-error);
+  font-weight: 600;
+}
+
+.field-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  border: 2px solid var(--colour-rule);
+  border-radius: 4px;
+  background: var(--colour-background);
+  color: var(--colour-text);
+  /* Inputs do not inherit either by default, and 16px is the threshold below which iOS
+     zooms the page on focus — which on a 320px screen is how a form stops being operable. */
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* A second signal beside the message, for anyone scanning rather than reading. */
+.field-input[aria-invalid='true'] {
+  border-color: var(--colour-error);
+}
+
+.field-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin-top: 0.375rem;
+}
+
+.field-checkbox {
+  /* WCAG 2.2 puts the floor at 24 by 24 CSS pixels. Cold hands on a phone want more than
+     the floor, and `flex-shrink` keeps it square when the label wraps at 320px. */
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--colour-accent);
+}
+
+.field-check .field-label {
+  font-weight: 400;
+}
+
+.button {
+  display: inline-block;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: var(--colour-accent);
+  color: var(--colour-on-accent);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.signup-privacy {
   color: var(--colour-muted);
   font-size: 0.9375rem;
 }

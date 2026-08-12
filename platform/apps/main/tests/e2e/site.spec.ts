@@ -119,6 +119,7 @@ test.describe('accessibility', () => {
   for (const [name, path] of [
     ['the website', '/'],
     ['Nightingale Nightmare', '/nn/'],
+    ['the privacy notice', '/nn/privacy/'],
     ['race timing', '/timing'],
   ] as const) {
     test(`${name} has zero axe violations @requires-js`, async ({ page }) => {

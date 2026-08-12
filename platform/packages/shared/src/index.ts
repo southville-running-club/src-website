@@ -14,3 +14,14 @@ export { createAnonClient, type AnonClient, type SupabaseConfig } from './supaba
 export { fetchHealth, type HealthResult } from './health';
 
 export { fetchPing, type PingResult } from './ping';
+
+export {
+  nnSignupSchema,
+  parseNnSignup,
+  NN_SIGNUP_NAME_MAX_LENGTH,
+  NN_SIGNUP_EMAIL_MAX_LENGTH,
+  type NnSignup,
+  type NnSignupField,
+  type NnSignupErrors,
+  type NnSignupResult,
+} from './nn-signup';

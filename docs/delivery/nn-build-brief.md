@@ -104,26 +104,27 @@ monorepo, not in its own repository — and per ADR-006/007, inside the one appl
 serves every club surface.*
 
 ```
-platform/apps/main/            Already built — this brief adds the sign-up form to it
+platform/apps/main/            Built, including the sign-up form
 ├── wrangler.jsonc              assets.directory -> dist, main -> worker/index.ts
 ├── src/
 │   ├── content/
-│   │   └── race.json          Race facts as data, not prose in markup — not yet built
+│   │   └── race.json           Race facts as data, not prose in markup. Every one null
 │   ├── layouts/
-│   │   └── Base.astro          Already built
-│   ├── pages/
-│   │   ├── index.astro         Already built — the club holding page
-│   │   ├── 404.astro           Already built
-│   │   └── nn/
-│   │       ├── index.astro     Already built; this brief adds the form and privacy notice
-│   │       └── privacy.astro
-│   └── styles/
+│   │   └── Base.astro
+│   └── pages/
+│       ├── index.astro         The club holding page
+│       ├── 404.astro
+│       └── nn/
+│           ├── index.astro     The race page, and the form
+│           └── privacy.astro   What the club does with a sign-up
 ├── worker/
-│   ├── index.ts                Already built — routing and the health rewrite
-│   └── nn-signup.ts            POST handler for the form — this brief's addition
+│   ├── index.ts                Routing, the POST route, and the health rewrite
+│   ├── routing.ts              Which paths belong to whom. Pure and tested
+│   └── nn-signup.ts            Validate a sign-up, record it, render the outcome
 ├── tests/
-│   ├── unit/
-│   └── e2e/
+│   ├── unit/                   routing
+│   ├── worker/                 the POST, in the real Workers runtime
+│   └── e2e/                    Playwright, including with JavaScript disabled
 └── README.md                   How to run it, and every manual step taken
 ```
 
@@ -289,10 +290,12 @@ and flag it.
 
 | | Status |
 | --- | --- |
-| **Race date** | Unconfirmed — 25 October or 1 November 2026. Build so the page reads correctly *without* a date |
+| **Race date** | Unconfirmed — 31 October or 1 November 2026. **The page is built to read correctly without one**: every race fact lives in `apps/main/src/content/race.json` as `null` and renders as "To be confirmed", so confirming one is a one-line edit |
 | **Page copy** | Committee's to write |
 | **Entry price** | Assumed £8–£10, unconfirmed, and not needed for v1 |
-| **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md) and already migrated. Only the anonymous-insert policy and the form itself remain |
+| **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md), migrated, and **now reachable**: the column-scoped grant, the anonymous-insert policy and the form all landed together, in the pull request that could test them |
+| **The privacy notice's specifics** | **Open, and blocking nothing.** The data controller's contact, the address to write to for removal, and the retention period are all `null` in `race.json` and render as "To be confirmed" on `/nn/privacy/`. Inventing any of them would be a legal claim nobody authorised |
+| **Whether an unconsented submission is stored** | **Open.** Consent is currently *required to submit* — `z.literal(true)` in the schema and `required` on the checkbox. The migration's `with check` is deliberately silent on consent, so reversing this is two lines of TypeScript and **no second migration** |
 
 ---
 

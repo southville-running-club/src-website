@@ -44,3 +44,18 @@ export const NN_PREFIX = '/nn';
 export function isTimingPath(pathname: string): boolean {
   return pathname === TIMING_PREFIX || pathname.startsWith(`${TIMING_PREFIX}/`);
 }
+
+/**
+ * Where the sign-up form posts.
+ *
+ * **`/nn` and `/nn/` are the same answer here, and that is deliberate.** Astro is
+ * configured `trailingSlash: 'always'`, so the page itself only ever has one address — but
+ * a form posting to the other one must not 404 the submission on its way in. Accepting
+ * both costs nothing and the redirect afterwards is always to the canonical `/nn/`.
+ *
+ * Nothing *beneath* `/nn/` matches. `/nn/privacy/` is a page, not an endpoint, and a POST
+ * to it should 404 exactly as it does today rather than quietly become a sign-up.
+ */
+export function isNnSignupPath(pathname: string): boolean {
+  return pathname === NN_PREFIX || pathname === `${NN_PREFIX}/`;
+}

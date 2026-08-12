@@ -1,0 +1,14 @@
+{
+  "name": "Nightingale Nightmare",
+  "date": null,
+  "startTime": null,
+  "distance": null,
+  "location": null,
+  "price": null,
+  "entriesOpen": null,
+  "privacy": {
+    "controller": null,
+    "removalAddress": null,
+    "retention": null
+  }
+}

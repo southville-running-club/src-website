@@ -83,10 +83,17 @@ automatically on 21 March 2027**; silence costs £204.
     timestamp. **Nothing else.** *Schema per
     [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
     confined to `intake`, which holds no membership data.*
-20. **Build the page, the form and the privacy notice.** Keep the race date in one file so
-    changing it is a one-line edit.
-21. **Test it properly** — with JavaScript off, with a duplicate submission, with bad
-    input, on a 320-pixel screen.
+20. ~~**Build the page, the form and the privacy notice**~~ — **done.** The form takes
+    name, email and consent and nothing else; the privacy notice is at `/nn/privacy/`.
+    *Every race fact, and every privacy specific nobody has confirmed, lives in
+    `apps/main/src/content/race.json` as `null` and renders as "To be confirmed" — so
+    confirming the date is the one-line edit this step asked for.* **Two things are still
+    the committee's**: the [privacy specifics and the consent
+    decision](phases.md#two-things-the-sign-up-still-needs-from-the-committee).
+21. ~~**Test it properly**~~ — **done.** With JavaScript off in a third Playwright project,
+    with a duplicate submission, with bad input, at 320 pixels, and with axe at zero
+    violations. *The assertion that matters is the negative one: an anonymous client can
+    insert and **cannot** read, change or delete the list, asserted by error code.*
 22. ~~**Decide whether 2026 entries go through the club's own site or stay with Full On
     Sport**~~ — **decided: the club's own site**, with Stripe. That is what Phase 3 builds.
 

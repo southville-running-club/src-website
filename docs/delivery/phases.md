@@ -116,8 +116,8 @@ transaction on its own infrastructure.
 | **The monorepo and pipeline** | Workspace root, `apps/main`, `packages/db`; local stack, CI, acceptance tests. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md), [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
 | **A Worker**, git-connected, `main` deploys production | Static Astro plus Worker routes |
 | **`new.<apex>/nn`** | A path, not a subdomain. `new.<apex>` is the Worker's custom domain and Cloudflare creates the record — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
-| **Sign-up** | Into the shared Supabase project |
-| **Stripe payment** | Checkout plus a webhook into a Worker |
+| **Sign-up** ✅ | **Built.** Name, email and consent into `intake.nn_interest`, through a column-scoped anonymous-insert grant. A real `<form method="post">` that works with JavaScript disabled, and a privacy notice at `/nn/privacy/` |
+| **Stripe payment** | Checkout plus a webhook into a Worker. **Still gated** on the governance below |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
 path — the two Workers, one hostname told apart by path. The page, form and payment flow
@@ -145,12 +145,25 @@ recording the result. That is what keeps this inside
 every image, plus the seven on Google Drive. Free today, impossible after cancellation, and
 depends on nothing.
 
+### Two things the sign-up still needs from the committee
+
+Neither blocks the form, which is built and tested. Both are
+[stop-and-ask](../architecture/principles.md#stop-and-ask) triggers rather than build
+decisions, and both currently render as "to be confirmed" rather than as a guess:
+
+- [ ] **The privacy notice's specifics** — the data controller's contact, the address
+      someone writes to for removal, and how long the list is kept
+- [ ] **Whether a submission with the consent box unticked is stored at all.** It is
+      currently *required to submit*. The database is deliberately neutral on it, so
+      reversing this needs no migration
+
 ### Done when
 
 - [ ] `new.<apex>/nn` serves over HTTPS with a valid certificate
-- [ ] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
+- [x] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
 - [ ] **A real payment completes end to end**, and the treasurer can see it
-- [ ] An anonymous client **cannot** read member data
+- [x] An anonymous client **cannot** read member data — nor read, change or delete the
+      interest list, asserted by error code
 - [ ] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero
 - [ ] **Club email still works**
 - [ ] **Both volunteers** can reach the repository, the Worker, Supabase and Stripe
