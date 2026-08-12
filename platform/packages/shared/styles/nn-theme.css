@@ -1,0 +1,714 @@
+/*
+ * The Nightingale Nightmare event theme.
+ *
+ * The campaign look — blood-red gradient, bone text, a yellow the club calls "pus", and
+ * Nosifer for the horror lettering — taken from the approved mockup at
+ * `docs/design/nn-entry-mockup.html`. **Its visual system only.** The mockup is the
+ * entries application, built against confirmed race facts; this site has none of them, so
+ * every component that exists to display one (capacity bar, facts row, prize grid,
+ * schedule, course diagram, price picker) is deliberately absent here rather than filled
+ * in with a plausible number. See docs/architecture/principles.md#stop-and-ask
+ *
+ * ## Why this is a second stylesheet rather than more of base.css
+ *
+ * `base.css` is the club's, and it dresses every page the club will ever have. This is one
+ * race's campaign, for one weekend of the year, and putting it in `base.css` would ship
+ * horror typography and 94 kB of display fonts to the membership pages, the results pages
+ * and everything else that has not been written yet. `build.inlineStylesheets: 'never'`
+ * means this arrives as its own file, requested only by the two pages that import it.
+ *
+ * ## How it is scoped
+ *
+ * Everything hangs off `.theme-nn` on `<body>`, put there by the optional `theme` prop on
+ * `Base.astro`. Nothing here can reach a page that does not ask for it.
+ *
+ * The trick that keeps this file short is the first block: it **re-declares base.css's own
+ * `--colour-*` tokens** on `body.theme-nn`. Every rule already in `base.css` — the notices,
+ * the fields, the status list, the footer — then draws itself in campaign colours without
+ * being restated. `body.theme-nn` (0,1,1) outranks `:root` (0,1,0), so this holds whatever
+ * order the bundler emits the two files in, and it holds against the dark-scheme block too.
+ *
+ * ## Both colour schemes, on purpose
+ *
+ * **This theme is scheme-invariant: identical values under `prefers-color-scheme: light`
+ * and `dark`.** That is a decision, not an omission. The page is one deep-red poster; there
+ * is no light and dark version of it, and the tokens below are overridden on `body` so
+ * base.css's `@media (prefers-color-scheme: dark)` block — which redeclares on `:root` —
+ * cannot reach them. Every ratio recorded below therefore holds in both schemes, which is
+ * what the dual-scheme contrast requirement asks for.
+ *
+ * ## Contrast, computed rather than assumed
+ *
+ * Ratios are WCAG 2.x, measured against the **lightest** point of the gradient
+ * (`--nn-blood` at the radial centre), which is the worst case; every pair improves
+ * towards the darker edge. Three pairs in the mockup failed and were corrected here:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            body text             8.43:1    4.5 (AA)     ok
+ *   bone on blood-deep       body text            12.69:1    4.5 (AA)     ok
+ *   ink on pus               button, badge        10.93:1    4.5 (AA)     ok
+ *   ink on card              text on white        18.09:1    4.5 (AA)     ok
+ *   ink on card-muted        text on the panel    16.12:1    4.5 (AA)     ok
+ *   slate on card            secondary, small      8.30:1    4.5 (AA)     ok
+ *   bone on aubergine        text on dark panel   14.51:1    4.5 (AA)     ok
+ *   pus on blood             date line             5.44:1    3.0 (large)  ok — see note
+ *   pus on blood-deep        date line             8.20:1    3.0 (large)  ok
+ *   bone at .85 on blood     "presents…"           6.44:1    4.5 (AA)     ok
+ *   pus on blood             focus ring            5.44:1    3.0 (1.4.11) ok
+ *   ink on card              focus ring in a card 18.09:1    3.0 (1.4.11) ok
+ *   danger on card           field error text      5.53:1    4.5 (AA)     corrected
+ *   danger on card-muted     field error text      4.93:1    4.5 (AA)     corrected
+ *   field border on card     input boundary        3.23:1    3.0 (1.4.11) corrected
+ *   pus on card              button fill on white  1.65:1    —            see below
+ *
+ * **pus on blood is 5.44:1**, so the date line clears AA at any size — its size is a design
+ * choice rather than a contrast constraint. The mockup's assumption that yellow-on-red was
+ * large-text-only turns out to be more cautious than it needed to be.
+ *
+ * **danger was `#E53935` in the mockup and is 4.5:1 — it fails.** Hue and saturation are
+ * unchanged; lightness alone is reduced until it clears with headroom on both white and the
+ * muted panel. Error text is the one thing on this page somebody is reading under pressure.
+ *
+ * **The field border was `#D6C9C4` in the mockup, 1.61:1 against the card.** A text box's
+ * border is the only thing that says where to type, so WCAG 1.4.11 puts it at 3:1 and this
+ * is a real failure rather than a nicety. Same hue and saturation, darker.
+ *
+ * **The submit button is a yellow fill on a white card at 1.65:1, and stays that way.**
+ * 1.4.11 asks for a 3:1 boundary only where the boundary is what identifies the control;
+ * here the control is identified by its own label — 700-weight ink at 10.93:1, full width,
+ * 16px of padding. Bordering it would put a dark rule around the campaign's one call to
+ * action for no accessibility gain. Flagged rather than silently kept.
+ *
+ * The mockup's footer sets bone to `opacity: .8` (5.86:1). Not reproduced: the footer here
+ * is at full opacity, because the one place a person looks for who is responsible for a
+ * page should not be the faintest thing on it.
+ */
+
+body.theme-nn {
+  /* ---------------------------------------------------------------------------------
+   * The campaign palette, sampled from the club's own artwork.
+   * --------------------------------------------------------------------------------- */
+  --nn-blood: #8f1b0f; /* page background, radial centre */
+  --nn-blood-deep: #5e0f08; /* radial edge */
+  --nn-aubergine: #3a1440; /* badge, dark panel */
+  --nn-plum: #6e4e8c; /* secondary accent, sparing */
+  --nn-bone: #fff6ec; /* text on blood */
+  --nn-pus: #f2c41d; /* CTA, date badge, focus ring */
+  --nn-ink: #241016; /* text on pus / bone / white */
+  --nn-card: #ffffff; /* form card */
+  --nn-card-muted: #f6f1ec; /* card dividers, muted panels */
+  --nn-slate: #5a4a50; /* secondary text on white */
+
+  /* Corrected from the mockup's #e53935 — see the contrast table above. */
+  --nn-danger: #cd1e1a; /* field errors on white */
+  /* Corrected from the mockup's #d6c9c4 — WCAG 1.4.11, and it is a text box. */
+  --nn-field-border: #a6897e;
+
+  --nn-r-btn: 8px;
+  --nn-r-card: 12px;
+
+  --nn-display: 'Nosifer', 'Impact', fantasy;
+  --nn-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --nn-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* The one serif on the page, and only for the word "presents…". A system stack, because
+     a fourth webfont for eleven characters is not a trade worth making on poor signal. */
+  --nn-serif: Georgia, 'Times New Roman', serif;
+
+  /* ---------------------------------------------------------------------------------
+   * base.css's tokens, restated in campaign colours.
+   *
+   * This is what makes the rest of this file short: every rule already written in
+   * `base.css` reads these, so the notices, the fields, the status list and the footer
+   * arrive on-theme without being redeclared here.
+   *
+   * `--colour-background` is the **card** white rather than the page, because the only
+   * thing that reads it is `.field-input`, which sits on the card. The page's own
+   * background is the gradient, declared outright below.
+   * --------------------------------------------------------------------------------- */
+  --colour-background: var(--nn-card);
+  --colour-text: var(--nn-bone);
+  --colour-muted: var(--nn-bone);
+  --colour-accent: var(--nn-bone);
+  --colour-on-accent: var(--nn-ink);
+  --colour-rule: rgba(255, 246, 236, 0.35);
+  --colour-error: var(--nn-danger);
+
+  --font-body: var(--nn-body);
+  --font-mono: var(--nn-mono);
+
+  /* The mockup's column. Wider than the club's 38rem measure because this page is a
+     poster with a form on it rather than a page of prose. */
+  --nn-column: 45rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The three faces, self-hosted.
+ * -------------------------------------------------------------------------------------
+ * **Not `fonts.googleapis.com`.** A remote font link is a third-party request on every
+ * page load, which is somebody else's log of who read the race page and an unnecessary
+ * transfer to a country nobody assessed. These are the same open-licensed files, served
+ * from the club's own origin — latin subset only, which is every character this site sets.
+ *
+ * Inter and JetBrains Mono are variable, so one file covers the weights each is asked for.
+ * All three are SIL Open Font Licence 1.1; the licences ship beside them in
+ * `public/fonts/`. Provenance and how to fetch them again:
+ * docs/design/nn-theme-fonts.md
+ *
+ * `font-display: swap` throughout: the copy is readable in a fallback face from the first
+ * paint, which on a phone at the start line matters more than the lettering does.
+ * ------------------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Nosifer';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/nosifer-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-var.woff2') format('woff2');
+}
+
+/* -------------------------------------------------------------------------------------
+ * The page
+ * ------------------------------------------------------------------------------------- */
+body.theme-nn {
+  /* Declared outright rather than through a token: the page background is a gradient and
+     `--colour-background` has to stay a flat colour for the form fields to use. */
+  background: radial-gradient(
+    120% 90% at 50% 20%,
+    var(--nn-blood) 0%,
+    var(--nn-blood-deep) 100%
+  );
+  /* So the red does not repeat down a long page or end early on a short one. */
+  background-attachment: fixed;
+  background-color: var(--nn-blood-deep);
+  /* Sections carry their own padding; the artwork strip has to reach both edges. */
+  padding: 0;
+  font-size: 16px;
+}
+
+/* base.css centres `main` on the club's measure. Here the column is `.nn-wrap`'s job, so
+   that the hands artwork can run the full width without a negative margin — the thing that
+   would otherwise push the page sideways at 320px. */
+.theme-nn main {
+  max-width: none;
+  margin-inline: 0;
+}
+
+.theme-nn .nn-wrap {
+  max-width: var(--nn-column);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+/* The skip link lands on the gradient, so it needs a surface of its own to be read
+   against — base.css only unhides it. */
+.theme-nn .skip-link:focus {
+  margin: 16px 20px;
+  padding: 10px 16px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Focus
+ * -------------------------------------------------------------------------------------
+ * Two rings, because one cannot do both jobs: yellow is the campaign's signal and reads at
+ * 5.44:1 on the red, but the same yellow on a white card is 1.65:1 and would be a focus
+ * indicator nobody could find. Inside a card the ring is ink, at 18.09:1.
+ *
+ * The second selector is a descendant combinator on purpose. A **card itself** takes focus
+ * — the acknowledgement and the error summary both do, by `tabindex="-1"` and the Worker's
+ * `autofocus` — and its ring is drawn outside its own edge, on the gradient, where yellow
+ * is the right answer. Only the controls **within** a card sit on white.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn :focus-visible {
+  outline: 3px solid var(--nn-pus);
+  outline-offset: 2px;
+}
+
+.theme-nn .nn-card :focus-visible {
+  outline-color: var(--nn-ink);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The hero
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hero {
+  padding-top: 40px;
+}
+
+/* The club's wordmark, where the mockup sets the name in bold type. It is supplied as a
+   white SVG and used exactly as supplied — recolouring a club's logo to a theme's bone is a
+   brand decision rather than a styling one, and white on the gradient is 8.9:1 anyway.
+
+   `max-width` rather than a media query: 50% of the column keeps it proportionate on a
+   phone without a second breakpoint to remember. */
+.theme-nn .nn-logo {
+  display: block;
+  width: 176px;
+  max-width: 50%;
+  height: auto;
+}
+
+.theme-nn .nn-presents {
+  margin: 14px 0 0;
+  font-family: var(--nn-serif);
+  font-style: italic;
+  font-size: 14px;
+  /* 6.44:1 composited over the lightest part of the gradient — checked, not assumed. */
+  opacity: 0.85;
+}
+
+/* **Nosifer is decorative and stays that way**: the h1 and the date line, nothing else.
+   Never a form label, never a paragraph, never a heading inside a card.
+
+   **Two numbers here are measured rather than copied from the mockup**, and both are
+   because these headings wrap and the mockup's never did.
+
+   The leading is 1.62 rather than the club's 1.2, and rather than the mockup's 1.5: the
+   face's drips hang a long way below the baseline, and at 1.5 the drips from "Nightingale"
+   land on the capitals of "Nightmare" on the line beneath.
+
+   The floor of the clamp is 26px rather than the mockup's 34px, and it is set by the
+   longest unbreakable word on either page. "Nightingale" sets at 236px in Nosifer at 26px,
+   against the 280px a 320px screen leaves inside the column's padding. At the mockup's
+   34px it sets at 309px and pushes the page sideways. */
+.theme-nn .nn-hero h1 {
+  margin: 26px 0 18px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(26px, 7.5vw, 58px);
+  line-height: 1.62;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* The compact hero: the privacy notice is the same page furniture at a lower volume. It
+   wraps to three lines on a phone, so it needs more leading again, not less. */
+.theme-nn .nn-hero-compact h1 {
+  font-size: clamp(20px, 5vw, 34px);
+  line-height: 1.75;
+}
+
+/* **The only date wording on this site.** It is one string on purpose — the qualifier is
+   not a footnote to be styled away from the claim, because "Halloween weekend 2026" on its
+   own would be a promise the committee has not made.
+
+   Which is also why the leading is 2 rather than the mockup's 1.7. The mockup's badge is a
+   confirmed date on one line; this is a sentence, and it wraps to two lines on a laptop and
+   three on a phone, where 1.7 leaves the drips falling through the line below. */
+.theme-nn .nn-dateline {
+  margin: 0 0 22px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(15px, 3vw, 21px);
+  line-height: 2;
+  letter-spacing: 0.02em;
+  color: var(--nn-pus);
+}
+
+.theme-nn .lede {
+  max-width: 560px;
+  margin-bottom: 26px;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Headings and links on the gradient
+ * -------------------------------------------------------------------------------------
+ * Section headings are Inter rather than Nosifer. A horror face is a poster device; used
+ * on every heading it stops being legible and stops being a surprise.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn h2 {
+  margin: 34px 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Underlined, so the link is not carried by colour alone — bone on bone would be nothing
+   but a shade. */
+.theme-nn a {
+  color: var(--nn-bone);
+  text-underline-offset: 0.15em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Meta rows — the "to be confirmed" facts, and the two database markers
+ * -------------------------------------------------------------------------------------
+ * The mockup sets its small factual rows in mono, and that is what these are. base.css
+ * boxes the list in a rule; on the gradient a box would read as a card that failed to
+ * paint, so it is a hairline above each term instead.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .status {
+  margin: 18px 0 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.theme-nn .status dt {
+  padding-top: 10px;
+  border-top: 1px solid var(--colour-rule);
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* 5.44:1 on the lightest part of the gradient — AA at this size, computed not assumed. */
+  color: var(--nn-pus);
+}
+
+.theme-nn .status dd {
+  margin: 4px 0 14px;
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Cards
+ * -------------------------------------------------------------------------------------
+ * White, ink, and no horror inside. The form and the privacy notice are the two things on
+ * these pages somebody has to read carefully rather than enjoy.
+ *
+ * The token overrides are the point of the block: inside a card, "muted" means slate on
+ * white and "rule" means the field border, so base.css's `.field-hint`, `.field-input` and
+ * `.signup-privacy` need no restating.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-card {
+  --colour-text: var(--nn-ink);
+  --colour-muted: var(--nn-slate);
+  --colour-accent: var(--nn-ink);
+  --colour-rule: var(--nn-field-border);
+
+  margin: 0 0 20px;
+  padding: 28px 24px;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-card > :last-child {
+  margin-bottom: 0;
+}
+
+.theme-nn .nn-card h2,
+.theme-nn .nn-card h3 {
+  margin: 0 0 4px;
+  font-family: var(--nn-body);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+/* Links, and only links. Paragraphs and list items take ink by inheriting it from the card
+   — **a blanket `.nn-card p` rule here would outrank `.field-hint` and quietly repaint the
+   secondary text on the form**, which is the sort of thing that only shows up in a computed
+   style. `a` does need restating: `.theme-nn a` is bone, and bone on white is nothing. */
+.theme-nn .nn-card a {
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-card code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--nn-card-muted);
+  font-family: var(--nn-mono);
+  font-size: 0.9em;
+}
+
+/* The privacy notice: one card, and long enough that its headings need room to breathe
+   and a rule to separate them. Inter 600, never the display face — legal text gets
+   maximum readability and no atmosphere. */
+.theme-nn .nn-prose > h2 {
+  margin: 28px 0 8px;
+  padding-top: 20px;
+  border-top: 1.5px solid var(--nn-card-muted);
+  font-size: 18px;
+}
+
+.theme-nn .nn-prose > h2:first-of-type {
+  margin-top: 22px;
+}
+
+.theme-nn .nn-prose .lede {
+  max-width: none;
+  margin-bottom: 0;
+  font-size: 17px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-prose ul {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The form
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .signup {
+  margin: 0;
+}
+
+.theme-nn .field-label {
+  font-family: var(--nn-body);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.theme-nn .field-input {
+  margin-top: 6px;
+  padding: 11px 12px;
+  border: 1.5px solid var(--nn-field-border);
+  border-radius: var(--nn-r-btn);
+}
+
+.theme-nn .field-input:focus {
+  border-color: var(--nn-ink);
+}
+
+/* A second signal beside the message, for anyone scanning rather than reading — and
+   heavier than the resting border so it reads as a change, not just a colour. */
+.theme-nn .field-input[aria-invalid='true'] {
+  border-width: 2px;
+  border-color: var(--nn-danger);
+}
+
+.theme-nn .field-hint {
+  font-size: 13px;
+  color: var(--nn-slate);
+}
+
+/* **Red is not what says this is an error — the word "Error" is.** base.css makes the same
+   argument with a left bar; on a white card the word does it better, and the bar sits badly
+   inside a rounded panel.
+
+   The prefix is generated rather than written into the markup because the Worker fills
+   these elements with `setInnerContent`, which replaces everything inside them — a literal
+   "Error:" in the page would be wiped by the first message that landed. It is redundant
+   emphasis for people reading rather than the only signal: the message itself is a plain
+   instruction ("Enter your name."), the input carries `aria-invalid`, and the summary at
+   the top of the form names the field and takes focus. */
+.theme-nn .field-error {
+  padding-left: 0;
+  border-left: 0;
+  font-size: 14px;
+  color: var(--nn-danger);
+}
+
+.theme-nn .field-error::before {
+  content: 'Error: ';
+  font-weight: 700;
+}
+
+.theme-nn .field-check {
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.theme-nn .field-checkbox {
+  /* WCAG 2.2 puts the target floor at 24 by 24; cold hands on a phone want the floor
+     rather than the mockup's 20. */
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 2px;
+  accent-color: var(--nn-blood);
+}
+
+.theme-nn .field-check .field-label {
+  font-weight: 400;
+}
+
+.theme-nn .button {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-size: 17px;
+  font-weight: 700;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.theme-nn .button:hover {
+  transform: translateY(-2px);
+}
+
+/* It reads into the card below it rather than out of one above it — see the note on the
+   page about why it sits before the form. */
+.theme-nn .signup-privacy {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Notices — the acknowledgement, the failure, the error summary
+ * -------------------------------------------------------------------------------------
+ * All three are cards, because all three are read rather than glanced at, and white is the
+ * only surface on this page where 14px of red text is legible.
+ *
+ * base.css's left-bar treatment is replaced, not extended: `.notice` here is a card and the
+ * bar would sit oddly on a rounded white panel. **Colour still carries none of the meaning
+ * on any of them** — each says in words what it is.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .notice {
+  --colour-text: var(--nn-ink);
+  --colour-muted: var(--nn-slate);
+  --colour-accent: var(--nn-ink);
+  --colour-error: var(--nn-danger);
+
+  margin: 0 0 20px;
+  padding: 24px;
+  border: 0;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+  color: var(--nn-ink);
+}
+
+.theme-nn .notice h3 {
+  margin: 0 0 8px;
+  font-family: var(--nn-body);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.theme-nn .notice a {
+  color: var(--nn-danger);
+}
+
+.theme-nn .notice-bad {
+  border: 3px solid var(--nn-danger);
+}
+
+.theme-nn .summary-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* The mockup's confirmation tick. Decorative — the acknowledgement is a live region and
+   says "Thank you — your interest is registered" in words, which is what gets announced. */
+.theme-nn .nn-tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 0 18px;
+  border-radius: 50%;
+  background: var(--nn-pus);
+}
+
+.theme-nn .nn-tick svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: var(--nn-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Footer
+ * ------------------------------------------------------------------------------------- */
+.theme-nn footer {
+  margin-top: 34px;
+  padding: 18px 0 40px;
+  border-top: 1px solid var(--colour-rule);
+  /* Full opacity, unlike the mockup's 0.8. Who is answerable for a page is not the thing
+     to make hardest to read on it. */
+  color: var(--nn-bone);
+  font-size: 14px;
+}
+
+.theme-nn footer p {
+  margin-bottom: 8px;
+}
+
+.theme-nn footer > :last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The club's artwork
+ * -------------------------------------------------------------------------------------
+ * Zombie hands, the length of the page foot. Purely decorative, and therefore **a
+ * background rather than an `<img>`** — which is not only where decoration belongs, it is
+ * the only version of this that cannot break the page at 320px.
+ *
+ * An `<img>` carrying `width="1080"` lays out at 1080 pixels in the window between the HTML
+ * arriving and this stylesheet being applied, and for that moment a phone can be scrolled
+ * sideways. It is brief, it is intermittent, and it failed the 320px acceptance test about
+ * one run in four — the useful kind of flake, because the test was right. An empty element
+ * has no intrinsic width to lay out at, so the failure cannot happen.
+ *
+ * The cost is that a background is fetched whether or not it is scrolled to, where the
+ * `<img>` could be `loading="lazy"`. 43 kB, once, cached by filename — worth paying to not
+ * ship a page that is briefly wider than the screen it is on.
+ *
+ * The artwork's own top edge is a brighter red than the page, so its top 45% is faded out
+ * and the strip appears to grow out of the background rather than being pasted onto it. In
+ * normal flow, full width, so it can never overlap the text above it.
+ *
+ * **The fade is a mask on the image, where the mockup overlays a `::before` filled with
+ * `--nn-blood`.** The technique had to change because the placement did. The mockup puts
+ * this strip directly under the hero, near the radial centre, where the page really is that
+ * one flat colour and an overlay of it is invisible. Here the strip is at the foot of a
+ * scrolling page over a `fixed` background, so the colour behind it is a different point on
+ * the gradient at every scroll position and every viewport height — and a fixed colour laid
+ * over it draws a visible band, too light at the top of the page and too dark at the
+ * bottom. Masking makes the artwork itself transparent instead, so whatever the gradient
+ * happens to be showing there is what the fade blends into. Where a browser does not
+ * support the mask the artwork simply keeps its own top edge, which is a decorative
+ * difference rather than a broken one.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hands {
+  margin-top: 20px;
+  /* The artwork's own proportions, so the strip is the right height at every width and
+     nothing below it moves when the file arrives. */
+  aspect-ratio: 1080 / 256;
+  background: url('/nn/hands.png') no-repeat bottom center / 100% auto;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 45%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 45%);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Reduced motion
+ * -------------------------------------------------------------------------------------
+ * The button's lift is the only motion on these pages, and it is the first thing to go.
+ * ------------------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .theme-nn .button {
+    transition: none;
+  }
+
+  .theme-nn .button:hover {
+    transform: none;
+  }
+}

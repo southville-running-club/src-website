@@ -136,6 +136,24 @@ test.describe('accessibility of the form', () => {
     expect(violations).toEqual([]);
   });
 
+  test('the acknowledgement has zero axe violations @requires-js', async ({ page }) => {
+    // The one state carrying markup no other page has: the event theme draws a tick as an
+    // inline SVG inside the acknowledgement, which is a live region. It ships hidden and is
+    // revealed by the Worker, so the axe run over `/nn/` in site.spec.ts never sees it.
+    //
+    // Reached by the query string alone rather than by submitting, because the Worker
+    // reveals it on `?signup=ok` — which is also what a person meets after the 303.
+    await page.goto('/nn/?signup=ok');
+
+    await expect(page.locator('[data-signup-ack]')).toBeVisible();
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
   test('the error state is operable at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto('/nn/');

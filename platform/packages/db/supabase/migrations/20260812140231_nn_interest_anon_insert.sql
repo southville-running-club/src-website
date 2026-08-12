@@ -30,8 +30,9 @@
 -- published in client code by design — it would be a personal-data incident, not a bug.
 --
 -- The absence of a select grant has one visible consequence, and it is the right one: an
--- insert chained with `.select()` fails. `packages/shared/src/nn-signup.ts` and the Worker
--- never ask for the row back, and `tests/nn-interest.test.ts` asserts that asking fails.
+-- insert chained with `.select()` fails. The Worker — `apps/main/worker/nn-signup.ts`, which
+-- is the only thing here that writes to this table — never asks for the row back, and
+-- `tests/nn-interest.test.ts` asserts that asking fails.
 
 grant insert (name, email, consent) on table intake.nn_interest to anon;
 

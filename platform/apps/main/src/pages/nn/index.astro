@@ -2,6 +2,10 @@
 import Base from '../../layouts/Base.astro';
 import race from '../../content/race.json';
 
+// The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
+// knows that this site does not. See packages/shared/styles/nn-theme.css.
+import '@src/shared/styles/nn-theme.css';
+
 // Still says nothing about the race that nobody has confirmed.
 //
 // The date is unconfirmed, the price is unconfirmed, and the copy is the committee's to
@@ -20,220 +24,307 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
 // value reads as a promise; "To be confirmed" is the only honest third option, and it is
 // what somebody deciding whether to come back next week actually needs to know.
 const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
+
+// **The one sentence about when this race happens, and it is driven by the same `null`.**
+//
+// "Halloween weekend 2026" is as much as the committee has settled, and it is supplied
+// rather than inferred — a phase document mentioning a month is not the committee saying
+// one. It is a single string on purpose: the qualifier is not a footnote to be styled
+// smaller or dropped in a redesign, because the first half on its own is a promise about a
+// date nobody has fixed. The moment `race.date` is filled in, this whole line becomes it.
+const dateLine = race.date ?? 'Halloween weekend 2026 — exact date to be confirmed';
 ---
 
 <Base
   title="Nightingale Nightmare — register your interest"
   description="Register your interest in Nightingale Nightmare and the club will email you once, when entries open."
   canonical={canonical}
+  theme="nn"
 >
-  <h1>{race.name}</h1>
+  <header class="nn-hero">
+    <div class="nn-wrap">
+      {
+        /* The club's own wordmark, in place of the mockup's typographic stand-in for it.
+        It carries the club's name, so the name is its `alt` and not a description of the
+        artwork — somebody hearing the page gets "Southville Running Club presents…
+        Nightingale Nightmare", which is what somebody seeing it gets.
 
-  <p class="lede">
-    The club is putting on this race again, and this page is where it is being built. The
-    details below are not settled yet — leave your name and the club will email you once,
-    when entries open.
-  </p>
+        `width` and `height` are on the element rather than left to the stylesheet: an image
+        with no intrinsic size laid out before the CSS arrives is how the artwork strip at
+        the foot of this page briefly made a phone scroll sideways. 176 is inside a 320px
+        screen with room to spare. */
+      }
+      <img
+        class="nn-logo"
+        src="/logo.svg"
+        alt="Southville Running Club"
+        width="176"
+        height="54"
+      />
+      <p class="nn-presents">presents…</p>
 
-  <h2>The race</h2>
+      <h1>{race.name}</h1>
 
-  <p>
-    Everything here is confirmed by the committee before it appears. Anything still
-    reading "to be confirmed" is genuinely undecided rather than merely unwritten.
-  </p>
+      <p class="nn-dateline">{dateLine}</p>
 
-  <dl class="status">
-    <dt>Date</dt>
-    <dd>{orTbc(race.date)}</dd>
+      <p class="lede">
+        The club is putting on this race again, and this page is where it is being built.
+        The details below are not settled yet — leave your name and the club will email
+        you once, when entries open.
+      </p>
+    </div>
+  </header>
 
-    <dt>Start time</dt>
-    <dd>{orTbc(race.startTime)}</dd>
+  <div class="nn-wrap">
+    <h2>The race</h2>
 
-    <dt>Distance</dt>
-    <dd>{orTbc(race.distance)}</dd>
+    <p>
+      Everything here is confirmed by the committee before it appears. Anything still
+      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
+    </p>
 
-    <dt>Location</dt>
-    <dd>{orTbc(race.location)}</dd>
+    <dl class="status">
+      <dt>Date</dt>
+      <dd>{orTbc(race.date)}</dd>
 
-    <dt>Entry fee</dt>
-    <dd>{orTbc(race.price)}</dd>
+      <dt>Start time</dt>
+      <dd>{orTbc(race.startTime)}</dd>
 
-    <dt>Entries open</dt>
-    <dd>{orTbc(race.entriesOpen)}</dd>
-  </dl>
+      <dt>Distance</dt>
+      <dd>{orTbc(race.distance)}</dd>
 
-  <h2 id="register">Register your interest</h2>
+      <dt>Location</dt>
+      <dd>{orTbc(race.location)}</dd>
 
-  {
-    /* The acknowledgement, the failure notice and the error summary are all served hidden
+      <dt>Entry fee</dt>
+      <dd>{orTbc(race.price)}</dd>
+
+      <dt>Entries open</dt>
+      <dd>{orTbc(race.entriesOpen)}</dd>
+    </dl>
+
+    <h2 id="register">Register your interest</h2>
+
+    {
+      /* The acknowledgement, the failure notice and the error summary are all served hidden
       and revealed by the Worker — see worker/nn-signup.ts. Doing it this way means there is
       exactly one copy of this page, in dist/, and the Worker paints an outcome onto it
       rather than holding a second template that can drift from this one.
 
       Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it.
       That is how focus moves **with JavaScript disabled**, which is the primary path here
-      rather than a fallback. */
-  }
+      rather than a fallback.
 
-  <div class="notice notice-ok" data-signup-ack hidden tabindex="-1" role="status">
-    <p><strong>Thank you — your interest is registered.</strong></p>
-    <p>
-      The club will email you once, when entries open. That is the only thing this list is
-      used for.
+      All three are white cards in the event theme, because all three are read rather than
+      glanced at, and none of them lets colour carry the meaning: each says in words what it
+      is. */
+    }
+
+    <div
+      class="notice notice-ok nn-card"
+      data-signup-ack
+      hidden
+      tabindex="-1"
+      role="status"
+    >
+      {
+        /* The mockup's confirmation tick. Decorative, and hidden from assistive technology
+        deliberately — this element is a live region, and what should be announced is the
+        sentence below, not the word "tick". */
+      }
+      <span class="nn-tick" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"
+          ><path d="M4 12.5 10 18 20 6"></path></svg
+        >
+      </span>
+      <p><strong>Thank you — your interest is registered.</strong></p>
+      <p>
+        The club will email you once, when entries open. That is the only thing this list
+        is used for.
+      </p>
+    </div>
+
+    <div
+      class="notice notice-bad nn-card"
+      data-signup-unavailable
+      hidden
+      tabindex="-1"
+      role="alert"
+    >
+      <p><strong>Sorry — that could not be saved just now.</strong></p>
+      <p>
+        Nothing has been recorded, and nothing you typed has been lost. Please press
+        "Register my interest" again in a moment.
+      </p>
+    </div>
+
+    <div
+      class="notice notice-bad nn-card"
+      data-signup-summary
+      hidden
+      tabindex="-1"
+      role="alert"
+    >
+      <h3>There is a problem</h3>
+      <ul class="summary-list">
+        <li data-signup-summary-item="name" hidden>
+          <a data-signup-summary-link="name" href="#signup-name"></a>
+        </li>
+        <li data-signup-summary-item="email" hidden>
+          <a data-signup-summary-link="email" href="#signup-email"></a>
+        </li>
+        <li data-signup-summary-item="consent" hidden>
+          <a data-signup-summary-link="consent" href="#signup-consent"></a>
+        </li>
+      </ul>
+    </div>
+
+    {
+      /* **Above the form, not below it.** What happens to a name and an email address is
+      worth knowing before typing them rather than after, and somebody who wants to check
+      first should not have to scroll past the thing they are deciding about to find out. */
+    }
+
+    <p class="signup-privacy">
+      The club holds your name and email address, and uses them for nothing but this one
+      email. <a href="/nn/privacy/">What the club does with this</a>, including how to
+      have it removed.
     </p>
-  </div>
 
-  <div
-    class="notice notice-bad"
-    data-signup-unavailable
-    hidden
-    tabindex="-1"
-    role="alert"
-  >
-    <p><strong>Sorry — that could not be saved just now.</strong></p>
-    <p>
-      Nothing has been recorded, and nothing you typed has been lost. Please press
-      "Register my interest" again in a moment.
-    </p>
-  </div>
-
-  <div class="notice notice-bad" data-signup-summary hidden tabindex="-1" role="alert">
-    <h3>There is a problem</h3>
-    <ul class="summary-list">
-      <li data-signup-summary-item="name" hidden>
-        <a data-signup-summary-link="name" href="#signup-name"></a>
-      </li>
-      <li data-signup-summary-item="email" hidden>
-        <a data-signup-summary-link="email" href="#signup-email"></a>
-      </li>
-      <li data-signup-summary-item="consent" hidden>
-        <a data-signup-summary-link="consent" href="#signup-consent"></a>
-      </li>
-    </ul>
-  </div>
-
-  {
-    /* A real form, posting to a real address. No JavaScript is involved in submitting it,
+    {
+      /* A real form, posting to a real address. No JavaScript is involved in submitting it,
       validating it, or rendering what comes back — runners are on phones, on poor signal,
       sometimes in bright sunlight with cold hands.
 
       `action` carries the trailing slash Astro is configured to insist on, so a submission
       never arrives at a second address for the same page. */
-  }
+    }
 
-  <form class="signup" method="post" action="/nn/">
-    <div class="field">
-      <label class="field-label" for="signup-name">Your name</label>
-      <p class="field-error" id="signup-name-error" data-signup-error="name" hidden></p>
-      <input
-        class="field-input"
-        id="signup-name"
-        name="name"
-        type="text"
-        maxlength="100"
-        autocomplete="name"
-        required
-        aria-describedby="signup-name-error"
-        data-signup-value="name"
-      />
-    </div>
+    <form class="signup nn-card" method="post" action="/nn/">
+      <div class="field">
+        <label class="field-label" for="signup-name">Your name</label>
+        <p class="field-error" id="signup-name-error" data-signup-error="name" hidden></p>
+        <input
+          class="field-input"
+          id="signup-name"
+          name="name"
+          type="text"
+          maxlength="100"
+          autocomplete="name"
+          required
+          aria-describedby="signup-name-error"
+          data-signup-value="name"
+        />
+      </div>
 
-    <div class="field">
-      <label class="field-label" for="signup-email">Email address</label>
-      <p class="field-hint" id="signup-email-hint">
-        The club will email you once, when entries open.
-      </p>
-      <p class="field-error" id="signup-email-error" data-signup-error="email" hidden></p>
-      <input
-        class="field-input"
-        id="signup-email"
-        name="email"
-        type="email"
-        maxlength="254"
-        autocomplete="email"
-        spellcheck="false"
-        required
-        aria-describedby="signup-email-hint signup-email-error"
-        data-signup-value="email"
-      />
-    </div>
+      <div class="field">
+        <label class="field-label" for="signup-email">Email address</label>
+        <p class="field-hint" id="signup-email-hint">
+          The club will email you once, when entries open.
+        </p>
+        <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
+        </p>
+        <input
+          class="field-input"
+          id="signup-email"
+          name="email"
+          type="email"
+          maxlength="254"
+          autocomplete="email"
+          spellcheck="false"
+          required
+          aria-describedby="signup-email-hint signup-email-error"
+          data-signup-value="email"
+        />
+      </div>
 
-    <div class="field">
-      <p class="field-error" id="signup-consent-error" data-signup-error="consent" hidden>
-      </p>
-      <div class="field-check">
-        {
-          /* **`required` is one half of the consent decision.** Consent is currently
+      <div class="field">
+        <p
+          class="field-error"
+          id="signup-consent-error"
+          data-signup-error="consent"
+          hidden
+        >
+        </p>
+        <div class="field-check">
+          {
+            /* **`required` is one half of the consent decision.** Consent is currently
             required to submit; the other half is `z.literal(true)` in
             packages/shared/src/nn-signup.ts. If the committee decides an unconsented
             submission should be stored instead, remove `required` here and change that to
             `z.boolean()`. No migration is involved — the policy's `with check` is
             deliberately silent on consent. */
-        }
-        <input
-          class="field-checkbox"
-          id="signup-consent"
-          name="consent"
-          type="checkbox"
-          required
-          aria-describedby="signup-consent-error"
-          data-signup-value="consent"
-        />
-        <label class="field-label" for="signup-consent">
-          Yes, email me when entries open for this race.
-        </label>
+          }
+          <input
+            class="field-checkbox"
+            id="signup-consent"
+            name="consent"
+            type="checkbox"
+            required
+            aria-describedby="signup-consent-error"
+            data-signup-value="consent"
+          />
+          <label class="field-label" for="signup-consent">
+            Yes, email me when entries open for this race.
+          </label>
+        </div>
       </div>
-    </div>
 
-    <button class="button" type="submit">Register my interest</button>
-  </form>
+      <button class="button" type="submit">Register my interest</button>
+    </form>
 
-  <p class="signup-privacy">
-    The club holds your name and email address, and uses them for nothing but this one
-    email. <a href="/nn/privacy/">What the club does with this</a>, including how to have
-    it removed.
-  </p>
+    <h2>What this page proves</h2>
 
-  <h2>What this page proves</h2>
+    <p>
+      The timestamp below was fetched from Postgres by the Worker while it served this
+      request. It is rendered server-side, so it is here with JavaScript disabled. If it
+      reads as an error, the connection is genuinely broken and that is the useful answer.
+    </p>
 
-  <p>
-    The timestamp below was fetched from Postgres by the Worker while it served this
-    request. It is rendered server-side, so it is here with JavaScript disabled. If it
-    reads as an error, the connection is genuinely broken and that is the useful answer.
-  </p>
-
-  <dl class="status">
-    <dt>Database time, Europe/London</dt>
-    <dd>
-      {
-        /* The Worker fills this in while serving the request — see worker/index.ts. The
+    <dl class="status">
+      <dt>Database time, Europe/London</dt>
+      <dd>
+        {
+          /* The Worker fills this in while serving the request — see worker/index.ts. The
           `datetime` attribute carries UTC and the text carries Europe/London, which is
           the storage-and-display rule expressed in one element. */
-      }
-      <time data-health="pending">Not fetched — the Worker did not run.</time>
-    </dd>
+        }
+        <time data-health="pending">Not fetched — the Worker did not run.</time>
+      </dd>
 
-    <dt>Pipeline check</dt>
-    <dd>
-      {
-        /* A second, independent database round trip — intake.ping(), added after the
+      <dt>Pipeline check</dt>
+      <dd>
+        {
+          /* A second, independent database round trip — intake.ping(), added after the
           skeleton's first deploy to prove a *new* migration reaches this page the same
           way the one above already did. */
-      }
-      <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
-    </dd>
+        }
+        <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
+      </dd>
 
-    <dt>Served by</dt>
-    <dd>Cloudflare Workers, static assets plus one handler</dd>
+      <dt>Served by</dt>
+      <dd>Cloudflare Workers, static assets plus one handler</dd>
 
-    <dt>Application</dt>
-    <dd>apps/main</dd>
-  </dl>
+      <dt>Application</dt>
+      <dd>apps/main</dd>
+    </dl>
 
-  <footer>
-    <p>
-      Southville Running Club. Race details will be published once the committee has
-      confirmed them.
-    </p>
-  </footer>
+    <footer>
+      <p>
+        Southville Running Club. Race details will be published once the committee has
+        confirmed them.
+      </p>
+      <p>
+        <a href="/nn/privacy/">What the club does with your details</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The club's own artwork, at the foot of the page. **Empty on purpose** — it is a CSS
+    background, not an `<img>`, because it is decoration that states nothing and because an
+    image with intrinsic dimensions is briefly 1080 pixels wide before the stylesheet lands.
+    See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
 </Base>

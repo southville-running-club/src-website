@@ -2,6 +2,13 @@
 import Base from '../../layouts/Base.astro';
 import race from '../../content/race.json';
 
+// The same event theme as the form it belongs to — see packages/shared/styles/nn-theme.css.
+//
+// **The horror stops at the edge of the card.** The page furniture is the campaign's, so
+// somebody arriving from the form knows they have not left it; the notice itself is ink on
+// white, Inter throughout, with nothing decorative anywhere near the legal text.
+import '@src/shared/styles/nn-theme.css';
+
 // The first time the club collects personal data on its own infrastructure, so **the
 // pattern set here is the one everything else copies** — the membership forms, the entry
 // list, and eventually whatever replaces the Squarespace forms.
@@ -24,100 +31,134 @@ const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
   title="What the club does with your details — Nightingale Nightmare"
   description="What Southville Running Club holds when you register interest in Nightingale Nightmare, why, and how to have it removed."
   canonical={canonical}
+  theme="nn"
 >
-  <h1>What the club does with your details</h1>
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      {/* The club's wordmark, as on the form's page — see the note there. */}
+      <img
+        class="nn-logo"
+        src="/logo.svg"
+        alt="Southville Running Club"
+        width="176"
+        height="54"
+      />
 
-  <p class="lede">
-    This covers the <a href="/nn/#register">register your interest</a> form for {
-      race.name
-    }
-    and nothing else. It is short because what the club holds is small.
-  </p>
+      <h1>What the club does with your details</h1>
+    </div>
+  </header>
 
-  <h2>What is held</h2>
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      {
+        /* **`{' '}` is a real space, and it is here because a line break is not.** A newline
+        either side of an expression is collapsed away rather than kept as a space, so this
+        paragraph read "…form for Nightingale Nightmareand nothing else" until this pass.
+        Keeping the expression on one line with the words around it would fix it too — until
+        the next reflow past 90 characters silently breaks it again. */
+      }
+      <p class="lede">
+        This covers the <a href="/nn/#register">register your interest</a> form for{' '}
+        {race.name} and nothing else. It is short because what the club holds is small.
+      </p>
 
-  <p>Two things, and only because you typed them:</p>
+      <h2>What is held</h2>
 
-  <ul>
-    <li>Your <strong>name</strong>, as you wrote it.</li>
-    <li>Your <strong>email address</strong>.</li>
-  </ul>
+      <p>Two things, and only because you typed them:</p>
 
-  <p>
-    The club also records <strong>that you ticked the consent box</strong>, and the date
-    and time the form was sent. Nothing else is collected, and there is nowhere in the
-    form or the database to put anything else — no date of birth, no phone number, no
-    emergency contact, no club or England Athletics number.
-  </p>
+      <ul>
+        <li>Your <strong>name</strong>, as you wrote it.</li>
+        <li>Your <strong>email address</strong>.</li>
+      </ul>
 
-  <h2>Why the club may hold it</h2>
+      <p>
+        The club also records <strong>that you ticked the consent box</strong>, and the
+        date and time the form was sent. Nothing else is collected, and there is nowhere
+        in the form or the database to put anything else — no date of birth, no phone
+        number, no emergency contact, no club or England Athletics number.
+      </p>
 
-  <p>
-    <strong>Consent</strong> — you ticked a box saying the club may email you when entries open.
-    That is the only basis relied on here, which is why the box is not ticked for you and why
-    the form will not send without it.
-  </p>
+      <h2>Why the club may hold it</h2>
 
-  <h2>What it is used for</h2>
+      <p>
+        <strong>Consent</strong> — you ticked a box saying the club may email you when entries
+        open. That is the only basis relied on here, which is why the box is not ticked for
+        you and why the form will not send without it.
+      </p>
 
-  <p>
-    <strong>One email, when entries for {race.name} open.</strong> That is the whole purpose.
-  </p>
+      <h2>What it is used for</h2>
 
-  <p>
-    This is not a mailing list. It is not used for club newsletters, for other races, or
-    for anything the club might want to tell you later — any of those would need asking
-    you again, separately. Your details are not sold, and they are not shared with anyone
-    outside the club committee.
-  </p>
+      <p>
+        <strong>One email, when entries for {race.name} open.</strong> That is the whole purpose.
+      </p>
 
-  <h2>Where it is held</h2>
+      <p>
+        This is not a mailing list. It is not used for club newsletters, for other races,
+        or for anything the club might want to tell you later — any of those would need
+        asking you again, separately. Your details are not sold, and they are not shared
+        with anyone outside the club committee.
+      </p>
 
-  <p>
-    In the club's own database, hosted by <strong>Supabase</strong> in the London region (<code
-      >eu-west-2</code
-    >), and reached through the club's website on Cloudflare. Both are suppliers the club
-    pays or uses under their free tier; neither has any use of their own for what is
-    stored.
-  </p>
+      <h2>Where it is held</h2>
 
-  <h2>How long it is kept</h2>
+      <p>
+        In the club's own database, hosted by <strong>Supabase</strong> in the London region
+        (<code>eu-west-2</code>), and reached through the club's website on Cloudflare.
+        Both are suppliers the club pays or uses under their free tier; neither has any
+        use of their own for what is stored.
+      </p>
 
-  <p><strong>{orTbc(race.privacy.retention)}</strong></p>
+      <h2>How long it is kept</h2>
 
-  <p>
-    The intention is to hold this list only until entries for the race have opened and the
-    email has been sent, and then to delete it. The exact period is with the committee.
-  </p>
+      <p><strong>{orTbc(race.privacy.retention)}</strong></p>
 
-  <h2>Having it removed</h2>
+      <p>
+        The intention is to hold this list only until entries for the race have opened and
+        the email has been sent, and then to delete it. The exact period is with the
+        committee.
+      </p>
 
-  <p>
-    <strong>Ask, and it is deleted.</strong> You do not have to give a reason, and it does not
-    affect entering the race.
-  </p>
+      <h2>Having it removed</h2>
 
-  <p>Write to: <strong>{orTbc(race.privacy.removalAddress)}</strong></p>
+      <p>
+        <strong>Ask, and it is deleted.</strong> You do not have to give a reason, and it does
+        not affect entering the race.
+      </p>
 
-  <p>
-    You can also ask for a copy of what is held about you, ask for it to be corrected, or
-    withdraw your consent — withdrawing it has the same effect as asking for deletion,
-    because consent is the only reason the club holds it.
-  </p>
+      <p>Write to: <strong>{orTbc(race.privacy.removalAddress)}</strong></p>
 
-  <h2>Who is responsible</h2>
+      <p>
+        You can also ask for a copy of what is held about you, ask for it to be corrected,
+        or withdraw your consent — withdrawing it has the same effect as asking for
+        deletion, because consent is the only reason the club holds it.
+      </p>
 
-  <p><strong>{orTbc(race.privacy.controller)}</strong></p>
+      <h2>Who is responsible</h2>
 
-  <p>
-    If you are not happy with how the club has handled your details, you can complain to
-    the Information Commissioner's Office at <a href="https://ico.org.uk/">ico.org.uk</a>.
-  </p>
+      <p><strong>{orTbc(race.privacy.controller)}</strong></p>
 
-  <footer>
-    <p>
-      Southville Running Club. Anything above reading "to be confirmed" is with the
-      committee, and this page is updated when it is settled.
-    </p>
-  </footer>
+      <p>
+        If you are not happy with how the club has handled your details, you can complain
+        to the Information Commissioner's Office at <a href="https://ico.org.uk/"
+          >ico.org.uk</a
+        >.
+      </p>
+    </div>
+
+    <footer>
+      <p>
+        Southville Running Club. Anything above reading "to be confirmed" is with the
+        committee, and this page is updated when it is settled.
+      </p>
+      <p>
+        <a href="/nn/#register">Back to registering your interest</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the form's page, and empty for the same reason — it is
+    a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
 </Base>

@@ -12,9 +12,20 @@ interface Props {
   description: string;
   /** The address this page should be indexed under, when it has two. */
   canonical?: string;
+  /**
+   * An event theme, for the handful of pages that are a campaign rather than the club.
+   *
+   * Additive and optional: a page that does not ask for one renders exactly the markup it
+   * rendered before this prop existed, because Astro drops an attribute whose value is
+   * `undefined`. The theme's own stylesheet is imported by the pages that use it, not from
+   * here — `build.inlineStylesheets: 'never'` then means the club's pages never fetch it.
+   *
+   * `nn` is Nightingale Nightmare — packages/shared/styles/nn-theme.css.
+   */
+  theme?: 'nn';
 }
 
-const { title, description, canonical } = Astro.props;
+const { title, description, canonical, theme } = Astro.props;
 ---
 
 <!doctype html>
@@ -29,7 +40,7 @@ const { title, description, canonical } = Astro.props;
     {/* Nothing here is finished, and none of it should be found in a search yet. */}
     <meta name="robots" content="noindex" />
   </head>
-  <body>
+  <body class={theme ? `theme-${theme}` : undefined}>
     <a class="skip-link" href="#main">Skip to content</a>
     <main id="main">
       <slot />
