@@ -193,6 +193,39 @@ written down" — the account creation itself is manual and should be recorded o
 
 ---
 
+## Step by step, get-go to a working send
+
+**Three places, none overlapping**: Resend's own dashboard (account, domain, key),
+Fasthosts (pasting DNS records), and Cloudflare (holding the key, running the code that
+calls Resend). Cloudflare never talks to Resend's dashboard or does any verification — it
+only holds the secret and runs the call.
+
+1. **Sign up at Resend** with the club-owned address, per
+   [above](#the-resend-account-itself) — not a personal login.
+2. **Add both volunteers as team members** in Resend.
+3. **Add a domain in Resend**: `send.southvillerunningclub.co.uk`. Resend generates the
+   SPF `include:` and DKIM CNAME values for it.
+4. **Paste those records into Fasthosts** — the new DKIM CNAMEs, and the existing SPF
+   record extended with Resend's `include:`, never replaced. Purely additive — [Move
+   1](dns-and-domain.md#move-1--add-a-record-no-risk), no risk to anything already working.
+5. **Verify the domain in Resend.** It checks DNS has propagated — usually minutes,
+   occasionally longer depending on the record's TTL.
+6. **Generate an API key in Resend**, scoped to Sending access only.
+7. **Store it as a Worker secret** — `wrangler secret put RESEND_API_KEY` against
+   `apps/main`, plus a gitignored `.dev.vars` entry for local development.
+8. **Write the send call** — a small function that `POST`s to Resend's API with `from`,
+   `to`, `reply_to: info@southvillerunningclub.co.uk`, and the template content. This is
+   the first actual code change; everything before it is account and DNS admin.
+9. **Send a test message to a real inbox** and confirm the `From` name, that `Reply-To` is
+   set, and that replying actually lands in `info@`.
+
+**Steps 1–7 are account and DNS setup — no code.** Step 8 is the only build work needed to
+send a single transactional email. The [outbox](#the-outbox-in-depth) is additional work on
+top of that, worth doing once volume or the cap makes it worth it — it is not required to
+send the first email, and shouldn't block getting one working end to end.
+
+---
+
 ## Free tier: will it work?
 
 **Yes, to start**, per [email.md](email.md#problem-2--programmatic-mail)'s existing
@@ -217,6 +250,19 @@ therefore treats Resend as the only provider, and does not plan a migration.
 ---
 
 ## What happens to a send that hits the cap on the day
+
+**Concretely, at the API level first.** Resend does not queue an over-cap send for you —
+the 101st send that day gets a synchronous **HTTP `429`** back from the same API call,
+immediately, with an error body identifying it as a rate-limit rejection. Every attempt
+after that gets the same response until the cap resets, which Resend does daily — the
+precise reset boundary is worth confirming against Resend's own docs once the account
+exists, rather than assumed. **It also shows up in Resend's own dashboard** — rate-limited
+sends appear in the logs there, so there is a second, independent place to notice it
+happened, beyond whatever the club's own code records.
+
+That immediacy is what makes the design below workable at all: the Worker learns *at the
+moment it tries* that the cap has been hit, in the same request, not from a delayed bounce
+it has to infer later.
 
 Two different questions, easy to conflate: what fixes the cap going forward, and what
 happens to the one email that got rejected today, before any capacity change has happened.
