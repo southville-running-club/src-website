@@ -17,14 +17,44 @@ import '@src/shared/styles/nn-theme.css';
 // edit one line of one file, not search four pages of markup for it.
 //
 // **What is deliberately absent is as considered as what is here.** The mockup this
-// campaign is drawn from carries an entry price, a transfer deadline, an entry-opening
-// time and a live places-remaining counter. All four belong to the entries application,
-// which is a separate piece of work; this site does not quote figures it does not own. It
-// also carries "clocks change the night before", which was true in 2023 and is false for
-// 2026 — the clocks go back on 25 October and this race is a week later, in GMT.
+// campaign is drawn from carries an entry price, a deadline for passing a place on, an
+// entry-opening time and a live places-remaining counter. The price and the window are the
+// database's — see `/nn/`'s note — and the other two are simply not decided: the 2023 dates
+// are a pattern, not a commitment anybody has made for 2026.
+//
+// **The clocks joke is not reusable and is not here.** The 2023 copy makes it twice — "an
+// extended witching hour the night before" and "remember the clocks change… so no excuse
+// for lateness". It was true that year, when the race fell on the transition day. In 2026
+// the clocks go back on 25 October and this race is 1 November, a week later and squarely
+// in GMT. `site.spec.ts` asserts the phrase appears on none of the three content pages.
+//
+// **The 2023 instructions were a pre-race email and are not page copy.** They open
+// "Commiserations on entering the Nightingale Nightmare 10k" and sign off "next Sunday
+// morning" — written to people who had already entered, days out. This page is read by
+// somebody deciding whether to enter, months out, so nothing here assumes either.
 //
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
+
+// **The start is not at race HQ, and that is the one fact on this page somebody most needs
+// on the morning.** The club's 2023 event profile carried it exactly once, as a `goo.gl`
+// shortlink — and Google has been retiring those, so the single most important direction
+// this race gives out depended on a redirect the club does not own, cannot renew, and would
+// not be told about the day it stopped resolving.
+//
+// **So `race.json` stores the coordinates and this file builds the link.** Resolved from
+// that shortlink while it still worked: 51.4468588, -2.6250503. A pin is a fact about the
+// world and survives its hosting; a shortlink is a fact about a third party's database.
+// If Google's URL shape ever changes, one line here changes and the coordinates do not.
+//
+// The numbers are printed on the page as well as linked, because a coordinate pair is
+// usable in any map application, offline, and read aloud down a phone — and because a link
+// that fails should not take the answer with it.
+//
+// **No embedded map**, deliberately: an iframe would put a third-party tracker on a club
+// page nobody has assessed, on the page most likely to be opened on race morning.
+const startFinish = `${race.startFinish.lat}, ${race.startFinish.lng}`;
+const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.startFinish.lat},${race.startFinish.lng}`;
 ---
 
 <Base
@@ -55,12 +85,37 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
       <p>
         Everything that is not the race itself happens here: registration, the briefing,
         your bag, and the cake afterwards. There is <strong>free parking on site</strong>,
-        along with toilets, shelter, bag drop and somewhere to change.
+        along with toilets, shelter, bag drop and changing areas.
       </p>
 
       <p>
-        <strong>Please lift-share if you can.</strong> There is no on-street parking for this
-        race — people live on those streets, and they did not enter it.
+        <strong>Please lift-share if you can.</strong> The car park is large, but it is not
+        infinite, and there is no on-street parking for this race — people live on those streets,
+        and they did not enter it. Anything worth having is worth locking in the car rather
+        than leaving on a seat.
+      </p>
+
+      {
+        /* **The start is a different place from HQ, and it gets its own heading for that
+        reason.** The two have been confused in the club's own materials before, which is
+        why this section names the distinction in its first sentence rather than leaving it
+        to be inferred from an address further down.
+
+        The coordinates are printed as well as linked — see the note at the head of this
+        file on why they are stored rather than a shortlink. */
+      }
+      <h2>The start and the finish</h2>
+
+      <p>
+        <strong>Not at race HQ.</strong> The race starts and finishes about a mile away, and
+        everybody walks down together at 10:30 — so on the day there is nothing to find on your
+        own, and the walk is on the schedule below rather than left to you.
+      </p>
+
+      <p>
+        If you would like to see it beforehand, it is at{' '}
+        <span class="nn-mono">{startFinish}</span> —{' '}
+        <a href={startFinishMap} rel="noopener">show it on a map</a>.
       </p>
 
       <h2>The morning, in order</h2>
@@ -86,9 +141,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
       </dl>
 
       <p>
-        <strong>The start and the finish are not at HQ.</strong> That is why the walk down is
-        on the list rather than left to you — go with everybody else at 10:30 and you cannot
-        get it wrong. There is a bag drop at HQ and another one at the start.
+        <strong>There is a bag drop at HQ and another one at the start</strong>, so a coat
+        you want at 10:30 does not have to be a coat you abandon at 11:00.
       </p>
 
       <h2>Fancy dress</h2>
@@ -96,6 +150,27 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
       <p>
         <strong>Strongly encouraged</strong>, and that goes for anyone who comes to watch
         you as well. It is a Halloween race and it looks like one.
+      </p>
+
+      <p>
+        Judging is from a photograph rather than from the course: collect your number,
+        then go upstairs at HQ and have your picture taken. No photograph, no prize —
+        which is the only rule the competition has.
+      </p>
+
+      <h2>Afterwards, at HQ</h2>
+
+      <p>
+        <strong>Tea, coffee, hot chocolate and cake</strong>, all free, and the cake is
+        baked by club volunteers rather than bought. There is a donation tin out for a
+        local charity if you would like to put something in it.
+      </p>
+
+      <p>
+        <strong>Please stay and cheer the rest of them in.</strong> The people still out there
+        at your finish time are having a harder morning than you are, and a finish line with
+        nobody at it is a bleak thing to run towards. Bring something warm and dry to change
+        into and it is a much easier promise to keep.
       </p>
 
       <h2>Prizes</h2>

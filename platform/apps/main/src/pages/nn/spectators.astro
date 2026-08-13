@@ -12,11 +12,16 @@ import '@src/shared/styles/nn-theme.css';
 // later copy edit sends them to the wrong side of the gorge. They live in `race.json`
 // beside every other race fact.
 //
-// **What this page does not have is a map link for the start and the finish**, and that is
-// a gap rather than an oversight. The club's 2023 event profile flagged that those two
-// places need links of their own; none have been supplied, and inventing a pin for a race
-// start is exactly the kind of plausible-looking guess that gets somebody standing in the
-// wrong field. It is raised with the committee rather than bridged here.
+// **The start and the finish now have a pin, and it lives on the race-day page rather than
+// here.** It was resolved from the one map link the club's 2023 event profile carried — a
+// `goo.gl` shortlink — and it is stored in `race.json` as coordinates for the reason set out
+// at the head of `race-day.astro`. One page owns that fact and this one links to it, because
+// two copies of a location are how a corrected pin gets corrected in one place only.
+//
+// **The spectating points stay as text, and that is not an oversight.** No coordinates were
+// ever published for the North Road gate, Brunel Lock Road or Ashton Avenue Bridge, and
+// inventing a pin for somewhere to stand is exactly the plausible-looking guess that puts
+// somebody on the wrong side of the gorge. The postcodes are what the club has.
 //
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
@@ -47,7 +52,9 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
 
       <p>
         <strong>The start and the finish</strong> are the easiest watching, and the two places
-        you are guaranteed to see your runner.
+        you are guaranteed to see your runner. They are in the same place as each other and
+        <strong>not at race HQ</strong> — <a href="/nn/race-day/">the race-day page</a> has
+        the exact spot and a map.
       </p>
 
       <p>

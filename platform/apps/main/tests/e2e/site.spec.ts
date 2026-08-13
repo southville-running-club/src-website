@@ -408,6 +408,80 @@ test.describe('the Nightingale Nightmare content pages', () => {
       expect(text).not.toMatch(/transfer/i);
       expect(text).not.toMatch(/sells out/i);
     }
+
+    // **The 2023 copy was a pre-race email and this is not.** It opens "Commiserations on
+    // entering" and signs off "next Sunday morning" — written to people who had already
+    // entered, days out. These pages are read months out by somebody deciding whether to
+    // enter at all, so nothing may assume either.
+    for (const text of [raceDay, spectators, course]) {
+      expect(text).not.toMatch(/commiserations/i);
+      expect(text).not.toMatch(/next sunday/i);
+      expect(text).not.toMatch(/\bwitching hour\b/i);
+    }
+  });
+
+  test('the start is given as a place of its own, distinct from HQ', async ({ page }) => {
+    // **The one fact somebody most needs on the morning**, and the club has published it
+    // exactly once — as a `goo.gl` shortlink, which Google has been retiring. The
+    // coordinates are `race.json`'s now and the link is built from them, so the answer
+    // survives the shortener.
+    await page.goto('/nn/race-day/');
+
+    const body = (await page.locator('body').textContent()) ?? '';
+
+    // Both places are named, and the page says plainly that they are not the same one.
+    expect(body).toContain('51.4468588, -2.6250503');
+    expect(body).toContain('BS3 2JL');
+    expect(body).toMatch(/not at race HQ/i);
+
+    // The map link is generated from the stored coordinates, and is not a shortlink.
+    const map = page.getByRole('link', { name: 'show it on a map' });
+    await expect(map).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=51.4468588,-2.6250503',
+    );
+
+    // **No third-party map is embedded.** A link is somebody's choice to follow; an iframe
+    // is an unassessed tracker on the page most likely to be opened on race morning.
+    await expect(page.locator('iframe')).toHaveCount(0);
+  });
+
+  test('a shortened map link never reaches a page', async ({ page }) => {
+    // The failure this guards is a later edit pasting the convenient thing back in.
+    for (const path of ['/nn/', '/nn/course/', '/nn/race-day/', '/nn/spectators/']) {
+      await page.goto(path);
+
+      const hrefs = await page
+        .getByRole('link')
+        .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+
+      for (const href of hrefs) {
+        expect(href, `${path} -> ${href}`).not.toMatch(
+          /goo\.gl|maps\.app\.goo\.gl|bit\.ly|tinyurl/i,
+        );
+      }
+    }
+  });
+
+  test('the facts recovered from the club’s own 2023 page are on the day plan', async ({
+    page,
+  }) => {
+    // These are the club's words about things that do not change year to year, so they are
+    // safe to state. Anything not on that list stays off the page — the entry price, the
+    // deadline for passing a place on, and the 2026 permit number are all still open, and
+    // the assertions above are what keep them off.
+    await page.goto('/nn/race-day/');
+    const body = (await page.locator('body').textContent()) ?? '';
+
+    expect(body).toMatch(/bag drop at HQ and another one at the start/i);
+    expect(body).toMatch(/changing areas/i);
+    expect(body).toMatch(/lift-share/i);
+    expect(body).toMatch(/no on-street parking/i);
+    expect(body).toMatch(/upstairs at HQ/i); // the fancy-dress photograph
+    expect(body).toMatch(/hot chocolate/i);
+    expect(body).toMatch(/baked\s+by club volunteers/i);
+    expect(body).toMatch(/donation tin/i);
+    expect(body).toMatch(/warm and dry/i);
   });
 });
 

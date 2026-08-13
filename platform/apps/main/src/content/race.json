@@ -4,6 +4,10 @@
   "startTime": "11:00",
   "distance": "10 km, off-road",
   "location": "Ashton Park School, Blackmoors Lane, Bower Ashton, Bristol BS3 2JL",
+  "startFinish": {
+    "lat": 51.4468588,
+    "lng": -2.6250503
+  },
   "price": null,
   "entriesOpen": null,
   "permit": null,
@@ -17,7 +21,7 @@
     { "time": "11:00", "what": "The race starts." },
     {
       "time": "Afterwards",
-      "what": "Free hot drinks and cake back at HQ, with a donation tin out for charity. Prizegiving at HQ once the last finisher is in."
+      "what": "Tea, coffee, hot chocolate and cake back at HQ, with a donation tin out for a local charity. Prizegiving at HQ once the last finisher is in."
     }
   ],
   "prizes": [
