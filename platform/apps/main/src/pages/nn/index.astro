@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import NnNav from '../../components/NnNav.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
 import NnEntryForm from '../../components/NnEntryForm.astro';
 import race from '../../content/race.json';
 
@@ -57,26 +57,17 @@ const dateLine = race.date
   canonical={canonical}
   theme="nn"
 >
+  <NnMasthead slot="masthead" />
+
   <header class="nn-hero">
     <div class="nn-wrap">
       {
-        /* The club's own wordmark, in place of the mockup's typographic stand-in for it.
-        It carries the club's name, so the name is its `alt` and not a description of the
-        artwork — somebody hearing the page gets "Southville Running Club presents…
-        Nightingale Nightmare", which is what somebody seeing it gets.
-
-        `width` and `height` are on the element rather than left to the stylesheet: an image
-        with no intrinsic size laid out before the CSS arrives is how the artwork strip at
-        the foot of this page briefly made a phone scroll sideways. 176 is inside a 320px
-        screen with room to spare. */
+        /* **"presents…" opens the hero now that the wordmark has moved to the masthead.**
+        The sentence it belongs to still reads the same way down the page — "Southville
+        Running Club" in the header, then "presents…", then the title — which is what
+        somebody seeing it gets and, because the header is the first thing in the DOM, what
+        somebody hearing it gets too. */
       }
-      <img
-        class="nn-logo"
-        src="/logo.svg"
-        alt="Southville Running Club"
-        width="176"
-        height="54"
-      />
       <p class="nn-presents">presents…</p>
 
       <h1>{race.name}</h1>
@@ -124,8 +115,6 @@ const dateLine = race.date
         <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
         <a class="nn-ghost" href="/nn/race-day/">Race-day plan</a>
       </div>
-
-      <NnNav />
     </div>
   </header>
 

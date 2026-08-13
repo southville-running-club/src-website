@@ -1,6 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
-import NnNav from '../../components/NnNav.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
 import race from '../../content/race.json';
 
 // The same event theme as the rest of Nightingale Nightmare — see
@@ -33,23 +33,11 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
   canonical={canonical}
   theme="nn"
 >
+  <NnMasthead slot="masthead" />
+
   <header class="nn-hero nn-hero-compact">
     <div class="nn-wrap">
-      {
-        /* The club's wordmark, as on every Nightingale Nightmare page — see the note on the
-      race page. */
-      }
-      <img
-        class="nn-logo"
-        src="/logo.svg"
-        alt="Southville Running Club"
-        width="176"
-        height="54"
-      />
-
       <h1>Race day</h1>
-
-      <NnNav />
     </div>
   </header>
 

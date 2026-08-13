@@ -123,6 +123,20 @@
  *   danger on card           notice border        5.53:1    3.0 (1.4.11) ok — no new pair
  *   bone on card             `.lede` in a notice   1.06:1    4.5 (AA)     *** was failing ***
  *
+ * Added by the masthead — the capsules, and the bar they sit on once it is made to stay:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            capsule edge, resting 8.43:1    3.0 (1.4.11) ok — no new pair
+ *   bone on blood            capsule label         8.43:1    4.5 (AA)     ok — no new pair
+ *   pus on blood             capsule fill, current 5.44:1    3.0 (1.4.11) ok — no new pair
+ *   ink on pus               capsule label, current 10.93:1  4.5 (AA)     ok — no new pair
+ *   pus on blood             capsule edge, hover   5.44:1    3.0 (1.4.11) ok — no new pair
+ *   bone on blood-deep       capsule edge, stuck  12.69:1    3.0 (1.4.11) ok — new
+ *   bone on blood-deep       capsule label, stuck 12.69:1    4.5 (AA)     ok — new
+ *   pus on blood-deep        capsule fill, stuck   8.20:1    3.0 (1.4.11) ok — new
+ *   blood-deep on blood      the stuck bar vs page 1.51:1    —            see below
+ *
  * **This slice introduced no new colour pair, and that is the point of reusing the notice
  * pattern rather than inventing a sold-out treatment.** Somebody meeting the sold-out card
  * has just been told bad news; the campaign's atmosphere belongs on the poster.
@@ -176,6 +190,23 @@
  * because the grouping is carried by the `<dl>` itself and by the mono time at the head of
  * each row. Making it a 3:1 rule would draw six dark lines across a white card to restate
  * something the markup already says. Flagged rather than silently kept.
+ *
+ * **The capsules cost nothing to measure, and that is why they are capsules.** A resting one
+ * is `.nn-ghost` and the current one is `.nn-cta` — the hero's own two buttons at nav scale —
+ * so those four pairs were already in this table before the header existed. The mockup's pill
+ * bar, which is where the shape comes from, draws its resting edge at about 2:1 on a
+ * near-black strip; that is fine there and fails here, so the edge is bone.
+ *
+ * **Making the bar stay is what introduced a colour**, and it introduced exactly one. A
+ * header that scrolls away can be transparent; a header that stays has to be opaque or the
+ * words underneath scroll through it. `blood-deep` is the page's own darker end rather than
+ * a fourth surface, so every pair on the stuck bar improves on the same pair over `blood`.
+ *
+ * **The bar is 1.51:1 against the page and stays that way**, for the reason the
+ * call-to-action panel's fill does: it groups, it identifies nothing, and everything inside
+ * it is at 8.20:1 or better. The place it has to be visible is the top of the page, which is
+ * exactly where a stuck header sits — and there the gradient is at its lightest, so this is
+ * the largest that difference ever gets rather than the smallest.
  *
  * ## The fog, and why it darkens
  *
@@ -386,16 +417,117 @@ body.theme-nn {
 }
 
 /* -------------------------------------------------------------------------------------
+ * The masthead
+ * -------------------------------------------------------------------------------------
+ * The wordmark and the four campaign links, in a `<header>` above everything else.
+ *
+ * **It stays put while the page scrolls**, which is the one thing here that was asked for
+ * against the grain of the rest: these are read-and-scroll pages rather than an
+ * application, and a bar that never leaves is 64px of a laptop and **159px of a 320px
+ * phone** — a quarter of that viewport, permanently, before a word of the race is read.
+ * That trade was made deliberately and with the number in front of it. The cost is all in
+ * the narrow case, because that is the only width where the mark and the capsules cannot
+ * share a row.
+ *
+ * **Sticking it is what forced a background**, and the background is the only new colour
+ * this section introduces. See the note on the rule itself.
+ *
+ * **`flex-wrap` and no breakpoint**, which is this file's habit everywhere else. The mark is
+ * 132px, the links measure 261px and the gap is 24px, so the two share a row from about
+ * 460px up and the links drop to a row of their own below it — where they still fit on one
+ * line, because 261px is inside the 280px a 320px screen leaves within the column's
+ * padding. Two rows on a phone, one on a laptop, and no width written down: `flex-wrap`
+ * already knows the answer and a breakpoint here would be a second one to maintain.
+ * ------------------------------------------------------------------------------------- */
+/* **Stuck to the top, and the background is what that costs.** Transparent was free while
+   the header scrolled away with the page; a header that stays has to be opaque or the
+   words underneath scroll through it. `blood-deep` is the page's own darker end rather than
+   a new colour, so every pair on the bar was already measured: bone edge and label at
+   12.69:1, the current capsule's pus fill at 8.20:1, its ink label at 10.93:1.
+
+   **The bar is 1.51:1 against the page and that is deliberate**, for the reason the
+   call-to-action panel's fill is: it groups, it identifies nothing, and everything inside it
+   is at 8.20:1 or better. What it must not be is invisible at the top of the page, and at
+   the radial centre — which is exactly where a stuck header sits — `blood` is at its
+   lightest and the contrast with `blood-deep` at its largest. */
+.theme-nn .nn-masthead {
+  position: sticky;
+  top: 0;
+  /* Above the hero's fog (0) and its content (1), and above the cards that rise into view
+     as they are scrolled to. */
+  z-index: 10;
+  background: var(--nn-blood-deep);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.theme-nn .nn-masthead > .nn-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* Row gap first: it is the space between the mark and the links once they have wrapped
+     onto two rows, which is the phone case and therefore the one that matters. */
+  gap: 6px 24px;
+}
+
+/* The link around the wordmark. `text-decoration: none` because the theme underlines every
+   link on the gradient and the content here is artwork rather than words — an underline
+   under a logo reads as a mistake. It is still obviously a link: it is the club's mark in
+   the top-left corner of a header, which is the most conventional target on the web. */
+.theme-nn .nn-masthead-mark {
+  display: block;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+/* Smaller than the hero's copy was, because it is page furniture now rather than the
+   opening statement. `max-width: none` overrides the 50% the hero needed — inside a flex
+   row that percentage resolves against the flex item and collapses the mark to nothing. */
+.theme-nn .nn-masthead .nn-logo {
+  width: 132px;
+  max-width: none;
+}
+
+/* Pushed to the right of the mark on a wide screen; harmless when it has wrapped to its own
+   row, where `margin-left: auto` against a full-width line does nothing. */
+.theme-nn .nn-masthead .nn-nav {
+  margin-left: auto;
+}
+
+/* **Every anchor target on these pages leaves room for the bar**, and this is the rule that
+   stops sticking it from being an accessibility regression. Without it "Skip to content"
+   scrolls `<main>` to a position underneath the header, the panels' `/nn/#register` puts
+   the form's heading behind it, and the error summary's link to the field it is about
+   scrolls that field out of sight — which is WCAG 2.4.11 failing, and is also just somebody
+   pressing a link and appearing to arrive nowhere.
+
+   **`scroll-margin-top` on the targets rather than `scroll-padding-top` on the scroller.**
+   The scroller is the viewport, which is `<html>`, and this theme is scoped to `body` on
+   purpose — reaching the root would need either `:has()` or a second class on `<html>`, and
+   the property that belongs to the target works everywhere without either.
+
+   One value, sized for the tallest the bar gets. On a laptop, where it is 64px, an anchor
+   lands with more clearance than it needs; that costs nothing and is the safe direction to
+   be wrong in. Near the top of a document the browser cannot scroll past zero, so the skip
+   link is unaffected by the slack. */
+.theme-nn [id] {
+  scroll-margin-top: 168px;
+}
+
+/* -------------------------------------------------------------------------------------
  * The hero
  * -------------------------------------------------------------------------------------
  * `position: relative` and the stacking of the wrap above it are both here for the fog —
- * see the fog section below. The bottom padding is not decoration: the navigation is the
- * last thing in the hero, and a focus ring is drawn 2px outside the element it belongs to.
- * Without room for it, the ring on the last nav link would sit on the boundary.
+ * see the fog section below.
+ *
+ * **The top padding is small because the masthead is above it now.** It used to be 40px
+ * and to open the page; the header does that, and the two paddings together are what set
+ * the gap between the links and the title. The bottom padding stays: the hero is followed
+ * by a card, and the campaign's h1 is set in a face whose drips hang below the baseline.
  * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-hero {
   position: relative;
-  padding-top: 40px;
+  padding-top: 6px;
   padding-bottom: 14px;
 }
 
@@ -486,51 +618,70 @@ body.theme-nn {
 /* -------------------------------------------------------------------------------------
  * The navigation
  * -------------------------------------------------------------------------------------
- * Four links, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
- * the four labels and their gaps come to about 300px, so on a 320px screen (280px inside
- * the column's padding) the row breaks itself in two and needs nobody to have predicted
- * the width at which it would.
- *
- * **The resting links keep their underline**, which is the rule the rest of this file
- * follows: bone on bone is a shade rather than a signal, and a nav that drops the underline
- * is relying on position alone to say these are links.
+ * Four capsules, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
+ * and it needs nobody to have predicted the width at which it would.
  *
  * **The current page is marked three ways and colour is not one of them on its own** —
- * `aria-current="page"` for anything reading the markup, 700 weight, and a solid pus rule
- * beneath it. It is the one item *without* a text underline, so the two states differ in
- * shape as well as in colour. Somebody who cannot separate the yellow from the cream still
- * has the weight and the rule.
+ * `aria-current="page"` for anything reading the markup, 700 weight, and the capsule
+ * inverting from an outline to a solid fill. That last one is the reason this shape suits
+ * the job: filled against outlined is a difference in *area*, which survives being
+ * photocopied, being read on a phone in sunlight, and not being able to separate yellow
+ * from cream. The colour is the least of the three signals rather than the only one.
  *
- * Targets are ~34px tall against WCAG 2.2's 24px floor, and 18px apart.
+ * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart.
  * ------------------------------------------------------------------------------------- */
-.theme-nn .nn-nav {
-  margin-top: 20px;
-}
-
 .theme-nn .nn-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 18px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* **A resting capsule is `.nn-ghost` and the current one is `.nn-cta`, at nav scale.** That
+   is the whole of the colour reasoning: 2px bone edge on transparent with bone text, and a
+   pus fill with ink text for the page you are on. Both pairs are already in the table above
+   — bone border on blood at 8.43:1, ink on pus at 10.93:1, pus fill on blood at 5.44:1 —
+   because they are the hero's own two buttons, so the capsules add no colour pair to
+   measure and cannot drift from the buttons they echo.
+
+   **The mockup's own pill bar is where the shape comes from and not the colours.** It is
+   the review chrome at the top of `nn-entry-mockup.html`, marked "not shipped", and it
+   draws its resting edge in `#5a4a48` on a near-black bar — about 2:1, which is fine there
+   and fails here on the red. The edge is bone instead. */
 .theme-nn .nn-nav a {
   display: inline-block;
-  padding: 8px 0;
-  border-bottom: 3px solid transparent;
+  padding: 7px 14px;
+  border: 2px solid var(--nn-bone);
+  border-radius: 999px;
   color: var(--nn-bone);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  text-underline-offset: 0.15em;
+  /* The capsule is what says "this is a control". An underline inside one reads as a
+     mistake, and this is the one place in this file where dropping it is not position
+     standing in for a signal. */
+  text-decoration: none;
 }
 
 .theme-nn .nn-nav a[aria-current='page'] {
-  border-bottom-color: var(--nn-pus);
-  color: var(--nn-pus);
+  border-color: var(--nn-pus);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
   font-weight: 700;
-  text-decoration: none;
+}
+
+/* **Hover changes colour, not position.** The hero's buttons lift 2px and these
+   deliberately do not: a row of four that each jump as the pointer crosses them is fidget
+   on a page somebody is reading, and a treatment with no motion in it needs no second rule
+   under `prefers-reduced-motion`.
+
+   **`:not([aria-current])` is load-bearing rather than tidy.** Without it the hover would
+   set pus text on the current item's pus fill, and the label somebody is pointing at would
+   vanish. */
+.theme-nn .nn-nav a:hover:not([aria-current='page']) {
+  border-color: var(--nn-pus);
+  color: var(--nn-pus);
 }
 
 /* -------------------------------------------------------------------------------------

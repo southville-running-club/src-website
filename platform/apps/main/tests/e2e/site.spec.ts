@@ -155,6 +155,134 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
   });
 
+  // -------------------------------------------------------------------------------------
+  // The masthead
+  // -------------------------------------------------------------------------------------
+  // The navigation used to sit in the page flow, below the hero's buttons. It is a header
+  // at the top of the page now, and these are the four properties that were argued for
+  // rather than the ones that were easy to assert.
+  // -------------------------------------------------------------------------------------
+
+  test('the masthead is on the five pages that get it, and not the sixth', async ({
+    page,
+  }) => {
+    // **`/nn/entry/complete/` keeps the wordmark and loses the links**, deliberately:
+    // somebody has just paid and wants to know whether the club knows it, and four ways to
+    // wander off is not what that page is for.
+    for (const path of [
+      '/nn/',
+      '/nn/course/',
+      '/nn/race-day/',
+      '/nn/spectators/',
+      '/nn/privacy/',
+    ]) {
+      await page.goto(path);
+      await expect(page.locator('.nn-masthead')).toBeVisible();
+      await expect(
+        page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+      ).toBeVisible();
+    }
+
+    await page.goto('/nn/entry/complete/');
+    await expect(page.locator('.nn-masthead')).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+    ).toHaveCount(0);
+  });
+
+  test('the wordmark is a link home, and there is exactly one of it', async ({
+    page,
+  }) => {
+    // It moved out of the hero rather than being copied into the header. Two would mean
+    // every page announced the club's name twice to anybody listening to it.
+    for (const path of ['/nn/', '/nn/course/', '/nn/privacy/', '/nn/entry/complete/']) {
+      await page.goto(path);
+
+      const mark = page.getByRole('link', { name: 'Southville Running Club' });
+      await expect(mark).toHaveCount(1);
+      await expect(mark).toHaveAttribute('href', '/nn/');
+      await expect(page.locator('img[alt="Southville Running Club"]')).toHaveCount(1);
+    }
+  });
+
+  test('"Skip to content" is still first, and still lands past the navigation', async ({
+    page,
+  }) => {
+    // **This is the assertion the header had to earn.** The skip link points at `#main` and
+    // has done since the skeleton; putting a navigation *inside* `<main>` would have left
+    // the one control that exists to jump past the links landing in front of them, and
+    // nothing already here would have noticed. The header is rendered into a slot outside
+    // `<main>` for exactly this reason — see `Base.astro`.
+    for (const path of ['/nn/', '/nn/course/', '/nn/privacy/']) {
+      await page.goto(path);
+
+      const first = page.locator('a').first();
+      await expect(first).toHaveText('Skip to content');
+      await expect(first).toHaveAttribute('href', '#main');
+
+      // The target exists, and the navigation genuinely precedes it in the document.
+      const landsPastTheNav = await page.evaluate(() => {
+        const target = document.querySelector('#main');
+        const nav = document.querySelector('.nn-nav');
+        if (!target || !nav) return null;
+        return Boolean(
+          nav.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING,
+        );
+      });
+      expect(landsPastTheNav, path).toBe(true);
+    }
+  });
+
+  test('the header is a banner landmark, and the hero is not a second one', async ({
+    page,
+  }) => {
+    // `<header>` maps to `banner` only when it is not inside `main`, `article`, `aside`,
+    // `nav` or `section`. The hero is inside `<main>` and is therefore generic; the
+    // masthead is outside it and is the page's one banner. Two would be an axe violation
+    // and, worse, two landmarks a screen-reader user has to tell apart.
+    await page.goto('/nn/');
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.locator('main .nn-masthead')).toHaveCount(0);
+  });
+
+  test('the header stays put, and anchors still clear it @requires-js', async ({
+    page,
+  }) => {
+    // **Sticking it was asked for against this file's own advice**, so the cost is written
+    // down rather than discovered: 64px of a laptop and 159px of a 320px phone, held for
+    // the whole page. What must not also be true is that it hides the things people jump
+    // to — `scroll-margin-top` on every target in the theme is what pays for it, and this
+    // is the assertion that stops a later tidy-up removing the rule without noticing.
+    for (const [width, height] of [
+      [1280, 800],
+      [320, 640],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto('/nn/race-day/');
+
+      await page.evaluate(() => window.scrollTo(0, 1200));
+      const stuck = await page.evaluate(() => {
+        const r = document.querySelector('.nn-masthead')?.getBoundingClientRect();
+        return r ? Math.round(r.top) : null;
+      });
+      expect(stuck, `stuck at ${width}px`).toBe(0);
+
+      // A target reached by fragment must land below the bar rather than behind it —
+      // WCAG 2.4.11, and the reason the skip link still means anything.
+      await page.goto('/nn/');
+      await page.evaluate(() => {
+        window.location.hash = '#register';
+      });
+      const clears = await page.evaluate(() => {
+        const t = document.querySelector('#register')?.getBoundingClientRect();
+        const m = document.querySelector('.nn-masthead')?.getBoundingClientRect();
+        return t && m ? t.top >= m.bottom : null;
+      });
+      expect(clears, `#register clears the bar at ${width}px`).toBe(true);
+    }
+  });
+
   test('the loudest control offers the only thing this site can do', async ({ page }) => {
     // **This is the assertion that keeps a payment link off a site with no payment.** The
     // mockup's primary button is "Enter the race — from £15" — an unconfirmed price on a

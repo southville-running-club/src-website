@@ -1,0 +1,76 @@
+---
+import NnNav from './NnNav.astro';
+
+// The header at the top of every Nightingale Nightmare page.
+//
+// **This replaces a navigation that sat in the page flow**, below the hero's call-to-action
+// buttons, which is where "the smallest thing that works" put it. It worked in the sense
+// that the links resolved; it failed in the sense that nobody looking at the page would
+// call it a navigation. A header is the thing people already know how to use, and it is
+// worth the extra element.
+//
+// ## Where it goes, and why that is `Base.astro`'s business rather than this file's
+//
+// It fills the layout's `masthead` slot, which renders **outside `<main>`**. Two things
+// depend on that and neither is cosmetic: "Skip to content" points at `#main` and would
+// otherwise skip *to* the navigation rather than past it, and `<header>` only maps to the
+// `banner` landmark when it is not inside `main`. See the note in `Base.astro`.
+//
+// ## What the mockup did and did not supply
+//
+// **`docs/design/nn-entry-mockup.html` has no header and no navigation at all** — no
+// `<nav>`, no links bar, no `aria-current`, and the club wordmark is a non-linked
+// `<p class="clublock">` sitting as the first child of the hero. So there was no approved
+// pattern to copy and this is not one. What the mockup does supply is the vocabulary this
+// is built from: bone on the blood gradient, the yellow focus ring, the fixed 20px gutter,
+// and a header that is part of the poster rather than a bar bolted above it. Recorded here
+// because "as per the mockup" would be a claim the file does not support.
+//
+// ## No JavaScript, and no hamburger
+//
+// Four links fit. A menu behind a toggle would need a script to open, and every form on
+// this site is built to work without one — a navigation that fails with JavaScript off
+// while the entry form beneath it still works would be an odd place to draw the line.
+//
+// **Not sticky, either.** These are read-and-scroll pages rather than an application, and a
+// fixed bar spends vertical space a phone does not have on something already read.
+
+interface Props {
+  /**
+   * Whether the four campaign links appear beside the wordmark.
+   *
+   * `false` on `/nn/entry/complete/`, which somebody reaches having just paid. Four ways to
+   * wander off before reading what the club has recorded is not what that page is for, so it
+   * keeps the wordmark for identity and drops the links. It is the only page that does.
+   */
+  nav?: boolean;
+}
+
+const { nav = true } = Astro.props;
+---
+
+<header class="nn-masthead">
+  <div class="nn-wrap">
+    {
+      /* **The club's wordmark, and the page's only accessible copy of it.** It used to sit
+      in the hero on all six pages; leaving it there as well would give every page two
+      links or images saying "Southville Running Club", which is one more than a screen
+      reader user needs to hear. The hero's copy is removed rather than hidden.
+
+      `alt` carries the club's name because that is what the artwork says — not a
+      description of it. `width` and `height` are on the element so the row does not
+      reflow between the HTML arriving and the stylesheet landing. */
+    }
+    <a class="nn-masthead-mark" href="/nn/">
+      <img
+        class="nn-logo"
+        src="/logo.svg"
+        alt="Southville Running Club"
+        width="176"
+        height="54"
+      />
+    </a>
+
+    {nav && <NnNav />}
+  </div>
+</header>

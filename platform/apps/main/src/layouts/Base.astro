@@ -25,6 +25,28 @@ interface Props {
   theme?: 'nn';
 }
 
+/**
+ * The `masthead` slot, and why it is outside `<main>`.
+ *
+ * **The skip link is the whole reason.** It has always pointed at `#main`, and a navigation
+ * rendered *inside* `<main>` would put the links after the thing the skip link skips to —
+ * which is to say the one control that exists to jump past the navigation would land in
+ * front of it. Filling this slot puts the header before `<main>`, so "Skip to content"
+ * keeps meaning what it says.
+ *
+ * It is also what makes the header a real `banner` landmark: `<header>` maps to `banner`
+ * only when it is *not* inside `main`, `article`, `aside`, `nav` or `section`. The event
+ * pages' `<header class="nn-hero">` sits inside `<main>` and is therefore generic, so there
+ * is exactly one banner on the page rather than two competing ones.
+ *
+ * **Additive, like `theme` above.** Astro renders nothing for an unfilled named slot and
+ * `compressHTML` (on by default) removes the whitespace around it, so the club's own pages
+ * build byte-for-byte identically to before this slot existed — verified against
+ * `dist/index.html` and `dist/404.html`, not assumed. `tests/worker/serves.test.ts` is the
+ * standing guard: neither page may contain `nn-theme`, `theme-nn` or `nn-nav`, which stays
+ * true because neither fills this slot.
+ */
+
 const { title, description, canonical, theme } = Astro.props;
 ---
 
@@ -42,6 +64,7 @@ const { title, description, canonical, theme } = Astro.props;
   </head>
   <body class={theme ? `theme-${theme}` : undefined}>
     <a class="skip-link" href="#main">Skip to content</a>
+    <slot name="masthead" />
     <main id="main">
       <slot />
     </main>

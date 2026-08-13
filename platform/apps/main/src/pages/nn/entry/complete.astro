@@ -1,5 +1,6 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
 import race from '../../../content/race.json';
 
 import '@src/shared/styles/nn-theme.css';
@@ -70,17 +71,17 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/entry/complete/';
   canonical={canonical}
   theme="nn"
 >
+  {
+    /* **The wordmark without the links, and this is the only page that gets that.**
+    Somebody arrives here having just paid, to find out whether the club knows it. Four
+    links offering the course, the race-day plan and the spectator guide are four ways to
+    leave before reading the one paragraph that answers the question they came with. The
+    mark stays so the page is visibly still the club's. */
+  }
+  <NnMasthead slot="masthead" nav={false} />
+
   <header class="nn-hero nn-hero-compact">
     <div class="nn-wrap">
-      {/* The club's wordmark, as on the form's page — see the note there. */}
-      <img
-        class="nn-logo"
-        src="/logo.svg"
-        alt="Southville Running Club"
-        width="176"
-        height="54"
-      />
-
       <h1>Your entry</h1>
     </div>
   </header>

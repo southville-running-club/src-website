@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
 import race from '../../content/race.json';
 
 // The same event theme as the form it belongs to — see packages/shared/styles/nn-theme.css.
@@ -33,17 +34,16 @@ const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
   canonical={canonical}
   theme="nn"
 >
+  {
+    /* **This page gains the campaign navigation, which it never had.** It was the one page
+    reachable from the form with no way back to the race except the browser's own button —
+    somebody who opens the privacy notice to check what is held before typing their name
+    should not have to retrace their steps to carry on. */
+  }
+  <NnMasthead slot="masthead" />
+
   <header class="nn-hero nn-hero-compact">
     <div class="nn-wrap">
-      {/* The club's wordmark, as on the form's page — see the note there. */}
-      <img
-        class="nn-logo"
-        src="/logo.svg"
-        alt="Southville Running Club"
-        width="176"
-        height="54"
-      />
-
       <h1>What the club does with your details</h1>
     </div>
   </header>

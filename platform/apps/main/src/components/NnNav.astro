@@ -1,10 +1,13 @@
 ---
 // The navigation across the four Nightingale Nightmare pages.
 //
-// **The smallest thing that works.** Four links in a list, no JavaScript, no dropdown and
-// no hamburger — at four items a menu that has to be opened is more machinery than the
-// thing it hides. It wraps to two rows at 320px and that is the whole of its responsive
-// behaviour.
+// **Four links in a list, no JavaScript, no dropdown and no hamburger** — at four items a
+// menu that has to be opened is more machinery than the thing it hides.
+//
+// **It is rendered by `NnMasthead.astro` and nothing else.** It used to be dropped into
+// each page's hero by hand, below the call-to-action buttons, which is how four links ended
+// up stranded in the middle of the page flow. This file kept its job — which links there
+// are, and which one is current — and gave up deciding where they sit.
 //
 // ## Why the current page is derived rather than passed in
 //
