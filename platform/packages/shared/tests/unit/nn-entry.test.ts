@@ -1,0 +1,470 @@
+import { describe, expect, it } from 'vitest';
+import { parseNnEntry, entryRulesFrom, type NnEntryRules } from '../../src/nn-entry';
+import type { EntryState } from '../../src/entry-state';
+
+/**
+ * The entry schema, exhaustively — every rejection the form can produce, and the boundaries
+ * either side of each one.
+ *
+ * **This is the layer that is the control.** Client-side validation is a convenience and it
+ * is not what runs when somebody has scripting off, or a bot posts directly, or a browser
+ * decides `required` means something slightly different. Everything the Worker will accept
+ * is decided here, and a hole here is a hole everywhere.
+ *
+ * Race day is Sunday 1 November 2026, confirmed. **`minimumAge` is null in the default
+ * fixture and that is not laziness** — it is the configured state: no minimum age has been
+ * confirmed for Nightingale Nightmare, so the form applies none. The rule itself is exercised
+ * against an event that *does* configure one, which is the shape a future race will take.
+ */
+
+const RULES: NnEntryRules = {
+  eventDate: { year: 2026, month: 11, day: 1 },
+  minimumAge: null,
+  feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
+  eaRequiredForFeeCodes: ['affiliated'],
+};
+
+/** A submission with nothing wrong with it, as `Object.fromEntries(formData)` would give it. */
+function good(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    firstName: 'Grace',
+    lastName: 'Hopper',
+    email: 'grace@example.com',
+    emailConfirm: 'grace@example.com',
+    dobDay: '9',
+    dobMonth: '12',
+    dobYear: '1986',
+    gender: 'female',
+    feeCode: 'unaffiliated',
+    emergencyName: 'Margaret Hamilton',
+    emergencyPhone: '0117 496 0000',
+    entryTerms: 'on',
+    ...overrides,
+  };
+}
+
+/** The first message against one field, or undefined if that field is happy. */
+function errorOn(input: Record<string, unknown>, rules: NnEntryRules = RULES) {
+  const result = parseNnEntry(input, rules);
+  return result.ok ? undefined : result.errors;
+}
+
+describe('a submission with nothing wrong with it', () => {
+  it('is accepted, and comes back normalised', () => {
+    const result = parseNnEntry(good(), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value).toMatchObject({
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'grace@example.com',
+      dateOfBirth: { year: 1986, month: 12, day: 9 },
+      gender: 'female',
+      club: null,
+      feeCode: 'unaffiliated',
+      eaNumber: null,
+      medicalNotes: null,
+    });
+    expect(result.value.consents).toEqual({ entryTerms: true, medical: false });
+  });
+
+  it('derives the category alongside it, rather than leaving it to be asked twice', () => {
+    const result = parseNnEntry(good(), RULES);
+    expect(result.ok && result.category).toMatchObject({ code: 'senior', age: 39 });
+  });
+
+  it('trims what was typed before judging it', () => {
+    const result = parseNnEntry(
+      good({ firstName: '  Grace  ', emergencyName: ' Margaret Hamilton ' }),
+      RULES,
+    );
+
+    expect(result.ok && result.value.firstName).toBe('Grace');
+    expect(result.ok && result.value.emergencyName).toBe('Margaret Hamilton');
+  });
+
+  it('keeps an optional club when one is given and nulls it when it is not', () => {
+    const withClub = parseNnEntry(good({ club: 'Southville Running Club' }), RULES);
+    expect(withClub.ok && withClub.value.club).toBe('Southville Running Club');
+
+    const blank = parseNnEntry(good({ club: '   ' }), RULES);
+    expect(blank.ok && blank.value.club).toBeNull();
+  });
+});
+
+describe('the two email boxes', () => {
+  it('refuses an address that is not one', () => {
+    expect(
+      errorOn(good({ email: 'notanaddress', emailConfirm: 'notanaddress' })),
+    ).toEqual(
+      expect.objectContaining({ email: 'Enter an email address, like you@example.com.' }),
+    );
+  });
+
+  it('refuses a confirmation that does not match', () => {
+    expect(
+      errorOn(good({ emailConfirm: 'grace@exampel.com' }))?.emailConfirm,
+    ).toBeDefined();
+  });
+
+  it('accepts a confirmation that differs only in case, because it is the same mailbox', () => {
+    // The confirmation box catches a typo. `Grace@Example.com` against `grace@example.com`
+    // is not a typo, and refusing it would be the form inventing a distinction the mail
+    // system does not make.
+    const result = parseNnEntry(good({ emailConfirm: 'GRACE@Example.com' }), RULES);
+    expect(result.ok).toBe(true);
+  });
+
+  it('stores the address as typed rather than lower-casing it', () => {
+    const result = parseNnEntry(
+      good({
+        email: 'Grace.Hopper@Example.com',
+        emailConfirm: 'grace.hopper@example.com',
+      }),
+      RULES,
+    );
+    expect(result.ok && result.value.email).toBe('Grace.Hopper@Example.com');
+  });
+
+  it('asks for the confirmation when it is empty', () => {
+    expect(errorOn(good({ emailConfirm: '' }))?.emailConfirm).toBe(
+      'Type your email address again, to check it.',
+    );
+  });
+});
+
+describe('the date of birth, entered as three numbers', () => {
+  it('asks for all three when any is missing', () => {
+    expect(errorOn(good({ dobDay: '' }))?.dateOfBirth).toBe(
+      'Enter your date of birth as a day, a month and a year.',
+    );
+    expect(errorOn(good({ dobMonth: '' }))?.dateOfBirth).toBeDefined();
+    expect(errorOn(good({ dobYear: '' }))?.dateOfBirth).toBeDefined();
+  });
+
+  it('refuses a date that never happened', () => {
+    // 1986 was not a leap year. `new Date(1986, 1, 29)` would roll this over to 1 March and
+    // report no problem, which is why the module does not use it.
+    expect(
+      errorOn(good({ dobDay: '29', dobMonth: '2', dobYear: '1986' }))?.dateOfBirth,
+    ).toBe('That is not a date. Check the day, the month and the year.');
+    expect(errorOn(good({ dobDay: '31', dobMonth: '4' }))?.dateOfBirth).toBeDefined();
+    expect(errorOn(good({ dobMonth: '13' }))?.dateOfBirth).toBeDefined();
+    expect(errorOn(good({ dobDay: '0' }))?.dateOfBirth).toBeDefined();
+  });
+
+  it('accepts 29 February in a year that had one', () => {
+    const result = parseNnEntry(
+      good({ dobDay: '29', dobMonth: '2', dobYear: '1984' }),
+      RULES,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses digits with anything else mixed in', () => {
+    // `Number(' 12 ')` is 12 and `parseInt('12abc')` is 12. Both would let a form accept
+    // something nobody typed on purpose.
+    expect(errorOn(good({ dobDay: '12abc' }))?.dateOfBirth).toBeDefined();
+    expect(errorOn(good({ dobYear: '86' }))?.dateOfBirth).toBeDefined();
+  });
+
+  it('refuses a date of birth after race day', () => {
+    expect(
+      errorOn(good({ dobDay: '2', dobMonth: '11', dobYear: '2026' }))?.dateOfBirth,
+    ).toBe('A date of birth cannot be in the future.');
+  });
+
+  it('refuses a year earlier than the form takes', () => {
+    expect(errorOn(good({ dobYear: '1899' }))?.dateOfBirth).toBe(
+      'Check the year — the earliest this form takes is 1900.',
+    );
+  });
+});
+
+describe('the minimum age, which is configuration and not a rule in this file', () => {
+  const eighteen: NnEntryRules = { ...RULES, minimumAge: 18 };
+
+  it('accepts somebody who is exactly the minimum age on race day', () => {
+    // Born 1 November 2008: turns 18 **on** race day. The club's categories are "at race
+    // date", so this is inside and it is the boundary somebody will argue about.
+    const result = parseNnEntry(
+      good({ dobDay: '1', dobMonth: '11', dobYear: '2008' }),
+      eighteen,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses somebody one day short of it', () => {
+    const result = parseNnEntry(
+      good({ dobDay: '2', dobMonth: '11', dobYear: '2008' }),
+      eighteen,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.errors.dateOfBirth).toBe(
+      'You must be 18 or over on race day to enter.',
+    );
+  });
+
+  it('applies no check at all when the event configures none', () => {
+    // **The configured state for Nightingale Nightmare.** 18 is implied by the category
+    // structure and has not been confirmed by the committee, so `minimum_age` is null and
+    // nobody is turned away by an inference.
+    const result = parseNnEntry(
+      good({ dobDay: '2', dobMonth: '11', dobYear: '2012' }),
+      RULES,
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('the entry type, and the number that hangs off it', () => {
+  it('asks for a choice when none was made', () => {
+    expect(errorOn(good({ feeCode: '' }))?.feeCode).toBe('Choose an entry type.');
+  });
+
+  it('refuses a code the event is not offering', () => {
+    // The list comes from `entries.fees` at request time, so a posted code that is not on
+    // offer is refused without this file needing to know what the codes are.
+    expect(errorOn(good({ feeCode: 'free_for_me' }))?.feeCode).toBe(
+      'Choose one of the entry types listed.',
+    );
+  });
+
+  it('requires an England Athletics number for the affiliated entry', () => {
+    expect(errorOn(good({ feeCode: 'affiliated' }))?.eaNumber).toBe(
+      'Enter your England Athletics number, or choose the unaffiliated entry instead.',
+    );
+  });
+
+  it('checks the format of that number, and only the format', () => {
+    // **England Athletics publishes no verification API.** A well-formed number is accepted
+    // here and spot-checked by a human later; nothing in this repository confirms that a
+    // number is real or belongs to whoever typed it.
+    expect(errorOn(good({ feeCode: 'affiliated', eaNumber: 'ABC1234' }))?.eaNumber).toBe(
+      'An England Athletics number is 6 to 8 digits, like 1234567.',
+    );
+    expect(
+      errorOn(good({ feeCode: 'affiliated', eaNumber: '12345' }))?.eaNumber,
+    ).toBeDefined();
+    expect(
+      errorOn(good({ feeCode: 'affiliated', eaNumber: '123456789' }))?.eaNumber,
+    ).toBeDefined();
+
+    const fine = parseNnEntry(
+      good({ feeCode: 'affiliated', eaNumber: '1234567' }),
+      RULES,
+    );
+    expect(fine.ok && fine.value.eaNumber).toBe('1234567');
+  });
+
+  it('drops a number given against an entry type that does not want one', () => {
+    // It identifies a person and has no purpose against an unaffiliated entry, so it does
+    // not travel. Minimised at the boundary rather than stored and filtered later.
+    const result = parseNnEntry(
+      good({ feeCode: 'unaffiliated', eaNumber: '1234567' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.eaNumber).toBeNull();
+  });
+
+  it('takes the free VI guide place without asking for a number', () => {
+    const result = parseNnEntry(good({ feeCode: 'vi_guide' }), RULES);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('the emergency contact', () => {
+  it('requires both halves of it', () => {
+    expect(errorOn(good({ emergencyName: '' }))?.emergencyName).toBe(
+      'Enter the name of somebody the club can contact in an emergency.',
+    );
+    expect(errorOn(good({ emergencyPhone: '' }))?.emergencyPhone).toBe(
+      'Enter a phone number for your emergency contact.',
+    );
+  });
+
+  it('refuses whitespace, which an HTML `required` attribute lets through', () => {
+    // The failure the interest form already taught: a browser is happy with three spaces.
+    expect(errorOn(good({ emergencyName: '   ' }))?.emergencyName).toBeDefined();
+  });
+
+  it('accepts a phone number written any of the ways people write them', () => {
+    for (const phone of ['07700 900123', '+44 7700 900123', '(0117) 496-0000']) {
+      expect(parseNnEntry(good({ emergencyPhone: phone }), RULES).ok).toBe(true);
+    }
+  });
+
+  it('refuses one with too few digits to be a phone number', () => {
+    expect(errorOn(good({ emergencyPhone: '12345' }))?.emergencyPhone).toBe(
+      'Enter a phone number with at least seven digits in it.',
+    );
+  });
+});
+
+describe('medical information, and its own separate consent', () => {
+  const NOTES = 'Type 1 diabetic. Carries glucose gel.';
+
+  it('is accepted when the box beside it is ticked', () => {
+    const result = parseNnEntry(
+      good({ medicalNotes: NOTES, medicalConsent: 'on' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.medicalNotes).toBe(NOTES);
+    expect(result.ok && result.value.consents.medical).toBe(true);
+  });
+
+  it('refuses notes written without that consent, rather than quietly binning them', () => {
+    // **Dropping them silently would be safe for the database and dishonest to the person.**
+    // They typed something they expect a first-aider to see. The message names both ways out.
+    expect(errorOn(good({ medicalNotes: NOTES }))?.medicalConsent).toBe(
+      'You have written medical information. Tick the box to let the club hold it, or clear the box above.',
+    );
+  });
+
+  it('is happy with the consent ticked and nothing written', () => {
+    const result = parseNnEntry(good({ medicalConsent: 'on' }), RULES);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.medicalNotes).toBeNull();
+  });
+
+  it('never returns notes without the consent, whatever else is wrong', () => {
+    // The second of two locks. The schema refuses the combination above; this asserts that
+    // even a caller who reached past it could not end up holding unconsented notes.
+    const result = parseNnEntry(
+      good({ medicalNotes: NOTES, medicalConsent: 'on', feeCode: 'vi_guide' }),
+      RULES,
+    );
+    expect(result.ok && result.value.consents.medical).toBe(true);
+  });
+
+  it('is not bundled into the entry terms', () => {
+    // Ticking the terms must not imply consent to hold special category data. If these two
+    // ever share a checkbox, this test is what should stop it.
+    const result = parseNnEntry(good(), RULES);
+    expect(result.ok && result.value.consents).toEqual({
+      entryTerms: true,
+      medical: false,
+    });
+  });
+});
+
+describe('the entry terms', () => {
+  it('must be accepted', () => {
+    const withoutTerms = good();
+    delete withoutTerms.entryTerms;
+
+    expect(errorOn(withoutTerms)?.entryTerms).toBe(
+      'Tick the box to accept the entry terms.',
+    );
+  });
+});
+
+describe('what a submission that is not a form at all gets', () => {
+  it('is rejected with every required field named', () => {
+    const result = parseNnEntry('not an object', RULES);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    for (const field of [
+      'firstName',
+      'lastName',
+      'email',
+      'emailConfirm',
+      'dateOfBirth',
+      'gender',
+      'feeCode',
+      'emergencyName',
+      'emergencyPhone',
+      'entryTerms',
+    ] as const) {
+      expect(result.errors[field]).toBeDefined();
+    }
+  });
+
+  it('still reports the other problems when a radio group posted nothing at all', () => {
+    // **A regression guard for a bug this file caught during the build.** An unselected
+    // `<input type="radio">` group posts *no key*, and Zod treats a missing key as a fatal
+    // type failure that stops `superRefine` — where an empty string is continuable and does
+    // not. So submitting with no entry type chosen reported the entry type and silently
+    // swallowed the unticked terms box and the missing date of birth. `absentTextAsEmpty`
+    // is the fix, and this is what would notice it being removed.
+    const noRadio = good({ dobDay: '', entryTerms: undefined });
+    delete noRadio.feeCode;
+    delete noRadio.entryTerms;
+
+    const result = parseNnEntry(noRadio, RULES);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.errors.feeCode).toBeDefined();
+    expect(result.errors.dateOfBirth).toBeDefined();
+    expect(result.errors.entryTerms).toBeDefined();
+  });
+
+  it('reports every problem in one pass rather than one at a time', () => {
+    // **The property that matters most on a form this long.** Somebody on a phone should
+    // not discover a second problem after fixing the first — a bad name and a mismatched
+    // confirmation both come back together.
+    const result = parseNnEntry(
+      good({ firstName: '', emailConfirm: 'wrong@example.com', gender: '' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(Object.keys(result.errors).sort()).toEqual([
+      'emailConfirm',
+      'firstName',
+      'gender',
+    ]);
+  });
+});
+
+describe('the rules, lifted off what the database said', () => {
+  it('takes the fee codes and the EA requirement from the event, not from this file', () => {
+    const state: EntryState = {
+      slug: 'nn-2026',
+      displayName: 'Nightingale Nightmare 2026',
+      state: 'open',
+      eventDate: { year: 2026, month: 11, day: 1 },
+      startTime: '11:00:00',
+      entrantsPerEntry: 1,
+      capacity: 250,
+      minimumAge: null,
+      requiresDob: true,
+      consentVersion: 'nn-2026-v1',
+      fees: [
+        {
+          code: 'unaffiliated',
+          label: 'Unaffiliated',
+          pricePence: 1700,
+          requiresEaNumber: false,
+        },
+        {
+          code: 'affiliated',
+          label: 'Affiliated',
+          pricePence: 1500,
+          requiresEaNumber: true,
+        },
+        { code: 'vi_guide', label: 'VI guide', pricePence: 0, requiresEaNumber: false },
+      ],
+    };
+
+    expect(entryRulesFrom(state)).toEqual({
+      eventDate: { year: 2026, month: 11, day: 1 },
+      minimumAge: null,
+      feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
+      eaRequiredForFeeCodes: ['affiliated'],
+    });
+  });
+});
