@@ -124,6 +124,55 @@ touches Problem 2.
 
 ---
 
+## What happens to a send that hits the cap on the day
+
+Two different questions, easy to conflate: what a provider migration fixes going forward,
+and what happens to the one email that got rejected today, before any migration has
+happened. Moving to SES answers the first. It says nothing about the message that Resend's
+API returned a `429` for an hour ago.
+
+**Don't drop it.** The failure mode of a silently-lost entry confirmation is a member who
+paid and never got told it worked — indistinguishable, from their side, from the club
+losing their entry. That is worse than a late email.
+
+**Don't retry inline against the request either.** The signup or entry handler that
+triggers the send is answering a browser request; it cannot sit there retrying against a
+rate limit that will not clear for hours. Sending has to be decoupled from the request that
+caused it.
+
+**The shape that fits what the club already has:** an outbox table in the same Postgres
+database, written to in the same transaction as the entry or sign-up row, with RLS
+restricting it exactly as
+[principles](../architecture/principles.md) already requires for every table. A row per
+attempted send, holding recipient, template, and a status — `pending`, `sent`, `failed`.
+The application never calls Resend directly from the request path; it writes the outbox row
+and returns. A scheduled Worker — [`./dev` already runs on Cloudflare's
+platform](../../platform/README.md), and a Cron Trigger is the same primitive already used
+elsewhere — drains `pending` rows through Resend a few at a time, and stops for the day the
+moment Resend returns `429`, leaving the rest `pending` for the next run.
+
+This is not new machinery bolted on for the cap specifically — it is the same
+transactional-outbox shape most reliable send-on-signup systems use regardless of provider
+limits, because "wrote the row, then the process died before the network call" is a
+failure mode on any provider. The 100/day cap just means the schedule sometimes empties
+into tomorrow's run instead of the same hour's.
+
+**What this buys, restated:**
+
+- Nothing is silently lost. A rejected send is `pending`, not gone.
+- A member's confirmation might arrive a few hours late on the club's busiest day, rather
+  than never.
+- The retry loop and the SES migration are independent. The outbox exists regardless of
+  which provider drains it — swapping Resend for SES on a bad day means pointing the same
+  Worker at a different API, not building new plumbing.
+
+**What this is not:** a queue that lets the club live with the cap indefinitely. If
+`pending` rows are routinely still queued the next morning, that is the actual trigger
+[email.md](email.md#problem-2--programmatic-mail) already names for moving to SES — the
+outbox absorbs a bad *day*, not a cap the club has permanently outgrown.
+
+---
+
 ## What this is not
 
 - **Not a mailbox purchase.** Buying `info`, `welfare`, `secretary`, `payments` at
