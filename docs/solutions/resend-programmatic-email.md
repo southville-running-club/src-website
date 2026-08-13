@@ -7,6 +7,36 @@ and it should be read alongside it, not instead of it.
 
 ---
 
+## Current status: backlogged, `info@` used directly in the meantime
+
+**This design — Resend, the sending subdomain, the outbox — is not being built yet.** It
+is recorded here so it exists as a concrete plan when it is picked up, not so it is acted
+on now.
+
+**In the meantime, `info@` is the programmatic sender.** This is a deliberate, temporary
+exception to
+[the recommendation later in this document](#why-not-just-send-from-info-or-another-human-mailbox)
+against sending automated mail from a human mailbox — that recommendation still stands as
+the target state, it just isn't where things start.
+
+**Why this is an acceptable interim step, and when it stops being one:**
+
+- There is **no live form or sign-up flow yet** —
+  [`platform/README.md`](../../platform/README.md) is explicit that this is a skeleton,
+  with "no sign-up form, no Stripe, no timing application code." Programmatic volume today
+  is effectively zero, which is exactly the condition under which the shared-failure risk
+  this document otherwise warns about doesn't yet bite.
+- **It needs no new provider, no new DNS, and no new mailbox purchase** to unblock building
+  an actual form now, rather than waiting on Resend account setup and subdomain
+  verification first.
+- **Revisit this the moment real volume exists** — the first live intake form is the
+  trigger to build the Resend piece, not a later "when we get around to it." Sending
+  application mail from `info@` at any real volume is exactly the failure mode
+  [email.md](email.md#two-problems-and-one-purchase-will-not-solve-both) exists to prevent:
+  a bad run of application mail taking the committee's own inbox down with it.
+
+---
+
 ## The five addresses, and which problem each belongs to
 
 Five Fasthosts mailboxes, agreed: **`admin`, `info`, `welfare`, `secretary`, `payments`**.
@@ -86,8 +116,8 @@ since that is what most inboxes actually show.
 ## DNS: additive only, and edited in Cloudflare now, not Fasthosts
 
 **The nameservers moved on 8 August 2026** — Cloudflare is the authoritative DNS provider
-now, per the [executed
-runbook](../delivery/runbooks/nameserver-move.md#-executed-8-august-2026-1554-utc). That
+now, per the executed
+runbook](../delivery/runbooks/nameserver-move.md). That
 changes *where* a record is added, not what adding one means: **mail routing itself did not
 move** — the MX target, SPF's existing `include:`, the DKIM CNAMEs and the mailboxes all
 still point at Fasthosts livemail, copied across unchanged. So these new Resend records go
@@ -122,7 +152,7 @@ What actually needs creating, by whom, and what goes where. Two different kinds 
 credential are involved and they should not be confused: **who can log into Resend's
 dashboard**, and **what the Worker uses to call Resend's API**. Getting the first one wrong
 is a governance problem — it's a fifth account reachable by one person, the exact complaint
-[email.md](email.md#no-shared-access-and-no-archive) already raises about the current
+[email.md](email.md#why-forwarding-is-not-good-enough) already raises about the current
 forwarding arrangement. Getting the second wrong is a leaked-credential problem.
 
 ### The Resend account itself
@@ -210,8 +240,7 @@ written down" — the account creation itself is manual and should be recorded o
 (account, domain, key) and Cloudflare, which does double duty — it's both where the DNS
 records go **and** where the key and code live. Fasthosts isn't touched at all for this;
 it stays the mail *server* the MX record already points at, but it hasn't been where DNS
-records are edited since [8 August
-2026](../delivery/runbooks/nameserver-move.md#-executed-8-august-2026-1554-utc).
+records are edited since [8 August 2026](../delivery/runbooks/nameserver-move.md).
 
 1. **Sign up at Resend** with the club-owned address, per
    [above](#the-resend-account-itself) — not a personal login.
@@ -512,8 +541,9 @@ person reads it — that's `info@`'s job, not sending.
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
+| **Status** | **Backlogged.** `info@` sends programmatic mail directly in the meantime — see [current status](#current-status-backlogged-info-used-directly-in-the-meantime) |
 | **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`) and verifying the `send.` subdomain in Resend |
 | **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |
 | **Exit cost** | Low — no second provider to unwind. Upgrading capacity is a Resend plan change, not a migration |
-| **Revisit when** | `pending` outbox rows are routinely still queued the next day — that's the trigger to pay for a higher Resend tier, not to add a second provider |
+| **Revisit when** | The first live intake form ships (moving off `info@`), or once live, `pending` outbox rows are routinely still queued the next day (the trigger to pay for a higher Resend tier) |
