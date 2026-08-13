@@ -164,7 +164,7 @@ credential nobody will remember exists.
 
 **The service role key** is not on the table and this record does not put it there. It would
 close the hole and it would put a credential that bypasses every policy into a Worker, which
-[the principles](../architecture/principles.md) rule out and this slice found no reason to
+[the principles](../principles.md) rule out and this slice found no reason to
 revisit.
 
 ## Consequences
