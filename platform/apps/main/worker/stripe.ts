@@ -119,11 +119,23 @@ export function checkoutSessionParams(input: CheckoutSessionInput): URLSearchPar
   // before the session does. It is a random uuid: it identifies a row and discloses nothing.
   params.set('client_reference_id', input.purchaseId);
 
-  // Kept to two keys. Stripe metadata is readable by anyone with dashboard access and is
-  // copied onto the payment intent, so it is not a place for personal data — the email below
-  // is there because Checkout needs it to send a receipt, not because it is metadata.
+  // Kept to two keys. Stripe metadata is readable by anyone with dashboard access, so it is
+  // not a place for personal data — the email below is there because Checkout needs it to send
+  // a receipt, not because it is metadata.
   params.set('metadata[purchase_id]', input.purchaseId);
   params.set('metadata[event_slug]', input.eventSlug);
+
+  // **The same two keys again, on the payment intent, because Stripe does not copy them
+  // there.** That is easy to assume and wrong, and the cost of the assumption falls entirely
+  // on the person doing reconciliation. A payments export from the Stripe dashboard is a list
+  // of *payments*, and the only column joining one to `entries.entry_purchases` is
+  // `stripe_payment_intent_id` — which the webhook writes, and which is therefore missing for
+  // exactly the payments the webhook missed. Those are the rows a reconciliation exists to
+  // find, and without this they are the ones it cannot.
+  //
+  // A uuid and a slug: neither is personal data, and both are already on the session above.
+  params.set('payment_intent_data[metadata][purchase_id]', input.purchaseId);
+  params.set('payment_intent_data[metadata][event_slug]', input.eventSlug);
 
   params.set('customer_email', input.purchaserEmail);
 

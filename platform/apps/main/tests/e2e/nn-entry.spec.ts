@@ -941,10 +941,13 @@ test.describe('when the race is full', () => {
 test.describe('the return page', () => {
   // **A URL somebody can type is not evidence of payment**, and this page must never behave
   // as though it were. It is reached by a redirect that fires in the person's browser — one
-  // closed tab and it never fires at all — so what it says is what the club is doing, not
-  // what has happened. Slice C's webhook is the only thing that can confirm a payment.
+  // closed tab and it never fires at all — so what it renders is what the *webhook* has
+  // recorded, looked up by Checkout session id, and never the fact of having arrived here.
   //
-  // Reachable in every window state, so this block moves nothing.
+  // **The page grew three more states in Slice C and they live in
+  // `nn-entry-complete.spec.ts`.** What stays here is the pair that belongs to the handoff:
+  // that the end of the entry journey is reachable and that it claims nothing it cannot
+  // support. Reachable in every window state, so this block moves nothing.
 
   test('renders the honest state for a session that matches nothing', async ({
     page,
@@ -952,21 +955,25 @@ test.describe('the return page', () => {
     const response = await page.goto('/nn/entry/complete/?session=cs_test_notreal');
 
     // Not an error. Somebody who has genuinely just paid must not meet a 500 because the
-    // session id in their URL means nothing to a page that cannot look it up yet.
+    // session id in their URL means nothing to the club's records.
     expect(response?.status()).toBe(200);
 
-    await expect(
-      page.getByRole('heading', { name: 'Confirming your payment' }),
-    ).toBeVisible();
-    await expect(page.getByRole('status')).toContainText(
-      'This page cannot tell you whether the payment went through',
-    );
+    await expect(page.getByRole('heading', { name: 'Your entry' })).toBeVisible();
+
+    // **"The club has not recorded a payment" and never "nothing was charged".** A session
+    // that matches nothing may still be one somebody has genuinely paid for — the webhook may
+    // be late, or the session id may not have been written back yet — and telling them
+    // otherwise is how they pay a second time.
+    const noRecord = page.locator('[data-complete="no-record"]');
+    await expect(noRecord).toBeVisible();
+    await expect(noRecord).toContainText('has not recorded a payment');
+    await expect(noRecord).toContainText('do not enter again');
   });
 
   test('claims nothing about an entry having succeeded', async ({ page }) => {
-    // The wording is the whole feature. A tick, a "thank you", or the word "confirmed" here
-    // would be a confirmation for an entry that may not exist — the one failure on this page
-    // worth more than every other put together.
+    // The wording is the whole feature. A tick, a "thank you", or the word "confirmed" for a
+    // session the club has no record of would be a confirmation for an entry that may not
+    // exist — the one failure on this page worth more than every other put together.
     await page.goto('/nn/entry/complete/?session=cs_test_notreal');
 
     const body = (await page.locator('body').textContent()) ?? '';
@@ -975,15 +982,19 @@ test.describe('the return page', () => {
     expect(body).not.toMatch(/entry confirmed/i);
     expect(body).not.toMatch(/payment (received|successful|complete)/i);
     expect(body).not.toMatch(/thank you/i);
+    // And the other direction, which Slice C added: no negative claim either.
+    expect(body).not.toMatch(/nothing has been charged/i);
   });
 
   test('is reachable with no session parameter at all', async ({ page }) => {
     const response = await page.goto('/nn/entry/complete/');
 
     expect(response?.status()).toBe(200);
-    await expect(
-      page.getByRole('heading', { name: 'Confirming your payment' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your entry' })).toBeVisible();
+
+    // Somebody who typed the bare address has asked nothing, so the page says the club is
+    // confirming rather than that it has no record of a payment they never mentioned.
+    await expect(page.locator('[data-complete-confirming]')).toBeVisible();
   });
 
   test('is operable at 320px', async ({ page }) => {

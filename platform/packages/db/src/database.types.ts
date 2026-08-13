@@ -146,6 +146,10 @@ export type Database = {
       entry_purchases: {
         Row: {
           amount_pence: number
+          attention: string | null
+          attention_at: string | null
+          attention_detail: Json | null
+          attention_resolved_at: string | null
           consent_version: string
           consents: Json
           created_at: string
@@ -157,12 +161,18 @@ export type Database = {
           paid_at: string | null
           purchaser_email: string
           purchaser_name: string
+          revived_at: string | null
           status: string
           stripe_checkout_session_id: string | null
+          stripe_event_id: string | null
           stripe_payment_intent_id: string | null
         }
         Insert: {
           amount_pence: number
+          attention?: string | null
+          attention_at?: string | null
+          attention_detail?: Json | null
+          attention_resolved_at?: string | null
           consent_version: string
           consents: Json
           created_at?: string
@@ -174,12 +184,18 @@ export type Database = {
           paid_at?: string | null
           purchaser_email: string
           purchaser_name: string
+          revived_at?: string | null
           status: string
           stripe_checkout_session_id?: string | null
+          stripe_event_id?: string | null
           stripe_payment_intent_id?: string | null
         }
         Update: {
           amount_pence?: number
+          attention?: string | null
+          attention_at?: string | null
+          attention_detail?: Json | null
+          attention_resolved_at?: string | null
           consent_version?: string
           consents?: Json
           created_at?: string
@@ -191,8 +207,10 @@ export type Database = {
           paid_at?: string | null
           purchaser_email?: string
           purchaser_name?: string
+          revived_at?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
+          stripe_event_id?: string | null
           stripe_payment_intent_id?: string | null
         }
         Relationships: [
@@ -314,6 +332,24 @@ export type Database = {
           },
         ]
       }
+      webhook_secrets: {
+        Row: {
+          key_sha256: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          key_sha256?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          key_sha256?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -336,8 +372,26 @@ export type Database = {
         }
         Returns: Json
       }
+      entry_completion_state: { Args: { p_session_id: string }; Returns: Json }
       entry_state: { Args: { p_slug: string }; Returns: Json }
       expire_pending_holds: { Args: never; Returns: Json }
+      raise_attention: {
+        Args: { p_detail: Json; p_purchase_id: string; p_reason: string }
+        Returns: undefined
+      }
+      record_checkout_event: {
+        Args: {
+          p_amount_total?: number
+          p_client_reference_id?: string
+          p_currency?: string
+          p_event_type: string
+          p_key: string
+          p_payment_intent_id?: string
+          p_session_id?: string
+          p_stripe_event_id?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

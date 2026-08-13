@@ -18,7 +18,7 @@ rather than good intentions:
 
 ## What is in it
 
-Three schemas, seven tables and three functions.
+Three schemas, eight tables and nine functions.
 
 |  |  |
 | --- | --- |
@@ -28,6 +28,7 @@ Three schemas, seven tables and three functions.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
+| `entries.webhook_secrets` | The **SHA-256 digest** of the key the Stripe webhook presents, never the key. RLS on, no policy, no grant. Ships with a null digest, which refuses everything — installing it is a manual step |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
 | `entries.create_pending_purchase()` | Holds a place and records a pending purchase, under a per-event lock. **The only object in this repository that writes an entry** |
 | `entries.expire_pending_holds()` | Moves lapsed holds to `expired`. Housekeeping — capacity does not depend on it |
@@ -109,7 +110,13 @@ starts failing, something handed a table privilege to a key that is published in
 
 **`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
 anything. A refusal that only happens because nothing can get as far as asking has not been
-tested. What the exposure is actually for is four functions.
+tested. What the exposure is actually for is **six functions** — and a seventh,
+`entries.raise_attention()`, which is granted to **nobody at all** and is reachable only from
+inside `record_checkout_event()`, because it writes the flag that says a purchase needs a human.
+
+`tests/entries.test.ts` asserts that exact set, by name, along with which of them `anon` may
+execute. **That assertion is the one this schema's whole shape rests on**, and until this slice
+it existed only as prose in four READMEs.
 
 #### `entries.entry_state()` — the one door
 

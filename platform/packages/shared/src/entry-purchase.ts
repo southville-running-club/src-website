@@ -246,16 +246,39 @@ export async function attachCheckoutSession(
   }
 }
 
+/** What the five-minute sweep found. */
+export interface PendingHoldSweep {
+  /** Places that came back into the pool since the last run. Usually zero. */
+  expired: number;
+  /**
+   * Purchases waiting for a human — an over-capacity payment, an amount that disagreed with
+   * Stripe, a completed event for something already refunded. **Non-zero is the alarm**, and
+   * it stays non-zero until somebody sets `attention_resolved_at` by hand. See the runbook.
+   */
+  attention: number;
+  /** How long the oldest unresolved one has been waiting, in whole hours. */
+  attentionOldestHours: number;
+}
+
 /**
- * Move lapsed holds to `expired`, and say how many.
+ * Move lapsed holds to `expired`, and report anything waiting for a human.
  *
- * **Housekeeping, not the mechanism.** A lapsed hold stops consuming a place the instant it
- * lapses, because the capacity count in `create_pending_purchase` excludes it — whether or
- * not anything has swept it. If this never runs again, nobody is turned away.
+ * **The expiry half is housekeeping, not the mechanism.** A lapsed hold stops consuming a place
+ * the instant it lapses, because the capacity count in `create_pending_purchase` excludes it —
+ * whether or not anything has swept it. If this never runs again, nobody is turned away.
+ *
+ * **The attention half is not housekeeping**, and it is why this call is worth making even in
+ * the common case where nothing expired. It is the only repeating channel this platform has:
+ * there is no alerting stack and no email until Slice D, so a flag on a row that a cron shouts
+ * about every five minutes is what stands between an oversold race and nobody finding out.
+ *
+ * **The two counts are folded into one call deliberately.** Every anon-executable object is
+ * surface reachable with a key that is published in page source, and this needs no new one and
+ * no extra round trip on a job that already runs.
  */
 export async function expirePendingHolds(
   client: AnonClient,
-): Promise<{ ok: true; expired: number } | { ok: false; error: string }> {
+): Promise<({ ok: true } & PendingHoldSweep) | { ok: false; error: string }> {
   try {
     const { data, error } = await client.schema('entries').rpc('expire_pending_holds');
 
@@ -263,10 +286,24 @@ export async function expirePendingHolds(
       return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
     }
 
-    const parsed = z.object({ expired: z.number().int().min(0) }).safeParse(data);
+    const parsed = z
+      .object({
+        expired: z.number().int().min(0),
+        // **Optional, because this Worker may be talking to a database that predates the
+        // webhook migration.** Nothing sequences the two, and a cron that threw on a missing
+        // key would take the expiry sweep down with it for the length of a deploy.
+        attention: z.number().int().min(0).catch(0),
+        attention_oldest_hours: z.number().int().min(0).catch(0),
+      })
+      .safeParse(data);
 
     return parsed.success
-      ? { ok: true, expired: parsed.data.expired }
+      ? {
+          ok: true,
+          expired: parsed.data.expired,
+          attention: parsed.data.attention,
+          attentionOldestHours: parsed.data.attention_oldest_hours,
+        }
       : { ok: false, error: 'expire_pending_holds returned an unexpected shape' };
   } catch (cause) {
     return { ok: false, error: cause instanceof Error ? cause.name : 'unknown' };

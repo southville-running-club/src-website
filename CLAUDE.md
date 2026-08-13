@@ -35,12 +35,14 @@ re-run.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
   list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
-- **Taking payment is no longer a stop-and-ask, and it is now connected**: a valid entry
-  holds a place and goes to Stripe Checkout. **Confirming one still is** — nothing moves a
-  purchase to `paid`, and the thing that will is the webhook. Stripe's secret key and webhook
-  signing secret are **Worker secrets**, never in this repository, never in `wrangler.jsonc`,
-  never in a `vars` block. A real key on a machine belongs in `apps/main/.dev.vars`, which is
-  gitignored.
+- **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
+  more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
+  `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
+  may. **Three Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+  `ENTRIES_WEBHOOK_KEY` — never in this repository, never in `wrangler.jsonc`, never in a `vars`
+  block. A real key on a machine belongs in `apps/main/.dev.vars`, which is gitignored.
+  **Registering the Stripe dashboard endpoint is still a human's job**, and it is the last of
+  the manual steps in `apps/main/README.md` because it needs the production URL.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -67,7 +69,7 @@ Use `./dev`, or `cd platform` first.
 
 ```bash
 ./dev up      # the whole site on http://localhost:8787, browser opened
-./dev test    # 233 acceptance tests, then everything stopped
+./dev test    # 274 acceptance tests, then everything stopped
 ./dev check   # lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
@@ -193,8 +195,8 @@ about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.c
 
 ## What is not built yet
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no payment
-confirmation, no confirmation email, and no timing application code**.
+So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
+email and no timing application code**.
 
 Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
 three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
@@ -211,16 +213,40 @@ per-event advisory lock: re-check the window, count the places gone, price it fr
 `entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
 exactly that amount and a 303 to it.
 
-**Nothing moves a purchase to `paid`, and nothing may.** The redirect back from Stripe is not
-proof of payment — a tab can be closed before it fires, and the return URL is one anybody can
-type. Confirmation is the webhook's job; `/nn/entry/complete/` says what the club is doing
-rather than what has happened, and a confirmation for an entry that does not exist would be
-the worst thing this page could do.
+**`POST /nn/stripe-webhook` is the only thing that writes `paid`, and nothing else may.** The
+redirect back from Stripe is not proof of payment — a tab can be closed before it fires, and the
+return URL is one anybody can type. The webhook verifies Stripe's signature over the **raw
+bytes** before parsing them, and the transition is idempotent by state guard under the same
+per-event advisory lock the entry path takes. [ADR-010](docs/architecture/decisions/adr-010-webhook-writes-paid.md)
+records the three decisions it took.
 
-**The anon role still holds no grant on any table in `entries`.** It may call four functions
-and nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()` and
-`attach_checkout_session()`. If a test in `packages/db/tests/entries.test.ts` ever fails,
-something granted a table privilege to a key that is published in page source.
+**The failure direction is inverted there, and only there.** Everything else in this repository
+fails towards taking no money. By the time the webhook runs, the money has gone — so *our*
+failures answer 5xx and let Stripe retry for three days, and only "this is not Stripe" gets a
+400. A 200 on an outage drops a real payment.
+
+**A payment that arrives after the hold lapsed is still `paid`.** It is never refused. If there
+was no room it is `paid` with `attention = 'over_capacity'`, it consumes a place, and the
+five-minute cron shouts about it until a human clears the flag —
+[the runbook](docs/delivery/runbooks/entries-attention.md). There is deliberately **no fifth
+status**: the capacity predicate counts `status = 'paid'`, and a new value would be invisible to
+it and let an oversold place be sold twice.
+
+**`/nn/entry/complete/` reports what the club has recorded, and only `paid` makes a positive
+claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
+charged", because the webhook may simply be late and somebody who believes it pays twice.
+
+**The anon role still holds no grant on any table in `entries`.** It may call six functions and
+nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()`,
+`attach_checkout_session()`, `record_checkout_event()` and `entry_completion_state()`. A seventh,
+`raise_attention()`, is granted to **nobody**. `packages/db/tests/entries.test.ts` asserts that
+exact set; if it fails, something granted a privilege to a key that is published in page source.
+
+**`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
+ordinary PostgREST calls with the published anon key would buy a free entry, because
+`create_pending_purchase()` issues purchase ids on request. `ENTRIES_WEBHOOK_KEY` is a **Worker
+secret**; the database holds only its SHA-256 digest, and it ships null, which refuses
+everything.
 
 **A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide is told so plainly and

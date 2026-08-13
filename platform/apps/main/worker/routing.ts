@@ -53,9 +53,44 @@ export function isTimingPath(pathname: string): boolean {
  * a form posting to the other one must not 404 the submission on its way in. Accepting
  * both costs nothing and the redirect afterwards is always to the canonical `/nn/`.
  *
- * Nothing *beneath* `/nn/` matches. `/nn/privacy/` is a page, not an endpoint, and a POST
- * to it should 404 exactly as it does today rather than quietly become a sign-up.
+ * Nothing else beneath `/nn/` becomes a sign-up. `/nn/privacy/` is a page, not an endpoint,
+ * and a POST to it should 404 exactly as it does today. The two paths below are endpoints in
+ * their own right and are matched by their own predicates, before this one is consulted.
  */
 export function isNnSignupPath(pathname: string): boolean {
   return pathname === NN_PREFIX || pathname === `${NN_PREFIX}/`;
+}
+
+/**
+ * Where Stripe posts a confirmed payment.
+ *
+ * **Not a page, and it must never become one.** There is nothing in `dist/` at this address:
+ * it exists only as a POST handled before `env.ASSETS.fetch`, and a GET to it falls through to
+ * the assets binding and 404s, which is the right answer to somebody who typed it.
+ *
+ * Both spellings, for the same reason `isNnSignupPath` takes both — except that here the
+ * caller is Stripe, configured once by hand against a URL somebody typed into a dashboard.
+ * **A trailing slash mistyped there would mean every payment confirmation posting into a
+ * 404**, discovered only by a runner who paid and heard nothing. Accepting both costs one
+ * comparison.
+ */
+export const NN_WEBHOOK_PATH = `${NN_PREFIX}/stripe-webhook`;
+
+export function isNnWebhookPath(pathname: string): boolean {
+  return pathname === NN_WEBHOOK_PATH || pathname === `${NN_WEBHOOK_PATH}/`;
+}
+
+/**
+ * Where Stripe sends somebody back to afterwards.
+ *
+ * A real page in `dist/`, unlike the webhook above — this predicate only decides whether the
+ * Worker paints the recorded state onto it on the way past.
+ */
+export const NN_ENTRY_COMPLETE_PATH = `${NN_PREFIX}/entry/complete/`;
+
+export function isNnEntryCompletePath(pathname: string): boolean {
+  return (
+    pathname === NN_ENTRY_COMPLETE_PATH ||
+    pathname === NN_ENTRY_COMPLETE_PATH.slice(0, -1)
+  );
 }

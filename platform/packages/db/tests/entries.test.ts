@@ -39,8 +39,12 @@ const anon = createClient(LOCAL_API, ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-/** Every table the migration created. The refusal tests walk this list rather than naming
- *  three of six, so a seventh table cannot arrive without a decision about its grants. */
+/** Every table in the schema. The refusal tests walk this list rather than naming
+ *  three of seven, so an eighth table cannot arrive without a decision about its grants.
+ *
+ *  **`webhook_secrets` is the one that would hurt most.** It holds the SHA-256 digest of the
+ *  key that lets the webhook write `paid`. If its refusals ever start failing, that digest is
+ *  readable with a key that is published in page source. */
 const TABLES = [
   'events',
   'fees',
@@ -48,11 +52,12 @@ const TABLES = [
   'entry_purchases',
   'entrants',
   'entrant_medical',
+  'webhook_secrets',
 ] as const;
 
 /**
  * One column each table really has, for the update and delete refusals below. `entrant_medical`
- * is keyed on `entrant_id` rather than `id`, and only three of the six carry `active`.
+ * is keyed on `entrant_id` rather than `id`, and only three of the seven carry `active`.
  */
 const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   events: 'active',
@@ -61,6 +66,7 @@ const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   entry_purchases: 'created_at',
   entrants: 'created_at',
   entrant_medical: 'created_at',
+  webhook_secrets: 'updated_at',
 };
 
 /** Fabricated events, used to exercise the window states without touching the real row. */
@@ -200,6 +206,142 @@ describe('the locks themselves, read straight from the catalogue', () => {
     );
 
     expect(granted).toEqual([]);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The doors, as a set rather than one at a time
+// -----------------------------------------------------------------------------------------
+
+describe('exactly which functions exist here, and exactly who may call them', () => {
+  // **This is the assertion the prose had been standing in for.** CLAUDE.md, three READMEs and
+  // two migrations all say some version of "anon may call these functions and nothing else",
+  // and until now not one line of code checked it. A slice that adds a function granted to
+  // anon should have to change this list in a diff somebody reviews, which is the whole point
+  // of naming the set rather than testing members of it.
+
+  it('has exactly these functions and no others', async () => {
+    const rows = await query<{ proname: string }>(
+      `select p.proname
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'entries'
+        order by p.proname`,
+    );
+
+    expect(rows.map((row) => row.proname)).toEqual([
+      'attach_checkout_session',
+      'create_pending_purchase',
+      'entry_completion_state',
+      'entry_state',
+      'expire_pending_holds',
+      'raise_attention',
+      'record_checkout_event',
+    ]);
+  });
+
+  it('lets anon execute exactly six of the seven, and never PUBLIC', async () => {
+    const rows = await query<{ routine_name: string }>(
+      `select distinct routine_name
+         from information_schema.routine_privileges
+        where routine_schema = 'entries' and grantee = 'anon'
+        order by routine_name`,
+    );
+
+    expect(rows.map((row) => row.routine_name)).toEqual([
+      'attach_checkout_session',
+      'create_pending_purchase',
+      'entry_completion_state',
+      'entry_state',
+      'expire_pending_holds',
+      'record_checkout_event',
+    ]);
+
+    const publicly = await query(
+      `select routine_name from information_schema.routine_privileges
+        where routine_schema = 'entries' and grantee = 'PUBLIC'`,
+    );
+
+    expect(publicly).toEqual([]);
+  });
+
+  it('lets nobody at all execute raise_attention', async () => {
+    // **The seventh, and it is granted to no role.** It writes the flag that says a human must
+    // look at a purchase, and it is reachable only from `record_checkout_event`, which runs as
+    // this schema's owner because it is `security definer`. A grant here would let anybody
+    // holding the published anon key clear or forge an alarm.
+    const granted = await query(
+      `select grantee from information_schema.routine_privileges
+        where routine_schema = 'entries' and routine_name = 'raise_attention'
+          and grantee in ('anon', 'authenticated', 'PUBLIC')`,
+    );
+
+    expect(granted).toEqual([]);
+
+    const { error } = await anon.schema('entries').rpc('raise_attention', {
+      p_purchase_id: '00000000-0000-4000-8000-000000000000',
+      p_reason: 'over_capacity',
+      p_detail: {},
+    });
+
+    // **`42501 permission denied`, and not `PGRST202`.** The distinction is worth asserting
+    // rather than assuming: PostgREST does put the function in its schema cache and does send
+    // the call to Postgres, and *Postgres* is what refuses it. A `PGRST202` here would mean the
+    // request never got as far as being denied, which is a refusal nobody has tested — the
+    // same argument the table walk above makes about `PGRST106`.
+    expect(error?.code).toBe('42501');
+  });
+
+  it('pins search_path on every one of them, without exception', async () => {
+    // Walked over the whole schema rather than a list, so a function added without the pin
+    // fails here rather than being noticed by whoever happens to read the migration.
+    const rows = await query<{
+      proname: string;
+      prosecdef: boolean;
+      proconfig: string[] | null;
+    }>(
+      `select p.proname, p.prosecdef, p.proconfig
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'entries'
+        order by p.proname`,
+    );
+
+    for (const row of rows) {
+      expect(row.prosecdef, `${row.proname} must be security definer`).toBe(true);
+      expect(row.proconfig, `${row.proname} must pin search_path`).toEqual([
+        'search_path=""',
+      ]);
+    }
+  });
+
+  it('makes the two readers stable and every writer volatile', async () => {
+    // **Volatility is load-bearing here rather than a default that happened to be right.**
+    // Under READ COMMITTED a `stable` function's queries run against the *calling* statement's
+    // snapshot — so a writer that waited behind another transaction would read state from
+    // before it committed, and the advisory lock would protect nothing. The two readers take
+    // no lock and write nothing, so `stable` is correct for them and says so.
+    const rows = await query<{ proname: string; provolatile: string }>(
+      `select p.proname, p.provolatile
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'entries'
+        order by p.proname`,
+    );
+
+    const volatility = Object.fromEntries(
+      rows.map((row) => [row.proname, row.provolatile]),
+    );
+
+    expect(volatility).toEqual({
+      attach_checkout_session: 'v',
+      create_pending_purchase: 'v',
+      entry_completion_state: 's',
+      entry_state: 's',
+      expire_pending_holds: 'v',
+      raise_attention: 'v',
+      record_checkout_event: 'v',
+    });
   });
 });
 

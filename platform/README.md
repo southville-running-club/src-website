@@ -101,7 +101,7 @@ content and CSS, misleading for anything else.
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.
 
 **`npm run test:e2e` is fine, and the guards are why.** Measured on 13 August 2026: two
-builds then **233 tests in around 90 seconds**, one Playwright worker, nothing left running.
+builds then **274 tests in around 90 seconds**, one Playwright worker, nothing left running.
 It took a laptop down once — that was the OpenNext build recursion below, not the suite
 itself.
 

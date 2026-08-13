@@ -31,7 +31,11 @@ export default defineConfig({
     // confusingly rather than obviously: a sold-out test run against a closed window reports
     // "entries are not open" and reads as a bug in the notice rather than as a config that
     // collected a file it should not have. It has cost that half hour once already.
-    exclude: ['tests/worker/entries-open/**', 'tests/worker/sold-out/**'],
+    exclude: [
+      'tests/worker/entries-open/**',
+      'tests/worker/sold-out/**',
+      'tests/worker/webhook/**',
+    ],
 
     // The seeded, closed state — **set rather than assumed**. Leaving it to whatever the
     // last run happened to do is how `serves.test.ts` starts failing on a laptop for

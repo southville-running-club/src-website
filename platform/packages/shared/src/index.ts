@@ -60,10 +60,24 @@ export {
   createNnPendingPurchase,
   expirePendingHolds,
   nnEntrantPayload,
+  type PendingHoldSweep,
   type PendingPurchase,
   type PendingPurchaseOutcome,
   type PendingPurchaseReason,
 } from './entry-purchase';
+
+export {
+  CHECKOUT_EVENT_OUTCOMES,
+  ENTRY_COMPLETION_STATES,
+  fetchEntryCompletionState,
+  recordCheckoutEvent,
+  type CheckoutEventInput,
+  type CheckoutEventOutcome,
+  type CheckoutEventResult,
+  type EntryCompletionResult,
+  type EntryCompletionState,
+  type RecordCheckoutOutcome,
+} from './entry-confirmation';
 
 export {
   EA_NUMBER_PATTERN,

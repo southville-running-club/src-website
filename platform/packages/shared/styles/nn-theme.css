@@ -1167,6 +1167,27 @@ body.theme-nn {
   color: var(--nn-danger);
 }
 
+/* **A long address must wrap rather than push the page sideways at 320px.**
+ *
+ * `nightingalenightmare@gmail.com` renders 252px wide and cannot break at any of its own
+ * characters, so a sentence that reaches it with 60 pixels of line left puts 20 pixels of the
+ * page off the edge — a WCAG 1.4.10 reflow failure, and a horizontal scrollbar on the phone
+ * 70% of visitors are holding.
+ *
+ * It did not bite until `/nn/entry/complete/` put the address mid-sentence rather than at the
+ * start of a line, which is exactly the sort of thing a copy edit does. So the rule is here
+ * rather than the sentence being arranged around it: prose should not have to know how wide
+ * the club's email address is. `nn-entry-complete.spec.ts`'s "is operable at 320px in every
+ * state" is the guard, and it caught this.
+ *
+ * `anywhere` rather than `break-word` so the break also counts towards the intrinsic minimum
+ * width, which is what makes it work inside the flex and grid containers elsewhere on these
+ * pages. It only ever fires when the alternative is overflowing. */
+.theme-nn .notice a,
+.theme-nn .nn-prose a {
+  overflow-wrap: anywhere;
+}
+
 .theme-nn .notice-bad {
   border: 3px solid var(--nn-danger);
 }

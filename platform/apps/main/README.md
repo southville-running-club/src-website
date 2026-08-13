@@ -29,11 +29,14 @@ src/pages/nn/spectators.astro  Watching the race
 src/pages/nn/privacy.astro     What the club does with a sign-up
 src/pages/nn/entry/complete.astro  Where Stripe sends somebody back to
 worker/routing.ts              Which paths belong to whom. Pure and tested
-worker/index.ts                Forward /timing locally, take the POST, fill in the
+worker/index.ts                Forward /timing locally, take the POSTs, fill in the
                                timestamp, and sweep lapsed holds on a cron
 worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
 worker/nn-entry.ts             Decide which form to show; take an entry to Stripe
 worker/stripe.ts               One Checkout call, over fetch, with no SDK
+worker/stripe-signature.ts     Prove a webhook came from Stripe. Pure and tested
+worker/stripe-webhook.ts       The only thing here that records a payment
+worker/nn-entry-complete.ts    Paint what the club has recorded onto the return page
 ```
 
 ## The routes
@@ -45,7 +48,8 @@ worker/stripe.ts               One Checkout call, over fetch, with no SDK
 | `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/spectators/` | Watching the race — where to stand, where to park |
 | `/nn/privacy/` | What the club does with a sign-up |
-| `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It never says an entry succeeded** — see [the return page](#the-return-page) |
+| `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
+| `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 
 The first four carry `src/components/NnNav.astro`, which links them and marks the current
 one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
@@ -175,10 +179,9 @@ places already gone, prices the entry from `entries.fees`, and writes a `pending
 with a **31-minute hold**. The Worker then creates a Checkout session for exactly that amount
 and `303`s to it.
 
-**Nothing here moves a purchase to `paid`.** The redirect back from Stripe is not proof of
-payment — a person can close the tab before it fires, and the return URL is one anybody can
-type. Confirmation is the webhook's job, and building any part of it alongside this would
-give two things an opinion about whether somebody had paid.
+**Nothing on this path moves a purchase to `paid`.** The redirect back from Stripe is not proof
+of payment — a person can close the tab before it fires, and the return URL is one anybody can
+type. [The webhook](#the-webhook) is what confirms, and it is the only thing that may.
 
 | | |
 | --- | --- |
@@ -233,22 +236,89 @@ unenforced: if it were tightened, every submission would fail at once. Sixty ext
 a held place is the cheaper side of that trade. The form says "30 minutes", which is the safe
 direction to round.
 
+## The webhook
+
+`POST /nn/stripe-webhook` is **the only thing in this platform that writes `paid`**, and
+[ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) records the three
+decisions it took. It is not a page: no HTML, no rewriting, no redirect, and a GET falls through
+to a 404.
+
+**The failure direction is inverted here, and that is the thing to understand.** The sign-up and
+the entry form fail *towards taking no money*, because none had been taken. By the time this
+handler runs the money has already left somebody's account, so the only safe failure is one that
+is **retried**.
+
+| | |
+| --- | --- |
+| **200** | The question was answered, whatever the answer. A retry produces the same result, so there is nothing to gain from one — including "this is somebody else's payment" and "the amount disagreed", both of which are permanent. A stream of non-2xx gets the endpoint disabled in Stripe, which would silently stop every *future* confirmation |
+| **400** | This is not Stripe, or it cannot be proved to be. The body is never parsed for meaning |
+| **5xx** | **Our** configuration or **our** outage — no signing secret bound, no database key, the migration not landed. Stripe retries for roughly three days, which outlives any deploy. **A 200 here would drop a real payment on the floor** |
+
+### Proving it came from Stripe
+
+`worker/stripe-signature.ts`, HMAC-SHA256 over `crypto.subtle`, no SDK — the same argument
+`worker/stripe.ts` makes for the outbound call, and the bundle grew by 0 bytes.
+
+| | |
+| --- | --- |
+| **The raw bytes** | `await request.text()` is verified **before** anything parses it. The signature covers exactly what Stripe sent, and verifying a re-serialised copy is a classic silent failure. Stripe pretty-prints its payloads, so a round trip really does change them |
+| **Constant time** | The digest comparison visits every character rather than returning at the first difference |
+| **±5 minutes** | The timestamp is inside the MAC, so a captured body cannot be replayed tomorrow. A genuine Stripe retry is re-signed with a fresh `t` and is unaffected |
+| **Every `v1`** | Stripe signs with both secrets during a rotation, and the correct one is not necessarily first. Taking only the first would make a rotation a coin toss |
+
+### What it does, and what it refuses
+
+Two events — `checkout.session.completed` and `checkout.session.expired` — and **everything
+else is answered 200 and ignored**. This Stripe account may also carry the club's England
+Athletics portal payments, so events arrive for sessions this code never created; an error would
+make Stripe retry forever on somebody else's money.
+
+| | |
+| --- | --- |
+| **Idempotency** | The state guard, not a table of event ids. One `update ... where status in ('pending','expired')` whose own `row_count` is both the change and the report. A second delivery writes nothing and says so |
+| **The amount** | Checked against `amount_pence`, **and the currency against `gbp`** — which is what proves `adaptive_pricing[enabled]=false` is still doing its job. A mismatch writes nothing, flags the row, and answers 200: a retry would deliver the same wrong number forever |
+| **A late payment** | Paid, never refused. If there was no room it is still `paid` and `attention = 'over_capacity'` says a human must decide. See [ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) for why there is no fifth status |
+| **The key** | `entries.record_checkout_event()` takes `ENTRIES_WEBHOOK_KEY`. **Without it, two PostgREST calls with the published anon key would buy a free entry** — `create_pending_purchase()` issues purchase ids on request. The grant on the function is still `anon` and nothing else |
+
+### When something needs a person
+
+There is no alerting stack and no email until Slice D, so the channel is a column and a cron:
+`attention` on the row, and a `console.error` every five minutes with the age of the oldest
+climbing. **It is silenced by somebody setting `attention_resolved_at` and never by the
+calendar.** [The runbook](../../../docs/delivery/runbooks/entries-attention.md) is what makes it
+clearable — without a documented way to silence an alarm, volunteers learn to ignore it.
+
 ### The return page
 
-`/nn/entry/complete/` is where Stripe sends somebody afterwards, and **it must never say an
-entry succeeded**. Three reasons, any one of which is enough:
+`/nn/entry/complete/` now reports what the club has recorded. **Arriving here is still not proof
+of payment** — the redirect fires in the person's browser, and it is an ordinary URL anybody can
+type — so what it renders is the *record*, looked up by Checkout session id.
 
-1. the redirect fires in the person's browser, and a closed tab means it never fires while
-   the payment may still have gone through;
-2. it is an ordinary URL that anybody can type, and the acceptance suite does exactly that
-   with a session id matching nothing;
-3. Stripe confirms a payment to the **webhook**, server to server, which is the only channel
-   that cannot be forged or lost in a tab.
+**Only `paid` makes a positive claim, and no state ever makes a negative one.** The second half
+is the one that matters:
 
-So it says what the club is doing and what will happen next. **There is a marked TODO in the
-page for Slice C** to render the real state — paid, still confirming, or a session that means
-nothing — and the hooks are deliberately not stubbed in, because an attribute with nothing
-reading it is a hook somebody trusts before it works.
+> Somebody pays. The webhook is delayed. Their thirty-one minute hold lapses. They refresh. If
+> the page says *"nothing has been charged"* — which is what it said before this slice — **they
+> enter again and pay twice.**
+
+| | |
+| --- | --- |
+| `paid` | Confirmed, and what happens next |
+| `pending` | Still confirming. Ships **visible**, so it is also what every failure path leaves on the page — an unreachable database renders the block that claims nothing |
+| `lapsed` / unknown | "The club has not recorded a payment against this address", and **do not enter again**. Never "nothing was charged" |
+| `refunded` | A statement of fact from the club's records |
+
+**There is no auto-refresh, and that is a decision.** A `<meta http-equiv="refresh">` fails WCAG
+2.2.1 — axe reports it as `meta-refresh` under `wcag2a` — and zero violations is not a threshold
+here. It is also hostile in exactly the case it would be used: a page reloading under somebody
+on a phone who has just paid. The pending block carries a plain **Check again** link instead;
+`href=""` resolves to the current URL with its query string, so a static page carries a session
+id it cannot know. There is no polling script either.
+
+`entries.entry_completion_state()` returns **one word and nothing else** — not the name, not the
+email, not the amount, and not the purchase id, which is the write path's key. A session id in a
+URL is not authentication: it is in the address bar, in history, in a screenshot, in a `Referer`
+header, and the function is written as though the string were public.
 
 ### What the entry form deliberately does not do
 
@@ -420,11 +490,38 @@ machine — and run `wrangler dev` without the `--var` overrides. Nothing in the
 configuration reaches Stripe, and `tests/unit/worker-config.test.ts` fails if a key or a
 `STRIPE_*` variable ever appears in `wrangler.jsonc`.
 
-### Three worker-test runs, and why
+### Testing the webhook on a laptop
 
-`npm run test:worker` runs **three** Vitest configs, each against one fixed state: the default
+The Stripe CLI forwards real test-mode events to a local Worker. **It is not installed on any
+machine here and nothing in the suite needs it** — the worker tests sign their own payloads with
+the same `signStripePayload` the verifier is tested against — but it is how you check the real
+thing end to end before the endpoint exists in production.
+
+```bash
+brew install stripe/stripe-cli/stripe          # once
+stripe login                                   # opens a browser, test mode
+
+stripe listen --forward-to localhost:8787/nn/stripe-webhook
+stripe trigger checkout.session.completed      # in a second terminal
+```
+
+| | |
+| --- | --- |
+| **The secret it prints is not the dashboard's** | `stripe listen` prints its own `whsec_...` on startup, valid for that session only. Put **that** one in `apps/main/.dev.vars` as `STRIPE_WEBHOOK_SECRET` — the endpoint's signing secret from the dashboard will not verify CLI-forwarded events, and the failure looks like a broken implementation rather than the wrong key |
+| **`.dev.vars` is the only place a real secret belongs on a machine** | It is gitignored, `wrangler dev` reads it automatically, and `tests/unit/worker-config.test.ts` fails if a `STRIPE_*` value ever appears in `wrangler.jsonc` |
+| **`stripe trigger` invents its own session** | It has no `client_reference_id` of ours, so the answer is `not_ours` and a 200 — which is the correct behaviour and worth seeing. To exercise a real transition, take a session id from a local entry and craft the event, or use `stripe events resend` |
+| **`ENTRIES_WEBHOOK_KEY` is needed too** | Put any string in `.dev.vars` and install its digest locally: `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the string>','UTF8')),'hex') where name = 'stripe';` |
+
+> **Do not create a webhook endpoint in the Stripe dashboard yet.** It needs the production URL,
+> and creating it before this Worker is deployed means Stripe posts into a 404 and marks the
+> destination as failing. It is the **last** of [the manual steps](#manual-steps), deliberately.
+
+### Four worker-test runs, and why
+
+`npm run test:worker` runs **four** Vitest configs, each against one fixed state: the default
 one against the seeded closed window, `vitest.worker.entries-open.config.ts` against an open
-one, and `vitest.worker.sold-out.config.ts` against a race with no places left.
+one, `vitest.worker.sold-out.config.ts` against a race with no places left, and
+`vitest.worker.webhook.config.ts` against seeded purchases with the webhook key installed.
 
 They are separate runs rather than one run with a `beforeAll`, for two reasons that are both
 about the state being global. **`pg` cannot run inside `workerd`** — these tests execute in
@@ -460,6 +557,8 @@ timing data possible at all.
 | | |
 | --- | --- |
 | `STRIPE_SECRET_KEY` | A **Worker secret**, set with `wrangler secret put`. Never in `wrangler.jsonc`, never in a `vars` block, never committed. Its absence is a real, safe state: with no key the form validates and stops, saying nothing was stored and nothing charged |
+| `STRIPE_WEBHOOK_SECRET` | A **Worker secret**. What proves a delivery came from Stripe. Its absence is a real state too — the endpoint is created *after* this Worker is deployed — and every delivery in that window is answered **5xx and retried**, never 400 |
+| `ENTRIES_WEBHOOK_KEY` | A **Worker secret**, and the least obvious one. `entries.record_checkout_event()` is granted to `anon` like every other function, and the anon key is published in page source — so the key is what stops two PostgREST calls buying a free entry. The database holds only its SHA-256 digest |
 | `STRIPE_API_BASE` | Local only, and only so the site runs end to end against the stub without a Stripe account. Passed on the `wrangler dev` command line — there is no path from a dev-server flag to a deployed Worker |
 | `apps/main/.dev.vars` | Gitignored. The one place a real key belongs on a machine, and `wrangler dev` reads it automatically |
 
@@ -468,9 +567,11 @@ Stripe at all**, and that nothing in the file looks like a key of any kind. A se
 ever committed is compromised and has to be **rotated**, not deleted, so the guard is a red
 pipeline rather than a code review.
 
-**The service role key is still not on any list, and the webhook does not change that.**
-Slice C's privileged writes are a decision of their own; they are not a reason to put a
-service role key anywhere a browser or this repository can reach.
+**The service role key is still not on any list, and the webhook did not change that.** The
+webhook's privileged write goes through a `security definer` function granted to `anon` and
+gated on a shared key, exactly like every other write in that schema — see
+[ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md), which records
+the two alternatives that were considered and why a key beat both.
 
 ## Manual steps
 
@@ -488,15 +589,31 @@ put on `POST /nn/` later, *that* is a manual step and belongs here when it happe
 **Nor did the entry form.** The schema, the seeded event and its fees all ship as one
 migration; the exposed-schema list is `config.toml`, which `deploy-db.yml` pushes.
 
-**Stripe adds one, and it is manual by necessity.** A secret cannot be code. It is listed
-below as pending because nothing has been set on the deployed Worker yet — which is why
-production still shows "payment is not connected yet" rather than a broken payment page.
+**Stripe adds four, and they are manual by necessity.** A secret cannot be code, and neither can
+the digest of one. They are listed below as pending because nothing has been set on the deployed
+Worker yet — which is why production still shows "payment is not connected yet" rather than a
+broken payment page.
+
+> **The order is not arbitrary and steps 4 and 5 must be last.** Creating the Stripe endpoint
+> before the Worker is deployed means Stripe posts into a 404 and marks the destination failing;
+> creating it before the secrets are set means every early delivery 5xxs. Nothing is *lost*
+> either way — Stripe retries for three days — but the dashboard fills with red for no reason.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
-| _Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | See the settings below |
-| _Set the Stripe secret key_ | A secret cannot live in the repository, and without it the entry form validates and stops | _pending_ | `npx wrangler secret put STRIPE_SECRET_KEY --env production --config apps/main/wrangler.jsonc`, from `platform/`. Use a **restricted** key with write on Checkout Sessions and read on Payment Intents — nothing here needs more. Test mode until the club is ready to take real money |
-| _Set the webhook signing secret_ | Slice C's webhook has to prove a request came from Stripe | **not yet — Slice C.** It needs the production URL to create the endpoint, so it cannot be done before the Worker is deployed | — |
+| _1. Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | See the settings below |
+| _2. Set the Stripe secret key_ | A secret cannot live in the repository, and without it the entry form validates and stops | _pending_ | `npx wrangler secret put STRIPE_SECRET_KEY --env production --config apps/main/wrangler.jsonc`, from `platform/`. Use a **restricted** key with write on Checkout Sessions and read on Payment Intents — nothing here needs more. Test mode until the club is ready to take real money |
+| _3. Set the entries webhook key, and install its digest_ | The function that writes `paid` is granted to `anon`, and the anon key is published in page source. **Two steps, and doing one without the other stops payments being recorded** | _pending_ | Generate one: `openssl rand -hex 32`. Then `npx wrangler secret put ENTRIES_WEBHOOK_KEY --env production --config apps/main/wrangler.jsonc`, and in the Supabase SQL editor: `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'stripe';` |
+| _4. Set the webhook signing secret_ | The webhook has to prove a request came from Stripe | _pending_ | Create the endpoint in step 5 first if it does not exist; Stripe shows its signing secret once. Then `npx wrangler secret put STRIPE_WEBHOOK_SECRET --env production --config apps/main/wrangler.jsonc` |
+| _5. Create the Stripe webhook endpoint_ | **Last, and only once the Worker is deployed.** Otherwise Stripe posts into a 404 | _pending_ | Stripe dashboard → Developers → Webhooks → Add endpoint. URL `https://new.southvillerunningclub.co.uk/nn/stripe-webhook`. Subscribe to **`checkout.session.completed` and `checkout.session.expired` and nothing else** — everything else is answered 200 and ignored, and subscribing to more is delivery volume for no benefit |
+
+**Rotating either secret has a window, and it is worth knowing about.** Between
+`wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the
+signing secret in Stripe and setting it on the Worker — **every delivery answers 5xx**. Stripe
+holds them for three days, so nothing is lost; but somebody who does one and forgets the other
+stops payments being recorded with no symptom except a repeated log line. The
+[attention runbook](../../../docs/delivery/runbooks/entries-attention.md) has the diagnosis
+table.
 
 ### Workers Builds settings
 

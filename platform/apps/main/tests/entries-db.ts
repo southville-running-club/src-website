@@ -1,4 +1,5 @@
 import { Client } from 'pg';
+import { createHash } from 'node:crypto';
 
 /**
  * Reading and clearing `entries` rows, for the tests that drive the form from outside.
@@ -166,5 +167,147 @@ export async function restoreCapacity(): Promise<void> {
   await clearPurchases();
   await withClient(async (db) => {
     await db.query(`update entries.events set capacity = 250 where slug = $1`, [SLUG]);
+  });
+}
+
+// -----------------------------------------------------------------------------------------
+// What the webhook run needs
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Install the digest of the key the Worker will present, and take it out again afterwards.
+ *
+ * **The digest, never the key** — that is the whole shape of `entries.webhook_secrets`, and a
+ * test that wrote the key itself would be proving something the production path does not do.
+ * `createHash` rather than a hand-rolled one: this has to agree with `pg_catalog.sha256` and
+ * there is exactly one right answer.
+ *
+ * `clearWebhookKey` is called in teardown **even when the run failed**, so a laptop is never
+ * left with a working webhook key for a test secret against the real event row.
+ */
+export async function installWebhookKey(key: string): Promise<void> {
+  const digest = createHash('sha256').update(key, 'utf8').digest('hex');
+
+  await withClient(async (db) => {
+    await db.query(
+      `update entries.webhook_secrets set key_sha256 = $1, updated_at = now()
+        where name = 'stripe'`,
+      [digest],
+    );
+  });
+}
+
+export async function clearWebhookKey(): Promise<void> {
+  await withClient(async (db) => {
+    await db.query(
+      `update entries.webhook_secrets set key_sha256 = null where name = 'stripe'`,
+    );
+  });
+}
+
+export interface SeededPurchase {
+  id: string;
+  sessionId: string;
+  status: 'pending' | 'paid' | 'expired' | 'refunded';
+  amountPence: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** Minutes from now. Negative is a hold that has already run out. */
+  holdMinutes?: number;
+}
+
+/**
+ * Write one purchase and its entrant, with an id the test already knows.
+ *
+ * **Not through `entries.create_pending_purchase()`**, deliberately. That function chooses the
+ * id, and these fixtures have to be named from inside `workerd` where `pg` cannot run — so the
+ * ids are fixed constants agreed across the process boundary in `webhook-fixtures.ts`. It also
+ * lets a test start from `paid` or from a lapsed hold without arranging thirty-one minutes of
+ * waiting or a payment that has not been built yet.
+ *
+ * The entry path's own behaviour is `packages/db/tests/entries-capacity.test.ts`'s to prove;
+ * what this run is about is what the *Worker* does with a delivery.
+ */
+export async function seedPurchase(purchase: SeededPurchase): Promise<void> {
+  const { holdMinutes = 31 } = purchase;
+
+  await withClient(async (db) => {
+    await db.query(
+      `with event as (select id from entries.events where slug = $1),
+            fee as (
+              select f.id from entries.fees f, event
+               where f.event_id = event.id and f.code = 'unaffiliated'
+            ),
+            inserted as (
+              insert into entries.entry_purchases (
+                id, event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
+                consents, consent_version, hold_expires_at, paid_at,
+                stripe_checkout_session_id
+              )
+              select $2::uuid, event.id, $3, $4, fee.id, $5, $6,
+                     '{"entryTerms":true,"medical":false}'::jsonb, 'nn-2026-v1',
+                     now() + ($7 || ' minutes')::interval,
+                     case when $3 = 'paid' then now() end,
+                     $8
+                from event, fee
+              returning id
+            )
+       insert into entries.entrants (
+         purchase_id, first_name, last_name, date_of_birth, gender,
+         emergency_contact_name, emergency_contact_phone
+       )
+       select inserted.id, $9, $10, date '1986-12-09', 'female',
+              'Margaret Hamilton', '0117 496 0000'
+         from inserted`,
+      [
+        SLUG,
+        purchase.id,
+        purchase.status,
+        purchase.amountPence,
+        purchase.email,
+        `${purchase.firstName} ${purchase.lastName}`,
+        String(holdMinutes),
+        purchase.sessionId,
+        purchase.firstName,
+        purchase.lastName,
+      ],
+    );
+  });
+}
+
+/** What actually happened to one purchase, for a test that cannot look through the API. */
+export async function purchaseState(id: string): Promise<{
+  status: string;
+  paidAt: string | null;
+  revivedAt: string | null;
+  attention: string | null;
+  paymentIntentId: string | null;
+} | null> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<{
+      status: string;
+      paid_at: string | null;
+      revived_at: string | null;
+      attention: string | null;
+      stripe_payment_intent_id: string | null;
+    }>(
+      `select status, paid_at, revived_at, attention, stripe_payment_intent_id
+         from entries.entry_purchases where id = $1`,
+      [id],
+    );
+
+    const row = rows[0];
+    if (row === undefined) {
+      return null;
+    }
+
+    return {
+      status: row.status,
+      paidAt: row.paid_at,
+      revivedAt: row.revived_at,
+      attention: row.attention,
+      paymentIntentId: row.stripe_payment_intent_id,
+    };
   });
 }

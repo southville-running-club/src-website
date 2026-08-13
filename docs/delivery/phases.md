@@ -119,7 +119,9 @@ transaction on its own infrastructure.
 | **Sign-up** ✅ | **Built.** Name, email and consent into `intake.nn_interest`, through a column-scoped anonymous-insert grant. A real `<form method="post">` that works with JavaScript disabled, and a privacy notice at `/nn/privacy/` |
 | **The race pages** ✅ | **Built.** The confirmed date and the race facts at `/nn/`, and three content pages — `/nn/course/`, `/nn/race-day/` and `/nn/spectators/` — reading from `apps/main/src/content/race.json`. **The copy is a draft pending committee approval** |
 | **Stripe payment — the handoff** ✅ | **Built.** A valid entry holds a place for 31 minutes under a per-event lock, is priced from `entries.fees`, and is handed to Stripe Checkout. Capacity is enforced under real concurrency, and the club never sees a card number |
-| **Stripe payment — the confirmation** | **The webhook, and it is next.** Nothing moves a purchase to `paid` yet, and `/nn/entry/complete/` says so rather than claiming an entry succeeded. Needs the production URL before the endpoint can be created |
+| **Stripe payment — the confirmation** ✅ | **Built.** `POST /nn/stripe-webhook` verifies Stripe's signature over the raw bytes and is the only thing that writes `paid`. Idempotent under retry and duplicate delivery; a payment arriving after the hold lapsed is taken rather than refused, and flagged when there was no room. `/nn/entry/complete/` reports what the club has recorded. [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md) |
+| **Registering the Stripe endpoint** | **A human's job, and the last of `apps/main/README.md`'s manual steps.** It needs the production URL — created any earlier and Stripe posts into a 404. The three Worker secrets go on at the same time |
+| **A real payment end to end** | Nothing has been paid for yet, in test mode or otherwise. The first real payment is the first full test of the chain, and it should be a committee member's own card in test mode before entries open |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
 path — the two Workers, one hostname told apart by path. The page, form and payment flow

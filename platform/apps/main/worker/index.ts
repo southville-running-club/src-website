@@ -4,7 +4,15 @@ import {
   fetchHealth,
   fetchPing,
 } from '@src/shared';
-import { isNnSignupPath, isTimingPath, NN_PREFIX } from './routing';
+import {
+  isNnEntryCompletePath,
+  isNnSignupPath,
+  isNnWebhookPath,
+  isTimingPath,
+  NN_PREFIX,
+} from './routing';
+import { handleStripeWebhook } from './stripe-webhook';
+import { renderNnEntryComplete, resolveNnEntryCompleteView } from './nn-entry-complete';
 import {
   isNnSignupSuccess,
   processNnSignup,
@@ -38,10 +46,14 @@ import {
  *      handled here, **before `env.ASSETS.fetch`** — the static-assets binding will not
  *      serve a POST, so anything reaching it is already lost. See `nn-signup.ts` and
  *      `nn-entry.ts`.
- *   3. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
- *      rewriting the served HTML.
- *   4. **Sweep lapsed holds**, on a Cron Trigger every five minutes. Housekeeping only —
- *      see `scheduled()` at the foot of this file.
+ *   3. **Take Stripe's confirmation.** A POST to `/nn/stripe-webhook`, also before the assets
+ *      binding, and **the only thing in this platform that records a payment**. It is not a
+ *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
+ *   4. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
+ *      rewriting the served HTML — and paint the recorded payment state onto
+ *      `/nn/entry/complete/` the same way.
+ *   5. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
+ *      every five minutes. See `scheduled()` at the foot of this file.
  *
  * The third is the skeleton's reason for existing. Doing it in the Worker rather than in
  * the browser proves the **Worker itself** can reach Supabase, in the real runtime, over
@@ -83,6 +95,25 @@ interface Env {
    * Worker can inherit it.
    */
   STRIPE_API_BASE?: string;
+  /**
+   * **A Worker secret**, and the thing that proves a webhook came from Stripe. Never in
+   * `wrangler.jsonc`, never in a `vars` block, never in this repository.
+   *
+   * Optional, and its absence is a real state: the Stripe endpoint is created *after* this
+   * Worker is deployed, because creating it first would post into a 404. Every delivery in
+   * that window is answered **503 and retried**, never 400 — see `stripe-webhook.ts`.
+   */
+  STRIPE_WEBHOOK_SECRET?: string;
+  /**
+   * **A second Worker secret**, and the least obvious thing in this file.
+   *
+   * `entries.record_checkout_event()` is granted to the anon role like every other function in
+   * that schema — and the anon key is published in page source, while
+   * `entries.create_pending_purchase()` hands any caller a real purchase id and its amount. So
+   * without a second factor, two ordinary PostgREST calls would buy a free race entry. The
+   * database holds only this key's SHA-256 digest. The full argument is in the migration.
+   */
+  ENTRIES_WEBHOOK_KEY?: string;
 }
 
 export default {
@@ -97,6 +128,15 @@ export default {
     // **Before the assets binding, deliberately.** `run_worker_first` means this handler
     // sees the request first, and it has to: the binding serves `dist/`, which is static
     // HTML, and it will not answer a POST at all.
+    //
+    // The webhook is matched **before** the sign-up path, and the two cannot collide —
+    // `isNnSignupPath` is `/nn` and `/nn/` exactly, and this is `/nn/stripe-webhook`. The
+    // order is stated rather than relied on: a future predicate that widened one of them
+    // would otherwise turn payment confirmations into sign-up submissions, silently.
+    if (request.method === 'POST' && isNnWebhookPath(url.pathname)) {
+      return handleStripeWebhook(request, env);
+    }
+
     if (request.method === 'POST' && isNnSignupPath(url.pathname)) {
       return handleNnPost(request, env, url);
     }
@@ -126,29 +166,52 @@ export default {
       }
     }
 
+    if (isNnEntryCompletePath(url.pathname)) {
+      // **What the club has recorded, and never what the redirect implies.** The `confirming`
+      // block ships visible, so an unreachable database paints nothing and the page says what
+      // it said before this slice — which claims neither that a payment succeeded nor that it
+      // failed. See `nn-entry-complete.ts`.
+      renderNnEntryComplete(rewriter, await resolveNnEntryCompleteView(env, url));
+    }
+
     return rewriter.transform(response);
   },
 
   /**
-   * Every five minutes: move lapsed holds to `expired`.
+   * Every five minutes: move lapsed holds to `expired`, and **shout about anything a person
+   * has to deal with**.
    *
-   * **This is housekeeping and not the mechanism, and the difference matters.** A place
-   * comes back into the pool the moment its hold lapses, because the capacity count inside
-   * `entries.create_pending_purchase()` only counts a `pending` purchase while
+   * ## The sweep is housekeeping, and the difference matters
+   *
+   * A place comes back into the pool the moment its hold lapses, because the capacity count
+   * inside `entries.create_pending_purchase()` only counts a `pending` purchase while
    * `hold_expires_at` is still in the future. **If this cron never runs again, nobody is
    * turned away and nothing is double-sold.** What it does is stop a purchase somebody
-   * abandoned at the payment page from reading as `pending` forever — for the treasurer
-   * looking at the table, and for Slice C's webhook, which should meet `expired` rather than
-   * a stale hold.
+   * abandoned at the payment page from reading as `pending` forever.
    *
    * That property is the one to preserve if this is ever changed. A future version that
    * capacity *depends* on would put a 250-place race at the mercy of a scheduler.
    *
-   * **A count and nothing else is logged.** These rows carry names, dates of birth and
-   * emergency contacts; the only thing worth a line is how many places came back, and even
-   * that is only logged when it is not zero — 288 "expired 0" lines a day is a free-tier
-   * observability allowance spent on nothing. `console.warn` rather than `console.log`
-   * because the lint rule bans the casual one outright, which is the rule doing its job.
+   * ## The alarm is not housekeeping, and it is why this runs even when nothing expires
+   *
+   * **This is the only repeating channel this platform has.** There is no alerting stack, no
+   * admin surface and no email until Slice D — so when the webhook meets something it cannot
+   * resolve on its own (a payment that arrived after the last place had gone, an amount that
+   * disagreed with Stripe, a completed event for something already refunded) it sets
+   * `attention` on the row, and this line is what makes somebody find out.
+   *
+   * **It repeats until a human clears the flag**, and the age climbs in the message so a
+   * glance says whether this is new or has been ignored since Tuesday. Repetition is the whole
+   * mechanism: one line at 02:14 is an artefact nobody sees. It is silenced by setting
+   * `attention_resolved_at`, never by the calendar — an alarm that goes quiet after a week
+   * would go quiet exactly when both volunteers were away.
+   *
+   * ## A count and nothing else is logged
+   *
+   * These rows carry names, dates of birth and emergency contacts; the only things worth a
+   * line are how many places came back and how many need a person. The quiet case logs
+   * nothing at all — 288 "expired 0" lines a day is a free-tier observability allowance spent
+   * on nothing. `console.warn` rather than the casual one, which the lint rule bans outright.
    */
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     const client = createAnonClient({
@@ -165,6 +228,16 @@ export default {
 
     if (result.expired > 0) {
       console.warn(`entries.expire_pending_holds released ${result.expired} hold(s)`);
+    }
+
+    // **`console.error`, and it says what to do.** A log line nobody knows how to act on is a
+    // log line that gets scrolled past; the runbook is named in the message because that is
+    // the only place the name will be when somebody needs it.
+    if (result.attention > 0) {
+      console.error(
+        `entries: ${result.attention} purchase(s) need a human, oldest ${result.attentionOldestHours}h. ` +
+          'Somebody may have paid and have no place. See docs/delivery/runbooks/entries-attention.md',
+      );
     }
   },
 } satisfies ExportedHandler<Env>;
