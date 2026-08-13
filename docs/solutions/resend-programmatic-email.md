@@ -105,6 +105,94 @@ captured in this document once known, the same way the current zone is captured 
 
 ---
 
+## Account, API keys, and how a reply reaches `info@`
+
+What actually needs creating, by whom, and what goes where. Two different kinds of
+credential are involved and they should not be confused: **who can log into Resend's
+dashboard**, and **what the Worker uses to call Resend's API**. Getting the first one wrong
+is a governance problem — it's a fifth account reachable by one person, the exact complaint
+[email.md](email.md#no-shared-access-and-no-archive) already raises about the current
+forwarding arrangement. Getting the second wrong is a leaked-credential problem.
+
+### The Resend account itself
+
+**One club-owned account, not a personal login.** Sign up with a club address the
+committee already controls — `admin@southvillerunningclub.co.uk` fits, since it's already
+the address used for other website administration — not a volunteer's personal Gmail.
+**Add both volunteers as team members inside Resend**, so neither leaving strands the
+account the way the current Gmail-forwarding arrangement would strand club mail.
+*(Verify whether team members are a free-tier feature or gated behind a paid plan before
+committing to this — if Resend restricts it, the fallback is a shared login stored the same
+way any other shared club credential is, not a single person's account.)*
+
+No credit card is required to create a free-tier account, per Resend's published pricing —
+worth reconfirming on the actual sign-up page, since pricing pages change.
+
+### The API key — what the Worker actually holds
+
+Resend authenticates over a plain HTTPS API, not SMTP, so **there are no mail-server
+credentials to manage** — no username/password pair, no port, nothing analogous to the
+`smtp.southvillerunningclub.co.uk` credentials Problem 1's mailboxes would use. There is
+exactly one secret: **an API key**, a single opaque string Resend's dashboard generates.
+
+**Scope it to sending only.** Resend lets a key be restricted to "Sending access" rather
+than full account access (which can also read logs, manage domains, remove team members).
+The Worker only ever calls the send endpoint, so it should hold a key that can do nothing
+else — if it leaks, the blast radius is "someone can send email as the club," not "someone
+can reconfigure the account."
+
+**Where it lives:** a Cloudflare Worker secret, set with `wrangler secret put
+RESEND_API_KEY` against `apps/main` — the same mechanism `PUBLIC_SUPABASE_ANON_KEY` in
+[`wrangler.jsonc`](../../platform/apps/main/wrangler.jsonc) deliberately *isn't* used for,
+because unlike the Supabase anon key, **the Resend API key is not meant to be public** —
+it is a `PUBLIC_`-prefixed value that goes into committed config, and this is the opposite:
+a Worker secret, encrypted at rest, never in a file the repository tracks. Locally, the
+same pattern the Supabase local stack already uses — a `.dev.vars` file, gitignored, holding
+a placeholder or a real key pointed at Resend's test mode (see below).
+
+This is one secret, one scope, one place it lives — deliberately smaller than the
+three-secret Supabase deploy arrangement [cloudflare-setup.md](../delivery/runbooks/cloudflare-setup.md)
+already documents, because sending mail needs less trust than migrating a database.
+
+### How a reply actually reaches `info@`
+
+This is simpler than it might look, because **`Reply-To` is just a header** — it requires
+no verification, no DNS record, and no relationship with Resend at all beyond Resend
+setting the header on the message it sends.
+
+1. The Worker calls Resend's send API with:
+   - `from`: `"Nightingale Nightmare <nn@send.southvillerunningclub.co.uk>"` — must be on
+     the *verified* sending subdomain, or Resend rejects the send.
+   - `reply_to`: `"info@southvillerunningclub.co.uk"` — the club's real mailbox, on the
+     main domain, entirely unrelated to what Resend has verified. Resend never sends *as*
+     `info@`; it just tells the recipient's mail client "when this person hits reply, address
+     it here instead."
+2. The member receives mail that shows `From: Nightingale Nightmare <nn@send...>` — but
+   hitting **Reply** in their mail client addresses the new message to `info@...`, per the
+   `Reply-To` header, not back to `nn@send...`.
+3. That reply is ordinary inbound mail to `info@southvillerunningclub.co.uk` — it travels
+   over Fasthosts livemail exactly as every other piece of inbound club mail does today.
+   Resend is not involved in receiving it at all; **Resend only ever sends**, it has no
+   inbound role, so `info@` needs no Resend configuration whatsoever to receive replies.
+
+**Nothing about this requires `info@` to exist in Resend, be verified by Resend, or be
+known to Resend beyond being a string in a header.** The mailbox purchase
+([Problem 1](email.md#problem-1--human-mailboxes)) and the Resend setup (Problem 2) really
+are two independent purchases meeting only at that one header value.
+
+### What needs deciding by a human, and written down
+
+Per [how to work here](../../CLAUDE.md#how-to-work-here) — "any step done by hand is
+written down" — the account creation itself is manual and should be recorded once done:
+
+- Which club address signed up for Resend, and the date.
+- Both volunteers confirmed as team members (or the fallback credential-sharing approach,
+  if team members turn out to be a paid feature).
+- The scoped API key's name/label in Resend's dashboard, so a future audit of "what can
+  send mail as the club" doesn't require guessing which key is which.
+
+---
+
 ## Free tier: will it work?
 
 **Yes, to start**, per [email.md](email.md#problem-2--programmatic-mail)'s existing
