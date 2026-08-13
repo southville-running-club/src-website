@@ -91,6 +91,43 @@
  *   rule on aubergine        panel edge, page foot  3.04:1   3.0 (1.4.11) ok — new
  *   plum on aubergine        rejected               2.31:1   4.5 (AA)     *** fails ***
  *
+ * Added by the entry form — the fieldsets, the entry-type cards and the medical panel:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   ink on card              legend, fee name     18.09:1    4.5 (AA)     ok
+ *   slate on card            hint, fee detail      8.30:1    4.5 (AA)     ok
+ *   ink on card-muted        medical panel text   16.12:1    4.5 (AA)     ok
+ *   slate on card-muted      medical panel hint    7.40:1    4.5 (AA)     ok
+ *   ink on chosen            chosen entry card    16.16:1    4.5 (AA)     ok — new
+ *   slate on chosen          chosen card detail    7.41:1    4.5 (AA)     ok — new
+ *   danger on chosen         error in chosen card  4.94:1    4.5 (AA)     ok — new
+ *   blood on card            chosen card border    9.01:1    3.0 (1.4.11) ok
+ *   field border on card     unchosen card border  3.23:1    3.0 (1.4.11) ok
+ *   field border on card-muted   rejected          2.88:1    3.0 (1.4.11) *** fails ***
+ *   field border strong on card-muted  input       3.29:1    3.0 (1.4.11) ok — corrected
+ *   field border strong on chosen      EA box      3.30:1    3.0 (1.4.11) ok — new
+ *   chosen on card           chosen card fill      1.12:1    —            see below
+ *
+ * **`--nn-field-border` on `card-muted` is 2.88:1 and is a real failure, not a flagged
+ * exception.** The medical section is a muted panel with a text box in it, and a text box's
+ * border is the only thing saying where to type — which is exactly the case 1.4.11 names.
+ * `--nn-field-border-strong` is the same hue and saturation with lightness alone reduced
+ * from 57.3% to 53.3%, which is the correction this file has already made twice. It is used
+ * only where the surface is not white, so the interest form's recorded 3.23:1 is untouched.
+ *
+ * **The chosen entry-type card's fill is 1.12:1 against the card and that is fine here**,
+ * because the fill is the *third* signal rather than the only one: the card's border changes
+ * from `field border` to `blood` (3.23:1 → 9.01:1 against white, a change of shape as well
+ * as colour at 2px), and the native radio inside it is checked. Somebody who cannot see the
+ * fill at all still has a filled radio button and a heavier, darker edge.
+ *
+ * **The radio is a real radio, deliberately.** The mockup hides it — `position:absolute;
+ * opacity:0` — and paints the chosen state entirely with `label:has(input:checked)`. That is
+ * one CSS feature away from a form with no visible answer to "which one did I pick", and the
+ * failure would be silent. Keeping the native control means the chosen state is carried by
+ * the browser and the styling is decoration on top of it.
+ *
  * **`plum` on `aubergine` is 2.31:1 and is not used anywhere.** It is recorded because the
  * theme carries `--nn-plum` as a secondary accent and the call-to-action panel is the
  * obvious place to spend it. It fails, and badly. The number is more use here than the
@@ -172,6 +209,13 @@ body.theme-nn {
   --nn-danger: #cd1e1a; /* field errors on white */
   /* Corrected from the mockup's #d6c9c4 — WCAG 1.4.11, and it is a text box. */
   --nn-field-border: #a6897e;
+  /* The same border where the surface behind it is not white — the medical panel and the
+     chosen entry-type card. `--nn-field-border` is 2.88:1 on those and fails; this is the
+     same hue and saturation with lightness alone reduced, at 3.29:1. See the table above. */
+  --nn-field-border-strong: #9e7e72;
+  /* The fill of the chosen entry-type card. The mockup's, and it carries no meaning on its
+     own — the border, the native radio and the price all say which one is chosen. */
+  --nn-chosen: #fbf0ea;
 
   --nn-r-btn: 8px;
   --nn-r-card: 12px;
@@ -765,6 +809,292 @@ body.theme-nn {
   margin: 0 0 14px;
   font-size: 14px;
   color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry form
+ * -------------------------------------------------------------------------------------
+ * Fourteen fields on one page, on a phone, outdoors, possibly for a race somebody is
+ * nervous about. **Horror in the frame, calm in the content** holds harder here than
+ * anywhere else on the site: the gradient, the hands and the Nosifer lettering are all
+ * still outside this card, and nothing inside it — not a legend, not a price, not an
+ * error, not the medical wording — is set in the display face.
+ *
+ * The whole form is one white card. The six sections are told apart by a rule and a
+ * legend rather than by six separate cards, because six cards on a phone is six scroll
+ * positions where the person loses their place in one form.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-fieldset {
+  margin: 0 0 8px;
+  padding: 0 0 24px;
+  border: 0;
+  /* 1.12:1 and decorative — the section is named by its legend, which is what carries the
+     grouping. Same hairline the privacy notice already rules its headings with. */
+  border-bottom: 1.5px solid var(--nn-card-muted);
+}
+
+.theme-nn .nn-fieldset:first-of-type {
+  padding-top: 0;
+}
+
+.theme-nn .nn-fieldset:last-of-type {
+  padding-bottom: 8px;
+  border-bottom: 0;
+}
+
+/* **Inter 600, never Nosifer.** A legend is an instruction about what to do next, and
+   nothing a person has to act on is set in the display face anywhere on this site. */
+.theme-nn .nn-legend {
+  margin: 0 0 4px;
+  padding: 0;
+  font-family: var(--nn-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+/* A `<legend>` sits outside the fieldset's own padding box, so the hint that follows it
+   needs the top margin the legend cannot give it. */
+.theme-nn .nn-fieldset > .field-hint {
+  margin: 6px 0 16px;
+}
+
+.theme-nn .field-optional {
+  font-weight: 400;
+  color: var(--nn-slate);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Date of birth — three boxes, not a picker
+ * -------------------------------------------------------------------------------------
+ * A native date picker opens on this month and asks somebody to page back forty years one
+ * month at a time. Three boxes are typed in three seconds.
+ *
+ * The widths are measured rather than chosen: at 320px there are 232 pixels inside the
+ * card's padding, and 60 + 60 + 80 with two 10px gaps comes to 220. `flex-wrap` is the
+ * safety net rather than the mechanism — if a future font makes four digits wider, the
+ * year drops to its own line instead of pushing the page sideways.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-dob {
+  margin: 0 0 var(--space, 1rem);
+  padding: 0;
+  border: 0;
+}
+
+.theme-nn .nn-dob > .field-hint {
+  margin-top: 4px;
+}
+
+.theme-nn .nn-dob-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.theme-nn .nn-dob-part {
+  display: block;
+}
+
+.theme-nn .nn-dob-part .field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nn-slate);
+}
+
+.theme-nn .nn-dob-part .field-input {
+  width: 3.75rem;
+  /* Tabular figures, so a 1 and a 7 occupy the same width and three boxes read as a date
+     rather than as three unrelated inputs. */
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.theme-nn .nn-dob-year .field-input {
+  width: 5rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry-type cards
+ * -------------------------------------------------------------------------------------
+ * One column at every width. The mockup lays two side by side; here the affiliated card
+ * carries the England Athletics box inside it, so a two-column grid would put a text input
+ * in half a phone screen. Stacked, every card is the full width of the card and every
+ * target is far past the 44px the brief asks for.
+ *
+ * **The chosen state is carried three ways and colour is not one of them on its own** —
+ * the native radio is checked, the border goes from 1.5px `field border` to 2px `blood`,
+ * and the fill changes. See the contrast note at the head of this file for why the fill is
+ * allowed to be 1.12:1.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-fees {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.theme-nn .nn-fee {
+  border: 1.5px solid var(--nn-field-border);
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+}
+
+/* `:has()` is the same mechanism the mockup uses, and it is decoration on top of the native
+   radio rather than the only signal — a browser without it still shows a filled radio. */
+.theme-nn .nn-fee:has(.nn-fee-radio:checked) {
+  border-width: 2px;
+  border-color: var(--nn-blood);
+  background: var(--nn-chosen);
+}
+
+/* The whole card is the label, so the whole card is the target. */
+.theme-nn .nn-fee-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* One pixel less when chosen, so the 2px border does not shift the text. */
+  padding: 16px;
+  cursor: pointer;
+}
+
+.theme-nn .nn-fee:has(.nn-fee-radio:checked) .nn-fee-choice {
+  padding: 15.5px;
+}
+
+.theme-nn .nn-fee-radio {
+  flex-shrink: 0;
+  /* WCAG 2.2 puts the target floor at 24 by 24, and the label around it is far larger. */
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 1px 0 0;
+  accent-color: var(--nn-blood);
+}
+
+.theme-nn .nn-fee-body {
+  display: block;
+  flex: 1 1 auto;
+  /* So a long description shrinks the flex item rather than pushing the card sideways. */
+  min-width: 0;
+}
+
+.theme-nn .nn-fee-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-fee-desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  color: var(--nn-slate);
+}
+
+/* Tabular figures in the mono face, so £15.00 and £17.00 line up on their decimal points
+   down a column. `Free` sets in the same face at the same size, which is what stops a price
+   of nothing reading as a missing price. */
+.theme-nn .nn-fee-price {
+  flex-shrink: 0;
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--nn-ink);
+}
+
+/* **The England Athletics box, inside the affiliated card and always in the DOM.** It is
+   separated by a rule rather than by being a second card, because it belongs to the choice
+   above it. The enhancement adds `hidden`; with scripting off it simply stays. */
+.theme-nn .nn-fee-extra {
+  margin: 0;
+  padding: 16px;
+  border-top: 1.5px solid var(--nn-field-border-strong);
+}
+
+.theme-nn .nn-fee:has(.nn-fee-radio:checked) .nn-fee-extra .field-input {
+  border-color: var(--nn-field-border-strong);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The medical section
+ * -------------------------------------------------------------------------------------
+ * A muted panel inside the white card: distinct enough to say "this one is different"
+ * without alarm, and without red. Free-text medical information is special category data
+ * under UK GDPR Article 9, and the form's job is to make that legible rather than dramatic.
+ *
+ * Inputs inside it take the stronger border — `--nn-field-border` is 2.88:1 against this
+ * fill, which is a real 1.4.11 failure for a text box. See the head of this file.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-medical {
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 0;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card-muted);
+}
+
+.theme-nn .nn-medical .field-input {
+  border-color: var(--nn-field-border-strong);
+}
+
+/* The three things somebody is entitled to know before typing a medical condition into a
+   form: who sees it, how long it is kept, and what happens if they leave the box unticked.
+   A list because it is three separate facts, and above the box because they are what the
+   decision is made on. */
+.theme-nn .nn-medical-terms {
+  margin: 0 0 18px;
+  padding-left: 1.25rem;
+  font-size: 14px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-medical-terms li {
+  margin-bottom: 6px;
+}
+
+.theme-nn .nn-textarea {
+  min-height: 5.5rem;
+  font-family: var(--nn-body);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The two things JavaScript adds, and neither is load-bearing
+ * -------------------------------------------------------------------------------------
+ * The live age category and the running total. Both ship hidden and stay hidden with
+ * scripting off: the category is worked out by the server and shown on the outcome, and
+ * every entry type carries its own price on its own card. A total that could go stale is
+ * worse than no total.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-category,
+.theme-nn .nn-total {
+  margin: 0 0 var(--space, 1rem);
+  padding: 10px 14px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-card-muted);
+  font-size: 14px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-category b,
+.theme-nn .nn-total b {
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-nn .nn-total {
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+/* Centred under the full-width button, and the quietest thing on the form rather than the
+   loudest — it is a statement of fact, not a warning. */
+.theme-nn .nn-paynote {
+  margin-top: 10px;
+  text-align: center;
 }
 
 /* -------------------------------------------------------------------------------------

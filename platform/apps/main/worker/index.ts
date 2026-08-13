@@ -9,6 +9,16 @@ import {
   NN_SIGNUP_SUCCESS_PATH,
   type NnSignupOutcome,
 } from './nn-signup';
+import {
+  nnFormKind,
+  processNnEntry,
+  renderNnEntryClosed,
+  renderNnEntryErrors,
+  renderNnEntryNotTaken,
+  renderNnEntryView,
+  resolveNnEntryView,
+  type NnEntryOutcome,
+} from './nn-entry';
 
 /**
  * The club's main Worker — the website, and Nightingale Nightmare under `/nn`.
@@ -66,7 +76,7 @@ export default {
     // sees the request first, and it has to: the binding serves `dist/`, which is static
     // HTML, and it will not answer a POST at all.
     if (request.method === 'POST' && isNnSignupPath(url.pathname)) {
-      return handleNnSignup(request, env, url);
+      return handleNnPost(request, env, url);
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -80,10 +90,18 @@ export default {
 
     const rewriter = statusRewriter(env);
 
-    // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET, and
-    // `?signup=ok` is what tells this pass to reveal the acknowledgement.
-    if (isNnSignupPath(url.pathname) && isNnSignupSuccess(url)) {
-      renderNnSignupAcknowledgement(rewriter);
+    if (isNnSignupPath(url.pathname)) {
+      // **Which of the page's two forms somebody gets, decided per request.** The event row
+      // says whether entries are open; nothing here is baked into the build. Every failure
+      // resolves to the interest form, so a database this Worker cannot reach produces the
+      // page that was already there rather than an offer to take an entry it cannot record.
+      renderNnEntryView(rewriter, await resolveNnEntryView(env));
+
+      // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET,
+      // and `?signup=ok` is what tells this pass to reveal the acknowledgement.
+      if (isNnSignupSuccess(url)) {
+        renderNnSignupAcknowledgement(rewriter);
+      }
     }
 
     return rewriter.transform(response);
@@ -106,7 +124,11 @@ function statusRewriter(env: Env): HTMLRewriter {
 }
 
 /**
- * The sign-up POST: validate, record, and answer with something a person can act on.
+ * The POST to `/nn/`, whichever of the page's two forms sent it.
+ *
+ * **The body is read once, here, and handed on.** The hidden `form` field is what tells the
+ * two apart, so the router has to look inside the body before it can dispatch — and reading
+ * a request twice to avoid threading a `FormData` through would be the worse trade.
  *
  * A rejected or unrecorded submission is answered by **re-serving the page the form is on**
  * and painting the outcome onto it, rather than by redirecting somewhere. That is what
@@ -114,8 +136,29 @@ function statusRewriter(env: Env): HTMLRewriter {
  * and email address in a URL, and a query string is the one place personal data is
  * guaranteed to end up in a log.
  */
-async function handleNnSignup(request: Request, env: Env, url: URL): Promise<Response> {
-  const outcome: NnSignupOutcome = await processNnSignup(request, env);
+async function handleNnPost(request: Request, env: Env, url: URL): Promise<Response> {
+  let form: FormData | null;
+
+  try {
+    form = await request.formData();
+  } catch {
+    // Not a form at all — a JSON body, or nothing. Both handlers treat this the same way an
+    // empty submission is treated.
+    form = null;
+  }
+
+  return nnFormKind(form) === 'entry'
+    ? handleNnEntry(form, env, url)
+    : handleNnSignup(form, env, url);
+}
+
+/** The interest form: validate, record, and answer with something a person can act on. */
+async function handleNnSignup(
+  form: FormData | null,
+  env: Env,
+  url: URL,
+): Promise<Response> {
+  const outcome: NnSignupOutcome = await processNnSignup(form, env);
 
   if (outcome.status === 'accepted') {
     // POST/Redirect/GET. Without it, a refresh re-posts and the person is left wondering
@@ -124,17 +167,15 @@ async function handleNnSignup(request: Request, env: Env, url: URL): Promise<Res
     return Response.redirect(new URL(NN_SIGNUP_SUCCESS_PATH, url).toString(), 303);
   }
 
-  // A GET the assets binding will actually answer, for the canonical address of the page.
-  const page = await env.ASSETS.fetch(
-    new Request(new URL(`${NN_PREFIX}/`, url).toString(), { method: 'GET' }),
-  );
-
+  const page = await nnPage(env, url);
   if (!page.ok) {
     return page;
   }
 
   const rewriter = statusRewriter(env);
 
+  // The interest form only ever renders in the state where it is the visible one, so no
+  // view rewriting is needed here: it ships visible.
   const status =
     outcome.status === 'invalid'
       ? // Unprocessable content: the request was understood and refused on its contents.
@@ -149,14 +190,68 @@ async function handleNnSignup(request: Request, env: Env, url: URL): Promise<Res
     renderNnSignupUnavailable(rewriter, outcome);
   }
 
-  const rendered = rewriter.transform(page);
+  return typedPage(rewriter.transform(page), status);
+}
+
+/**
+ * The entry form: validate, and stop.
+ *
+ * **No outcome here is a success**, because Slice A has no payment to send anybody to. A
+ * valid entry gets an honest 503 saying it is not finished, with every value preserved, and
+ * that stays true until the Checkout session is what follows a valid entry.
+ */
+async function handleNnEntry(
+  form: FormData | null,
+  env: Env,
+  url: URL,
+): Promise<Response> {
+  const outcome: NnEntryOutcome = await processNnEntry(form, env);
+
+  const page = await nnPage(env, url);
+  if (!page.ok) {
+    return page;
+  }
+
+  const rewriter = statusRewriter(env);
+
+  if (outcome.status === 'closed') {
+    // 409, not 422 or 503: the submission was well-formed and the state of the world moved.
+    // Somebody opened the page at 6:59 and pressed the button at 7:01, which is an ordinary
+    // sequence rather than a mistake or an outage.
+    renderNnEntryClosed(rewriter);
+    return typedPage(rewriter.transform(page), 409);
+  }
+
+  // Both remaining outcomes render the entry form, so the view has to be painted first —
+  // the section ships hidden and `handleNnPost` did not go through the GET path that
+  // reveals it. `processNnEntry` has already established that the window is open, so this
+  // second read is answering "with what fees", not "should this be here".
+  renderNnEntryView(rewriter, await resolveNnEntryView(env));
+
+  if (outcome.status === 'invalid') {
+    renderNnEntryErrors(rewriter, outcome);
+    return typedPage(rewriter.transform(page), 422);
+  }
+
+  renderNnEntryNotTaken(rewriter, outcome);
+  return typedPage(rewriter.transform(page), 503);
+}
+
+/** A GET the assets binding will actually answer, for the canonical address of the page. */
+function nnPage(env: Env, url: URL): Promise<Response> {
+  return env.ASSETS.fetch(
+    new Request(new URL(`${NN_PREFIX}/`, url).toString(), { method: 'GET' }),
+  );
+}
+
+/**
+ * **This page now contains what somebody typed.** It must not be held by a shared cache
+ * between here and them, and a 422, a 409 or a 503 is not a useful thing to serve to the
+ * next person regardless.
+ */
+function typedPage(rendered: Response, status: number): Response {
   const headers = new Headers(rendered.headers);
-
-  // **This page now contains what somebody typed.** It must not be held by a shared cache
-  // between here and them, and a 422 or a 503 is not a useful thing to serve to the next
-  // person regardless.
   headers.set('cache-control', 'no-store');
-
   return new Response(rendered.body, { status, headers });
 }
 

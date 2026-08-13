@@ -70,17 +70,16 @@ export function isNnSignupSuccess(url: URL): boolean {
  * 500.
  */
 export async function processNnSignup(
-  request: Request,
+  form: FormData | null,
   env: NnSignupEnv,
 ): Promise<NnSignupOutcome> {
-  let form: FormData;
-
-  try {
-    form = await request.formData();
-  } catch {
-    // Not a form at all — a JSON body, or nothing. There is no input to preserve and
-    // nothing to say about individual fields, so it is rejected the same way an empty
-    // submission is. This is a bot or a mistake, not somebody filling the form in.
+  // **The body is read once, by the caller.** `/nn/` now carries two forms and the router
+  // has to look at the `form` field to know which one arrived, so parsing here as well
+  // would mean reading the same request twice. `null` is what the caller passes when the
+  // body was not a form at all — a JSON body, or nothing. There is no input to preserve and
+  // nothing to say about individual fields, so it is rejected the same way an empty
+  // submission is. That is a bot or a mistake, not somebody filling the form in.
+  if (form === null) {
     return {
       status: 'invalid',
       errors: emptySubmissionErrors(),

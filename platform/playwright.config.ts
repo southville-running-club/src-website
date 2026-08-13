@@ -38,9 +38,20 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
 
-  // Capped deliberately — see the note above. Two servers plus three engines is already
-  // a lot of processes for a laptop.
-  workers: process.env.CI ? 2 : 1,
+  // **One worker everywhere, and the reason changed.** It was capped at two in CI because
+  // two servers plus three engines is already a lot of processes; it is now capped at one
+  // because two spec files own the same row.
+  //
+  // `/nn/` shows the entry form or the interest form according to
+  // `entries.events.entries_open_at` — the real switch, read by the Worker per request, with
+  // no preview flag that could reach production. `nn-entry.spec.ts` moves that row and
+  // `nn-signup.spec.ts` needs it left alone. Playwright parallelises across files, so with
+  // two workers those two interleave and each occasionally sees the other's state.
+  //
+  // The alternative was a Postgres advisory lock shared by both files. This costs a few
+  // seconds of CI and removes a class of intermittent instead of managing one, which is the
+  // trade this repository has already made twice — see the 320px note in nn-theme.css.
+  workers: 1,
 
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.

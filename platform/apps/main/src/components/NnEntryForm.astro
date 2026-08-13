@@ -1,0 +1,930 @@
+---
+/**
+ * The Nightingale Nightmare entry form.
+ *
+ * **One page, not a wizard.** A multi-step flow needs either JavaScript or somewhere on the
+ * server to keep a half-finished entry, and this site has neither by design: the form works
+ * with scripting off as its primary path, and there is no session store to add. So it is one
+ * page, grouped into six `<fieldset>`s, and everything is visible at once.
+ *
+ * **Nothing here knows a price.** The three fee cards ship with their labels and prices
+ * empty and `hidden`; the Worker fills in whichever the event is actually offering, from
+ * `entries.fees` via `entries.entry_state()`. A price written into this markup would be a
+ * second copy of a number that lives in one place on purpose — see the migration.
+ *
+ * **The three fee codes are known here, and that is deliberate rather than sloppy.** The
+ * `entries.fees.code` check constraint allows exactly these three, so adding a fourth is
+ * already a reviewed migration; it costing a deploy as well is the honest price of the
+ * Worker painting values onto one static page rather than assembling markup from data.
+ * `setInnerContent(..., { html: true })` is what the alternative would need, and there is
+ * deliberately no such call anywhere in this repository to audit.
+ *
+ * Every `data-entry-*` hook is read by `worker/nn-entry.ts`. See that file for what is
+ * painted onto which.
+ */
+
+// The order on the page is the page's, and it is the mockup's: the affiliated entry first
+// because it is the one with a condition attached, then everyone else, then the guide's
+// place. `entry_state()` returns fees in its own stable order for anything rendering from
+// the array; nothing renders this list from data.
+const FEES = [
+  {
+    code: 'affiliated',
+    description: 'You hold a current England Athletics registration through a club.',
+  },
+  {
+    code: 'unaffiliated',
+    // **No price and no difference-in-price in this string.** The mockup's version explains
+    // the gap in pounds; both numbers live in `entries.fees` and a third copy of either
+    // here would be a price the database could not correct. `serves.test.ts` asserts that
+    // no `£` figure appears in `dist/` at all, and it is right to.
+    description: 'Everybody else, and just as welcome.',
+  },
+  {
+    code: 'vi_guide',
+    description: 'Guiding a visually impaired runner. There is no charge for a guide.',
+  },
+] as const;
+
+/**
+ * The error summary lists problems in the order somebody meets them scrolling down, and
+ * each link lands on the input the message is about. `dateOfBirth` points at the day box —
+ * the first of the three — because that is where a correction starts.
+ */
+const SUMMARY_LINKS = [
+  ['firstName', 'entry-first-name'],
+  ['lastName', 'entry-last-name'],
+  ['email', 'entry-email'],
+  ['emailConfirm', 'entry-email-confirm'],
+  ['dateOfBirth', 'entry-dob-day'],
+  ['gender', 'entry-gender'],
+  ['club', 'entry-club'],
+  ['feeCode', 'entry-fee-affiliated'],
+  ['eaNumber', 'entry-ea-number'],
+  ['emergencyName', 'entry-emergency-name'],
+  ['emergencyPhone', 'entry-emergency-phone'],
+  ['medicalNotes', 'entry-medical-notes'],
+  ['medicalConsent', 'entry-medical-consent'],
+  ['entryTerms', 'entry-terms'],
+] as const;
+---
+
+<h2 id="enter">Enter the race</h2>
+
+{
+  /* The three outcomes this form can meet, all served hidden and revealed by the Worker —
+  the same arrangement the interest form uses, and for the same reason: there is one copy of
+  this page, in `dist/`, and the Worker paints an outcome onto it rather than holding a
+  second template that can drift.
+
+  Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it. That
+  is how focus moves **with JavaScript disabled**, which is the primary path here. */
+}
+
+<div
+  class="notice notice-bad nn-card"
+  data-entry-summary
+  hidden
+  tabindex="-1"
+  role="alert"
+>
+  <h3>There is a problem</h3>
+  <ul class="summary-list">
+    {
+      SUMMARY_LINKS.map(([field, target]) => (
+        <li data-entry-summary-item={field} hidden>
+          <a data-entry-summary-link={field} href={`#${target}`} />
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+{
+  /* **The stub's honest answer, and the whole of what Slice A does with a good entry.**
+  Payment is not connected, so a valid submission is not quietly acknowledged as though it
+  were an entry — that would be the one failure worth more than all the others put together.
+  Nothing is stored and nothing is charged, and the notice says exactly that. */
+}
+<div
+  class="notice notice-bad nn-card"
+  data-entry-unavailable
+  hidden
+  tabindex="-1"
+  role="alert"
+>
+  <p><strong>Your entry is not finished — payment is not connected yet.</strong></p>
+  <p>
+    Everything you typed passed the club's checks, and <strong
+      >nothing has been stored and nothing has been charged</strong
+    >. Entries cannot be completed until the payment step is switched on.
+  </p>
+  <p>Nothing you typed has been lost — it is still in the form below.</p>
+</div>
+
+{
+  /* Entries closing between this page loading and the form being sent is a real sequence,
+  not a hypothetical one: somebody opens the page at 6:59 and presses the button at 7:01 on
+  the last day. The Worker checks the window again when the form arrives. */
+}
+<div
+  class="notice notice-bad nn-card"
+  data-entry-closed
+  hidden
+  tabindex="-1"
+  role="alert"
+>
+  <p><strong>Entries are not open.</strong></p>
+  <p>
+    They may have closed while this page was open. Nothing has been stored and nothing has
+    been charged.
+  </p>
+</div>
+
+<p class="signup-privacy">
+  One entry per runner. The club uses what you enter here to run the race and for nothing
+  else. <a href="/nn/privacy/">What the club does with this</a>, including how to have it
+  removed.
+</p>
+
+{
+  /* A real form, posting to a real address. No JavaScript is involved in submitting it,
+  validating it, or rendering what comes back.
+
+  `form=entry` is what tells the Worker which of this page's two forms arrived. The interest
+  form carries the same field with `interest`, so neither is identified by the absence of
+  something. */
+}
+{
+  /* `data-entry-event-date` and `data-entry-minimum-age` are written by the Worker from the
+  event row. They are the only two rules the enhancement cannot read off the DOM, and
+  neither is personal data — they are the same two facts the page already displays. */
+}
+<form
+  class="signup nn-card nn-entry"
+  method="post"
+  action="/nn/"
+  data-entry-form
+  data-entry-event-date=""
+  data-entry-minimum-age=""
+>
+  <input type="hidden" name="form" value="entry" />
+
+  <!-- 1 — Your details ------------------------------------------------------------- -->
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">Your details</legend>
+
+    <div class="field">
+      <label class="field-label" for="entry-first-name">First name</label>
+      <p
+        class="field-error"
+        id="entry-first-name-error"
+        data-entry-error="firstName"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-first-name"
+        name="firstName"
+        type="text"
+        maxlength="60"
+        autocomplete="given-name"
+        required
+        aria-describedby="entry-first-name-error"
+        data-entry-value="firstName"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="entry-last-name">Last name</label>
+      <p
+        class="field-error"
+        id="entry-last-name-error"
+        data-entry-error="lastName"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-last-name"
+        name="lastName"
+        type="text"
+        maxlength="60"
+        autocomplete="family-name"
+        required
+        aria-describedby="entry-last-name-error"
+        data-entry-value="lastName"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="entry-email">Email address</label>
+      <p class="field-hint" id="entry-email-hint">Your entry confirmation goes here.</p>
+      <p class="field-error" id="entry-email-error" data-entry-error="email" hidden></p>
+      <input
+        class="field-input"
+        id="entry-email"
+        name="email"
+        type="email"
+        maxlength="254"
+        autocomplete="email"
+        spellcheck="false"
+        required
+        aria-describedby="entry-email-hint entry-email-error"
+        data-entry-value="email"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="entry-email-confirm"
+        >Confirm your email address</label
+      >
+      <p class="field-hint" id="entry-email-confirm-hint">
+        Typed again, because a confirmation sent to a mistyped address is one nobody finds
+        out about.
+      </p>
+      <p
+        class="field-error"
+        id="entry-email-confirm-error"
+        data-entry-error="emailConfirm"
+        hidden
+      >
+      </p>
+      {
+        /* `autocomplete="off"` on purpose. A browser filling both boxes from the same saved
+        address defeats the check entirely — the second box exists to be typed. */
+      }
+      <input
+        class="field-input"
+        id="entry-email-confirm"
+        name="emailConfirm"
+        type="email"
+        maxlength="254"
+        autocomplete="off"
+        spellcheck="false"
+        required
+        aria-describedby="entry-email-confirm-hint entry-email-confirm-error"
+        data-entry-value="emailConfirm"
+      />
+    </div>
+  </fieldset>
+
+  <!-- 2 — About you --------------------------------------------------------------- -->
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">About you</legend>
+
+    {
+      /* **Three number boxes, not a date picker.** A picker opens on this month and asks
+      somebody to page back forty years, one month at a time, on a phone. Three boxes are
+      typed in three seconds.
+
+      A nested `<fieldset>` because the three inputs are one question: a screen reader
+      announces "Date of birth, Day" rather than an unexplained "Day", and the error belongs
+      to the group rather than to whichever box happens to be wrong.
+
+      `inputmode="numeric"` brings up the number pad without `type="number"`, which on a
+      birth year would add a spinner nobody wants and would silently accept `1e6`. */
+    }
+    <fieldset class="field nn-dob">
+      <legend class="field-label">Date of birth</legend>
+      <p class="field-hint" id="entry-dob-hint">
+        For example, 9 12 1986. The club uses this to work out your age category.
+      </p>
+      <p class="field-error" id="entry-dob-error" data-entry-error="dateOfBirth" hidden>
+      </p>
+
+      <div class="nn-dob-parts">
+        <span class="nn-dob-part">
+          <label class="field-label" for="entry-dob-day">Day</label>
+          <input
+            class="field-input"
+            id="entry-dob-day"
+            name="dobDay"
+            type="text"
+            inputmode="numeric"
+            maxlength="2"
+            autocomplete="bday-day"
+            required
+            aria-describedby="entry-dob-hint entry-dob-error"
+            data-entry-value="dobDay"
+          />
+        </span>
+        <span class="nn-dob-part">
+          <label class="field-label" for="entry-dob-month">Month</label>
+          <input
+            class="field-input"
+            id="entry-dob-month"
+            name="dobMonth"
+            type="text"
+            inputmode="numeric"
+            maxlength="2"
+            autocomplete="bday-month"
+            required
+            aria-describedby="entry-dob-hint entry-dob-error"
+            data-entry-value="dobMonth"
+          />
+        </span>
+        <span class="nn-dob-part nn-dob-year">
+          <label class="field-label" for="entry-dob-year">Year</label>
+          <input
+            class="field-input"
+            id="entry-dob-year"
+            name="dobYear"
+            type="text"
+            inputmode="numeric"
+            maxlength="4"
+            autocomplete="bday-year"
+            required
+            aria-describedby="entry-dob-hint entry-dob-error"
+            data-entry-value="dobYear"
+          />
+        </span>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label class="field-label" for="entry-gender">Gender</label>
+      <p class="field-hint" id="entry-gender-hint">
+        Used with your date of birth to work out your age category.
+      </p>
+      <p class="field-error" id="entry-gender-error" data-entry-error="gender" hidden></p>
+      <select
+        class="field-input"
+        id="entry-gender"
+        name="gender"
+        required
+        aria-describedby="entry-gender-hint entry-gender-error"
+      >
+        <option value="" data-entry-selected="gender:">Choose one</option>
+        <option value="female" data-entry-selected="gender:female">Female</option>
+        <option value="male" data-entry-selected="gender:male">Male</option>
+        <option value="non_binary" data-entry-selected="gender:non_binary"
+          >Non-binary</option
+        >
+      </select>
+    </div>
+
+    {
+      /* **The live category preview, and the only thing on this form that needs JavaScript.**
+      It ships empty and hidden; the enhancement fills it as the date of birth and gender are
+      typed. With scripting off it simply never appears, and the category is worked out by
+      the server — which is the same answer from the same module either way.
+
+      `aria-live="polite"` rather than `assertive`: it is a running commentary on a field
+      somebody is still typing into, and interrupting them mid-keystroke would be worse than
+      saying nothing. */
+    }
+    <p class="nn-category" data-entry-category hidden aria-live="polite"></p>
+
+    <div class="field">
+      <label class="field-label" for="entry-club">
+        Running club <span class="field-optional">(optional)</span>
+      </label>
+      <p class="field-error" id="entry-club-error" data-entry-error="club" hidden></p>
+      <input
+        class="field-input"
+        id="entry-club"
+        name="club"
+        type="text"
+        maxlength="120"
+        autocomplete="organization"
+        aria-describedby="entry-club-error"
+        data-entry-value="club"
+      />
+    </div>
+  </fieldset>
+
+  <!-- 3 — Entry type -------------------------------------------------------------- -->
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">Entry type</legend>
+    <p class="field-hint" id="entry-fee-hint">
+      Affiliated means a current England Athletics registration through your club.
+    </p>
+    <p class="field-error" id="entry-fee-error" data-entry-error="feeCode" hidden></p>
+
+    <div class="nn-fees">
+      {
+        FEES.map((fee) => (
+          <div class="nn-fee" data-entry-fee={fee.code} data-entry-fee-pence="" hidden>
+            {/* The input sits inside its own label so the whole card is the target — well
+            past the 44px the brief asks for — and `for` is stated as well so the pairing is
+            explicit rather than implied by nesting. */}
+            <label class="nn-fee-choice" for={`entry-fee-${fee.code}`}>
+              <input
+                class="nn-fee-radio"
+                id={`entry-fee-${fee.code}`}
+                type="radio"
+                name="feeCode"
+                value={fee.code}
+                aria-describedby={`entry-fee-hint entry-fee-error entry-fee-${fee.code}-desc`}
+                data-entry-checked={`feeCode:${fee.code}`}
+              />
+              <span class="nn-fee-body">
+                <span class="nn-fee-name" data-entry-fee-label={fee.code} />
+                <span class="nn-fee-desc" id={`entry-fee-${fee.code}-desc`}>
+                  {fee.description}
+                </span>
+              </span>
+              {/* Tabular figures in the mono face, so three prices in a column line up on
+              their decimal points. The Worker writes the value; the markup writes none. */}
+              <span class="nn-fee-price" data-entry-fee-price={fee.code} />
+            </label>
+
+            {
+              /* **The England Athletics box lives inside the affiliated card, and is always
+              in the DOM.** It is rendered whatever is selected; the enhancement hides it when
+              another entry type is chosen, and with scripting off it stays visible and the
+              server decides whether it had to be filled in. Hiding it with JavaScript as the
+              only mechanism would make the form unfinishable for somebody without it. */
+              fee.code === 'affiliated' && (
+                <div class="nn-fee-extra field" data-entry-ea-field>
+                  <label class="field-label" for="entry-ea-number">
+                    England Athletics number
+                  </label>
+                  <p class="field-hint" id="entry-ea-hint">
+                    Required if you choose the affiliated entry. Six to eight digits, on
+                    your England Athletics registration email.{' '}
+                    <strong>Nothing here checks it</strong>— England Athletics publishes
+                    no way to; the club checks affiliated entries by hand against its own
+                    records.
+                  </p>
+                  <p
+                    class="field-error"
+                    id="entry-ea-error"
+                    data-entry-error="eaNumber"
+                    hidden
+                  />
+                  <input
+                    class="field-input"
+                    id="entry-ea-number"
+                    name="eaNumber"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    aria-describedby="entry-ea-hint entry-ea-error"
+                    data-entry-value="eaNumber"
+                  />
+                </div>
+              )
+            }
+          </div>
+        ))
+      }
+    </div>
+  </fieldset>
+
+  <!-- 4 — In case of emergency ---------------------------------------------------- -->
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">In case of emergency</legend>
+    <p class="field-hint">
+      Somebody the club can call on race day if it has to. Used on race day and for
+      nothing else.
+    </p>
+
+    <div class="field">
+      <label class="field-label" for="entry-emergency-name">Contact name</label>
+      <p
+        class="field-error"
+        id="entry-emergency-name-error"
+        data-entry-error="emergencyName"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-emergency-name"
+        name="emergencyName"
+        type="text"
+        maxlength="120"
+        autocomplete="off"
+        required
+        aria-describedby="entry-emergency-name-error"
+        data-entry-value="emergencyName"
+      />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="entry-emergency-phone">Contact phone number</label>
+      <p
+        class="field-error"
+        id="entry-emergency-phone-error"
+        data-entry-error="emergencyPhone"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-emergency-phone"
+        name="emergencyPhone"
+        type="tel"
+        maxlength="40"
+        autocomplete="off"
+        required
+        aria-describedby="entry-emergency-phone-error"
+        data-entry-value="emergencyPhone"
+      />
+    </div>
+  </fieldset>
+
+  <!-- 5 — Medical information ----------------------------------------------------- -->
+  {
+    /* **A muted panel inside the card**, because this section is more sensitive than the
+    others and should look it — without alarm, and without red. Free-text medical
+    information is special category data under UK GDPR Article 9: it gets its own consent,
+    its own table, and a shorter retention than the rest of an entry. */
+  }
+  <fieldset class="nn-fieldset nn-medical">
+    <legend class="nn-legend">Medical information</legend>
+
+    <p class="field-hint">
+      Optional. Anything the first aiders should know — a condition, an allergy,
+      medication you carry.
+    </p>
+
+    <ul class="nn-medical-terms">
+      <li>
+        <strong>Who sees it:</strong> the club's first aiders and the race organisers, on race
+        day. Nobody else.
+      </li>
+      <li>
+        <strong>How long it is kept:</strong> it is deleted one month after the race, separately
+        from the rest of your entry.
+      </li>
+      <li>
+        <strong>If you leave the box below unticked</strong>, none of this is kept at all.
+      </li>
+    </ul>
+
+    <div class="field">
+      <label class="field-label" for="entry-medical-notes">
+        Medical information <span class="field-optional">(optional)</span>
+      </label>
+      <p
+        class="field-error"
+        id="entry-medical-notes-error"
+        data-entry-error="medicalNotes"
+        hidden
+      >
+      </p>
+      <textarea
+        class="field-input nn-textarea"
+        id="entry-medical-notes"
+        name="medicalNotes"
+        rows="3"
+        maxlength="2000"
+        aria-describedby="entry-medical-notes-error"
+        data-entry-text="medicalNotes"></textarea>
+    </div>
+
+    {
+      /* **Its own checkbox, with its own wording, and deliberately not bundled with the
+      entry terms.** Consent to hold special category data has to be separate to be consent
+      at all — a single box covering both would mean nobody ever declined one without
+      declining the other. */
+    }
+    <div class="field">
+      <p
+        class="field-error"
+        id="entry-medical-consent-error"
+        data-entry-error="medicalConsent"
+        hidden
+      >
+      </p>
+      <div class="field-check">
+        <input
+          class="field-checkbox"
+          id="entry-medical-consent"
+          name="medicalConsent"
+          type="checkbox"
+          aria-describedby="entry-medical-consent-error"
+          data-entry-checked="medicalConsent"
+        />
+        <label class="field-label" for="entry-medical-consent">
+          I agree to the club holding the medical information I have written above, and to
+          its first aiders and race organisers seeing it on race day.
+        </label>
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 6 — Agreements -------------------------------------------------------------- -->
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">Agreements</legend>
+
+    <div class="field">
+      <p class="field-error" id="entry-terms-error" data-entry-error="entryTerms" hidden>
+      </p>
+      <div class="field-check">
+        <input
+          class="field-checkbox"
+          id="entry-terms"
+          name="entryTerms"
+          type="checkbox"
+          required
+          aria-describedby="entry-terms-error entry-terms-hint"
+          data-entry-checked="entryTerms"
+        />
+        <label class="field-label" for="entry-terms">
+          I accept the entry terms for this race.
+        </label>
+      </div>
+      {
+        /* **The entry terms have not been written, and this says so rather than linking to a
+        page that does not exist or inventing a deadline.** The 2023 transfer deadline is on
+        record and belongs to 2023; the 2026 one is not decided. Nobody meets this form in
+        production — the event is `pre_open` — and the terms have to land before it opens. */
+      }
+      <p class="field-hint" id="entry-terms-hint">
+        The full entry terms are still to be confirmed by the committee, and will be
+        linked here before entries open.
+      </p>
+    </div>
+
+    <p class="field-hint">
+      What the club does with your details, and how to have them removed, is in
+      <a href="/nn/privacy/">the privacy notice</a>.
+    </p>
+  </fieldset>
+
+  {
+    /* The running total is a **progressive enhancement and nothing more**: with scripting
+    off each entry type carries its own price on its own card, which is the whole of what
+    somebody needs to know before pressing the button. A total that could go stale is worse
+    than no total. */
+  }
+  <p class="nn-total" data-entry-total hidden></p>
+
+  {
+    /* "Continue to payment", not "Submit". Somebody has to know a payment step follows
+    before they press it rather than after. */
+  }
+  <button class="button" type="submit">Continue to payment</button>
+
+  {
+    /* **Slice A's truth, and one line to change when it stops being true.** The button says
+    what the control is for; this says what actually happens today. Saying "secure card
+    payment by Stripe" before Stripe is connected would be the page describing something
+    that is not there. */
+  }
+  <p class="field-hint nn-paynote">
+    Payment is not connected yet. Nothing you enter here is stored or charged.
+  </p>
+</form>
+
+<script>
+  /**
+   * The enhancement, and **every line of it is optional**.
+   *
+   * Three things happen here and not one of them is load-bearing:
+   *
+   *   1. the age category appears as the date of birth and gender are typed;
+   *   2. the England Athletics box hides when another entry type is chosen;
+   *   3. a message appears beside a field when leaving it, and a running total appears.
+   *
+   * With scripting off: the category is worked out by the server and shown on the outcome,
+   * the England Athletics box stays visible and the server decides whether it had to be
+   * filled in, and every price is on its own card. **Nothing is unreachable and nothing is
+   * unfinishable.** That is the requirement, and it is why this file may be deleted without
+   * the form stopping working.
+   *
+   * ## It validates with the schema, not with a copy of it
+   *
+   * `parseNnEntry` is the same function the Worker runs. A second set of rules written in
+   * the browser is a second set of rules to keep in step, and the one that drifts is always
+   * the one nobody is testing. The cost is Zod in the page bundle, which is paid knowingly
+   * — see `apps/main/README.md` for the measured figure.
+   *
+   * **It never blocks a submission.** No `preventDefault`, no "fix this before continuing":
+   * the browser submits and the Worker decides, exactly as it does with scripting off. This
+   * is a convenience and the server is the control, so the two can never disagree about
+   * whether something was accepted.
+   */
+  import {
+    parseNnEntry,
+    type NnEntryField,
+    type NnEntryRules,
+  } from '@src/shared/nn-entry';
+  import { deriveAgeCategory, parseIsoDate, type Gender } from '@src/shared/age-category';
+
+  const form = document.querySelector<HTMLFormElement>('[data-entry-form]');
+
+  // The entry form is only in the page when entries are open, so the ordinary case on a
+  // closed day is this script doing nothing at all.
+  if (form) {
+    enhance(form);
+  }
+
+  function enhance(entryForm: HTMLFormElement): void {
+    const eventDate = parseIsoDate(entryForm.dataset.entryEventDate ?? '');
+
+    // No usable event date means the two derivations that depend on it cannot be trusted,
+    // so they are simply not offered. The form still submits and the server still validates.
+    if (eventDate === null) {
+      return;
+    }
+
+    const minimumAgeRaw = entryForm.dataset.entryMinimumAge ?? '';
+    const rules: NnEntryRules = {
+      eventDate,
+      minimumAge: minimumAgeRaw === '' ? null : Number(minimumAgeRaw),
+      feeCodes: offeredFeeCodes(entryForm),
+      eaRequiredForFeeCodes: eaRequiredFeeCodes(entryForm),
+    };
+
+    const shown = new Set<NnEntryField>();
+
+    // A field already carrying a server message keeps it, and stays in the set so it is
+    // cleared the moment it is put right rather than at the next round trip.
+    for (const element of entryForm.querySelectorAll<HTMLElement>('[data-entry-error]')) {
+      if (!element.hidden) {
+        shown.add(element.dataset.entryError as NnEntryField);
+      }
+    }
+
+    updateCategory(entryForm, rules);
+    updateEaVisibility(entryForm);
+    updateTotal(entryForm);
+
+    entryForm.addEventListener('change', () => {
+      updateCategory(entryForm, rules);
+      updateEaVisibility(entryForm);
+      updateTotal(entryForm);
+      revalidate(entryForm, rules, shown);
+    });
+
+    entryForm.addEventListener('input', () => {
+      updateCategory(entryForm, rules);
+      // Only fields that are *already* complaining are re-checked while typing. Telling
+      // somebody their email address is invalid after two characters is not help.
+      revalidate(entryForm, rules, shown);
+    });
+
+    // `focusout` rather than `blur`, because `blur` does not bubble.
+    entryForm.addEventListener('focusout', (event) => {
+      const field = fieldOf(event.target);
+      if (field !== null) {
+        shown.add(field);
+        revalidate(entryForm, rules, shown);
+      }
+    });
+  }
+
+  /** Which fee codes the Worker actually revealed — the rest are not on offer. */
+  function offeredFeeCodes(entryForm: HTMLFormElement): string[] {
+    return [...entryForm.querySelectorAll<HTMLElement>('[data-entry-fee]')]
+      .filter((card) => !card.hidden)
+      .map((card) => card.dataset.entryFee ?? '');
+  }
+
+  /**
+   * Which fee needs an England Athletics number — read from where the box actually is,
+   * rather than from a second copy of the answer. The box lives inside the card it belongs
+   * to, so the DOM already knows.
+   */
+  function eaRequiredFeeCodes(entryForm: HTMLFormElement): string[] {
+    const holder = entryForm
+      .querySelector('[data-entry-ea-field]')
+      ?.closest<HTMLElement>('[data-entry-fee]');
+
+    return holder && !holder.hidden ? [holder.dataset.entryFee ?? ''] : [];
+  }
+
+  function values(entryForm: HTMLFormElement): Record<string, unknown> {
+    return Object.fromEntries(new FormData(entryForm));
+  }
+
+  /** The error element's own `data-entry-error`, for the control that was just left. */
+  function fieldOf(target: EventTarget | null): NnEntryField | null {
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+
+    const container = target.closest('.field, .nn-dob, .nn-fee');
+    const error = container?.querySelector<HTMLElement>('[data-entry-error]');
+
+    return (error?.dataset.entryError as NnEntryField | undefined) ?? null;
+  }
+
+  /**
+   * Show or clear a message for each field somebody has already finished with.
+   *
+   * **Nothing is ever shown for a field that has not been touched.** Walking down a form
+   * lighting up every box ahead of the person is the version of this that makes a long form
+   * feel hostile.
+   */
+  function revalidate(
+    entryForm: HTMLFormElement,
+    rules: NnEntryRules,
+    shown: Set<NnEntryField>,
+  ): void {
+    const result = parseNnEntry(values(entryForm), rules);
+    const errors = result.ok ? {} : result.errors;
+
+    for (const field of shown) {
+      const message = errors[field];
+      const element = entryForm.querySelector<HTMLElement>(
+        `[data-entry-error="${field}"]`,
+      );
+
+      if (!element) {
+        continue;
+      }
+
+      // `textContent`, never `innerHTML`. The messages are the schema's own and hold no
+      // markup, and there is deliberately no assignment here that could carry any.
+      element.textContent = message ?? '';
+      element.hidden = message === undefined;
+
+      for (const control of entryForm.querySelectorAll<HTMLElement>(
+        `[aria-describedby~="${element.id}"]`,
+      )) {
+        if (message === undefined) {
+          control.removeAttribute('aria-invalid');
+        } else {
+          control.setAttribute('aria-invalid', 'true');
+        }
+      }
+    }
+  }
+
+  /** The live age category, announced politely. */
+  function updateCategory(entryForm: HTMLFormElement, rules: NnEntryRules): void {
+    const target = entryForm.querySelector<HTMLElement>('[data-entry-category]');
+    if (!target) {
+      return;
+    }
+
+    const read = (name: string) => String(new FormData(entryForm).get(name) ?? '').trim();
+    const day = read('dobDay');
+    const month = read('dobMonth');
+    const year = read('dobYear');
+    const gender = read('gender');
+
+    const dateOfBirth = parseIsoDate(
+      `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
+    );
+
+    if (dateOfBirth === null || gender === '') {
+      target.textContent = '';
+      target.hidden = true;
+      return;
+    }
+
+    const category = deriveAgeCategory(dateOfBirth, gender as Gender, rules.eventDate);
+
+    // Each wording is a statement of fact. Where the club has not decided something, that is
+    // what it says — a category is never invented to fill the gap.
+    const text = category.known
+      ? `Age on race day: ${category.age}. You will run as ${category.label}.`
+      : category.reason === 'gender-has-no-categories'
+        ? `Age on race day: ${category.age}. The club has not confirmed age categories for non-binary runners.`
+        : `Age on race day: ${category.age}. The club's youngest age category starts at 18.`;
+
+    target.textContent = text;
+    target.hidden = false;
+  }
+
+  /**
+   * Hide the England Athletics box when another entry type is chosen.
+   *
+   * **The only mechanism that hides it, and it is not the only mechanism that makes it
+   * optional.** The Worker validates it conditionally whatever the browser did, so a person
+   * without this script sees the box, leaves it empty, and is not asked about it.
+   */
+  function updateEaVisibility(entryForm: HTMLFormElement): void {
+    const field = entryForm.querySelector<HTMLElement>('[data-entry-ea-field]');
+    const card = field?.closest<HTMLElement>('[data-entry-fee]');
+    const radio = card?.querySelector<HTMLInputElement>('.nn-fee-radio');
+
+    if (!field || !radio) {
+      return;
+    }
+
+    field.hidden = !radio.checked;
+  }
+
+  /** The running total. Pence, so a percentage discount cannot introduce a rounding bug. */
+  function updateTotal(entryForm: HTMLFormElement): void {
+    const target = entryForm.querySelector<HTMLElement>('[data-entry-total]');
+    const chosen = entryForm.querySelector<HTMLInputElement>('.nn-fee-radio:checked');
+    const card = chosen?.closest<HTMLElement>('[data-entry-fee]');
+    const pence = Number(card?.dataset.entryFeePence ?? '');
+
+    if (!target || !card || !Number.isInteger(pence)) {
+      if (target) {
+        target.hidden = true;
+      }
+      return;
+    }
+
+    const money =
+      pence === 0
+        ? 'Free'
+        : `£${Math.floor(pence / 100)}.${String(pence % 100).padStart(2, '0')}`;
+
+    target.textContent = `Total to pay: ${money}`;
+    target.hidden = false;
+  }
+</script>

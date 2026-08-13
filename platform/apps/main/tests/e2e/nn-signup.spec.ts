@@ -20,14 +20,28 @@ function addressFor(project: string): string {
   return `e2e-${project}@example.com`;
 }
 
+/**
+ * The interest form's half of `/nn/`.
+ *
+ * **Every locator has to say which form it means, now that the page carries two.** Both are
+ * in the DOM on every request and the Worker reveals one; `hidden` does not take an element
+ * out of `getByLabel`'s reach, so an unscoped `getByLabel('Email address')` matches this
+ * form's box *and* the entry form's, and Playwright's strict mode rightly refuses to guess.
+ * That is what this scoping is for, and it started failing the moment the entry form landed.
+ */
+const interest = (page: import('@playwright/test').Page) =>
+  page.locator('[data-nn-interest]');
+
 async function fillIn(
   page: import('@playwright/test').Page,
   fields: { name: string; email: string; consent?: boolean },
 ): Promise<void> {
-  await page.getByLabel('Your name').fill(fields.name);
-  await page.getByLabel('Email address').fill(fields.email);
+  await interest(page).getByLabel('Your name').fill(fields.name);
+  await interest(page).getByLabel('Email address').fill(fields.email);
   if (fields.consent !== false) {
-    await page.getByLabel(/email me when entries open/i).check();
+    await interest(page)
+      .getByLabel(/email me when entries open/i)
+      .check();
   }
 }
 
@@ -91,13 +105,18 @@ test.describe('a submission the server refuses', () => {
     await expect(page.locator('[data-signup-error="name"]')).toContainText(
       'Enter your name.',
     );
-    await expect(page.getByLabel('Your name')).toHaveAttribute('aria-invalid', 'true');
+    await expect(interest(page).getByLabel('Your name')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
 
     // **Nothing was lost.** On a phone on bad signal this is the difference between one
     // more tap and giving up.
-    await expect(page.getByLabel('Your name')).toHaveValue('   ');
-    await expect(page.getByLabel('Email address')).toHaveValue('e2e-invalid@example.com');
-    await expect(page.getByLabel(/email me when entries open/i)).toBeChecked();
+    await expect(interest(page).getByLabel('Your name')).toHaveValue('   ');
+    await expect(interest(page).getByLabel('Email address')).toHaveValue(
+      'e2e-invalid@example.com',
+    );
+    await expect(interest(page).getByLabel(/email me when entries open/i)).toBeChecked();
 
     // Still on the form's own address, so correcting the name and pressing the button
     // again is all that is left to do.
@@ -111,7 +130,7 @@ test.describe('a submission the server refuses', () => {
 
     await page.locator('[data-signup-summary-link="name"]').click();
 
-    await expect(page.getByLabel('Your name')).toBeFocused();
+    await expect(interest(page).getByLabel('Your name')).toBeFocused();
   });
 });
 
@@ -173,10 +192,10 @@ test.describe('accessibility of the form', () => {
     // box is the one people rebuild as a styled `div` and leave unreachable.
     await page.goto('/nn/');
 
-    await page.getByLabel('Your name').focus();
+    await interest(page).getByLabel('Your name').focus();
     await page.keyboard.type('Ada Lovelace');
     await page.keyboard.press('Tab');
-    await expect(page.getByLabel('Email address')).toBeFocused();
+    await expect(interest(page).getByLabel('Email address')).toBeFocused();
     await page.keyboard.type('e2e-keyboard@example.com');
 
     // Focused directly rather than tabbed to. **WebKit on macOS leaves checkboxes and
@@ -185,7 +204,7 @@ test.describe('accessibility of the form', () => {
     // page controls. What the page is answerable for is that the control is a real
     // focusable input the keyboard can operate — which is exactly what a `div` dressed up
     // as a checkbox would fail.
-    const consent = page.getByLabel(/email me when entries open/i);
+    const consent = interest(page).getByLabel(/email me when entries open/i);
     await consent.focus();
     await expect(consent).toBeFocused();
     await page.keyboard.press('Space');
@@ -193,7 +212,7 @@ test.describe('accessibility of the form', () => {
 
     // And it can be sent without ever reaching for a mouse: pressing Enter in a text field
     // submits a form that has a submit button, in every engine.
-    await page.getByLabel('Email address').focus();
+    await interest(page).getByLabel('Email address').focus();
     await page.keyboard.press('Enter');
 
     await expect(page).toHaveURL(/\/nn\/\?signup=ok$/);
@@ -204,7 +223,9 @@ test.describe('the privacy notice', () => {
   test('is linked from the form and says what is held', async ({ page }) => {
     await page.goto('/nn/');
 
-    await page.getByRole('link', { name: /What the club does with this/i }).click();
+    await interest(page)
+      .getByRole('link', { name: /What the club does with this/i })
+      .click();
 
     await expect(page).toHaveURL(/\/nn\/privacy\/$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(
