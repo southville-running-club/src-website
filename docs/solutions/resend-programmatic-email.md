@@ -117,19 +117,24 @@ That is comfortable most of the year and tight on a single entry-rush day (email
 sent volume before this is built** — the club's Gmail accounts already show typical daily
 mail counts.
 
-If the cap bites: **Amazon SES** is already the named fallback, at roughly 50p/year for the
-club's volume, more setup, and a sandbox-exit request. Migrating means swapping an
-`include:` and a set of DKIM records — no mailbox is affected, because SES only ever
-touches Problem 2.
+**If the cap becomes a recurring problem, the answer is Resend's own paid tier** (from
+around $20/month at time of writing — verify on Resend's pricing page before committing),
+not a second provider. email.md names Amazon SES as an alternative, and it is one, but it
+trades a five-minute pricing decision for a second account, a second set of DNS records, a
+sandbox-exit request, and a second thing that can misconfigure — real complexity for a
+club run by two volunteers. **Paying Resend more is the boring answer**; adding SES is the
+one that looks free and isn't, once the setup and ongoing upkeep are counted. This design
+therefore treats Resend as the only provider, and does not plan a migration.
 
 ---
 
 ## What happens to a send that hits the cap on the day
 
-Two different questions, easy to conflate: what a provider migration fixes going forward,
-and what happens to the one email that got rejected today, before any migration has
-happened. Moving to SES answers the first. It says nothing about the message that Resend's
-API returned a `429` for an hour ago.
+Two different questions, easy to conflate: what fixes the cap going forward, and what
+happens to the one email that got rejected today, before any capacity change has happened.
+Upgrading the Resend plan answers the first. It says nothing about the message that
+Resend's API returned a `429` for an hour ago — and until the club actually needs to pay
+for capacity, this is the part that matters day to day.
 
 **Don't drop it.** The failure mode of a silently-lost entry confirmation is a member who
 paid and never got told it worked — indistinguishable, from their side, from the club
@@ -140,6 +145,11 @@ triggers the send is answering a browser request; it cannot sit there retrying a
 rate limit that will not clear for hours. Sending has to be decoupled from the request that
 caused it.
 
+**Don't fall back to a human mailbox's SMTP either** — see
+[below](#why-not-just-send-from-info-or-another-human-mailbox). It reintroduces the exact
+shared-failure risk the whole Problem 1 / Problem 2 split exists to avoid, and it would do
+so on the one day volume is highest.
+
 **The shape that fits what the club already has:** an outbox table in the same Postgres
 database, written to in the same transaction as the entry or sign-up row, with RLS
 restricting it exactly as
@@ -149,27 +159,63 @@ The application never calls Resend directly from the request path; it writes the
 and returns. A scheduled Worker — [`./dev` already runs on Cloudflare's
 platform](../../platform/README.md), and a Cron Trigger is the same primitive already used
 elsewhere — drains `pending` rows through Resend a few at a time, and stops for the day the
-moment Resend returns `429`, leaving the rest `pending` for the next run.
+moment Resend returns `429`, leaving the rest `pending` for the next run. Resend's daily cap
+resets on a rolling basis, so the next run picks up where the last one stopped.
 
 This is not new machinery bolted on for the cap specifically — it is the same
 transactional-outbox shape most reliable send-on-signup systems use regardless of provider
 limits, because "wrote the row, then the process died before the network call" is a
 failure mode on any provider. The 100/day cap just means the schedule sometimes empties
-into tomorrow's run instead of the same hour's.
+into the next run instead of the same hour's.
 
 **What this buys, restated:**
 
 - Nothing is silently lost. A rejected send is `pending`, not gone.
 - A member's confirmation might arrive a few hours late on the club's busiest day, rather
   than never.
-- The retry loop and the SES migration are independent. The outbox exists regardless of
-  which provider drains it — swapping Resend for SES on a bad day means pointing the same
-  Worker at a different API, not building new plumbing.
+- **One provider throughout.** The outbox is what absorbs a bad day — no second account,
+  no second set of DNS records, no migration to reason about.
 
-**What this is not:** a queue that lets the club live with the cap indefinitely. If
-`pending` rows are routinely still queued the next morning, that is the actual trigger
-[email.md](email.md#problem-2--programmatic-mail) already names for moving to SES — the
-outbox absorbs a bad *day*, not a cap the club has permanently outgrown.
+**What this is not:** a queue that lets the club live with a cap it has permanently
+outgrown. If `pending` rows are routinely still queued the next day, that is the trigger to
+pay for a higher Resend tier, not to keep widening the queue.
+
+---
+
+## Why not just send from `info@`, or another human mailbox?
+
+Worth answering directly, since it looks like the simplest option — no new provider, no
+new DNS, just point the application at the mailbox it already has credentials for once
+Fasthosts mailboxes exist.
+
+**It isn't best practice, and email.md already sets out why**, precisely because this
+question comes up naturally: [mailbox
+SMTP](email.md#two-problems-and-one-purchase-will-not-solve-both) has low rate limits, no
+bounce or complaint handling, and — the part that matters most here — **a shared failure
+mode**. If application mail exhausts the mailbox's sending limit, the committee loses their
+own inbox at the same time. That risk is highest on exactly the day it would be worst:
+Resend's 100/day cap and Fasthosts mailbox limits both bite hardest during an entry rush,
+which means falling back to `info@`'s SMTP on a capacity day would put the club's actual
+human inbox at risk *because* application volume was high — the opposite of what a
+fallback should do.
+
+Concretely, for the mailboxes this design already assumes:
+
+- **Fasthosts' publishable sending limit is unconfirmed** (email.md flags it as something
+  to check on the upgrade page), and the closest costed comparison — Migadu Micro — sends
+  **20 messages a day across the whole account**, well under Resend's free tier.
+- **No bounce or complaint webhooks.** Resend tells the application when a send failed;
+  mailbox SMTP does not, so a bounced entry confirmation would go unnoticed rather than
+  landing in the outbox as `failed` for someone to check.
+- **SPF/DMARC get muddier, not cleaner.** The mailbox route works only by literally
+  authenticating as the mailbox — there is no equivalent of Resend's per-identity `From`
+  (`nn@`, `pass-the-buck@`) without either sharing one mailbox's credentials across every
+  send context or provisioning a mailbox per race, which is the ten-mailboxes-for-a-
+  committee-of-few problem email.md already ruled out.
+
+**Where a human mailbox is the right tool** is exactly what it's already used for in this
+design: `Reply-To`. A member's reply after an automated send should land somewhere a
+person reads it — that's `info@`'s job, not sending.
 
 ---
 
@@ -193,7 +239,7 @@ outbox absorbs a bad *day*, not a cap the club has permanently outgrown.
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
 | **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`) and verifying the `send.` subdomain in Resend |
-| **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` set to the relevant Fasthosts role mailbox |
+| **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |
-| **Exit cost** | Low — swap an `include:` and a set of DKIM records; no data held that needs migrating |
-| **Revisit when** | The 100/day cap is hit, or a sixth sending identity is needed |
+| **Exit cost** | Low — no second provider to unwind. Upgrading capacity is a Resend plan change, not a migration |
+| **Revisit when** | `pending` outbox rows are routinely still queued the next day — that's the trigger to pay for a higher Resend tier, not to add a second provider |
