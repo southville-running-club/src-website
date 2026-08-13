@@ -8,7 +8,7 @@
 # database, the seed, the builds, both Workers, and tidying up afterwards.
 #
 #   ./dev up        bring the whole site up and open it
-#   ./dev test      run the acceptance tests, then stop everything
+#   ./dev test      run the worker and acceptance tests, then stop everything
 #                   --keep-up leaves the site running afterwards
 #   ./dev check     lint, types, unit and database tests — no browsers, no builds
 #   ./dev smoke     the seven live-site assertions, against localhost
@@ -313,12 +313,47 @@ cmd_test() {
   cmd_reset_quiet
   build_site
 
-  step "Acceptance tests"
-  info "Playwright drives the servers itself — three browser projects, and a stubbed Stripe"
-  # Playwright starts and stops its own servers, so ours must not be holding the ports.
+  # Both suites want the ports to themselves: the worker run starts its own Stripe stub on
+  # 8789, and Playwright starts all three servers itself.
   stop_workers >/dev/null 2>&1 || true
 
+  # ---------------------------------------------------------------------------------------
+  # The Workers runtime, before the browsers
+  # ---------------------------------------------------------------------------------------
+  # Until this was here, `npm run test:worker` ran in CI and nowhere else — so a green run on
+  # a laptop said nothing about the webhook handler, which is the code that decides whether a
+  # runner's payment is recorded at all. That is the wrong thing to find out from a pull
+  # request.
+  #
+  # **`test` rather than `check`**, because `check` is deliberately the fast loop — no
+  # browsers, no builds — and these need `dist/` to exist, since the static-assets binding
+  # serves from it. Putting them in `check` would mean adding a build to the command whose
+  # whole point is not having one. `test` already builds.
+  #
+  # **Before Playwright**, which is the order ci.yml uses and for its reason: cheapest first,
+  # so a failure here does not wait on three browser engines. It is also safe in the
+  # direction that matters. Each of the four configs sets the `entries.events` state it needs
+  # in `globalSetup` and puts it back in `teardown`, so the suite is robust to what preceded
+  # it — while Playwright starts from the seed `cmd_reset_quiet` has just laid down and is
+  # not. Running these second would mean a second reset to get that back.
+  #
+  # It is self-contained otherwise: it starts and stops its own fake Stripe, and needs no
+  # Worker of ours running.
+  step "Worker tests"
+  info "96 tests, four Miniflare configs, the real Workers runtime — about 15s"
+
   local status=0
+  (cd "$PLATFORM" && npm run test:worker) || status=$?
+
+  if [ "$status" -ne 0 ]; then
+    cmd_down
+    die "the worker tests failed."
+  fi
+  ok "the worker suite passed"
+
+  step "Acceptance tests"
+  info "Playwright drives the servers itself — three browser projects, and a stubbed Stripe"
+
   (cd "$PLATFORM" && npx --no-install playwright test --reporter=list) || status=$?
 
   if [ "$keep_up" -eq 1 ]; then
