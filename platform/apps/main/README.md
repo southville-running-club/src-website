@@ -5,8 +5,13 @@ cutover the hostname changes and nothing else does —
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
 A holding page saying a new site is coming, **five Nightingale Nightmare pages** — the race
-page and its sign-up form, three content pages, and the privacy notice that form is required
+page and its two forms, three content pages, and the privacy notice those forms are required
 to have — and a timestamp fetched from Postgres by the Worker while it serves the request.
+
+**`/nn/` carries two forms and shows one.** The entry form when the event row says entries
+are open, the interest form otherwise; the Worker decides per request. See
+[the entry form](#the-entry-form) and
+[ADR-009](../../../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
 ## Layout
 
@@ -16,7 +21,8 @@ src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
 src/layouts/Base.astro         The document, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
-src/pages/nn/index.astro       Nightingale Nightmare, the facts, and the sign-up form
+src/pages/nn/index.astro       Nightingale Nightmare, the facts, and both forms
+src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
 src/pages/nn/course.astro      Course and terrain
 src/pages/nn/race-day.astro    Race day — HQ, the morning in order, prizes
 src/pages/nn/spectators.astro  Watching the race
@@ -24,13 +30,14 @@ src/pages/nn/privacy.astro     What the club does with a sign-up
 worker/routing.ts              Which paths belong to whom. Pure and tested
 worker/index.ts                Forward /timing locally, take the POST, fill in the timestamp
 worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
+worker/nn-entry.ts             Decide which form to show; validate an entry and stop
 ```
 
 ## The routes
 
 | | |
 | --- | --- |
-| `/nn/` | The race, the facts, and the sign-up form. **The only one the Worker does anything to** — it takes the POST here and reveals the acknowledgement on `?signup=ok` |
+| `/nn/` | The race, the facts, and **whichever of the two forms applies**. **The only one the Worker does anything to** — it decides which form to show, takes the POST here, and reveals the acknowledgement on `?signup=ok` |
 | `/nn/course/` | Course and terrain |
 | `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/spectators/` | Watching the race — where to stand, where to park |
@@ -60,7 +67,7 @@ as a blank or an invention. Three still are, and each for a different reason:
 
 | | |
 | --- | --- |
-| `price`, `entriesOpen` | **The entries application's, not this site's.** So are the transfer deadline and live capacity, which is why there is no field for either. This site does not quote a figure it does not own |
+| `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
 | `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
 | `privacy.*` | The controller, the removal address and the retention period. A wrong answer on that page is a legal claim rather than a typo |
 
@@ -141,6 +148,100 @@ request that added the form.
 
 No payment, no accounts, no admin surface, no confirmation email to the submitter.
 
+## The entry form
+
+**`/nn/` carries two forms and reveals one.** Which one is decided by `entries.events` —
+`entries_open_at` and `entries_close_at` — read through `entries.entry_state()` on every
+request. **Opening entries is a row edit, not a deploy**, which is the whole point of the
+event table: nobody has to be free to push a commit at seven in the morning.
+
+`entries_open_at` is `null` today, because the opening time has not been decided. That reads
+as `pre_open`, and `pre_open` shows the interest form — the page that was already here.
+
+**Every failure resolves to the interest form.** Migration not landed, database unreachable,
+function returning a shape that does not parse: all of them show the form that takes no
+money. A page that cannot tell whether entries are open must not offer to take one, and that
+matters more once a card payment is on the end of it.
+
+### What Slice A does with a good entry
+
+**Nothing, and it says so.** The submit handler validates and stops: no row, no Checkout
+session, no acknowledgement. A valid entry gets a `503` and a notice saying **nothing has
+been stored and nothing has been charged**, with every value preserved.
+
+That is deliberate rather than unfinished. A confirmation for an entry that does not exist is
+worth more than every other failure on this page put together.
+
+| | |
+| --- | --- |
+| **Valid** | `503`, the honest "not finished" notice, everything still in the boxes |
+| **Rejected** | `422`, messages against their fields, **every value preserved** — fourteen fields is ten times as much to retype as the interest form |
+| **Entries closed** | `409`. Somebody opened the page at 6:59 and pressed the button at 7:01; the window is re-checked when the form arrives |
+
+### How it is built
+
+| | |
+| --- | --- |
+| **One page, not a wizard** | A multi-step flow needs JavaScript or server-held state. This site has neither by design |
+| **Six `<fieldset>`s** | Your details, about you, entry type, emergency contact, medical information, agreements |
+| **Date of birth is three number boxes** | Not a date picker. A picker opens on this month and asks somebody to page back forty years on a phone |
+| **The England Athletics box is always in the DOM** | Inside the affiliated card. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
+| **Medical information has its own consent** | Special category data under UK GDPR Article 9, its own table, and a shorter retention. Never bundled with the entry terms |
+| **Prices are painted on** | Nothing in `dist/` knows a number. `entries.fees.price_pence` is the only place a price exists, and `tests/worker/nn-entry.test.ts` asserts the page carries no `£` at all while entries are shut |
+
+**The three fee codes are known to the markup and that is a deliberate trade.** Three cards
+ship hidden and the Worker reveals whichever the event offers, so *withdrawing* a fee is a
+row edit — but **adding a fourth code is a migration and a deploy**. The alternative is
+assembling markup from data with `setInnerContent(..., { html: true })`, and there is no such
+call anywhere in this repository to audit.
+
+### Validation
+
+One Zod schema, `packages/shared/src/nn-entry.ts`, imported by the Worker **and by the
+browser**. Client-side is a convenience; the Worker is the control.
+
+**The rules are not in that file.** The minimum age, which fees are on offer and whether a
+date of birth is wanted at all are `entries.events` and `entries.fees` columns, handed in at
+request time. A second race is an `insert`, not an edit to a schema module.
+
+Two things the schema will not do, and both are the club's decisions rather than the build's:
+
+- **No minimum age is applied**, because none has been confirmed. 18 is *implied* by the
+  youngest prize category; inferring a rule that turns entrants away from where a prize band
+  happens to start is not a build decision. `minimum_age` is a column, and confirming it is
+  one `update`.
+- **No age category is invented for a non-binary runner.** The 2023 form offered the option
+  and there were no categories to receive it. The form records the answer and says plainly
+  that the categories are undecided.
+
+**The England Athletics number is format-checked and never verified** — England Athletics
+publishes no way to. It is spot-checked by a human afterwards, and nothing here should be
+read as confirming a number is real.
+
+### The progressive enhancement, and what it costs
+
+Three things, none load-bearing: the live age category, hiding the England Athletics box, and
+a running total plus inline validation. **With scripting off every one degrades to the field
+being visible and the server deciding** — which is the path the `no-javascript` project
+tests.
+
+**It validates with the shared schema rather than a copy of the rules**, which puts Zod in
+the page bundle: **68.8 kB raw, 19.2 kB gzipped**, deferred, and requested only by `/nn/`.
+That is a real cost on the poor-signal phone this site is built for, it was asked for
+deliberately, and the figure is written down here so it can be revisited rather than
+rediscovered. Dropping inline validation — keeping the category, the box and the total —
+would take it to roughly 2 kB.
+
+**It never blocks a submission.** No `preventDefault`: the browser submits and the Worker
+decides, exactly as with scripting off, so the two can never disagree about what was
+accepted.
+
+### Where the rows will land
+
+`packages/db`'s `entries` schema — [its README](../../packages/db/README.md) has the shape
+and the access control. **The anon role holds no grant on any table there**, and the one
+object it may reach is `entries.entry_state()`.
+
 ## The one routing decision
 
 Everything on the hostname is this Worker's, **except `/timing`**.
@@ -174,6 +275,36 @@ npm run build        # static output to dist/
 npm run test:worker  # Workers runtime tests. Needs dist/ — build first
 ```
 
+### Seeing the entry form on a laptop
+
+`/nn/` shows the interest form until the event row says otherwise, which is what production
+does. To see the entry form, open the window:
+
+```bash
+npm run entries:open  --workspace=packages/db   # entries open, from a day ago
+npm run entries:close --workspace=packages/db   # back to the seeded state
+```
+
+Both are one `update` against the local database. **There is no preview flag and no
+local-only variable** — the switch is the one production uses, so there is nothing that
+could reach production and force a form open that should not be.
+
+### Two worker-test runs, and why
+
+`npm run test:worker` runs **two** Vitest configs: the default one against the seeded closed
+state, and `vitest.worker.entries-open.config.ts` against an open window.
+
+They are separate runs rather than one run with a `beforeAll`, for two reasons that are both
+about the window being global state. **`pg` cannot run inside `workerd`** — these tests
+execute in the real Workers runtime, which has no `node:net`, so the window is moved from
+Vitest's `globalSetup` in the ordinary Node process. And `tests/worker/serves.test.ts`
+asserts that `/nn/` quotes **no price**, which is true exactly while entries are shut.
+Toggling mid-suite would make that assertion depend on run order.
+
+Each run *sets* the state it needs rather than assuming it. Assuming cost half an hour during
+the build: a run left the window open and the next run's closed-state assertions failed in a
+way that read as a bug in the page.
+
 ## Environment
 
 Both Supabase values live in `wrangler.jsonc` — **local at the top level, production under
@@ -204,6 +335,11 @@ Cloudflare creates the DNS record and issues the certificate from it.
 **The sign-up form added nothing to this list either.** The grant and the policy ship as a
 migration, the route is code, and no variable was added — if a WAF rate-limiting rule is
 put on `POST /nn/` later, *that* is a manual step and belongs here when it happens.
+
+**Nor did the entry form.** The schema, the seeded event and its fees all ship as one
+migration; the exposed-schema list is `config.toml`, which `deploy-db.yml` pushes. **Stripe
+will add one**: `wrangler secret put STRIPE_SECRET_KEY` and the webhook signing secret are
+manual by necessity and belong in this table the day they are set.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |

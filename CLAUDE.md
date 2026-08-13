@@ -24,14 +24,20 @@ re-run.
 - **A factual claim about a race** that has not been supplied — date, price, distance,
   location, start time. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
   2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
-  the spectating points; all of them live in `apps/main/src/content/race.json`. **The 2026
-  ARC permit number is not**, and the 2023 number is not a substitute for it. The entry
-  price, the transfer deadline, the entry-opening time and live capacity all belong to the
-  entries application and this site does not quote them. Do not invent a fact, do not infer
-  one from a phase document, and do not put a plausible placeholder in markup.
+  the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
+  fees are confirmed too** — £15 affiliated, £17 unaffiliated, £0 for a visually impaired
+  runner's guide — and they live in `entries.fees`, never in markup. **Still unconfirmed, and
+  none of them may appear anywhere:** the 2026 ARC permit number (the 2023 number is not a
+  substitute), the 2026 race director's name, the entry open and close times, the transfer
+  deadline, and the minimum age. Do not invent a fact, do not infer one from a phase
+  document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
-  holds personal data is a committee decision.
-- **Taking payment**, or linking to something that does.
+  holds personal data is a committee decision. The committee has settled the *entry* field
+  list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
+- **Taking payment is no longer a stop-and-ask**, but **connecting one is**: the treasurer
+  has authorised in-house payment, and Slice A's submit handler deliberately validates and
+  stops. Stripe's secret key and webhook signing secret are **Worker secrets**, never in this
+  repository.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -96,7 +102,9 @@ working. Roll code back; roll schema forward. This is load-bearing rather than g
 practice here — nothing sequences the migration against the Cloudflare deploy.
 
 **The timing platform is not touched by website work.** Not its tables, not its policies,
-not its repository, until the port happens deliberately.
+not its repository, until the port happens deliberately. That includes the `private` schema,
+which is why `entries`' one helper function lives in `entries` with a pinned `search_path`
+rather than where the timing platform keeps its own.
 
 **Zero accessibility violations**, not "few". Any threshold above zero becomes the new
 normal within a month.
@@ -187,8 +195,19 @@ and no timing application code**.
 
 Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
 three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
-column-scoped anonymous-insert policy on `intake.nn_interest`. **Entries are a separate
-application** — this site takes no payment and links to nothing that does.
+column-scoped anonymous-insert policy on `intake.nn_interest`.
+
+**Entries are built here, in `apps/main`** — [ADR-009](docs/architecture/decisions/adr-009-entries-in-apps-main.md)
+retired the plan to give them a repository of their own. `/nn/` carries **two forms**: the
+entry form when `entries.events` says entries are open, and the interest form otherwise,
+decided per request rather than by a deploy. `entries.events.entries_open_at` is `null`
+today, so what production serves is the interest form.
+
+**The entry form validates and stops.** There is no payment, no capacity enforcement and no
+row written — a valid entry gets an honest 503 saying nothing was stored and nothing was
+charged, because a confirmation for an entry that does not exist would be the worst thing
+this page could do. **The anon role holds no grant on any table in `entries`**; the one
+thing it may call is `entries.entry_state()`.
 
 The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).

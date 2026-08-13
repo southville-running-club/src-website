@@ -14,6 +14,29 @@ Cloudflare, [DNS and domain](../solutions/dns-and-domain.md) for the hostname.
 
 ---
 
+## Amended 13 August 2026 — read this before the rest
+
+**Five rules below have been superseded by decisions taken since this brief was written.**
+They are amended in place, each with a marker saying what changed and what authorised it —
+the brief is not edited to pretend it always said this. Everything not listed here still
+stands exactly as written.
+
+| Rule, as written | Now | What superseded it |
+| --- | --- | --- |
+| **Taking payment is a stop-and-ask** | **Payment is in scope** | The treasurer has authorised in-house payment |
+| **Collecting a field beyond name and email is a committee decision** | **The committee has decided.** The entry field list is settled — see [`packages/shared/src/nn-entry.ts`](../../platform/packages/shared/src/nn-entry.ts). Anything not on it is still a stop-and-ask | A committee decision |
+| **The race date is unconfirmed** | **Sunday 1 November 2026, 11:00** | The club's published campaign artwork, 12 August 2026 |
+| **Only two environment variables exist; a third should never be needed** | Still true of *variables*. Stripe needs a secret key and a webhook signing secret, and both are **Worker secrets** — `wrangler secret put`, never in this repository, never in `wrangler.jsonc`, never in a `vars` block | Stripe |
+| **Entries are a separate application** | **Entries are built in `apps/main`** | [ADR-009](../architecture/decisions/adr-009-entries-in-apps-main.md) |
+
+**RLS is unchanged and is not on that list.** Row-level security is still the whole of the
+access control for anything a browser touches, the anon key is still the only key in client
+code, and the service role key still never reaches a browser or this repository. The webhook
+that records a payment needs privileged writes, and the mechanism for that is a decision of
+its own — it is not a licence to put a service role key anywhere near the front end.
+
+---
+
 ## Scope
 
 | | |
@@ -145,10 +168,16 @@ Violating any of these is a defect, not a judgement call.
 
 **Data**
 
-- Store **name, email, consent, timestamp**. Nothing else. Not date of birth, not phone,
-  not emergency contact, not England Athletics number — see
+- **The interest form stores name, email, consent, timestamp. Nothing else.** That rule is
+  unchanged and `intake.nn_interest` still has exactly four columns —
   [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully).
-- Adding a column is a decision for the committee, not for the build.
+- ~~Adding a column is a decision for the committee, not for the build.~~ **Amended
+  13 August 2026: the committee has taken that decision for entries.** An *entry* collects
+  name, email, date of birth, gender, club, entry type, England Athletics number, emergency
+  contact, and optional medical information under its own separate consent. The list lives in
+  [`packages/shared/src/nn-entry.ts`](../../platform/packages/shared/src/nn-entry.ts).
+  **Adding a field beyond it is still a committee decision, not a build decision**, and
+  nothing about the interest form's four columns has moved.
 - Timestamps stored **UTC**, displayed **`Europe/London`**.
 - The **anon key only** in client-visible code. The service role key never reaches the
   browser and never enters the repository. Row-level security does the enforcing.
@@ -222,6 +251,17 @@ From the [repository README](../../README.md), and they apply here:
 should be needed** — if the build seems to want a service role key, the row-level security
 policy is wrong and that is the thing to fix.
 
+> **Amended 13 August 2026 — Stripe, and why it does not break this rule.**
+>
+> Stripe needs a **secret key** and a **webhook signing secret**. Neither is a variable in
+> the sense this table means: both are **Worker secrets**, set with `wrangler secret put`,
+> and they never appear in this repository, in `wrangler.jsonc`, or in a `vars` block. The
+> table above lists what is *committed*, and it is still two entries long.
+>
+> **The service role key is still not on any list.** A payment webhook needs privileged
+> writes and that is a decision of its own — it is not a reason to put a service role key
+> anywhere a browser or this repository can reach.
+
 ---
 
 ## Commands
@@ -273,8 +313,11 @@ feel.
 Triggers that end the build step and require a human. An agent must not resolve these by
 inference.
 
-- Any request to **collect a field beyond name and email**.
-- Any request to **take payment**, or to link to something that does.
+- Any request to **collect a field beyond what is specified**. *Amended 13 August 2026: the
+  committee has settled the entry field list; anything beyond it still stops here.*
+- ~~Any request to **take payment**, or to link to something that does.~~ **Amended
+  13 August 2026: payment is in scope**, authorised by the treasurer. Card details still
+  never touch club systems — Stripe Checkout, hosted by Stripe.
 - Any DNS change **other than** the single additive CNAME.
 - The **race date**, entry price, or any factual claim about the race not already
   supplied.
@@ -296,7 +339,12 @@ and flag it.
 | ~~**Race date**~~ | **Confirmed 12 August 2026 — Sunday 1 November 2026, start 11:00.** Settled by the club's published campaign artwork. It went in as the one-line edit this row predicted, with no change to any page |
 | **2026 ARC permit number** | **Not yet issued**, and now the only race fact outstanding. `race.permit` is `null` and renders as "To be confirmed". **The 2023 number is not a stand-in for it** |
 | **Page copy** | **Committee's to write, and still is.** The four Nightingale Nightmare pages now carry a draft written to be edited rather than a decision taken on the committee's behalf. Six questions the draft could not answer are listed under [what the race pages still need](phases.md#what-the-race-pages-still-need-from-the-committee) |
-| **Entry price** | Assumed £8–£10, unconfirmed, and not needed for v1 |
+| ~~**Entry price**~~ | **Confirmed 13 August 2026 — £15 affiliated, £17 unaffiliated, £0 for a visually impaired runner's guide.** They live in `entries.fees.price_pence` and nowhere else; no page quotes a figure from its own markup |
+| **Entry open and close times** | **Not decided.** `entries.events.entries_open_at` is `null`, which `/nn/` renders as the interest form. A placeholder here would be a published claim about when a race opens |
+| **The minimum age** | **Not confirmed.** 18 is *implied* by the youngest prize category and has not been ratified, so `entries.events.minimum_age` is `null` and no entrant is turned away by an inference. Confirming it is one `update` and no deploy |
+| **The entry terms** | **Not written.** The form's checkbox says so and links to nothing, because a link to a page that does not exist is worse than an admission that it does not. **They have to land before entries open** |
+| **Whether the LHGRC discount code returns** | **Not decided.** `entries.discount_codes` exists and is empty; the 2023 code was 10% off unaffiliated, capped at 22 |
+| **Age categories for non-binary runners** | **Unresolved, and the club's to resolve.** The 2023 form offered the option and there were no categories to receive it. The form records the answer and says plainly that the categories are undecided |
 | **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md), migrated, and **now reachable**: the column-scoped grant, the anonymous-insert policy and the form all landed together, in the pull request that could test them |
 | **The privacy notice's specifics** | **Open, and blocking nothing.** The data controller's contact, the address to write to for removal, and the retention period are all `null` in `race.json` and render as "To be confirmed" on `/nn/privacy/`. Inventing any of them would be a legal claim nobody authorised |
 | **Whether an unconsented submission is stored** | **Open.** Consent is currently *required to submit* — `z.literal(true)` in the schema and `required` on the checkbox. The migration's `with check` is deliberately silent on consent, so reversing this is two lines of TypeScript and **no second migration** |

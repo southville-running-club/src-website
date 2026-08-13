@@ -13,11 +13,13 @@ apps/
   timing/     Next.js 16 + @opennextjs/cloudflare → new.<apex>/timing
 packages/
   db/         Supabase config, migrations, generated types
-  shared/     Europe/London, the Supabase client, the stylesheet
+  shared/     Europe/London, the Supabase client, validation, the stylesheet
 ```
 
-**This is a skeleton.** Both applications serve a page that says so and one timestamp
-fetched from Postgres. There is no sign-up form, no Stripe, and no timing application code.
+`apps/main` now carries **the Nightingale Nightmare pages, an interest form and an entry
+form** — `/nn/` shows one or the other according to `entries.events`, decided per request.
+There is **no Stripe and no timing application code**: the entry form validates and stops.
+[ADR-009](../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
 ## Getting started
 
@@ -84,6 +86,7 @@ content and CSS, misleading for anything else.
 | `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
 | `npm run smoke` | The seven checks against **production**. `-- --local` for localhost |
 | `npm test` | Vitest: unit and database |
+| `npm run entries:open` / `entries:close` | Move the local NN entry window, so `/nn/` shows the entry form or the interest one. `--workspace=packages/db` |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
 | `npm run test:e2e` | Playwright + axe. **Builds first, then starts both servers** |
 | `npm run build` | Every workspace |
@@ -97,11 +100,23 @@ content and CSS, misleading for anything else.
 
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.
 
-**`npm run test:e2e` is fine, and the guards are why.** Measured on 9 August 2026: two
-builds then **45 tests in around 22 seconds**, one Playwright worker, nothing left
-running. It took a laptop down once — that was the OpenNext build recursion below, not the
-suite itself. Raising `workers` above one means three browser projects against two
-`workerd` servers, so know what you are asking for.
+**`npm run test:e2e` is fine, and the guards are why.** Measured on 13 August 2026: two
+builds then **193 tests in around 70 seconds**, one Playwright worker, nothing left running.
+It took a laptop down once — that was the OpenNext build recursion below, not the suite
+itself.
+
+**`workers` is 1 everywhere, including CI, and that is now load-bearing.** It was a cap on
+process count; it is now also isolation. `nn-entry.spec.ts` moves
+`entries.events.entries_open_at` to see the entry form and `nn-signup.spec.ts` needs it left
+alone — Playwright parallelises across *files*, so with two workers those two interleave and
+each occasionally sees the other's state. A few seconds of CI against a class of intermittent
+that gets rerun rather than read.
+
+**`npm run test:worker` is two runs, not one.** The default config against the seeded closed
+window, and `vitest.worker.entries-open.config.ts` against an open one. `pg` cannot run
+inside `workerd`, so the window is moved from Vitest's `globalSetup` in the Node process —
+and `serves.test.ts` asserts `/nn/` quotes no price, which is true exactly while entries are
+shut.
 
 **Never point `apps/timing`'s `build` script at `opennextjs-cloudflare build`.** OpenNext
 builds Next.js by running one of this package's own npm scripts, so that makes it invoke

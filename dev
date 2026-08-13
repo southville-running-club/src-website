@@ -303,7 +303,7 @@ cmd_test() {
   build_site
 
   step "Acceptance tests"
-  info "Playwright drives the servers itself — 45 tests across three browser projects"
+  info "Playwright drives the servers itself — 193 tests across three browser projects"
   # Playwright starts and stops its own servers, so ours must not be holding the ports.
   stop_workers >/dev/null 2>&1 || true
 
@@ -335,7 +335,7 @@ cmd_check() {
   (cd "$PLATFORM" && npm run typecheck >/dev/null)
   ok "no errors"
 
-  step "Migrations stay inside club and intake"
+  step "Migrations stay inside club, intake and entries"
   (cd "$PLATFORM" && npm run db:migrations:check-scope >/dev/null)
   ok "no migration touches public or private"
 
