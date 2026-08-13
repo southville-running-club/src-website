@@ -107,9 +107,9 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      - name: Migrations stay inside club and intake
+      - name: Migrations stay inside club, intake and entries
         # Cheap, needs no database, and it is what actually enforces the boundary
-        # docs/decisions/decision-log.md reasons about. `--schema club,intake` scopes
+        # docs/decisions/decision-log.md reasons about. `--schema club,intake,entries` scopes
         # `supabase db diff`, which authors a migration — it has no effect on
         # `supabase db push --linked`, which is what deploy-db.yml runs on merge. This is
         # the backstop that makes the claim true rather than assumed.
@@ -136,7 +136,8 @@ jobs:
         # Retried once: this recreates Postgres' own container, and that has failed on the
         # runner with an opaque `error running container: exit 1` that a same-machine retry
         # clears — never a schema problem, since the same migrations already passed
-        # "Migrations stay inside club and intake" and "Generated types are current" above.
+        # "Migrations stay inside club, intake and entries" and "Generated types are current"
+        # above.
         run: |
           if npx supabase db reset; then
             exit 0

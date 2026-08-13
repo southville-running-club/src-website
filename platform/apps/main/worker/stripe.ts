@@ -133,12 +133,28 @@ export function checkoutSessionParams(input: CheckoutSessionInput): URLSearchPar
   params.set('line_items[0][price_data][unit_amount]', String(input.amountPence));
   params.set('line_items[0][price_data][product_data][name]', input.description);
 
+  // **Adaptive pricing off, and this is a decision rather than a default.** It is *on* for
+  // this account — confirmed against the test API — and what it does is present and charge a
+  // converted amount to somebody paying from abroad. That is a second version of a price
+  // this repository keeps in exactly one place, set by an exchange rate nobody here chose,
+  // and it is the treasurer who would find the difference at reconciliation. Off means
+  // everybody is charged the `entries.fees` row, in sterling.
+  //
+  // Reversible in this one line if the club decides it would rather take an entry in a
+  // runner's own currency than quote one price. Flagged in apps/main/README.md.
+  params.set('adaptive_pricing[enabled]', 'false');
+
   // **Aligned with `entries.entry_purchases.hold_expires_at`, to the second.** The hosted
   // page and the place it is holding then die together, instead of the session outliving the
   // hold — which is the direction that lets somebody pay for a number that has been given to
-  // the next person. Stripe will not accept a value less than thirty minutes ahead of its own
-  // clock, which is why the hold is thirty-one minutes rather than thirty; the migration says
-  // so at the line that sets it.
+  // the next person.
+  //
+  // The hold is thirty-one minutes and not thirty because Stripe documents a floor of thirty
+  // minutes here. **Measured against the test API, that floor is not currently enforced** —
+  // twenty-nine minutes was accepted — but the club's only way of taking an entry is not the
+  // place to depend on a documented limit going unenforced. If it were tightened, every
+  // submission would fail at once. One extra minute of a held place is the cheaper side of
+  // that trade by a wide margin.
   params.set('expires_at', String(Math.floor(input.expiresAt.getTime() / 1000)));
 
   params.set('success_url', input.successUrl);
@@ -164,8 +180,7 @@ export function entryCompleteUrl(origin: string): string {
 }
 
 export type CheckoutSessionOutcome =
-  | { ok: true; sessionId: string; url: string }
-  | { ok: false; error: string };
+  { ok: true; sessionId: string; url: string } | { ok: false; error: string };
 
 /**
  * Create the session, and hand back where to send somebody.

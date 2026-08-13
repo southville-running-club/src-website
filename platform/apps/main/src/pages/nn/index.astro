@@ -16,10 +16,13 @@ import '@src/shared/styles/nn-theme.css';
 // values, and the date line, the facts list below and three new pages picked them up
 // without a line of markup moving.
 //
-// What is still `null` is still genuinely undecided rather than merely unwritten — the
-// entry fee and the opening date belong to the entries application and this site does not
-// quote figures it does not own, and the 2026 ARC permit number has not been issued.
-// Inventing any of them here is a "stop and ask" trigger, not a placeholder.
+// What is still `null` is still genuinely undecided rather than merely unwritten. `price` and
+// `entriesOpen` stay `null` here for a different reason from the rest: **they are the
+// database's**. The fees live in `entries.fees.price_pence` and the window in
+// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
+// file is how two numbers start disagreeing. The opening time nobody has decided, and the
+// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
+// trigger, not a placeholder.
 //
 // See docs/architecture/principles.md#stop-and-ask
 
@@ -85,10 +88,12 @@ const dateLine = race.date
         because that is what it is, with the bullets taken off — a screen reader still says
         "list, three items" and gets the same summary a sighted reader gets from the row.
 
-        The mockup has a fourth item here, a live "238 of 250 places remaining" bar. That
-        is demo data; how many places are *left* belongs to the entries application, and it
-        would be wrong within a day of anybody entering. How big the race is does not
-        change, so that is what this says. */
+        The mockup has a fourth item here, a live "238 of 250 places remaining" bar. That is
+        demo data, and the database could answer it now — but a number that is wrong within a
+        day of anybody entering, cached at the edge and read off a poster-shaped page, is a
+        claim the club would have to keep true. How big the race is does not change, so that
+        is what this says. Somebody who tries to enter a full race is told plainly, on the
+        form, at the moment it matters. */
       }
       <ul class="nn-facts">
         <li>{race.distance}</li>
@@ -146,11 +151,9 @@ const dateLine = race.date
       <dd>{orTbc(race.location)}</dd>
 
       {
-        /* **The field size, not how much of it is left.** The mockup carries a live
-        "238 of 250 places remaining" counter and a bar to go with it; both are demo data,
-        and remaining capacity is the entries application's to know and to answer for. 250
-        is how big the race is, which does not change during the week somebody is deciding
-        whether to come. */
+        /* **The field size, not how much of it is left** — see the note on the hero row.
+        250 is how big the race is, and it does not change during the week somebody is
+        deciding whether to come. */
       }
       <dt>Field size</dt>
       <dd>{race.places} places</dd>

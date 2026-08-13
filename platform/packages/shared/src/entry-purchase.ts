@@ -106,7 +106,7 @@ const createdShape = z.object({
  * omitted so that the first paired race meets a field to fill in rather than a field to
  * discover.
  */
-export function nnEntrantPayload(entry: NnEntry): Record<string, unknown> {
+export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> {
   return {
     first_name: entry.firstName,
     last_name: entry.lastName,
@@ -142,6 +142,7 @@ export async function createNnPendingPurchase(
   },
 ): Promise<PendingPurchaseOutcome> {
   const { entry } = input;
+  const discountCode = input.discountCode?.trim();
 
   try {
     const { data, error } = await client
@@ -160,7 +161,11 @@ export async function createNnPendingPurchase(
           entryTerms: entry.consents.entryTerms,
           medical: entry.consents.medical,
         },
-        p_discount_code: input.discountCode ?? undefined,
+        // **Omitted rather than passed as `undefined`.** `exactOptionalPropertyTypes` is on,
+        // and the generated argument type says `p_discount_code?: string` — so the key has
+        // to be absent when there is no code, which is also what lets the function's own
+        // `default null` apply.
+        ...(discountCode ? { p_discount_code: discountCode } : {}),
       });
 
     if (error) {

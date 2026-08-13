@@ -28,7 +28,10 @@ Three schemas, seven tables and three functions.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
-| `entries.entry_state()` | Public configuration for one event: window state and fees. The only object in `entries` anon may reach |
+| `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
+| `entries.create_pending_purchase()` | Holds a place and records a pending purchase, under a per-event lock. **The only object in this repository that writes an entry** |
+| `entries.expire_pending_holds()` | Moves lapsed holds to `expired`. Housekeeping — capacity does not depend on it |
+| `entries.attach_checkout_session()` | Writes the Stripe session id onto a pending purchase that has none. One column, one row, once |
 
 `intake.health()` earns its place: one call proves the migration applied, the schema is
 exposed, the anon key is right, the grant is right, and the Worker can reach the network.
@@ -94,17 +97,19 @@ personal-data incident and a financial one at once.
 | `entrants` | One runner. **No age column and no category column** — both are derived at read time from `date_of_birth` and `gender`, as the timing platform does |
 | `entrant_medical` | Medical notes, **on their own** — see below |
 
-#### The anon role holds nothing here
+#### The anon role holds nothing here, and entries are written anyway
 
 Not insert, not select, on any of the six. RLS is on from the first migration and there is
 no grant, so a request is refused at `42501` before row-level security is even consulted.
 `tests/entries.test.ts` asserts that on **every table, for every verb, by error code**, and
-that assertion is written to outlive the slice that added it: when a policy arrives it will
-be one verb on one table, and the rest must still refuse.
+that assertion was written to outlive the slice that added it — which it now has. **Entries
+are written to these tables and every refusal still holds**, because every write goes through
+a `security definer` function rather than through a grant. If one of those assertions ever
+starts failing, something handed a table privilege to a key that is published in page source.
 
 **`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
 anything. A refusal that only happens because nothing can get as far as asking has not been
-tested. What the exposure is actually for is one function.
+tested. What the exposure is actually for is four functions.
 
 #### `entries.entry_state()` — the one door
 
@@ -122,6 +127,52 @@ It deliberately returns neither `from_address` (an address in page source is an 
 scraper collects) nor the event's `id` (a browser has no use for a primary key it cannot
 write with) nor the window timestamps (nobody has decided them, and a field returned before
 it has a meaning is a field somebody renders).
+
+#### `entries.create_pending_purchase()` — the only thing that writes
+
+One call, one transaction: resolve the event, take a capacity lock, count the places already
+gone, price the entry **from the fees table**, and write the purchase, its entrants and — only
+under its own consent — their medical notes. It returns a structured result rather than
+raising, because `sold_out` is a page somebody reads rather than an error somebody debugs.
+
+**The anon key is published in client code, so this function is the attack surface.** What it
+cannot do is the point of its shape:
+
+| | |
+| --- | --- |
+| **Read anything back** | It returns the caller's own purchase id, amount and fee label. Nothing about anybody else |
+| **Choose a price** | `p_fee_code` selects a row; `entries.fees.price_pence` is what is charged. A price in the form is never consulted, and there is no parameter for one |
+| **Choose a status, a paid timestamp, an id or a created_at** | None is a parameter |
+| **Write to a different event than the slug names** | Every insert is scoped to the resolved row |
+| **Store medical notes without the separate consent** | Whatever the form sent |
+| **Escalate through an unpinned search_path** | `set search_path = ''` with every reference schema-qualified, as `entry_state()` already is. `citext` comparisons are done with `lower(...::text)` rather than by unpinning the path to reach the `extensions` operator |
+
+**It can hold places, though**, up to the whole field, for as long as a hold lasts — the same
+exposure `intake.nn_interest` already carries, answered the same way: a Cloudflare WAF
+rate-limiting rule, recorded in [`apps/main`](../../apps/main/README.md#what-the-entry-form-deliberately-does-not-do).
+
+**`volatile` is load-bearing rather than a default that happened to be right.** Under READ
+COMMITTED a `stable` function's queries run against the *calling* statement's snapshot — so
+the capacity count would be taken from before the transaction it had just waited behind
+committed, and the advisory lock would protect nothing at all. `tests/entries-capacity.test.ts`
+asserts the volatility from the catalogue for exactly that reason.
+
+#### Capacity, and the lock
+
+250 places, and this race sold out in 2023. `pg_advisory_xact_lock` on a hash of the event id
+is taken **before** the count, so count-and-insert is serialised per event and nothing else in
+the database waits. `_xact_` rather than a session lock: it is released when the transaction
+ends, including when the connection dies mid-statement.
+
+**A lapsed hold does not consume a place, and the count is what says so.** The Cron Trigger in
+`apps/main` that moves lapsed holds to `expired` is housekeeping — if it never ran again,
+nobody would be turned away and nothing would be double-sold. That property is the one to
+preserve if it is ever changed.
+
+`tests/entries-capacity.test.ts` proves the lock with real concurrent connections — two, then
+eight, competing for one place — **and proves the harness can detect overselling** by
+overselling on purpose with the lock left out. A concurrency test that never actually
+overlaps passes for the wrong reason and keeps passing after somebody deletes the lock.
 
 **It lives in `entries`, not in `private`.** The timing platform keeps its helpers in
 `private` with a pinned `search_path`, and that is the pattern — but `private` is the timing
@@ -157,8 +208,13 @@ production.
 | --- | --- |
 | Confirmed | 1 November 2026, 11:00, 250 places, £15 affiliated, £17 unaffiliated, £0 for a VI guide |
 | `entries_open_at` / `entries_close_at` | **Null.** Nobody has decided when entries open, and a placeholder would be a published claim about when a race opens. Null reads as `pre_open`, which is the interest form |
-| `minimum_age` | **Null.** 18 is *implied* by the youngest prize category and has not been ratified. Confirming it is one `update` and no deploy — which is the whole reason it is a column |
-| `discount_codes` | **No rows.** The 2023 code has not been confirmed for 2026 |
+| `minimum_age` | **18**, confirmed by the committee on 13 August 2026. It was null while it was only *implied* by the youngest prize category, and landing it was **one `update` in a later migration with no deploy** — which is the whole reason it is a column, demonstrated |
+| `discount_codes` | **No rows.** The 2023 code has not been confirmed for 2026. The redemption path is built and tested against fabricated events anyway, so enabling it is one `insert` rather than a deploy in the middle of a live entry window |
+
+**The minimum age was applied by `update`, not by editing the migration that seeded the row.**
+That migration has already run — locally, in CI, and on the shared project. Editing it would
+change what a fresh `db reset` produces without changing any existing database, which is how
+two environments start disagreeing about a rule that turns entrants away.
 
 ## Commands
 
@@ -242,6 +298,13 @@ between the browser and the database, so a mock would only ever test the mock.
 | `tests/schemas.test.ts` | That `intake` is reachable and **`club` is not** |
 | `tests/seed.test.ts` | That the seed applied, and that the table has **exactly one policy** |
 | `tests/nn-interest.test.ts` | The grant and the policy, **from both sides** |
+| `tests/entries.test.ts` | That every table in `entries` refuses the anon role, on every verb — and keeps refusing now that entries are written |
+| `tests/entries-capacity.test.ts` | What `create_pending_purchase()` does, **including under real concurrency** |
+
+`entries-capacity.test.ts` runs against fabricated `zz-cap-*` events it creates and removes,
+so it cannot collide with the real `nn-2026` row, with the acceptance suite, or with a laptop
+somebody has left `./dev up` running on. The advisory lock is per event id, so fabricated
+events do not contend with each other either.
 
 **The assertions that matter are the negative ones**, and every one of them asserts the
 error *code* rather than merely that something failed — a test that passes because a table

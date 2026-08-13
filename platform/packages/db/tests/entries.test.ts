@@ -9,10 +9,16 @@ import { createClient } from '@supabase/supabase-js';
  * what can be reached through the API. There is no tier between a browser and Postgres, so
  * this file *is* the access control being tested rather than a model of it.
  *
- * **The refusals are the point of this file, and they are written to outlive this slice.**
- * Right now nothing writes to these tables: the entry form validates and stops. When a
- * policy is added it will be one verb on one table, and every other refusal here must still
- * hold. Each asserts the **error code**, not merely that something failed — a test that
+ * **The refusals are the point of this file, and they were written to outlive the slice that
+ * added them — which they now have.** Entries are written to these tables today, and the
+ * anon role still holds no privilege on a single one of them: every write goes through
+ * `entries.create_pending_purchase()`, a `security definer` function that decides the price,
+ * the capacity and the consent version itself. **That is what this file proves by still
+ * being green.** If a refusal below ever starts failing, something granted a table privilege
+ * that a published anon key would then carry.
+ *
+ * `entries-capacity.test.ts` covers what the function does; this covers what remains shut.
+ * Each assertion names the **error code**, not merely that something failed — a test that
  * passes because a table stopped existing is a test that has quietly stopped testing.
  *
  * The privileged connection is the local Docker Postgres and nothing else. Its credentials
@@ -385,15 +391,21 @@ describe('the Nightingale Nightmare 2026 event row', () => {
     expect(rows[0]?.entries_close_at).toBeNull();
   });
 
-  it('leaves the minimum age null, because 18 is inferred and not confirmed', async () => {
-    // 18 is *implied* by the youngest prize category and has not been confirmed by the
-    // committee. Turning it on later is one `update` and no deploy — which is the whole
-    // reason it is a column.
+  it('carries the confirmed minimum age of 18', async () => {
+    // **It arrived exactly the way the column was built for.** 18 was *implied* by the
+    // youngest prize category and unconfirmed when this schema landed; the committee settled
+    // it on 13 August 2026 and it went in as one `update` in a later migration — no change to
+    // the schema module, no change to the form, no deploy required to have made it.
+    //
+    // Applied by `update` rather than by editing the migration that seeded the row, because
+    // that migration has already run everywhere. Editing it would change what a fresh
+    // `db reset` produces without changing any existing database, which is how two
+    // environments start disagreeing about a rule that turns entrants away.
     const rows = await query<{ minimum_age: number | null }>(
       "select minimum_age from entries.events where slug = 'nn-2026'",
     );
 
-    expect(rows[0]?.minimum_age).toBeNull();
+    expect(rows[0]?.minimum_age).toBe(18);
   });
 
   it('shows as pre_open through the public function', async () => {
@@ -457,10 +469,19 @@ describe('the three fees', () => {
 });
 
 describe('the discount codes table', () => {
-  it('is empty, because the 2023 code has not been confirmed for 2026', async () => {
+  it('is empty for the real event, because the 2023 code has not been confirmed for 2026', async () => {
     // A Long Ashton code existed in 2023 — 10% off unaffiliated, 22 places. Whether it
     // returns has not been decided, and seeding one would be a discount the club is offering.
-    const rows = await query('select 1 from entries.discount_codes');
+    //
+    // **Scoped to `nn-2026` rather than asserted over the whole table.**
+    // `entries-capacity.test.ts` seeds codes against fabricated events to exercise the
+    // redemption path, and Vitest runs the two files at the same time — an unscoped `select`
+    // here would fail on whichever machine happened to interleave them.
+    const rows = await query(
+      `select 1 from entries.discount_codes d
+         join entries.events e on e.id = d.event_id
+        where e.slug = 'nn-2026'`,
+    );
     expect(rows).toEqual([]);
   });
 

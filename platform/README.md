@@ -101,9 +101,16 @@ content and CSS, misleading for anything else.
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.
 
 **`npm run test:e2e` is fine, and the guards are why.** Measured on 13 August 2026: two
-builds then **193 tests in around 70 seconds**, one Playwright worker, nothing left running.
+builds then **233 tests in around 90 seconds**, one Playwright worker, nothing left running.
 It took a laptop down once — that was the OpenNext build recursion below, not the suite
 itself.
+
+**Playwright starts a third server, and it is a fake Stripe.** `scripts/stripe-stub.mjs` on
+:8789 answers `POST /v1/checkout/sessions` with a canned session and nothing else, so the
+entry form runs end to end with **no Stripe credentials anywhere**. The suite asserts *where*
+the Worker redirects and never follows it: Stripe's hosted page is a third party's, and a
+test that types into it breaks the week they redesign it. `./dev up` starts the same process
+alongside the two Workers.
 
 **`workers` is 1 everywhere, including CI, and that is now load-bearing.** It was a cap on
 process count; it is now also isolation. `nn-entry.spec.ts` moves

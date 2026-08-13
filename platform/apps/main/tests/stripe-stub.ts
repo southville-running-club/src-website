@@ -38,7 +38,14 @@ export async function startStripeStub(): Promise<ChildProcess | null> {
     return null;
   }
 
-  const script = join(import.meta.dirname, '..', '..', '..', 'scripts', 'stripe-stub.mjs');
+  const script = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'scripts',
+    'stripe-stub.mjs',
+  );
   const child = spawn(process.execPath, [script], { stdio: 'ignore' });
 
   // Fifty attempts at 100ms is five seconds, which is generous for a Node process that does

@@ -130,10 +130,7 @@ export async function clearPurchases(): Promise<void> {
  */
 export async function sellOut(): Promise<void> {
   await withClient(async (db) => {
-    await db.query(
-      `update entries.events set capacity = 1 where slug = $1`,
-      [SLUG],
-    );
+    await db.query(`update entries.events set capacity = 1 where slug = $1`, [SLUG]);
 
     await db.query(
       `with event as (select id from entries.events where slug = $1),

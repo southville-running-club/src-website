@@ -369,12 +369,18 @@ begin
       update entries.discount_codes set uses = uses + 1 where id = v_discount_id;
     end if;
 
-    -- **The hold is 31 minutes and the odd number is Stripe's, not ours.** A Checkout
-    -- session's `expires_at` has to be at least 30 minutes ahead of Stripe's own clock, so a
-    -- 30-minute hold is already too short by the time the request lands — Stripe refuses it.
-    -- The Worker sets `expires_at` to exactly this timestamp, so the hosted page and the
-    -- held place die together instead of the session outliving the place it was holding,
-    -- which is the direction that sells one number to two people.
+    -- **The hold is 31 minutes and the odd number is Stripe's, not ours.** The Worker sets
+    -- the Checkout session's `expires_at` to exactly this timestamp, so the hosted page and
+    -- the held place die together instead of the session outliving the place it was holding
+    -- — which is the direction that sells one number to two people.
+    --
+    -- Stripe documents a floor of 30 minutes on `expires_at`, and this row is computed here
+    -- and then travels to Stripe, so a 30-minute hold is already fractionally under that
+    -- floor by the time it lands. **Measured against the test API, the floor is not currently
+    -- enforced** — 29 minutes was accepted — but the club's only way of taking an entry is
+    -- not the place to depend on a documented limit going unenforced: if it were tightened,
+    -- every submission would fail at once. Sixty extra seconds of a held place is the cheaper
+    -- side of that trade by a wide margin.
     v_hold_expires_at := pg_catalog.now() + interval '31 minutes';
 
     insert into entries.entry_purchases (

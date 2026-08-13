@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { closeEntries, openEntries } from '../entries-window';
+import { clearPurchases, purchases, restoreCapacity, sellOut } from '../entries-db';
 
 /**
  * The entry form, in a real browser, exactly as somebody will meet it.
@@ -14,6 +15,19 @@ import { closeEntries, openEntries } from '../entries-window';
  * **Both states of `/nn/` are covered**, and the switch under test is the real one — the
  * event row, moved by `entries-window.ts`, exactly as the committee will move it. See that
  * file for why the suite runs a single worker.
+ *
+ * ## Where this suite stops, and why
+ *
+ * **It drives the form up to the redirect, asserts where the redirect goes, and picks up
+ * again at the return URL. It never drives Stripe Checkout.** That page is a third party's:
+ * a test that types into it breaks when Stripe redesigns it, and would be asserting Stripe's
+ * behaviour rather than the club's. What matters here is the handoff — that a valid entry
+ * holds exactly one place and hands over to `checkout.stripe.com` rather than to anywhere
+ * else — and that is what is asserted.
+ *
+ * The Stripe request itself never leaves the machine. `platform/scripts/stripe-stub.mjs`
+ * answers it with a canned session, and `apps/main/tests/unit/stripe.test.ts` asserts field
+ * by field what would have been sent to the real one.
  */
 
 /**
@@ -40,6 +54,11 @@ const entry = (page: Page) => page.locator('[data-nn-entry]');
  *
  * Pass `entryTerms: 'skip'` to leave the box alone, for the one case that wants the browser
  * to do the refusing.
+ *
+ * **Overriding `email` moves the confirmation box with it**, unless a test says otherwise.
+ * The two have to match to be valid, and leaving that to each caller cost half an hour: a
+ * test that only wanted a distinct address per purchase got a 422 about the confirmation box
+ * and read as though the payment handoff had broken.
  */
 async function fillEntry(
   page: Page,
@@ -58,6 +77,10 @@ async function fillEntry(
     entryTerms: 'accept',
     ...overrides,
   };
+
+  if (overrides.email !== undefined && overrides.emailConfirm === undefined) {
+    values.emailConfirm = overrides.email;
+  }
 
   const form = entry(page);
 
@@ -78,6 +101,75 @@ async function fillEntry(
 
   if (values.entryTerms !== 'skip') {
     await form.getByLabel(/I accept the entry terms/).check();
+  }
+}
+
+/**
+ * Answer any navigation to Stripe locally, so the hosted page is never fetched.
+ *
+ * **Nothing in this suite makes a request to Stripe.** The browser really does follow the
+ * 303 — that is the behaviour under test — and this is what stands in the way of the request
+ * actually leaving the machine. The hosted page is never fetched, rendered, parsed or typed
+ * into: it is a third party's, and a test that drove it would break the week they redesign
+ * it.
+ *
+ * `page.route` works at the network layer, so this is as true in the `no-javascript` project
+ * as anywhere else.
+ */
+function blockStripePage(page: Page): Promise<void> {
+  return page.route('https://checkout.stripe.com/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><title>Stripe stands here</title><p>Stripe stands here.</p>',
+    }),
+  );
+}
+
+/**
+ * Post the form without following what comes back.
+ *
+ * **The one way to read the `Location` header that works in every engine.** Catching the 303
+ * off `page.on('response')` reads well and is not portable: WebKit does not surface an
+ * intermediate redirect response the way Chromium does, so the assertion passed on two
+ * engines and silently saw `null` on the third — a test passing for the wrong reason, which
+ * is worse than no test.
+ *
+ * `maxRedirects: 0` is also the brief's instruction taken literally: assert where the
+ * redirect goes, and do not go there.
+ */
+function postEntry(page: Page, fields: Record<string, string>) {
+  return page.request.post('/nn/', {
+    form: { form: 'entry', ...fields },
+    maxRedirects: 0,
+  });
+}
+
+/**
+ * Every console line and page error the browser produced, for the leak assertions.
+ *
+ * **A key in a console line is a key in anybody's devtools**, and it is the sort of thing
+ * that gets added to debug a payment failure at the worst possible moment. Collected rather
+ * than asserted here, so each test can check its own.
+ */
+function collectOutput(page: Page): string[] {
+  const lines: string[] = [];
+
+  page.on('console', (message) => lines.push(message.text()));
+  page.on('pageerror', (error) => lines.push(String(error)));
+
+  return lines;
+}
+
+/**
+ * Written as separated fragments so this file does not itself contain a string a secret
+ * scanner would flag, and so an assertion cannot pass by matching its own source.
+ */
+const KEY_PREFIXES = ['sk_' + 'test_', 'sk_' + 'live_', 'rk_' + 'test_', 'rk_' + 'live_'];
+
+function expectNoKeys(text: string): void {
+  for (const prefix of KEY_PREFIXES) {
+    expect(text).not.toContain(prefix);
   }
 }
 
@@ -140,12 +232,18 @@ test.describe('before entries open', () => {
 
 test.describe('once entries are open', () => {
   test.beforeAll(async () => {
+    // **Cleared as well as opened.** A run that failed halfway leaves purchases behind, and
+    // "exactly one pending purchase" would then be counting somebody else's — the same lesson
+    // the entry window taught during Slice A, one table along.
+    await clearPurchases();
     await openEntries();
   });
 
   // Put back to the seeded state whatever happened above, so a failed run does not leave a
-  // laptop showing an entry form that should not be there.
+  // laptop showing an entry form that should not be there, or a laptop's database holding
+  // fabricated entries against a real event.
   test.afterAll(async () => {
+    await clearPurchases();
     await closeEntries();
   });
 
@@ -181,32 +279,188 @@ test.describe('once entries are open', () => {
     await expect(cta).toHaveAttribute('href', '#enter');
   });
 
-  test('is completable with JavaScript disabled, and says plainly that it is not finished', async ({
+  test('is completable with JavaScript disabled, and hands over to Stripe', async ({
     page,
   }) => {
     // **The whole argument of this site, on its longest form.** Fourteen fields, no
-    // scripting, a real POST — and an honest answer at the end of it. Slice A has no
-    // payment, so a valid entry is *not* acknowledged as an entry; it is told, in words,
-    // that nothing was stored and nothing was charged.
+    // scripting, a real POST — and a real payment page at the end of it. Nothing here is
+    // tagged `@requires-js`, so this runs in the `no-javascript` project too, which is what
+    // makes "the primary path" a claim somebody has checked rather than an intention.
+    await clearPurchases();
+
+    await blockStripePage(page);
+    const output = collectOutput(page);
+
     await page.goto('/nn/');
 
-    await fillEntry(page);
+    await fillEntry(page, { email: 'e2e-stripe@example.com' });
     await entry(page)
       .getByLabel(/^Unaffiliated/)
       .check();
 
     await page.getByRole('button', { name: 'Continue to payment' }).click();
 
-    const notice = page.locator('[data-entry-unavailable]');
-    await expect(notice).toBeVisible();
-    await expect(notice).toContainText('payment is not connected yet');
-    await expect(notice).toContainText(
-      'nothing has been stored and nothing has been charged',
-    );
+    // **Where it went, not what is on the page it went to.** Stripe's hosted page is answered
+    // locally with a placeholder, so nothing in this suite ever reaches Stripe. The `Location`
+    // header itself is asserted by the test below, which does not follow it at all.
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
 
+    // **Exactly one place held, at the price the database says.** £17.00 lives in
+    // `entries.fees.price_pence` and nowhere else, and the anon key this page carries cannot
+    // read this table at all — which is why the assertion needs a privileged connection.
+    const held = await purchases();
+
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({
+      status: 'pending',
+      amountPence: 1700,
+      feeCode: 'unaffiliated',
+      purchaserEmail: 'e2e-stripe@example.com',
+    });
+    expect(held[0]?.entrants).toEqual([
+      { firstName: 'Grace', lastName: 'Hopper', club: null },
+    ]);
+    // No medical consent was given, so there is nothing to hold — the absence of a row *is*
+    // the record of the withheld consent.
+    expect(held[0]?.medicalNotes).toEqual([]);
+    // The Checkout session was written back, which is what a reconciliation reads.
+    expect(held[0]?.sessionId).toMatch(/^cs_test_/);
+
+    expectNoKeys(output.join('\n'));
+  });
+
+  test('answers the POST itself with a 303 to Stripe, and no body', async ({ page }) => {
+    // **The redirect asserted without being followed**, which is the only way to read the
+    // header in every engine — and the only way to be sure nothing was rendered on the way.
+    // The response carries no body at all, so nothing about the entry travels in one.
+    await clearPurchases();
+
+    const response = await postEntry(page, {
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'e2e-raw@example.com',
+      emailConfirm: 'e2e-raw@example.com',
+      dobDay: '9',
+      dobMonth: '12',
+      dobYear: '1986',
+      gender: 'female',
+      feeCode: 'unaffiliated',
+      emergencyName: 'Margaret Hamilton',
+      emergencyPhone: '0117 496 0000',
+      entryTerms: 'on',
+    });
+
+    expect(response.status()).toBe(303);
+    expect(response.headers().location).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+    // The page is one person's payment and nothing in front of it may hold a copy.
+    expect(response.headers()['cache-control']).toBe('no-store');
+    expect(await response.text()).toBe('');
+    expectNoKeys(await response.text());
+
+    const held = await purchases();
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ status: 'pending', amountPence: 1700 });
+  });
+
+  test('holds exactly one place per press, not one per attempt', async ({ page }) => {
+    // Somebody on bad signal presses the button, sees nothing happen, and presses it again.
+    // Each press is a separate submission and holds its own place — which is correct, and
+    // which is why the hold is short. What must **not** happen is one press producing two.
+    await clearPurchases();
+
+    await blockStripePage(page);
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-once@example.com' });
+    await entry(page)
+      .getByLabel(/^Affiliated/)
+      .check();
+    await entry(page)
+      .getByLabel(/^England Athletics number/)
+      .fill('1234567');
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
+
+    const held = await purchases();
+    expect(held).toHaveLength(1);
+    // The affiliated price, because England Athletics rebates the levy for a registered
+    // athlete. £2 less, from the fees table.
+    expect(held[0]?.amountPence).toBe(1500);
+  });
+
+  test('keeps medical notes only where the consent was given', async ({ page }) => {
+    // Special category data under UK GDPR Article 9, end to end: typed into a real form in a
+    // real browser, and landing in its own table because the box beside it was ticked.
+    await clearPurchases();
+
+    await blockStripePage(page);
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-medical@example.com' });
+    await entry(page)
+      .getByLabel(/^Unaffiliated/)
+      .check();
+    await entry(page)
+      .getByLabel('Medical information (optional)', { exact: true })
+      .fill('Type 1 diabetic.');
+    await entry(page)
+      .getByLabel(/I agree to the club holding/)
+      .check();
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
+
+    const held = await purchases();
+    expect(held[0]?.medicalNotes).toEqual(['Type 1 diabetic.']);
+  });
+
+  test('refuses a free guide’s place rather than holding one it cannot charge for', async ({
+    page,
+  }) => {
+    // A payment page cannot take a payment of nothing, and completing a free entry would mean
+    // deciding here that an unpaid entry counts as paid. It says so, gives the race address,
+    // and **writes nothing**.
+    await clearPurchases();
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-guide@example.com' });
+    await entry(page)
+      .getByLabel(/^VI guide/)
+      .check();
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+
+    const notice = page.locator('[data-entry-free]');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('Nothing has been charged.');
     // It holds focus, which with no JavaScript is `autofocus` on an element carrying
     // `tabindex="-1"` — and is what tells somebody using a screen reader anything happened.
     await expect(notice).toBeFocused();
+
+    expect(await purchases()).toEqual([]);
+  });
+
+  test('never renders a Stripe key into the page, on any path through it', async ({
+    page,
+  }) => {
+    // **A key in rendered HTML is the failure nobody notices until it is public.** Checked on
+    // the form, on a refusal and on the return page, because an error path is exactly where a
+    // "print it so we can debug it" would go in.
+    const output = collectOutput(page);
+
+    await page.goto('/nn/');
+    expectNoKeys((await page.content()) ?? '');
+
+    await fillEntry(page, { firstName: '   ' });
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page.locator('[data-entry-summary]')).toBeVisible();
+    expectNoKeys(await page.content());
+
+    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    expectNoKeys(await page.content());
+
+    expectNoKeys(output.join('\n'));
   });
 
   test('keeps every value when the server refuses it', async ({ page }) => {
@@ -536,5 +790,219 @@ test.describe('what JavaScript adds @requires-js', () => {
 
     await expect(page.locator('[data-entry-error="emergencyName"]')).toBeHidden();
     await expect(page.locator('[data-entry-error="entryTerms"]')).toBeHidden();
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Sold out
+// -----------------------------------------------------------------------------------------
+
+test.describe('when the race is full', () => {
+  // **The case where losing somebody's typing hurts most.** They have filled in fourteen
+  // fields and are being told the race went while they were doing it; handing them an empty
+  // form afterwards is what turns a disappointment into a grievance, and it is the one moment
+  // somebody might want to write and ask about a waiting list.
+
+  test.beforeAll(async () => {
+    await restoreCapacity();
+    await openEntries();
+    await sellOut();
+  });
+
+  test.afterAll(async () => {
+    // Back to 250 places and no purchases whatever happened, so a failed run does not leave a
+    // laptop where the next entry sells the race out.
+    await restoreCapacity();
+    await closeEntries();
+  });
+
+  test('says so plainly, and keeps every value that was typed', async ({ page }) => {
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-soldout@example.com' });
+    await entry(page)
+      .getByLabel(/^Affiliated/)
+      .check();
+    await entry(page)
+      .getByLabel(/^England Athletics number/)
+      .fill('1234567');
+    await entry(page)
+      .getByLabel(/^Running club/)
+      .fill("O'Sullivan Runners");
+    await entry(page)
+      .getByLabel('Medical information (optional)', { exact: true })
+      .fill('Type 1 diabetic.');
+    await entry(page)
+      .getByLabel(/I agree to the club holding/)
+      .check();
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+
+    const notice = page.locator('[data-entry-soldout]');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('The race is full.');
+    await expect(notice).toContainText('Nothing has been charged');
+    await expect(notice).toBeFocused();
+
+    // **Everything, including the three that a naive re-render drops**: the date of birth is
+    // three inputs for one question, the entry type is a radio rather than a value, and the
+    // medical notes are a textarea whose content is not an attribute.
+    await expect(entry(page).getByLabel('First name', { exact: true })).toHaveValue(
+      'Grace',
+    );
+    await expect(entry(page).getByLabel('Day', { exact: true })).toHaveValue('9');
+    await expect(entry(page).getByLabel('Month', { exact: true })).toHaveValue('12');
+    await expect(entry(page).getByLabel('Year', { exact: true })).toHaveValue('1986');
+    await expect(entry(page).getByLabel('Gender', { exact: true })).toHaveValue('female');
+    await expect(entry(page).getByLabel(/^Affiliated/)).toBeChecked();
+    await expect(entry(page).getByLabel(/^England Athletics number/)).toHaveValue(
+      '1234567',
+    );
+    await expect(entry(page).getByLabel(/^Running club/)).toHaveValue(
+      "O'Sullivan Runners",
+    );
+    await expect(
+      entry(page).getByLabel('Medical information (optional)', { exact: true }),
+    ).toHaveValue('Type 1 diabetic.');
+    await expect(entry(page).getByLabel(/I agree to the club holding/)).toBeChecked();
+
+    // Still on the form's own address, so asking about a waiting list costs one more tap.
+    await expect(page).toHaveURL(/\/nn\/$/);
+  });
+
+  test('never sends anybody to a payment page for a place that has gone', async ({
+    page,
+  }) => {
+    // **The capacity check comes before the payment page**, so there is no redirect at all
+    // rather than one that is later regretted. Asserted on the response itself rather than by
+    // watching for a navigation that does not happen, which is the difference between proving
+    // something and waiting for it.
+    const response = await postEntry(page, {
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'e2e-soldout-2@example.com',
+      emailConfirm: 'e2e-soldout-2@example.com',
+      dobDay: '9',
+      dobMonth: '12',
+      dobYear: '1986',
+      gender: 'female',
+      feeCode: 'unaffiliated',
+      emergencyName: 'Margaret Hamilton',
+      emergencyPhone: '0117 496 0000',
+      entryTerms: 'on',
+    });
+
+    expect(response.status()).toBe(409);
+    expect(response.headers().location).toBeUndefined();
+    expect(await response.text()).toContain('The race is full.');
+  });
+
+  test('is operable at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-soldout-320@example.com' });
+    await entry(page)
+      .getByLabel(/^Unaffiliated/)
+      .check();
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page.locator('[data-entry-soldout]')).toBeVisible();
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows).toBe(false);
+  });
+
+  test('has zero axe violations @requires-js', async ({ page }) => {
+    // The state a page is in when something has gone wrong is the state least likely to have
+    // been checked, and the one somebody is most likely to be struggling with.
+    await page.goto('/nn/');
+
+    await fillEntry(page, { email: 'e2e-soldout-axe@example.com' });
+    await entry(page)
+      .getByLabel(/^Unaffiliated/)
+      .check();
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page.locator('[data-entry-soldout]')).toBeVisible();
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The page Stripe sends people back to
+// -----------------------------------------------------------------------------------------
+
+test.describe('the return page', () => {
+  // **A URL somebody can type is not evidence of payment**, and this page must never behave
+  // as though it were. It is reached by a redirect that fires in the person's browser — one
+  // closed tab and it never fires at all — so what it says is what the club is doing, not
+  // what has happened. Slice C's webhook is the only thing that can confirm a payment.
+  //
+  // Reachable in every window state, so this block moves nothing.
+
+  test('renders the honest state for a session that matches nothing', async ({
+    page,
+  }) => {
+    const response = await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+
+    // Not an error. Somebody who has genuinely just paid must not meet a 500 because the
+    // session id in their URL means nothing to a page that cannot look it up yet.
+    expect(response?.status()).toBe(200);
+
+    await expect(
+      page.getByRole('heading', { name: 'Confirming your payment' }),
+    ).toBeVisible();
+    await expect(page.getByRole('status')).toContainText(
+      'This page cannot tell you whether the payment went through',
+    );
+  });
+
+  test('claims nothing about an entry having succeeded', async ({ page }) => {
+    // The wording is the whole feature. A tick, a "thank you", or the word "confirmed" here
+    // would be a confirmation for an entry that may not exist — the one failure on this page
+    // worth more than every other put together.
+    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+
+    const body = (await page.locator('body').textContent()) ?? '';
+
+    expect(body).not.toMatch(/you(’|')?re entered/i);
+    expect(body).not.toMatch(/entry confirmed/i);
+    expect(body).not.toMatch(/payment (received|successful|complete)/i);
+    expect(body).not.toMatch(/thank you/i);
+  });
+
+  test('is reachable with no session parameter at all', async ({ page }) => {
+    const response = await page.goto('/nn/entry/complete/');
+
+    expect(response?.status()).toBe(200);
+    await expect(
+      page.getByRole('heading', { name: 'Confirming your payment' }),
+    ).toBeVisible();
+  });
+
+  test('is operable at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows).toBe(false);
+  });
+
+  test('has zero axe violations @requires-js', async ({ page }) => {
+    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
   });
 });

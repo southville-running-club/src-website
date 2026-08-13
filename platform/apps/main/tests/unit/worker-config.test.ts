@@ -51,7 +51,9 @@ describe('Stripe credentials are not in this repository', () => {
     const parsed = config();
 
     for (const vars of [parsed.vars, parsed.env?.production?.vars]) {
-      expect(Object.keys(vars ?? {}).filter((key) => key.startsWith('STRIPE'))).toEqual([]);
+      expect(Object.keys(vars ?? {}).filter((key) => key.startsWith('STRIPE'))).toEqual(
+        [],
+      );
     }
   });
 

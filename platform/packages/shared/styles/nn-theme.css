@@ -3,11 +3,15 @@
  *
  * The campaign look — blood-red gradient, bone text, a yellow the club calls "pus", and
  * Nosifer for the horror lettering — taken from the approved mockup at
- * `docs/design/nn-entry-mockup.html`. **Its visual system only.** The mockup is the
- * entries application, built against confirmed race facts; this site has none of them, so
- * every component that exists to display one (capacity bar, facts row, prize grid,
- * schedule, course diagram, price picker) is deliberately absent here rather than filled
- * in with a plausible number. See docs/architecture/principles.md#stop-and-ask
+ * `docs/design/nn-entry-mockup.html`. **Its visual system only.**
+ *
+ * **What the mockup shows that this site does not is now a much shorter list**, because the
+ * facts arrived. The fact row, the prize grid, the schedule and the entry-type cards with
+ * their prices are all here, drawn from `race.json` and from `entries.fees`. What is still
+ * absent is what nobody has confirmed or what would be a claim: the **capacity bar** — how
+ * many places are *left* would be wrong within a day of anybody entering, and this page says
+ * how big the race is instead — and the course diagram. Nothing here is filled in with a
+ * plausible number. See docs/architecture/principles.md#stop-and-ask
  *
  * ## Why this is a second stylesheet rather than more of base.css
  *
@@ -108,6 +112,27 @@
  *   field border strong on card-muted  input       3.29:1    3.0 (1.4.11) ok — corrected
  *   field border strong on chosen      EA box      3.30:1    3.0 (1.4.11) ok — new
  *   chosen on card           chosen card fill      1.12:1    —            see below
+ *
+ * Added by taking a payment — the sold-out card, the two new failure notices, and the page
+ * Stripe returns somebody to:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   ink on card              notice body         18.09:1    4.5 (AA)     ok — no new pair
+ *   slate on card            notice secondary     8.30:1    4.5 (AA)     ok — no new pair
+ *   danger on card           notice border        5.53:1    3.0 (1.4.11) ok — no new pair
+ *   bone on card             `.lede` in a notice   1.06:1    4.5 (AA)     *** was failing ***
+ *
+ * **This slice introduced no new colour pair, and that is the point of reusing the notice
+ * pattern rather than inventing a sold-out treatment.** Somebody meeting the sold-out card
+ * has just been told bad news; the campaign's atmosphere belongs on the poster.
+ *
+ * **The one real failure it did find was already there.** `.lede` is bone, because it was
+ * written for the hero — and the entry return page is the first white card to use one.
+ * **1.06:1**, on a bold 18px sentence that was the whole point of the card and was in
+ * practice invisible. Caught by axe rather than by reading, which is the argument for the
+ * accessibility suite in one line. Fixed at `.nn-card .lede` rather than at the call site,
+ * because the next card to use a lede would have hit it again; it now reads ink at 18.09:1.
  *
  * **`--nn-field-border` on `card-muted` is 2.88:1 and is a real failure, not a flagged
  * exception.** The medical section is a muted panel with a text box in it, and a text box's
@@ -603,6 +628,16 @@ body.theme-nn {
    secondary text on the form**, which is the sort of thing that only shows up in a computed
    style. `a` does need restating: `.theme-nn a` is bone, and bone on white is nothing. */
 .theme-nn .nn-card a {
+  color: var(--nn-ink);
+}
+
+/* **`.lede` is bone, because it was written for the hero — and bone on white is nothing.**
+   The prose block below already restates it for `.nn-prose`; this restates it for every
+   other white card, which is the general form of the same fix. Found by axe on the entry
+   return page at **1.06:1** — a bold 18px sentence that was the whole point of the card and
+   was, in practice, invisible. Fixed here rather than by dropping the class at the one call
+   site, because the next card to use a lede would have hit it again. */
+.theme-nn .nn-card .lede {
   color: var(--nn-ink);
 }
 
@@ -1192,10 +1227,11 @@ body.theme-nn {
  * places, and whether they need a costume. Mono, because that is this theme's voice for a
  * factual row, and `flex-wrap` so they stack rather than push at 320px.
  *
- * **The primary button says "Register your interest", not "Enter the race".** Entries are
- * a separate application and this site links to nothing that takes money — so the loudest
- * control on the page has to be the one thing it can actually deliver. The mockup's
- * "Enter the race — from £15" is two blocked facts and a payment link in one button.
+ * **The primary button says whichever of the two things this page can actually deliver**, and
+ * the Worker decides which on every request: "Register your interest" while the event row
+ * says entries are shut, "Enter the race" when it says they are open. That is a row edit and
+ * not a deploy. The mockup's "Enter the race — from £15" bakes a price into a button; the
+ * price is painted on from `entries.fees` instead, and the label with it.
  *
  * The ghost button is a real 2px bone border at 8.43:1, well past the 3:1 that 1.4.11 asks
  * of a control boundary — which matters here because, unlike the yellow one, its edge is

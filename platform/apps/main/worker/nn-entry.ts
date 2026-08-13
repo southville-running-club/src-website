@@ -246,10 +246,14 @@ export async function processNnEntry(
 
   // **A free place cannot go through a payment page, and this stops before anything is
   // written.** A visually impaired runner's guide pays nothing, which is right — and Stripe
-  // Checkout exists to take a payment, so a session for £0 is either refused or completes
-  // without one. Completing it would mean deciding here that an unpaid entry counts as paid,
-  // and that decision is not this slice's to take: nothing in this repository moves a
-  // purchase to `paid`.
+  // refuses the session outright: *"The Checkout Session's total amount due cannot be zero in
+  // `payment` mode"*, confirmed against the test API rather than assumed. So this is not
+  // caution about an edge case; it is the only alternative to holding a place that can never
+  // be completed.
+  //
+  // Completing a free entry some other way would mean deciding here that an unpaid entry
+  // counts as paid, and that decision is not this slice's to take: nothing in this repository
+  // moves a purchase to `paid`.
   //
   // So the honest answer is to say plainly that a free place cannot be completed here yet
   // and give somebody the race address, rather than hold a place they can never finish. The

@@ -118,7 +118,8 @@ transaction on its own infrastructure.
 | **`new.<apex>/nn`** | A path, not a subdomain. `new.<apex>` is the Worker's custom domain and Cloudflare creates the record — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
 | **Sign-up** ✅ | **Built.** Name, email and consent into `intake.nn_interest`, through a column-scoped anonymous-insert grant. A real `<form method="post">` that works with JavaScript disabled, and a privacy notice at `/nn/privacy/` |
 | **The race pages** ✅ | **Built.** The confirmed date and the race facts at `/nn/`, and three content pages — `/nn/course/`, `/nn/race-day/` and `/nn/spectators/` — reading from `apps/main/src/content/race.json`. **The copy is a draft pending committee approval** |
-| **Stripe payment** | Checkout plus a webhook into a Worker. **Still gated** on the governance below |
+| **Stripe payment — the handoff** ✅ | **Built.** A valid entry holds a place for 31 minutes under a per-event lock, is priced from `entries.fees`, and is handed to Stripe Checkout. Capacity is enforced under real concurrency, and the club never sees a card number |
+| **Stripe payment — the confirmation** | **The webhook, and it is next.** Nothing moves a purchase to `paid` yet, and `/nn/entry/complete/` says so rather than claiming an entry succeeded. Needs the production URL before the endpoint can be created |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
 path — the two Workers, one hostname told apart by path. The page, form and payment flow
@@ -134,7 +135,22 @@ so they are prerequisites rather than build tasks — and they sit on the critic
 - [ ] **Treasurer-controlled payment arrangements** in place
 - [ ] **Stripe account** under the club identity, with both volunteers able to reach it
 - [ ] **Refund policy** written, since money is being taken from the public
-- [ ] **Entry price confirmed** — assumed £8–£10
+- [x] **Entry price confirmed** — **13 August 2026: £15 affiliated, £17 unaffiliated, £0 for a
+      visually impaired runner's guide.** Not the £8–£10 this line assumed. They live in
+      `entries.fees.price_pence` and nowhere else
+
+Three things the payment half surfaced that are the committee's rather than the build's, and
+none of them blocks the rest:
+
+- [ ] **The entry terms.** Not written, and the form's checkbox says so rather than linking to
+      a page that does not exist. **They have to land before entries open**
+- [ ] **How a free place is taken.** Stripe refuses a zero-total Checkout session outright, so
+      a guide's place cannot be completed online. The form says so and gives the race address;
+      completing it any other way means deciding that an unpaid entry counts as paid
+- [ ] **A rate-limiting rule on `POST /nn/`.** An anonymous caller can hold places, up to the
+      whole field, for as long as a hold lasts. A Cloudflare WAF rule is the recommendation
+      and it costs no code — a cap in the database would block a legitimate person retrying on
+      bad signal, which is a policy decision
 
 **Card data never touches club systems.** Stripe Checkout, hosted by Stripe, with a webhook
 recording the result. That is what keeps this inside
@@ -317,7 +333,13 @@ this removes.
 
 ## Deferred to the next pull request
 
-- **Schema design in detail** — where race entries and payment records land, and how `intake`
-  promotes into `club`
-- **The Stripe data model** — what is stored against a payment, and what is deliberately not
+- ~~**Schema design in detail**~~ — **done.** The `entries` schema, six tables, RLS on every
+  one from its first migration. How `intake` promotes into `club` is still open
+- ~~**The Stripe data model**~~ — **done.** The reference and never the instrument: a Checkout
+  session id and a payment intent id, and no card number, last four or expiry anywhere near
+  this database. That is what keeps the club out of PCI scope
+- **The webhook** — what confirms a payment, how it authenticates, and what privilege it
+  writes with. **Not a licence for a service role key**
+- **The confirmation email** — nothing is sent yet, and `/nn/entry/complete/` is worded as
+  what the club will do rather than what has happened
 - **The backup runbook**, with a tested restore

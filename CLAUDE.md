@@ -26,18 +26,21 @@ re-run.
   2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
   the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
   fees are confirmed too** — £15 affiliated, £17 unaffiliated, £0 for a visually impaired
-  runner's guide — and they live in `entries.fees`, never in markup. **Still unconfirmed, and
-  none of them may appear anywhere:** the 2026 ARC permit number (the 2023 number is not a
-  substitute), the 2026 race director's name, the entry open and close times, the transfer
-  deadline, and the minimum age. Do not invent a fact, do not infer one from a phase
-  document, and do not put a plausible placeholder in markup.
+  runner's guide — and they live in `entries.fees`, never in markup. **So is the minimum age:
+  18 on race day**, in `entries.events.minimum_age`. **Still unconfirmed, and none of them may
+  appear anywhere:** the 2026 ARC permit number (the 2023 number is not a substitute), the
+  2026 race director's name, the entry open and close times, and the transfer deadline. Do not
+  invent a fact, do not infer one from a phase document, and do not put a plausible
+  placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
   list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
-- **Taking payment is no longer a stop-and-ask**, but **connecting one is**: the treasurer
-  has authorised in-house payment, and Slice A's submit handler deliberately validates and
-  stops. Stripe's secret key and webhook signing secret are **Worker secrets**, never in this
-  repository.
+- **Taking payment is no longer a stop-and-ask, and it is now connected**: a valid entry
+  holds a place and goes to Stripe Checkout. **Confirming one still is** — nothing moves a
+  purchase to `paid`, and the thing that will is the webhook. Stripe's secret key and webhook
+  signing secret are **Worker secrets**, never in this repository, never in `wrangler.jsonc`,
+  never in a `vars` block. A real key on a machine belongs in `apps/main/.dev.vars`, which is
+  gitignored.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -64,7 +67,7 @@ Use `./dev`, or `cd platform` first.
 
 ```bash
 ./dev up      # the whole site on http://localhost:8787, browser opened
-./dev test    # 45 acceptance tests, then everything stopped
+./dev test    # 233 acceptance tests, then everything stopped
 ./dev check   # lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
@@ -190,8 +193,8 @@ about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.c
 
 ## What is not built yet
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no Stripe
-and no timing application code**.
+So you do not go looking for it, or assume it is missing by mistake: there is **no payment
+confirmation, no confirmation email, and no timing application code**.
 
 Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
 three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
@@ -203,11 +206,26 @@ entry form when `entries.events` says entries are open, and the interest form ot
 decided per request rather than by a deploy. `entries.events.entries_open_at` is `null`
 today, so what production serves is the interest form.
 
-**The entry form validates and stops.** There is no payment, no capacity enforcement and no
-row written — a valid entry gets an honest 503 saying nothing was stored and nothing was
-charged, because a confirmation for an entry that does not exist would be the worst thing
-this page could do. **The anon role holds no grant on any table in `entries`**; the one
-thing it may call is `entries.entry_state()`.
+**A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
+per-event advisory lock: re-check the window, count the places gone, price it from
+`entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
+exactly that amount and a 303 to it.
+
+**Nothing moves a purchase to `paid`, and nothing may.** The redirect back from Stripe is not
+proof of payment — a tab can be closed before it fires, and the return URL is one anybody can
+type. Confirmation is the webhook's job; `/nn/entry/complete/` says what the club is doing
+rather than what has happened, and a confirmation for an entry that does not exist would be
+the worst thing this page could do.
+
+**The anon role still holds no grant on any table in `entries`.** It may call four functions
+and nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()` and
+`attach_checkout_session()`. If a test in `packages/db/tests/entries.test.ts` ever fails,
+something granted a table privilege to a key that is published in page source.
+
+**A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
+zero-total Checkout session, so a visually impaired runner's guide is told so plainly and
+given the race address. Fixing it means deciding that an unpaid entry counts as paid, which
+is a committee decision rather than a build one.
 
 The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).

@@ -25,7 +25,8 @@ const INPUT: CheckoutSessionInput = {
   amountPence: 1700,
   description: 'Nightingale Nightmare 2026 — Unaffiliated entry',
   purchaserEmail: 'grace@example.com',
-  successUrl: 'https://new.southvillerunningclub.co.uk/nn/entry/complete/?session={CHECKOUT_SESSION_ID}',
+  successUrl:
+    'https://new.southvillerunningclub.co.uk/nn/entry/complete/?session={CHECKOUT_SESSION_ID}',
   cancelUrl: 'https://new.southvillerunningclub.co.uk/nn/',
   // 12:00:00 UTC on a fixed day. Deterministic and invented, like every fixture here.
   expiresAt: new Date('2026-09-01T12:00:00.000Z'),
@@ -51,9 +52,9 @@ describe('what the Checkout session is built from', () => {
   it('carries a discounted amount through unchanged as well', () => {
     // 10% off an unaffiliated entry is the 2023 Long Ashton code, and the arithmetic that
     // produced 1530 is the database's. This asserts only that nothing here second-guesses it.
-    expect(params({ amountPence: 1530 }).get('line_items[0][price_data][unit_amount]')).toBe(
-      '1530',
-    );
+    expect(
+      params({ amountPence: 1530 }).get('line_items[0][price_data][unit_amount]'),
+    ).toBe('1530');
   });
 
   it('names no Stripe Product and no Stripe Price', () => {
@@ -69,6 +70,14 @@ describe('what the Checkout session is built from', () => {
     );
   });
 
+  it('turns adaptive pricing off, so everybody is charged the row', () => {
+    // **On by default for this account**, confirmed against the test API. Left on, it
+    // presents and charges a converted amount to somebody paying from abroad — a second
+    // version of a price this repository keeps in exactly one place, at a rate nobody here
+    // chose, and a difference the treasurer would meet at reconciliation.
+    expect(params().get('adaptive_pricing[enabled]')).toBe('false');
+  });
+
   it('carries the purchase id as the reference the webhook will match on', () => {
     const built = params();
 
@@ -81,9 +90,14 @@ describe('what the Checkout session is built from', () => {
     // Stripe metadata is readable by anybody with dashboard access and is copied onto the
     // payment intent. A name, a date of birth or an emergency contact reaching it would be
     // personal data in a third-party system nobody assessed for it.
-    const metadataKeys = [...params().keys()].filter((key) => key.startsWith('metadata['));
+    const metadataKeys = [...params().keys()].filter((key) =>
+      key.startsWith('metadata['),
+    );
 
-    expect(metadataKeys.sort()).toEqual(['metadata[event_slug]', 'metadata[purchase_id]']);
+    expect(metadataKeys.sort()).toEqual([
+      'metadata[event_slug]',
+      'metadata[purchase_id]',
+    ]);
   });
 
   it('sends the email address and nothing else about the person', () => {
@@ -149,7 +163,9 @@ describe('whether this Worker can take a payment at all', () => {
   });
 
   it('defaults to the real Stripe when nothing overrides it', () => {
-    expect(stripeConfig({ STRIPE_SECRET_KEY: 'sk_test_x' })?.apiBase).toBe(STRIPE_API_BASE);
+    expect(stripeConfig({ STRIPE_SECRET_KEY: 'sk_test_x' })?.apiBase).toBe(
+      STRIPE_API_BASE,
+    );
     expect(STRIPE_API_BASE).toBe('https://api.stripe.com');
   });
 

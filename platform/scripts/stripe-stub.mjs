@@ -29,6 +29,10 @@
  * starts and stops it with the two Workers; Playwright starts its own.
  */
 import { createServer } from 'node:http';
+// Imported rather than taken from the global, because `eslint.config.js` declares the Node
+// globals these scripts may use one by one and `Buffer` is deliberately not on that list —
+// the explicit import is cheaper than widening the allowance for everything in `scripts/`.
+import { Buffer } from 'node:buffer';
 
 const PORT = Number(process.env.STRIPE_STUB_PORT ?? 8789);
 
