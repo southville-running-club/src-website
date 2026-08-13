@@ -182,6 +182,132 @@ pay for a higher Resend tier, not to keep widening the queue.
 
 ---
 
+## The outbox, in depth
+
+**This is design, not a build decision.** A table that stores a recipient email address is
+new storage of personal data, which this repository's CLAUDE.md treats as a committee call
+("Adding a database column that holds personal data is a committee decision"), not
+something to migrate in on its own authority. Nothing below should be turned into a
+migration without that sign-off — it exists so the sign-off is asking about a concrete
+shape rather than a vague one.
+
+### The shape of the table
+
+Following the pattern the first real table already set in
+[`intake.nn_interest`](../../platform/packages/db/supabase/migrations/20260809180000_create_intake_nn_interest.sql)
+— narrow columns, RLS on from the first migration, no policy until the flow that needs it
+exists to test it:
+
+```
+intake.email_outbox
+  id            uuid, primary key
+  to_email      text, not null
+  from_identity text, not null   -- 'nn' | 'pass-the-buck' | 'noreply', not a free-form From
+  template      text, not null   -- which email this is, e.g. 'nn-entry-confirmation'
+  template_data jsonb, not null  -- the fields the template needs — no more than that
+  status        text, not null, default 'pending'  -- 'pending' | 'sent' | 'failed'
+  attempts      int, not null, default 0
+  last_error    text             -- Resend's error, for 'failed' rows a person needs to see
+  created_at    timestamptz, not null, default now()
+  sent_at       timestamptz
+```
+
+**`template_data`, not a rendered email body.** Storing the finished HTML would duplicate
+whatever the template already encodes; storing the inputs keeps the row small and keeps the
+template itself (wording, branding) a code change reviewed like any other, not a stored
+artifact that drifts from what actually ships.
+
+**No content beyond what an entry confirmation already needs** — this table should not
+become a place a fifth field quietly arrives. If a future template wants more than the
+entry row it was built from already has, that is the same committee conversation as adding
+a column to `intake.nn_interest`, not a smaller one because it's "just for email."
+
+### Who is allowed to touch it, without a service role key
+
+This is the part worth being explicit about, because it's the part most likely to be
+solved by reaching for the one credential this repository has ruled out.
+
+**The insert is easy — it rides the request that's already authenticated.** Whatever
+policy lets the anonymous client insert the entry or intake row in the first place
+(`intake.nn_interest`'s anonymous-insert policy is the existing example) is extended to
+insert a matching `email_outbox` row **in the same transaction**, most naturally via a
+`security definer` Postgres function the entry-submission endpoint already calls — the
+function is trusted by what it does (insert exactly one outbox row per entry), not by who
+is calling it, so it needs no new client-side privilege at all.
+
+**Draining it is the hard part**, because a scheduled Worker has no browser session and no
+user to be. It needs to read every `pending` row regardless of who inserted it, and update
+`status` afterwards — by definition, more access than any single anonymous or authenticated
+client should have to another person's row. Three ways to get there without a service role
+key, roughly in order of preference:
+
+| Approach | How it works | Trade-off |
+| --- | --- | --- |
+| **A dedicated Postgres role for the Worker** | A migration creates a role (not `service_role`) with a narrow grant — `select`/`update` on `intake.email_outbox` only — and an RLS policy on that table naming the role explicitly. The Worker authenticates to Postgres directly (not through PostgREST/anon) using a connection string in a Worker secret, scoped to that role by the database's own permissions | The credential is a Postgres password, not the platform-wide service role key — a leak exposes one table, not every table RLS was protecting. Needs a direct Postgres connection from the Worker rather than the Supabase JS client, which is a new pattern for `apps/main` |
+| **A real Supabase Auth "service account" row** | One genuine `auth.users` row (e.g. `email-worker@southvillerunningclub.co.uk`, a real address the club controls), signed in once to get a long-lived session, refreshed by the Worker via the Supabase JS client like any authenticated user. RLS policies check `auth.uid() = '<that fixed id>'` on `email_outbox` only | Stays entirely inside the anon-key-plus-RLS model already used everywhere else — no new connection type, no new secret shape. Costs one more row in `auth.users` to reason about, and a refresh-token secret to rotate if it leaks |
+| **A signed, narrowly-scoped custom claim** | A Postgres function issues a short-lived JWT carrying a custom claim (not `service_role`) that a policy checks, minted only for the Worker's own request | Most flexible, but it's inventing new auth machinery for one Worker job — the kind of unusual choice [principles](../architecture/principles.md) already warns is a tax on whoever maintains it next |
+
+**The Supabase Auth service-account row is the boring answer**, consistent with "boring
+beats optimal": no new connection type, no new claim scheme, just one more authenticated
+user whose only privilege is this one table. It should still go through the same review as
+every other RLS policy, with the negative case tested explicitly — an anonymous client, and
+a different authenticated user, must both fail to read or update `email_outbox` rows that
+are not theirs. That failing test is worth more than the passing one, per this repo's own
+testing guidance.
+
+### The scheduled Worker's job
+
+A Cloudflare Cron Trigger — the platform already runs on Workers, this is a new trigger
+type on the existing `apps/main` Worker rather than new infrastructure. Its job each run:
+
+1. Select `pending` rows, oldest first, in a small batch (a handful at a time, not all at
+   once — Resend still has a per-request behaviour worth respecting even under the daily
+   cap).
+2. For each row, call Resend. On success: `status = 'sent'`, `sent_at = now()`. On a `429`:
+   stop the run entirely — the daily cap is account-wide, so there is no point trying the
+   next row — and leave every remaining row `pending` for the next run. On any other
+   failure (bad address, template error): `status = 'failed'`, `attempts += 1`,
+   `last_error` recorded, and move on to the next row — this is not a capacity problem and
+   should not stop the batch.
+3. Log a count — sent, still pending, newly failed — so a run that quietly does nothing is
+   visible rather than silent.
+
+**Failures that are not capacity should not retry forever.** A `failed` row past a small
+attempt limit (two or three) is a data problem — a malformed address, a template bug — not
+something a fourth retry fixes. Past that limit it should stop retrying and just stay
+visible as `failed` for a person to look at, the same way the negative-case testing
+philosophy treats an assertion failing as more informative than one that silently passes.
+
+### "Resend in the morning if it failed"
+
+This falls out of the design above rather than needing separate machinery: a `429` doesn't
+mark anything `failed` — it leaves the row `pending`, and `pending` rows are exactly what
+the next scheduled run picks up. So the concrete answer to "how do we resend in the
+morning" is: **run the Cron Trigger more than once a day**, and the morning run is just the
+next ordinary run, doing what every run does — drain whatever's `pending`.
+
+A sensible cadence, given the club's actual traffic pattern:
+
+| Run | Purpose |
+| --- | --- |
+| Every 15–30 minutes during the day | Keeps confirmation emails close to real-time on an ordinary day |
+| One run early the next morning | Specifically catches whatever was still `pending` at midnight because the cap was hit the day before — this is "resend in the morning" |
+
+Both are the same Worker, the same code path, the same table. There's no special
+"morning retry" logic to build — the morning run is just another tick of the same cron,
+and it does the right thing because `pending` rows don't expire or get abandoned between
+runs. The only thing worth deciding is the cron expression, which is a one-line config
+change, not a design decision.
+
+**One thing to watch: rows should not silently age past being useful.** An entry
+confirmation delayed by five hours on a rush day is fine; one still `pending` after three
+days means something is stuck — wrong Resend key, a template that always errors, a
+Worker that stopped being deployed. A `pending` row older than, say, 24 hours is worth
+surfacing (even just as a manual `select` a volunteer runs, not necessarily an alert) so
+that "the outbox is silently not draining" doesn't look identical to "everything's fine."
+
+---
+
 ## Why not just send from `info@`, or another human mailbox?
 
 Worth answering directly, since it looks like the simplest option — no new provider, no
