@@ -11,18 +11,23 @@ import type { EntryState } from '../../src/entry-state';
  * decides `required` means something slightly different. Everything the Worker will accept
  * is decided here, and a hole here is a hole everywhere.
  *
- * Race day is Sunday 1 November 2026, confirmed. **`minimumAge` is null in the default
- * fixture and that is not laziness** — it is the configured state: no minimum age has been
- * confirmed for Nightingale Nightmare, so the form applies none. The rule itself is exercised
- * against an event that *does* configure one, which is the shape a future race will take.
+ * Race day is Sunday 1 November 2026, confirmed. **`minimumAge` is 18 in the default fixture
+ * because that is now the configured state** — the committee confirmed it on 13 August 2026
+ * and it went in as one `update` to `entries.events.minimum_age`. The *absence* of a minimum
+ * is exercised separately, against `NO_MINIMUM`, because it is still a state a future race
+ * can be in and the code path that skips the check should not stop being covered the day
+ * this race stopped using it.
  */
 
 const RULES: NnEntryRules = {
   eventDate: { year: 2026, month: 11, day: 1 },
-  minimumAge: null,
+  minimumAge: 18,
   feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
   eaRequiredForFeeCodes: ['affiliated'],
 };
+
+/** An event that turns nobody away on age — the shape `minimum_age is null` produces. */
+const NO_MINIMUM: NnEntryRules = { ...RULES, minimumAge: null };
 
 /** A submission with nothing wrong with it, as `Object.fromEntries(formData)` would give it. */
 function good(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -184,14 +189,17 @@ describe('the date of birth, entered as three numbers', () => {
 });
 
 describe('the minimum age, which is configuration and not a rule in this file', () => {
-  const eighteen: NnEntryRules = { ...RULES, minimumAge: 18 };
+  // **The two assertions either side of the boundary are the point of this block.** The same
+  // pair is made against the database in `packages/db/tests/entries-capacity.test.ts`,
+  // because that is the control and this is the convenience — and if the two derivations ever
+  // disagreed, one of these four tests would be the thing that noticed.
 
   it('accepts somebody who is exactly the minimum age on race day', () => {
     // Born 1 November 2008: turns 18 **on** race day. The club's categories are "at race
     // date", so this is inside and it is the boundary somebody will argue about.
     const result = parseNnEntry(
       good({ dobDay: '1', dobMonth: '11', dobYear: '2008' }),
-      eighteen,
+      RULES,
     );
     expect(result.ok).toBe(true);
   });
@@ -199,7 +207,7 @@ describe('the minimum age, which is configuration and not a rule in this file', 
   it('refuses somebody one day short of it', () => {
     const result = parseNnEntry(
       good({ dobDay: '2', dobMonth: '11', dobYear: '2008' }),
-      eighteen,
+      RULES,
     );
 
     expect(result.ok).toBe(false);
@@ -209,12 +217,11 @@ describe('the minimum age, which is configuration and not a rule in this file', 
   });
 
   it('applies no check at all when the event configures none', () => {
-    // **The configured state for Nightingale Nightmare.** 18 is implied by the category
-    // structure and has not been confirmed by the committee, so `minimum_age` is null and
-    // nobody is turned away by an inference.
+    // Not Nightingale Nightmare any more, and still a state the column can be in. A race
+    // that admits juniors is an `insert` with a null here, not an edit to this module.
     const result = parseNnEntry(
       good({ dobDay: '2', dobMonth: '11', dobYear: '2012' }),
-      RULES,
+      NO_MINIMUM,
     );
     expect(result.ok).toBe(true);
   });
@@ -243,9 +250,22 @@ describe('the entry type, and the number that hangs off it', () => {
     // **England Athletics publishes no verification API.** A well-formed number is accepted
     // here and spot-checked by a human later; nothing in this repository confirms that a
     // number is real or belongs to whoever typed it.
+    //
+    // **The message says seven and the check allows six to eight, and that gap is the
+    // decision.** Every number the club has seen is seven digits; what the national range is
+    // below that is unknown, so the words point somebody at their registration email while
+    // the check stays permissive. A false reject blocks a paying entrant at the worst
+    // possible moment, and the six-digit case below is exactly the one that would be lost.
     expect(errorOn(good({ feeCode: 'affiliated', eaNumber: 'ABC1234' }))?.eaNumber).toBe(
-      'An England Athletics number is 6 to 8 digits, like 1234567.',
+      'England Athletics numbers are seven digits — check the one on your registration email.',
     );
+
+    for (const permitted of ['123456', '1234567', '12345678']) {
+      expect(
+        errorOn(good({ feeCode: 'affiliated', eaNumber: permitted }))?.eaNumber,
+      ).toBeUndefined();
+    }
+
     expect(
       errorOn(good({ feeCode: 'affiliated', eaNumber: '12345' }))?.eaNumber,
     ).toBeDefined();
@@ -440,7 +460,7 @@ describe('the rules, lifted off what the database said', () => {
       startTime: '11:00:00',
       entrantsPerEntry: 1,
       capacity: 250,
-      minimumAge: null,
+      minimumAge: 18,
       requiresDob: true,
       consentVersion: 'nn-2026-v1',
       fees: [
@@ -462,7 +482,7 @@ describe('the rules, lifted off what the database said', () => {
 
     expect(entryRulesFrom(state)).toEqual({
       eventDate: { year: 2026, month: 11, day: 1 },
-      minimumAge: null,
+      minimumAge: 18,
       feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
       eaRequiredForFeeCodes: ['affiliated'],
     });

@@ -98,6 +98,22 @@ export default defineConfig({
   // server. **Neither command builds**; `npm run test:e2e` does that first.
   webServer: [
     {
+      // **A fake Stripe, and the reason the entry suite can run at all.** This repository
+      // holds no Stripe credentials and never will, so `apps/main`'s `preview` script points
+      // `STRIPE_API_BASE` here and this answers `POST /v1/checkout/sessions` with a canned
+      // session on `checkout.stripe.com`. The suite asserts **where** the Worker redirects
+      // and never follows it: Stripe's hosted page is a third party's, and a test that types
+      // into it is a test that breaks when they redesign it.
+      //
+      // Started before the website, because `apps/main` is what calls it.
+      command: 'npm run stripe:stub',
+      url: 'http://127.0.0.1:8789/__stub/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+    {
       command: 'npm run preview --workspace=apps/main',
       url: 'http://localhost:8787',
       reuseExistingServer: !process.env.CI,

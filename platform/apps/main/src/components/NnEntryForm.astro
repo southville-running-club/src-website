@@ -1,4 +1,6 @@
 ---
+import race from '../content/race.json';
+
 /**
  * The Nightingale Nightmare entry form.
  *
@@ -101,10 +103,11 @@ const SUMMARY_LINKS = [
 </div>
 
 {
-  /* **The stub's honest answer, and the whole of what Slice A does with a good entry.**
-  Payment is not connected, so a valid submission is not quietly acknowledged as though it
-  were an entry — that would be the one failure worth more than all the others put together.
-  Nothing is stored and nothing is charged, and the notice says exactly that. */
+  /* **The honest answer when there is no payment key to send anybody to.** That is the
+  deployed state today: `STRIPE_SECRET_KEY` is a Worker secret and it has not been set. The
+  Worker checks it *before* it holds a place, so this notice's claim that nothing was stored
+  is literally true rather than nearly true. A valid submission is never quietly acknowledged
+  as an entry — that would be the one failure worth more than all the others put together. */
 }
 <div
   class="notice notice-bad nn-card"
@@ -120,6 +123,64 @@ const SUMMARY_LINKS = [
     >. Entries cannot be completed until the payment step is switched on.
   </p>
   <p>Nothing you typed has been lost — it is still in the form below.</p>
+</div>
+
+{
+  /* **Sold out, and this is the case where losing somebody's typing hurts most.** They have
+  filled in fourteen fields and are being told the race went while they were doing it. The
+  form below still holds every value, so asking about a waiting list costs them nothing more.
+
+  A white card in the established pattern rather than a horror flourish. Somebody has just
+  had bad news; the campaign's atmosphere belongs on the poster, not on this. There is no
+  waiting list to join yet, so this does not offer one — it gives the address that already
+  exists and says plainly that nothing was taken. */
+}
+<div class="notice notice-bad nn-card" data-entry-soldout hidden tabindex="-1" role="alert">
+  <p><strong>The race is full.</strong></p>
+  <p>
+    The last place went while this form was open. <strong
+      >Nothing has been charged and no entry has been taken.</strong
+    >
+  </p>
+  <p>
+    Everything you typed is still in the form below. If you would like to be told about a
+    place if one comes back, email <a href={`mailto:${race.contact}`}>{race.contact}</a>.
+  </p>
+</div>
+
+{
+  /* Something went wrong on the club's side after the form was accepted: the database could
+  not be reached, or the payment page could not be created. **The one thing somebody needs to
+  know is that no money moved**, and it is the first thing this says. */
+}
+<div class="notice notice-bad nn-card" data-entry-failed hidden tabindex="-1" role="alert">
+  <p><strong>Sorry — your entry could not be completed just now.</strong></p>
+  <p>
+    <strong>Nothing has been charged</strong> and your entry is not finished. This is a
+    problem at the club's end rather than anything you typed.
+  </p>
+  <p>Everything is still in the form below — please press the button again in a moment.</p>
+</div>
+
+{
+  /* **A guide's place is free, and a payment page cannot take a payment of nothing.**
+  Completing a free entry means deciding that an unpaid entry counts as paid, and that
+  decision is not the payment step's to take — so this says so plainly and gives the race
+  address rather than holding a place nobody can finish.
+
+  This is the one thing on the form that the club has to answer by hand today. It is flagged
+  in `apps/main/README.md` under what the entry form deliberately does not do. */
+}
+<div class="notice notice-bad nn-card" data-entry-free hidden tabindex="-1" role="alert">
+  <p><strong>A guide's place cannot be booked online yet.</strong></p>
+  <p>
+    There is no charge for guiding a visually impaired runner, and the payment step has
+    nothing to take. <strong>Nothing has been charged.</strong>
+  </p>
+  <p>
+    Email <a href={`mailto:${race.contact}`}>{race.contact}</a> and the race organisers will
+    sort it out with you directly.
+  </p>
 </div>
 
 {
@@ -442,9 +503,14 @@ const SUMMARY_LINKS = [
                   <label class="field-label" for="entry-ea-number">
                     England Athletics number
                   </label>
+                  {/* **"Seven digits" is guidance and the check is 6 to 8.** Every number
+                  the club has seen is seven; what the national range is below that is
+                  unknown, so the field stays permissive and the words point at where to go
+                  and look. A false reject here blocks a paying entrant at the worst possible
+                  moment, and the affiliated discount is spot-checked by a human anyway. */}
                   <p class="field-hint" id="entry-ea-hint">
-                    Required if you choose the affiliated entry. Six to eight digits, on
-                    your England Athletics registration email.{' '}
+                    Required if you choose the affiliated entry. Seven digits, on your
+                    England Athletics registration email.{' '}
                     <strong>Nothing here checks it</strong>— England Athletics publishes
                     no way to; the club checks affiliated entries by hand against its own
                     records.
@@ -663,13 +729,24 @@ const SUMMARY_LINKS = [
   <button class="button" type="submit">Continue to payment</button>
 
   {
-    /* **Slice A's truth, and one line to change when it stops being true.** The button says
-    what the control is for; this says what actually happens today. Saying "secure card
-    payment by Stripe" before Stripe is connected would be the page describing something
-    that is not there. */
+    /* **The line under the button now describes what actually happens.** Payment is
+    connected: pressing this holds a place for half an hour and hands over to Stripe's own
+    payment page. Saying so before the press is the whole reason the button says "Continue to
+    payment" rather than "Submit" — and saying that the club never sees a card number is
+    worth a line, because it is true and because it is the thing somebody is deciding about.
+
+    If no payment key is configured the form still validates and stops, and the notice above
+    says so. This line is not the place to hedge about that: it would be a permanent
+    disclaimer about a temporary state, on the page's one call to action.
+
+    **"30 minutes" against a hold of 31 is deliberate rounding in the safe direction.** The
+    extra minute exists because Stripe will not accept a session expiry less than thirty
+    minutes ahead of its own clock; quoting the real figure would be promising a number to
+    the minute, and quoting 35 would be promising more than the row delivers. */
   }
   <p class="field-hint nn-paynote">
-    Payment is not connected yet. Nothing you enter here is stored or charged.
+    Payment is taken by Stripe on their own secure page. The club never sees your card
+    details. Your place is held for 30 minutes while you pay.
   </p>
 </form>
 

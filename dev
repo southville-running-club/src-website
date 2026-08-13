@@ -28,6 +28,11 @@ RUN_DIR="$REPO_ROOT/.dev"
 
 MAIN_PORT=8787
 TIMING_PORT=8788
+# A fake Stripe. This repository holds no Stripe credentials, so the local site talks to
+# `platform/scripts/stripe-stub.mjs` instead and the entry form works end to end on a laptop
+# — a real POST, a real held place, a real 303 to a checkout.stripe.com address that nobody
+# follows. `apps/main`'s `preview` script points STRIPE_API_BASE at this port.
+STRIPE_STUB_PORT=8789
 SITE="http://localhost:$MAIN_PORT"
 
 mkdir -p "$RUN_DIR"
@@ -221,14 +226,19 @@ start_workers() {
   STARTING_WORKERS=1
 
   # `apps/timing` first: `apps/main` forwards /timing to it, so starting the other way
-  # round gives a window where the site is up and /timing 502s.
+  # round gives a window where the site is up and /timing 502s. Same reasoning for the
+  # Stripe stub, which `apps/main` calls when somebody submits an entry.
   spawn timing "$PLATFORM/apps/timing" \
     npx --no-install opennextjs-cloudflare preview --port "$TIMING_PORT"
   wait_for "http://localhost:$TIMING_PORT/timing" "the timing Worker"
   info "timing  → :$TIMING_PORT"
 
+  spawn stripe "$PLATFORM" node scripts/stripe-stub.mjs
+  wait_for "http://127.0.0.1:$STRIPE_STUB_PORT/__stub/health" "the Stripe stub"
+  info "stripe  → :$STRIPE_STUB_PORT (a stub — no real Stripe, no credentials)"
+
   spawn main "$PLATFORM/apps/main" \
-    npx --no-install wrangler dev --port "$MAIN_PORT" --ip 127.0.0.1
+    npm run preview
   wait_for "$SITE/" "the website"
   info "website → :$MAIN_PORT"
 
@@ -238,7 +248,7 @@ start_workers() {
 
 stop_workers() {
   local stopped=0
-  for name in main timing; do
+  for name in main timing stripe; do
     local pidfile="$RUN_DIR/$name.pid"
     [ -f "$pidfile" ] || continue
     local pid; pid="$(cat "$pidfile")"
@@ -254,6 +264,7 @@ stop_workers() {
   # their parent, so a stray workerd is never left behind quietly.
   pkill -f "wrangler dev --port $MAIN_PORT" 2>/dev/null && stopped=1 || true
   pkill -f "opennextjs-cloudflare preview --port $TIMING_PORT" 2>/dev/null && stopped=1 || true
+  pkill -f "scripts/stripe-stub.mjs" 2>/dev/null && stopped=1 || true
   sleep 1
   pkill -f workerd 2>/dev/null || true
 
@@ -303,7 +314,7 @@ cmd_test() {
   build_site
 
   step "Acceptance tests"
-  info "Playwright drives the servers itself — 193 tests across three browser projects"
+  info "Playwright drives the servers itself — three browser projects, and a stubbed Stripe"
   # Playwright starts and stops its own servers, so ours must not be holding the ports.
   stop_workers >/dev/null 2>&1 || true
 
@@ -380,7 +391,7 @@ cmd_down() {
   fi
 }
 
-cmd_logs() { tail -f "$RUN_DIR"/main.log "$RUN_DIR"/timing.log; }
+cmd_logs() { tail -f "$RUN_DIR"/main.log "$RUN_DIR"/timing.log "$RUN_DIR"/stripe.log; }
 
 usage() {
   # The comment block at the top of this file is the help text, so the two cannot drift.

@@ -1,0 +1,123 @@
+---
+import Base from '../../../layouts/Base.astro';
+import race from '../../../content/race.json';
+
+import '@src/shared/styles/nn-theme.css';
+
+/**
+ * Where Stripe sends somebody after the payment page.
+ *
+ * ## This page must never say "you are entered"
+ *
+ * **Arriving here is not proof of payment**, and treating it as proof would be the worst
+ * thing this page could do. Three separate reasons, any one of which is enough:
+ *
+ *   1. The redirect fires in the person's browser. Closing the tab on the payment page, or
+ *      losing signal at the wrong second, means it never fires — and the payment may still
+ *      have gone through.
+ *   2. It is an ordinary URL. Anybody can type it, and the acceptance suite does exactly
+ *      that with a session id that matches nothing.
+ *   3. Stripe confirms a payment to the **webhook**, server to server, and that is the only
+ *      channel that cannot be forged or lost in a tab.
+ *
+ * So this page says what the club is doing, and what will happen next, and nothing about
+ * what has already happened.
+ *
+ * ## TODO — Slice C
+ *
+ * **This page renders one state today and it should render three.** Once the webhook is
+ * recording payments, the Worker should look the purchase up by the `session` parameter and
+ * paint the real answer onto this page the way `/nn/` is painted:
+ *
+ *   * `paid`      — confirmed, with what was paid and for whom;
+ *   * `pending`   — still confirming, which is what everybody gets today;
+ *   * `expired` / unknown session — say so, and say plainly that nothing was charged.
+ *
+ * The hooks are deliberately not stubbed in here. A `data-entry-complete-*` attribute with
+ * nothing reading it is a hook somebody trusts before it works, and this page's whole
+ * argument is about not claiming things that are not true yet.
+ *
+ * ## The page is static, and that is not a temporary state
+ *
+ * `output: 'static'`, so this is one file in `dist/`. When Slice C paints state onto it,
+ * it will be painted by `HTMLRewriter` in the Worker exactly as `/nn/`'s two forms are —
+ * one copy of the page, no second template to drift.
+ */
+
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/entry/complete/';
+---
+
+<Base
+  title="Confirming your payment — Nightingale Nightmare"
+  description="What happens after you pay for a Nightingale Nightmare entry, and how the club confirms it."
+  canonical={canonical}
+  theme="nn"
+>
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      {/* The club's wordmark, as on the form's page — see the note there. */}
+      <img
+        class="nn-logo"
+        src="/logo.svg"
+        alt="Southville Running Club"
+        width="176"
+        height="54"
+      />
+
+      <h1>Confirming your payment</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    {
+      /* `role="status"` rather than `alert`: this is the page's subject, arrived at by
+      navigation, so it is announced in the ordinary reading order rather than interrupting.
+      A white card in the established pattern — no tick, and no green. A tick here would say
+      "done", which is the one thing this page does not know. */
+    }
+    <div class="notice nn-card" role="status">
+      <p class="lede">
+        <strong>The club is confirming your payment with Stripe.</strong>
+      </p>
+      <p>
+        This can take a moment. <strong
+          >This page cannot tell you whether the payment went through</strong
+        > — it is shown to everybody who comes back from the payment page, and to anybody who
+        types this address.
+      </p>
+      <p>
+        Once the payment is confirmed the club will email you at the address on your entry.
+      </p>
+    </div>
+
+    <div class="nn-card nn-prose">
+      <h2>If you do not hear anything</h2>
+
+      <p>
+        Confirmation emails are still being set up, so if nothing arrives it does not mean
+        the payment failed. Email <a href={`mailto:${race.contact}`}>{race.contact}</a> and
+        the race organisers will check it against the club's records.
+      </p>
+
+      <h2>If you did not finish paying</h2>
+
+      <p>
+        Nothing has been charged, and your place is held for a short while. Go back to <a
+          href="/nn/">the race page</a
+        > and enter again.
+      </p>
+
+      <p>
+        What the club does with your details, and how to have them removed, is in
+        <a href="/nn/privacy/">the privacy notice</a>.
+      </p>
+    </div>
+
+    <footer>
+      <p>Southville Running Club.</p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+</Base>

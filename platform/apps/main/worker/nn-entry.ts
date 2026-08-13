@@ -1,5 +1,7 @@
 import {
+  attachCheckoutSession,
   createAnonClient,
+  createNnPendingPurchase,
   entryRulesFrom,
   fetchEntryState,
   formatPence,
@@ -10,6 +12,12 @@ import {
   type NnEntryErrors,
   type NnEntryField,
 } from '@src/shared';
+import {
+  createCheckoutSession,
+  entryCompleteUrl,
+  stripeConfig,
+  type StripeEnv,
+} from './stripe';
 
 /**
  * The entry form's two halves: deciding whether to show it at all, and what to do when it
@@ -32,15 +40,38 @@ import {
  * more once there is a card payment on the end of it. `fetchEntryState` never throws and
  * never guesses `open`.
  *
- * ## What Slice A does with a good entry
+ * ## What happens to a good entry now, and what still does not
  *
- * Nothing, and it says so. The submit handler validates and stops: no row is written, no
- * Checkout session is created, no acknowledgement is shown. **A confirmation for an entry
- * that does not exist is the one failure here worth more than all the others put together**,
- * so a valid submission gets an honest "this is not finished" with every value preserved.
+ * A valid entry **holds a place and goes to Stripe**. In one database transaction,
+ * `entries.create_pending_purchase()` checks the window, takes a per-event lock, counts the
+ * places already gone, prices the entry from `entries.fees`, and writes a `pending` purchase
+ * with a thirty-one minute hold. The Worker then creates a Checkout session for exactly that
+ * amount and 303s to it.
+ *
+ * **Nothing here moves a purchase to `paid`.** The redirect back from Stripe is not proof of
+ * payment — a person can close the tab before it fires, and the return URL is one anybody
+ * can type. Confirmation is the webhook's job, and building any part of it here would make
+ * two things believe they knew whether somebody had paid. `/nn/entry/complete/` says what
+ * the club is doing rather than what has happened.
+ *
+ * ## Every way this refuses, and what each one is honest about
+ *
+ *   `closed`     409 — the window moved between the page loading and the button being
+ *                      pressed. Nothing stored, nothing charged.
+ *   `invalid`    422 — the submission was refused on its contents, every value preserved.
+ *   `sold-out`   409 — the last place went while this form was open. **The input is kept**:
+ *                      losing a completed entry to a race somebody narrowly missed is the
+ *                      worst way to find out, and they may want to ask about a waiting list.
+ *   `free`       503 — the chosen place costs nothing, and a payment page cannot take a
+ *                      payment of nothing. See the note on that branch.
+ *   `not-taken`  503 — no Stripe secret is configured. **This is the deployed state today**
+ *                      and it is Slice A's answer, unchanged: nothing stored, nothing
+ *                      charged, said in those words.
+ *   `failed`     503 — a place may be held and there is no session to send anybody to.
+ *                      Nothing has been charged, and the hold lapses on its own.
  */
 
-export interface NnEntryEnv {
+export interface NnEntryEnv extends StripeEnv {
   PUBLIC_SUPABASE_URL: string;
   PUBLIC_SUPABASE_ANON_KEY: string;
 }
@@ -153,21 +184,32 @@ function readSubmission(form: FormData): NnEntrySubmission {
   };
 }
 
+/** The statuses that re-render the form with a notice above it and everything preserved. */
+export type NnEntryStoppedStatus = 'not-taken' | 'sold-out' | 'failed' | 'free';
+
 export type NnEntryOutcome =
   | { status: 'closed' }
   | { status: 'invalid'; errors: NnEntryErrors; submitted: NnEntrySubmission }
-  | { status: 'not-taken'; submitted: NnEntrySubmission };
+  | { status: NnEntryStoppedStatus; submitted: NnEntrySubmission }
+  | { status: 'redirect'; url: string };
 
 /**
- * Validate one entry, and stop.
+ * Validate one entry, hold a place for it, and send it to Stripe.
  *
  * The window is re-checked here rather than trusted from whenever the page was served:
  * somebody opens the page at 6:59 and presses the button at 7:01 on the last day, and that
- * is an ordinary sequence rather than an attack.
+ * is an ordinary sequence rather than an attack. **The database re-checks it again** inside
+ * the same transaction that holds the place, because that is the one that cannot race.
+ *
+ * **Nothing about a valid entry is logged, ever.** `parsed.value` holds a name, a date of
+ * birth, an emergency contact and possibly medical information, and an observability tool
+ * that was never assessed to hold those is exactly where it must not end up. Every
+ * `console.error` below carries a code, a status or a count and nothing else.
  */
 export async function processNnEntry(
   form: FormData | null,
   env: NnEntryEnv,
+  url: URL,
 ): Promise<NnEntryOutcome> {
   const view = await resolveNnEntryView(env);
 
@@ -202,15 +244,103 @@ export async function processNnEntry(
     return { status: 'invalid', errors: parsed.errors, submitted };
   }
 
-  // **The stub, and the whole of it.** `parsed.value` is a complete, valid entry and it goes
-  // no further: no insert, no Stripe session, no email. Slice B is what connects the rest,
-  // and until it does the person is told plainly that their entry is not finished rather
-  // than being thanked for one that does not exist.
+  // **A free place cannot go through a payment page, and this stops before anything is
+  // written.** A visually impaired runner's guide pays nothing, which is right — and Stripe
+  // Checkout exists to take a payment, so a session for £0 is either refused or completes
+  // without one. Completing it would mean deciding here that an unpaid entry counts as paid,
+  // and that decision is not this slice's to take: nothing in this repository moves a
+  // purchase to `paid`.
   //
-  // Nothing about `parsed.value` is logged. It holds a name, a date of birth, an emergency
-  // contact and possibly medical information, and an observability tool that was never
-  // assessed to hold those is exactly where it must not end up.
-  return { status: 'not-taken', submitted };
+  // So the honest answer is to say plainly that a free place cannot be completed here yet
+  // and give somebody the race address, rather than hold a place they can never finish. The
+  // price is read from the same `entry_state()` answer the form was validated against, so it
+  // is the database's number and not the form's.
+  const chosenFee = view.state.fees.find((fee) => fee.code === parsed.value.feeCode);
+  if (chosenFee !== undefined && chosenFee.pricePence === 0) {
+    return { status: 'free', submitted };
+  }
+
+  // **Checked before a place is held, deliberately.** With no Stripe secret there is nothing
+  // to send anybody to, and holding a place that can never be charged for would take a
+  // number out of a 250-place race for half an hour. This is Slice A's answer word for word:
+  // nothing has been stored and nothing has been charged.
+  const stripe = stripeConfig(env);
+  if (stripe === null) {
+    return { status: 'not-taken', submitted };
+  }
+
+  const client = createAnonClient({
+    url: env.PUBLIC_SUPABASE_URL,
+    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+  });
+
+  const outcome = await createNnPendingPurchase(client, {
+    slug: NN_EVENT_SLUG,
+    entry: parsed.value,
+  });
+
+  if (outcome.status === 'unavailable') {
+    // The migration has not landed, or Postgres could not be reached. **Nothing was
+    // written**, and the person is told so with their input intact.
+    console.error(`entries.create_pending_purchase unavailable — ${outcome.error}`);
+    return { status: 'failed', submitted };
+  }
+
+  if (outcome.status === 'refused') {
+    if (outcome.reason === 'sold_out') {
+      return { status: 'sold-out', submitted };
+    }
+
+    if (outcome.reason === 'closed' || outcome.reason === 'no_such_event') {
+      return { status: 'closed' };
+    }
+
+    // Everything else — a fee the event is not offering, an entrant the tables refused, an
+    // age below the minimum — is something `parseNnEntry` should already have caught. That
+    // it did not means the schema module and the database have **drifted**, which is a
+    // defect rather than a bad submission, so it is logged as one and answered honestly.
+    console.error(`entries.create_pending_purchase refused — ${outcome.reason}`);
+    return { status: 'failed', submitted };
+  }
+
+  const { purchase } = outcome;
+
+  // The backstop for the free case above: a hundred-per-cent discount code would zero a fee
+  // that is not itself free, and it would only be visible here. A place is held by this
+  // point and it lapses on its own.
+  if (purchase.amountPence === 0) {
+    console.error('entries.create_pending_purchase priced an entry at zero');
+    return { status: 'free', submitted };
+  }
+
+  const session = await createCheckoutSession(stripe, {
+    purchaseId: purchase.purchaseId,
+    eventSlug: NN_EVENT_SLUG,
+    amountPence: purchase.amountPence,
+    description: `${view.state.displayName} — ${purchase.feeLabel} entry`,
+    purchaserEmail: parsed.value.email,
+    successUrl: entryCompleteUrl(url.origin),
+    cancelUrl: new URL('/nn/', url.origin).toString(),
+    expiresAt: purchase.holdExpiresAt,
+  });
+
+  if (!session.ok) {
+    // A place is held and there is nowhere to send anybody. It lapses in thirty-one minutes
+    // and the capacity count already ignores a lapsed hold, so there is nothing to undo —
+    // and nothing has been charged, which is what the notice says.
+    console.error(`Stripe checkout session failed — ${session.error}`);
+    return { status: 'failed', submitted };
+  }
+
+  // **Best effort, and never a reason to fail a payment.** Slice C's webhook finds the
+  // purchase by `client_reference_id`, which is already set; this column is for
+  // reconciliation. Sending somebody back to a form because a bookkeeping write missed would
+  // be the wrong trade by a wide margin.
+  if (!(await attachCheckoutSession(client, purchase.purchaseId, session.sessionId))) {
+    console.error('entries.attach_checkout_session did not attach a session id');
+  }
+
+  return { status: 'redirect', url: session.url };
 }
 
 // -----------------------------------------------------------------------------------------
@@ -449,12 +579,35 @@ export function renderNnEntryErrors(
   return rewriter;
 }
 
-/** Rewrites `/nn/` to say the entry could not be completed, keeping everything typed. */
-export function renderNnEntryNotTaken(
+/**
+ * Which notice each stopped outcome reveals.
+ *
+ * **Four separate notices rather than one with four wordings**, because the difference
+ * between them is exactly what somebody needs: "the race is full" and "we could not reach
+ * the payment page" ask for completely different things next. Each is written out in the
+ * markup so there is one copy of the page in `dist/` and no template in the Worker to drift
+ * from it, and each says in words what it is — the colour carries none of the meaning.
+ */
+const STOPPED_NOTICES: Record<NnEntryStoppedStatus, string> = {
+  'not-taken': '[data-entry-unavailable]',
+  'sold-out': '[data-entry-soldout]',
+  failed: '[data-entry-failed]',
+  free: '[data-entry-free]',
+};
+
+/**
+ * Rewrites `/nn/` to say why the entry stopped, keeping everything typed.
+ *
+ * The preservation is not a courtesy here. **Sold out is the case where losing it hurts
+ * most** — somebody has filled in fourteen fields and been told the race went while they
+ * were typing, and asking them to do it again to enquire about a waiting list is how a form
+ * turns a disappointment into a grievance.
+ */
+export function renderNnEntryStopped(
   rewriter: HTMLRewriter,
-  outcome: Extract<NnEntryOutcome, { status: 'not-taken' }>,
+  outcome: Extract<NnEntryOutcome, { status: NnEntryStoppedStatus }>,
 ): HTMLRewriter {
-  rewriter.on('[data-entry-unavailable]', new RevealHandler(true));
+  rewriter.on(STOPPED_NOTICES[outcome.status], new RevealHandler(true));
   restoreSubmission(rewriter, outcome.submitted, {});
   return rewriter;
 }

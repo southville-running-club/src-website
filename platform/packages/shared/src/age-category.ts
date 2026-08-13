@@ -29,9 +29,11 @@
  *     category structure is a committee decision, so `known` is `false` and the caller says
  *     so in words.
  *   * **Under 18.** The youngest band starts at 18, so a 17-year-old has no category. That
- *     is *not* the same as a minimum age — `entries.events.minimum_age` is null for
- *     Nightingale Nightmare because no minimum has been confirmed, and inferring one from
- *     where a prize band happens to start is exactly the inference this file refuses to make.
+ *     is still *not* the same as a minimum age, even though Nightingale Nightmare's is now
+ *     18 as well. The committee confirmed that separately on 13 August 2026 and it lives in
+ *     `entries.events.minimum_age`; this file would keep saying "younger than any category"
+ *     for a race that admitted juniors, because a prize band and an entry rule are two
+ *     different decisions that happen to have agreed once.
  */
 
 /**

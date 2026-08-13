@@ -55,7 +55,7 @@ export interface EntryState {
   startTime: string;
   entrantsPerEntry: number;
   capacity: number;
-  /** Null means no age check at all, which is the confirmed state for NN 2026. */
+  /** Null means no age check at all. 18 for NN 2026, confirmed on 13 August 2026. */
   minimumAge: number | null;
   requiresDob: boolean;
   consentVersion: string;

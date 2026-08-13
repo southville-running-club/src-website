@@ -42,6 +42,35 @@
     "TIMING_ORIGIN": "http://localhost:8788",
   },
 
+  // ---------------------------------------------------------------------------------
+  // Stripe is **not here**, in either block, and that is the point
+  // ---------------------------------------------------------------------------------
+  // `STRIPE_SECRET_KEY` is a Worker secret — `wrangler secret put`, recorded as a manual
+  // step in apps/main/README.md. It never appears in this file, in a `vars` block, or
+  // anywhere else in this repository. `STRIPE_API_BASE` exists only so the local site and
+  // the acceptance suite can run end to end against `scripts/stripe-stub.mjs` without a
+  // Stripe account, and it is passed on the `wrangler dev` command line in
+  // apps/main/package.json — there is no path from a dev-server flag to a deployed Worker.
+  //
+  // `tests/unit/worker-config.test.ts` asserts that neither block mentions Stripe at all,
+  // so the day somebody pastes a key in here to "just try it", CI says no.
+
+  // ---------------------------------------------------------------------------------
+  // The Cron Trigger — housekeeping, and emphatically not the capacity mechanism
+  // ---------------------------------------------------------------------------------
+  // Every five minutes, `scheduled()` moves lapsed holds to `expired`. **Capacity does not
+  // depend on it having run**: `entries.create_pending_purchase()` counts a pending hold
+  // only while `hold_expires_at` is in the future, so an abandoned place is back in the pool
+  // the instant it lapses. This stops an abandoned purchase reading as `pending` forever.
+  //
+  // Declared in both blocks because Wrangler does not inherit `triggers` into an
+  // environment, and a cron that only exists locally would be a cron nobody notices is
+  // missing. Free plan: Cron Triggers are included, and one every five minutes is 288
+  // invocations a day against a 100,000/day allowance.
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
+
   "observability": {
     "enabled": true,
   },
@@ -84,6 +113,12 @@
       "vars": {
         "PUBLIC_SUPABASE_URL": "https://ketipxpyjjglwpqazsft.supabase.co",
         "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_reN3BxHbZfvKF75bee6n3w_8hfq1FXg",
+      },
+
+      // Repeated rather than inherited — see the note at the top level. Wrangler does not
+      // carry `triggers` into an environment.
+      "triggers": {
+        "crons": ["*/5 * * * *"],
       },
 
       "observability": {

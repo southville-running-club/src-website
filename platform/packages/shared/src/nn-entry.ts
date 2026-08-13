@@ -136,7 +136,14 @@ const MESSAGES = {
 
   eaMissing:
     'Enter your England Athletics number, or choose the unaffiliated entry instead.',
-  eaFormat: 'An England Athletics number is 6 to 8 digits, like 1234567.',
+  // **Guidance, not a rule, and the difference is deliberate.** Every number the club has
+  // seen is seven digits, and the national range below that is unknown — so the check stays
+  // at 6 to 8 while the message says what somebody should actually go and look at. Quoting
+  // "6 to 8 digits" as though it were the rule invites somebody with a genuine six-digit
+  // number to doubt it, and a false reject here blocks a paying entrant at the worst
+  // possible moment.
+  eaFormat:
+    'England Athletics numbers are seven digits — check the one on your registration email.',
 
   emergencyNameMissing:
     'Enter the name of somebody the club can contact in an emergency.',
@@ -164,7 +171,11 @@ export function minimumAgeMessage(minimumAge: number): string {
 export interface NnEntryRules {
   /** Civil, as published. Used to work out age on race day. */
   eventDate: CivilDate;
-  /** Null means no age check at all — the confirmed state for Nightingale Nightmare 2026. */
+  /**
+   * Null means no age check at all. **18 for Nightingale Nightmare 2026**, confirmed by the
+   * committee on 13 August 2026 and applied as one `update` to `entries.events.minimum_age`
+   * with no change to this file — which is the whole reason it is a column.
+   */
   minimumAge: number | null;
   /** Which fee codes the form is offering. A code not in this list is not a valid answer. */
   feeCodes: readonly string[];
@@ -460,10 +471,11 @@ function dateOfBirthIssue(
     return MESSAGES.dobInFuture;
   }
 
-  // **Null minimum age means no check, and that is the configured state.** No minimum age has
-  // been confirmed for Nightingale Nightmare, so nothing here turns anybody away. When one is
-  // confirmed it is an `update` to `entries.events.minimum_age` and this starts applying,
-  // with no deploy and no change to this file.
+  // **Null still means no check; Nightingale Nightmare's is now 18.** The value arrived as
+  // one `update` to `entries.events.minimum_age` with no deploy and no change to this file,
+  // which is what a column buys. `entries.create_pending_purchase()` re-checks it against the
+  // same `event_date` before it holds a place, because this one is a convenience and that one
+  // is the control — a boundary test on each side of exactly 18 is what says the two agree.
   if (rules.minimumAge !== null && ageOn(date, rules.eventDate) < rules.minimumAge) {
     return minimumAgeMessage(rules.minimumAge);
   }

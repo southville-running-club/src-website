@@ -55,6 +55,17 @@ export {
 } from './entry-state';
 
 export {
+  PENDING_PURCHASE_REASONS,
+  attachCheckoutSession,
+  createNnPendingPurchase,
+  expirePendingHolds,
+  nnEntrantPayload,
+  type PendingPurchase,
+  type PendingPurchaseOutcome,
+  type PendingPurchaseReason,
+} from './entry-purchase';
+
+export {
   EA_NUMBER_PATTERN,
   NN_ENTRY_CLUB_MAX_LENGTH,
   NN_ENTRY_CONTACT_NAME_MAX_LENGTH,

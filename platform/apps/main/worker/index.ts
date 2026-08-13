@@ -1,4 +1,9 @@
-import { createAnonClient, fetchHealth, fetchPing } from '@src/shared';
+import {
+  createAnonClient,
+  expirePendingHolds,
+  fetchHealth,
+  fetchPing,
+} from '@src/shared';
 import { isNnSignupPath, isTimingPath, NN_PREFIX } from './routing';
 import {
   isNnSignupSuccess,
@@ -14,7 +19,7 @@ import {
   processNnEntry,
   renderNnEntryClosed,
   renderNnEntryErrors,
-  renderNnEntryNotTaken,
+  renderNnEntryStopped,
   renderNnEntryView,
   resolveNnEntryView,
   type NnEntryOutcome,
@@ -23,17 +28,20 @@ import {
 /**
  * The club's main Worker — the website, and Nightingale Nightmare under `/nn`.
  *
- * Three jobs:
+ * Four jobs:
  *
  *   1. **Stand in for Cloudflare's router locally.** In production `/timing/*` is
  *      dispatched to the timing Worker at the edge and never arrives here. On a laptop
  *      there is no edge, so when `TIMING_ORIGIN` is set this Worker forwards those
  *      requests itself — which is what lets one port serve the whole site locally.
- *   2. **Take the Nightingale Nightmare sign-up.** A POST to `/nn/` is handled here,
- *      **before `env.ASSETS.fetch`** — the static-assets binding will not serve a POST, so
- *      anything reaching it is already lost. See `nn-signup.ts`.
+ *   2. **Take the Nightingale Nightmare sign-up, and the entry.** A POST to `/nn/` is
+ *      handled here, **before `env.ASSETS.fetch`** — the static-assets binding will not
+ *      serve a POST, so anything reaching it is already lost. See `nn-signup.ts` and
+ *      `nn-entry.ts`.
  *   3. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
  *      rewriting the served HTML.
+ *   4. **Sweep lapsed holds**, on a Cron Trigger every five minutes. Housekeeping only —
+ *      see `scheduled()` at the foot of this file.
  *
  * The third is the skeleton's reason for existing. Doing it in the Worker rather than in
  * the browser proves the **Worker itself** can reach Supabase, in the real runtime, over
@@ -61,6 +69,20 @@ interface Env {
    * would mean the platform proxying itself through an extra hop.
    */
   TIMING_ORIGIN?: string;
+  /**
+   * **A Worker secret, set by hand with `wrangler secret put`.** Never in `wrangler.jsonc`,
+   * never in a `vars` block, never in this repository — and optional here because its
+   * absence is a real, safe state: with no key the entry form validates and stops, exactly
+   * as it did before payment was connected. `apps/main/README.md` records the manual step.
+   */
+  STRIPE_SECRET_KEY?: string;
+  /**
+   * Where the Stripe API is. Unset everywhere that matters; `npm run preview` points it at
+   * `scripts/stripe-stub.mjs` so the local site and the acceptance suite run end to end
+   * without a Stripe account. Passed on the `wrangler dev` command line, so no deployed
+   * Worker can inherit it.
+   */
+  STRIPE_API_BASE?: string;
 }
 
 export default {
@@ -105,6 +127,45 @@ export default {
     }
 
     return rewriter.transform(response);
+  },
+
+  /**
+   * Every five minutes: move lapsed holds to `expired`.
+   *
+   * **This is housekeeping and not the mechanism, and the difference matters.** A place
+   * comes back into the pool the moment its hold lapses, because the capacity count inside
+   * `entries.create_pending_purchase()` only counts a `pending` purchase while
+   * `hold_expires_at` is still in the future. **If this cron never runs again, nobody is
+   * turned away and nothing is double-sold.** What it does is stop a purchase somebody
+   * abandoned at the payment page from reading as `pending` forever — for the treasurer
+   * looking at the table, and for Slice C's webhook, which should meet `expired` rather than
+   * a stale hold.
+   *
+   * That property is the one to preserve if this is ever changed. A future version that
+   * capacity *depends* on would put a 250-place race at the mercy of a scheduler.
+   *
+   * **A count and nothing else is logged.** These rows carry names, dates of birth and
+   * emergency contacts; the only thing worth a line is how many places came back, and even
+   * that is only logged when it is not zero — 288 "expired 0" lines a day is a free-tier
+   * observability allowance spent on nothing. `console.warn` rather than `console.log`
+   * because the lint rule bans the casual one outright, which is the rule doing its job.
+   */
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    const client = createAnonClient({
+      url: env.PUBLIC_SUPABASE_URL,
+      anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+    });
+
+    const result = await expirePendingHolds(client);
+
+    if (!result.ok) {
+      console.error(`entries.expire_pending_holds failed — ${result.error}`);
+      return;
+    }
+
+    if (result.expired > 0) {
+      console.warn(`entries.expire_pending_holds released ${result.expired} hold(s)`);
+    }
   },
 } satisfies ExportedHandler<Env>;
 
@@ -194,18 +255,32 @@ async function handleNnSignup(
 }
 
 /**
- * The entry form: validate, and stop.
+ * The entry form: validate, hold a place, and send somebody to Stripe.
  *
- * **No outcome here is a success**, because Slice A has no payment to send anybody to. A
- * valid entry gets an honest 503 saying it is not finished, with every value preserved, and
- * that stays true until the Checkout session is what follows a valid entry.
+ * **The only success is a 303 to `checkout.stripe.com`**, and it is a success only in the
+ * sense that a place is held and a payment page exists. Nothing here has been paid for —
+ * `/nn/entry/complete/` says so in as many words, and Slice C's webhook is what changes it.
+ *
+ * Every other outcome re-serves this page with the person's input still in it. Which status
+ * each carries is in `nn-entry.ts`; the mapping to HTTP is here because that is the layer
+ * that speaks HTTP.
  */
 async function handleNnEntry(
   form: FormData | null,
   env: Env,
   url: URL,
 ): Promise<Response> {
-  const outcome: NnEntryOutcome = await processNnEntry(form, env);
+  const outcome: NnEntryOutcome = await processNnEntry(form, env, url);
+
+  if (outcome.status === 'redirect') {
+    // POST/Redirect/GET, as everywhere else here — and this one leaves the site, so the
+    // browser must not keep it. The URL is one person's payment page and nothing in front of
+    // it has any business holding a copy.
+    return new Response(null, {
+      status: 303,
+      headers: { location: outcome.url, 'cache-control': 'no-store' },
+    });
+  }
 
   const page = await nnPage(env, url);
   if (!page.ok) {
@@ -222,7 +297,7 @@ async function handleNnEntry(
     return typedPage(rewriter.transform(page), 409);
   }
 
-  // Both remaining outcomes render the entry form, so the view has to be painted first —
+  // Every remaining outcome renders the entry form, so the view has to be painted first —
   // the section ships hidden and `handleNnPost` did not go through the GET path that
   // reveals it. `processNnEntry` has already established that the window is open, so this
   // second read is answering "with what fees", not "should this be here".
@@ -233,8 +308,14 @@ async function handleNnEntry(
     return typedPage(rewriter.transform(page), 422);
   }
 
-  renderNnEntryNotTaken(rewriter, outcome);
-  return typedPage(rewriter.transform(page), 503);
+  renderNnEntryStopped(rewriter, outcome);
+
+  // **409 for sold out, and it is the right code rather than a near-enough one.** The
+  // request was understood and refused because the state of the world moved between the page
+  // being served and the button being pressed — which is what 409 means, and is the same
+  // thing "entries closed" above is saying. The other three are outages of one kind or
+  // another and 503 says so.
+  return typedPage(rewriter.transform(page), outcome.status === 'sold-out' ? 409 : 503);
 }
 
 /** A GET the assets binding will actually answer, for the canonical address of the page. */

@@ -319,7 +319,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      attach_checkout_session: {
+        Args: { p_purchase_id: string; p_session_id: string }
+        Returns: boolean
+      }
+      create_pending_purchase: {
+        Args: {
+          p_consents: Json
+          p_discount_code?: string
+          p_entrants: Json
+          p_fee_code: string
+          p_medical: Json
+          p_purchaser_email: string
+          p_purchaser_name: string
+          p_slug: string
+        }
+        Returns: Json
+      }
       entry_state: { Args: { p_slug: string }; Returns: Json }
+      expire_pending_holds: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

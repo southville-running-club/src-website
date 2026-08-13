@@ -31,7 +31,8 @@
     "db:migrations:check-scope": "npm run db:migrations:check-scope --workspace=packages/db",
     "build:worker": "npm run build:worker --workspaces --if-present",
     "dev:all": "concurrently --kill-others --names main,timing --prefix-colors green,cyan \"npm run dev:worker\" \"npm run dev:timing\"",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "stripe:stub": "node scripts/stripe-stub.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

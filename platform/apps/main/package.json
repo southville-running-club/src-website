@@ -6,12 +6,12 @@
   "description": "The club's main front door — Nightingale Nightmare now, the website later",
   "scripts": {
     "dev": "astro dev",
-    "dev:worker": "wrangler dev --port 8787",
+    "dev:worker": "npm run preview",
     "build": "astro build",
-    "preview": "wrangler dev --port 8787",
+    "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789",
     "deploy": "wrangler deploy",
     "typecheck": "astro check",
-    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.worker.entries-open.config.ts"
+    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.worker.entries-open.config.ts && vitest run --config vitest.worker.sold-out.config.ts"
   },
   "dependencies": {
     "@src/db": "*",
