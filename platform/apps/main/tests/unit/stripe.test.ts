@@ -101,7 +101,7 @@ describe('what the Checkout session is built from', () => {
     // and the place it is holding then die together. A session that outlived its hold would
     // let somebody pay for a number that had already gone back into the pool, which is the
     // one failure mode this alignment exists to prevent.
-    expect(params().get('expires_at')).toBe('1788609600');
+    expect(params().get('expires_at')).toBe('1788264000');
     expect(Number(params().get('expires_at')) * 1000).toBe(INPUT.expiresAt.getTime());
   });
 
@@ -110,7 +110,7 @@ describe('what the Checkout session is built from', () => {
     // direction and `Math.floor` is what does it.
     const built = params({ expiresAt: new Date('2026-09-01T12:00:00.999Z') });
 
-    expect(built.get('expires_at')).toBe('1788609600');
+    expect(built.get('expires_at')).toBe('1788264000');
   });
 
   it('returns somebody to the honest page afterwards, and to the form if they backed out', () => {
