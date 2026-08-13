@@ -56,8 +56,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code local settings. The whole directory: the allow-list accumulates absolute
+# paths from whichever laptop approved a command, so none of it is shareable.
+.claude/
 
 # Local dev run state — logs and pid files from ./dev
 .dev/
