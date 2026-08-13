@@ -83,12 +83,23 @@ since that is what most inboxes actually show.
 
 ---
 
-## DNS: additive only
+## DNS: additive only, and edited in Cloudflare now, not Fasthosts
+
+**The nameservers moved on 8 August 2026** — Cloudflare is the authoritative DNS provider
+now, per the [executed
+runbook](../delivery/runbooks/nameserver-move.md#-executed-8-august-2026-1554-utc). That
+changes *where* a record is added, not what adding one means: **mail routing itself did not
+move** — the MX target, SPF's existing `include:`, the DKIM CNAMEs and the mailboxes all
+still point at Fasthosts livemail, copied across unchanged. So these new Resend records go
+into **Cloudflare's DNS dashboard**, and what they point at — Resend's infrastructure — has
+nothing to do with Fasthosts at all.
 
 Verifying `send.southvillerunningclub.co.uk` in Resend adds records under that subdomain.
 None of it touches an existing record — this is [Move
 1](dns-and-domain.md#move-1--add-a-record-no-risk) in the DNS document, no risk, reversible
-by deleting the records.
+by deleting the records. **One thing to carry over from the migration runbook: add them
+DNS-only (grey), not proxied** — Cloudflare proxies HTTP/HTTPS only, and a proxied SPF/DKIM
+TXT or CNAME simply doesn't behave as the record it's supposed to be.
 
 - **SPF**: an `include:` added to the zone's *existing* record, not a replacement —
   `v=spf1 mx a include:_spf.livemail.co.uk include:_spf.resend.com/amazonses.com ~all`
@@ -195,18 +206,21 @@ written down" — the account creation itself is manual and should be recorded o
 
 ## Step by step, get-go to a working send
 
-**Three places, none overlapping**: Resend's own dashboard (account, domain, key),
-Fasthosts (pasting DNS records), and Cloudflare (holding the key, running the code that
-calls Resend). Cloudflare never talks to Resend's dashboard or does any verification — it
-only holds the secret and runs the call.
+**Two places now that the nameservers have moved, not three**: Resend's own dashboard
+(account, domain, key) and Cloudflare, which does double duty — it's both where the DNS
+records go **and** where the key and code live. Fasthosts isn't touched at all for this;
+it stays the mail *server* the MX record already points at, but it hasn't been where DNS
+records are edited since [8 August
+2026](../delivery/runbooks/nameserver-move.md#-executed-8-august-2026-1554-utc).
 
 1. **Sign up at Resend** with the club-owned address, per
    [above](#the-resend-account-itself) — not a personal login.
 2. **Add both volunteers as team members** in Resend.
 3. **Add a domain in Resend**: `send.southvillerunningclub.co.uk`. Resend generates the
    SPF `include:` and DKIM CNAME values for it.
-4. **Paste those records into Fasthosts** — the new DKIM CNAMEs, and the existing SPF
-   record extended with Resend's `include:`, never replaced. Purely additive — [Move
+4. **Add those records in Cloudflare's DNS dashboard**, set to **DNS-only (grey), not
+   proxied** — the new DKIM CNAMEs, and the existing SPF record extended with Resend's
+   `include:`, never replaced. Purely additive — [Move
    1](dns-and-domain.md#move-1--add-a-record-no-risk), no risk to anything already working.
 5. **Verify the domain in Resend.** It checks DNS has propagated — usually minutes,
    occasionally longer depending on the record's TTL.
