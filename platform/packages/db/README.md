@@ -18,7 +18,7 @@ rather than good intentions:
 
 ## What is in it
 
-Two schemas, one table and two functions.
+Three schemas, seven tables and three functions.
 
 |  |  |
 | --- | --- |
@@ -27,6 +27,8 @@ Two schemas, one table and two functions.
 | `intake.nn_interest` | Expressions of interest in Nightingale Nightmare. **Four columns and an id.** Anonymous **insert only** — see below |
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
+| `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
+| `entries.entry_state()` | Public configuration for one event: window state and fees. The only object in `entries` anon may reach |
 
 `intake.health()` earns its place: one call proves the migration applied, the schema is
 exposed, the anon key is right, the grant is right, and the Worker can reach the network.
@@ -74,16 +76,107 @@ same address twice and nothing else. See
 Even if a grant on a `club` table were wrong one day, PostgREST would have no route to it.
 Adding `club` there is a decision, not a convenience.
 
+### `entries`, and why it is a third schema
+
+An entry is not an expression of interest. It carries a payment reference, a date of birth,
+an emergency contact and — under its own separate consent — free-text medical information,
+which is **special category data under UK GDPR Article 9**. The schema boundary is the blast
+radius: a policy that is wrong on `intake` is a nuisance, and the same policy wrong here is a
+personal-data incident and a financial one at once.
+[ADR-009](../../../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
+
+| | |
+| --- | --- |
+| `events` | One running of one race in one year, and **every value that differs between events** — capacity, the entry window, the minimum age, whether a date of birth is collected. A new race is an `insert`, not a deploy |
+| `fees` | What an entry costs, **in pence, and the only place a price exists**. Passed as `price_data` at Checkout, never as a Stripe Price object — a price held in two systems is a price that will disagree with itself |
+| `discount_codes` | Percentage discounts. **Deliberately empty**: the 2023 LHGRC code has not been confirmed for 2026 |
+| `entry_purchases` | One payment covering one or more entrants. **The Stripe reference, never the payment instrument** |
+| `entrants` | One runner. **No age column and no category column** — both are derived at read time from `date_of_birth` and `gender`, as the timing platform does |
+| `entrant_medical` | Medical notes, **on their own** — see below |
+
+#### The anon role holds nothing here
+
+Not insert, not select, on any of the six. RLS is on from the first migration and there is
+no grant, so a request is refused at `42501` before row-level security is even consulted.
+`tests/entries.test.ts` asserts that on **every table, for every verb, by error code**, and
+that assertion is written to outlive the slice that added it: when a policy arrives it will
+be one verb on one table, and the rest must still refuse.
+
+**`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
+anything. A refusal that only happens because nothing can get as far as asking has not been
+tested. What the exposure is actually for is one function.
+
+#### `entries.entry_state()` — the one door
+
+`/nn/` has to know whether entries are open, because that decides whether it shows the entry
+form or the interest form, and the switch has to be an event row rather than a deploy. A
+`select` grant on `entries.events` would do it — and would put an exception into the "anon
+can select nothing here" test on its first day, which is how the next exception gets waved
+through.
+
+So it is a `security definer` function instead, returning the handful of public facts a form
+needs: window state, the event's configuration, and the fees with their prices. **No table
+privilege anywhere**, and the refusal test stays literally true.
+
+It deliberately returns neither `from_address` (an address in page source is an address a
+scraper collects) nor the event's `id` (a browser has no use for a primary key it cannot
+write with) nor the window timestamps (nobody has decided them, and a field returned before
+it has a meaning is a field somebody renders).
+
+**It lives in `entries`, not in `private`.** The timing platform keeps its helpers in
+`private` with a pinned `search_path`, and that is the pattern — but `private` is the timing
+platform's and this repository does not touch it. The property that mattered was the pin,
+and `set search_path = ''` is on this function too.
+
+#### `entrant_medical` is a separate table, and the reason is the law
+
+Free-text medical information is special category data. It needs its own explicit consent,
+its own access control, and a shorter retention than the rest of an entry — and a separate
+table makes each of those a simple thing rather than a careful thing:
+
+- **Retention.** "Delete the medical information one month after the race" is a `delete` on
+  one table. As a column on `entrants` it would be a column-scoped `update` that has to be
+  right about which rows it touches, run against the table holding everybody's name.
+- **Access.** A future policy letting a first-aid lead see medical notes grants on this table
+  and reaches nothing else.
+- **Consent.** The row exists only where the separate consent was given, so **the absence of
+  a row is the record of a withheld consent**. There is no state where notes are stored and
+  the consent that would have permitted them is false — a filter cannot be forgotten if
+  there is nothing to filter.
+
+The Worker drops the notes *before* they would reach the database when the box is unticked,
+rather than storing and filtering later. Minimisation at the boundary.
+
+#### What is seeded, and what is deliberately null
+
+The Nightingale Nightmare 2026 event and its three fees ship **in the migration**, not in
+`seed.sql`: this is a real event row that production needs, and `seed.sql` never runs against
+production.
+
+| | |
+| --- | --- |
+| Confirmed | 1 November 2026, 11:00, 250 places, £15 affiliated, £17 unaffiliated, £0 for a VI guide |
+| `entries_open_at` / `entries_close_at` | **Null.** Nobody has decided when entries open, and a placeholder would be a published claim about when a race opens. Null reads as `pre_open`, which is the interest form |
+| `minimum_age` | **Null.** 18 is *implied* by the youngest prize category and has not been ratified. Confirming it is one `update` and no deploy — which is the whole reason it is a column |
+| `discount_codes` | **No rows.** The 2023 code has not been confirmed for 2026 |
+
 ## Commands
 
 ```bash
 npm run db:start        # Postgres, auth, storage — Docker
 npm run db:reset        # migrations from zero, then seed
-npm run db:diff         # generate a migration, scoped to club,intake
+npm run db:diff         # generate a migration, scoped to club,intake,entries
 npm run db:types        # regenerate src/database.types.ts
 npm run db:types:check  # fails if the committed types are stale
 npm run db:config:push  # send config.toml to the linked project
+npm run entries:open    # open the NN entry window locally, so /nn/ shows the entry form
+npm run entries:close   # back to the seeded state — the interest form
 ```
+
+**`config.toml` needs a restart, not a reset.** `supabase db reset` re-applies migrations
+against the running containers; the exposed-schema list is read when the API container
+*starts*. Adding `entries` to it and only resetting gives `PGRST106 Invalid schema` from
+every call, which reads as a broken migration. `npm run db:stop && npm run db:start`.
 
 ## Three layers, and all three are code
 

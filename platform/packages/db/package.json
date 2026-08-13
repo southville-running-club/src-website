@@ -11,14 +11,16 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "db:diff": "supabase db diff --schema club,intake",
+    "db:diff": "supabase db diff --schema club,intake,entries",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --local --schema club,intake > src/database.types.ts",
+    "db:types": "supabase gen types typescript --local --schema club,intake,entries > src/database.types.ts",
     "db:types:check": "node ./scripts/check-types-current.mjs",
     "db:migrations:check-scope": "node ./scripts/check-migration-scope.mjs",
     "typecheck": "tsc --noEmit",
     "db:link": "supabase link --project-ref",
-    "db:config:push": "supabase config push"
+    "db:config:push": "supabase config push",
+    "entries:open": "node ./scripts/set-entry-window.mjs open",
+    "entries:close": "node ./scripts/set-entry-window.mjs close"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2"

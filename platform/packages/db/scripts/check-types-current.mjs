@@ -31,7 +31,15 @@ let generated;
 try {
   generated = execFileSync(
     'npx',
-    ['supabase', 'gen', 'types', 'typescript', '--local', '--schema', 'club,intake'],
+    [
+      'supabase',
+      'gen',
+      'types',
+      'typescript',
+      '--local',
+      '--schema',
+      'club,intake,entries',
+    ],
     { cwd: packageRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   );
 } catch {
