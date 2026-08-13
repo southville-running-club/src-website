@@ -106,10 +106,18 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
       }
       <h2>The start and the finish</h2>
 
+      {
+        /* **No distance from HQ is stated, and that is not an oversight.** Nobody has
+        supplied one. It is tempting to derive it — there are coordinates for the start
+        right here — but race HQ is an address rather than a pin, and a figure worked out
+        from a guessed school entrance is exactly the plausible-looking number this
+        repository keeps out of markup. What the schedule already says is enough to act on:
+        be at HQ, and leave with everybody else at 10:30. */
+      }
       <p>
-        <strong>Not at race HQ.</strong> The race starts and finishes about a mile away, and
-        everybody walks down together at 10:30 — so on the day there is nothing to find on your
-        own, and the walk is on the schedule below rather than left to you.
+        <strong>Not at race HQ.</strong> The race starts and finishes away from the school,
+        and everybody walks down together at 10:30 — so on the day there is nothing to find
+        on your own, and the walk is on the schedule below rather than left to you.
       </p>
 
       <p>
