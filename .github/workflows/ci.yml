@@ -21,7 +21,16 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Keyed on the workflow as well as the ref. `ci-` was already unique among the three
+  # workflows here, but only because all three were written by the same hand on the same day;
+  # `github.workflow` makes that a property of the expression rather than of the coincidence.
+  #
+  # **What this does not do is stop two runs fighting over a port.** Every job gets its own
+  # throwaway VM, so no two runs can contend for 54322 in the first place — the one time this
+  # branch saw `address already in use`, it was a single `supabase start` racing its own
+  # teardown after the image pulls came back `toomanyrequests` from public.ecr.aws. This
+  # cancels superseded work, which is worth having on its own; it is not a fix for that.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -194,3 +203,15 @@ jobs:
           name: playwright-report
           path: platform/playwright-report/
           retention-days: 7
+
+      - name: Stop the local Supabase stack
+        # Nothing stopped it before, on success or on failure. On a hosted runner that costs
+        # nothing — the VM is destroyed with the job — but "nothing torn down" is only ever one
+        # runner change away from being the reason the next run cannot bind 54322, and a
+        # cleanup that exists is cheaper than the afternoon spent working out why.
+        #
+        # `always()`, so a failed suite still tidies up, and `|| true` because a cleanup step
+        # must never be the thing that turns a run red.
+        if: always()
+        working-directory: platform/packages/db
+        run: npx supabase stop --no-backup || true
