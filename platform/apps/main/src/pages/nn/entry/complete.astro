@@ -1,0 +1,212 @@
+---
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import race from '../../../content/race.json';
+
+import '@src/shared/styles/nn-theme.css';
+
+/**
+ * Where Stripe sends somebody after the payment page.
+ *
+ * ## The rule this page is built on
+ *
+ * **Only "paid" makes a positive claim, and no state ever makes a negative one.**
+ *
+ * The first half is obvious. The second half is the one that matters, and it is why this page
+ * no longer says "nothing has been charged" anywhere. The sequence it prevents: somebody pays,
+ * the webhook is delayed or lost, their thirty-one minute hold lapses, they refresh this page.
+ * If it then tells them nothing was charged, they go back to `/nn/` and pay again — and the
+ * club has taken £34 from somebody who wanted one race, and hears about it from them rather
+ * than from the system.
+ *
+ * So the blocks below say what the club has **recorded**, never what the bank did.
+ *
+ * ## Arriving here is still not proof of payment
+ *
+ *   1. The redirect fires in the person's browser. A closed tab means it never fires, while
+ *      the payment may still have gone through.
+ *   2. It is an ordinary URL. Anybody can type it, and the acceptance suite does exactly that
+ *      with a session id that matches nothing.
+ *   3. Stripe confirms to the **webhook**, server to server — the only channel that cannot be
+ *      forged or lost in a tab.
+ *
+ * What changed in this slice is that the webhook exists, so there is a recorded fact to
+ * report. The page reports that record and never the redirect it arrived by.
+ * `entries.entry_completion_state()` returns **one word and nothing else** — not the name, not
+ * the email address, not the amount, not the purchase id — because a session id in a URL is
+ * not authentication.
+ *
+ * ## Four blocks, one of which ships visible
+ *
+ * `data-complete-confirming` is served **visible** and the other three `hidden`; the Worker
+ * hides it and reveals one of them. So "still confirming" needs no rewriting to happen, which
+ * means the ordinary path and every failure path — migration not landed, database unreachable,
+ * no session in the URL — produce byte-identical HTML, and the state that claims least is the
+ * one that happens by default.
+ *
+ * `lapsed` and `unknown` share the "no record" block. To the person reading it they are the
+ * same message, and one of the ways `unknown` happens is a purchase whose Checkout session id
+ * had not been written back yet — where "we have never heard of this" would be actively wrong.
+ *
+ * ## There is no auto-refresh, and that is a decision
+ *
+ * A `<meta http-equiv="refresh">` on the pending state is the obvious thing and it is not
+ * allowed here: a delayed refresh under twenty hours fails **WCAG 2.2.1**, axe reports it as
+ * `meta-refresh` under `wcag2a`, and zero violations is not a threshold in this repository. It
+ * is also hostile in exactly the situation it would be used — a page reloading under somebody
+ * who is reading it, on a phone, having just paid. There is no polling script either; this
+ * site has no client-side state and does not start here.
+ *
+ * The pending block carries a plain link to this same address instead. `href=""` is a relative
+ * reference that resolves to the current URL **with its query string and without its
+ * fragment**, so the link carries the session id without this static page having to know it.
+ */
+
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/entry/complete/';
+---
+
+<Base
+  title="Your Nightingale Nightmare entry"
+  description="What the club has recorded about your Nightingale Nightmare entry, and what happens next."
+  canonical={canonical}
+  theme="nn"
+>
+  {
+    /* **The wordmark without the links, and this is the only page that gets that.**
+    Somebody arrives here having just paid, to find out whether the club knows it. Four
+    links offering the course, the race-day plan and the spectator guide are four ways to
+    leave before reading the one paragraph that answers the question they came with. The
+    mark stays so the page is visibly still the club's. */
+  }
+  <NnMasthead slot="masthead" nav={false} />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>Your entry</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    {
+      /* `role="status"` rather than `alert` on all four: this is the page's subject, arrived
+      at by navigation, so it belongs in the ordinary reading order rather than interrupting.
+      Only one is ever visible, and each says in words what it is — the colour carries none of
+      the meaning. */
+    }
+
+    {
+      /* ---------------------------------------------------------------------------------
+      Still confirming. **Ships visible**, and is what every failure path leaves on the page.
+      No tick and no green: a tick here would say "done", which is the one thing this block
+      does not know. --------------------------------------------------------------------- */
+    }
+    <div class="notice nn-card" data-complete-confirming role="status">
+      <p class="lede">
+        <strong>The club is confirming your payment with Stripe.</strong>
+      </p>
+      <p>
+        This usually takes a few seconds. <strong
+          >This page cannot yet tell you whether the payment went through</strong
+        > — it is shown to everybody who comes back from the payment page, and to anybody who
+        types this address.
+      </p>
+      <p>
+        <a href="">Check again</a> in a moment. Nothing is lost by waiting, and you do not need
+        to fill the form in again.
+      </p>
+    </div>
+
+    {
+      /* ---------------------------------------------------------------------------------
+      Paid. **The only block on this page that makes a positive claim**, and it is made only
+      because the webhook — server to server, signed — recorded it. The tick is the mockup's
+      and is hidden from assistive technology: the sentence is what should be announced.
+      --------------------------------------------------------------------------------- */
+    }
+    <div class="notice notice-ok nn-card" data-complete="paid" hidden role="status">
+      <span class="nn-tick" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false"
+          ><path d="M4 12.5 10 18 20 6"></path></svg
+        >
+      </span>
+      <p class="lede">
+        <strong>Your payment is confirmed and your place is booked.</strong>
+      </p>
+      <p>
+        There is nothing else to do now. Confirmation emails are still being set up, so
+        you may not receive one — your place is booked either way, and this page is the
+        record.
+      </p>
+      <p>
+        Keep this page's address if you would like to check again later. Race day details
+        are on <a href="/nn/race-day/">the race day page</a>.
+      </p>
+    </div>
+
+    {
+      /* ---------------------------------------------------------------------------------
+      No payment recorded — a lapsed hold, or a session this club has nothing against.
+
+      **This block must never say that nothing was charged.** It does not know that, and the
+      case where it would be wrong is the case where somebody pays twice. Every sentence here
+      is about the club's records rather than about anybody's bank.
+      --------------------------------------------------------------------------------- */
+    }
+    <div class="notice notice-bad nn-card" data-complete="no-record" hidden role="status">
+      <p class="lede">
+        <strong>The club has not recorded a payment against this address.</strong>
+      </p>
+      <p>
+        <strong>If your card was charged, do not enter again.</strong> A payment can take a
+        little while to reach the club, and entering twice would mean paying twice. Email{
+          ' '
+        }
+        <a href={`mailto:${race.contact}`}>{race.contact}</a> with the address of this page
+        and the race organisers will find it.
+      </p>
+      <p>
+        If you did not finish paying, nothing was taken and you are welcome to{' '}
+        <a href="/nn/">start again</a>.
+      </p>
+    </div>
+
+    {
+      /* ---------------------------------------------------------------------------------
+      Refunded. A statement of fact from the club's own records, in the plain card rather than
+      a coloured one — a refund is not an error.
+      --------------------------------------------------------------------------------- */
+    }
+    <div class="notice nn-card" data-complete="refunded" hidden role="status">
+      <p class="lede"><strong>This entry was refunded.</strong></p>
+      <p>
+        The club's records show the payment for this entry was returned, so there is no
+        place held against it. If that is not what you expected, email{' '}
+        <a href={`mailto:${race.contact}`}>{race.contact}</a> and the race organisers will check
+        it.
+      </p>
+    </div>
+
+    <div class="nn-card nn-prose">
+      <h2>If something does not look right</h2>
+
+      <p>
+        Email <a href={`mailto:${race.contact}`}>{race.contact}</a> and the race organisers
+        will check it against the club's records. Please include the address of this page —
+        it identifies the payment without you having to send any card details, which the club
+        never wants and never holds.
+      </p>
+
+      <p>
+        What the club does with your details, and how to have them removed, is in{' '}
+        <a href="/nn/privacy/">the privacy notice</a>.
+      </p>
+    </div>
+
+    <footer>
+      <p>Southville Running Club.</p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+</Base>

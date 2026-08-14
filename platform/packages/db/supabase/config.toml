@@ -16,9 +16,16 @@ port = 54321
 # `club` table were wrong one day, PostgREST would still have no route to it. Adding `club`
 # here is a decision, not a convenience.
 #
+# `entries` is exposed for exactly one object: `entries.entry_state()`, the function the
+# `/nn/` page calls to find out whether entries are open. **Every table in that schema is
+# reachable by this route and refuses anyway** — RLS is on from their first migration and
+# the anon role holds no grant on any of them, so PostgREST routes the request and Postgres
+# answers `42501`. `tests/entries.test.ts` asserts that on every table, which is what makes
+# exposing the schema safe rather than merely intended.
+#
 # `public` holds the timing platform's tables and is migrated from `src-race-timing`.
 # See docs/architecture/decisions/adr-002-schema-layout.md
-schemas = ["public", "graphql_public", "intake"]
+schemas = ["public", "graphql_public", "intake", "entries"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size

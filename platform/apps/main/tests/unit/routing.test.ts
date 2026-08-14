@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isTimingPath, NN_PREFIX, TIMING_PREFIX } from '../../worker/routing';
+import {
+  isNnSignupPath,
+  isTimingPath,
+  NN_PREFIX,
+  TIMING_PREFIX,
+} from '../../worker/routing';
 
 /**
  * One hostname, three paths. The only decision this Worker makes is whether a request
@@ -29,6 +34,38 @@ describe('what belongs to the timing Worker', () => {
     '/about/timing/',
   ])('leaves %s to the website', (pathname) => {
     expect(isTimingPath(pathname)).toBe(false);
+  });
+});
+
+describe('where the sign-up form may post', () => {
+  it.each(['/nn', '/nn/'])('accepts %s', (pathname) => {
+    // Both, deliberately. Astro insists on the trailing slash for the page, but a form
+    // posting to the other address must not have its submission 404'd on the way in — the
+    // person filled it in either way.
+    expect(isNnSignupPath(pathname)).toBe(true);
+  });
+
+  it.each([
+    '/',
+    // A page, not an endpoint. A POST here should 404 exactly as it does today rather
+    // than quietly become a sign-up.
+    '/nn/privacy/',
+    '/nn/signup/',
+    // The near-misses, for the same reason `isTimingPath` has them: these are addresses a
+    // future page could legitimately want, and this predicate must not swallow them.
+    '/nnn/',
+    '/nn-2026/',
+    '/timing',
+  ])('refuses %s', (pathname) => {
+    expect(isNnSignupPath(pathname)).toBe(false);
+  });
+
+  it('never claims a path the timing Worker claims', () => {
+    // Both predicates run against the same request, so an overlap would be a request two
+    // handlers both believe is theirs.
+    for (const pathname of ['/nn', '/nn/', '/timing', '/timing/live']) {
+      expect(isNnSignupPath(pathname) && isTimingPath(pathname)).toBe(false);
+    }
   });
 });
 

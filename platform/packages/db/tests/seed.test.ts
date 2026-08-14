@@ -40,8 +40,21 @@ async function query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
 
 describe('the seed', () => {
   it('applied, and is the fabricated data rather than anybody real', async () => {
+    // Counted by id rather than as `count(*)`, because `nn-interest.test.ts` now writes to
+    // this table to prove the anonymous-insert policy works, and the two files can run at
+    // the same time. Naming the seven ids says what "the seed applied" actually means and
+    // cannot start failing because a sibling test was mid-flight.
     const rows = await query<{ count: string }>(
-      'select count(*) from intake.nn_interest',
+      `select count(*) from intake.nn_interest
+        where id in (
+          '11111111-1111-4111-8111-111111111111',
+          '22222222-2222-4222-8222-222222222222',
+          '33333333-3333-4333-8333-333333333333',
+          '44444444-4444-4444-8444-444444444444',
+          '55555555-5555-4555-8555-555555555555',
+          '66666666-6666-4666-8666-666666666666',
+          '77777777-7777-4777-8777-777777777777'
+        )`,
     );
 
     expect(Number(rows[0]?.count)).toBe(7);
@@ -90,7 +103,7 @@ describe('the seed', () => {
   });
 });
 
-describe('the table nobody can reach yet', () => {
+describe('the table, and the one door into it', () => {
   it('has row-level security enabled', async () => {
     // From the first migration, with no exceptions. There is no API tier between the
     // browser and Postgres, so this is the access control rather than a layer of it.
@@ -101,14 +114,24 @@ describe('the table nobody can reach yet', () => {
     expect(rows[0]?.relrowsecurity).toBe(true);
   });
 
-  it('has no policies, so the API cannot reach it at all', async () => {
-    // The anonymous-insert policy arrives with the form that needs it, in the pull request
-    // that can test it. Until then RLS-on-with-no-policy denies everyone.
-    const policies = await query(
-      "select policyname from pg_policies where schemaname = 'intake' and tablename = 'nn_interest'",
+  it('has exactly one policy, and it lets in exactly one verb', async () => {
+    // This test used to assert there were *no* policies, because the table was created
+    // before anything needed to write to it. The sign-up form is the thing that needed to,
+    // and it arrived with the policy in the pull request that could test it — as the
+    // original migration said it would.
+    //
+    // **The assertion is still the same shape: one door, and the count of doors is the
+    // thing being watched.** A second policy appearing here means somebody has opened
+    // something, and it should have to be argued for in a diff rather than noticed later.
+    const policies = await query<{ policyname: string; cmd: string; roles: string }>(
+      `select policyname, cmd, roles::text
+         from pg_policies
+        where schemaname = 'intake' and tablename = 'nn_interest'`,
     );
 
-    expect(policies).toEqual([]);
+    expect(policies).toHaveLength(1);
+    expect(policies[0]?.cmd).toBe('INSERT');
+    expect(policies[0]?.roles).toBe('{anon}');
   });
 
   it('refuses an anonymous client outright, despite holding seven rows', async () => {
@@ -126,14 +149,10 @@ describe('the table nobody can reach yet', () => {
     expect(data).toBeNull();
   });
 
-  it('rejects an anonymous insert', async () => {
-    const { error } = await anon
-      .schema('intake')
-      .from('nn_interest')
-      .insert({ name: 'Mallory', email: 'mallory@example.com', consent: true });
-
-    expect(error).not.toBeNull();
-  });
+  // `'rejects an anonymous insert'` lived here and is **superseded**: an anonymous insert
+  // is now the entire point of the table, and the grant and policy that allow it are
+  // covered from both sides in `nn-interest.test.ts` — including every verb that is still
+  // refused, each asserted by error code.
 });
 
 describe('the shape of the table', () => {

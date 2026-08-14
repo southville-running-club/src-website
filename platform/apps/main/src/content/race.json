@@ -1,0 +1,67 @@
+{
+  "name": "Nightingale Nightmare",
+  "date": "Sunday 1 November 2026",
+  "startTime": "11:00",
+  "distance": "10 km, off-road",
+  "location": "Ashton Park School, Blackmoors Lane, Bower Ashton, Bristol BS3 2JL",
+  "startFinish": {
+    "lat": 51.4468588,
+    "lng": -2.6250503
+  },
+  "price": null,
+  "entriesOpen": null,
+  "permit": null,
+  "places": 250,
+  "contact": "nightingalenightmare@gmail.com",
+  "schedule": [
+    { "time": "09:15", "what": "Registration opens at HQ. Collect your number." },
+    { "time": "10:15", "what": "Race briefing at HQ." },
+    { "time": "10:30", "what": "Walk to the start together." },
+    { "time": "10:45", "what": "Group warm-up at the start." },
+    { "time": "11:00", "what": "The race starts." },
+    {
+      "time": "Afterwards",
+      "what": "Tea, coffee, hot chocolate and cake back at HQ, with a donation tin out for a local charity. Prizegiving at HQ once the last finisher is in."
+    }
+  ],
+  "prizes": [
+    {
+      "category": "Fancy dress",
+      "detail": "Three prizes, and the category with the most effort in it.",
+      "highlight": true
+    },
+    {
+      "category": "Overall",
+      "detail": "1st, 2nd and 3rd — female and male.",
+      "highlight": false
+    },
+    {
+      "category": "Veterans",
+      "detail": "1st Vet 40, Vet 50 and Vet 60 — female and male.",
+      "highlight": false
+    },
+    {
+      "category": "Marshals",
+      "detail": "A runner-voted award for the best marshalling station.",
+      "highlight": false
+    }
+  ],
+  "finisherPrize": "A medal for every finisher, and that means every finisher.",
+  "spectating": {
+    "viewpoint": "The top of Nightingale Valley, through the gate on North Road",
+    "viewpointPostcode": "BS8 3PL",
+    "parking": "Brunel Lock Road",
+    "footbridge": "Ashton Avenue Bridge"
+  },
+  "privacy": {
+    "lastUpdated": "14 August 2026",
+    "controller": "Southville Running Club Ltd",
+    "registeredOffice": "1 Hengrove Farm, Hengrove Farm Lane, Bristol BS14 9DD",
+    "companyNumber": "ending 7549",
+    "medicalRetention": "One month after the race",
+    "contact": null,
+    "entryRetention": null,
+    "emailRetention": null,
+    "photographs": null
+  }
+}

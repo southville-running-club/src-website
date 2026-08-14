@@ -39,6 +39,13 @@ thing built.
 
 ## The date, which nobody has settled
 
+> ## ✅ Settled — 12 August 2026: **Sunday 1 November 2026, start 11:00**
+>
+> The club's published campaign artwork carries it, and the maintainer confirmed it. **The
+> recommendation below was taken**, for the reason below. The argument is kept as it was
+> made rather than rewritten to match the answer — it is the reasoning that is worth having
+> later, not a tidy file.
+
 **The 2026 date is unconfirmed.** Club notes disagree between **25 October** and **1
 November**. Both are Sundays. Everything below moves with it, and it is the cheapest thing
 on this list to resolve.

@@ -66,8 +66,10 @@ describe('the clocks change the other way — 29 March 2026', () => {
 });
 
 describe('race day — Nightingale Nightmare, the weekend after the change', () => {
-  // The race is 31 October / 1 November 2026, so it runs in GMT. This is the assertion
-  // that would have caught an hour of drift on the day.
+  // The race is Sunday 1 November 2026, so it runs in GMT. 31 October is kept in the cases
+  // below because it is the day either side of the one that was chosen, and the property
+  // being asserted is that the whole weekend is past the change. This is the assertion that
+  // would have caught an hour of drift on the day.
   it.each(['2026-10-31T09:00:00Z', '2026-11-01T09:00:00Z'])(
     'renders %s in GMT, with no offset applied',
     (instant) => {

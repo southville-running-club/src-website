@@ -22,11 +22,36 @@ because a wrong guess here is expensive in money, in law, or in a race that cann
 re-run.
 
 - **A factual claim about a race** that has not been supplied — date, price, distance,
-  location, start time. The Nightingale Nightmare date is *unconfirmed*. Do not invent one,
-  do not infer one from a phase document, and do not put a plausible placeholder in markup.
+  location, start time. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
+  2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
+  the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
+  fees are confirmed too** — £15 affiliated, £17 unaffiliated, £0 for a visually impaired
+  runner's guide — and they live in `entries.fees`, never in markup. **So is the minimum age:
+  18 on race day**, in `entries.events.minimum_age`. **Still unconfirmed, and none of them may
+  appear anywhere:** the 2026 ARC permit number (the 2023 number is not a substitute), the
+  2026 race director's name, the entry open and close times, and the transfer deadline. Do not
+  invent a fact, do not infer one from a phase document, and do not put a plausible
+  placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
-  holds personal data is a committee decision.
-- **Taking payment**, or linking to something that does.
+  holds personal data is a committee decision. The committee has settled the *entry* field
+  list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
+- **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
+  there: who somebody writes to about their data, how long an entry record is kept, whether
+  an email address is kept to tell people about next year's race, and what is true about
+  photographs. They render "To be confirmed by the club" and `nn-privacy.spec.ts` counts
+  them. **Settled, and written in:** the controller, the registered office, the company
+  number, and one month for medical notes. **What the notice says is collected comes from
+  the schema, not from the form** — the entry tables also hold the fee and amount, Stripe's
+  references, the consents with their version, and three timestamps, and a notice that omits
+  those under-lists what the club processes.
+- **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
+  more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
+  `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
+  may. **Three Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
+  `ENTRIES_WEBHOOK_KEY` — never in this repository, never in `wrangler.jsonc`, never in a `vars`
+  block. A real key on a machine belongs in `apps/main/.dev.vars`, which is gitignored.
+  **Registering the Stripe dashboard endpoint is still a human's job**, and it is the last of
+  the manual steps in `apps/main/README.md` because it needs the production URL.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -52,11 +77,17 @@ dev           The one command for local work. Run it from the root
 Use `./dev`, or `cd platform` first.
 
 ```bash
-./dev up      # the whole site on http://localhost:8787, browser opened
-./dev test    # 45 acceptance tests, then everything stopped
-./dev check   # lint, types, unit and database tests
+./dev up      # rebuild the database, then the whole site on http://localhost:8787
+              # --keep-data skips the rebuild, when the schema is already current
+./dev test    # 274 acceptance tests, then everything stopped
+./dev check   # rebuild the database, then lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
+
+**`up`, `test` and `check` all rebuild the database**, because `supabase start` applies
+migrations only to a volume it creates — so on any machine that has run this before, the three
+otherwise meant three different schemas. It costs tens of seconds and the local data, which is
+only ever the seed and invented fixtures.
 
 One hostname, three paths — the same locally and in production:
 
@@ -91,7 +122,9 @@ working. Roll code back; roll schema forward. This is load-bearing rather than g
 practice here — nothing sequences the migration against the Cloudflare deploy.
 
 **The timing platform is not touched by website work.** Not its tables, not its policies,
-not its repository, until the port happens deliberately.
+not its repository, until the port happens deliberately. That includes the `private` schema,
+which is why `entries`' one helper function lives in `entries` with a pinned `search_path`
+rather than where the timing platform keeps its own.
 
 **Zero accessibility violations**, not "few". Any threshold above zero becomes the new
 normal within a month.
@@ -166,13 +199,103 @@ on a live hostname.
 **Detach background servers properly** — `nohup`, redirected streams, closed stdin. A child
 holding the terminal makes the parent never return.
 
+**A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
+no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
+click on the error summary's link — silently, so the person just finds that nothing happens.
+Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting *on*, which is
+what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the field it is
+about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
+
+**A message that appears on `focusout` can swallow the click that caused it.** The England
+Athletics box is a `.field` *inside* the affiliated `.nn-fee` card, so `fieldOf` — which took
+`closest(container)` and then the first `[data-entry-error]` beneath it — answered `eaNumber`
+for the affiliated **radio**. Leaving that radio made the England Athletics box complain about
+a number nobody had been asked for, and it did so *between the press and the release of the
+click*: 67px of message, above the other two cards, pushing them 72px down out from under the
+pointer, so no `click` ever reached the radio and **the entry type could not be changed at
+all**. **Only CI saw it, and that is the trap** — macOS and iOS WebKit leave a radio unfocused
+when it is clicked, while the GTK/WPE WebKit that `playwright install webkit` puts on a Linux
+runner focuses it, so `focusout` never fires on a laptop. Chromium at 1280px survives on luck:
+the shift is small enough that the release still lands on the card's own `<label>`, which
+forwards the click. Reproduced on Linux WebKit in `mcr.microsoft.com/playwright:v1.62.1-noble`
+and in Chromium at 320px. `nn-entry.spec.ts`'s "shows a running total once an entry type is
+chosen" is the guard, and the rule is the general one: **a container's message belongs to that
+container, not to a field nested inside it.**
+
+**A conditional field that collapses moves the control that revealed it.** The same England
+Athletics box, the same nesting, one layer up: it sat *inside* the affiliated card, so changing
+to another entry type collapsed 277px from **above** the two cards below it. At 320px the card
+somebody had just chosen went from y=271 to y=-7 — they tapped it, and the feedback for their
+own tap was the page throwing them somewhere else. It is a plain `.field` under all three cards
+now, where showing and hiding it moves only what is below and the cards do not move at all:
+measured Δ0 in WebKit and Δ1px in Chromium — a pre-existing sub-pixel border swap — across all
+48 combinations of engine, width, transition and input method. **Put a conditional field after
+the group it is a condition of, rather than inside it.** The adjacency that buys is worth less
+than the stability it costs, and the field's own hint can say what the nesting was saying.
+`nn-entry.spec.ts`'s "keeps the entry type that was chosen in view when the fee changes" is the
+guard, and it runs in all three projects.
+
 ---
 
 ## What is not built yet
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no sign-up
-form**, no Stripe, no timing application code, and no policies on `intake.nn_interest`. The
-skeleton proves the path; the features come next.
+So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
+email and no timing application code**.
+
+Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
+three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
+column-scoped anonymous-insert policy on `intake.nn_interest`.
+
+**Entries are built here, in `apps/main`** — [ADR-009](docs/architecture/decisions/adr-009-entries-in-apps-main.md)
+retired the plan to give them a repository of their own. `/nn/` carries **two forms**: the
+entry form when `entries.events` says entries are open, and the interest form otherwise,
+decided per request rather than by a deploy. `entries.events.entries_open_at` is `null`
+today, so what production serves is the interest form.
+
+**A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
+per-event advisory lock: re-check the window, count the places gone, price it from
+`entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
+exactly that amount and a 303 to it.
+
+**`POST /nn/stripe-webhook` is the only thing that writes `paid`, and nothing else may.** The
+redirect back from Stripe is not proof of payment — a tab can be closed before it fires, and the
+return URL is one anybody can type. The webhook verifies Stripe's signature over the **raw
+bytes** before parsing them, and the transition is idempotent by state guard under the same
+per-event advisory lock the entry path takes. [ADR-010](docs/architecture/decisions/adr-010-webhook-writes-paid.md)
+records the three decisions it took.
+
+**The failure direction is inverted there, and only there.** Everything else in this repository
+fails towards taking no money. By the time the webhook runs, the money has gone — so *our*
+failures answer 5xx and let Stripe retry for three days, and only "this is not Stripe" gets a
+400. A 200 on an outage drops a real payment.
+
+**A payment that arrives after the hold lapsed is still `paid`.** It is never refused. If there
+was no room it is `paid` with `attention = 'over_capacity'`, it consumes a place, and the
+five-minute cron shouts about it until a human clears the flag —
+[the runbook](docs/delivery/runbooks/entries-attention.md). There is deliberately **no fifth
+status**: the capacity predicate counts `status = 'paid'`, and a new value would be invisible to
+it and let an oversold place be sold twice.
+
+**`/nn/entry/complete/` reports what the club has recorded, and only `paid` makes a positive
+claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
+charged", because the webhook may simply be late and somebody who believes it pays twice.
+
+**The anon role still holds no grant on any table in `entries`.** It may call six functions and
+nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()`,
+`attach_checkout_session()`, `record_checkout_event()` and `entry_completion_state()`. A seventh,
+`raise_attention()`, is granted to **nobody**. `packages/db/tests/entries.test.ts` asserts that
+exact set; if it fails, something granted a privilege to a key that is published in page source.
+
+**`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
+ordinary PostgREST calls with the published anon key would buy a free entry, because
+`create_pending_purchase()` issues purchase ids on request. `ENTRIES_WEBHOOK_KEY` is a **Worker
+secret**; the database holds only its SHA-256 digest, and it ships null, which refuses
+everything.
+
+**A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
+zero-total Checkout session, so a visually impaired runner's guide is told so plainly and
+given the race address. Fixing it means deciding that an unpaid entry counts as paid, which
+is a committee decision rather than a build one.
 
 The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).

@@ -31,9 +31,11 @@ are accepted with a guide, in mixed VI / non-VI teams.
 
 **Nightingale Nightmare** — a solo mass-start 10 km at Halloween. One runner per entry,
 one gun, one finish crossing each. Age-band categories (Vet 40/50/60, male and female).
-**The 2026 date is unconfirmed** — club notes disagree between 25 October and 1 November,
-and the race sits on or near the clocks-change weekend. Entry price assumed £8–£10 in the
-proposal, unconfirmed.
+**The 2026 date is confirmed: Sunday 1 November 2026, start 11:00** — settled on 12 August
+2026, a week after the clocks change, so the race runs in GMT. 250 places, off-road along
+the towpath, up Nightingale Valley and through Leigh Woods, from race HQ at Ashton Park
+School. Entry price assumed £8–£10 in the proposal, **still unconfirmed**, as is the 2026
+ARC permit number.
 
 **People.** One volunteer builds and maintains the platform. A treasurer, race director,
 membership secretary and committee hold the non-technical responsibilities.

@@ -1,0 +1,127 @@
+---
+import Base from '../../layouts/Base.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
+import race from '../../content/race.json';
+
+// The same event theme as the rest of Nightingale Nightmare — see
+// packages/shared/styles/nn-theme.css.
+import '@src/shared/styles/nn-theme.css';
+
+// **The postcodes are the load-bearing part of this page, so they are data rather than
+// prose.** Somebody reads one of them off a phone in a car, and a typo introduced by a
+// later copy edit sends them to the wrong side of the gorge. They live in `race.json`
+// beside every other race fact.
+//
+// **The start and the finish now have a pin, and it lives on the race-day page rather than
+// here.** It was resolved from the one map link the club's 2023 event profile carried — a
+// `goo.gl` shortlink — and it is stored in `race.json` as coordinates for the reason set out
+// at the head of `race-day.astro`. One page owns that fact and this one links to it, because
+// two copies of a location are how a corrected pin gets corrected in one place only.
+//
+// **The spectating points stay as text, and that is not an oversight.** No coordinates were
+// ever published for the North Road gate, Brunel Lock Road or Ashton Avenue Bridge, and
+// inventing a pin for somewhere to stand is exactly the plausible-looking guess that puts
+// somebody on the wrong side of the gorge. The postcodes are what the club has.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
+---
+
+<Base
+  title="Watching the race — Nightingale Nightmare"
+  description="Where to stand to watch Nightingale Nightmare, where to park, and why spectators are expected in fancy dress too."
+  canonical={canonical}
+  theme="nn"
+>
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>Watching the race</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      <p class="lede">
+        Bring people. The climb up Nightingale Valley is a great deal more bearable with
+        somebody shouting at you halfway up it.
+      </p>
+
+      <h2>Where to stand</h2>
+
+      <p>
+        <strong>The start and the finish</strong> are the easiest watching, and the two places
+        you are guaranteed to see your runner. They are in the same place as each other and
+        <strong>not at race HQ</strong> — <a href="/nn/race-day/">the race-day page</a> has
+        the exact spot and a map.
+      </p>
+
+      <p>
+        <strong>{race.spectating.viewpoint}</strong> — postcode{' '}
+        <span class="nn-mono">{race.spectating.viewpointPostcode}</span> — is the other one,
+        and it is the better one. It is the top of the climb, which is where a race stops being
+        about legs and starts being about who came to watch.
+      </p>
+
+      <h2>Parking, and the walk in</h2>
+
+      <p>
+        Spectator parking is on <strong>{race.spectating.parking}</strong>. From there it
+        is a walk over <strong>{race.spectating.footbridge}</strong>.
+      </p>
+
+      <p>
+        <strong>There is no on-street parking for this race</strong>, so please use the
+        spectator parking and lift-share where you can. The neighbours have to live there
+        after everybody has gone home.
+      </p>
+
+      <h2>Yes, you too</h2>
+
+      <p>
+        <strong>Fancy dress applies to spectators.</strong> There are no exemptions for people
+        who are only holding a coat.
+      </p>
+
+      <h2>Afterwards</h2>
+
+      <p>
+        Prizegiving is at race HQ, <strong>{race.location}</strong>, once the last
+        finisher is in. The full running order for the day is on <a href="/nn/race-day/"
+          >the race-day page</a
+        >.
+      </p>
+    </div>
+
+    {
+      /* The same call to action as the other two content pages — see the note on
+    course.astro for why it is not on `/nn/`. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
+
+    <footer>
+      <p>
+        Southville Running Club. The full list of race facts, including anything still to
+        be confirmed, is on <a href="/nn/">the race page</a>.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the other Nightingale Nightmare pages, and empty for
+    the same reason — it is a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

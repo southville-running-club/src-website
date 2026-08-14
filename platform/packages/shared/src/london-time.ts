@@ -3,9 +3,9 @@
  *
  * Timestamps are stored UTC and displayed `Europe/London`. That is a correctness
  * requirement rather than a formatting preference: Nightingale Nightmare is raced on
- * 31 October / 1 November 2026, the weekend *after* the clocks go back on 25 October, so
- * a race-day time rendered through an ambient locale is an hour wrong exactly when it
- * matters most.
+ * **Sunday 1 November 2026 at 11:00**, the weekend *after* the clocks go back on 25
+ * October, so a race-day time rendered through an ambient locale is an hour wrong exactly
+ * when it matters most.
  *
  * The timing platform carries its own `lib/london-time.ts` for the same reason, and its
  * comment names the drift as the foot-gun. This module is the website's half of that,

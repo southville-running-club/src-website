@@ -106,7 +106,8 @@ if (isMain) {
 
   if (failed) {
     console.error(
-      '\nThis repository owns club and intake only. public and private belong to the ' +
+      '\nThis repository owns club, intake and entries only. public and private belong to ' +
+        'the ' +
         'timing platform and are migrated from src-race-timing — see ' +
         'docs/architecture/decisions/adr-002-schema-layout.md. If this is deliberate ' +
         '(the timing platform port, ADR-008), that is a decision for a pull request that ' +

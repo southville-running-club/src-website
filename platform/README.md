@@ -13,11 +13,13 @@ apps/
   timing/     Next.js 16 + @opennextjs/cloudflare → new.<apex>/timing
 packages/
   db/         Supabase config, migrations, generated types
-  shared/     Europe/London, the Supabase client, the stylesheet
+  shared/     Europe/London, the Supabase client, validation, the stylesheet
 ```
 
-**This is a skeleton.** Both applications serve a page that says so and one timestamp
-fetched from Postgres. There is no sign-up form, no Stripe, and no timing application code.
+`apps/main` now carries **the Nightingale Nightmare pages, an interest form and an entry
+form** — `/nn/` shows one or the other according to `entries.events`, decided per request.
+There is **no Stripe and no timing application code**: the entry form validates and stops.
+[ADR-009](../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
 ## Getting started
 
@@ -25,12 +27,20 @@ fetched from Postgres. There is no sign-up form, no Stripe, and no timing applic
 row-level security can be tested rather than mocked.
 
 **From the repository root, one command does everything** — starts Docker if it is not
-running, brings up the database, seeds it, builds both applications, starts both Workers
-and opens the site:
+running, brings up the database, **rebuilds it from this checkout's migrations** and seeds
+it, builds both applications, starts both Workers and opens the site:
 
 ```bash
 ./dev up
+./dev up --keep-data   # skip the rebuild, when the schema is already current
 ```
+
+**The rebuild is not optional tidying.** `supabase start` applies migrations only when it
+creates a volume, so a machine that has run this project before serves the schema it first
+had — and a branch that adds to `config.toml`'s exposed schemas takes PostgREST down with a
+503 that names nothing relevant. `up`, `test` and `check` therefore all mean the same thing
+by "the database". It costs tens of seconds and the local data, which is the seed and
+invented fixtures and never anything from production.
 
 Nothing to configure: the local Supabase values are already in each app's
 `wrangler.jsonc`, and they are the same on every machine.
@@ -84,6 +94,7 @@ content and CSS, misleading for anything else.
 | `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
 | `npm run smoke` | The seven checks against **production**. `-- --local` for localhost |
 | `npm test` | Vitest: unit and database |
+| `npm run entries:open` / `entries:close` | Move the local NN entry window, so `/nn/` shows the entry form or the interest one. `--workspace=packages/db` |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
 | `npm run test:e2e` | Playwright + axe. **Builds first, then starts both servers** |
 | `npm run build` | Every workspace |
@@ -97,11 +108,30 @@ content and CSS, misleading for anything else.
 
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.
 
-**`npm run test:e2e` is fine, and the guards are why.** Measured on 9 August 2026: two
-builds then **45 tests in around 22 seconds**, one Playwright worker, nothing left
-running. It took a laptop down once — that was the OpenNext build recursion below, not the
-suite itself. Raising `workers` above one means three browser projects against two
-`workerd` servers, so know what you are asking for.
+**`npm run test:e2e` is fine, and the guards are why.** Measured on 13 August 2026: two
+builds then **274 tests in around 90 seconds**, one Playwright worker, nothing left running.
+It took a laptop down once — that was the OpenNext build recursion below, not the suite
+itself.
+
+**Playwright starts a third server, and it is a fake Stripe.** `scripts/stripe-stub.mjs` on
+:8789 answers `POST /v1/checkout/sessions` with a canned session and nothing else, so the
+entry form runs end to end with **no Stripe credentials anywhere**. The suite asserts *where*
+the Worker redirects and never follows it: Stripe's hosted page is a third party's, and a
+test that types into it breaks the week they redesign it. `./dev up` starts the same process
+alongside the two Workers.
+
+**`workers` is 1 everywhere, including CI, and that is now load-bearing.** It was a cap on
+process count; it is now also isolation. `nn-entry.spec.ts` moves
+`entries.events.entries_open_at` to see the entry form and `nn-signup.spec.ts` needs it left
+alone — Playwright parallelises across *files*, so with two workers those two interleave and
+each occasionally sees the other's state. A few seconds of CI against a class of intermittent
+that gets rerun rather than read.
+
+**`npm run test:worker` is two runs, not one.** The default config against the seeded closed
+window, and `vitest.worker.entries-open.config.ts` against an open one. `pg` cannot run
+inside `workerd`, so the window is moved from Vitest's `globalSetup` in the Node process —
+and `serves.test.ts` asserts `/nn/` quotes no price, which is true exactly while entries are
+shut.
 
 **Never point `apps/timing`'s `build` script at `opennextjs-cloudflare build`.** OpenNext
 builds Next.js by running one of this package's own npm scripts, so that makes it invoke

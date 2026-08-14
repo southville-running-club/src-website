@@ -154,7 +154,8 @@ requests that do not need checking by hand.
 
 | | When |
 | --- | --- |
-| **Confirm the Nightingale Nightmare date** — 25 October or 1 November | **Now.** It blocks race planning, and 25 October is the morning the clocks change |
+| ~~**Confirm the Nightingale Nightmare date**~~ | ✅ **Done, 12 August 2026 — Sunday 1 November 2026, 11:00.** A week after the clocks change, so the whole day runs in GMT |
+| **Approve the Nightingale Nightmare page copy**, and answer six questions it could not | **Now.** The race pages are live in draft; the questions are map links for the start and finish, the donation-tin charity, a cut-off time, dogs and buggies, VI guides and the headphone rule, and toilets at the start |
 | **Decide whether 2026 race entries** go through the club's own site or stay with the current provider | **End of August** |
 | **Data-protection advice and treasurer-controlled payment arrangements** | Before any payment work starts — these are firm gates |
 | **Decide card or Direct Debit** for the monthly payments | Before anyone is asked to move |

@@ -48,10 +48,30 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).not.toContain('club');
   });
 
-  it('exposes nothing beyond public, graphql_public and intake', () => {
+  it('exposes entries, for one function and nothing else', () => {
+    // `entries` is routable so that `/nn/` can call `entries.entry_state()` and find out
+    // whether entries are open — the switch between the entry form and the interest form,
+    // driven by an event row rather than by a deploy.
+    //
+    // **Exposing it routes its tables too, and that is safe rather than overlooked.** Every
+    // table in the schema has RLS on from its first migration and the anon role holds no
+    // grant on any of them, so PostgREST reaches Postgres and Postgres answers `42501`.
+    // `tests/entries.test.ts` asserts exactly that, on all six, by error code. This list
+    // being routable is what makes those assertions meaningful instead of vacuous — a
+    // refusal that only happens because nothing can get as far as asking is not a refusal
+    // that has been tested.
+    expect(exposedSchemas()).toContain('entries');
+  });
+
+  it('exposes nothing beyond public, graphql_public, intake and entries', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
     // silently is precisely the failure this file exists to prevent.
-    expect(exposedSchemas().sort()).toEqual(['graphql_public', 'intake', 'public']);
+    expect(exposedSchemas().sort()).toEqual([
+      'entries',
+      'graphql_public',
+      'intake',
+      'public',
+    ]);
   });
 });
 

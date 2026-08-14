@@ -1,0 +1,1997 @@
+/*
+ * The Nightingale Nightmare event theme.
+ *
+ * The campaign look — blood-red gradient, bone text, a yellow the club calls "pus", and
+ * Nosifer for the horror lettering — taken from the approved mockup at
+ * `docs/design/nn-entry-mockup.html`. **Its visual system only.**
+ *
+ * **What the mockup shows that this site does not is now a much shorter list**, because the
+ * facts arrived. The fact row, the prize grid, the schedule and the entry-type cards with
+ * their prices are all here, drawn from `race.json` and from `entries.fees`. What is still
+ * absent is what nobody has confirmed or what would be a claim: the **capacity bar** — how
+ * many places are *left* would be wrong within a day of anybody entering, and this page says
+ * how big the race is instead — and the course diagram. Nothing here is filled in with a
+ * plausible number. See docs/architecture/principles.md#stop-and-ask
+ *
+ * ## Why this is a second stylesheet rather than more of base.css
+ *
+ * `base.css` is the club's, and it dresses every page the club will ever have. This is one
+ * race's campaign, for one weekend of the year, and putting it in `base.css` would ship
+ * horror typography and 94 kB of display fonts to the membership pages, the results pages
+ * and everything else that has not been written yet. `build.inlineStylesheets: 'never'`
+ * means this arrives as its own file, requested only by the two pages that import it.
+ *
+ * ## How it is scoped
+ *
+ * Everything hangs off `.theme-nn` on `<body>`, put there by the optional `theme` prop on
+ * `Base.astro`. Nothing here can reach a page that does not ask for it.
+ *
+ * The trick that keeps this file short is the first block: it **re-declares base.css's own
+ * `--colour-*` tokens** on `body.theme-nn`. Every rule already in `base.css` — the notices,
+ * the fields, the status list, the footer — then draws itself in campaign colours without
+ * being restated. `body.theme-nn` (0,1,1) outranks `:root` (0,1,0), so this holds whatever
+ * order the bundler emits the two files in, and it holds against the dark-scheme block too.
+ *
+ * ## Both colour schemes, on purpose
+ *
+ * **This theme is scheme-invariant: identical values under `prefers-color-scheme: light`
+ * and `dark`.** That is a decision, not an omission. The page is one deep-red poster; there
+ * is no light and dark version of it, and the tokens below are overridden on `body` so
+ * base.css's `@media (prefers-color-scheme: dark)` block — which redeclares on `:root` —
+ * cannot reach them. Every ratio recorded below therefore holds in both schemes, which is
+ * what the dual-scheme contrast requirement asks for.
+ *
+ * ## Contrast, computed rather than assumed
+ *
+ * Ratios are WCAG 2.x, measured against the **lightest** point of the gradient
+ * (`--nn-blood` at the radial centre), which is the worst case; every pair improves
+ * towards the darker edge. Three pairs in the mockup failed and were corrected here:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            body text             8.43:1    4.5 (AA)     ok
+ *   bone on blood-deep       body text            12.69:1    4.5 (AA)     ok
+ *   ink on pus               button, badge        10.93:1    4.5 (AA)     ok
+ *   ink on card              text on white        18.09:1    4.5 (AA)     ok
+ *   ink on card-muted        text on the panel    16.12:1    4.5 (AA)     ok
+ *   slate on card            secondary, small      8.30:1    4.5 (AA)     ok
+ *   bone on aubergine        text on dark panel   14.51:1    4.5 (AA)     ok
+ *   pus on blood             date line             5.44:1    3.0 (large)  ok — see note
+ *   pus on blood-deep        date line             8.20:1    3.0 (large)  ok
+ *   bone at .85 on blood     "presents…"           6.44:1    4.5 (AA)     ok
+ *   pus on blood             focus ring            5.44:1    3.0 (1.4.11) ok
+ *   ink on card              focus ring in a card 18.09:1    3.0 (1.4.11) ok
+ *   danger on card           field error text      5.53:1    4.5 (AA)     corrected
+ *   danger on card-muted     field error text      4.93:1    4.5 (AA)     corrected
+ *   field border on card     input boundary        3.23:1    3.0 (1.4.11) corrected
+ *   pus on card              button fill on white  1.65:1    —            see below
+ *
+ * Added by the content pages — the navigation, the schedule and the fog:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            nav link, resting     8.43:1    4.5 (AA)     ok
+ *   pus on blood             nav link, current     5.44:1    4.5 (AA)     ok
+ *   pus on blood             the rule beneath it   5.44:1    3.0 (1.4.11) ok
+ *   blood on card            schedule / prize term 9.01:1    4.5 (AA)     ok — new
+ *   card-muted on card       row separator         1.12:1    —            see below
+ *
+ * Added by the richer layout — the fact chips, the buttons, the prize grid and the panel:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            hero fact chips       8.43:1    4.5 (AA)     ok
+ *   bone border on blood     ghost button edge     8.43:1    3.0 (1.4.11) ok
+ *   ink on pus               primary button        10.93:1   4.5 (AA)     ok
+ *   ink on card-muted        prize tile category   16.12:1   4.5 (AA)     ok
+ *   slate on card-muted      prize tile detail      7.40:1   4.5 (AA)     ok — new
+ *   ink on pus               fancy-dress tile      10.93:1   4.5 (AA)     ok
+ *   blood on card            arrow bullet marker    9.01:1   3.0          ok
+ *   bone on aubergine        panel text            14.51:1   4.5 (AA)     ok
+ *   pus on aubergine         panel accent line      9.37:1   4.5 (AA)     ok — new
+ *   aubergine on blood       panel fill vs page     1.72:1   —            see below
+ *   aubergine on blood-deep  panel fill, page foot  1.14:1   —            see below
+ *   rule on aubergine        panel edge, page top   3.78:1   3.0 (1.4.11) ok — new
+ *   rule on aubergine        panel edge, page foot  3.04:1   3.0 (1.4.11) ok — new
+ *   plum on aubergine        rejected               2.31:1   4.5 (AA)     *** fails ***
+ *
+ * Added by the entry form — the fieldsets, the entry-type cards and the medical panel:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   ink on card              legend, fee name     18.09:1    4.5 (AA)     ok
+ *   slate on card            hint, fee detail      8.30:1    4.5 (AA)     ok
+ *   ink on card-muted        medical panel text   16.12:1    4.5 (AA)     ok
+ *   slate on card-muted      medical panel hint    7.40:1    4.5 (AA)     ok
+ *   ink on chosen            chosen entry card    16.16:1    4.5 (AA)     ok — new
+ *   slate on chosen          chosen card detail    7.41:1    4.5 (AA)     ok — new
+ *   danger on chosen         error in chosen card  4.94:1    4.5 (AA)     ok — new
+ *   blood on card            chosen card border    9.01:1    3.0 (1.4.11) ok
+ *   field border on card     unchosen card border  3.23:1    3.0 (1.4.11) ok
+ *   field border on card-muted   rejected          2.88:1    3.0 (1.4.11) *** fails ***
+ *   field border strong on card-muted  input       3.29:1    3.0 (1.4.11) ok — corrected
+ *   field border strong on chosen      EA box      3.30:1    3.0 (1.4.11) ok — new
+ *   chosen on card           chosen card fill      1.12:1    —            see below
+ *
+ * Added by taking a payment — the sold-out card, the two new failure notices, and the page
+ * Stripe returns somebody to:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   ink on card              notice body         18.09:1    4.5 (AA)     ok — no new pair
+ *   slate on card            notice secondary     8.30:1    4.5 (AA)     ok — no new pair
+ *   danger on card           notice border        5.53:1    3.0 (1.4.11) ok — no new pair
+ *   bone on card             `.lede` in a notice   1.06:1    4.5 (AA)     *** was failing ***
+ *
+ * Added by the masthead — the capsules, and the bar they sit on once it is made to stay:
+ *
+ *   pair                                          ratio      needs        verdict
+ *   ------------------------------------------------------------------------------------
+ *   bone on blood            capsule edge, resting 8.43:1    3.0 (1.4.11) ok — no new pair
+ *   bone on blood            capsule label         8.43:1    4.5 (AA)     ok — no new pair
+ *   pus on blood             capsule fill, current 5.44:1    3.0 (1.4.11) ok — no new pair
+ *   ink on pus               capsule label, current 10.93:1  4.5 (AA)     ok — no new pair
+ *   pus on blood             capsule edge, hover   5.44:1    3.0 (1.4.11) ok — no new pair
+ *   bone on blood-deep       capsule edge, stuck  12.69:1    3.0 (1.4.11) ok — new
+ *   bone on blood-deep       capsule label, stuck 12.69:1    4.5 (AA)     ok — new
+ *   pus on blood-deep        capsule fill, stuck   8.20:1    3.0 (1.4.11) ok — new
+ *   blood-deep on blood      the stuck bar vs page 1.51:1    —            see below
+ *
+ * **This slice introduced no new colour pair, and that is the point of reusing the notice
+ * pattern rather than inventing a sold-out treatment.** Somebody meeting the sold-out card
+ * has just been told bad news; the campaign's atmosphere belongs on the poster.
+ *
+ * **The one real failure it did find was already there.** `.lede` is bone, because it was
+ * written for the hero — and the entry return page is the first white card to use one.
+ * **1.06:1**, on a bold 18px sentence that was the whole point of the card and was in
+ * practice invisible. Caught by axe rather than by reading, which is the argument for the
+ * accessibility suite in one line. Fixed at `.nn-card .lede` rather than at the call site,
+ * because the next card to use a lede would have hit it again; it now reads ink at 18.09:1.
+ *
+ * **`--nn-field-border` on `card-muted` is 2.88:1 and is a real failure, not a flagged
+ * exception.** The medical section is a muted panel with a text box in it, and a text box's
+ * border is the only thing saying where to type — which is exactly the case 1.4.11 names.
+ * `--nn-field-border-strong` is the same hue and saturation with lightness alone reduced
+ * from 57.3% to 53.3%, which is the correction this file has already made twice. It is used
+ * only where the surface is not white, so the interest form's recorded 3.23:1 is untouched.
+ *
+ * **The chosen entry-type card's fill is 1.12:1 against the card and that is fine here**,
+ * because the fill is the *third* signal rather than the only one: the card's border changes
+ * from `field border` to `blood` (3.23:1 → 9.01:1 against white, a change of shape as well
+ * as colour at 2px), and the native radio inside it is checked. Somebody who cannot see the
+ * fill at all still has a filled radio button and a heavier, darker edge.
+ *
+ * **The radio is a real radio, deliberately.** The mockup hides it — `position:absolute;
+ * opacity:0` — and paints the chosen state entirely with `label:has(input:checked)`. That is
+ * one CSS feature away from a form with no visible answer to "which one did I pick", and the
+ * failure would be silent. Keeping the native control means the chosen state is carried by
+ * the browser and the styling is decoration on top of it.
+ *
+ * **`plum` on `aubergine` is 2.31:1 and is not used anywhere.** It is recorded because the
+ * theme carries `--nn-plum` as a secondary accent and the call-to-action panel is the
+ * obvious place to spend it. It fails, and badly. The number is more use here than the
+ * idea is.
+ *
+ * **The panel's fill is 1.72:1 against the page and it stays that way**, for the reason
+ * the row separator does: it groups, it identifies nothing, and everything inside it is at
+ * 9.37:1 or better. What was *not* acceptable was leaving it edgeless — at the foot of a
+ * scrolling page the gradient is `blood-deep` and the fill is 1.14:1 against it, which is
+ * a panel nobody can see the shape of, in precisely the place it lives. The hairline fixes
+ * that from the side with the contrast to spare.
+ *
+ * **`blood` on white is 9.01:1**, which is the only genuinely new text pair in this pass.
+ * It sets the times down the left of the race-day schedule and the categories in the prize
+ * list, in mono, as the mockup does — and unlike the mockup's `--danger`, it needed no
+ * correction to get there.
+ *
+ * **The row separator is 1.12:1 and stays that way.** It is the same `card-muted` hairline
+ * already ruling the privacy notice's headings. 1.4.11 asks 3:1 of a graphical object
+ * *required to understand the content*; a schedule reads identically with the lines removed
+ * because the grouping is carried by the `<dl>` itself and by the mono time at the head of
+ * each row. Making it a 3:1 rule would draw six dark lines across a white card to restate
+ * something the markup already says. Flagged rather than silently kept.
+ *
+ * **The capsules cost nothing to measure, and that is why they are capsules.** A resting one
+ * is `.nn-ghost` and the current one is `.nn-cta` — the hero's own two buttons at nav scale —
+ * so those four pairs were already in this table before the header existed. The mockup's pill
+ * bar, which is where the shape comes from, draws its resting edge at about 2:1 on a
+ * near-black strip; that is fine there and fails here, so the edge is bone.
+ *
+ * **Making the bar stay is what introduced a colour**, and it introduced exactly one. A
+ * header that scrolls away can be transparent; a header that stays has to be opaque or the
+ * words underneath scroll through it. `blood-deep` is the page's own darker end rather than
+ * a fourth surface, so every pair on the stuck bar improves on the same pair over `blood`.
+ *
+ * **The bar is 1.51:1 against the page and stays that way**, for the reason the
+ * call-to-action panel's fill does: it groups, it identifies nothing, and everything inside
+ * it is at 8.20:1 or better. The place it has to be visible is the top of the page, which is
+ * exactly where a stuck header sits — and there the gradient is at its lightest, so this is
+ * the largest that difference ever gets rather than the smallest.
+ *
+ * ## The fog, and why it darkens
+ *
+ * The hero carries a slow two-blob wash of `blood-deep` at 30% over the gradient. **It can
+ * only darken**, so every pair above improves rather than degrades: at the fog's densest
+ * point the hero background is `#80170d`, where bone reads **9.60:1** and pus **6.20:1**
+ * against the 8.43:1 and 5.44:1 recorded for bare `blood`. **The worst case in this table
+ * is therefore still bare `blood`, unchanged by the flourish**, which is the property that
+ * made this version of it the one to ship.
+ *
+ * A *lightening* fog was the first attempt and was abandoned on the arithmetic: bone over
+ * blood with a 10% bone wash is 6.92:1 and pus is **4.47:1 — a real AA failure** on the
+ * date line, from an effect nobody would have noticed was there. The numbers are kept here
+ * because the next person to reach for atmosphere on this page will reach for the same
+ * thing first.
+ *
+ * **pus on blood is 5.44:1**, so the date line clears AA at any size — its size is a design
+ * choice rather than a contrast constraint. The mockup's assumption that yellow-on-red was
+ * large-text-only turns out to be more cautious than it needed to be.
+ *
+ * **danger was `#E53935` in the mockup and is 4.5:1 — it fails.** Hue and saturation are
+ * unchanged; lightness alone is reduced until it clears with headroom on both white and the
+ * muted panel. Error text is the one thing on this page somebody is reading under pressure.
+ *
+ * **The field border was `#D6C9C4` in the mockup, 1.61:1 against the card.** A text box's
+ * border is the only thing that says where to type, so WCAG 1.4.11 puts it at 3:1 and this
+ * is a real failure rather than a nicety. Same hue and saturation, darker.
+ *
+ * **The submit button is a yellow fill on a white card at 1.65:1, and stays that way.**
+ * 1.4.11 asks for a 3:1 boundary only where the boundary is what identifies the control;
+ * here the control is identified by its own label — 700-weight ink at 10.93:1, full width,
+ * 16px of padding. Bordering it would put a dark rule around the campaign's one call to
+ * action for no accessibility gain. Flagged rather than silently kept.
+ *
+ * The mockup's footer sets bone to `opacity: .8` (5.86:1). Not reproduced: the footer here
+ * is at full opacity, because the one place a person looks for who is responsible for a
+ * page should not be the faintest thing on it.
+ */
+
+body.theme-nn {
+  /* ---------------------------------------------------------------------------------
+   * The campaign palette, sampled from the club's own artwork.
+   * --------------------------------------------------------------------------------- */
+  --nn-blood: #8f1b0f; /* page background, radial centre */
+  --nn-blood-deep: #5e0f08; /* radial edge */
+  --nn-aubergine: #3a1440; /* badge, dark panel */
+  --nn-plum: #6e4e8c; /* secondary accent, sparing */
+  --nn-bone: #fff6ec; /* text on blood */
+  --nn-pus: #f2c41d; /* CTA, date badge, focus ring */
+  --nn-ink: #241016; /* text on pus / bone / white */
+  --nn-card: #ffffff; /* form card */
+  --nn-card-muted: #f6f1ec; /* card dividers, muted panels */
+  --nn-slate: #5a4a50; /* secondary text on white */
+
+  /* Corrected from the mockup's #e53935 — see the contrast table above. */
+  --nn-danger: #cd1e1a; /* field errors on white */
+  /* Corrected from the mockup's #d6c9c4 — WCAG 1.4.11, and it is a text box. */
+  --nn-field-border: #a6897e;
+  /* The same border where the surface behind it is not white — the medical panel and the
+     chosen entry-type card. `--nn-field-border` is 2.88:1 on those and fails; this is the
+     same hue and saturation with lightness alone reduced, at 3.29:1. See the table above. */
+  --nn-field-border-strong: #9e7e72;
+  /* The fill of the chosen entry-type card. The mockup's, and it carries no meaning on its
+     own — the border, the native radio and the price all say which one is chosen. */
+  --nn-chosen: #fbf0ea;
+
+  --nn-r-btn: 8px;
+  --nn-r-card: 12px;
+
+  --nn-display: 'Nosifer', 'Impact', fantasy;
+  --nn-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --nn-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* The one serif on the page, and only for the word "presents…". A system stack, because
+     a fourth webfont for eleven characters is not a trade worth making on poor signal. */
+  --nn-serif: Georgia, 'Times New Roman', serif;
+
+  /* ---------------------------------------------------------------------------------
+   * base.css's tokens, restated in campaign colours.
+   *
+   * This is what makes the rest of this file short: every rule already written in
+   * `base.css` reads these, so the notices, the fields, the status list and the footer
+   * arrive on-theme without being redeclared here.
+   *
+   * `--colour-background` is the **card** white rather than the page, because the only
+   * thing that reads it is `.field-input`, which sits on the card. The page's own
+   * background is the gradient, declared outright below.
+   * --------------------------------------------------------------------------------- */
+  --colour-background: var(--nn-card);
+  --colour-text: var(--nn-bone);
+  --colour-muted: var(--nn-bone);
+  --colour-accent: var(--nn-bone);
+  --colour-on-accent: var(--nn-ink);
+  --colour-rule: rgba(255, 246, 236, 0.35);
+  --colour-error: var(--nn-danger);
+
+  --font-body: var(--nn-body);
+  --font-mono: var(--nn-mono);
+
+  /* The mockup's column. Wider than the club's 38rem measure because this page is a
+     poster with a form on it rather than a page of prose. */
+  --nn-column: 45rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The three faces, self-hosted.
+ * -------------------------------------------------------------------------------------
+ * **Not `fonts.googleapis.com`.** A remote font link is a third-party request on every
+ * page load, which is somebody else's log of who read the race page and an unnecessary
+ * transfer to a country nobody assessed. These are the same open-licensed files, served
+ * from the club's own origin — latin subset only, which is every character this site sets.
+ *
+ * Inter and JetBrains Mono are variable, so one file covers the weights each is asked for.
+ * All three are SIL Open Font Licence 1.1; the licences ship beside them in
+ * `public/fonts/`. Provenance and how to fetch them again:
+ * docs/design/nn-theme-fonts.md
+ *
+ * `font-display: swap` throughout: the copy is readable in a fallback face from the first
+ * paint, which on a phone at the start line matters more than the lettering does.
+ * ------------------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Nosifer';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/nosifer-latin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-var.woff2') format('woff2');
+}
+
+/* -------------------------------------------------------------------------------------
+ * The page
+ * ------------------------------------------------------------------------------------- */
+body.theme-nn {
+  /* Declared outright rather than through a token: the page background is a gradient and
+     `--colour-background` has to stay a flat colour for the form fields to use. */
+  background: radial-gradient(
+    120% 90% at 50% 20%,
+    var(--nn-blood) 0%,
+    var(--nn-blood-deep) 100%
+  );
+  /* So the red does not repeat down a long page or end early on a short one. */
+  background-attachment: fixed;
+  background-color: var(--nn-blood-deep);
+  /* Sections carry their own padding; the artwork strip has to reach both edges. */
+  padding: 0;
+  font-size: 16px;
+}
+
+/* base.css centres `main` on the club's measure. Here the column is `.nn-wrap`'s job, so
+   that the hands artwork can run the full width without a negative margin — the thing that
+   would otherwise push the page sideways at 320px. */
+.theme-nn main {
+  max-width: none;
+  margin-inline: 0;
+}
+
+.theme-nn .nn-wrap {
+  max-width: var(--nn-column);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+/* The skip link lands on the gradient, so it needs a surface of its own to be read
+   against — base.css only unhides it. */
+.theme-nn .skip-link:focus {
+  margin: 16px 20px;
+  padding: 10px 16px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Focus
+ * -------------------------------------------------------------------------------------
+ * Two rings, because one cannot do both jobs: yellow is the campaign's signal and reads at
+ * 5.44:1 on the red, but the same yellow on a white card is 1.65:1 and would be a focus
+ * indicator nobody could find. Inside a card the ring is ink, at 18.09:1.
+ *
+ * The second selector is a descendant combinator on purpose. A **card itself** takes focus
+ * — the acknowledgement and the error summary both do, by `tabindex="-1"` and the Worker's
+ * `autofocus` — and its ring is drawn outside its own edge, on the gradient, where yellow
+ * is the right answer. Only the controls **within** a card sit on white.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn :focus-visible {
+  outline: 3px solid var(--nn-pus);
+  outline-offset: 2px;
+}
+
+.theme-nn .nn-card :focus-visible {
+  outline-color: var(--nn-ink);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The masthead
+ * -------------------------------------------------------------------------------------
+ * The wordmark and the four campaign links, in a `<header>` above everything else.
+ *
+ * **It stays put while the page scrolls**, which is the one thing here that was asked for
+ * against the grain of the rest: these are read-and-scroll pages rather than an
+ * application, and a bar that never leaves is 64px of a laptop and **159px of a 320px
+ * phone** — a quarter of that viewport, permanently, before a word of the race is read.
+ * That trade was made deliberately and with the number in front of it. The cost is all in
+ * the narrow case, because that is the only width where the mark and the capsules cannot
+ * share a row.
+ *
+ * **Sticking it is what forced a background**, and the background is the only new colour
+ * this section introduces. See the note on the rule itself.
+ *
+ * **`flex-wrap` and no breakpoint**, which is this file's habit everywhere else. The mark is
+ * 132px, the links measure 261px and the gap is 24px, so the two share a row from about
+ * 460px up and the links drop to a row of their own below it — where they still fit on one
+ * line, because 261px is inside the 280px a 320px screen leaves within the column's
+ * padding. Two rows on a phone, one on a laptop, and no width written down: `flex-wrap`
+ * already knows the answer and a breakpoint here would be a second one to maintain.
+ * ------------------------------------------------------------------------------------- */
+/* **Stuck to the top, and the background is what that costs.** Transparent was free while
+   the header scrolled away with the page; a header that stays has to be opaque or the
+   words underneath scroll through it. `blood-deep` is the page's own darker end rather than
+   a new colour, so every pair on the bar was already measured: bone edge and label at
+   12.69:1, the current capsule's pus fill at 8.20:1, its ink label at 10.93:1.
+
+   **The bar is 1.51:1 against the page and that is deliberate**, for the reason the
+   call-to-action panel's fill is: it groups, it identifies nothing, and everything inside it
+   is at 8.20:1 or better. What it must not be is invisible at the top of the page, and at
+   the radial centre — which is exactly where a stuck header sits — `blood` is at its
+   lightest and the contrast with `blood-deep` at its largest. */
+.theme-nn .nn-masthead {
+  position: sticky;
+  top: 0;
+  /* Above the hero's fog (0) and its content (1), and above the cards that rise into view
+     as they are scrolled to. */
+  z-index: 10;
+  background: var(--nn-blood-deep);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.theme-nn .nn-masthead > .nn-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* Row gap first: it is the space between the mark and the links once they have wrapped
+     onto two rows, which is the phone case and therefore the one that matters. */
+  gap: 6px 24px;
+}
+
+/* The link around the wordmark. `text-decoration: none` because the theme underlines every
+   link on the gradient and the content here is artwork rather than words — an underline
+   under a logo reads as a mistake. It is still obviously a link: it is the club's mark in
+   the top-left corner of a header, which is the most conventional target on the web. */
+.theme-nn .nn-masthead-mark {
+  display: block;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+/* Smaller than the hero's copy was, because it is page furniture now rather than the
+   opening statement. `max-width: none` overrides the 50% the hero needed — inside a flex
+   row that percentage resolves against the flex item and collapses the mark to nothing. */
+.theme-nn .nn-masthead .nn-logo {
+  width: 132px;
+  max-width: none;
+}
+
+/* Pushed to the right of the mark on a wide screen; harmless when it has wrapped to its own
+   row, where `margin-left: auto` against a full-width line does nothing. */
+.theme-nn .nn-masthead .nn-nav {
+  margin-left: auto;
+}
+
+/* **Every anchor target on these pages leaves room for the bar**, and this is the rule that
+   stops sticking it from being an accessibility regression. Without it "Skip to content"
+   scrolls `<main>` to a position underneath the header, the panels' `/nn/#register` puts
+   the form's heading behind it, and the error summary's link to the field it is about
+   scrolls that field out of sight — which is WCAG 2.4.11 failing, and is also just somebody
+   pressing a link and appearing to arrive nowhere.
+
+   **`scroll-margin-top` on the targets rather than `scroll-padding-top` on the scroller.**
+   The scroller is the viewport, which is `<html>`, and this theme is scoped to `body` on
+   purpose — reaching the root would need either `:has()` or a second class on `<html>`, and
+   the property that belongs to the target works everywhere without either.
+
+   One value, sized for the tallest the bar gets. On a laptop, where it is 64px, an anchor
+   lands with more clearance than it needs; that costs nothing and is the safe direction to
+   be wrong in. Near the top of a document the browser cannot scroll past zero, so the skip
+   link is unaffected by the slack.
+
+   **What this rule cannot do, so that nobody adds it again.** It decides where a scroll
+   lands; it has no say in whether one happens. The selector is `[id]` rather than "anchor
+   targets", so every control on the entry form already computes 168px here — the fee radios
+   measure it in both engines — and moving focus between the entry-type radios with the arrow
+   keys still leaves the newly focused one behind the bar at 320px in WebKit. The reason is
+   that WebKit frequently does not scroll at all when focus moves by keyboard: measured, it
+   left both an arrowed-to fee radio and a tabbed-to date box entirely below the fold without
+   scrolling a pixel. Nothing consulted only during a scroll can repair a scroll that never
+   starts.
+
+   Both obvious repairs were measured and neither is one. `.nn-fee { scroll-margin-top }`
+   gives 3 of 6 keyboard transitions clear of the bar at 320px — exactly what it is without
+   it, because the card is not what focus moves to. `html { scroll-padding-top: 168px }` makes
+   it worse at 2 of 6, one landing above the viewport. Chromium is 6 of 6 either way. What is
+   left is the bar's own height at 320px, 159px of a 568px screen, and that is a decision
+   about the masthead rather than about this rule. Measured against the WebKit
+   `playwright install` provides, which is the engine CI fails on; real Safari was not
+   available to check. */
+.theme-nn [id] {
+  scroll-margin-top: 168px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The hero
+ * -------------------------------------------------------------------------------------
+ * `position: relative` and the stacking of the wrap above it are both here for the fog —
+ * see the fog section below.
+ *
+ * **The top padding is small because the masthead is above it now.** It used to be 40px
+ * and to open the page; the header does that, and the two paddings together are what set
+ * the gap between the links and the title. The bottom padding stays: the hero is followed
+ * by a card, and the campaign's h1 is set in a face whose drips hang below the baseline.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hero {
+  position: relative;
+  padding-top: 6px;
+  padding-bottom: 14px;
+}
+
+.theme-nn .nn-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The club's wordmark, where the mockup sets the name in bold type. It is supplied as a
+   white SVG and used exactly as supplied — recolouring a club's logo to a theme's bone is a
+   brand decision rather than a styling one, and white on the gradient is 8.9:1 anyway.
+
+   `max-width` rather than a media query: 50% of the column keeps it proportionate on a
+   phone without a second breakpoint to remember. */
+.theme-nn .nn-logo {
+  display: block;
+  width: 176px;
+  max-width: 50%;
+  height: auto;
+}
+
+.theme-nn .nn-presents {
+  margin: 14px 0 0;
+  font-family: var(--nn-serif);
+  font-style: italic;
+  font-size: 14px;
+  /* 6.44:1 composited over the lightest part of the gradient — checked, not assumed. */
+  opacity: 0.85;
+}
+
+/* **Nosifer is decorative and stays that way**: the h1 and the date line, nothing else.
+   Never a form label, never a paragraph, never a heading inside a card.
+
+   **Two numbers here are measured rather than copied from the mockup**, and both are
+   because these headings wrap and the mockup's never did.
+
+   The leading is 1.62 rather than the club's 1.2, and rather than the mockup's 1.5: the
+   face's drips hang a long way below the baseline, and at 1.5 the drips from "Nightingale"
+   land on the capitals of "Nightmare" on the line beneath.
+
+   The floor of the clamp is 26px rather than the mockup's 34px, and it is set by the
+   longest unbreakable word on either page. "Nightingale" sets at 236px in Nosifer at 26px,
+   against the 280px a 320px screen leaves inside the column's padding. At the mockup's
+   34px it sets at 309px and pushes the page sideways. */
+.theme-nn .nn-hero h1 {
+  margin: 26px 0 18px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(26px, 7.5vw, 58px);
+  line-height: 1.62;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* The compact hero: the privacy notice is the same page furniture at a lower volume. It
+   wraps to three lines on a phone, so it needs more leading again, not less. */
+.theme-nn .nn-hero-compact h1 {
+  font-size: clamp(20px, 5vw, 34px);
+  line-height: 1.75;
+}
+
+/* **The date, and the only place on this site it is set in the display face.** It reads
+   "Sunday 1 November 2026" now that the date is confirmed; before that it was a whole
+   sentence carrying its own qualifier, because "Halloween weekend 2026" on its own would
+   have been a promise the committee had not made.
+
+   **The generous leading is kept even though the string got shorter.** The mockup's badge
+   is one line at every width; this one still wraps on a narrow phone, where 1.7 leaves the
+   face's drips falling through the line below — and if the committee ever moves the date to
+   something longer, the rule should not have to be rediscovered. */
+.theme-nn .nn-dateline {
+  margin: 0 0 22px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(15px, 3vw, 21px);
+  line-height: 2;
+  letter-spacing: 0.02em;
+  color: var(--nn-pus);
+}
+
+.theme-nn .lede {
+  max-width: 560px;
+  margin-bottom: 26px;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The navigation
+ * -------------------------------------------------------------------------------------
+ * Four capsules, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
+ * and it needs nobody to have predicted the width at which it would.
+ *
+ * **The current page is marked three ways and colour is not one of them on its own** —
+ * `aria-current="page"` for anything reading the markup, 700 weight, and the capsule
+ * inverting from an outline to a solid fill. That last one is the reason this shape suits
+ * the job: filled against outlined is a difference in *area*, which survives being
+ * photocopied, being read on a phone in sunlight, and not being able to separate yellow
+ * from cream. The colour is the least of the three signals rather than the only one.
+ *
+ * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* **A resting capsule is `.nn-ghost` and the current one is `.nn-cta`, at nav scale.** That
+   is the whole of the colour reasoning: 2px bone edge on transparent with bone text, and a
+   pus fill with ink text for the page you are on. Both pairs are already in the table above
+   — bone border on blood at 8.43:1, ink on pus at 10.93:1, pus fill on blood at 5.44:1 —
+   because they are the hero's own two buttons, so the capsules add no colour pair to
+   measure and cannot drift from the buttons they echo.
+
+   **The mockup's own pill bar is where the shape comes from and not the colours.** It is
+   the review chrome at the top of `nn-entry-mockup.html`, marked "not shipped", and it
+   draws its resting edge in `#5a4a48` on a near-black bar — about 2:1, which is fine there
+   and fails here on the red. The edge is bone instead. */
+.theme-nn .nn-nav a {
+  display: inline-block;
+  padding: 7px 14px;
+  border: 2px solid var(--nn-bone);
+  border-radius: 999px;
+  color: var(--nn-bone);
+  font-size: 14px;
+  font-weight: 600;
+  /* The capsule is what says "this is a control". An underline inside one reads as a
+     mistake, and this is the one place in this file where dropping it is not position
+     standing in for a signal. */
+  text-decoration: none;
+}
+
+.theme-nn .nn-nav a[aria-current='page'] {
+  border-color: var(--nn-pus);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-weight: 700;
+}
+
+/* **Hover changes colour, not position.** The hero's buttons lift 2px and these
+   deliberately do not: a row of four that each jump as the pointer crosses them is fidget
+   on a page somebody is reading, and a treatment with no motion in it needs no second rule
+   under `prefers-reduced-motion`.
+
+   **`:not([aria-current])` is load-bearing rather than tidy.** Without it the hover would
+   set pus text on the current item's pus fill, and the label somebody is pointing at would
+   vanish. */
+.theme-nn .nn-nav a:hover:not([aria-current='page']) {
+  border-color: var(--nn-pus);
+  color: var(--nn-pus);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Headings and links on the gradient
+ * -------------------------------------------------------------------------------------
+ * Section headings are Inter rather than Nosifer. A horror face is a poster device; used
+ * on every heading it stops being legible and stops being a surprise.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn h2 {
+  margin: 34px 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Underlined, so the link is not carried by colour alone — bone on bone would be nothing
+   but a shade. */
+.theme-nn a {
+  color: var(--nn-bone);
+  text-underline-offset: 0.15em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Meta rows — the "to be confirmed" facts, and the two database markers
+ * -------------------------------------------------------------------------------------
+ * The mockup sets its small factual rows in mono, and that is what these are. base.css
+ * boxes the list in a rule; on the gradient a box would read as a card that failed to
+ * paint, so it is a hairline above each term instead.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .status {
+  margin: 18px 0 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.theme-nn .status dt {
+  padding-top: 10px;
+  border-top: 1px solid var(--colour-rule);
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* 5.44:1 on the lightest part of the gradient — AA at this size, computed not assumed. */
+  color: var(--nn-pus);
+}
+
+.theme-nn .status dd {
+  margin: 4px 0 14px;
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Cards
+ * -------------------------------------------------------------------------------------
+ * White, ink, and no horror inside. The form and the privacy notice are the two things on
+ * these pages somebody has to read carefully rather than enjoy.
+ *
+ * The token overrides are the point of the block: inside a card, "muted" means slate on
+ * white and "rule" means the field border, so base.css's `.field-hint`, `.field-input` and
+ * `.signup-privacy` need no restating.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-card {
+  --colour-text: var(--nn-ink);
+  --colour-muted: var(--nn-slate);
+  --colour-accent: var(--nn-ink);
+  --colour-rule: var(--nn-field-border);
+
+  margin: 0 0 20px;
+  padding: 28px 24px;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-card > :last-child {
+  margin-bottom: 0;
+}
+
+.theme-nn .nn-card h2,
+.theme-nn .nn-card h3 {
+  margin: 0 0 4px;
+  font-family: var(--nn-body);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+/* Links, and only links. Paragraphs and list items take ink by inheriting it from the card
+   — **a blanket `.nn-card p` rule here would outrank `.field-hint` and quietly repaint the
+   secondary text on the form**, which is the sort of thing that only shows up in a computed
+   style. `a` does need restating: `.theme-nn a` is bone, and bone on white is nothing. */
+.theme-nn .nn-card a {
+  color: var(--nn-ink);
+}
+
+/* **`.lede` is bone, because it was written for the hero — and bone on white is nothing.**
+   The prose block below already restates it for `.nn-prose`; this restates it for every
+   other white card, which is the general form of the same fix. Found by axe on the entry
+   return page at **1.06:1** — a bold 18px sentence that was the whole point of the card and
+   was, in practice, invisible. Fixed here rather than by dropping the class at the one call
+   site, because the next card to use a lede would have hit it again. */
+.theme-nn .nn-card .lede {
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-card code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--nn-card-muted);
+  font-family: var(--nn-mono);
+  font-size: 0.9em;
+}
+
+/* The privacy notice: one card, and long enough that its headings need room to breathe
+   and a rule to separate them. Inter 600, never the display face — legal text gets
+   maximum readability and no atmosphere. */
+.theme-nn .nn-prose > h2 {
+  margin: 28px 0 8px;
+  padding-top: 20px;
+  border-top: 1.5px solid var(--nn-card-muted);
+  font-size: 18px;
+}
+
+.theme-nn .nn-prose > h2:first-of-type {
+  margin-top: 22px;
+}
+
+.theme-nn .nn-prose .lede {
+  max-width: none;
+  margin-bottom: 0;
+  font-size: 17px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-prose ul {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The notice's tables
+ * -------------------------------------------------------------------------------------
+ * What is collected, the lawful basis for each, and how long each is kept. **Tabular data,
+ * so real tables** — `<th scope="col">` across the top and `<th scope="row">` down the
+ * side, which is what lets somebody listening to the page ask which column they are in and
+ * be told. A stack of divs would look identical and answer nothing.
+ *
+ * ## Two columns, never three
+ *
+ * The retention table was drafted with a third column for *why*. Inside this card at 320px
+ * there are 232px to work with — 320 less `.nn-wrap`'s 40 and `.nn-card`'s 48 — and three
+ * columns of prose in 232px is either a sideways scroll or a word per line. The *why* is
+ * folded into the second cell as a subordinate line instead: every word survives, and the
+ * widest table on the page is two columns. Two of the five *why* cells were empty in the
+ * draft anyway.
+ *
+ * ## `table-layout: fixed` is what makes the 320px test pass, not the breakpoint
+ *
+ * `auto` sizes columns to their content, so one long unbroken run — an email address, a
+ * postcode — can push a table wider than its container however narrow the container is.
+ * `fixed` takes the widths from the first row and honours the declared width, and
+ * `overflow-wrap: anywhere` breaks whatever is left. Together the table *cannot* exceed the
+ * card. The stack below is for reading; this pair is for not overflowing, and they are
+ * separate jobs — a breakpoint alone would still overflow at 481px given a long enough word.
+ *
+ * ## Stacked below 30rem, with the semantics restated by hand
+ *
+ * Below 30rem each row becomes a block, because two columns of prose in 232px is not
+ * reading. **Making `tr` and `td` blocks is what drops a table's implicit roles**, in every
+ * engine — so every role is restated in the markup: `table`, `rowgroup`, `row`,
+ * `columnheader`, `rowheader`, `cell`. They are redundant above the breakpoint and
+ * load-bearing below it, and stating them once in the HTML is cheaper than two markup
+ * paths. They are also invisible to the acceptance suite's axe tags, which is why this is
+ * safe: `no-redundant-roles` is a best-practice rule and the suite filters to
+ * `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa`.
+ *
+ * The header row is **clipped rather than removed**, for the same reason: `display: none`
+ * would take the column names out of the accessibility tree along with the pixels. The
+ * `::before` on each stacked cell is scaffolding for a sighted reader who has lost sight of
+ * the header row, not the label of record.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-prose table {
+  width: 100%;
+  table-layout: fixed;
+  margin: 0 0 1rem;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.theme-nn .nn-prose th,
+.theme-nn .nn-prose td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--nn-card-muted);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.theme-nn .nn-prose th:last-child,
+.theme-nn .nn-prose td:last-child {
+  padding-right: 0;
+}
+
+.theme-nn .nn-prose thead th {
+  border-bottom: 1.5px solid var(--nn-field-border);
+  font-weight: 600;
+}
+
+/* **On the head row, because `table-layout: fixed` reads the widths off the first row.**
+   Setting it on `tbody th` would be ignored, silently, and the columns would come out even. */
+.theme-nn .nn-prose thead th:first-child {
+  width: 38%;
+}
+
+.theme-nn .nn-prose tbody th {
+  font-weight: 600;
+}
+
+/* The folded-in third column. `--colour-muted` is the card's own override — slate on white
+   rather than the theme's bone, which is what `.nn-card` sets it to and why this does not
+   name a colour of its own. */
+.theme-nn .nn-prose .nn-why {
+  display: block;
+  margin-top: 4px;
+  color: var(--colour-muted);
+}
+
+@media (max-width: 30rem) {
+  .theme-nn .nn-prose thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .theme-nn .nn-prose tbody tr {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--nn-card-muted);
+  }
+
+  .theme-nn .nn-prose tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .theme-nn .nn-prose tbody th,
+  .theme-nn .nn-prose tbody td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .theme-nn .nn-prose tbody td {
+    margin-top: 6px;
+  }
+
+  .theme-nn .nn-prose tbody td[data-label]::before {
+    content: attr(data-label) ' — ';
+    color: var(--colour-muted);
+  }
+}
+
+/* Inline mono, for the one postcode that is read off a screen and typed into a car.
+   `0.9em` for the same reason `.nn-card code` has it: JetBrains Mono sets optically larger
+   than Inter at a matched pixel size, and an unsized mono run in a paragraph reads as
+   emphasis nobody meant. `nowrap` so a postcode never breaks across two lines. */
+.theme-nn .nn-mono {
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The schedule, and the prize list
+ * -------------------------------------------------------------------------------------
+ * Both are a `<dl>` of short term and longer detail, so both get the same treatment. On a
+ * white card, in Inter, at full contrast — **the race-day schedule is the one thing on
+ * this site somebody reads outdoors in November while working out whether they are late**,
+ * and the display face gets nowhere near it.
+ *
+ * **`flex-wrap` again, and again with no breakpoint.** The term holds an 82px column and
+ * the detail asks for 160px; below about 256px of usable width the detail cannot have its
+ * basis and drops to a row of its own, which is the stacked layout a 320px screen wants.
+ * Nothing had to guess where that happens — flexbox works it out from the content.
+ *
+ * The `<div>` wrapping each pair is valid inside a `<dl>` and is what makes a pair a flex
+ * row at all. Axe allows it; a `<dl>` of loose `<dt>`/`<dd>` siblings could not do this
+ * without a subgrid.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-schedule {
+  margin: 0 0 1rem;
+}
+
+.theme-nn .nn-schedule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 12px 0;
+  /* 1.12:1, and decorative — see the contrast note at the head of this file. */
+  border-bottom: 1.5px solid var(--nn-card-muted);
+}
+
+.theme-nn .nn-schedule-row:first-child {
+  padding-top: 0;
+}
+
+.theme-nn .nn-schedule-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.theme-nn .nn-schedule dt {
+  flex: 0 0 82px;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.7;
+  /* 9.01:1 on the card — computed, not assumed. */
+  color: var(--nn-blood);
+}
+
+.theme-nn .nn-schedule dd {
+  flex: 1 1 160px;
+  /* So a long word shrinks the flex item rather than pushing the card sideways. */
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  overflow-wrap: break-word;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The form
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .signup {
+  margin: 0;
+}
+
+.theme-nn .field-label {
+  font-family: var(--nn-body);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.theme-nn .field-input {
+  margin-top: 6px;
+  padding: 11px 12px;
+  border: 1.5px solid var(--nn-field-border);
+  border-radius: var(--nn-r-btn);
+}
+
+.theme-nn .field-input:focus {
+  border-color: var(--nn-ink);
+}
+
+/* A second signal beside the message, for anyone scanning rather than reading — and
+   heavier than the resting border so it reads as a change, not just a colour. */
+.theme-nn .field-input[aria-invalid='true'] {
+  border-width: 2px;
+  border-color: var(--nn-danger);
+}
+
+.theme-nn .field-hint {
+  font-size: 13px;
+  color: var(--nn-slate);
+}
+
+/* **Red is not what says this is an error — the word "Error" is.** base.css makes the same
+   argument with a left bar; on a white card the word does it better, and the bar sits badly
+   inside a rounded panel.
+
+   The prefix is generated rather than written into the markup because the Worker fills
+   these elements with `setInnerContent`, which replaces everything inside them — a literal
+   "Error:" in the page would be wiped by the first message that landed. It is redundant
+   emphasis for people reading rather than the only signal: the message itself is a plain
+   instruction ("Enter your name."), the input carries `aria-invalid`, and the summary at
+   the top of the form names the field and takes focus. */
+.theme-nn .field-error {
+  padding-left: 0;
+  border-left: 0;
+  font-size: 14px;
+  color: var(--nn-danger);
+}
+
+.theme-nn .field-error::before {
+  content: 'Error: ';
+  font-weight: 700;
+}
+
+.theme-nn .field-check {
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.theme-nn .field-checkbox {
+  /* WCAG 2.2 puts the target floor at 24 by 24; cold hands on a phone want the floor
+     rather than the mockup's 20. */
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 2px;
+  accent-color: var(--nn-blood);
+}
+
+.theme-nn .field-check .field-label {
+  font-weight: 400;
+}
+
+.theme-nn .button {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-size: 17px;
+  font-weight: 700;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.theme-nn .button:hover {
+  transform: translateY(-2px);
+}
+
+/* It reads into the card below it rather than out of one above it — see the note on the
+   page about why it sits before the form. */
+.theme-nn .signup-privacy {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry form
+ * -------------------------------------------------------------------------------------
+ * Fourteen fields on one page, on a phone, outdoors, possibly for a race somebody is
+ * nervous about. **Horror in the frame, calm in the content** holds harder here than
+ * anywhere else on the site: the gradient, the hands and the Nosifer lettering are all
+ * still outside this card, and nothing inside it — not a legend, not a price, not an
+ * error, not the medical wording — is set in the display face.
+ *
+ * The whole form is one white card. The six sections are told apart by a rule and a
+ * legend rather than by six separate cards, because six cards on a phone is six scroll
+ * positions where the person loses their place in one form.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-fieldset {
+  margin: 0 0 8px;
+  padding: 0 0 24px;
+  border: 0;
+  /* 1.12:1 and decorative — the section is named by its legend, which is what carries the
+     grouping. Same hairline the privacy notice already rules its headings with. */
+  border-bottom: 1.5px solid var(--nn-card-muted);
+}
+
+.theme-nn .nn-fieldset:first-of-type {
+  padding-top: 0;
+}
+
+.theme-nn .nn-fieldset:last-of-type {
+  padding-bottom: 8px;
+  border-bottom: 0;
+}
+
+/* **Inter 600, never Nosifer.** A legend is an instruction about what to do next, and
+   nothing a person has to act on is set in the display face anywhere on this site. */
+.theme-nn .nn-legend {
+  margin: 0 0 4px;
+  padding: 0;
+  font-family: var(--nn-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+/* A `<legend>` sits outside the fieldset's own padding box, so the hint that follows it
+   needs the top margin the legend cannot give it. */
+.theme-nn .nn-fieldset > .field-hint {
+  margin: 6px 0 16px;
+}
+
+.theme-nn .field-optional {
+  font-weight: 400;
+  color: var(--nn-slate);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Date of birth — three boxes, not a picker
+ * -------------------------------------------------------------------------------------
+ * A native date picker opens on this month and asks somebody to page back forty years one
+ * month at a time. Three boxes are typed in three seconds.
+ *
+ * The widths are measured rather than chosen: at 320px there are 232 pixels inside the
+ * card's padding, and 60 + 60 + 80 with two 10px gaps comes to 220. `flex-wrap` is the
+ * safety net rather than the mechanism — if a future font makes four digits wider, the
+ * year drops to its own line instead of pushing the page sideways.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-dob {
+  margin: 0 0 var(--space, 1rem);
+  padding: 0;
+  border: 0;
+}
+
+.theme-nn .nn-dob > .field-hint {
+  margin-top: 4px;
+}
+
+.theme-nn .nn-dob-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.theme-nn .nn-dob-part {
+  display: block;
+}
+
+.theme-nn .nn-dob-part .field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nn-slate);
+}
+
+.theme-nn .nn-dob-part .field-input {
+  width: 3.75rem;
+  /* Tabular figures, so a 1 and a 7 occupy the same width and three boxes read as a date
+     rather than as three unrelated inputs. */
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.theme-nn .nn-dob-year .field-input {
+  width: 5rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry-type cards
+ * -------------------------------------------------------------------------------------
+ * One column at every width. The mockup lays two side by side; here the affiliated card
+ * carries the England Athletics box inside it, so a two-column grid would put a text input
+ * in half a phone screen. Stacked, every card is the full width of the card and every
+ * target is far past the 44px the brief asks for.
+ *
+ * **The chosen state is carried three ways and colour is not one of them on its own** —
+ * the native radio is checked, the border goes from 1.5px `field border` to 2px `blood`,
+ * and the fill changes. See the contrast note at the head of this file for why the fill is
+ * allowed to be 1.12:1.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-fees {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.theme-nn .nn-fee {
+  border: 1.5px solid var(--nn-field-border);
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+}
+
+/* `:has()` is the same mechanism the mockup uses, and it is decoration on top of the native
+   radio rather than the only signal — a browser without it still shows a filled radio. */
+.theme-nn .nn-fee:has(.nn-fee-radio:checked) {
+  border-width: 2px;
+  border-color: var(--nn-blood);
+  background: var(--nn-chosen);
+}
+
+/* The whole card is the label, so the whole card is the target. */
+.theme-nn .nn-fee-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  /* One pixel less when chosen, so the 2px border does not shift the text. */
+  padding: 16px;
+  cursor: pointer;
+}
+
+.theme-nn .nn-fee:has(.nn-fee-radio:checked) .nn-fee-choice {
+  padding: 15.5px;
+}
+
+.theme-nn .nn-fee-radio {
+  flex-shrink: 0;
+  /* WCAG 2.2 puts the target floor at 24 by 24, and the label around it is far larger. */
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 1px 0 0;
+  accent-color: var(--nn-blood);
+}
+
+.theme-nn .nn-fee-body {
+  display: block;
+  flex: 1 1 auto;
+  /* So a long description shrinks the flex item rather than pushing the card sideways. */
+  min-width: 0;
+}
+
+.theme-nn .nn-fee-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-fee-desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  color: var(--nn-slate);
+}
+
+/* Tabular figures in the mono face, so £15.00 and £17.00 line up on their decimal points
+   down a column. `Free` sets in the same face at the same size, which is what stops a price
+   of nothing reading as a missing price. */
+.theme-nn .nn-fee-price {
+  flex-shrink: 0;
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--nn-ink);
+}
+
+/* **The England Athletics box, under the cards rather than inside one.** It is a condition of
+   the affiliated entry and it used to sit in that card to say so, separated by a rule. That
+   cost more than it bought: collapsing it there moved the two cards below it, and at 320px it
+   threw whichever card had just been chosen off the top of the screen. Under all three, it
+   moves only what is below it and the cards never move. The adjacency it used to carry is
+   carried by its hint instead — the full note is in `NnEntryForm.astro`.
+
+   An ordinary `.field`, because that is now exactly what it is. The only rule it needs of its
+   own is the gap from the cards above, which `.nn-fees`' grid gap used to give it. */
+.theme-nn .nn-ea-field {
+  margin-top: 16px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The medical section
+ * -------------------------------------------------------------------------------------
+ * A muted panel inside the white card: distinct enough to say "this one is different"
+ * without alarm, and without red. Free-text medical information is special category data
+ * under UK GDPR Article 9, and the form's job is to make that legible rather than dramatic.
+ *
+ * Inputs inside it take the stronger border — `--nn-field-border` is 2.88:1 against this
+ * fill, which is a real 1.4.11 failure for a text box. See the head of this file.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-medical {
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 0;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card-muted);
+}
+
+.theme-nn .nn-medical .field-input {
+  border-color: var(--nn-field-border-strong);
+}
+
+/* The three things somebody is entitled to know before typing a medical condition into a
+   form: who sees it, how long it is kept, and what happens if they leave the box unticked.
+   A list because it is three separate facts, and above the box because they are what the
+   decision is made on. */
+.theme-nn .nn-medical-terms {
+  margin: 0 0 18px;
+  padding-left: 1.25rem;
+  font-size: 14px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-medical-terms li {
+  margin-bottom: 6px;
+}
+
+.theme-nn .nn-textarea {
+  min-height: 5.5rem;
+  font-family: var(--nn-body);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The two things JavaScript adds, and neither is load-bearing
+ * -------------------------------------------------------------------------------------
+ * The live age category and the running total. Both ship hidden and stay hidden with
+ * scripting off: the category is worked out by the server and shown on the outcome, and
+ * every entry type carries its own price on its own card. A total that could go stale is
+ * worse than no total.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-category,
+.theme-nn .nn-total {
+  margin: 0 0 var(--space, 1rem);
+  padding: 10px 14px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-card-muted);
+  font-size: 14px;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-category b,
+.theme-nn .nn-total b {
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-nn .nn-total {
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+/* Centred under the full-width button, and the quietest thing on the form rather than the
+   loudest — it is a statement of fact, not a warning. */
+.theme-nn .nn-paynote {
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Notices — the acknowledgement, the failure, the error summary
+ * -------------------------------------------------------------------------------------
+ * All three are cards, because all three are read rather than glanced at, and white is the
+ * only surface on this page where 14px of red text is legible.
+ *
+ * base.css's left-bar treatment is replaced, not extended: `.notice` here is a card and the
+ * bar would sit oddly on a rounded white panel. **Colour still carries none of the meaning
+ * on any of them** — each says in words what it is.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .notice {
+  --colour-text: var(--nn-ink);
+  --colour-muted: var(--nn-slate);
+  --colour-accent: var(--nn-ink);
+  --colour-error: var(--nn-danger);
+
+  margin: 0 0 20px;
+  padding: 24px;
+  border: 0;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+  color: var(--nn-ink);
+}
+
+.theme-nn .notice h3 {
+  margin: 0 0 8px;
+  font-family: var(--nn-body);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.theme-nn .notice a {
+  color: var(--nn-danger);
+}
+
+/* **A long address must wrap rather than push the page sideways at 320px.**
+ *
+ * `nightingalenightmare@gmail.com` renders 252px wide and cannot break at any of its own
+ * characters, so a sentence that reaches it with 60 pixels of line left puts 20 pixels of the
+ * page off the edge — a WCAG 1.4.10 reflow failure, and a horizontal scrollbar on the phone
+ * 70% of visitors are holding.
+ *
+ * It did not bite until `/nn/entry/complete/` put the address mid-sentence rather than at the
+ * start of a line, which is exactly the sort of thing a copy edit does. So the rule is here
+ * rather than the sentence being arranged around it: prose should not have to know how wide
+ * the club's email address is. `nn-entry-complete.spec.ts`'s "is operable at 320px in every
+ * state" is the guard, and it caught this.
+ *
+ * `anywhere` rather than `break-word` so the break also counts towards the intrinsic minimum
+ * width, which is what makes it work inside the flex and grid containers elsewhere on these
+ * pages. It only ever fires when the alternative is overflowing. */
+.theme-nn .notice a,
+.theme-nn .nn-prose a {
+  overflow-wrap: anywhere;
+}
+
+.theme-nn .notice-bad {
+  border: 3px solid var(--nn-danger);
+}
+
+.theme-nn .summary-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* The mockup's confirmation tick. Decorative — the acknowledgement is a live region and
+   says "Thank you — your interest is registered" in words, which is what gets announced. */
+.theme-nn .nn-tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 0 18px;
+  border-radius: 50%;
+  background: var(--nn-pus);
+}
+
+.theme-nn .nn-tick svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: var(--nn-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Footer
+ * ------------------------------------------------------------------------------------- */
+.theme-nn footer {
+  margin-top: 34px;
+  padding: 18px 0 40px;
+  border-top: 1px solid var(--colour-rule);
+  /* Full opacity, unlike the mockup's 0.8. Who is answerable for a page is not the thing
+     to make hardest to read on it. */
+  color: var(--nn-bone);
+  font-size: 14px;
+}
+
+.theme-nn footer p {
+  margin-bottom: 8px;
+}
+
+.theme-nn footer > :last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The hero's fact chips, and the two buttons under them
+ * -------------------------------------------------------------------------------------
+ * The three things somebody wants before they read a word of prose: how far, how many
+ * places, and whether they need a costume. Mono, because that is this theme's voice for a
+ * factual row, and `flex-wrap` so they stack rather than push at 320px.
+ *
+ * **The primary button says whichever of the two things this page can actually deliver**, and
+ * the Worker decides which on every request: "Register your interest" while the event row
+ * says entries are shut, "Enter the race" when it says they are open. That is a row edit and
+ * not a deploy. The mockup's "Enter the race — from £15" bakes a price into a button; the
+ * price is painted on from `entries.fees` instead, and the label with it.
+ *
+ * The ghost button is a real 2px bone border at 8.43:1, well past the 3:1 that 1.4.11 asks
+ * of a control boundary — which matters here because, unlike the yellow one, its edge is
+ * the only thing identifying it as a control.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+  font-family: var(--nn-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--nn-bone);
+}
+
+.theme-nn .nn-herobtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.theme-nn .nn-cta,
+.theme-nn .nn-ghost {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: var(--nn-r-btn);
+  font-size: 16px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.theme-nn .nn-cta {
+  border: 2px solid var(--nn-pus);
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-weight: 700;
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.theme-nn .nn-cta:hover {
+  transform: translateY(-2px);
+}
+
+.theme-nn .nn-ghost {
+  border: 2px solid var(--nn-bone);
+  background: transparent;
+  color: var(--nn-bone);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Arrow bullets
+ * -------------------------------------------------------------------------------------
+ * The mockup's list treatment, and it earns its keep: these are the four things somebody
+ * has to actually know, and a disc bullet reads as prose where an arrow reads as a
+ * checklist. The marker is `blood` on white at 9.01:1 — decorative, but there is no reason
+ * for it not to clear AA when the colour is free.
+ *
+ * `list-style: none` removes the semantics in some screen readers, so the arrow is a
+ * `::before` on a real `<li>` inside a real `<ul>` — the list stays a list, and the arrow
+ * is `aria-hidden` by being generated content, which is never announced.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-arrows {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-arrows li {
+  position: relative;
+  padding: 12px 0 12px 28px;
+  border-bottom: 1.5px solid var(--nn-card-muted);
+  font-size: 15px;
+}
+
+.theme-nn .nn-arrows li:first-child {
+  padding-top: 0;
+}
+
+.theme-nn .nn-arrows li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.theme-nn .nn-arrows li::before {
+  content: '→';
+  position: absolute;
+  top: 12px;
+  left: 0;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  color: var(--nn-blood);
+}
+
+.theme-nn .nn-arrows li:first-child::before {
+  top: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The prize grid
+ * -------------------------------------------------------------------------------------
+ * `auto-fit` with a 240px floor, so four prizes land as **two rows of two** rather than a
+ * row of three and an orphan — with no breakpoint written down and none to remember. The
+ * mockup has the orphan; four things in a three-wide grid always will.
+ *
+ * **`min(240px, 100%)` rather than a bare `240px`, and that is not a flourish.** A track
+ * floor larger than its container does not collapse — it overflows. Inside a card at 320px
+ * there are 232 pixels to play with, a bare `minmax(240px, 1fr)` would lay out a 240px
+ * column, and the page would scroll sideways. `min()` clamps the floor to the space that
+ * actually exists. This is the same failure the hands artwork caused once already, arriving
+ * by a different route.
+ *
+ * **The yellow tile is the fancy-dress prize, and that is a content decision rather than a
+ * decorative one.** This is a Halloween race; the costume prize is the thing that makes it
+ * this race rather than any other 10 km, and the campaign's one accent colour should be
+ * spent on the campaign's one distinctive fact. Which tile gets it is `highlight` in
+ * `race.json`, so the committee can move it without touching CSS.
+ *
+ * ink on pus is 10.93:1 and ink on card-muted is 16.12:1, so the highlight costs nothing.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-prizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
+.theme-nn .nn-prize {
+  padding: 16px;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card-muted);
+}
+
+.theme-nn .nn-prize-highlight {
+  background: var(--nn-pus);
+}
+
+.theme-nn .nn-prize dt {
+  margin-bottom: 6px;
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nn-ink);
+}
+
+.theme-nn .nn-prize dd {
+  margin: 0;
+  font-size: 14px;
+  /* 7.40:1 on the muted tile — computed. The highlight tile overrides it below, because
+     slate on yellow is not a pair anybody checked and does not need to be. */
+  color: var(--nn-slate);
+}
+
+.theme-nn .nn-prize-highlight dd {
+  color: var(--nn-ink);
+}
+
+/* The medal, which is not a category — everybody gets one, so it is a note under the grid
+   rather than a fifth tile competing with the four that are won. */
+.theme-nn .nn-medal {
+  padding: 12px 16px;
+  border-radius: var(--nn-r-btn);
+  background: var(--nn-card-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The call-to-action panel
+ * -------------------------------------------------------------------------------------
+ * The aubergine block at the foot of the three content pages. **Not on `/nn/`**, which
+ * already has the form on it — a panel whose only job is to scroll somebody back up to a
+ * form they have already passed is furniture, not a call to action. Course, race day and
+ * spectators are the pages that end with nothing to do, and this is what they end with.
+ *
+ * ## The border is doing real work, not tidying an edge
+ *
+ * aubergine on blood is **1.72:1**, and on `blood-deep` — which is where this panel
+ * actually sits, at the foot of a scrolling page — it is **1.14:1**. Left bare it would be
+ * a panel you cannot see the edge of, in exactly the position it occupies. The hairline is
+ * `--colour-rule`, this theme's existing bone-at-35%, and against the panel's own fill it
+ * reads **3.78:1** at the top of the gradient and **3.04:1** at the bottom. The edge is
+ * legible from the side that has the contrast to spare, which is how an edge works.
+ *
+ * The fill itself stays a flagged 1.72:1: it is a grouping device, everything inside it is
+ * a heading, a sentence and a button at 14.51:1 or better, and nothing about the content
+ * is lost if a reader cannot see where the panel stops.
+ *
+ * **plum on aubergine is 2.31:1 and is rejected.** The theme carries `--nn-plum` as a
+ * secondary accent and this is the obvious place to reach for it; it fails badly, and the
+ * next person to have the idea should find the number rather than the idea.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-panel {
+  margin: 34px 0 0;
+  padding: 32px 24px;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--nn-r-card);
+  background: var(--nn-aubergine);
+  color: var(--nn-bone);
+  text-align: center;
+}
+
+/* Nosifer, and allowed to be: this is a heading with no instruction in it. Nothing a
+   person has to act on is ever set in the display face — see the note at the head of the
+   file, and the schedule, which is not. */
+.theme-nn .nn-panel h2 {
+  margin: 0 0 12px;
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(20px, 4.5vw, 26px);
+  line-height: 1.7;
+}
+
+.theme-nn .nn-panel p {
+  margin: 0 auto 18px;
+  max-width: 34rem;
+  font-size: 15px;
+}
+
+/* 9.37:1 on the aubergine — computed, and the reason this line is allowed to be the one
+   coloured thing in the panel. */
+.theme-nn .nn-panel .nn-panel-note {
+  margin-bottom: 20px;
+  font-family: var(--nn-mono);
+  font-size: 13px;
+  color: var(--nn-pus);
+}
+
+.theme-nn .nn-panel .nn-cta {
+  /* The panel's focus ring: the card rule turns rings to ink, which would vanish here. */
+  --colour-accent: var(--nn-pus);
+}
+
+/* The panel is a card for focus purposes but is not `.nn-card`, so the ink ring rule does
+   not reach it — and yellow on aubergine is the right ring anyway. */
+.theme-nn .nn-panel :focus-visible {
+  outline-color: var(--nn-bone);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The view transition that is deliberately NOT here
+ * -------------------------------------------------------------------------------------
+ * Moving between the four pages with a cross-document view transition is the obvious next
+ * thing to add. Astro ships a `<ClientRouter />` that does it with a router; the browser
+ * does it natively with four lines of CSS and no JavaScript at all, which on a site whose
+ * whole argument is that it works with scripting off looks like the free win of the year.
+ *
+ * It was built, it worked, and it was taken out again.
+ * ------------------------------------------------------------------------------------- */
+
+/* **It is not here, and the four lines are written out so nobody re-derives them:**
+ *
+ *     @view-transition { navigation: auto; }
+ *     .theme-nn .nn-logo { view-transition-name: nn-logo; }
+ *
+ * That is all it takes, it costs no JavaScript, and **it breaks the sign-up form.**
+ *
+ * What was observed, in Chromium with scripting disabled: submit the form with a bad name,
+ * the Worker answers 422 by re-serving the page, and the error summary appears with a link
+ * to the offending field. Clicking that link does nothing. Playwright reports the element
+ * as "visible, enabled and stable" and then `<html> intercepts pointer events` — the
+ * signature of a full-viewport overlay sitting above the page, which is what the
+ * `::view-transition` pseudo-element tree is. It reproduced 5 times out of 5 with the rule
+ * in and passed 3 times out of 3 with it removed. The same test passes with scripting on,
+ * which is what makes this worth writing down rather than obvious.
+ *
+ * **The exact mechanism was not chased further, because the trade was already decided.**
+ * This site's headline property is that the form works with JavaScript disabled; that is
+ * the primary path, not a fallback. A decorative page transition that can swallow a click
+ * on that path — silently, with the person simply finding that nothing happens — is not
+ * something to ship and then scope around.
+ *
+ * `apps/main/tests/e2e/nn-signup.spec.ts`, "links from the summary to the field it is
+ * about", is the guard. It was written for a different reason and caught this one.
+ *
+ * If a future pass wants the effect: prove that test green, in the `no-javascript`
+ * project, several runs in a row, before believing it. */
+
+/* -------------------------------------------------------------------------------------
+ * Cards rising as they are scrolled to
+ * -------------------------------------------------------------------------------------
+ * **`transform` only, and deliberately no fade.** The obvious version of this animates
+ * opacity from 0, and the obvious version is a trap twice over: a browser that supports
+ * neither the `@supports` guard nor scroll timelines would leave the whole page invisible,
+ * and an accessibility check run against a page mid-scroll sees text at an opacity nobody
+ * computed a contrast ratio for. An 18px rise has neither failure mode — every word is at
+ * full contrast at every moment, including before the animation has run at all.
+ *
+ * `@supports` is still there, because `animation-timeline` is young enough that the
+ * fallback matters, and the fallback here is simply a page that does not move.
+ * ------------------------------------------------------------------------------------- */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .theme-nn .nn-prose,
+    .theme-nn .nn-panel {
+      animation: nn-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+}
+
+@keyframes nn-rise {
+  from {
+    transform: translateY(18px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The club's artwork
+ * -------------------------------------------------------------------------------------
+ * Zombie hands, the length of the page foot. Purely decorative, and therefore **a
+ * background rather than an `<img>`** — which is not only where decoration belongs, it is
+ * the only version of this that cannot break the page at 320px.
+ *
+ * An `<img>` carrying `width="1080"` lays out at 1080 pixels in the window between the HTML
+ * arriving and this stylesheet being applied, and for that moment a phone can be scrolled
+ * sideways. It is brief, it is intermittent, and it failed the 320px acceptance test about
+ * one run in four — the useful kind of flake, because the test was right. An empty element
+ * has no intrinsic width to lay out at, so the failure cannot happen.
+ *
+ * The cost is that a background is fetched whether or not it is scrolled to, where the
+ * `<img>` could be `loading="lazy"`. 43 kB, once, cached by filename — worth paying to not
+ * ship a page that is briefly wider than the screen it is on.
+ *
+ * The artwork's own top edge is a brighter red than the page, so its top 45% is faded out
+ * and the strip appears to grow out of the background rather than being pasted onto it. In
+ * normal flow, full width, so it can never overlap the text above it.
+ *
+ * **The fade is a mask on the image, where the mockup overlays a `::before` filled with
+ * `--nn-blood`.** The technique had to change because the placement did. The mockup puts
+ * this strip directly under the hero, near the radial centre, where the page really is that
+ * one flat colour and an overlay of it is invisible. Here the strip is at the foot of a
+ * scrolling page over a `fixed` background, so the colour behind it is a different point on
+ * the gradient at every scroll position and every viewport height — and a fixed colour laid
+ * over it draws a visible band, too light at the top of the page and too dark at the
+ * bottom. Masking makes the artwork itself transparent instead, so whatever the gradient
+ * happens to be showing there is what the fade blends into. Where a browser does not
+ * support the mask the artwork simply keeps its own top edge, which is a decorative
+ * difference rather than a broken one.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hands {
+  margin-top: 20px;
+  /* The artwork's own proportions, so the strip is the right height at every width and
+     nothing below it moves when the file arrives. */
+  aspect-ratio: 1080 / 256;
+  background: url('/nn/hands.png') no-repeat bottom center / 100% auto;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 45%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 45%);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The fog
+ * -------------------------------------------------------------------------------------
+ * Two soft blobs of `blood-deep` drifting across the hero over a minute and a half. The
+ * whole of the atmosphere this pass adds, and it is deliberately the only new motion.
+ *
+ * **It darkens.** The arithmetic is at the head of this file and it is the reason this is
+ * the version that shipped: a wash that lightens the red erodes every contrast pair the
+ * page has, and at 10% it puts the date line at 4.47:1, which is a failure. A wash that
+ * darkens can only improve them, so the worst case on this page is still bare `blood` and
+ * the recorded table needs no second column for "while the fog is over it".
+ *
+ * **It is `background-position` rather than `transform`, and that is what keeps it safe at
+ * 320px.** A transformed pseudo-element has to be bigger than its parent to have anywhere
+ * to move to, which means `overflow: hidden` on the hero and a clipped focus ring on the
+ * last nav link. A moving background paints inside the element's own box: `inset: 0` and
+ * it cannot reach past the hero, so there is nothing to clip and nothing that can make a
+ * phone scroll sideways. That failure mode has already cost this page once — see the note
+ * on the hands artwork.
+ *
+ * **The cost of that choice is real and is paid knowingly**: a moving background repaints
+ * where a moving transform would only composite, and an editor will say so. Over 90
+ * seconds, on one hero-sized box, on an animation browsers throttle the moment it is
+ * scrolled out of view, it is worth paying to remove a class of layout bug that has
+ * already broken this page once at 320px.
+ *
+ * It carries no meaning, sits under `aria-hidden`-equivalent treatment by being a
+ * pseudo-element with no content, moves no text, and never flashes: 90 seconds,
+ * `alternate`, and two colours three shades apart.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(45% 65% at 20% 35%, var(--nn-blood-deep) 0%, transparent 72%),
+    radial-gradient(38% 55% at 75% 70%, var(--nn-blood-deep) 0%, transparent 72%);
+  background-size: 160% 160%;
+  opacity: 0.3;
+  pointer-events: none;
+  animation: nn-fog 90s ease-in-out infinite alternate;
+}
+
+@keyframes nn-fog {
+  from {
+    background-position:
+      0% 40%,
+      100% 60%;
+  }
+
+  to {
+    background-position:
+      40% 60%,
+      60% 40%;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Reduced motion
+ * -------------------------------------------------------------------------------------
+ * The button's lift and the hero fog are the only motion on these pages, and both are the
+ * first thing to go.
+ *
+ * **The fog stops rather than disappears.** It is a static wash at the same 30%, so a
+ * reader who has asked for no motion gets the same page in the same colours — which is
+ * what "no motion" asked for, rather than a different-looking page as a punishment for
+ * having a preference set.
+ * ------------------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .theme-nn .button {
+    transition: none;
+  }
+
+  .theme-nn .button:hover {
+    transform: none;
+  }
+
+  .theme-nn .nn-hero::before {
+    animation: none;
+  }
+}

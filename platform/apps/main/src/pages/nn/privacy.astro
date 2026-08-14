@@ -1,0 +1,547 @@
+---
+import Base from '../../layouts/Base.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
+import race from '../../content/race.json';
+
+// The same event theme as the forms it belongs to — see packages/shared/styles/nn-theme.css.
+//
+// **The horror stops at the edge of the card.** The page furniture is the campaign's, so
+// somebody arriving from a form knows they have not left it; the notice itself is ink on
+// white, Inter throughout, with nothing decorative anywhere near the legal text.
+import '@src/shared/styles/nn-theme.css';
+
+// The club's own privacy notice, replacing the one written when `/nn/` collected a name, an
+// email address and a consent box and nothing else. It now covers the entry form as well, so
+// it has to describe fourteen fields, a payment, a special category of data under its own
+// consent, and five retention periods.
+//
+// **This page is written from the schema, not from the form.** The list in section 2 is what
+// `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` actually hold —
+// which is four rows more than a list of what somebody types, because the payment reference,
+// the consent version and the timestamps are recorded about a person and none of them is
+// typed. Under-listing what a controller processes is a defect in a notice, and it is the
+// defect this page exists to not have.
+//
+// ## The four things that are genuinely undecided
+//
+// Who somebody writes to, how long an entry is kept, whether an email address is kept to
+// tell people about next year, and what is true about photographs. They live in
+// `src/content/race.json` as `null` alongside the race facts, for the same reason — one file
+// to edit when an answer arrives, and an honest "to be confirmed by the club" in the meantime
+// rather than a plausible-looking invention. `orTbc` is the whole mechanism, and
+// `nn-privacy.spec.ts` counts the marker — four, exactly — so filling one in fails that test
+// until it is updated in the same commit, and a settled fact quietly reverting to the marker
+// fails it too.
+//
+// **A wrong answer on this page is a legal claim, not a typo.** See
+// docs/architecture/principles.md#stop-and-ask
+
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/privacy/';
+
+// **Never a blank, and never a plausible default.** A privacy notice with a gap where a
+// retention period should be reads as though somebody forgot; one with a number nobody chose
+// is worse, because it reads as a decision. This says which it is.
+//
+// **Every interpolated value goes through it, including the five that are settled.** Those
+// cannot be `null` today, and wrapping them is not defensiveness about the current file — it
+// is what makes emptying one by accident render a sentence somebody notices rather than a
+// sentence with a hole in it. The sentences around them are written to read correctly either
+// way, which is why section 4 no longer lower-cases what it is given.
+const orTbc = (fact: string | null): string => fact ?? 'To be confirmed by the club';
+
+const { privacy } = race;
+---
+
+<Base
+  title="What the club does with your details — Nightingale Nightmare"
+  description="What Southville Running Club collects when you enter Nightingale Nightmare or register your interest, why, who else sees it, and how long it is kept."
+  canonical={canonical}
+  theme="nn"
+>
+  {
+    /* The campaign navigation, as on the other four pages. Somebody who opens the privacy
+    notice to check what is held before typing their name should not have to retrace their
+    steps to carry on. */
+  }
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>What the club does with your details</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      {
+        /* **`{' '}` is a real space, and it is here because a line break is not.** A newline
+        either side of an expression is collapsed away rather than kept as a space, so a
+        paragraph reads "…Nightingale Nightmareand nothing else" without it. Keeping the
+        expression on one line with the words around it would fix it too — until the next
+        reflow past 90 characters silently breaks it again. */
+      }
+      <p class="lede">
+        This covers the entry form and the register-your-interest form for{' '}
+        {race.name}, and nothing else on the club's website.
+      </p>
+
+      <h2>1. Who we are</h2>
+
+      <p>
+        {orTbc(privacy.controller)} is the data controller for the information you give us when
+        you enter the {race.name}, or when you ask to hear when entries open.
+      </p>
+
+      <ul>
+        <li><strong>Registered office:</strong> {orTbc(privacy.registeredOffice)}</li>
+        <li>
+          <strong>Registered in England and Wales</strong>, company number{' '}
+          {orTbc(privacy.companyNumber)}
+        </li>
+        {
+          /* **`{' '}` again, and Prettier is what puts it back.** Formatting this file moves a
+          bare `{expression}` onto a line of its own, and a newline either side of one is
+          collapsed rather than kept as a space — so this rendered
+          "Contact about your data:To be confirmed by the club" the first time it was built.
+          The explicit space survives the reformat; a space in the source does not.
+          `nn-privacy.spec.ts` asserts both of these joins as whole strings. */
+        }
+        <li>
+          <strong>Contact about your data:</strong>{' '}
+          {orTbc(privacy.contact)}
+        </li>
+      </ul>
+
+      <p>
+        If you are unhappy with how we have handled your information, please tell us first
+        — we would rather put it right. You also have the right to complain to the
+        Information Commissioner's Office at <a href="https://ico.org.uk/">ico.org.uk</a>,
+        or on 0303 123 1113.
+      </p>
+
+      <h2>2. What we collect, and why</h2>
+
+      <p>
+        <strong>If you ask to hear when entries open</strong>, we collect your name and
+        email address, we record that you agreed to us contacting you, and we record the
+        date and time you asked. We use it for one thing: a single email when entries
+        open. It is not a mailing list and we will not use it for anything else without
+        asking you again.
+      </p>
+
+      <p><strong>If you enter the race</strong>, we collect:</p>
+
+      {
+        /* Real tables throughout, and two columns at most — see the tables block in
+        nn-theme.css for why the third column was folded in and what makes this safe at
+        320px. The roles are restated because the stacked layout below 30rem drops the
+        implicit ones. */
+      }
+      <table role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">What</th>
+            <th scope="col" role="columnheader">Why we need it</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th scope="row" role="rowheader">Your name</th>
+            <td role="cell" data-label="Why we need it">
+              To enter you, to put you on the start list, and to publish your result
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Your email address</th>
+            <td role="cell" data-label="Why we need it">
+              To send your confirmation and any information about race day
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Your date of birth</th>
+            <td role="cell" data-label="Why we need it">
+              To work out your age category, and to check you are 18 or over on race day
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Your gender</th>
+            <td role="cell" data-label="Why we need it">
+              Used with your date of birth to work out your category
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Your running club, if you have one</th>
+            <td role="cell" data-label="Why we need it">
+              Shown alongside your result, as is normal at a race
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Your England Athletics number, if you claim the affiliated entry
+            </th>
+            <td role="cell" data-label="Why we need it">
+              To check the discounted entry is one you are entitled to
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              An emergency contact's name and phone number
+            </th>
+            <td role="cell" data-label="Why we need it">
+              So we can reach someone on your behalf if something happens on race day
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Anything you tell us in the medical box</th>
+            <td role="cell" data-label="Why we need it">
+              So our first aiders know, if they need to. This is optional — see section 4
+            </td>
+          </tr>
+          {
+            /* **The four rows below were derived from the schema rather than approved.** The
+            approved draft listed what somebody types; these are the rest of what the tables
+            hold, and a notice that omits them under-lists what the club processes. They go to
+            the committee with the four open decisions. */
+          }
+          <tr role="row">
+            <th scope="row" role="rowheader"
+              >The entry type you chose, and what you paid</th
+            >
+            <td role="cell" data-label="Why we need it">
+              To take the right fee and to have a record of the transaction
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">A payment reference from Stripe</th>
+            <td role="cell" data-label="Why we need it">
+              So a payment can be matched to your entry, and refunded if it has to be
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Which boxes you ticked, and the wording you ticked them under
+            </th>
+            <td role="cell" data-label="Why we need it">
+              So the club can show what you actually agreed to, even if the wording
+              changes later
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              When you entered, and when your payment was confirmed
+            </th>
+            <td role="cell" data-label="Why we need it">
+              To administer entries and to answer questions about them afterwards
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        We do not ask for anything else. Alongside what you type, we keep the record of
+        your payment and of when you entered — set out above — and nothing beyond it.
+      </p>
+
+      <p>
+        <strong>We never see your card details.</strong> Payment is handled by Stripe, who take
+        your card information directly. We are told that a payment succeeded, for how much,
+        and a reference to match it to your entry.
+      </p>
+
+      <h2>3. What we are allowed to do with it, and why that is lawful</h2>
+
+      <table role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">What we do</th>
+            <th scope="col" role="columnheader">Our lawful basis</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th scope="row" role="rowheader">Take your entry and give you a place</th>
+            <td role="cell" data-label="Our lawful basis">
+              Performing our contract with you
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Send you your confirmation and race-day information
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Performing our contract with you
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Work out your age category and place you in results
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Performing our contract with you
+            </td>
+          </tr>
+          {
+            /* Derived from the schema alongside the four rows in section 2, and for the same
+            reason: an item the club collects with no stated basis is the same under-listing
+            in a different table. */
+          }
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Keep a record of your payment, including Stripe's reference
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Performing our contract with you, and our legitimate interest in keeping
+              accounts that can be reconciled
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Publish results — your name, club, category and time
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Our legitimate interest in running a race and publishing its results, which
+              is what entrants expect a race to do
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Check an England Athletics number against the club's records
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Our legitimate interest in charging the right entry fee
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Contact your emergency contact if something happens to you
+            </th>
+            <td role="cell" data-label="Our lawful basis"
+              >Protecting your vital interests</td
+            >
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Keep records of who took part</th>
+            <td role="cell" data-label="Our lawful basis">
+              Our legitimate interest in being able to answer questions about the event
+              afterwards, including for insurance and our race permit
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Email you when entries open, if you asked us to
+            </th>
+            <td role="cell" data-label="Our lawful basis">
+              Your consent, which you can withdraw at any time
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Hold what you tell us in the medical box</th>
+            <td role="cell" data-label="Our lawful basis">
+              Your explicit consent — see section 4
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        We do not use your information for marketing, we do not profile you, and nothing
+        about your entry is decided automatically in a way that affects you.
+      </p>
+
+      <h2>4. Medical information — handled separately, on purpose</h2>
+
+      <p>
+        Anything you write in the medical box is <strong>special category data</strong> under
+        UK data protection law, which means it gets more protection than the rest of your entry.
+      </p>
+
+      <ul>
+        <li><strong>It is optional.</strong> You can enter without it.</li>
+        <li>
+          <strong>It is only held if you tick the box</strong> giving explicit consent. If you
+          leave that box unticked, nothing you typed is stored at all — it never reaches our
+          records.
+        </li>
+        <li>
+          <strong>Who sees it:</strong> the club's first aiders and the race organisers, on
+          race day. Nobody else.
+        </li>
+        <li>
+          <strong>How long we keep it:</strong>{' '}
+          {orTbc(privacy.medicalRetention)}. It is then deleted — separately from, and
+          sooner than, the rest of your entry.
+        </li>
+        <li>
+          It is held apart from the rest of your entry in our system, so deleting it is a
+          single action rather than something anyone has to remember to do field by field.
+        </li>
+      </ul>
+
+      <h2>5. Who else sees your information</h2>
+
+      <p>
+        We do not sell your information and we do not share it for marketing. It is seen
+        by:
+      </p>
+
+      <ul>
+        <li>
+          <strong>The club volunteers who run the race</strong> — the entries, results and first
+          aid teams.
+        </li>
+        <li>
+          <strong>Stripe</strong>, who take your payment. They hold your card details; we
+          do not.
+        </li>
+        <li>
+          <strong>Supabase</strong>, who host our database. It is stored in London (AWS{
+            ' '
+          }
+          <code>eu-west-2</code>).
+        </li>
+        <li>
+          <strong>The public</strong>, but only your name, club, category and finishing
+          time, in the published results.
+        </li>
+      </ul>
+
+      <p>
+        Our race is run under an ARC permit, so we may have to share limited details with
+        the permitting body if there is an incident.
+      </p>
+
+      <h2>6. How long we keep it</h2>
+
+      <table role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">What</th>
+            <th scope="col" role="columnheader">How long, and why</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th scope="row" role="rowheader">Medical notes</th>
+            <td role="cell" data-label="How long">
+              {orTbc(privacy.medicalRetention)}
+              <span class="nn-why">
+                Only needed for race day and immediately afterwards
+              </span>
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Your entry — name, contact, date of birth, emergency contact
+            </th>
+            <td role="cell" data-label="How long">{orTbc(privacy.entryRetention)}</td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Published results — name, club, category, time
+            </th>
+            <td role="cell" data-label="How long">
+              Kept indefinitely
+              <span class="nn-why">
+                Results are the public record of a sporting event
+              </span>
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Your email address, to tell you about next year's race
+            </th>
+            <td role="cell" data-label="How long">{orTbc(privacy.emailRetention)}</td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">Interest-list sign-ups</th>
+            <td role="cell" data-label="How long">
+              Deleted once entries have opened and the email has been sent, unless you
+              have entered
+              <span class="nn-why">It exists to send one email</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        When a retention period ends we delete the information, or strip out anything that
+        identifies you so that what is left is no longer about you.
+      </p>
+
+      <h2>7. Your rights</h2>
+
+      <p>You can ask us to:</p>
+
+      <ul>
+        <li>give you a copy of what we hold about you;</li>
+        <li>correct anything that is wrong;</li>
+        <li>delete what we hold, where we no longer need it;</li>
+        <li>stop or limit what we do with it;</li>
+        <li>send it to you, or to someone else, in a portable form.</li>
+      </ul>
+
+      {
+        /* **"Removed" has to appear on this page in those words.** Both forms link here
+        promising "how to have it removed" — `NnEntryForm.astro` and `nn/index.astro` — and a
+        page that only ever says "delete" makes the link that brought somebody here slightly
+        untrue. `nn-privacy.spec.ts` holds the link text and this sentence to each other. */
+      }
+      <p>
+        <strong>Asking us to delete what we hold is how your details are removed.</strong> You
+        do not have to give a reason, and it does not affect entering the race.
+      </p>
+
+      <p>
+        Where we rely on your consent — the interest list, and the medical box — you can
+        withdraw it at any time, and we will act on that.
+      </p>
+
+      <p>
+        Write to us using the contact in section 1. We may ask you to confirm who you are
+        before we hand over personal information, which is a protection for you rather
+        than an obstacle.
+      </p>
+
+      <h2>8. Photographs</h2>
+
+      {
+        /* **The draft's paragraph is not printed here, and that is deliberate.** What the
+        club does with race photographs was marked for the committee to confirm rather than
+        written down, so printing a description of it would be this page inventing the
+        answer — which is the one thing it must not do. */
+      }
+      <p><strong>{orTbc(privacy.photographs)}</strong></p>
+
+      <p>
+        Photographs are taken at the race. What the club does with them — whether they are
+        published, where, and for how long — is with the committee, and this page is
+        updated when it is settled.
+      </p>
+
+      <h2>9. Changes to this notice</h2>
+
+      <p>
+        If we change how we use your information we will update this page, and we will
+        tell you directly if the change is one you would want to know about.
+      </p>
+
+      <p>Last updated: {orTbc(privacy.lastUpdated)}</p>
+    </div>
+
+    <footer>
+      <p>
+        Southville Running Club. Anything above reading "to be confirmed by the club" is
+        with the committee, and this page is updated when it is settled.
+      </p>
+      <p>
+        <a href="/nn/">Back to {race.name}</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the forms' page, and empty for the same reason — it is
+    a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

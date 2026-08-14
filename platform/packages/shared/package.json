@@ -6,7 +6,10 @@
   "description": "Code both front doors share — timezone, Supabase client, validation",
   "exports": {
     ".": "./src/index.ts",
-    "./styles/base.css": "./styles/base.css"
+    "./styles/base.css": "./styles/base.css",
+    "./styles/nn-theme.css": "./styles/nn-theme.css",
+    "./nn-entry": "./src/nn-entry.ts",
+    "./age-category": "./src/age-category.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

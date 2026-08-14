@@ -9,7 +9,7 @@ numbered steps and the [runbooks](runbooks/) for the procedures.
 | **[2](#phase-2--move-the-nameservers)** ✅ | ~~Nameservers to Cloudflare~~ | **Done 8 Aug 2026** |
 | **[3](#phase-3--nightingale-nightmare-live)** | **Nightingale Nightmare live** — sign-ups and Stripe payment | **~22 August 2026** — two weeks |
 | **[4](#phase-4--the-timing-app-on-cloudflare)** | **The timing app on Cloudflare**, same database | **Race-ready by mid-October** |
-| **🏁** | **Nightingale Nightmare — race day** | **31 Oct / 1 Nov 2026** |
+| **🏁** | **Nightingale Nightmare — race day** | **Sun 1 Nov 2026, 11:00** |
 | **[5](#phase-5--the-new-website)** | The new website at `new.<apex>` | From November |
 | **[6](#phase-6--move-the-member-payments)** | Member payments move | The long pole — starts during Phase 5 |
 | **[7](#phase-7--decommission-squarespace)** | Decommission Squarespace | **Before 21 March 2027** |
@@ -29,7 +29,7 @@ deployment stays live until it passes.**
 | --- | --- | --- |
 | **NN sign-ups and payment live** | **~22 August 2026** | Entries want to open in early September; the race needs a lead time to fill |
 | **Timing app race-ready** | **Mid-October 2026** | Leaves a fortnight for the race simulation and anything it finds |
-| **Race day** | **31 October / 1 November 2026** | Halloween weekend. The clocks go back on **Sunday 25 October**, so the race is the following weekend, in GMT |
+| **Race day** | **Sunday 1 November 2026, 11:00** | **Confirmed 12 August 2026**, by the club's published campaign artwork. The clocks go back on **Sunday 25 October**, so the race is the following weekend, in GMT |
 | **Squarespace renewal** | **21 March 2027** | Automatic. Silence costs £204 |
 
 **Two months separate Phase 3 from race day, and one month separates Phase 4 from it.** The
@@ -116,8 +116,12 @@ transaction on its own infrastructure.
 | **The monorepo and pipeline** | Workspace root, `apps/main`, `packages/db`; local stack, CI, acceptance tests. [ADR-001](../architecture/decisions/adr-001-one-monorepo.md), [ADR-003](../architecture/decisions/adr-003-local-development-and-pipeline.md) |
 | **A Worker**, git-connected, `main` deploys production | Static Astro plus Worker routes |
 | **`new.<apex>/nn`** | A path, not a subdomain. `new.<apex>` is the Worker's custom domain and Cloudflare creates the record — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
-| **Sign-up** | Into the shared Supabase project |
-| **Stripe payment** | Checkout plus a webhook into a Worker |
+| **Sign-up** ✅ | **Built.** Name, email and consent into `intake.nn_interest`, through a column-scoped anonymous-insert grant. A real `<form method="post">` that works with JavaScript disabled, and a privacy notice at `/nn/privacy/` |
+| **The race pages** ✅ | **Built.** The confirmed date and the race facts at `/nn/`, and three content pages — `/nn/course/`, `/nn/race-day/` and `/nn/spectators/` — reading from `apps/main/src/content/race.json`. **The copy is a draft pending committee approval** |
+| **Stripe payment — the handoff** ✅ | **Built.** A valid entry holds a place for 31 minutes under a per-event lock, is priced from `entries.fees`, and is handed to Stripe Checkout. Capacity is enforced under real concurrency, and the club never sees a card number |
+| **Stripe payment — the confirmation** ✅ | **Built.** `POST /nn/stripe-webhook` verifies Stripe's signature over the raw bytes and is the only thing that writes `paid`. Idempotent under retry and duplicate delivery; a payment arriving after the hold lapsed is taken rather than refused, and flagged when there was no room. `/nn/entry/complete/` reports what the club has recorded. [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md) |
+| **Registering the Stripe endpoint** | **A human's job, and the last of `apps/main/README.md`'s manual steps.** It needs the production URL — created any earlier and Stripe posts into a 404. The three Worker secrets go on at the same time |
+| **A real payment end to end** | Nothing has been paid for yet, in test mode or otherwise. The first real payment is the first full test of the chain, and it should be a committee member's own card in test mode before entries open |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
 path — the two Workers, one hostname told apart by path. The page, form and payment flow
@@ -133,7 +137,22 @@ so they are prerequisites rather than build tasks — and they sit on the critic
 - [ ] **Treasurer-controlled payment arrangements** in place
 - [ ] **Stripe account** under the club identity, with both volunteers able to reach it
 - [ ] **Refund policy** written, since money is being taken from the public
-- [ ] **Entry price confirmed** — assumed £8–£10
+- [x] **Entry price confirmed** — **13 August 2026: £15 affiliated, £17 unaffiliated, £0 for a
+      visually impaired runner's guide.** Not the £8–£10 this line assumed. They live in
+      `entries.fees.price_pence` and nowhere else
+
+Three things the payment half surfaced that are the committee's rather than the build's, and
+none of them blocks the rest:
+
+- [ ] **The entry terms.** Not written, and the form's checkbox says so rather than linking to
+      a page that does not exist. **They have to land before entries open**
+- [ ] **How a free place is taken.** Stripe refuses a zero-total Checkout session outright, so
+      a guide's place cannot be completed online. The form says so and gives the race address;
+      completing it any other way means deciding that an unpaid entry counts as paid
+- [ ] **A rate-limiting rule on `POST /nn/`.** An anonymous caller can hold places, up to the
+      whole field, for as long as a hold lasts. A Cloudflare WAF rule is the recommendation
+      and it costs no code — a cap in the database would block a legitimate person retrying on
+      bad signal, which is a policy decision
 
 **Card data never touches club systems.** Stripe Checkout, hosted by Stripe, with a webhook
 recording the result. That is what keeps this inside
@@ -145,12 +164,42 @@ recording the result. That is what keeps this inside
 every image, plus the seven on Google Drive. Free today, impossible after cancellation, and
 depends on nothing.
 
+### What the race pages still need from the committee
+
+None of it blocks the site, which is built and tested. All of it is
+[stop-and-ask](../architecture/principles.md#stop-and-ask) territory rather than a build
+decision, and everything undecided renders as "to be confirmed" rather than as a guess:
+
+- [ ] **The privacy notice's four open decisions** — who somebody writes to about their
+      data, how long an entry record is kept, whether an email address is kept to tell
+      people about next year's race, and what is true about photographs. All four are
+      `null` under `race.json`'s `privacy` key and render "To be confirmed by the club".
+      **The notice itself is written** and covers the entry as well as the interest form
+- [ ] **Four rows of the notice were derived from the schema, not approved.** The committee
+      approved a draft listing what somebody types; the tables also hold the fee and amount,
+      Stripe's references, the consents with their version, and three timestamps. Those rows
+      and one lawful basis were added because a notice that omits them under-lists what the
+      club processes. They go to the committee with the four above
+- [ ] **Whether a submission with the consent box unticked is stored at all.** It is
+      currently *required to submit*. The database is deliberately neutral on it, so
+      reversing this needs no migration
+- [ ] **The 2026 ARC permit number.** Not yet issued. `race.permit` is `null` and the
+      2023 number is not a stand-in for it
+- [ ] **Approval of the page copy.** The prose on the four Nightingale Nightmare pages is a
+      **draft written to be edited**, not a decision taken on the committee's behalf
+- [ ] **Six questions the content pages could not answer** — map links for the start and
+      the finish, which charity the donation tin is for, whether there is a cut-off time,
+      dogs and buggies, whether the no-headphones rule has an exception for VI guides, and
+      whether there are toilets at the start. Each is a gap on the pages rather than a
+      guess, which is the whole reason they are listed here
+
 ### Done when
 
 - [ ] `new.<apex>/nn` serves over HTTPS with a valid certificate
-- [ ] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
+- [x] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
 - [ ] **A real payment completes end to end**, and the treasurer can see it
-- [ ] An anonymous client **cannot** read member data
+- [x] An anonymous client **cannot** read member data — nor read, change or delete the
+      interest list, asserted by error code
 - [ ] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero
 - [ ] **Club email still works**
 - [ ] **Both volunteers** can reach the repository, the Worker, Supabase and Stripe
@@ -215,7 +264,10 @@ each learned the hard way:
 
 ---
 
-## 🏁 Race day — 31 October / 1 November 2026
+## 🏁 Race day — Sunday 1 November 2026
+
+**Confirmed on 12 August 2026**, and the start is 11:00. The clocks go back on Sunday 25
+October, so this is the following weekend and the whole day runs in GMT.
 
 Nightingale Nightmare, timed on the club's own platform, on the club's own domain, reading the
 club's own database.
@@ -291,7 +343,13 @@ this removes.
 
 ## Deferred to the next pull request
 
-- **Schema design in detail** — where race entries and payment records land, and how `intake`
-  promotes into `club`
-- **The Stripe data model** — what is stored against a payment, and what is deliberately not
+- ~~**Schema design in detail**~~ — **done.** The `entries` schema, six tables, RLS on every
+  one from its first migration. How `intake` promotes into `club` is still open
+- ~~**The Stripe data model**~~ — **done.** The reference and never the instrument: a Checkout
+  session id and a payment intent id, and no card number, last four or expiry anywhere near
+  this database. That is what keeps the club out of PCI scope
+- **The webhook** — what confirms a payment, how it authenticates, and what privilege it
+  writes with. **Not a licence for a service role key**
+- **The confirmation email** — nothing is sent yet, and `/nn/entry/complete/` is worded as
+  what the club will do rather than what has happened
 - **The backup runbook**, with a tested restore

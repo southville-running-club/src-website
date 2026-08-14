@@ -38,9 +38,20 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
 
-  // Capped deliberately — see the note above. Two servers plus three engines is already
-  // a lot of processes for a laptop.
-  workers: process.env.CI ? 2 : 1,
+  // **One worker everywhere, and the reason changed.** It was capped at two in CI because
+  // two servers plus three engines is already a lot of processes; it is now capped at one
+  // because two spec files own the same row.
+  //
+  // `/nn/` shows the entry form or the interest form according to
+  // `entries.events.entries_open_at` — the real switch, read by the Worker per request, with
+  // no preview flag that could reach production. `nn-entry.spec.ts` moves that row and
+  // `nn-signup.spec.ts` needs it left alone. Playwright parallelises across files, so with
+  // two workers those two interleave and each occasionally sees the other's state.
+  //
+  // The alternative was a Postgres advisory lock shared by both files. This costs a few
+  // seconds of CI and removes a class of intermittent instead of managing one, which is the
+  // trade this repository has already made twice — see the 320px note in nn-theme.css.
+  workers: 1,
 
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.
@@ -86,6 +97,22 @@ export default defineConfig({
   // Both front doors under `wrangler dev` — the real Workers runtime, not a framework dev
   // server. **Neither command builds**; `npm run test:e2e` does that first.
   webServer: [
+    {
+      // **A fake Stripe, and the reason the entry suite can run at all.** This repository
+      // holds no Stripe credentials and never will, so `apps/main`'s `preview` script points
+      // `STRIPE_API_BASE` here and this answers `POST /v1/checkout/sessions` with a canned
+      // session on `checkout.stripe.com`. The suite asserts **where** the Worker redirects
+      // and never follows it: Stripe's hosted page is a third party's, and a test that types
+      // into it is a test that breaks when they redesign it.
+      //
+      // Started before the website, because `apps/main` is what calls it.
+      command: 'npm run stripe:stub',
+      url: 'http://127.0.0.1:8789/__stub/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
     {
       command: 'npm run preview --workspace=apps/main',
       url: 'http://localhost:8787',

@@ -1,0 +1,132 @@
+---
+import Base from '../../layouts/Base.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
+import race from '../../content/race.json';
+
+// The same event theme as the rest of Nightingale Nightmare — see
+// packages/shared/styles/nn-theme.css.
+//
+// **The horror stops at the edge of the card, as it does on the privacy notice.** The hero
+// is the campaign's; everything on this page somebody has to act on — what the ground is
+// like, what to put on their feet, the headphone rule — is ink on white.
+import '@src/shared/styles/nn-theme.css';
+
+// **Every fact on this page comes from the club's 2023 event profile or its 2026
+// configuration, and nothing else.** The 2023 mockup at docs/design/nn-entry-mockup.html
+// carries two things on this subject that read like facts and are not: a course profile
+// drawing labelled "flat" and "the climb", which is an illustrative sketch rather than a
+// survey, and a minimum age of 18 inferred from the prize categories rather than stated as
+// a rule. Neither is here.
+//
+// **The climb is described in prose for exactly that reason.** The shape of it is known;
+// the gradient of it is not measured. A diagram would claim the second while only
+// possessing the first, and somebody would plan a race around it.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/course/';
+---
+
+<Base
+  title="Course and terrain — Nightingale Nightmare"
+  description="What the Nightingale Nightmare course is like underfoot, what to wear on your feet, and what is on the route."
+  canonical={canonical}
+  theme="nn"
+>
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>Course and terrain</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      <p class="lede">
+        {race.distance} — and not a fast one. This is a race you finish rather than a race you
+        set a time on.
+      </p>
+
+      <h2>Where it goes</h2>
+
+      <p>
+        The route runs along the towpath, turns up Nightingale Valley, and carries on
+        through Leigh Woods.
+      </p>
+
+      <p>
+        <strong>Nightingale Valley is the climb.</strong> It is the part people remember, and
+        the part that decides how the rest of your race feels. There is no clever way to run
+        it — go up steadily, and enjoy how much better everything looks from the top.
+      </p>
+
+      <h2>What it is like underfoot</h2>
+
+      <p>
+        Tough, and properly off-road. The ground is uneven, rocky in places and rooty in
+        others, and it is slippery when wet. It is Bristol, in November. Plan for wet.
+      </p>
+
+      <p>
+        <strong>Trail shoes are recommended.</strong> Road shoes are acceptable, and people
+        run it in them every year. They are working harder than they need to.
+      </p>
+
+      <h2>What is on the route</h2>
+
+      <ul class="nn-arrows">
+        <li>One water station on the route, and one at the finish.</li>
+        <li>
+          Marshals throughout — and a prize afterwards for the station the runners vote
+          the best.
+        </li>
+        {
+          /* **The rule is the club's own words and it is left at that.** "This one is
+          absolute" was here and has gone — not because the rule has softened, but because
+          the fee structure carries a place for a visually impaired runner's guide and
+          whether a guide is an exception to this has never been decided. "Absolute" settles
+          that question in passing, in markup, which is not where it should be settled.
+          Stating the rule and stopping leaves the committee the decision and leaves every
+          runner reading it in no doubt about what is being asked of them. */
+        }
+        <li><strong>No headphones of any type during the race.</strong></li>
+      </ul>
+    </div>
+
+    {
+      /* **The panel is on this page and not on `/nn/`**, which already has the form. A
+      call to action whose only effect is to scroll somebody back up to something they
+      walked past is furniture. This page, race day and spectators are the three that
+      otherwise end with nothing to do.
+
+      "Dare to enter?" is the mockup's heading and it is not used: entering is not what
+      this offers, and a heading that promises the thing the button cannot do is worse
+      than no heading. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
+
+    <footer>
+      <p>
+        Southville Running Club. The full list of race facts, including anything still to
+        be confirmed, is on <a href="/nn/">the race page</a>.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the other Nightingale Nightmare pages, and empty for
+    the same reason — it is a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

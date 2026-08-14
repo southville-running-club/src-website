@@ -1,0 +1,244 @@
+---
+import Base from '../../layouts/Base.astro';
+import NnMasthead from '../../components/NnMasthead.astro';
+import race from '../../content/race.json';
+
+// The same event theme as the rest of Nightingale Nightmare — see
+// packages/shared/styles/nn-theme.css.
+//
+// **This is the page with the most horror on it and the least horror in it.** Everything
+// below the hero is a time, an address or an instruction, and every one of them is ink on
+// white in Inter. The schedule in particular is never set in the display face: somebody
+// reads it on a phone, outdoors, in November, deciding whether they are late.
+import '@src/shared/styles/nn-theme.css';
+
+// The times, the address and the prize categories are `race.json`'s rather than this
+// page's, for the reason the file exists: a committee correcting the briefing time should
+// edit one line of one file, not search four pages of markup for it.
+//
+// **What is deliberately absent is as considered as what is here.** The mockup this
+// campaign is drawn from carries an entry price, a deadline for passing a place on, an
+// entry-opening time and a live places-remaining counter. The price and the window are the
+// database's — see `/nn/`'s note — and the other two are simply not decided: the 2023 dates
+// are a pattern, not a commitment anybody has made for 2026.
+//
+// **The clocks joke is not reusable and is not here.** The 2023 copy makes it twice — "an
+// extended witching hour the night before" and "remember the clocks change… so no excuse
+// for lateness". It was true that year, when the race fell on the transition day. In 2026
+// the clocks go back on 25 October and this race is 1 November, a week later and squarely
+// in GMT. `site.spec.ts` asserts the phrase appears on none of the three content pages.
+//
+// **The 2023 instructions were a pre-race email and are not page copy.** They open
+// "Commiserations on entering the Nightingale Nightmare 10k" and sign off "next Sunday
+// morning" — written to people who had already entered, days out. This page is read by
+// somebody deciding whether to enter, months out, so nothing here assumes either.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
+
+// **The start is not at race HQ, and that is the one fact on this page somebody most needs
+// on the morning.** The club's 2023 event profile carried it exactly once, as a `goo.gl`
+// shortlink — and Google has been retiring those, so the single most important direction
+// this race gives out depended on a redirect the club does not own, cannot renew, and would
+// not be told about the day it stopped resolving.
+//
+// **So `race.json` stores the coordinates and this file builds the link.** Resolved from
+// that shortlink while it still worked: 51.4468588, -2.6250503. A pin is a fact about the
+// world and survives its hosting; a shortlink is a fact about a third party's database.
+// If Google's URL shape ever changes, one line here changes and the coordinates do not.
+//
+// The numbers are printed on the page as well as linked, because a coordinate pair is
+// usable in any map application, offline, and read aloud down a phone — and because a link
+// that fails should not take the answer with it.
+//
+// **No embedded map**, deliberately: an iframe would put a third-party tracker on a club
+// page nobody has assessed, on the page most likely to be opened on race morning.
+const startFinish = `${race.startFinish.lat}, ${race.startFinish.lng}`;
+const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.startFinish.lat},${race.startFinish.lng}`;
+---
+
+<Base
+  title="Race day — Nightingale Nightmare"
+  description="Where Nightingale Nightmare starts from, when everything happens on the day, and what is at race HQ."
+  canonical={canonical}
+  theme="nn"
+>
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>Race day</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      <p class="lede">
+        {race.date}. The race starts at {race.startTime}, and the morning before it has
+        rather more in it than that.
+      </p>
+
+      <h2>Race HQ</h2>
+
+      <p><strong>{race.location}</strong></p>
+
+      <p>
+        Everything that is not the race itself happens here: registration, the briefing,
+        your bag, and the cake afterwards. There is <strong>free parking on site</strong>,
+        along with toilets, shelter, bag drop and changing areas.
+      </p>
+
+      <p>
+        <strong>Please lift-share if you can.</strong> The car park is large, but it is not
+        infinite, and there is no on-street parking for this race — people live on those streets,
+        and they did not enter it. Anything worth having is worth locking in the car rather
+        than leaving on a seat.
+      </p>
+
+      {
+        /* **The start is a different place from HQ, and it gets its own heading for that
+        reason.** The two have been confused in the club's own materials before, which is
+        why this section names the distinction in its first sentence rather than leaving it
+        to be inferred from an address further down.
+
+        The coordinates are printed as well as linked — see the note at the head of this
+        file on why they are stored rather than a shortlink. */
+      }
+      <h2>The start and the finish</h2>
+
+      {
+        /* **No distance from HQ is stated, and that is not an oversight.** Nobody has
+        supplied one. It is tempting to derive it — there are coordinates for the start
+        right here — but race HQ is an address rather than a pin, and a figure worked out
+        from a guessed school entrance is exactly the plausible-looking number this
+        repository keeps out of markup. What the schedule already says is enough to act on:
+        be at HQ, and leave with everybody else at 10:30. */
+      }
+      <p>
+        <strong>Not at race HQ.</strong> The race starts and finishes away from the school,
+        and everybody walks down together at 10:30 — so on the day there is nothing to find
+        on your own, and the walk is on the schedule below rather than left to you.
+      </p>
+
+      <p>
+        If you would like to see it beforehand, it is at{' '}
+        <span class="nn-mono">{startFinish}</span> —{' '}
+        <a href={startFinishMap} rel="noopener">show it on a map</a>.
+      </p>
+
+      <h2>The morning, in order</h2>
+
+      {
+        /* A description list rather than a table: each row is one time and one thing, with
+        no second column of data to line up. It is also what degrades best at 320px, where a
+        two-column table either scrolls sideways or squeezes the words to one per line.
+
+        **The `<div>` around each pair is deliberate and is valid inside a `<dl>`.** It is
+        what lets a row be a grid — time in its own column, wrapping to a stacked row on a
+        narrow screen — without the two halves of a pair drifting apart in the markup. */
+      }
+      <dl class="nn-schedule">
+        {
+          race.schedule.map(({ time, what }) => (
+            <div class="nn-schedule-row">
+              <dt>{time}</dt>
+              <dd>{what}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <p>
+        <strong>There is a bag drop at HQ and another one at the start</strong>, so a coat
+        you want at 10:30 does not have to be a coat you abandon at 11:00.
+      </p>
+
+      <h2>Fancy dress</h2>
+
+      <p>
+        <strong>Strongly encouraged</strong>, and that goes for anyone who comes to watch
+        you as well. It is a Halloween race and it looks like one.
+      </p>
+
+      <p>
+        Judging is from a photograph rather than from the course: collect your number,
+        then go upstairs at HQ and have your picture taken. No photograph, no prize —
+        which is the only rule the competition has.
+      </p>
+
+      <h2>Afterwards, at HQ</h2>
+
+      <p>
+        <strong>Tea, coffee, hot chocolate and cake</strong>, all free, and the cake is
+        baked by club volunteers rather than bought. There is a donation tin out for a
+        local charity if you would like to put something in it.
+      </p>
+
+      <p>
+        <strong>Please stay and cheer the rest of them in.</strong> The people still out there
+        at your finish time are having a harder morning than you are, and a finish line with
+        nobody at it is a bleak thing to run towards. Bring something warm and dry to change
+        into and it is a much easier promise to keep.
+      </p>
+
+      <h2>Prizes</h2>
+
+      {
+        /* **A grid rather than the schedule's list, because these are not in an order.**
+        The morning is a sequence and reads down; the prizes are four independent things
+        and read as tiles. Still a `<dl>` — each is a term and its detail — with a `<div>`
+        per pair, which is valid inside a `<dl>` and is what makes a tile.
+
+        Which one is yellow is `highlight` in `race.json` rather than a class written here,
+        so moving the emphasis is a committee edit and not a CSS change. */
+      }
+      <dl class="nn-prizes">
+        {
+          race.prizes.map(({ category, detail, highlight }) => (
+            <div class:list={['nn-prize', highlight && 'nn-prize-highlight']}>
+              <dt>{category}</dt>
+              <dd>{detail}</dd>
+            </div>
+          ))
+        }
+      </dl>
+
+      <p class="nn-medal">{race.finisherPrize}</p>
+
+      <p>
+        Prizegiving is at HQ once the last finisher is in. Standing around for it is the
+        polite thing to do and usually the more entertaining one.
+      </p>
+    </div>
+
+    {
+      /* The same call to action as the other two content pages — see the note on
+    course.astro for why it is not on `/nn/`. */
+    }
+    <section class="nn-panel">
+      <h2>Want fair warning?</h2>
+      <p>
+        Entries are not open yet. Leave your name and the club will email you once — on
+        the day they open, and for nothing else, ever.
+      </p>
+      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
+      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+    </section>
+
+    <footer>
+      <p>
+        Southville Running Club. The full list of race facts, including anything still to
+        be confirmed, is on <a href="/nn/">the race page</a>.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as the other Nightingale Nightmare pages, and empty for
+    the same reason — it is a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>
