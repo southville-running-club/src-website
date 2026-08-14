@@ -886,14 +886,46 @@ const SUMMARY_LINKS = [
     return Object.fromEntries(new FormData(entryForm));
   }
 
-  /** The error element's own `data-entry-error`, for the control that was just left. */
+  /**
+   * The containers a message can belong to. Named once and used twice below, deliberately:
+   * "which container is this control in" and "which container does this message belong to"
+   * have to be the same question, or the second can answer with a message that is not the
+   * first's — which is exactly what went wrong.
+   */
+  const FIELD_CONTAINER = '.field, .nn-dob, .nn-fee';
+
+  /**
+   * The error element's own `data-entry-error`, for the control that was just left.
+   *
+   * **A message inside a *nested* container belongs to that container, not to this one.**
+   * There is one nested pair on the page and it is the England Athletics box: a `.field`
+   * inside the affiliated `.nn-fee` card, rendered there because it belongs to that choice
+   * and nowhere else. A plain descendant search from the affiliated *radio* therefore found
+   * `eaNumber`, and read "they have finished with the entry type" as "they have finished with
+   * the England Athletics number". Two things followed, and the second is the expensive one:
+   *
+   *   1. the box complained about a number nobody had been asked for yet — the precise
+   *      behaviour "says nothing about fields nobody has touched yet" exists to forbid; and
+   *   2. the message appeared *between the press and the release of the very click that
+   *      caused it*. It is 67px tall at 320px and it sits above the other two cards, so it
+   *      pushed them 72px down out from under the pointer, the release landed somewhere else,
+   *      no `click` ever reached the radio, and **the entry type could not be changed at
+   *      all**. Reproduced in both engines at 320px: every press across the full height of
+   *      the VI guide radio left the affiliated entry selected and the total at £15.00.
+   *
+   * Nothing is lost by the narrower search. `feeCode`'s own message lives at the fieldset
+   * level, outside every `.nn-fee`, so leaving a fee radio never reached it before this
+   * change either — the only field it could ever mark was the wrong one.
+   */
   function fieldOf(target: EventTarget | null): NnEntryField | null {
     if (!(target instanceof HTMLElement)) {
       return null;
     }
 
-    const container = target.closest('.field, .nn-dob, .nn-fee');
-    const error = container?.querySelector<HTMLElement>('[data-entry-error]');
+    const container = target.closest(FIELD_CONTAINER);
+    const error = [
+      ...(container?.querySelectorAll<HTMLElement>('[data-entry-error]') ?? []),
+    ].find((candidate) => candidate.closest(FIELD_CONTAINER) === container);
 
     return (error?.dataset.entryError as NnEntryField | undefined) ?? null;
   }

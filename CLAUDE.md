@@ -191,6 +191,22 @@ Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting *on
 what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the field it is
 about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
 
+**A message that appears on `focusout` can swallow the click that caused it.** The England
+Athletics box is a `.field` *inside* the affiliated `.nn-fee` card, so `fieldOf` — which took
+`closest(container)` and then the first `[data-entry-error]` beneath it — answered `eaNumber`
+for the affiliated **radio**. Leaving that radio made the England Athletics box complain about
+a number nobody had been asked for, and it did so *between the press and the release of the
+click*: 67px of message, above the other two cards, pushing them 72px down out from under the
+pointer, so no `click` ever reached the radio and **the entry type could not be changed at
+all**. **Only CI saw it, and that is the trap** — macOS and iOS WebKit leave a radio unfocused
+when it is clicked, while the GTK/WPE WebKit that `playwright install webkit` puts on a Linux
+runner focuses it, so `focusout` never fires on a laptop. Chromium at 1280px survives on luck:
+the shift is small enough that the release still lands on the card's own `<label>`, which
+forwards the click. Reproduced on Linux WebKit in `mcr.microsoft.com/playwright:v1.62.1-noble`
+and in Chromium at 320px. `nn-entry.spec.ts`'s "shows a running total once an entry type is
+chosen" is the guard, and the rule is the general one: **a container's message belongs to that
+container, not to a field nested inside it.**
+
 ---
 
 ## What is not built yet
