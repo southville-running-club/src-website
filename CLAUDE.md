@@ -68,11 +68,17 @@ dev           The one command for local work. Run it from the root
 Use `./dev`, or `cd platform` first.
 
 ```bash
-./dev up      # the whole site on http://localhost:8787, browser opened
+./dev up      # rebuild the database, then the whole site on http://localhost:8787
+              # --keep-data skips the rebuild, when the schema is already current
 ./dev test    # 274 acceptance tests, then everything stopped
-./dev check   # lint, types, unit and database tests
+./dev check   # rebuild the database, then lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
+
+**`up`, `test` and `check` all rebuild the database**, because `supabase start` applies
+migrations only to a volume it creates — so on any machine that has run this before, the three
+otherwise meant three different schemas. It costs tens of seconds and the local data, which is
+only ever the seed and invented fixtures.
 
 One hostname, three paths — the same locally and in production:
 

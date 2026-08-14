@@ -27,12 +27,20 @@ There is **no Stripe and no timing application code**: the entry form validates 
 row-level security can be tested rather than mocked.
 
 **From the repository root, one command does everything** — starts Docker if it is not
-running, brings up the database, seeds it, builds both applications, starts both Workers
-and opens the site:
+running, brings up the database, **rebuilds it from this checkout's migrations** and seeds
+it, builds both applications, starts both Workers and opens the site:
 
 ```bash
 ./dev up
+./dev up --keep-data   # skip the rebuild, when the schema is already current
 ```
+
+**The rebuild is not optional tidying.** `supabase start` applies migrations only when it
+creates a volume, so a machine that has run this project before serves the schema it first
+had — and a branch that adds to `config.toml`'s exposed schemas takes PostgREST down with a
+503 that names nothing relevant. `up`, `test` and `check` therefore all mean the same thing
+by "the database". It costs tens of seconds and the local data, which is the seed and
+invented fixtures and never anything from production.
 
 Nothing to configure: the local Supabase values are already in each app's
 `wrangler.jsonc`, and they are the same on every machine.

@@ -7,10 +7,12 @@
 # remember a `cd`, this script knows where things are and does the whole job: Docker, the
 # database, the seed, the builds, both Workers, and tidying up afterwards.
 #
-#   ./dev up        bring the whole site up and open it
+#   ./dev up        rebuild the database from migrations, then bring the site up and open it
+#                   --keep-data skips the rebuild, when you know the schema is already current
 #   ./dev test      run the worker and acceptance tests, then stop everything
 #                   --keep-up leaves the site running afterwards
-#   ./dev check     lint, types, unit and database tests — no browsers, no builds
+#   ./dev check     rebuild the database, then lint, types, unit and database tests
+#                   — no browsers, no builds
 #   ./dev smoke     the seven live-site assertions, against localhost
 #                   --live checks the deployed site at new.southvillerunningclub.co.uk
 #                   instead — the same check smoke.yml runs after every push to main
@@ -19,6 +21,12 @@
 #   ./dev logs      tail the running Workers
 #
 # Everything is idempotent. Running `up` twice is fine; so is `down` when nothing is up.
+#
+# **`up`, `test` and `check` all mean the same thing by "the database": the schema this
+# checkout's migrations describe.** They did not until recently — `up` and `check` started the
+# stack and trusted whatever was on the volume, which `supabase start` only migrates when it
+# creates one. A laptop that has run this project before therefore served the schema from
+# whenever its volume was first made, and the way that surfaces is a 503 that names nothing.
 
 set -euo pipefail
 
@@ -143,6 +151,27 @@ ensure_docker() {
   ok "Docker is running"
 }
 
+# The one failure worth recovering from automatically, and the signature is unambiguous.
+#
+# **A volume older than the branch cannot be reset, because the reset never gets to run.** The
+# stack has to be *up* before `supabase db reset` can touch it, and this is the case where it
+# never comes up: a schema in `config.toml`'s exposed list that the volume has not got. Postgres
+# answers `3F000`, PostgREST cannot build a schema cache, retries at 8s and 16s, and the CLI
+# tears the whole stack down with a health-check 503 naming the REST container. Nothing in that
+# output says "your volume predates this branch", which is why it cost a reviewer an afternoon.
+#
+# Both halves are required before touching anything: `3F000` alone is any missing schema, and a
+# REST 503 alone is any number of ordinary startup problems. Together they are this and only
+# this.
+database_volume_is_stale() {
+  grep -q '"code":"3F000"' "$RUN_DIR/db.log" 2>/dev/null &&
+    grep -q 'supabase_rest[^"]*: unexpected status 503' "$RUN_DIR/db.log" 2>/dev/null
+}
+
+start_database() {
+  (cd "$PLATFORM" && npm run db:start >"$RUN_DIR/db.log" 2>&1)
+}
+
 ensure_database() {
   # `supabase status` is the honest check — containers can exist but not be serving.
   if (cd "$PLATFORM/packages/db" && npx --no-install supabase status >/dev/null 2>&1); then
@@ -152,9 +181,32 @@ ensure_database() {
 
   step "Starting the database"
   info "Postgres, auth, storage and Studio, in Docker"
-  (cd "$PLATFORM" && npm run db:start >"$RUN_DIR/db.log" 2>&1) \
-    || { tail -20 "$RUN_DIR/db.log"; die "the database did not start — see $RUN_DIR/db.log"; }
-  ok "the database is up"
+
+  if start_database; then
+    ok "the database is up"
+    return
+  fi
+
+  if ! database_volume_is_stale; then
+    tail -20 "$RUN_DIR/db.log"
+    die "the database did not start — see $RUN_DIR/db.log"
+  fi
+
+  # Once, and never in a loop: if a fresh volume cannot start either, the problem is not the
+  # volume and a second attempt would only bury the real error under a longer log.
+  step "The database volume is older than this branch"
+  info "PostgREST asked for a schema this volume has not got, so the stack never went healthy."
+  info "\`supabase start\` migrates a volume only when it creates one, so a machine that has"
+  info "run this project before keeps whatever schema it first had. Rebuilding it — the only"
+  info "thing on it is the seed and invented fixtures."
+
+  (cd "$PLATFORM/packages/db" && npx --no-install supabase stop --no-backup >/dev/null 2>&1) || true
+
+  start_database \
+    || { tail -20 "$RUN_DIR/db.log"; die "the database did not start on a fresh volume either
+    — this is not the stale-volume case. See $RUN_DIR/db.log"; }
+
+  ok "the database is up, on a volume rebuilt from this checkout's migrations"
 }
 
 # `packages/db/tests` reads SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_DB_URL — the anon
@@ -295,9 +347,27 @@ show_urls() {
 # ---------------------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------------------
+# **The reset is the point of the change, not a tidy-up.** `ensure_database` starts the stack
+# and returns; `supabase start` runs migrations only when it initialises a *fresh* volume. So
+# without this, `up` served whatever schema the volume was created with, and a branch that adds
+# to `config.toml`'s exposed schemas — this one adds `entries` — takes PostgREST down with a
+# 503 that points nowhere near the cause.
+#
+# It costs tens of seconds on every `up`, and the local data goes with it. That data is the
+# seed and invented fixtures: this repository's rule is that no production data is ever on a
+# laptop, so there is nothing on the volume worth keeping. `--keep-data` is there for the
+# middle of a session where the schema is known to be current — the exception, not the habit.
 cmd_up() {
+  local keep_data=0
+  [ "${1:-}" = "--keep-data" ] && keep_data=1
+
   ensure_docker
   ensure_database
+  if [ "$keep_data" -eq 1 ]; then
+    info "--keep-data: leaving the database as it is"
+  else
+    cmd_reset_quiet
+  fi
   build_site
   start_workers
   show_urls
@@ -372,6 +442,11 @@ cmd_test() {
 cmd_check() {
   ensure_docker
   ensure_database
+  # **The worse version of the same hole.** `up` failing loudly is survivable; this passes.
+  # The database tests would run against whatever schema the volume happened to hold and
+  # report success, so a green `./dev check` could mean "green against a schema this branch
+  # does not have" — which is the one thing a check command must never be able to mean.
+  cmd_reset_quiet
 
   step "Lint and format"
   (cd "$PLATFORM" && npm run lint)
@@ -442,7 +517,9 @@ esac
 check_prerequisites
 
 case "${1:-up}" in
-  up)     cmd_up ;;
+  # `up` is the default with no arguments at all, so there may be nothing to shift — and a
+  # `shift` on an empty list is a non-zero return, which `set -e` would take as a failure.
+  up)     if [ "$#" -gt 0 ]; then shift; fi; cmd_up "$@" ;;
   test)   shift; cmd_test "$@" ;;
   check)  cmd_check ;;
   smoke)  shift; cmd_smoke "$@" ;;
