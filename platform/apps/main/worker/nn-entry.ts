@@ -549,6 +549,25 @@ export function renderNnEntryView(
       );
   }
 
+  // **The England Athletics box, on the same terms as the cards.** It ships hidden and
+  // outside every card — nesting it inside the affiliated one moved the other two whenever it
+  // collapsed, see the note in `NnEntryForm.astro` — so nothing hides it by accident of where
+  // it sits any more, and this is what decides. Whether any entry type needs a number is
+  // `entries.fees.requires_ea_number`'s answer, so an event offering none never reveals the
+  // box at all, with scripting on or off.
+  const eaFee = state.fees.find((fee) => fee.requiresEaNumber);
+
+  if (eaFee) {
+    rewriter
+      .on('[data-entry-ea-field]', new RevealHandler())
+      // The code goes where the enhancement can read it: with the box outside the cards, this
+      // attribute is the only statement of which entry type it is a condition of.
+      .on(
+        '[data-entry-ea-field]',
+        new AttributeHandler('data-entry-ea-field', eaFee.code),
+      );
+  }
+
   return rewriter;
 }
 

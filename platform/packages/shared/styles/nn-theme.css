@@ -1190,17 +1190,17 @@ body.theme-nn {
   color: var(--nn-ink);
 }
 
-/* **The England Athletics box, inside the affiliated card and always in the DOM.** It is
-   separated by a rule rather than by being a second card, because it belongs to the choice
-   above it. The enhancement adds `hidden`; with scripting off it simply stays. */
-.theme-nn .nn-fee-extra {
-  margin: 0;
-  padding: 16px;
-  border-top: 1.5px solid var(--nn-field-border-strong);
-}
+/* **The England Athletics box, under the cards rather than inside one.** It is a condition of
+   the affiliated entry and it used to sit in that card to say so, separated by a rule. That
+   cost more than it bought: collapsing it there moved the two cards below it, and at 320px it
+   threw whichever card had just been chosen off the top of the screen. Under all three, it
+   moves only what is below it and the cards never move. The adjacency it used to carry is
+   carried by its hint instead — the full note is in `NnEntryForm.astro`.
 
-.theme-nn .nn-fee:has(.nn-fee-radio:checked) .nn-fee-extra .field-input {
-  border-color: var(--nn-field-border-strong);
+   An ordinary `.field`, because that is now exactly what it is. The only rule it needs of its
+   own is the gap from the cards above, which `.nn-fees`' grid gap used to give it. */
+.theme-nn .nn-ea-field {
+  margin-top: 16px;
 }
 
 /* -------------------------------------------------------------------------------------

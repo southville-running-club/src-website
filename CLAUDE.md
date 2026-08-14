@@ -207,6 +207,19 @@ and in Chromium at 320px. `nn-entry.spec.ts`'s "shows a running total once an en
 chosen" is the guard, and the rule is the general one: **a container's message belongs to that
 container, not to a field nested inside it.**
 
+**A conditional field that collapses moves the control that revealed it.** The same England
+Athletics box, the same nesting, one layer up: it sat *inside* the affiliated card, so changing
+to another entry type collapsed 277px from **above** the two cards below it. At 320px the card
+somebody had just chosen went from y=271 to y=-7 — they tapped it, and the feedback for their
+own tap was the page throwing them somewhere else. It is a plain `.field` under all three cards
+now, where showing and hiding it moves only what is below and the cards do not move at all:
+measured Δ0 in WebKit and Δ1px in Chromium — a pre-existing sub-pixel border swap — across all
+48 combinations of engine, width, transition and input method. **Put a conditional field after
+the group it is a condition of, rather than inside it.** The adjacency that buys is worth less
+than the stability it costs, and the field's own hint can say what the nesting was saying.
+`nn-entry.spec.ts`'s "keeps the entry type that was chosen in view when the fee changes" is the
+guard, and it runs in all three projects.
+
 ---
 
 ## What is not built yet

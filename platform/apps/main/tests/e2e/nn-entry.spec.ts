@@ -647,6 +647,52 @@ test.describe('once entries are open', () => {
     expect(overflows).toBe(false);
   });
 
+  test('keeps the entry type that was chosen in view when the fee changes', async ({
+    page,
+  }) => {
+    // **Choosing something must not throw it off the screen.** The England Athletics box used
+    // to live *inside* the affiliated card, so picking anything else collapsed 277px from
+    // above the other two cards: at 320px the card that had just been chosen went from y=271
+    // to y=-7, and the feedback for somebody's own tap was the page jumping somewhere else.
+    // The box sits under all three cards now, where hiding it moves only what is below.
+    //
+    // Asserted in every project, including `no-javascript` — where the box never collapses at
+    // all, so the card must not move by so much as a pixel.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/nn/');
+
+    const cardPosition = () =>
+      page.evaluate(() => {
+        const card = document.querySelector('[data-entry-fee="vi_guide"]');
+
+        if (card === null) {
+          throw new Error('the VI guide card is not in the page');
+        }
+
+        const { top, bottom } = card.getBoundingClientRect();
+        return { top, bottom, viewport: window.innerHeight };
+      });
+
+    await entry(page)
+      .getByLabel(/^Affiliated/)
+      .check();
+
+    await page.locator('[data-entry-fee="vi_guide"]').scrollIntoViewIfNeeded();
+    const before = await cardPosition();
+
+    await entry(page)
+      .getByLabel(/^VI guide/)
+      .check();
+
+    const after = await cardPosition();
+
+    // On the screen, both edges of it.
+    expect(after.top).toBeGreaterThanOrEqual(0);
+    expect(after.bottom).toBeLessThanOrEqual(after.viewport);
+    // And within a line of where it was left, rather than merely somewhere on the page.
+    expect(Math.abs(after.top - before.top)).toBeLessThan(24);
+  });
+
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto('/nn/');
 
@@ -790,6 +836,31 @@ test.describe('what JavaScript adds @requires-js', () => {
 
     await expect(page.locator('[data-entry-error="emergencyName"]')).toBeHidden();
     await expect(page.locator('[data-entry-error="entryTerms"]')).toBeHidden();
+  });
+
+  test('choosing an entry type says nothing about the England Athletics box', async ({
+    page,
+  }) => {
+    // The specific path behind the test above, and the one that got through it. Leaving the
+    // entry-type radio is not leaving the England Athletics box, and it was read as exactly
+    // that: the box complained about a number nobody had reached, and because the message
+    // appeared between the press and the release of the click that caused it, it moved the
+    // other two cards out from under the pointer and the entry type could not be changed.
+    await page.goto('/nn/');
+
+    await entry(page)
+      .getByLabel(/^Affiliated/)
+      .check();
+
+    // WebKit leaves a radio unfocused when it is clicked and every other engine focuses it,
+    // which is why this was invisible on a laptop and deterministic in CI. A keyboard user is
+    // holding the radio either way, and Tab is what they press next.
+    await entry(page)
+      .getByLabel(/^Affiliated/)
+      .focus();
+    await page.keyboard.press('Tab');
+
+    await expect(page.locator('[data-entry-error="eaNumber"]')).toBeHidden();
   });
 });
 

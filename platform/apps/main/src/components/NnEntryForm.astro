@@ -505,53 +505,63 @@ const SUMMARY_LINKS = [
               their decimal points. The Worker writes the value; the markup writes none. */}
               <span class="nn-fee-price" data-entry-fee-price={fee.code} />
             </label>
-
-            {
-              /* **The England Athletics box lives inside the affiliated card, and is always
-              in the DOM.** It is rendered whatever is selected; the enhancement hides it when
-              another entry type is chosen, and with scripting off it stays visible and the
-              server decides whether it had to be filled in. Hiding it with JavaScript as the
-              only mechanism would make the form unfinishable for somebody without it. */
-              fee.code === 'affiliated' && (
-                <div class="nn-fee-extra field" data-entry-ea-field>
-                  <label class="field-label" for="entry-ea-number">
-                    England Athletics number
-                  </label>
-                  {/* **"Seven digits" is guidance and the check is 6 to 8.** Every number
-                  the club has seen is seven; what the national range is below that is
-                  unknown, so the field stays permissive and the words point at where to go
-                  and look. A false reject here blocks a paying entrant at the worst possible
-                  moment, and the affiliated discount is spot-checked by a human anyway. */}
-                  <p class="field-hint" id="entry-ea-hint">
-                    Required if you choose the affiliated entry. Seven digits, on your
-                    England Athletics registration email.{' '}
-                    <strong>Nothing here checks it</strong>— England Athletics publishes
-                    no way to; the club checks affiliated entries by hand against its own
-                    records.
-                  </p>
-                  <p
-                    class="field-error"
-                    id="entry-ea-error"
-                    data-entry-error="eaNumber"
-                    hidden
-                  />
-                  <input
-                    class="field-input"
-                    id="entry-ea-number"
-                    name="eaNumber"
-                    type="text"
-                    inputmode="numeric"
-                    maxlength="8"
-                    autocomplete="off"
-                    aria-describedby="entry-ea-hint entry-ea-error"
-                    data-entry-value="eaNumber"
-                  />
-                </div>
-              )
-            }
           </div>
         ))
       }
+    </div>
+
+    {
+      /* **The England Athletics box sits outside every fee card, and there is a cost on each
+      side of that.**
+
+      It used to live *inside* the affiliated card, which read well — the condition sat with
+      the choice it is a condition of. It cost two things. Hiding it removed 277px from
+      *above* the other two cards, so choosing a different entry type threw the card the
+      person had just chosen off the top of the screen: at 320px it went from y=271 to y=-7,
+      and the feedback for their own tap was the page jumping somewhere else. And it was the
+      page's only container nested inside another, which is what let `fieldOf` answer
+      "England Athletics number" for an entry-type *radio* and swallow the click entirely —
+      see the note on `fieldOf` below.
+
+      Below the cards, revealing and hiding it moves only what is below it and the cards never
+      move at all. **What is lost is the adjacency**: somebody choosing the affiliated entry
+      meets the box under all three cards rather than immediately beneath their choice. The
+      hint carries that instead, and it has to say so regardless — with scripting off the box
+      is visible whatever is selected, and the server is what decides.
+
+      **It ships hidden and the Worker reveals it**, exactly as the fee cards do, because
+      whether any entry type needs a number at all is `entries.fees.requires_ea_number`'s
+      answer rather than this file's. `data-entry-ea-field` carries the code of the fee that
+      requires one — empty here, written by the Worker — which is all the enhancement needs
+      and the only place that link is stated now that nesting no longer states it. */
+    }
+    <div class="field nn-ea-field" data-entry-ea-field="" hidden>
+      <label class="field-label" for="entry-ea-number">England Athletics number</label>
+      {
+        /* **"Seven digits" is guidance and the check is 6 to 8.** Every number the club has
+      seen is seven; what the national range is below that is unknown, so the field stays
+      permissive and the words point at where to go and look. A false reject here blocks a
+      paying entrant at the worst possible moment, and the affiliated discount is spot-checked
+      by a human anyway. */
+      }
+      <p class="field-hint" id="entry-ea-hint">
+        Required if you choose the affiliated entry. Seven digits, on your England
+        Athletics registration email.{' '}
+        <strong>Nothing here checks it</strong>— England Athletics publishes no way to;
+        the club checks affiliated entries by hand against its own records.
+      </p>
+      <p class="field-error" id="entry-ea-error" data-entry-error="eaNumber" hidden></p>
+      <input
+        class="field-input"
+        id="entry-ea-number"
+        name="eaNumber"
+        type="text"
+        inputmode="numeric"
+        maxlength="8"
+        autocomplete="off"
+        aria-describedby="entry-ea-hint entry-ea-error"
+        data-entry-value="eaNumber"
+      />
     </div>
   </fieldset>
 
@@ -870,16 +880,25 @@ const SUMMARY_LINKS = [
   }
 
   /**
-   * Which fee needs an England Athletics number — read from where the box actually is,
-   * rather than from a second copy of the answer. The box lives inside the card it belongs
-   * to, so the DOM already knows.
+   * The fee code an England Athletics number is a condition of, or `''` for none.
+   *
+   * **The Worker writes it, from `entries.fees.requires_ea_number`**, which is the only place
+   * that answer lives. It used to be read from where the box sat in the DOM — inside the card
+   * it belonged to — and that nesting is what made `fieldOf` ambiguous and what threw the
+   * chosen card off the screen when the box collapsed. The box is outside every card now and
+   * states the link on one attribute instead.
    */
-  function eaRequiredFeeCodes(entryForm: HTMLFormElement): string[] {
-    const holder = entryForm
-      .querySelector('[data-entry-ea-field]')
-      ?.closest<HTMLElement>('[data-entry-fee]');
+  function eaFeeCode(entryForm: HTMLFormElement): string {
+    const field = entryForm.querySelector<HTMLElement>('[data-entry-ea-field]');
 
-    return holder && !holder.hidden ? [holder.dataset.entryFee ?? ''] : [];
+    return field?.dataset.entryEaField ?? '';
+  }
+
+  /** Which fee needs an England Athletics number — none at all, unless the Worker named one. */
+  function eaRequiredFeeCodes(entryForm: HTMLFormElement): string[] {
+    const code = eaFeeCode(entryForm);
+
+    return code === '' ? [] : [code];
   }
 
   function values(entryForm: HTMLFormElement): Record<string, unknown> {
@@ -1018,9 +1037,13 @@ const SUMMARY_LINKS = [
    */
   function updateEaVisibility(entryForm: HTMLFormElement): void {
     const field = entryForm.querySelector<HTMLElement>('[data-entry-ea-field]');
-    const card = field?.closest<HTMLElement>('[data-entry-fee]');
-    const radio = card?.querySelector<HTMLInputElement>('.nn-fee-radio');
+    const code = eaFeeCode(entryForm);
+    const radio =
+      code === ''
+        ? null
+        : entryForm.querySelector<HTMLInputElement>(`.nn-fee-radio[value="${code}"]`);
 
+    // No box, or no entry type that needs one: whatever the Worker decided stands.
     if (!field || !radio) {
       return;
     }
