@@ -1,11 +1,15 @@
-# Nightingale Nightmare: interest, entry, payment and confirmation
+# Nightingale Nightmare: interest, entry, payment, confirmation and the privacy notice
 
 **This is more than should be reviewed at once, and that is a fair criticism rather than a
-framing.** Four slices arrived on one branch: the interest form and the `entries` schema, the
-entry form, taking money, and confirming it. Each was reviewable on its own and none of them
-was offered for review on its own. Subsequent slices will be pushed separately, and the
-reading order below is an attempt to make this one tractable rather than an argument that it
-is fine.
+framing.** Five slices arrived on one branch: the interest form and the `entries` schema, the
+entry form, taking money, confirming it, and the privacy notice all of that made necessary.
+Each was reviewable on its own and none of them was offered for review on its own. Subsequent
+slices will be pushed separately, and the reading order below is an attempt to make this one
+tractable rather than an argument that it is fine.
+
+**The privacy notice is the part with a deadline attached.** Entries cannot open without it:
+the form takes a date of birth, an emergency contact, medical information and a card payment,
+and until this branch the notice it links to described a three-field mailing list.
 
 ---
 
@@ -21,6 +25,8 @@ is fine.
    Stripe's signature over the raw bytes before parsing them.
 4. **`/nn/entry/complete/` reports what the club has recorded.** Only `paid` makes a positive
    claim; no state ever makes a negative one.
+5. **`/nn/privacy/` says what all of that collects**, in nine sections and three tables, from
+   both forms' links. It is written from the schema rather than from the form — see below.
 
 **Deliberately not done:** no confirmation email, no timing application code, and no real
 payment has ever run end to end — `STRIPE_SECRET_KEY` is unset, so production answers 503 and
@@ -83,6 +89,52 @@ gets a 400. A 200 on an outage drops a real payment silently.
 
 ---
 
+## The privacy notice, and the one place it departs from what was approved
+
+The committee approved a draft. It is committed at
+[`docs/delivery/nn-2026-privacy-notice-DRAFT.md`](../nn-2026-privacy-notice-DRAFT.md), left as
+approved, with a table at the top recording exactly what changed in the build and why.
+
+**The departure worth a reviewer's time is the first one.** The draft's "what we collect" table
+listed the fourteen fields somebody types. `entries.entry_purchases` also holds the fee and the
+amount, Stripe's session and payment-intent references, the consents with their
+`consent_version`, and `created_at` / `hold_expires_at` / `paid_at`. None was listed, and none
+is typed — so the draft's closing sentence, *"we do not collect anything about you that you
+have not typed into the form"*, was not true of the system it described.
+
+Four rows were added to section 2 and one lawful basis to section 3, derived from the tables.
+**Nobody approved them**, and they go to the committee with the four open decisions. The
+alternative was publishing a notice that under-lists what the club processes, which is a defect
+in a notice rather than a conservative choice.
+
+Three smaller corrections, all in the same direction: "and nothing more" about what Stripe
+returns was softened (the substance — the club never sees a card — is verified and unchanged);
+the Resend line came out, on the draft's own instruction, there being no confirmation email;
+and *"We keep everything inside the UK and the European Economic Area"* was **cut rather than
+asserted** — nothing in this repository supports it and it sits badly beside naming Stripe, a
+US processor, in the same list. That one is the gap the build could not close, and it belongs
+with whoever checks this professionally.
+
+**Five claims were checked against the code before any of it was written**, and all five hold:
+medical notes are refused rather than silently dropped when the consent box is unticked, then
+dropped again at the boundary and a third time in SQL; they live in `entries.entrant_medical`,
+so the one-month deletion is a `delete` and not a column-scoped update; no card field exists
+anywhere in the schema or the Workers; `eu-west-2` is on record in `packages/db/README.md`.
+
+**The tables are real tables** — `<th scope="col">` and `<th scope="row">` — and two columns at
+most. The retention table's third column is folded into the second cell, which loses no words
+and was empty in two of its five rows anyway. `table-layout: fixed` and `overflow-wrap` are
+what make 320px safe rather than the breakpoint; below 30rem the rows stack and every ARIA role
+is restated by hand, because making a `tr` a block is what drops the implicit ones in every
+engine.
+
+`nn-privacy.spec.ts` is 12 tests in all three browser projects, including `no-javascript`. The
+one to read is **the marker count**: four `null`s in `race.json`, four "To be confirmed by the
+club" on the page. Filling one in fails that test until it is updated, which is the moment
+somebody confirms the new value came from the committee rather than from a hurry.
+
+---
+
 ## Still blocked on the club, not on code
 
 None of it blocks the branch, and everything undecided renders as "to be confirmed" rather than
@@ -126,3 +178,19 @@ as a guess:
    would pay twice.
 5. **The form with JavaScript disabled.** It is the primary path, not a fallback. The
    `no-javascript` Playwright project runs the whole entry suite with scripting off.
+6. **Whether `/nn/privacy/` section 2 matches the tables.** Read it against
+   `20260813094500_create_entries_schema.sql` rather than against the form. If a column holds
+   something about a person and the notice does not name it, that is the defect this section
+   was rewritten to fix, and it is the one a reviewer can catch and a test cannot.
+
+---
+
+## How it was verified
+
+`./dev check` and `./dev test`, twice each: **417 unit and database tests, 338 acceptance
+tests**, zero axe violations across the six pages, and both documentation link checkers clean.
+The acceptance suite drives three browser projects — Chromium, WebKit and Chromium with
+JavaScript disabled — against the real Workers runtime with a stubbed Stripe.
+
+**No real payment has ever run end to end.** `STRIPE_SECRET_KEY` is unset, so production
+answers 503 and says so in those words.
