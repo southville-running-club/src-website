@@ -279,6 +279,48 @@ test.describe('once entries are open', () => {
     await expect(cta).toHaveAttribute('href', '#enter');
   });
 
+  test('links the agreements section to a notice that covers the entry', async ({
+    page,
+    request,
+  }) => {
+    // **The link has to be true of the page it lands on**, and it was not: it pointed at a
+    // notice describing a three-field interest form while this form collects fourteen fields
+    // and takes a payment. The notice covers both now, and this is what says so.
+    await page.goto('/nn/');
+
+    const agreements = entry(page).getByRole('group', { name: 'Agreements' });
+    await expect(
+      agreements.getByRole('link', { name: 'the privacy notice' }),
+    ).toHaveAttribute('href', '/nn/privacy/');
+    expect((await request.get('/nn/privacy/')).status()).toBe(200);
+
+    await page.goto('/nn/privacy/');
+    const body = (await page.locator('.nn-prose').textContent()) ?? '';
+    expect(body).toMatch(/If you enter the race/i);
+    expect(body).toMatch(/medical box/i);
+  });
+
+  test('leaves the entry terms unlinked, and says why', async ({ page }) => {
+    // **The entry terms are a separate document and still do not exist.** A consent control
+    // pointing at a page that is not there is worse than an honest absence, so the box has a
+    // hint instead of a link — and the agreements section has exactly one link in it, which
+    // is the privacy notice above. This fails the moment somebody links the terms to
+    // something plausible rather than to something written.
+    await page.goto('/nn/');
+
+    const agreements = entry(page).getByRole('group', { name: 'Agreements' });
+
+    await expect(
+      agreements.getByText(/full entry terms are still to be confirmed/i),
+    ).toBeVisible();
+
+    const hrefs = await agreements
+      .getByRole('link')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+
+    expect(hrefs).toEqual(['/nn/privacy/']);
+  });
+
   test('is completable with JavaScript disabled, and hands over to Stripe', async ({
     page,
   }) => {

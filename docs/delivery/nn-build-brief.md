@@ -139,7 +139,7 @@ platform/apps/main/            Built, including the sign-up form
 │       ├── 404.astro
 │       └── nn/
 │           ├── index.astro     The race page, and the form
-│           └── privacy.astro   What the club does with a sign-up
+│           └── privacy.astro   What the club does with an entry and a sign-up
 ├── worker/
 │   ├── index.ts                Routing, the POST route, and the health rewrite
 │   ├── routing.ts              Which paths belong to whom. Pure and tested
@@ -348,7 +348,7 @@ and flag it.
 | **Whether Stripe adaptive pricing stays off** | **Turned off, and reversible in one line.** It is on by default and would present and charge a converted amount to somebody paying from abroad — a second version of a price this build keeps in one place, at a rate nobody chose. Off means everybody is charged the `entries.fees` row in sterling. The treasurer may want the other answer |
 | **Age categories for non-binary runners** | **Unresolved, and the club's to resolve.** The 2023 form offered the option and there were no categories to receive it. The form records the answer and says plainly that the categories are undecided |
 | **Where the rows land** | `intake.nn_interest` — settled by [ADR-002](../architecture/decisions/adr-002-schema-layout.md), migrated, and **now reachable**: the column-scoped grant, the anonymous-insert policy and the form all landed together, in the pull request that could test them |
-| **The privacy notice's specifics** | **Open, and blocking nothing.** The data controller's contact, the address to write to for removal, and the retention period are all `null` in `race.json` and render as "To be confirmed" on `/nn/privacy/`. Inventing any of them would be a legal claim nobody authorised |
+| **The privacy notice's four open decisions** | **Open, and blocking nothing.** The data contact, how long an entry is kept, whether an email address is kept for next year, and what is true about photographs are all `null` under `race.json`'s `privacy` key and render as "To be confirmed by the club" on `/nn/privacy/`. Inventing any of them would be a legal claim nobody authorised. The controller, the registered office, the company number and the one-month medical retention **are** settled and are written in |
 | **Whether an unconsented submission is stored** | **Open.** Consent is currently *required to submit* — `z.literal(true)` in the schema and `required` on the checkbox. The migration's `with check` is deliberately silent on consent, so reversing this is two lines of TypeScript and **no second migration** |
 
 ---

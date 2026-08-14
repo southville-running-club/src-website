@@ -170,8 +170,16 @@ None of it blocks the site, which is built and tested. All of it is
 [stop-and-ask](../architecture/principles.md#stop-and-ask) territory rather than a build
 decision, and everything undecided renders as "to be confirmed" rather than as a guess:
 
-- [ ] **The privacy notice's specifics** — the data controller's contact, the address
-      someone writes to for removal, and how long the list is kept
+- [ ] **The privacy notice's four open decisions** — who somebody writes to about their
+      data, how long an entry record is kept, whether an email address is kept to tell
+      people about next year's race, and what is true about photographs. All four are
+      `null` under `race.json`'s `privacy` key and render "To be confirmed by the club".
+      **The notice itself is written** and covers the entry as well as the interest form
+- [ ] **Four rows of the notice were derived from the schema, not approved.** The committee
+      approved a draft listing what somebody types; the tables also hold the fee and amount,
+      Stripe's references, the consents with their version, and three timestamps. Those rows
+      and one lawful basis were added because a notice that omits them under-lists what the
+      club processes. They go to the committee with the four above
 - [ ] **Whether a submission with the consent box unticked is stored at all.** It is
       currently *required to submit*. The database is deliberately neutral on it, so
       reversing this needs no migration

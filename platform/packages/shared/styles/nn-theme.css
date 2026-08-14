@@ -845,6 +845,134 @@ body.theme-nn {
   padding-left: 1.25rem;
 }
 
+/* -------------------------------------------------------------------------------------
+ * The notice's tables
+ * -------------------------------------------------------------------------------------
+ * What is collected, the lawful basis for each, and how long each is kept. **Tabular data,
+ * so real tables** — `<th scope="col">` across the top and `<th scope="row">` down the
+ * side, which is what lets somebody listening to the page ask which column they are in and
+ * be told. A stack of divs would look identical and answer nothing.
+ *
+ * ## Two columns, never three
+ *
+ * The retention table was drafted with a third column for *why*. Inside this card at 320px
+ * there are 232px to work with — 320 less `.nn-wrap`'s 40 and `.nn-card`'s 48 — and three
+ * columns of prose in 232px is either a sideways scroll or a word per line. The *why* is
+ * folded into the second cell as a subordinate line instead: every word survives, and the
+ * widest table on the page is two columns. Two of the five *why* cells were empty in the
+ * draft anyway.
+ *
+ * ## `table-layout: fixed` is what makes the 320px test pass, not the breakpoint
+ *
+ * `auto` sizes columns to their content, so one long unbroken run — an email address, a
+ * postcode — can push a table wider than its container however narrow the container is.
+ * `fixed` takes the widths from the first row and honours the declared width, and
+ * `overflow-wrap: anywhere` breaks whatever is left. Together the table *cannot* exceed the
+ * card. The stack below is for reading; this pair is for not overflowing, and they are
+ * separate jobs — a breakpoint alone would still overflow at 481px given a long enough word.
+ *
+ * ## Stacked below 30rem, with the semantics restated by hand
+ *
+ * Below 30rem each row becomes a block, because two columns of prose in 232px is not
+ * reading. **Making `tr` and `td` blocks is what drops a table's implicit roles**, in every
+ * engine — so every role is restated in the markup: `table`, `rowgroup`, `row`,
+ * `columnheader`, `rowheader`, `cell`. They are redundant above the breakpoint and
+ * load-bearing below it, and stating them once in the HTML is cheaper than two markup
+ * paths. They are also invisible to the acceptance suite's axe tags, which is why this is
+ * safe: `no-redundant-roles` is a best-practice rule and the suite filters to
+ * `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa`.
+ *
+ * The header row is **clipped rather than removed**, for the same reason: `display: none`
+ * would take the column names out of the accessibility tree along with the pixels. The
+ * `::before` on each stacked cell is scaffolding for a sighted reader who has lost sight of
+ * the header row, not the label of record.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-prose table {
+  width: 100%;
+  table-layout: fixed;
+  margin: 0 0 1rem;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.theme-nn .nn-prose th,
+.theme-nn .nn-prose td {
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--nn-card-muted);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.theme-nn .nn-prose th:last-child,
+.theme-nn .nn-prose td:last-child {
+  padding-right: 0;
+}
+
+.theme-nn .nn-prose thead th {
+  border-bottom: 1.5px solid var(--nn-field-border);
+  font-weight: 600;
+}
+
+/* **On the head row, because `table-layout: fixed` reads the widths off the first row.**
+   Setting it on `tbody th` would be ignored, silently, and the columns would come out even. */
+.theme-nn .nn-prose thead th:first-child {
+  width: 38%;
+}
+
+.theme-nn .nn-prose tbody th {
+  font-weight: 600;
+}
+
+/* The folded-in third column. `--colour-muted` is the card's own override — slate on white
+   rather than the theme's bone, which is what `.nn-card` sets it to and why this does not
+   name a colour of its own. */
+.theme-nn .nn-prose .nn-why {
+  display: block;
+  margin-top: 4px;
+  color: var(--colour-muted);
+}
+
+@media (max-width: 30rem) {
+  .theme-nn .nn-prose thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .theme-nn .nn-prose tbody tr {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--nn-card-muted);
+  }
+
+  .theme-nn .nn-prose tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .theme-nn .nn-prose tbody th,
+  .theme-nn .nn-prose tbody td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .theme-nn .nn-prose tbody td {
+    margin-top: 6px;
+  }
+
+  .theme-nn .nn-prose tbody td[data-label]::before {
+    content: attr(data-label) ' — ';
+    color: var(--colour-muted);
+  }
+}
+
 /* Inline mono, for the one postcode that is read off a screen and typed into a car.
    `0.9em` for the same reason `.nn-card code` has it: JetBrains Mono sets optically larger
    than Inter at a matched pixel size, and an unsized mono run in a paragraph reads as

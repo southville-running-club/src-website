@@ -88,9 +88,19 @@ gets a 400. A 200 on an outage drops a real payment silently.
 None of it blocks the branch, and everything undecided renders as "to be confirmed" rather than
 as a guess:
 
-- **The entry terms.** Not written. The form links to them and the link has nowhere to go yet.
-- **The privacy notice's specifics** — the data controller's contact, the address someone
-  writes to for removal, and how long the list is kept.
+- **The entry terms.** Not written, and **the checkbox deliberately does not link to them** —
+  a consent control pointing at a page that is not there is worse than an honest absence, so
+  it carries a hint saying the terms are still to be confirmed. `nn-entry.spec.ts` holds the
+  agreements section to exactly one link, which is the privacy notice.
+- **The privacy notice's four open decisions** — who somebody writes to about their data, how
+  long an entry record is kept, whether an email address is kept to tell people about next
+  year's race, and what is true about photographs. All four are `null` under `race.json`'s
+  `privacy` key and render "To be confirmed by the club".
+- **Four rows of the notice were derived from the schema rather than approved.** The approved
+  draft listed what somebody types; the tables also hold the fee and amount, Stripe's
+  references, the consents with their version, and three timestamps. Those four rows and one
+  lawful basis were written from the schema because a notice that omits them under-lists what
+  the club processes. They go to the committee with the four decisions above.
 - **Entry open and close times, and the transfer deadline.** `entries_open_at` is `null`, which
   is why production serves the interest form.
 - **The free VI guide place cannot be completed.** Stripe refuses a zero-total Checkout session,

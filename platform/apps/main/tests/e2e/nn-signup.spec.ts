@@ -220,6 +220,10 @@ test.describe('accessibility of the form', () => {
 });
 
 test.describe('the privacy notice', () => {
+  // **The notice's own content is `nn-privacy.spec.ts`'s**, and it moved there when the page
+  // grew from three fields to the whole entry. What stays here is the one assertion that
+  // belongs to *this* form: that the link out of it goes where it says it goes. That test
+  // needs the interest form on the page, which is this file's state to depend on.
   test('is linked from the form and says what is held', async ({ page }) => {
     await page.goto('/nn/');
 
@@ -231,25 +235,11 @@ test.describe('the privacy notice', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText(
       'What the club does with your details',
     );
-  });
 
-  test('states consent as the basis, and how to be removed', async ({ page }) => {
-    await page.goto('/nn/privacy/');
-    const body = (await page.locator('body').textContent()) ?? '';
-
-    expect(body).toMatch(/consent/i);
+    // The link promises two things — what is held, and how to have it removed. Both have to
+    // be true of the page it lands on, or the promise is the thing that is wrong.
+    const body = (await page.locator('.nn-prose').textContent()) ?? '';
+    expect(body).toMatch(/what we collect/i);
     expect(body).toMatch(/removed/i);
-  });
-
-  test('invents none of the answers it does not have', async ({ page }) => {
-    // Retention, the removal address and the data controller are genuinely undecided.
-    // **A plausible-looking invention on this page is a legal claim nobody authorised**, so
-    // the page must say "to be confirmed" until the committee has settled them.
-    await page.goto('/nn/privacy/');
-    const body = (await page.locator('body').textContent()) ?? '';
-
-    expect(body).toContain('To be confirmed');
-    expect(body).not.toMatch(/£\s?\d/);
-    expect(body).not.toMatch(/\b(October|November)\s+\d{1,2}\b/);
   });
 });

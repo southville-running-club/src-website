@@ -5,7 +5,7 @@ cutover the hostname changes and nothing else does —
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
 A holding page saying a new site is coming, **five Nightingale Nightmare pages** — the race
-page and its two forms, three content pages, and the privacy notice those forms are required
+page and its two forms, three content pages, and the privacy notice both forms are required
 to have — and a timestamp fetched from Postgres by the Worker while it serves the request.
 
 **`/nn/` carries two forms and shows one.** The entry form when the event row says entries
@@ -26,7 +26,7 @@ src/components/NnEntryForm.astro  The entry form, and its progressive enhancemen
 src/pages/nn/course.astro      Course and terrain
 src/pages/nn/race-day.astro    Race day — HQ, the morning in order, prizes
 src/pages/nn/spectators.astro  Watching the race
-src/pages/nn/privacy.astro     What the club does with a sign-up
+src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
 src/pages/nn/entry/complete.astro  Where Stripe sends somebody back to
 worker/routing.ts              Which paths belong to whom. Pure and tested
 worker/index.ts                Forward /timing locally, take the POSTs, fill in the
@@ -47,7 +47,7 @@ worker/nn-entry-complete.ts    Paint what the club has recorded onto the return 
 | `/nn/course/` | Course and terrain |
 | `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/spectators/` | Watching the race — where to stand, where to park |
-| `/nn/privacy/` | What the club does with a sign-up |
+| `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types |
 | `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 
@@ -77,7 +77,7 @@ as a blank or an invention. Three still are, and each for a different reason:
 | --- | --- |
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
 | `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
-| `privacy.*` | The controller, the removal address and the retention period. A wrong answer on that page is a legal claim rather than a typo |
+| `privacy.*` | Nine keys. **Five are settled and written in** — the controller, the registered office, the company number, the one-month medical retention, and the date the notice was last updated. **Four are `null` and render "To be confirmed by the club"**: `contact`, `entryRetention`, `emailRetention` and `photographs`. A wrong answer on that page is a legal claim rather than a typo, so filling one in is a one-line edit here and `nn-privacy.spec.ts` counts the markers to stop a fifth appearing or a fourth quietly vanishing |
 
 **Presentation is data too, where the committee should own it.** `prizes[].highlight` is
 which tile the campaign's one accent colour lands on — the fancy-dress prize, because that

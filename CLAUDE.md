@@ -35,6 +35,15 @@ re-run.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
   list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
+- **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
+  there: who somebody writes to about their data, how long an entry record is kept, whether
+  an email address is kept to tell people about next year's race, and what is true about
+  photographs. They render "To be confirmed by the club" and `nn-privacy.spec.ts` counts
+  them. **Settled, and written in:** the controller, the registered office, the company
+  number, and one month for medical notes. **What the notice says is collected comes from
+  the schema, not from the form** — the entry tables also hold the fee and amount, Stripe's
+  references, the consents with their version, and three timestamps, and a notice that omits
+  those under-lists what the club processes.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
   more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
   `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
