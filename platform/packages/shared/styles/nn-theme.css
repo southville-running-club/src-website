@@ -509,7 +509,26 @@ body.theme-nn {
    One value, sized for the tallest the bar gets. On a laptop, where it is 64px, an anchor
    lands with more clearance than it needs; that costs nothing and is the safe direction to
    be wrong in. Near the top of a document the browser cannot scroll past zero, so the skip
-   link is unaffected by the slack. */
+   link is unaffected by the slack.
+
+   **What this rule cannot do, so that nobody adds it again.** It decides where a scroll
+   lands; it has no say in whether one happens. The selector is `[id]` rather than "anchor
+   targets", so every control on the entry form already computes 168px here — the fee radios
+   measure it in both engines — and moving focus between the entry-type radios with the arrow
+   keys still leaves the newly focused one behind the bar at 320px in WebKit. The reason is
+   that WebKit frequently does not scroll at all when focus moves by keyboard: measured, it
+   left both an arrowed-to fee radio and a tabbed-to date box entirely below the fold without
+   scrolling a pixel. Nothing consulted only during a scroll can repair a scroll that never
+   starts.
+
+   Both obvious repairs were measured and neither is one. `.nn-fee { scroll-margin-top }`
+   gives 3 of 6 keyboard transitions clear of the bar at 320px — exactly what it is without
+   it, because the card is not what focus moves to. `html { scroll-padding-top: 168px }` makes
+   it worse at 2 of 6, one landing above the viewport. Chromium is 6 of 6 either way. What is
+   left is the bar's own height at 320px, 159px of a 568px screen, and that is a decision
+   about the masthead rather than about this rule. Measured against the WebKit
+   `playwright install` provides, which is the engine CI fails on; real Safari was not
+   available to check. */
 .theme-nn [id] {
   scroll-margin-top: 168px;
 }
