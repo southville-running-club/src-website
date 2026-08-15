@@ -231,7 +231,19 @@ guaranteed order. That is survivable only because
 [expand–migrate–contract](../../architecture/principles.md#expand-migrate-contract) is a
 principle: every schema change must keep the previously deployed code working.
 
-**No migrations during a race-week [change freeze](../../foundations/glossary.md#platform-and-delivery).**
+**No migrations during a race-week [change freeze](../../foundations/glossary.md#platform-and-delivery),
+and `deploy-db.yml` now refuses one rather than merely saying so.** The window is 25 October
+to 1 November 2026, derived from the race date and "from the week before" in
+[the phases](../phases.md). A merge inside it fails the deploy, says nothing has been applied,
+and leaves the migration on `main` to go out when the freeze lifts. **If it genuinely cannot
+wait**, run the workflow by hand from the Actions tab with *"Deploy during the race-week change
+freeze"* ticked — the override is attributable in the run log, which is the point of it — and
+tell the other volunteer before rather than after. **Next year's race means editing the two
+dates in that step.**
+
+**Nothing detects a hand-edit in the Supabase dashboard**, and `config push` overwrites one
+silently on the next merge. There is no drift check; if you change something in the dashboard,
+put it in the file too or expect to lose it.
 
 **`supabase db reset` is a local command.** It drops everything and rebuilds from
 migrations. Today that would cost this project's sign-ups; after the timing platform is

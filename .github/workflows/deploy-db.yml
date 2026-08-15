@@ -20,7 +20,10 @@ name: Deploy database
 # order genuinely does not matter. Roll code back; roll schema forward. If a change ever
 # needs the migration to land first, that change is the thing to fix — not this workflow.
 #
-# **No migrations during a race-week change freeze.**
+# **No migrations during a race-week change freeze**, and since issue #23 that is a step in
+# this job rather than a sentence in this comment. It was the rule most likely to be forgotten
+# in precisely the week it exists for — the week when somebody is fixing something at eleven
+# at night because the race is on Sunday. See "Race-week change freeze" below.
 #
 # See docs/architecture/investigations/deployment.md
 
@@ -43,6 +46,12 @@ on:
   # reviewer, which the note on the job below already identifies as the strongest argument
   # for paying. Recorded in issue #26 so it is a known gap rather than an unnoticed one.
   workflow_dispatch:
+    inputs:
+      override_freeze:
+        description: 'Deploy during the race-week change freeze (needs a reason in the run notes)'
+        type: boolean
+        default: false
+
 
 # Read-only for the repository, which is not the same as harmless — see the note above. The
 # `GITHUB_TOKEN` needs nothing here: the credentials that matter are the three Supabase
@@ -82,6 +91,73 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
     steps:
+      - name: Race-week change freeze
+        # **The freeze was a comment for as long as it has existed, and a comment does not
+        # stop a deploy.** It is the rule most certain to be forgotten in the one week it is
+        # for, by the person least able to absorb the consequence — a volunteer fixing
+        # something at eleven at night with the race on Sunday.
+        #
+        # The window is derived, not invented: the race is **Sunday 1 November 2026** in
+        # `apps/main/src/content/race.json`, and both phases.md and ADR-008 put the freeze at
+        # "from the week before". That is Sunday 25 October, which is also the day the clocks
+        # change, through race day itself.
+        #
+        # Hardcoded rather than parsed out of `race.json`, whose `date` is prose for a human
+        # to read ("Sunday 1 November 2026"). Parsing English dates in bash to enforce a
+        # safety rule is the more fragile of the two options, and this file is where somebody
+        # looks when the freeze bites. **Next year's race means editing these two dates.**
+        #
+        # Runs before the secrets check and before checkout: it needs neither, and a run that
+        # must not happen should stop in seconds.
+        #
+        # Issue #23, item 3.
+        working-directory: .
+        env:
+          OVERRIDE: ${{ inputs.override_freeze }}
+        run: |
+          set -euo pipefail
+
+          FREEZE_FROM='2026-10-25'
+          FREEZE_UNTIL='2026-11-01'
+          today="$(date -u +%Y-%m-%d)"
+
+          if [[ "$today" < "$FREEZE_FROM" || "$today" > "$FREEZE_UNTIL" ]]; then
+            echo "Not in the change freeze (${FREEZE_FROM} to ${FREEZE_UNTIL}). Today is ${today}."
+            exit 0
+          fi
+
+          # The escape hatch is deliberate and deliberately awkward. A freeze nobody can
+          # break is one somebody works around by running migrations from a laptop, which is
+          # the unreviewed, unlogged path this whole workflow exists to replace. A manual
+          # dispatch with the box ticked is a decision, attributable in the run log, made by
+          # somebody who has read this.
+          if [ "$OVERRIDE" = "true" ]; then
+            echo "::warning::Deploying inside the race-week change freeze by explicit override."
+            echo "Freeze: ${FREEZE_FROM} to ${FREEZE_UNTIL}. Today: ${today}."
+            echo "Record what was deployed and why in docs/delivery/runbooks/supabase-setup.md."
+            exit 0
+          fi
+
+          echo "::error::Refusing to migrate during the race-week change freeze."
+          cat <<MESSAGE
+
+          Today is ${today}, inside the change freeze (${FREEZE_FROM} to ${FREEZE_UNTIL}).
+
+          Nightingale Nightmare is raced on Sunday 1 November 2026. The freeze runs from
+          the week before, and it covers both applications: they share a hostname and a
+          repository. See docs/delivery/phases.md and ADR-008.
+
+          Nothing has been applied. The migration is still on main and will deploy on the
+          first run after the freeze lifts.
+
+          If this genuinely cannot wait — it is a fix for something already broken, not an
+          improvement — run this workflow by hand from the Actions tab with
+          "Deploy during the race-week change freeze" ticked, and say why in the run notes.
+          Tell the other volunteer before you do, not after.
+
+          MESSAGE
+          exit 1
+
       - name: Check the secrets exist
         # Without this the Supabase CLI fails several steps later with something about an
         # access token, which reads like a broken migration rather than an empty settings
@@ -127,6 +203,36 @@ jobs:
       - name: Show what would be applied
         # Logged before it happens, so the run itself is the record of what changed.
         run: npx supabase migration list --linked
+
+      - name: Show the plan that is about to run
+        # **The one action in this repository with no rollback, and until now the review
+        # artefact was the SQL file rather than the plan that would actually run.**
+        #
+        # `--dry-run` asks the live database what `db push` would do against it, and prints
+        # it without doing it. The run log then becomes the record of what changed, next to
+        # the `migration list` above which says only *which* migrations are pending.
+        #
+        # **Here rather than on the pull request, and that is a deliberate trade.** A dry-run
+        # needs `--linked`, which needs `SUPABASE_ACCESS_TOKEN`. Branches here are internal
+        # rather than forks, so secrets are technically available to a pull-request run — but
+        # handing a production database credential to code from an unmerged branch is a
+        # pattern that wants a reason, not a default. Running it here means no credential
+        # ever meets an unreviewed branch.
+        #
+        # **What that costs is pre-merge visibility**, which is real and is not covered by
+        # anything else: the plan appears seconds before it is executed rather than while
+        # somebody is reviewing. What a reviewer has is the migration SQL itself and CI's
+        # "Migrations apply from zero". Nothing rehearses the incremental apply against a
+        # populated database — see docs/architecture/investigations/deployment.md, which
+        # records why that was judged not worth its maintenance rather than merely missed.
+        #
+        # Non-fatal. A CLI that cannot produce a plan is not a reason to refuse a migration
+        # that `migration list` has already shown to be pending, and failing here would turn
+        # a reporting step into a new way for the deploy to break.
+        #
+        # Issue #23, item 4.
+        continue-on-error: true
+        run: npx supabase db push --linked --dry-run
 
       - name: Apply migrations
         # **`db push`, never `db reset`.** `reset` is a local command; against the shared

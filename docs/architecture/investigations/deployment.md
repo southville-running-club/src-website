@@ -97,15 +97,48 @@ credential is accepted, and the asymmetry is deliberate rather than an oversight
 | **Trigger** | Merge to `main` runs `supabase db push` for the schemas this repository owns |
 | **Secrets** | `SUPABASE_ACCESS_TOKEN`, project ref, database password — GitHub Actions secrets, never in the repository |
 | **On a pull request** | Migrations are **validated, not applied**. A preview deployment pointing at production data is a personal-data problem, not a convenience |
-| **Scoping** | `--schema club,intake`, so this repository never proposes dropping the timing app's tables |
+| **Scoping** | `--schema club,intake,entries`, so this repository never proposes dropping the timing app's tables |
 | **Never** | `supabase db reset` against a remote. It is a local command |
-| **Race weeks** | No migrations during a [change freeze](../../foundations/glossary.md#platform-and-delivery) |
+| **Race weeks** | No migrations during a [change freeze](../../foundations/glossary.md#platform-and-delivery), and `deploy-db.yml` **enforces it** rather than describing it. Overridable only by a manual dispatch that says so in the run log |
+| **The plan** | `db push --dry-run` runs immediately before the real push, so the run log records what was about to change rather than only which migrations were pending |
 
 **Why accept the credential.** The alternative is a volunteer running migrations from a
 laptop — unreviewed, unlogged, invisible to the other volunteer, and a direct failure of
 [everything as code](../../foundations/requirements.md#everything-is-defined-as-code). A
 scoped token in GitHub Actions secrets is the smaller risk, and it is the mainstream
 pattern.
+
+### What is not rehearsed, and why that is a choice
+
+**Every gate here proves the migration set composes from nothing. Production does something
+none of them does.** `./dev up`, `./dev check`, `./dev test` and CI's "Migrations apply from
+zero" all run `supabase db reset` — the whole set, in order, against an empty database.
+`deploy-db.yml` runs `supabase db push --linked`: the *new* migrations only, incrementally,
+against a database that already holds rows. **Nothing rehearses that**, and the first
+performance is the live one.
+
+A rehearsal was built and then deliberately withdrawn, so the reasoning is worth keeping rather
+than rediscovering. Resetting to `main`'s schema and applying the branch's migrations on top is
+easy; making it *mean* anything is not. **The gate is only ever as strong as the rows present in
+the table being altered**, and after a reset `entries.entrants`, `entries.entrant_medical`,
+`entries.entry_purchases` and `entries.discount_codes` all hold **zero** — `seed.sql` populates
+`intake.nn_interest` and nothing else. Those four are exactly the tables that will hold real
+entrants, so the rehearsal was weakest precisely where production will be heaviest.
+
+Closing that means generating rows the way the application writes them — through the
+anon-callable functions, in an order that produces a live hold, an expired one, a paid entry,
+medical notes and an over-capacity revival. That is a few hundred lines of fixture machinery
+tracking `create_pending_purchase()`'s signature exactly, duplicating what
+`packages/db/tests/entries-webhook.test.ts` already exercises, and needing maintenance every
+time the entry functions change.
+
+**The judgement was that the maintenance outweighs the catch**, because
+[expand–migrate–contract](../principles.md#expand-migrate-contract) already forbids the
+class of failure involved and is enforced by two people reading diffs. Automation that
+re-checks a discipline already kept is worth having only when it is close to free, and this was
+not. If that trade changes — a third volunteer, a migration that goes wrong, or entries holding
+real rows for a season — the thing to build is **seed coverage of the `entries` tables**, which
+is what makes any such gate bite.
 
 ---
 
