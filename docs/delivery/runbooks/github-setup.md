@@ -74,7 +74,7 @@ request from today. What you cannot do is stop yourself deviating from it.
 
 | | Cost | |
 | --- | --- | --- |
-| **A CI guard** | £0 | A workflow that fails loudly when a commit reaches `main` without a pull request. Detection rather than prevention — exactly the trade [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) already ratified for DNS |
+| **A CI guard** ✅ | £0 | **Built** — `.github/workflows/main-guard.yml`. It fails on a push to `main` whose commit belongs to no pull request. Detection rather than prevention, which is exactly the trade [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) already ratified for DNS |
 | **GitHub Team** | ~£70–90/yr for two | Real enforcement, and it also unlocks the environment protection in step 4 |
 | **Make the repository public** | £0 | Full enforcement and unlimited Actions minutes. Needs the [DNS zone export](../../reference/zone-fasthosts-2026-08-08.txt) moved or redacted first, and makes the club's infrastructure reasoning public |
 
@@ -83,14 +83,55 @@ one, and the gap it leaves is the same gap the club has already accepted elsewhe
 in the [decision log](../../decisions/decision-log.md) so it is a deferral rather than an
 oversight.
 
-## 3. Actions permissions
+## 3. Repository settings — **admin only, and none of it can be done from a diff**
 
-**Settings → Actions → General.**
+> **Everything in this section needs the shared `southville-running-club` login.**
+> `chessser` and `bindalshah` are *collaborators* with write, and every setting below is
+> admin-gated: `PATCH /repos/{owner}/{repo}` is refused, and both
+> `/actions/permissions` and `/vulnerability-alerts` answer `404` to a write-level token
+> rather than reporting their state. So a volunteer cannot even *confirm* these, let alone
+> change them.
+>
+> That is why the four workflow-permission declarations moved **into the workflow files**,
+> where they are reviewed in a pull request. This section is what is left over.
+
+### 3a. Actions → General
+
+**Settings → Actions → General**, as the shared login.
 
 - [ ] **Allow all actions and reusable workflows** — the workflows use `actions/checkout`
       and `actions/setup-node` only.
-- [ ] **Workflow permissions: Read repository contents.** Nothing here writes to the
-      repository, so nothing needs write.
+- [ ] **Workflow permissions: Read repository contents.** Belt and braces now: all four
+      workflows declare `permissions: contents: read` themselves, so this is the floor rather
+      than the only control. Set it anyway — a workflow added later without a `permissions:`
+      block inherits this.
+- [ ] **Record here that it was checked, with the date.** The state is invisible to everybody
+      else, so an unrecorded check is the same as no check.
+
+### 3b. Merge behaviour
+
+**Settings → General → Pull Requests.** Both are one click and neither needs a plan change.
+
+- [ ] **Automatically delete head branches.** Currently `false`, so every merged branch stays
+      forever. The repository already carries a dozen.
+- [ ] **Allow one merge method, not three.** All three are enabled today, so the shape of the
+      history depends on which button somebody clicks at eleven at night.
+      **Keep "Create a merge commit" and turn off squash and rebase** — that is what the
+      history already is, every merge to date is a `Merge pull request #N`, and the pull
+      request number in the first line of each is how a commit is traced back to its review.
+
+### 3c. Dependabot
+
+- [ ] **Settings → Code security → Dependabot alerts.** State unknown, for the reason at the
+      top of this section. Turn it on if it is off, and record the answer either way.
+
+### 3d. What is *not* here, and why
+
+**Nothing in this section is enforcement.** Branch protection, required reviews, required
+checks and the required reviewer on `supabase db push` all need a paid plan — sections
+[2](#2-protecting-main--not-available-yet-and-the-decision-is-open) and
+[4](#4-the-production-environment--also-unavailable-same-reason). These are the settings that
+are free, have never been set, and need no committee decision.
 
 ## 4. The production environment — **also unavailable, same reason**
 
@@ -165,9 +206,16 @@ Once the Cloudflare Workers exist, a third workflow appears on merges to `main`:
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| **CI** | Every pull request, and pushes to `main` | Lint, types, generated types current, unit, Worker, migrations from zero, build, Playwright + axe |
+| **CI** | Every pull request. **Not pushes to `main`** | Lint, types, generated types current, unit, Worker, migrations from zero, build, Playwright + axe |
+| **Main guard** | Every push to `main` | Fails if the commit belongs to no pull request. Seconds, and the only thing watching that path |
 | **Deploy database** | Merges to `main` touching `platform/packages/db/supabase/migrations/**` | `supabase db push --linked` |
-| **Smoke test** | Merges to `main`, daily at 08:17, and by hand | Seven checks against the live site |
+| **Smoke test** | Merges to `main`, daily at 08:17, and by hand | The live-site checks |
+
+> **This table said CI ran on pushes to `main`. It never has.** The claim came from
+> `ci.yml`'s own comment, which asserted a branch protection that does not exist on this
+> plan — so the row that was meant to reassure was describing the exact gap. Corrected in
+> both places, and **Main guard** is what now watches that path. Issue #26 has the full
+> account.
 
 **Nothing in GitHub deploys the Workers.** Cloudflare does that itself when it sees the
 push, which means the migration and the code that uses it go out concurrently and in no

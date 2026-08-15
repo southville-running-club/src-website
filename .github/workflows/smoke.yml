@@ -26,6 +26,11 @@ on:
 
   workflow_dispatch:
 
+# Read-only, in the file rather than off the repository default — see the note in `ci.yml`.
+# This one only fetches the checkout and talks to the public internet.
+permissions:
+  contents: read
+
 concurrency:
   group: smoke-${{ github.ref }}
   cancel-in-progress: true
