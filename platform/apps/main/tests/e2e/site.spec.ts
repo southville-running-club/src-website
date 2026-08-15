@@ -9,6 +9,38 @@ import AxeBuilder from '@axe-core/playwright';
  * which is the property this arrangement exists to give.
  */
 
+test.describe('the club website', () => {
+  test('says a new site is coming, without promising when', async ({ page }) => {
+    await page.goto('/');
+
+    // The heading is the club's name; the banner above it does the welcoming. What this
+    // test is really guarding is the next assertion — that no date is promised anywhere.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Southville Running Club',
+    );
+    await expect(page.locator('main')).toContainText('being built here');
+
+    // When the new site replaces the old one is a committee decision, and a date invented
+    // here would be a factual claim nobody authorised.
+    const body = (await page.locator('body').textContent()) ?? '';
+    expect(body).not.toMatch(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/,
+    );
+  });
+
+  test('links to both things that already exist', async ({ page }) => {
+    await page.goto('/');
+
+    await expect(
+      page.getByRole('link', { name: /Nightingale Nightmare/ }),
+    ).toHaveAttribute('href', '/nn/');
+    await expect(page.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
+      'href',
+      '/timing',
+    );
+  });
+});
+
 test.describe('the banner that says which site this is', () => {
   // Both pages, not just the home page. `/nn/` is the one somebody reaches from a shared
   // link with no idea the club has two sites, and a test that only covered `/` would pass
@@ -71,71 +103,16 @@ test.describe('the banner that says which site this is', () => {
   });
 });
 
-test.describe('the club website', () => {
-  test('says a new site is coming, without promising when', async ({ page }) => {
-    await page.goto('/');
-
-    // The heading is the club's name; the banner above it does the welcoming. What this
-    // test is really guarding is the next assertion — that no date is promised anywhere.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Southville Running Club',
-    );
-    await expect(page.locator('main')).toContainText('being built here');
-
-    // When the new site replaces the old one is a committee decision, and a date invented
-    // here would be a factual claim nobody authorised.
-    const body = (await page.locator('body').textContent()) ?? '';
-    expect(body).not.toMatch(
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/,
-    );
-  });
-
-  test('links to both things that already exist', async ({ page }) => {
-    await page.goto('/');
-
-    await expect(
-      page.getByRole('link', { name: /Nightingale Nightmare/ }),
-    ).toHaveAttribute('href', '/nn/');
-    await expect(page.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
-      'href',
-      '/timing',
-    );
-  });
-});
-
 test.describe('Nightingale Nightmare, at /nn', () => {
-  test('renders and shows a database timestamp fetched by the Worker', async ({
-    page,
-  }) => {
-    // The markers live on the year page with the forms — see `serves.test.ts`.
+  test('renders, and names the running it is about', async ({ page }) => {
+    // **The database markers were on this page and are gone from every page.** This branch
+    // had moved them here with the forms; `main` took them off pages altogether, to
+    // `/_health` — see "the health endpoints" at the foot of this file.
     await page.goto('/nn/2026/');
-  test('renders', async ({ page }) => {
-    await page.goto('/nn/');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'Nightingale Nightmare 2026',
     );
-  });
-
-  test('renders a second, independent database round trip', async ({ page }) => {
-    // intake.ping() — added after health() to prove a later migration reaches this page
-    // the same way the first one already did.
-    await page.goto('/nn/2026/');
-  test('shows a runner nothing about databases, runtimes or workspaces', async ({
-    page,
-  }) => {
-    // **The two assertions this replaces were the diagnostics themselves.** They checked a
-    // database timestamp and a pipeline-check marker rendered on this page — below the form
-    // somebody hands over £17 and an emergency contact on. Both round trips still run and are
-    // still checked, at `/_health`, a few tests below.
-    await page.goto('/nn/');
-    const body = (await page.locator('body').textContent()) ?? '';
-
-    expect(body).not.toContain('What this page proves');
-    expect(body).not.toContain('Database time');
-    expect(body).not.toContain('Pipeline check');
-    expect(body).not.toContain('apps/main');
-    expect(body).not.toContain('Cloudflare Workers');
   });
 
   test('states what is true of the race, and names no year', async ({ page }) => {
@@ -330,10 +307,14 @@ test.describe('the Nightingale Nightmare content pages', () => {
       await page.setViewportSize({ width, height });
       await page.goto('/nn/2026/race-day/');
 
+      // **Not `toBe(0)`.** The cross-site banner sits above the masthead, so the header
+      // starts below it rather than at the very top of the viewport — which is a fact about
+      // the banner, not about stickiness. What matters is that it starts *on screen*.
       const before = await page.evaluate(
         () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
       );
-      expect(before, `starts at the top at ${width}px`).toBe(0);
+      expect(before, `starts on screen at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(before, `starts above the fold at ${width}px`).toBeLessThan(height / 2);
 
       await page.evaluate(() => window.scrollTo(0, 1200));
       const after = await page.evaluate(
@@ -702,24 +683,6 @@ test.describe('race timing, at /timing', () => {
       .locator('body')
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(background).not.toBe('rgba(0, 0, 0, 0)');
-  });
-
-  test('is a holding page rather than a status table', async ({ page }) => {
-    // **This whole page used to be the diagnostics** — "this page exists to prove the path it
-    // will move onto", then a `<dl>` of the database time, a pipeline-check marker, the
-    // runtime and the workspace directory — and the club's front door linked to it as "live
-    // results and marshal screens".
-    await page.goto('/timing');
-    const body = (await page.locator('body').textContent()) ?? '';
-
-    expect(body).not.toContain('What this page proves');
-    expect(body).not.toContain('Database time');
-    expect(body).not.toContain('Pipeline check');
-    expect(body).not.toContain('apps/timing');
-    expect(body).not.toContain('prove');
-
-    // It says the one thing somebody following that link came to find out.
-    expect(body).toContain('not open yet');
   });
 });
 

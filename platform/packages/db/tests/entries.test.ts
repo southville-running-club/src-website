@@ -810,8 +810,15 @@ describe('the discount codes table', () => {
        select id, 'LHGRC10', 10, 22 from entries.events where slug = 'nn-2026'`,
     );
 
+    // **Scoped to `nn-2026`, for the reason the test above says out loud and this one used
+    // to ignore.** `entries-capacity.test.ts` seeds its own `LHGRC10` against fabricated
+    // events, Vitest runs the two files at the same time, and an unscoped select here counted
+    // both — intermittently, on whichever machine interleaved them. Found by it failing about
+    // one run in three.
     const found = await query(
-      "select 1 from entries.discount_codes where code = 'lhgrc10'",
+      `select 1 from entries.discount_codes d
+         join entries.events e on e.id = d.event_id
+        where d.code = 'lhgrc10' and e.slug = 'nn-2026'`,
     );
     expect(found).toHaveLength(1);
 

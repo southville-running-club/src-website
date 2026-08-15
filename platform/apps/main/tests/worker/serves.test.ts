@@ -133,15 +133,6 @@ describe('what does not exist', () => {
   );
 });
 
-describe('the health placeholder', () => {
-  it('is rewritten by the Worker rather than left as the built-in text', async () => {
-    // Proves the HTMLRewriter ran. Whether it reached the database is a separate matter —
-    // the local stack may not be up in every environment — so this asserts the handler
-    // replaced the content, not what it replaced it with.
-    //
-    // **On the year page**, which is where the two markers went with the forms: their whole
-    // purpose is to sit beside a failed submission, and both forms are there now.
-    const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
 describe('the health endpoint', () => {
   // Whether it *reached* the database is a separate matter — the local stack may not be up
   // in every environment — so these assert the endpoint's contract, not the verdict. The
@@ -157,11 +148,6 @@ describe('the health endpoint', () => {
     expect(response.headers.get('x-robots-tag')).toBe('noindex');
   });
 
-describe('the pipeline-check placeholder', () => {
-  it('is rewritten by the same Worker, via a second HTMLRewriter handler', async () => {
-    // intake.ping() proves a migration added after health() reaches this page the same
-    // way — a second handler on a second selector, not a special case of the first.
-    const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
   it('reports both round trips, and agrees with its own status code', async () => {
     const response = await SELF.fetch(`${SITE}/_health`);
     const report = (await response.json()) as {
@@ -226,7 +212,7 @@ describe('the pages a runner sees', () => {
   // over £17 and an emergency contact on. The round trips still run; they answer at `/_health`
   // now. The failure this guards against is somebody re-adding a marker to a page because it
   // was convenient, which is how it got there the first time.
-  it.each(['/nn/', '/nn/entry/complete/', '/'])(
+  it.each(['/nn/', '/nn/2026/', '/nn/2026/entry/complete/', '/'])(
     '%s says nothing about databases, runtimes or workspaces',
     async (path) => {
       const page = await (await SELF.fetch(`${SITE}${path}`)).text();

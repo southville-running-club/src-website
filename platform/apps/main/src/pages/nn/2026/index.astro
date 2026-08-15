@@ -412,47 +412,19 @@ const dateLine = race.date
     </div>
 
     {
-      /* **It moved here with the forms, and that is the whole reason it exists.** The two
-      database round trips are on the page a failed submission is re-served on, deliberately:
-      a 503 from a form beside a broken health timestamp is a different problem from a 503
-      beside a working one, and somebody who has just failed to submit is exactly who wants to
-      know which. Both forms are on this page now, so this is where it belongs. */
+      /* **The "What this page proves" block is gone from here too.**
+       *
+       * This branch moved it from `/nn/` to this page, on the argument that a failed
+       * submission is exactly when somebody wants to know whether the Worker can reach
+       * Postgres. `main` answered the same question better: **the check was never the
+       * problem, its audience was.** A `<dl>` of a database timestamp, a runtime and a
+       * workspace directory, directly below the form somebody hands over £17 and an
+       * emergency contact on, reads as a page that is not finished.
+       *
+       * Every round trip is still made, still by this Worker, still in the real runtime, and
+       * the smoke test still fails the deploy if either breaks. They answer at `/_health`,
+       * as JSON. See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
     }
-    <h2>What this page proves</h2>
-
-    <p>
-      The timestamp below was fetched from Postgres by the Worker while it served this
-      request. It is rendered server-side, so it is here with JavaScript disabled. If it
-      reads as an error, the connection is genuinely broken and that is the useful answer.
-    </p>
-
-    <dl class="status">
-      <dt>Database time, Europe/London</dt>
-      <dd>
-        {
-          /* The Worker fills this in while serving the request — see worker/index.ts. The
-          `datetime` attribute carries UTC and the text carries Europe/London, which is
-          the storage-and-display rule expressed in one element. */
-        }
-        <time data-health="pending">Not fetched — the Worker did not run.</time>
-      </dd>
-
-      <dt>Pipeline check</dt>
-      <dd>
-        {
-          /* A second, independent database round trip — intake.ping(), added after the
-          skeleton's first deploy to prove a *new* migration reaches this page the same
-          way the one above already did. */
-        }
-        <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
-      </dd>
-
-      <dt>Served by</dt>
-      <dd>Cloudflare Workers, static assets plus one handler</dd>
-
-      <dt>Application</dt>
-      <dd>apps/main</dd>
-    </dl>
 
     <footer>
       <p>
