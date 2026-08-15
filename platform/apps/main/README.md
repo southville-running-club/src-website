@@ -104,6 +104,31 @@ a schedule row, a prize category. The committee edits one file.
 line, the facts list and three content pages all picked it up without a line of markup
 moving.
 
+### Which of its keys belong to the race, and which to one running
+
+**The file describes the 2026 running, and it always has.** Since the routes split, that
+matters: `/nn/` and `/nn/course/` are about the race and may read only the keys that are true
+of it whichever year it is run.
+
+| | |
+| --- | --- |
+| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/` |
+| **One running's** | `date`, `startTime`, `location`, `price`, `entriesOpen`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
+
+**The file is not split in two, and that is deliberate rather than unfinished.** Separating it
+into a race file and a year file is a content change with its own review, and doing it inside a
+route reorganisation would put two unrelated diffs in one commit. Until then the rule is the
+table above plus the tests: `site.spec.ts` asserts the date and race HQ appear on the year page
+and **not** on `/nn/`, and `serves.test.ts` asserts the same about the date in the built HTML.
+
+**`/nn/` therefore states no date**, which is the one thing a reader may notice is missing. It
+cannot use this file's, because that is 2026's; it could be painted from `entry_state()`, which
+returns the event date — but rendering "Sunday 1 November 2026" from a `CivilDate` means a
+second date formatter in a repository whose whole timezone discipline is that there is exactly
+one. The date is one tap away, on the running `/nn/` links to. Recorded as a gap in
+[ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) rather than
+as a decision to leave closed.
+
 **A `null` is a fact nobody has confirmed, and it renders as "To be confirmed"** rather than
 as a blank or an invention. Three still are, and each for a different reason:
 

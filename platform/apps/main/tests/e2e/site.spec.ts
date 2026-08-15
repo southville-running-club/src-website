@@ -63,12 +63,35 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     await expect(ping).toHaveText('pipeline-ok');
   });
 
-  test('states the confirmed race facts', async ({ page }) => {
+  test('states what is true of the race, and names no year', async ({ page }) => {
+    // **The race page lost the facts list to the year page, and this is the assertion that
+    // says so.** The date, the start time and race HQ are facts about *one running*: a page
+    // about the race that stated them would be describing this year and calling it the race,
+    // which is exactly what makes publishing 2027 an edit rather than a row.
+    //
+    // The literals are pinned rather than read from `race.json` — an expectation that reads
+    // the page's own source asserts nothing.
+    await page.goto('/nn/');
+    const body = (await page.locator('body').textContent()) ?? '';
+
+    expect(body).toContain('Nightingale Nightmare');
+    expect(body).toContain('10 km, off-road');
+    expect(body).toContain('250 places');
+
+    expect(body).not.toContain('Sunday 1 November 2026');
+    expect(body).not.toContain('BS3 2JL');
+    expect(body).not.toContain('ARC permit');
+  });
+
+  test('the year page states the confirmed facts of its own running', async ({
+    page,
+  }) => {
     // **This test used to assert the opposite**, and the change is the point of it. Until
     // the date was confirmed the page stated no race facts at all, and the test guarded
     // that. The date, the start time, the distance and the HQ are now supplied, so the
-    // assertion moves to what it was always really about: the page says what is known.
-    await page.goto('/nn/');
+    // assertion moves to what it was always really about: the page says what is known —
+    // and it is now the page whose subject those facts actually are.
+    await page.goto('/nn/2026/');
     const body = (await page.locator('body').textContent()) ?? '';
 
     expect(body).toContain('Sunday 1 November 2026');
@@ -79,27 +102,31 @@ test.describe('Nightingale Nightmare, at /nn', () => {
 
   test('invents none of the facts that are still open', async ({ page }) => {
     // The other half, and the half that still matters most. **The entry fee and the
-    // opening date belong to the entries application**, which is a separate piece of work
-    // — this site does not quote a figure it does not own, and the mockup's "from £15" and
-    // "7am, Tue 1 September" are exactly the plausible-looking values that would get here
-    // by being copied rather than by being confirmed.
-    await page.goto('/nn/');
-    const body = (await page.locator('body').textContent()) ?? '';
+    // opening date belong to `entries.events` and `entries.fees`** — this site does not
+    // quote a figure it does not own, and the mockup's "from £15" and "7am, Tue 1 September"
+    // are exactly the plausible-looking values that would get here by being copied rather
+    // than by being confirmed.
+    for (const path of ['/nn/', '/nn/2026/']) {
+      await page.goto(path);
+      const body = (await page.locator('body').textContent()) ?? '';
 
-    expect(body).not.toMatch(/£\s?\d/);
+      expect(body, path).not.toMatch(/£\s?\d/);
+
+      // Live capacity is the entries application's business too. 250 is how big the race is;
+      // "238 of 250 remaining" is demo data from the mockup and must not follow it here.
+      expect(body, path).toContain('250 places');
+      expect(body, path).not.toMatch(/\bof 250\b|places remaining/i);
+    }
 
     // **The 2026 ARC permit has not been issued.** A number here would be last year's, and
-    // it would read as a claim that this year's race is permitted.
+    // it would read as a claim that this year's race is permitted. It is on the year page,
+    // because a permit belongs to one running.
+    await page.goto('/nn/2026/');
     const permit = page.getByRole('term').filter({ hasText: 'ARC permit' });
     await expect(permit).toHaveCount(1);
     await expect(
       page.locator('dt', { hasText: 'ARC permit' }).locator('+ dd'),
     ).toHaveText('To be confirmed');
-
-    // Live capacity is the entries application's business too. 250 is how big the race is;
-    // "238 of 250 remaining" is demo data from the mockup and must not follow it here.
-    expect(body).toContain('250 places');
-    expect(body).not.toMatch(/\bof 250\b|places remaining/i);
   });
 });
 
@@ -356,16 +383,25 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // The panel exists because course, race day and spectators otherwise end with nothing
     // to do. `/nn/` has the form on it, so a panel there would only scroll somebody back
     // up to something they already walked past.
-    for (const path of ['/nn/course/', '/nn/2026/race-day/', '/nn/2026/spectators/']) {
+    // **Each panel points up one level, and none of them says whether entries are open.**
+    // That sentence used to be printed into all three, and it becomes false the morning
+    // entries open — silently, on a static page somebody is reading to decide whether to
+    // enter. Whether they are open is answered at serve time, on the page each of these
+    // points at.
+    for (const [path, target] of [
+      ['/nn/course/', '/nn/'],
+      ['/nn/2026/race-day/', '/nn/2026/'],
+      ['/nn/2026/spectators/', '/nn/2026/'],
+    ] as const) {
       await page.goto(path);
 
       const panel = page.locator('.nn-panel');
       await expect(panel).toBeVisible();
-      await expect(panel.getByRole('link')).toHaveAttribute('href', '/nn/#register');
+      await expect(panel.getByRole('link')).toHaveAttribute('href', target);
 
-      // It must not promise entry, which is the one thing it cannot deliver.
-      await expect(panel).toContainText('Entries are not open yet');
-      expect(await panel.textContent()).not.toMatch(/dare to enter|enter the race/i);
+      const text = (await panel.textContent()) ?? '';
+      expect(text, path).not.toMatch(/entries are (not )?open/i);
+      expect(text, path).not.toMatch(/dare to enter/i);
     }
 
     await page.goto('/nn/');

@@ -51,15 +51,20 @@ describe('Nightingale Nightmare', () => {
     );
   });
 
-  it('states the confirmed date, and none of what is still open', async () => {
-    // The date is confirmed — Sunday 1 November 2026 — and the entry fee, the opening date
-    // and the 2026 ARC permit number are not. Inventing one of those is a "stop and ask"
-    // trigger rather than a placeholder, which is why they are `null` in `race.json` and
-    // render as "To be confirmed" instead.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+  it('states the confirmed date on the running it belongs to, and not on the race', async () => {
+    // The date is confirmed — Sunday 1 November 2026 — and it is a fact about **one running**,
+    // so it is on the year page and not on the race page. The entry fee, the opening date and
+    // the 2026 ARC permit number are not confirmed at all; inventing one of those is a "stop
+    // and ask" trigger rather than a placeholder, which is why they are `null` in `race.json`
+    // and render as "To be confirmed" instead.
+    const year = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
+    const race = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
-    expect(page).toContain('Sunday 1 November 2026');
-    expect(page).not.toMatch(/£\s?\d/);
+    expect(year).toContain('Sunday 1 November 2026');
+    expect(race).not.toContain('Sunday 1 November 2026');
+
+    expect(year).not.toMatch(/£\s?\d/);
+    expect(race).not.toMatch(/£\s?\d/);
   });
 
   it.each([

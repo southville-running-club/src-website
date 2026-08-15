@@ -2,6 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import NnMasthead from '../../../components/NnMasthead.astro';
 import NnEntryForm from '../../../components/NnEntryForm.astro';
+import NnRaceSummary from '../../../components/NnRaceSummary.astro';
 import race from '../../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
@@ -19,8 +20,13 @@ import '@src/shared/styles/nn-theme.css';
 // and `worker/routing.ts` owns that one convention. Nothing in this file names a slug, and the
 // entry form posts to `Astro.url.pathname`.
 //
-// What is still `null` in `race.json` is still genuinely undecided rather than merely
-// unwritten. `price` and `entriesOpen` stay `null` for a different reason from the rest:
+// **`race.json` describes this running**, which is why every one of its year-specific keys is
+// read here and none of them on `/nn/`: the date, the start time, race HQ, the fee, the entry
+// window and the ARC permit are facts about one running of this race. The file is not yet split
+// into a race file and a year file — that is a content change with its own review, and doing it
+// inside a route reorganisation would put two unrelated diffs in one commit.
+//
+// What is still `null` in it is still genuinely undecided rather than merely `price` and `entriesOpen` stay `null` for a different reason from the rest:
 // **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
 // `entries.events`, and the Worker paints them onto the entry form — a second copy in this
 // file is how two numbers start disagreeing. The opening time nobody has decided, and the
@@ -97,8 +103,16 @@ const dateLine = race.date
         event table exists for — and it is why the label and the target are painted on
         rather than written in. */
       }
+      {
+        /* **The loud button offers the one thing this page can honour today**, which is the
+        interest form on the race page — entries are not open, and a button that said
+        "Enter the race" while they were shut would be a promise this page cannot keep. The
+        Worker repoints it at the form below and relabels it on the day
+        `entries.events.entries_open_at` says entries are open: one row edit and no deploy,
+        which is the property the event table exists for. */
+      }
       <div class="nn-herobtns">
-        <a class="nn-cta" href="#enter" data-nn-cta>What is happening on the day</a>
+        <a class="nn-cta" href="/nn/#register" data-nn-cta>Register your interest</a>
         <a class="nn-ghost" href="/nn/2026/race-day/">Race-day plan</a>
       </div>
     </div>
@@ -149,26 +163,15 @@ const dateLine = race.date
     </dl>
 
     {
-      /* **A summary that ends in a link, not a second copy of the course page.** Four
-      things somebody should know before they enter, and then the page that says the rest. */
+      /* **A summary that ends in a link, not a second copy of the course page.** The same four
+      things `/nn/` shows above the interest form, from the same component — read there as what
+      this race is, and here as what you are about to enter. Two copies of four safety-relevant
+      bullets is two copies that drift. See `NnRaceSummary.astro`. */
     }
     <div class="nn-card nn-prose">
       <h2>Know what you are in for</h2>
 
-      <ul class="nn-arrows">
-        <li>
-          A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
-          <strong>Trail shoes recommended</strong>, road shoes acceptable.
-        </li>
-        <li><strong>No headphones of any type during the race.</strong></li>
-        <li>
-          One water station on the route, one at the finish, and marshals throughout.
-        </li>
-        <li>
-          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
-          together at 10:30, so there is nothing to find on your own.
-        </li>
-      </ul>
+      <NnRaceSummary />
 
       <p>
         <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
@@ -193,8 +196,15 @@ const dateLine = race.date
        * ------------------------------------------------------------------------------ */
     }
 
+    {
+      /* **No `id="enter"` here, and that is not an oversight.** `NnEntryForm.astro` carries
+      it, and two elements sharing one id is invalid HTML and an ambiguous fragment — the
+      hero's painted `#enter` would land on whichever the browser happened to find first.
+      Nothing links to this block: the hero points at the interest form while entries are
+      shut and at the form below once they are open. */
+    }
     <div class="nn-card nn-prose" data-nn-not-open>
-      <h2 id="enter">Entering</h2>
+      <h2>Entering</h2>
 
       <p>
         <strong>Entries are not open yet.</strong> When they open, this is the page they open

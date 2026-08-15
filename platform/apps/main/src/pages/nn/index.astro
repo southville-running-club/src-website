@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
+import NnRaceSummary from '../../components/NnRaceSummary.astro';
 import race from '../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
@@ -18,42 +19,43 @@ import '@src/shared/styles/nn-theme.css';
 // there must never be one: it would be the line somebody forgot in 2027, and it would be
 // wrong quietly rather than loudly. See `worker/nn-entry.ts`'s `renderNnRaceView`.
 //
-// What is still `null` in `race.json` is still genuinely undecided rather than merely
-// unwritten. `price` and `entriesOpen` stay `null` for a different reason from the rest:
-// **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
-// `entries.events`. The 2026 ARC permit number has not been issued. Inventing any of them
-// here is a "stop and ask" trigger, not a placeholder.
+// ## Which of `race.json`'s keys this page may use, and why the split is not in that file yet
+//
+// `race.json` describes **the 2026 running**, and it always has: the date, the start time,
+// race HQ, the entry fee, the entry window and the ARC permit are all facts about one running
+// of this race. **None of them appears on this page any more.** What is left is what is true
+// of the race itself — its name, its distance, its field size, and the address to write to.
+//
+// **The file is not split, and that is deliberate rather than unfinished.** Separating it into
+// a race file and a year file is a content change of its own, with its own review, and doing
+// it inside a route reorganisation would put two unrelated diffs in one commit. Until then the
+// rule is this comment plus the tests: `site.spec.ts` asserts the date and race HQ are on the
+// year page and **not** here.
+//
+// **This page states no date, and that is the one thing somebody may notice is missing.** It
+// cannot use `race.json`'s, because that is 2026's; it could be painted from `entry_state()`,
+// which returns the event date — but rendering "Sunday 1 November 2026" from a `CivilDate`
+// means a second date formatter in a repository whose whole timezone discipline is that there
+// is exactly one. The date is one tap away, on the running the block below links to, and that
+// is the cheaper side of the trade. **Recorded as a gap rather than a decision to leave
+// closed** — see ADR-011.
 //
 // See docs/architecture/principles.md#stop-and-ask
 
 // One address, and it is a path rather than a subdomain — so at the Squarespace cutover
 // the hostname changes and this page does not move.
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
-
-// An absent fact is stated as absent. A blank cell reads as an oversight and an invented
-// value reads as a promise; "To be confirmed" is the only honest third option, and it is
-// what somebody deciding whether to come back next week actually needs to know.
-const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
-
-// **The one sentence about when this race happens.**
-//
-// It is now `race.date` — Sunday 1 November 2026, settled by the club's published campaign
-// artwork and confirmed by the maintainer. The fallback stays because it costs one `??` and
-// it is the honest thing to render if a future edit ever empties the field again: a blank
-// date line reads as a page that failed to load, and the qualifier belongs welded to the
-// claim rather than styled smaller beside it.
-//
-// **The start time joins it now that both are confirmed**, which is what the campaign
-// artwork does and what somebody actually wants from one line. It is composed rather than
-// stored as a third field, so there is still exactly one place a date lives.
-const dateLine = race.date
-  ? `${race.date}${race.startTime ? ` · ${race.startTime}` : ''}`
-  : 'Halloween weekend 2026 — exact date to be confirmed';
 ---
 
+{
+  /* **The title names the race and not what the page currently offers.** It read
+  "— register your interest", which is one of the two states this page has and became wrong
+  the moment the other one was possible. A title is also what a bookmark and a search result
+  are called, and both outlive a window. */
+}
 <Base
-  title="Nightingale Nightmare — register your interest"
-  description="Register your interest in Nightingale Nightmare and the club will email you once, when entries open."
+  title="Nightingale Nightmare"
+  description="Nightingale Nightmare — a tough off-road 10 km in fancy dress, put on by Southville Running Club."
   canonical={canonical}
   theme="nn"
 >
@@ -71,8 +73,6 @@ const dateLine = race.date
       <p class="nn-presents">presents…</p>
 
       <h1>{race.name}</h1>
-
-      <p class="nn-dateline">{dateLine}</p>
 
       {
         /* **The three answers somebody wants before they read a sentence.** A real list,
@@ -92,10 +92,14 @@ const dateLine = race.date
         <li>Fancy dress encouraged</li>
       </ul>
 
+      {
+        /* **The lede lost one clause and it was the year-specific one.** It used to say "the
+        date is settled", which is a statement about 2026 on a page about the race. That
+        sentence is on the year page now, where it is true of the thing being described. */
+      }
       <p class="lede">
-        The club is putting on this race again. The date is settled and the course has not
-        got any kinder — what is not settled is what it costs and when entries open. Leave
-        your name and the club will email you once, when they do.
+        The course has not got any kinder. Leave your name and the club will email you
+        once, when entries open.
       </p>
 
       {
@@ -118,74 +122,29 @@ const dateLine = race.date
   </header>
 
   <div class="nn-wrap">
-    <h2>The race</h2>
-
-    <p>
-      Everything here is confirmed by the committee before it appears. Anything still
-      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
-    </p>
-
-    <dl class="status">
-      <dt>Date</dt>
-      <dd>{orTbc(race.date)}</dd>
-
-      <dt>Start time</dt>
-      <dd>{orTbc(race.startTime)}</dd>
-
-      <dt>Distance</dt>
-      <dd>{orTbc(race.distance)}</dd>
-
-      <dt>Race HQ</dt>
-      <dd>{orTbc(race.location)}</dd>
-
-      {
-        /* **The field size, not how much of it is left** — see the note on the hero row.
-        250 is how big the race is, and it does not change during the week somebody is
-        deciding whether to come. */
-      }
-      <dt>Field size</dt>
-      <dd>{race.places} places</dd>
-
-      <dt>Entry fee</dt>
-      <dd>{orTbc(race.price)}</dd>
-
-      <dt>Entries open</dt>
-      <dd>{orTbc(race.entriesOpen)}</dd>
-
-      {
-        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
-        on record and it belongs to the 2023 race; putting it here would be a claim that
-        this year's race is permitted, which is a different sort of wrong from a typo. */
-      }
-      <dt>ARC permit</dt>
-      <dd>{orTbc(race.permit)}</dd>
-    </dl>
-
     {
-      /* **A summary that ends in a link, not a second copy of the course page.** Four
-      things somebody should know before they leave their name, and then the page that
-      says the rest. The mockup has a fifth line here — "Minimum age 18 on race day" —
-      which is inferred from the prize categories rather than stated as a rule anywhere,
-      and is still an open decision. It is not here, and it is not softened into "18+
-      probably" either. */
+      /* **The race-facts list moved to the year page in one piece.** Every row in it — the
+      date, the start time, race HQ, the entry fee, when entries open, the ARC permit — is a
+      fact about *one running*, and half of them are `null` for 2026 specifically. A page about
+      the race would have been listing next year's unknowns as this year's.
+
+      What is left of it here is the row of three in the hero: the distance, the field size and
+      fancy dress, which are what this race is however it is run. */
+    }
+    {
+      /* **A summary that ends in a link, not a second copy of the course page.** Four things
+      somebody should know before they leave their name — and the same four somebody should
+      know before they enter, which is why they are one component rather than two copies. See
+      `NnRaceSummary.astro`.
+
+      The mockup has a fifth line here — "Minimum age 18 on race day" — which is inferred from
+      the prize categories rather than stated as a rule anywhere. It is not here, and it is not
+      softened into "18+ probably" either. */
     }
     <div class="nn-card nn-prose">
       <h2>Know what you are in for</h2>
 
-      <ul class="nn-arrows">
-        <li>
-          A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
-          <strong>Trail shoes recommended</strong>, road shoes acceptable.
-        </li>
-        <li><strong>No headphones of any type during the race.</strong></li>
-        <li>
-          One water station on the route, one at the finish, and marshals throughout.
-        </li>
-        <li>
-          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
-          together at 10:30, so there is nothing to find on your own.
-        </li>
-      </ul>
+      <NnRaceSummary />
 
       <p>
         <a href="/nn/course/">The course and terrain, in full</a>.
@@ -490,9 +449,15 @@ const dateLine = race.date
     </dl>
 
     <footer>
+      {
+        /* **The "to be confirmed" sentence went with the facts list it was about.** There is
+        nothing above reading it any more — the rows that did are on the year page, which
+        carries the sentence. A footer explaining a marker the page does not use is the sort of
+        thing a reader trusts and then cannot find. */
+      }
       <p>
-        Southville Running Club. Anything above reading "to be confirmed" is with the
-        committee, and this page is updated when it is settled.
+        Southville Running Club. This page is about the race itself; each year's running
+        has its own, linked above.
       </p>
       <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>

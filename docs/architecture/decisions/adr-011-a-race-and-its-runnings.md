@@ -129,6 +129,16 @@ because they are two lists, one landmark because it is one navigation.
   `/nn/` follows; the prose is still prose somebody writes.
 - **`/nn/<year>/` ⇒ `nn-<year>` is a convention, not a foreign key.** A running named some
   other way has no page, and the Worker logs it and paints no link rather than guessing.
+- **`/nn/` states no date.** It cannot use `race.json`'s, which is 2026's, and painting one
+  from `entry_state()`'s `event_date` would mean a **second date formatter** in a repository
+  whose whole timezone discipline is that there is exactly one — on the page whose race is run
+  the weekend after the clocks change. The date is one tap away, on the running the front door
+  links to. **A gap, recorded, not a decision to leave closed**: if a civil-date formatter is
+  ever wanted for another reason, this is the second caller for it.
+- **`src/content/race.json` is not split in two.** It describes the 2026 running and it always
+  has; which of its keys each page may read is a table in `apps/main/README.md` and two tests,
+  rather than two files. Splitting it is a content change with its own review, and doing it
+  inside a route reorganisation would have put two unrelated diffs in one commit.
 
 **Neutral**
 

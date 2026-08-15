@@ -207,6 +207,20 @@ test.describe('before entries open', () => {
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeHidden();
   });
 
+  test('has exactly one #enter on the page, in either state', async ({ page }) => {
+    // **Two elements sharing one id is invalid HTML and an ambiguous fragment.** The "not
+    // open" block and the form's own heading both wanted to be the thing `#enter` meant, and
+    // the hero's painted link would have landed on whichever the browser found first — which
+    // is the sort of defect that works on one engine and not the next.
+    await page.goto(YEAR);
+
+    await expect(page.locator('#enter')).toHaveCount(1);
+
+    // And it is the form's own heading, so a painted `#enter` lands on the thing it names
+    // rather than on the notice that happens to sit above it.
+    await expect(page.locator('[data-nn-entry] #enter')).toHaveCount(1);
+  });
+
   test('the year page sends somebody to the interest form rather than nowhere', async ({
     page,
     request,
