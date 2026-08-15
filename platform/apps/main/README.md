@@ -50,6 +50,7 @@ worker/nn-entry-complete.ts    Paint what the club has recorded onto the return 
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types |
 | `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
+| `/health` | **Not a page either.** The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
 
 The first four carry `src/components/NnNav.astro`, which links them and marks the current
 one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
@@ -125,10 +126,15 @@ happen; the static-assets binding serves `dist/` and will not answer a POST at a
 submission reaching it is already lost.
 
 **Both failure responses are the static page rewritten by `HTMLRewriter`**, the same
-technique the health timestamp already uses — so there is one copy of the page, in `dist/`,
-and no second template in the Worker to drift from it. The health and pipeline-check
-handlers still run on those responses, deliberately: a 503 from the form beside a broken
-database timestamp is a different problem from one beside a working timestamp.
+technique the entry form's outcomes use — so there is one copy of the page, in `dist/`, and
+no second template in the Worker to drift from it.
+
+**What no longer runs on those responses is the pair of database round trips.** They used to,
+on the argument that a submission which just failed is exactly when somebody wants to know
+whether the Worker can reach Postgres — right about the need, wrong about the audience. The
+person reading that page is a runner whose form did not save, and a database timestamp beside
+the apology helps them not at all. It is the maintainer who wants it, and the maintainer has
+[`/health`](#the-health-endpoints), which answers whatever the page says.
 
 **User input re-enters the HTML only through `setAttribute` and text-mode
 `setInnerContent`, both of which escape.** There is no `{ html: true }` call in
@@ -423,6 +429,61 @@ write goes through a `security definer` function that decides the price, the cap
 consent version itself, and `packages/db/tests/entries.test.ts` asserts the refusals on every
 table, for every verb, by error code. That file staying green is what says this slice granted
 nothing it should not have.
+
+## The health endpoints
+
+Two database round trips, answered as JSON at **`/health`** here and **`/timing/health`** in
+`apps/timing`. `intake.health()` returns `now()`; `intake.ping()` returns a constant and was
+added *after* the first deploy, so between them they prove the migration applied, `intake` is
+exposed through PostgREST, the anon key and the grant are right, the client is wired, the
+Worker can reach the network — and that a **later** migration reached production the same way
+the first one did. `scripts/smoke.mjs` reads both, from both applications, which is what proves
+the two are talking to one Supabase project.
+
+```json
+{
+  "ok": true,
+  "database": { "ok": true, "at": "2026-08-15T11:16:24.080Z", "formatted": "15 August 2026 at 12:16 BST" },
+  "pipeline": { "ok": true, "value": "pipeline-ok" }
+}
+```
+
+`200` when `ok` is true and **`503` when it is not** — a health endpoint answering 200 while
+its body says `ok: false` is the shape that lets an outage sit behind a green tick. `no-store`,
+because a cached answer to "can you reach the database" is not an answer. `at` is UTC and
+`formatted` is `Europe/London`, so a check can catch the two disagreeing on the weekend the
+clocks change, which is the weekend before this race.
+
+### Why they are not on a page any more
+
+**They were.** `/nn/` carried a `<dl>` under the heading "What this page proves" — the database
+timestamp, a pipeline-check marker, "Served by: Cloudflare Workers, static assets plus one
+handler" and "Application: apps/main" — directly below the form somebody hands over £17 and an
+emergency contact on. `/timing` was nothing *but* that table, and the club's front door linked
+to it as "live results and marshal screens".
+
+**The check was never the problem; its audience was.** A page that reports its own plumbing
+reads as a page that is not finished, and this is the page the club's first public transaction
+happens on. Nothing was given up by moving it: the same calls run in the same Worker, in the
+same runtime, against the same project, and the smoke test still fails a deploy if either
+breaks. Two things were gained — the race page no longer waits on Supabase to render, and the
+checks are now readable by a monitor instead of by a regex over HTML.
+
+`scripts/smoke.mjs` also asserts the markers have **not** come back. A page is only clean while
+nobody puts them back, and "the smoke test still passes" is exactly the argument somebody would
+make for re-adding one.
+
+### What is exposed, and what that costs
+
+**No personal data can appear here.** Neither function reads a row, which is what makes it safe
+to serve without a credential — and it is a property to preserve rather than a coincidence. A
+future health check that counted entries would be a different thing entirely.
+
+What it does cost is two anonymous database round trips per request, on a path anybody can find.
+That is the same free-tier exposure `entries.expire_pending_holds()` already has, and the same
+answer applies: **cover it with the Cloudflare WAF rate-limiting rule** when that rule is
+created, rather than building a second mechanism here. See
+[issue #19](https://github.com/southville-running-club/src-website/issues/19).
 
 ## The one routing decision
 

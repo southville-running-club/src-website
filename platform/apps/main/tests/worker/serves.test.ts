@@ -98,24 +98,80 @@ describe('what does not exist', () => {
   );
 });
 
-describe('the health placeholder', () => {
-  it('is rewritten by the Worker rather than left as the built-in text', async () => {
-    // Proves the HTMLRewriter ran. Whether it reached the database is a separate matter —
-    // the local stack may not be up in every environment — so this asserts the handler
-    // replaced the content, not what it replaced it with.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+describe('the health endpoint', () => {
+  // Whether it *reached* the database is a separate matter — the local stack may not be up
+  // in every environment — so these assert the endpoint's contract, not the verdict. The
+  // verdict is the smoke test's, against a real deploy.
 
-    expect(page).not.toContain('Not fetched — the Worker did not run.');
-    expect(page).toMatch(/data-health="(ok|error)"/);
+  it('answers JSON, and never caches it', async () => {
+    const response = await SELF.fetch(`${SITE}/health`);
+
+    expect(response.headers.get('content-type')).toContain('application/json');
+    // A cached answer to "can you reach the database" is not an answer.
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    // An endpoint, not a page. It has no business in a search result.
+    expect(response.headers.get('x-robots-tag')).toBe('noindex');
+  });
+
+  it('reports both round trips, and agrees with its own status code', async () => {
+    const response = await SELF.fetch(`${SITE}/health`);
+    const report = (await response.json()) as {
+      ok: boolean;
+      database: { ok: boolean };
+      pipeline: { ok: boolean };
+    };
+
+    expect(report).toHaveProperty('database.ok');
+    expect(report).toHaveProperty('pipeline.ok');
+
+    // **`ok` is the one field a monitor need read, so it has to mean what it says.** Both
+    // halves, and the status code with it — a health endpoint answering 200 while its body
+    // says `ok: false` is the shape that lets an outage sit behind a green tick.
+    expect(report.ok).toBe(report.database.ok && report.pipeline.ok);
+    expect(response.status).toBe(report.ok ? 200 : 503);
+  });
+
+  it('reports a failure rather than throwing one', async () => {
+    // Whatever state the database is in, this endpoint answers. A 500 here would tell a
+    // monitor that the check broke rather than that the thing being checked did.
+    const response = await SELF.fetch(`${SITE}/health`);
+
+    expect([200, 503]).toContain(response.status);
+  });
+
+  it('is one address, and /health/ is not a page', async () => {
+    // Every other predicate in `worker/routing.ts` takes both spellings, because a human
+    // typed those into a form action or a Stripe dashboard. Nothing types this one.
+    const response = await SELF.fetch(`${SITE}/health/`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('is not something the assets binding will answer for a POST', async () => {
+    const response = await SELF.fetch(`${SITE}/health`, { method: 'POST' });
+
+    expect(response.status).not.toBe(200);
   });
 });
 
-describe('the pipeline-check placeholder', () => {
-  it('is rewritten by the same Worker, via a second HTMLRewriter handler', async () => {
-    // intake.ping() proves a migration added after health() reaches this page the same
-    // way — a second handler on a second selector, not a special case of the first.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+describe('the pages a runner sees', () => {
+  // **The diagnostics came off `/nn/` deliberately, and this is what keeps them off.**
+  //
+  // The block said "What this page proves" and listed the database time, a pipeline-check
+  // marker, the runtime and the workspace directory — directly below the form somebody hands
+  // over £17 and an emergency contact on. The round trips still run; they answer at `/health`
+  // now. The failure this guards against is somebody re-adding a marker to a page because it
+  // was convenient, which is how it got there the first time.
+  it.each(['/nn/', '/nn/entry/complete/', '/'])(
+    '%s says nothing about databases, runtimes or workspaces',
+    async (path) => {
+      const page = await (await SELF.fetch(`${SITE}${path}`)).text();
 
-    expect(page).toMatch(/data-pipeline-check="(ok|error)"/);
-  });
+      expect(page).not.toContain('What this page proves');
+      expect(page).not.toContain('data-health');
+      expect(page).not.toContain('data-pipeline-check');
+      expect(page).not.toContain('pipeline-ok');
+      expect(page).not.toContain('Not fetched — the Worker did not run.');
+    },
+  );
 });

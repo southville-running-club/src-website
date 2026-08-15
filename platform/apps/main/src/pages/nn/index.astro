@@ -395,41 +395,21 @@ const dateLine = race.date
       <NnEntryForm />
     </div>
 
-    <h2>What this page proves</h2>
-
-    <p>
-      The timestamp below was fetched from Postgres by the Worker while it served this
-      request. It is rendered server-side, so it is here with JavaScript disabled. If it
-      reads as an error, the connection is genuinely broken and that is the useful answer.
-    </p>
-
-    <dl class="status">
-      <dt>Database time, Europe/London</dt>
-      <dd>
-        {
-          /* The Worker fills this in while serving the request — see worker/index.ts. The
-          `datetime` attribute carries UTC and the text carries Europe/London, which is
-          the storage-and-display rule expressed in one element. */
-        }
-        <time data-health="pending">Not fetched — the Worker did not run.</time>
-      </dd>
-
-      <dt>Pipeline check</dt>
-      <dd>
-        {
-          /* A second, independent database round trip — intake.ping(), added after the
-          skeleton's first deploy to prove a *new* migration reaches this page the same
-          way the one above already did. */
-        }
-        <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
-      </dd>
-
-      <dt>Served by</dt>
-      <dd>Cloudflare Workers, static assets plus one handler</dd>
-
-      <dt>Application</dt>
-      <dd>apps/main</dd>
-    </dl>
+    {
+      /* **The "What this page proves" block was here, and it is gone.**
+       *
+       * A `<dl>` of the database timestamp, a pipeline-check marker, "Served by: Cloudflare
+       * Workers, static assets plus one handler" and "Application: apps/main" — directly
+       * below the form somebody hands over £17 and their emergency contact on.
+       *
+       * Every one of those round trips is still made, still by this Worker, still in the real
+       * runtime, and the smoke test still fails the deploy if either breaks. They are answered
+       * at `/health` now, as JSON. **The check was never the problem; its audience was** — this
+       * page's reader is a runner deciding whether the club can be trusted with a card number,
+       * and a page that reports its own plumbing reads as a page that is not finished.
+       *
+       * See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
+    }
 
     <footer>
       <p>
