@@ -83,7 +83,9 @@ const CHECKS = [
     check: async (response) => {
       if (response.status !== 200) return `expected 200, got ${response.status}`;
       const body = await response.text();
-      if (!body.includes('A new Southville Running Club'))
+      // The banner's own words, so this stays true as the holding page's copy changes and
+      // fails loudly if the layout ever stops wrapping the root.
+      if (!body.includes("Welcome to Southville Running Club's new website"))
         return 'the root is not the holding page';
       return null;
     },

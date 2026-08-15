@@ -22,7 +22,16 @@ describe('the club website', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
-    await expect(response.text()).resolves.toContain('A new Southville Running Club');
+    await expect(response.text()).resolves.toContain('Southville Running Club');
+  });
+
+  it('carries the banner, on the built output rather than in a browser', async () => {
+    // The banner is in the layout, so every page gets it — including `/nn/`, and this is
+    // the only layer that reads what the static-assets binding actually returns.
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(page).toContain('Welcome to Southville Running Club');
+    expect(page).toContain('href="https://southvillerunningclub.co.uk"');
   });
 
   it('links to both of the things that already exist', async () => {

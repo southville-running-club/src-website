@@ -9,13 +9,78 @@ import AxeBuilder from '@axe-core/playwright';
  * which is the property this arrangement exists to give.
  */
 
+test.describe('the banner that says which site this is', () => {
+  // Both pages, not just the home page. `/nn/` is the one somebody reaches from a shared
+  // link with no idea the club has two sites, and a test that only covered `/` would pass
+  // while that page was a dead end.
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+  ] as const) {
+    test(`${name} says it is unfinished and links to the club website`, async ({
+      page,
+    }) => {
+      await page.goto(path);
+
+      // **`.site-banner`, not `getByRole('banner')`.** The bar is a `div` on purpose — the
+      // Nightingale Nightmare masthead is the page's one `banner` landmark and a second
+      // would be an axe violation. So there is no role to select it by, which is the
+      // trade-off working as intended rather than a weaker assertion.
+      const banner = page.locator('.site-banner');
+
+      // Says what is here, so nobody concludes the club's information has vanished. It no
+      // longer claims the timing app: `/timing` is a holding page that says it is not open.
+      await expect(banner).toContainText('We just have Nightingale Nightmare for now');
+      await expect(banner).not.toContainText('race timing app');
+
+      // Named as a destination. "Click here" would pass every automated check and tell a
+      // screen-reader user nothing.
+      const link = banner.getByRole('link', {
+        name: 'For everything else, please see the old site',
+      });
+      await expect(link).toHaveAttribute('href', 'https://southvillerunningclub.co.uk');
+      await expect(link).toBeVisible();
+    });
+  }
+
+  test('comes before the page content, not after it', async ({ page }) => {
+    // A signpost below the fold is not a signpost. This asserts document order, which is
+    // also the order a screen reader and a keyboard will meet it in.
+    await page.goto('/nn/');
+
+    const bannerIsBeforeMain = await page.evaluate(() => {
+      const banner = document.querySelector('.site-banner');
+      const main = document.querySelector('main');
+      if (!banner || !main) return false;
+      return (
+        (banner.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      );
+    });
+
+    expect(bannerIsBeforeMain).toBe(true);
+  });
+
+  test('does not give Nightingale Nightmare a second banner landmark', async ({
+    page,
+  }) => {
+    // The reason the bar is a `div`. Five pages carry the masthead, and `<header>` outside
+    // `<main>` is the `banner` landmark — two of them is `landmark-no-duplicate-banner`.
+    await page.goto('/nn/');
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+  });
+});
+
 test.describe('the club website', () => {
   test('says a new site is coming, without promising when', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(
-      'A new Southville Running Club website',
+    // The heading is the club's name; the banner above it does the welcoming. What this
+    // test is really guarding is the next assertion — that no date is promised anywhere.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Southville Running Club',
     );
+    await expect(page.locator('main')).toContainText('being built here');
 
     // When the new site replaces the old one is a committee decision, and a date invented
     // here would be a factual claim nobody authorised.
