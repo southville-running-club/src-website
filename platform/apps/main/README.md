@@ -50,7 +50,7 @@ worker/nn-entry-complete.ts    Paint what the club has recorded onto the return 
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types |
 | `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
-| `/health` | **Not a page either.** The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
+| `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
 
 The first four carry `src/components/NnNav.astro`, which links them and marks the current
 one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
@@ -179,7 +179,7 @@ on the argument that a submission which just failed is exactly when somebody wan
 whether the Worker can reach Postgres — right about the need, wrong about the audience. The
 person reading that page is a runner whose form did not save, and a database timestamp beside
 the apology helps them not at all. It is the maintainer who wants it, and the maintainer has
-[`/health`](#the-health-endpoints), which answers whatever the page says.
+[`/_health`](#the-health-endpoints), which answers whatever the page says.
 
 **User input re-enters the HTML only through `setAttribute` and text-mode
 `setInnerContent`, both of which escape.** There is no `{ html: true }` call in
@@ -477,7 +477,7 @@ nothing it should not have.
 
 ## The health endpoints
 
-Two database round trips, answered as JSON at **`/health`** here and **`/timing/health`** in
+Two database round trips, answered as JSON at **`/_health`** here and **`/timing/health`** in
 `apps/timing`. `intake.health()` returns `now()`; `intake.ping()` returns a constant and was
 added *after* the first deploy, so between them they prove the migration applied, `intake` is
 exposed through PostgREST, the anon key and the grant are right, the client is wired, the
@@ -498,6 +498,25 @@ its body says `ok: false` is the shape that lets an outage sit behind a green ti
 because a cached answer to "can you reach the database" is not an answer. `at` is UTC and
 `formatted` is `Europe/London`, so a check can catch the two disagreeing on the weekend the
 clocks change, which is the weekend before this race.
+
+### Why the two names differ
+
+**`/_health` here, `/timing/health` there**, and neither spelling is free to change.
+
+The underscore is what stops this endpoint ever colliding with a page. Astro is
+`trailingSlash: 'always'`, so a future `src/pages/health.astro` would serve at `/health/`
+while this Worker went on answering `/health` — it matches before the assets binding. Both
+would work, one character apart, and somebody typing "health" would get a database report:
+no error, no failing test, and no way for whoever added the page to find out. **This is a
+running club**, so training, injury and wellbeing are exactly what `/health/` is for. A
+leading underscore cannot be an Astro route, so the collision becomes impossible rather than
+unlikely. `tests/worker/serves.test.ts` asserts `/health` no longer answers this endpoint's
+JSON.
+
+**`apps/timing` cannot copy it.** A leading underscore makes an App Router folder *private* —
+`app/_health/route.ts` builds, deploys and 404s, with nothing saying why. It is
+`app/health/route.ts`, and the trap is in CLAUDE.md because the same name is fine on one side
+of the hostname and invisible on the other.
 
 ### Why they are not on a page any more
 

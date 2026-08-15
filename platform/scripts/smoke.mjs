@@ -103,7 +103,7 @@ const CHECKS = [
   },
   {
     name: 'the website Worker reaches the database',
-    url: `${SITE}/health`,
+    url: `${SITE}/_health`,
     proves:
       'the Worker can reach Supabase with the anon key and grants, and a migration added ' +
       'after the first deploy reached production the same way',

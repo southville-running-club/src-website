@@ -118,7 +118,7 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     // **The two assertions this replaces were the diagnostics themselves.** They checked a
     // database timestamp and a pipeline-check marker rendered on this page — below the form
     // somebody hands over £17 and an emergency contact on. Both round trips still run and are
-    // still checked, at `/health`, a few tests below.
+    // still checked, at `/_health`, a few tests below.
     await page.goto('/nn/');
     const body = (await page.locator('body').textContent()) ?? '';
 
@@ -608,7 +608,7 @@ test.describe('the health endpoints', () => {
   // add a renderer to something that answers JSON. It also means they run in the
   // scripting-disabled project unchanged.
   for (const [name, path] of [
-    ['the website', '/health'],
+    ['the website', '/_health'],
     ['race timing', '/timing/health'],
   ] as const) {
     test(`${name} reports both database round trips`, async ({ request }) => {

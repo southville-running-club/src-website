@@ -196,6 +196,14 @@ at the top of it says so. `apps/main` is Astro plus a Worker and has no such rul
 what makes the pair easy to get wrong: the same name is fine on one side of the hostname and
 invisible on the other.
 
+**So the two health endpoints are spelled differently on purpose** — `/_health` in `apps/main`
+and `/timing/health` in `apps/timing` — and **the underscore on the Astro side is load-bearing
+too, for the opposite reason.** `trailingSlash` is `'always'`, so a page at
+`src/pages/health.astro` would serve at `/health/` while the Worker went on answering
+`/health`, because it matches before the assets binding. Two live addresses one character
+apart, no error and no failing test, and a runner looking for the club's advice on training
+gets a database report. This is a running club; `/health/` is a page somebody will want.
+
 **An ambient `NODE_ENV=development` breaks the Next.js build**, reporting it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.
