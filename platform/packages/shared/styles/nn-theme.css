@@ -56,7 +56,7 @@
  *   ink on card-muted        text on the panel    16.12:1    4.5 (AA)     ok
  *   slate on card            secondary, small      8.30:1    4.5 (AA)     ok
  *   bone on aubergine        text on dark panel   14.51:1    4.5 (AA)     ok
- *   pus on blood             date line             5.44:1    3.0 (large)  ok — see note
+ *   pus on blood             date line             5.44:1    4.5 (AA)     ok — Inter, not Nosifer
  *   pus on blood-deep        date line             8.20:1    3.0 (large)  ok
  *   bone at .85 on blood     "presents…"           6.44:1    4.5 (AA)     ok
  *   pus on blood             focus ring            5.44:1    3.0 (1.4.11) ok
@@ -426,46 +426,53 @@ body.theme-nn {
 /* -------------------------------------------------------------------------------------
  * The masthead
  * -------------------------------------------------------------------------------------
- * The wordmark and the four campaign links, in a `<header>` above everything else.
+ * The wordmark, five controls, and a `<header>` above everything else.
  *
- * **It stays put while the page scrolls**, which is the one thing here that was asked for
- * against the grain of the rest: these are read-and-scroll pages rather than an
- * application, and a bar that never leaves is 64px of a laptop and **159px of a 320px
- * phone** — a quarter of that viewport, permanently, before a word of the race is read.
- * That trade was made deliberately and with the number in front of it. The cost is all in
- * the narrow case, because that is the only width where the mark and the capsules cannot
- * share a row.
+ * ## It no longer stays put, and that is this slice's main correction
  *
- * **Sticking it is what forced a background**, and the background is the only new colour
- * this section introduces. See the note on the rule itself.
+ * Sticking it was asked for against this file's own advice, and the cost was written down at
+ * the time: 64px of a laptop and 159px of a 320px phone, held for the whole page. **The real
+ * number turned out to be 207px** once the route split gave the bar a second row on year
+ * pages — 36% of a 568px screen, permanently, on pages people read and scroll.
  *
- * **`flex-wrap` and no breakpoint**, which is this file's habit everywhere else. The mark is
- * 132px, the links measure 261px and the gap is 24px, so the two share a row from about
- * 460px up and the links drop to a row of their own below it — where they still fit on one
- * line, because 261px is inside the 280px a 320px screen leaves within the column's
- * padding. Two rows on a phone, one on a laptop, and no width written down: `flex-wrap`
- * already knows the answer and a breakpoint here would be a second one to maintain.
+ * It cost three defects, and the height was the least of them:
+ *
+ *   1. It broke a measurement harness, which read the bar's own rectangle as the page's.
+ *   2. It hid arrow-keyed radios at 320px in WebKit, and no `scroll-margin` could repair it —
+ *      the note that used to live here measured 3 of 6 keyboard transitions landing clear.
+ *   3. It forced a background colour, because a transparent bar that never leaves has the
+ *      words of the page scrolling through it.
+ *
+ * **The first and the third go with `position: sticky`.** The background goes with it — a bar
+ * that scrolls away can be transparent again, which is what the mockup's is — and so does the
+ * `scroll-margin-top: 168px` that used to sit on every `[id]` in this theme, which existed
+ * only to stop anchors landing underneath it. Anchor targets land at the top of the viewport
+ * now, which is where they belong and needs no rule.
+ *
+ * **The second is only half the bar's fault, and the measurement says so.** WebKit frequently
+ * does not scroll at all when focus moves by keyboard; what the shorter, unstuck bar changes
+ * is where the form starts, not whether WebKit scrolls to it. The before and after numbers
+ * are in the pull request rather than guessed at here.
+ *
+ * ## The shape, and the one place the DOM and the eye disagree
+ *
+ * Wide: the mark, then the four links, then the button hard right. Narrow: the mark and the
+ * **button** share the first row and the four links take the second.
+ *
+ * Getting the button up beside the mark at 320px is an `order` on one flex item, and it is
+ * the only reordering in this stylesheet. Focus order stays the DOM's — mark, links, button —
+ * so at 320px somebody tabbing reaches the four links before the button drawn above them.
+ * That is a real divergence and it is the smaller of the two available: the alternative puts
+ * it at the width where the bar is one row and the button is the furthest thing right, which
+ * is where jumping backwards would actually surprise somebody.
+ *
+ * **`flex-wrap` and one breakpoint.** The wrap is what puts the links on their own row; the
+ * breakpoint is what lifts the button and shrinks the capsules so four fit across the 280px a
+ * 320px screen leaves inside the column. One width, written once, and measured.
  * ------------------------------------------------------------------------------------- */
-/* **Stuck to the top, and the background is what that costs.** Transparent was free while
-   the header scrolled away with the page; a header that stays has to be opaque or the
-   words underneath scroll through it. `blood-deep` is the page's own darker end rather than
-   a new colour, so every pair on the bar was already measured: bone edge and label at
-   12.69:1, the current capsule's pus fill at 8.20:1, its ink label at 10.93:1.
-
-   **The bar is 1.51:1 against the page and that is deliberate**, for the reason the
-   call-to-action panel's fill is: it groups, it identifies nothing, and everything inside it
-   is at 8.20:1 or better. What it must not be is invisible at the top of the page, and at
-   the radial centre — which is exactly where a stuck header sits — `blood` is at its
-   lightest and the contrast with `blood-deep` at its largest. */
 .theme-nn .nn-masthead {
-  position: sticky;
-  top: 0;
-  /* Above the hero's fog (0) and its content (1), and above the cards that rise into view
-     as they are scrolled to. */
-  z-index: 10;
-  background: var(--nn-blood-deep);
   padding-top: 12px;
-  padding-bottom: 12px;
+  padding-bottom: 10px;
 }
 
 .theme-nn .nn-masthead > .nn-wrap {
@@ -474,7 +481,7 @@ body.theme-nn {
   align-items: center;
   /* Row gap first: it is the space between the mark and the links once they have wrapped
      onto two rows, which is the phone case and therefore the one that matters. */
-  gap: 6px 24px;
+  gap: 8px 20px;
 }
 
 /* The link around the wordmark. `text-decoration: none` because the theme underlines every
@@ -495,49 +502,9 @@ body.theme-nn {
   max-width: none;
 }
 
-/* Pushed to the right of the mark on a wide screen; harmless when it has wrapped to its own
-   row, where `margin-left: auto` against a full-width line does nothing. */
+/* The links are pushed right of the mark; the button follows them, hard right. */
 .theme-nn .nn-masthead .nn-nav {
   margin-left: auto;
-}
-
-/* **Every anchor target on these pages leaves room for the bar**, and this is the rule that
-   stops sticking it from being an accessibility regression. Without it "Skip to content"
-   scrolls `<main>` to a position underneath the header, the panels' `/nn/#register` puts
-   the form's heading behind it, and the error summary's link to the field it is about
-   scrolls that field out of sight — which is WCAG 2.4.11 failing, and is also just somebody
-   pressing a link and appearing to arrive nowhere.
-
-   **`scroll-margin-top` on the targets rather than `scroll-padding-top` on the scroller.**
-   The scroller is the viewport, which is `<html>`, and this theme is scoped to `body` on
-   purpose — reaching the root would need either `:has()` or a second class on `<html>`, and
-   the property that belongs to the target works everywhere without either.
-
-   One value, sized for the tallest the bar gets. On a laptop, where it is 64px, an anchor
-   lands with more clearance than it needs; that costs nothing and is the safe direction to
-   be wrong in. Near the top of a document the browser cannot scroll past zero, so the skip
-   link is unaffected by the slack.
-
-   **What this rule cannot do, so that nobody adds it again.** It decides where a scroll
-   lands; it has no say in whether one happens. The selector is `[id]` rather than "anchor
-   targets", so every control on the entry form already computes 168px here — the fee radios
-   measure it in both engines — and moving focus between the entry-type radios with the arrow
-   keys still leaves the newly focused one behind the bar at 320px in WebKit. The reason is
-   that WebKit frequently does not scroll at all when focus moves by keyboard: measured, it
-   left both an arrowed-to fee radio and a tabbed-to date box entirely below the fold without
-   scrolling a pixel. Nothing consulted only during a scroll can repair a scroll that never
-   starts.
-
-   Both obvious repairs were measured and neither is one. `.nn-fee { scroll-margin-top }`
-   gives 3 of 6 keyboard transitions clear of the bar at 320px — exactly what it is without
-   it, because the card is not what focus moves to. `html { scroll-padding-top: 168px }` makes
-   it worse at 2 of 6, one landing above the viewport. Chromium is 6 of 6 either way. What is
-   left is the bar's own height at 320px, 159px of a 568px screen, and that is a decision
-   about the masthead rather than about this rule. Measured against the WebKit
-   `playwright install` provides, which is the engine CI fails on; real Safari was not
-   available to check. */
-.theme-nn [id] {
-  scroll-margin-top: 168px;
 }
 
 /* -------------------------------------------------------------------------------------
@@ -614,22 +581,27 @@ body.theme-nn {
   line-height: 1.75;
 }
 
-/* **The date, and the only place on this site it is set in the display face.** It reads
-   "Sunday 1 November 2026" now that the date is confirmed; before that it was a whole
-   sentence carrying its own qualifier, because "Halloween weekend 2026" on its own would
-   have been a promise the committee had not made.
-
-   **The generous leading is kept even though the string got shorter.** The mockup's badge
-   is one line at every width; this one still wraps on a narrow phone, where 1.7 leaves the
-   face's drips falling through the line below — and if the committee ever moves the date to
-   something longer, the rule should not have to be rediscovered. */
+/* **The date, and it is no longer set in the display face.**
+   
+   It was — this was the one exception on the site, argued for as a badge rather than as a
+   fact. The rule at the head of this file does not carve one out: *never set a date, a
+   schedule, a price or a legal statement in Nosifer*, because the display face is a poster
+   device and a date is a thing somebody acts on. The front door's year panel sets the same
+   date in Inter, and two treatments of one fact on two pages is worse than either.
+   
+   So it is Inter, still pus, still the largest thing in the hero after the title. It keeps
+   its generous leading because it still wraps on a narrow phone.
+   
+   **pus on blood is 5.44:1**, which clears AA for normal text (4.5:1) as well as the large-text
+   threshold it was previously relying on — so dropping the display face costs nothing in
+   contrast and the table's entry is unchanged. */
 .theme-nn .nn-dateline {
   margin: 0 0 22px;
-  font-family: var(--nn-display);
-  font-weight: 400;
-  font-size: clamp(15px, 3vw, 21px);
-  line-height: 2;
-  letter-spacing: 0.02em;
+  font-family: var(--nn-sans);
+  font-weight: 700;
+  font-size: clamp(16px, 3vw, 22px);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
   color: var(--nn-pus);
 }
 
@@ -656,7 +628,18 @@ body.theme-nn {
  *
  * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart.
  * ------------------------------------------------------------------------------------- */
-.theme-nn .nn-nav ul {
+/* **One row of four, and a button that is not in it.** The bar is the same five controls on
+   every page; only which one carries `aria-current` moves. The button sits outside the `<ul>`
+   because it is the one thing this site exists to do, and a list of five equals buries it in
+   four things that are not. */
+.theme-nn .nn-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.theme-nn .nn-nav-links {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -665,47 +648,298 @@ body.theme-nn {
   list-style: none;
 }
 
-/* **A resting capsule is `.nn-ghost` and the current one is `.nn-cta`, at nav scale.** That
-   is the whole of the colour reasoning: 2px bone edge on transparent with bone text, and a
-   pus fill with ink text for the page you are on. Both pairs are already in the table above
-   — bone border on blood at 8.43:1, ink on pus at 10.93:1, pus fill on blood at 5.44:1 —
-   because they are the hero's own two buttons, so the capsules add no colour pair to
-   measure and cannot drift from the buttons they echo.
+/* **The four links are text with a rule under the current one**, not capsules.
+   Capsules were the old bar's device and they cost 2px of border and 28px of padding per
+   item — affordable for four, not for four beside a button that has to out-shout them. The
+   button is the only filled thing up here now, which is the whole point of it.
 
-   **The mockup's own pill bar is where the shape comes from and not the colours.** It is
-   the review chrome at the top of `nn-entry-mockup.html`, marked "not shipped", and it
-   draws its resting edge in `#5a4a48` on a near-black bar — about 2:1, which is fine there
-   and fails here on the red. The edge is bone instead. */
+   Target size: 14px text with 8px of vertical padding is ~34px tall against WCAG 2.2's 24px
+   floor, and the 8px gap keeps the boxes from touching. */
 .theme-nn .nn-nav a {
   display: inline-block;
-  padding: 7px 14px;
-  border: 2px solid var(--nn-bone);
-  border-radius: 999px;
+  padding: 8px 2px;
+  border-bottom: 2px solid transparent;
   color: var(--nn-bone);
   font-size: 14px;
   font-weight: 600;
-  /* The capsule is what says "this is a control". An underline inside one reads as a
-     mistake, and this is the one place in this file where dropping it is not position
-     standing in for a signal. */
   text-decoration: none;
 }
 
+/* **Three signals for the current page, and colour is the least of them.**
+   `aria-current="page"` for anything reading the markup, a 2px rule underneath, and full
+   brightness against the 0.78 the others rest at. Any one of the three carries it alone:
+   photocopied, in sunlight, or read aloud. */
+.theme-nn .nn-nav a:not([aria-current='page']) {
+  opacity: 0.78;
+}
+
 .theme-nn .nn-nav a[aria-current='page'] {
-  border-color: var(--nn-pus);
-  background: var(--nn-pus);
-  color: var(--nn-ink);
+  border-bottom-color: var(--nn-pus);
+  color: var(--nn-bone);
   font-weight: 700;
 }
 
-/* **Hover changes colour, not position.** The hero's buttons lift 2px and these
-   deliberately do not: a row of four that each jump as the pointer crosses them is fidget
-   on a page somebody is reading, and a treatment with no motion in it needs no second rule
-   under `prefers-reduced-motion`.
+/* Hover changes brightness, not position. A row that jumps as the pointer crosses it is
+   fidget on a page somebody is reading, and a treatment with no motion needs no second rule
+   under `prefers-reduced-motion`. */
+.theme-nn .nn-nav a:hover {
+  opacity: 1;
+  border-bottom-color: var(--nn-bone);
+}
 
-   **`:not([aria-current])` is load-bearing rather than tidy.** Without it the hover would
-   set pus text on the current item's pus fill, and the label somebody is pointing at would
-   vanish. */
-.theme-nn .nn-nav a:hover:not([aria-current='page']) {
+.theme-nn .nn-nav a[aria-current='page']:hover {
+  border-bottom-color: var(--nn-pus);
+}
+
+/* **The button, and it is the hero's own primary control at bar scale.** Pus fill, ink label
+   — 10.93:1, already in the table and already what every other primary button on this site
+   is, so it adds no colour pair and cannot drift from them. */
+.theme-nn .nn-nav-cta {
+  display: inline-block;
+  flex: 0 0 auto;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.theme-nn .nn-nav-cta:hover {
+  /* The hero's buttons lift 2px; this one does not, for the reason the links do not. */
+  background: var(--nn-bone);
+}
+
+/* **The button is a destination too, and it carries the marker on its own page.** It is
+   already the only filled thing in the bar, so `aria-current` alone would change nothing a
+   sighted reader could see — the three-signals rule applies here as much as to the four
+   links. A bone ring is the third: 8.43:1 on blood, already in the table, and it reads as
+   "you are here" rather than as a second kind of button. */
+.theme-nn .nn-nav-cta[aria-current='page'] {
+  box-shadow:
+    0 0 0 2px var(--nn-blood-deep),
+    0 0 0 4px var(--nn-bone);
+}
+
+/* One label is shown and the other is not, at every width. The `aria-label` on the anchor
+   carries the long one throughout, so the accessible name does not change with the viewport
+   — and each short label is a substring of its long one, which is WCAG 2.5.3. */
+.theme-nn .nn-nav-cta-short {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The bar at 320px
+ * -------------------------------------------------------------------------------------
+ * Two rows: the mark and the button, then the four links.
+ *
+ * **480px is measured rather than chosen.** At 14px the four labels and their gaps run to
+ * about 300px; the mark is 132px and the button about 96px. Below roughly 480px the mark,
+ * the button and the links cannot share a line, and above it they can — so that is where the
+ * button is lifted onto the mark's row and the links are shrunk to fit 280px on their own.
+ *
+ * `order: -1` on the button is the only reordering in this file. See the note at the head of
+ * the masthead section for what it costs.
+ * ------------------------------------------------------------------------------------- */
+@media (max-width: 480px) {
+  /* **The links take a row of their own and the button stays with the mark.** `order: 1` puts
+     the nav last in flex order; with `width: 100%` it therefore wraps to a line by itself,
+     leaving the mark and the button — both still `order: 0` — sharing the first. No negative
+     margins and no second container: the whole layout change is one property on one item. */
+  .theme-nn .nn-masthead .nn-nav {
+    order: 1;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .theme-nn .nn-nav-cta {
+    margin-left: auto;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .theme-nn .nn-nav-cta-long {
+    display: none;
+  }
+
+  .theme-nn .nn-nav-cta-short {
+    display: inline;
+  }
+
+  .theme-nn .nn-nav-links {
+    gap: 4px 14px;
+  }
+
+  .theme-nn .nn-nav a {
+    font-size: 13px;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The year panel, on the front door
+ * -------------------------------------------------------------------------------------
+ * **A white card on the gradient, because it is functional and everything functional on this
+ * site is ink on white.** The horror is in the frame; the two questions this panel answers —
+ * when is it, and can I enter — are the ones somebody has to act on.
+ *
+ * ## Two states, one shape
+ *
+ * The layout is identical in both. Only the action changes weight — `.nn-ghost` to `.nn-cta`,
+ * which are the hero's own two buttons — and a fee line appears. Nothing moves, so nobody has
+ * to relearn the page the morning entries open.
+ *
+ * ## The date is the biggest thing here, and that is the whole design
+ *
+ * 24px against the 16px of everything around it. Somebody arriving from a shared link asks
+ * "when is it" first, and a panel that answered "can I enter" first would be answering the
+ * second question first.
+ *
+ * **It is not Nosifer.** A date is a fact somebody acts on, and the display face is never used
+ * for one — the rule at the head of this file, applied to the one place it would be most
+ * tempting to break it.
+ *
+ * ## Contrast pairs, all of them already measured
+ *
+ *   ink on card              the date, 24px      18.09:1   3.0 (large)  ok — no new pair
+ *   ink on card              the fact line        18.09:1   4.5 (AA)     ok — no new pair
+ *   slate on card            the quiet label       8.30:1   4.5 (AA)     ok — no new pair
+ *   slate on card            the note under it     8.30:1   4.5 (AA)     ok — no new pair
+ *   blood on card            the panel links       9.01:1   4.5 (AA)     ok — no new pair
+ *   field border on card     the rule              3.23:1   3.0 (1.4.11) ok — no new pair
+ *   ink on pus               the action, open     10.93:1   4.5 (AA)     ok — no new pair
+ *
+ * **Not one new colour pair.** Every element here is drawn with a pairing this file already
+ * measures, which is deliberate: a panel is a layout, and a layout that needs new colours to
+ * work is usually a layout that is not working.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-panel-year {
+  margin-top: 26px;
+  text-align: center;
+}
+
+/* Quiet, small, and above the thing it labels. It is a label rather than a heading in the
+   visual sense — the panel's accessible name, which `aria-labelledby` points at. */
+.theme-nn .nn-panel-label {
+  margin: 0;
+  color: var(--nn-slate);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.theme-nn .nn-panel-date {
+  margin: 6px 0 0;
+  color: var(--nn-ink);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* The start time, the distance and the field size, in one line under the date. Mono for the
+   same reason the hero's fact row is: these are values, and a value set in the text face
+   reads as prose. */
+.theme-nn .nn-panel-facts {
+  margin: 6px 0 0;
+  color: var(--nn-ink);
+  font-family: var(--nn-mono);
+  font-size: 14px;
+}
+
+.theme-nn .nn-panel-rule {
+  margin: 18px auto;
+  border: 0;
+  border-top: 1px solid var(--nn-field-border);
+}
+
+.theme-nn .nn-panel-actions {
+  margin: 0;
+}
+
+.theme-nn .nn-panel-year .nn-panel-note {
+  margin: 12px 0 0;
+  color: var(--nn-slate);
+  font-size: 14px;
+}
+
+/* The two links to the rest of this year's running. A real list, laid out as a row — a
+   screen reader still says "list, two items". */
+.theme-nn .nn-panel-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-panel-links a {
+  color: var(--nn-blood);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Previous years
+ * -------------------------------------------------------------------------------------
+ * **Quiet on purpose, and on the gradient rather than in a card.** Somebody arriving here is
+ * almost always asking about the next race; last year's is a thing you go looking for rather
+ * than a thing you are offered, so it is small, low in the page, and never competes with the
+ * panel above it.
+ *
+ *   bone at .85 on blood     the heading           6.44:1   4.5 (AA)     ok — no new pair
+ *   bone on blood            a pill's label        8.43:1   4.5 (AA)     ok — no new pair
+ *   bone on blood            a pill's edge         8.43:1   3.0 (1.4.11) ok — no new pair
+ *
+ * The pills are the old navigation's capsule, which is where that shape went when the bar
+ * stopped using it — so they add no colour pair and cannot drift from anything.
+ *
+ * **It renders nothing at all when there is nothing to show.** The container ships `hidden`
+ * and the Worker reveals it only with at least one past running; there is no empty heading and
+ * no empty list. Today there is exactly one running and it is the current one, so this never
+ * appears — see the note in `NnPreviousYears.astro` for the data source it is waiting on.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-previous {
+  margin-top: 26px;
+  text-align: center;
+}
+
+.theme-nn .nn-previous-heading {
+  margin: 0 0 10px;
+  color: var(--nn-bone);
+  font-family: var(--nn-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+
+.theme-nn .nn-previous-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-previous-list a {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 2px solid var(--nn-bone);
+  border-radius: 999px;
+  color: var(--nn-bone);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.theme-nn .nn-previous-list a:hover {
   border-color: var(--nn-pus);
   color: var(--nn-pus);
 }

@@ -18,7 +18,7 @@ rather than good intentions:
 
 ## What is in it
 
-Three schemas, eight tables and nine functions.
+Three schemas, eight tables and ten functions.
 
 |  |  |
 | --- | --- |
@@ -30,6 +30,7 @@ Three schemas, eight tables and nine functions.
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
 | `entries.webhook_secrets` | The **SHA-256 digest** of the key the Stripe webhook presents, never the key. RLS on, no policy, no grant. Ships with a null digest, which refuses everything — installing it is a manual step |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
+| `entries.current_entry_state()` | The same answer for the **current running of a recurring race**, so a page about the race never has to name a year. Discloses nothing `entry_state()` does not |
 | `entries.create_pending_purchase()` | Holds a place and records a pending purchase, under a per-event lock. **The only object in this repository that writes an entry** |
 | `entries.expire_pending_holds()` | Moves lapsed holds to `expired`. Housekeeping — capacity does not depend on it |
 | `entries.attach_checkout_session()` | Writes the Stripe session id onto a pending purchase that has none. One column, one row, once |
@@ -110,13 +111,14 @@ starts failing, something handed a table privilege to a key that is published in
 
 **`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
 anything. A refusal that only happens because nothing can get as far as asking has not been
-tested. What the exposure is actually for is **six functions** — and a seventh,
+tested. What the exposure is actually for is **seven functions** — and an eighth,
 `entries.raise_attention()`, which is granted to **nobody at all** and is reachable only from
 inside `record_checkout_event()`, because it writes the flag that says a purchase needs a human.
 
 `tests/entries.test.ts` asserts that exact set, by name, along with which of them `anon` may
-execute. **That assertion is the one this schema's whole shape rests on**, and until this slice
-it existed only as prose in four READMEs.
+execute. **That assertion is the one this schema's whole shape rests on**, and it earned its
+keep the first time it was changed: the seventh, `current_entry_state()`, had to be added to
+that list in a diff somebody read, with the argument for it written down.
 
 #### `entries.entry_state()` — the one door
 
@@ -134,6 +136,26 @@ It deliberately returns neither `from_address` (an address in page source is an 
 scraper collects) nor the event's `id` (a browser has no use for a primary key it cannot
 write with) nor the window timestamps (nobody has decided them, and a field returned before
 it has a meaning is a field somebody renders).
+
+#### `entries.current_entry_state()` — the same door, without a year in it
+
+`entry_state()` needs the caller to know the event slug. That is right for `/nn/2026/`, whose
+whole subject is one running. It is wrong for `/nn/`, which is about the **race** — because a
+page that has to name `nn-2026` has 2026 written into it, and publishing 2027 then means
+editing every page that mentions it rather than inserting a row.
+
+So `entries.events` grew one column, `race_slug`, which is the glossary's race-and-event
+distinction finally put somewhere it can be queried. `current_entry_state('nn')` picks the
+**forthcoming** running of that race, else the **most recent past** one, and hands back exactly
+what `entry_state()` would have returned for it — including the slug, which is how the caller
+learns which year page to point at.
+
+| | |
+| --- | --- |
+| **Why the fallback to a past running** | Between one November and the day next year's row is added there is no forthcoming event. Returning nothing would make `/nn/` a dead end for the months when somebody is most likely looking for what happened last time |
+| **Why it discloses nothing new** | It returns `entry_state()`'s answer for an event the caller could have named itself — the slug is in the page's own URL. `tests/entries.test.ts` asserts the two answers are equal, so a field added to one and not the other fails |
+| **Why "today" is Europe/London** | `event_date` is civil time, as published. For an hour on a winter night UTC and London disagree about the date, and the day this comparison flips is the day after the race |
+| **Why no index** | One row per race per year — single figures. An index here is a line to maintain in exchange for nothing measurable |
 
 #### `entries.create_pending_purchase()` — the only thing that writes
 

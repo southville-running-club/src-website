@@ -53,7 +53,10 @@ export {
 
 export {
   ENTRY_WINDOW_STATES,
+  fetchCurrentEntryState,
   fetchEntryState,
+  formatEventDate,
+  formatEventStartTime,
   formatPence,
   type EntryFee,
   type EntryState,

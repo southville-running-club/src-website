@@ -28,11 +28,74 @@
  * See docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md
  */
 
+/**
+ * ## The year layer, and the one convention it rests on
+ *
+ * A **race** is the recurring thing; an **event** is one running of it in one year. The paths
+ * say so:
+ *
+ *   /nn/            the race — evergreen, and it never names a year
+ *   /nn/2026/       one running of it, and everything that is only true of that running
+ *
+ * **`/nn/<year>/` is the running whose event slug is `nn-<year>`**, and that convention is
+ * the whole of the coupling between a URL and a database row. It is stated in one place —
+ * `nnEventSlugForYearPath` and `nnYearPathForEventSlug`, which are inverses and are tested
+ * as such — so nothing else in this Worker has to know it, and **nothing anywhere has to know
+ * that this year is 2026**. Publishing 2027 is a row in `entries.events` and that year's own
+ * content pages; no line here changes.
+ *
+ * The alternative was a lookup table in code mapping years to slugs, which is the same
+ * coupling written down twice and left to drift. This way a `/nn/2027/` page with no matching
+ * event row resolves to a slug that does not exist, `entry_state()` answers null, and the page
+ * says entries are not open — which is the correct thing for a year somebody has published a
+ * page for and not yet configured.
+ */
+
 /** Where the timing platform lives, on every hostname. */
 export const TIMING_PREFIX = '/timing';
 
 /** Where Nightingale Nightmare lives. */
 export const NN_PREFIX = '/nn';
+
+/** The recurring race, as `entries.events.race_slug` spells it. */
+export const NN_RACE_SLUG = 'nn';
+
+/**
+ * `/nn/2026/` and `/nn/2026` — the page for one running, and nothing beneath it.
+ *
+ * Four digits exactly. `/nn/course/` and `/nn/privacy/` are evergreen pages that must never be
+ * mistaken for a running, and `/nn/20261/` is not a year.
+ */
+const NN_YEAR_PATH = /^\/nn\/(\d{4})\/?$/;
+
+/**
+ * The event slug for a year path, or `null` if this is not one.
+ *
+ * **Both spellings, and it matters here**: both of this page's forms post to this address, and
+ * a submission arriving at the other spelling must not be 404'd on its way in when the person
+ * filled the form in either way.
+ */
+export function nnEventSlugForYearPath(pathname: string): string | null {
+  const year = NN_YEAR_PATH.exec(pathname)?.[1];
+  return year === undefined ? null : `${NN_RACE_SLUG}-${year}`;
+}
+
+/** True when this request is the page for one running of the race. */
+export function isNnYearPath(pathname: string): boolean {
+  return nnEventSlugForYearPath(pathname) !== null;
+}
+
+/**
+ * The inverse: where the page for an event slug lives.
+ *
+ * `null` for a slug that is not a running of this race — which is what the Worker gets if
+ * `entries.events` ever holds a running named some other way, and is why the caller has to
+ * decide what to do rather than being handed a plausible path.
+ */
+export function nnYearPathForEventSlug(slug: string): string | null {
+  const year = new RegExp(`^${NN_RACE_SLUG}-(\\d{4})$`).exec(slug)?.[1];
+  return year === undefined ? null : `${NN_PREFIX}/${year}/`;
+}
 
 /**
  * True when this request belongs to the timing Worker rather than to this one.
@@ -46,6 +109,8 @@ export function isTimingPath(pathname: string): boolean {
 }
 
 /**
+ * The Nightingale Nightmare pages that carry the navigation bar, and therefore the ones whose
+ * year-bearing links the Worker has to paint.
  * The machine-readable health report — **not a page, and it must never become one.**
  *
  * The two database round trips it reports used to be rendered into a "What this page proves"
@@ -85,16 +150,38 @@ export function isHealthPath(pathname: string): boolean {
 /**
  * Where the sign-up form posts.
  *
- * **`/nn` and `/nn/` are the same answer here, and that is deliberate.** Astro is
- * configured `trailingSlash: 'always'`, so the page itself only ever has one address — but
- * a form posting to the other one must not 404 the submission on its way in. Accepting
- * both costs nothing and the redirect afterwards is always to the canonical `/nn/`.
+ * **Everything under `/nn` except two.** The webhook is not a page at all, and the return page
+ * carries the wordmark without the links — somebody who has just paid should not be offered
+ * four ways to wander off before reading what the club has recorded.
  *
- * Nothing else beneath `/nn/` becomes a sign-up. `/nn/privacy/` is a page, not an endpoint,
- * and a POST to it should 404 exactly as it does today. The two paths below are endpoints in
- * their own right and are matched by their own predicates, before this one is consulted.
+ * Deliberately a path predicate rather than a list of the six pages that exist. A seventh page
+ * added under `/nn/` gets the bar because it renders the masthead, and a predicate that had to
+ * be edited to match would be the second place that fact was written down.
  */
-export function isNnSignupPath(pathname: string): boolean {
+export function isNnMastheadPath(pathname: string): boolean {
+  const path = pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+  if (!path.startsWith(`${NN_PREFIX}/`)) {
+    return false;
+  }
+
+  return !isNnWebhookPath(pathname) && !isNnEntryCompletePath(pathname);
+}
+
+/**
+ * The race's own page — evergreen, and the only thing the Worker does to it is paint.
+ *
+ * **`/nn` and `/nn/` are the same answer here**, because `trailingSlash: 'always'` gives the
+ * page one address and a request for the other should still get the painted version rather
+ * than a page with an empty panel on it.
+ *
+ * **No form posts here any more.** The interest form was on this page and moved to the running
+ * it is an interest in — interest in what, the race in general or this year's? — so a POST to
+ * `/nn/` now falls past every predicate to the assets binding, which answers **405**: the page
+ * exists and the method does not apply to it. That is the same answer `/nn/privacy/` has always
+ * given, and a better one than the 404 a missing page would get.
+ */
+export function isNnRacePath(pathname: string): boolean {
   return pathname === NN_PREFIX || pathname === `${NN_PREFIX}/`;
 }
 
@@ -105,7 +192,7 @@ export function isNnSignupPath(pathname: string): boolean {
  * it exists only as a POST handled before `env.ASSETS.fetch`, and a GET to it falls through to
  * the assets binding and 404s, which is the right answer to somebody who typed it.
  *
- * Both spellings, for the same reason `isNnSignupPath` takes both — except that here the
+ * Both spellings, for the same reason `nnEventSlugForYearPath` takes both — except that here the
  * caller is Stripe, configured once by hand against a URL somebody typed into a dashboard.
  * **A trailing slash mistyped there would mean every payment confirmation posting into a
  * 404**, discovered only by a runner who paid and heard nothing. Accepting both costs one
@@ -118,16 +205,24 @@ export function isNnWebhookPath(pathname: string): boolean {
 }
 
 /**
- * Where Stripe sends somebody back to afterwards.
+ * Where Stripe sends somebody back to afterwards — **under the running they entered**.
  *
  * A real page in `dist/`, unlike the webhook above — this predicate only decides whether the
  * Worker paints the recorded state onto it on the way past.
+ *
+ * **It moved below the year with everything else about one running**, and the reason is not
+ * tidiness. A return page is where somebody who has just paid finds out whether the club knows
+ * it, months later as well as minutes later; keeping it under the year means the 2027 page can
+ * say something different from the 2026 one without either of them moving, and it means a
+ * Checkout session's return URL names the thing it was for.
  */
-export const NN_ENTRY_COMPLETE_PATH = `${NN_PREFIX}/entry/complete/`;
+const NN_ENTRY_COMPLETE_PATH = /^\/nn\/(\d{4})\/entry\/complete\/?$/;
 
 export function isNnEntryCompletePath(pathname: string): boolean {
-  return (
-    pathname === NN_ENTRY_COMPLETE_PATH ||
-    pathname === NN_ENTRY_COMPLETE_PATH.slice(0, -1)
-  );
+  return NN_ENTRY_COMPLETE_PATH.test(pathname);
+}
+
+/** Where the return page for one running lives. `/nn/2026/` → `/nn/2026/entry/complete/`. */
+export function nnEntryCompletePath(yearPath: string): string {
+  return `${yearPath}entry/complete/`;
 }

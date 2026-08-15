@@ -1,4 +1,13 @@
 import { expect, test } from '@playwright/test';
+
+/**
+ * The page the interest form is on — the running it is an interest in.
+ *
+ * It was on `/nn/`, which was the wrong page: interest in what, the race in general or this
+ * year's running? Pinned as a literal rather than read from `race.json`, as `site.spec.ts` does
+ * with the race date.
+ */
+const YEAR = '/nn/2026/';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
@@ -47,7 +56,7 @@ async function fillIn(
 
 test.describe('registering interest', () => {
   test('goes through with JavaScript disabled', async ({ page }, testInfo) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillIn(page, {
       name: 'Grace Hopper',
@@ -56,7 +65,7 @@ test.describe('registering interest', () => {
     await page.getByRole('button', { name: 'Register my interest' }).click();
 
     // POST/Redirect/GET: the address changes, so a refresh does not re-post.
-    await expect(page).toHaveURL(/\/nn\/\?signup=ok$/);
+    await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
 
     const acknowledgement = page.locator('[data-signup-ack]');
     await expect(acknowledgement).toBeVisible();
@@ -77,11 +86,11 @@ test.describe('registering interest', () => {
     const email = addressFor(testInfo.project.name);
 
     for (const attempt of [1, 2]) {
-      await page.goto('/nn/');
+      await page.goto(YEAR);
       await fillIn(page, { name: `Grace Hopper ${attempt}`, email });
       await page.getByRole('button', { name: 'Register my interest' }).click();
 
-      await expect(page).toHaveURL(/\/nn\/\?signup=ok$/);
+      await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
       await expect(page.locator('[data-signup-ack]')).toBeVisible();
     }
   });
@@ -92,7 +101,7 @@ test.describe('a submission the server refuses', () => {
     // **Whitespace passes an HTML `required` attribute**, so this is a submission the
     // browser lets through and the server has to catch — which is the whole argument for
     // server-side validation never being optional.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
     await page.getByRole('button', { name: 'Register my interest' }).click();
 
@@ -120,11 +129,11 @@ test.describe('a submission the server refuses', () => {
 
     // Still on the form's own address, so correcting the name and pressing the button
     // again is all that is left to do.
-    await expect(page).toHaveURL(/\/nn\/$/);
+    await expect(page).toHaveURL(/\/nn\/2026\/$/);
   });
 
   test('links from the summary to the field it is about', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
     await page.getByRole('button', { name: 'Register my interest' }).click();
 
@@ -142,7 +151,7 @@ test.describe('accessibility of the form', () => {
     // `required` checks both pass, so the submission actually reaches the server, which is
     // the only thing that can reject it. An address the *browser* refuses never leaves the
     // page and there is no error state to check.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-axe@example.com' });
     await page.getByRole('button', { name: 'Register my interest' }).click();
 
@@ -162,7 +171,7 @@ test.describe('accessibility of the form', () => {
     //
     // Reached by the query string alone rather than by submitting, because the Worker
     // reveals it on `?signup=ok` — which is also what a person meets after the 303.
-    await page.goto('/nn/?signup=ok');
+    await page.goto(`${YEAR}?signup=ok`);
 
     await expect(page.locator('[data-signup-ack]')).toBeVisible();
 
@@ -175,7 +184,7 @@ test.describe('accessibility of the form', () => {
 
   test('the error state is operable at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/');
+    await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
     await page.getByRole('button', { name: 'Register my interest' }).click();
 
@@ -190,7 +199,7 @@ test.describe('accessibility of the form', () => {
   test('every control can be reached and used from the keyboard', async ({ page }) => {
     // Keyboard-operable throughout, and worth asserting rather than assuming: the consent
     // box is the one people rebuild as a styled `div` and leave unreachable.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await interest(page).getByLabel('Your name').focus();
     await page.keyboard.type('Ada Lovelace');
@@ -215,7 +224,7 @@ test.describe('accessibility of the form', () => {
     await interest(page).getByLabel('Email address').focus();
     await page.keyboard.press('Enter');
 
-    await expect(page).toHaveURL(/\/nn\/\?signup=ok$/);
+    await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
   });
 });
 
@@ -225,7 +234,7 @@ test.describe('the privacy notice', () => {
   // belongs to *this* form: that the link out of it goes where it says it goes. That test
   // needs the interest form on the page, which is this file's state to depend on.
   test('is linked from the form and says what is held', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await interest(page)
       .getByRole('link', { name: /What the club does with this/i })

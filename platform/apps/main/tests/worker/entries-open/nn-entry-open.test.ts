@@ -36,6 +36,10 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
  */
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   const fields: Record<string, string> = {
+    // **Both forms are on this page again**, one shown at a time, so the hidden field is what
+    // tells them apart. Inferring it from the entry window would read somebody's interest
+    // submission as an entry if entries opened between the page loading and the button being
+    // pressed.
     form: 'entry',
     firstName: 'Grace',
     lastName: 'Hopper',
@@ -71,8 +75,9 @@ function refusedEntry(overrides: Record<string, string> = {}): Record<string, st
   return goodEntry({ emailConfirm: 'a-different-address@example.com', ...overrides });
 }
 
+/** The entry form posts to the running it is for, which is its own address. */
 function submit(fields: Record<string, string>): Promise<Response> {
-  return SELF.fetch(`${SITE}/nn/`, {
+  return SELF.fetch(`${SITE}${YEAR_PATH}`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields),
@@ -80,7 +85,12 @@ function submit(fields: Record<string, string>): Promise<Response> {
   });
 }
 
-const page = () => SELF.fetch(`${SITE}/nn/`).then((response) => response.text());
+/** The page the entry form is on. `/nn/` is the race; this is the 2026 running of it. */
+const YEAR_PATH = '/nn/2026/';
+
+const page = () => SELF.fetch(`${SITE}${YEAR_PATH}`).then((response) => response.text());
+
+const racePage = () => SELF.fetch(`${SITE}/nn/`).then((response) => response.text());
 
 /**
  * The fake Stripe's own counter, which is how this layer knows a session was created.
@@ -98,12 +108,77 @@ async function sessionsCreated(): Promise<number> {
 /** The stub key the pool binds. Never a real one — see `vitest.worker.entries-open.config.ts`. */
 const STUB_KEY = 'sk_test_STUB_NOT_A_REAL_KEY_0000000000';
 
-describe('the page, once the event row says entries are open', () => {
+describe('the race page, once the event row says entries are open', () => {
+  it('changes the panel’s weight rather than adding a banner', async () => {
+    // **The difference in prominence is the message.** The action goes from an outline to the
+    // filled button and the fee line appears beneath it; there is deliberately no badge and no
+    // sentence saying "entries are open", because the button already says it.
+    const html = await racePage();
+
+    expect(html).toMatch(
+      /class="nn-cta"[^>]*href="\/nn\/2026\/#enter"[^>]*data-nn-panel-action/,
+    );
+    expect(html).toMatch(/data-nn-panel-shut[^>]*hidden/);
+    expect(html).not.toMatch(/data-nn-panel-open[^>]*hidden/);
+    expect(html.toLowerCase()).not.toContain('entries are open');
+  });
+
+  it('quotes the fees from the database, dearest first, without the free place', async () => {
+    // `entries.fees` is the only place a price exists. A guide's place is left out: "Free"
+    // beside two prices reads as an offer anybody can take, and it is not.
+    const html = await racePage();
+
+    expect(html).toContain('£17.00 unaffiliated · £15.00 affiliated');
+    expect(html).not.toContain('>Free<');
+  });
+
+  it('keeps the panel in the order it had while entries were shut', async () => {
+    // **Nothing moves when entries open**, so nobody has to relearn the page at the one moment
+    // they are trying to do something. Only the action's weight and the note beneath it change.
+    const html = await racePage();
+
+    const at = (marker: string) => html.indexOf(marker);
+
+    expect(at('data-nn-panel-date')).toBeLessThan(at('data-nn-panel-time'));
+    expect(at('data-nn-panel-time')).toBeLessThan(at('data-nn-panel-action'));
+    expect(at('data-nn-panel-action')).toBeLessThan(at('data-nn-panel-link="race-day"'));
+  });
+
+  it('has no entry form on it, and never will', async () => {
+    // An entry is an entry to one running, and two forms writing to one table is two places
+    // for a rule to be wrong.
+    expect(await racePage()).not.toContain('data-entry-form');
+  });
+
+  it('relabels the navigation button, on the race page and on the year page', async () => {
+    // The bar is painted from the same read. "Enter" is honest now, and it was not before.
+    for (const html of [await racePage(), await page()]) {
+      expect(html).toContain('aria-label="Enter the race"');
+      expect(html).toContain('>Enter<');
+    }
+  });
+
+  it('carries neither form, and points its one action at the entry', async () => {
+    // **Neither form is on the race page any more** — both moved to the running. What changes
+    // here when entries open is the panel's action: where it goes, what it says, and its
+    // weight. There is no separate hero button; an anchor to a form that is not on the page
+    // looks like a control and does nothing.
+    const html = await racePage();
+
+    expect(html).not.toContain('data-nn-interest');
+    expect(html).not.toContain('data-entry-form');
+    // Precisely: the navigation's button is `data-nn-nav-cta`, which contains this string.
+    expect(html).not.toMatch(/\sdata-nn-cta\b/);
+    expect(html).toMatch(/class="nn-cta" href="\/nn\/2026\/#enter"/);
+  });
+});
+
+describe('the year page, once the event row says entries are open', () => {
   it('serves the entry form and hides the interest form', async () => {
     const html = await page();
 
     expect(html).toContain('Enter the race');
-    expect(html).toMatch(/data-nn-interest hidden/);
+    expect(html).toMatch(/data-nn-interest[^>]*hidden/);
     expect(html).not.toMatch(/data-nn-entry hidden/);
   });
 
@@ -174,9 +249,9 @@ describe('a valid entry, which now holds a place and goes to Stripe', () => {
   });
 
   it('is never mistaken for a sign-up acknowledgement', async () => {
-    // The interest form's acknowledgement lives on the same page, and a 303 is now what a
-    // *successful* entry looks like too — so this checks where it goes rather than that it
-    // is not a redirect at all.
+    // The interest form's 303 and the entry's 303 are both redirects, and they used to be
+    // reachable from one address — so this checks where it goes rather than that it is not a
+    // redirect at all. The two forms are on two pages now and this is belt and braces.
     const response = await submit(goodEntry({ email: 'worker-fork@example.com' }));
 
     expect(response.headers.get('location')).not.toContain('signup=ok');
@@ -264,7 +339,7 @@ describe('the Stripe key, which must not appear anywhere a person can see', () =
       submit(goodEntry({ firstName: '   ' })),
       submit(goodEntry({ feeCode: 'vi_guide' })),
       SELF.fetch(`${SITE}/nn/`),
-      SELF.fetch(`${SITE}/nn/entry/complete/?session=cs_test_notreal`),
+      SELF.fetch(`${SITE}/nn/2026/entry/complete/?session=cs_test_notreal`),
     ]);
 
     for (const response of responses) {

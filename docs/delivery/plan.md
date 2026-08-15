@@ -86,9 +86,13 @@ race-ready by mid-October.** **Race day Sunday 1 November 2026, 11:00** — conf
     [ADR-002](../architecture/decisions/adr-002-schema-layout.md); anonymous insert is
     confined to `intake`, which holds no membership data.*
 20. ~~**Build the page, the form and the privacy notice**~~ — **done**, and since extended
-    with the confirmed date and three content pages: `/nn/course/`, `/nn/race-day/` and
-    `/nn/spectators/`, with a four-item navigation across them. The form takes name, email
-    and consent and nothing else; the privacy notice is at `/nn/privacy/`. *Every race fact,
+    with the confirmed date and three content pages, then split between the race and one
+    running of it: `/nn/` and `/nn/course/` are evergreen, `/nn/2026/` carries the date and
+    the entry form, and `/nn/2026/race-day/` and `/nn/2026/spectators/` sit beneath it, with
+    a two-level navigation across them —
+    [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md). The interest
+    form takes name, email and consent and nothing else; the privacy notice is at
+    `/nn/privacy/`. *Every race fact,
     and every privacy specific nobody has confirmed, lives in
     `apps/main/src/content/race.json` — confirmed ones as values, unconfirmed ones as `null`
     rendering as "To be confirmed".* **The page copy is a draft pending committee approval**,

@@ -1,46 +1,100 @@
 ---
-// The navigation across the four Nightingale Nightmare pages.
+// One navigation bar, identical on every Nightingale Nightmare page that carries it.
 //
-// **Four links in a list, no JavaScript, no dropdown and no hamburger** — at four items a
-// menu that has to be opened is more machinery than the thing it hides.
+// **Five destinations, five controls, and nothing about a year.** The route split put the
+// running under `/nn/<year>/`, and the first version of this nav showed that: two rows, the
+// second appearing only beneath a year. That was the *routes* leaking into the interface. A
+// runner does not care that race day lives inside a year directory — they care where race day
+// is — so the bar is one row of the same five things wherever they are standing.
 //
-// **It is rendered by `NnMasthead.astro` and nothing else.** It used to be dropped into
-// each page's hero by hand, below the call-to-action buttons, which is how four links ended
-// up stranded in the middle of the page flow. This file kept its job — which links there
-// are, and which one is current — and gave up deciding where they sit.
+//   Race        /nn/                     the race in general
+//   Course      /nn/course/              evergreen
+//   Race day    the current running's    painted
+//   Spectators  the current running's    painted
+//   [button]    the current running      painted, and its label depends on the entry window
 //
-// ## Why the current page is derived rather than passed in
+// ## The year is never in this file, and a test fails if it appears
 //
-// A `current` prop would be a second place to state which page this is, and the failure it
-// invites is silent: a page that passes the wrong one renders a nav that lies about where
-// you are, and nothing catches it but a person noticing. `Astro.url.pathname` is already
-// the answer, so it is the one used. The trailing slash is normalised because
-// `trailingSlash: 'always'` makes `/nn/course/` the only real address and a mismatch here
-// would simply drop `aria-current` with no other symptom.
+// The two year links and the button ship `hidden`, with `href=""`, and the Worker fills them
+// in from `entries.current_entry_state('nn')` — the same source `/nn/`'s panel uses, resolved
+// once per request and shared. `nn-nav.test.ts` walks every `href` in the bar on every page
+// and fails if a year reaches one without having been painted.
 //
-// ## `aria-current="page"`, and why the styling does not stand in for it
+// **A database this Worker cannot reach paints nothing**, so the bar degrades to Race and
+// Course. That is the failure direction everything else here takes: fewer doors, never a door
+// into a year nobody confirmed. It is also why the year items ship hidden rather than
+// pointing somewhere plausible — a "Race day" that quietly went to `/nn/` would be a link
+// that lies rather than a link that is missing.
 //
-// The yellow and the underline say "you are here" to somebody looking at it. `aria-current`
-// says it to somebody who is not, and it is the attribute — not the colour — that assistive
-// technology reads. Both are present because neither covers the other's reader.
-const links = [
-  { href: '/nn/', label: 'Race' },
-  { href: '/nn/course/', label: 'Course' },
-  { href: '/nn/race-day/', label: 'Race day' },
-  { href: '/nn/spectators/', label: 'Spectators' },
+// ## `aria-current` without knowing the year
+//
+// The page knows its own address, and that is enough: `/nn/2026/race-day/` is the race-day
+// page whatever the year is. So the current item is matched on the **shape** of the path
+// rather than on the href, which means the marker is right before the Worker has painted
+// anything — including with the database down.
+//
+// **Three signals, never colour alone**: `aria-current="page"` for anything reading the
+// markup, a 2px underline, and a brightness change. Each covers a reader the others do not.
+//
+// ## The button is not in this file
+//
+// It is the masthead's, beside the wordmark — see `NnMasthead.astro`. That is a layout
+// decision with a semantic consequence worth stating: at 320px the bar is two rows, the mark
+// and the button on the first and these four links on the second, and getting the button onto
+// the mark's row means it has to be the mark's sibling rather than this list's. It is a call
+// to action rather than a place to go, so leaving it outside the navigation landmark costs
+// nothing a reader would miss — it is still inside the banner, announced immediately after.
+//
+// ## No script, no toggle, and no longer sticky
+//
+// Five controls fit. A menu that has to be opened is more machinery than the thing it hides,
+// and every form on this site works with scripting off — a navigation that did not would be
+// an odd place to draw the line. The bar scrolls away with the page now; see the note in
+// `nn-theme.css` for the three defects that bought.
+
+/** The two evergreen destinations. Neither can move, so neither is painted. */
+const evergreen = [
+  { href: '/nn/', label: 'Race', match: /^\/nn\/$/ },
+  { href: '/nn/course/', label: 'Course', match: /^\/nn\/course\/$/ },
+] as const;
+
+/**
+ * The two that belong to whichever running is current.
+ *
+ * `match` is the shape, not the href: four digits stand in for the year, so the marker is
+ * right on `/nn/2027/race-day/` the day that page exists.
+ */
+const running = [
+  { key: 'race-day', label: 'Race day', match: /^\/nn\/\d{4}\/race-day\/$/ },
+  { key: 'spectators', label: 'Spectators', match: /^\/nn\/\d{4}\/spectators\/$/ },
 ] as const;
 
 const path = Astro.url.pathname.endsWith('/')
   ? Astro.url.pathname
   : `${Astro.url.pathname}/`;
+
+const current = (match: RegExp): 'page' | undefined =>
+  match.test(path) ? 'page' : undefined;
 ---
 
+{
+  /* One `<nav>`, one landmark, one list of four. The button is the masthead's — see above. */
+}
 <nav class="nn-nav" aria-label="Nightingale Nightmare">
-  <ul>
+  <ul class="nn-nav-links">
     {
-      links.map(({ href, label }) => (
+      evergreen.map(({ href, label, match }) => (
         <li>
-          <a href={href} aria-current={href === path ? 'page' : undefined}>
+          <a href={href} aria-current={current(match)}>
+            {label}
+          </a>
+        </li>
+      ))
+    }
+    {
+      running.map(({ key, label, match }) => (
+        <li data-nn-nav-item={key} hidden>
+          <a href="" data-nn-nav-link={key} aria-current={current(match)}>
             {label}
           </a>
         </li>

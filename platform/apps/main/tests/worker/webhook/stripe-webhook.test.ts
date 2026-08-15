@@ -83,8 +83,8 @@ export function revealed(html: string): string {
 const completePage = (session?: string): Promise<string> =>
   SELF.fetch(
     session === undefined
-      ? `${SITE}/nn/entry/complete/`
-      : `${SITE}/nn/entry/complete/?session=${encodeURIComponent(session)}`,
+      ? `${SITE}/nn/2026/entry/complete/`
+      : `${SITE}/nn/2026/entry/complete/?session=${encodeURIComponent(session)}`,
   ).then((response) => response.text());
 
 /**

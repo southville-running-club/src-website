@@ -226,9 +226,16 @@ const SUMMARY_LINKS = [
   /* A real form, posting to a real address. No JavaScript is involved in submitting it,
   validating it, or rendering what comes back.
 
-  `form=entry` is what tells the Worker which of this page's two forms arrived. The interest
-  form carries the same field with `interest`, so neither is identified by the absence of
-  something. */
+  **It posts to the page it is on**, which is the page for one running of the race —
+  `/nn/2026/`. That address is the whole of what tells the Worker which event this entry is
+  for; there is no hidden event field and there should not be one, because a slug in a body is
+  a slug somebody can change and an entry landing against a different open running is a
+  mistake nothing would catch.
+
+  `Astro.url.pathname` rather than a literal, for the same reason `NnNav.astro` derives the
+  current page from it: a prop or a constant is a second place to state where this form lives,
+  and the failure it invites is silent. `trailingSlash: 'always'` is what makes it exactly one
+  address. */
 }
 {
   /* `data-entry-event-date` and `data-entry-minimum-age` are written by the Worker from the
@@ -238,13 +245,24 @@ const SUMMARY_LINKS = [
 <form
   class="signup nn-card nn-entry"
   method="post"
-  action="/nn/"
+  action={Astro.url.pathname}
   data-entry-form
   data-entry-event-date=""
   data-entry-minimum-age=""
 >
-  <input type="hidden" name="form" value="entry" />
+  {
+    /* **Which of this page's two forms arrived.** The interest form is on this page too — one
+    is shown at a time — so the address cannot tell them apart and the body does.
 
+    **Not the entry window, which would nearly work.** The Worker could infer "open means
+    entry"; then somebody who opened this page a minute before entries opened would have their
+    name and email address read as an entry and be shown fourteen validation errors about
+    fields they were never asked for. What was submitted is a fact about the submission.
+
+    Stated on both forms, so neither is identified by the absence of something — a stale cached
+    page with no field is read as the interest form, which is the harmless side. */
+  }
+  <input type="hidden" name="form" value="entry" />
   <!-- 1 — Your details ------------------------------------------------------------- -->
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Your details</legend>

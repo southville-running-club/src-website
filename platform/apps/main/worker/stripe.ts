@@ -181,14 +181,16 @@ export function checkoutSessionParams(input: CheckoutSessionInput): URLSearchPar
  * **`{CHECKOUT_SESSION_ID}` is Stripe's own template and has to survive verbatim**, so this
  * is built by concatenation rather than through `URLSearchParams` — which would percent-
  * encode the braces into something Stripe does not substitute. The trailing slash is
- * deliberate: Astro is `trailingSlash: 'always'`, so `/nn/entry/complete/` is the page's only
- * address and a return without the slash would be a redirect somebody pays for in latency at
- * the worst possible moment.
+ * deliberate: Astro is `trailingSlash: 'always'`, so the return page has exactly one address
+ * and a return without the slash would be a redirect somebody pays for in latency at the
+ * worst possible moment.
+ *
+ * **The path is passed in rather than held here**, because it now carries the year of the
+ * running the entry was for — `/nn/2026/entry/complete/`. `worker/routing.ts` owns the shape
+ * of that; this file owns the query string and the reason it is concatenated.
  */
-export const ENTRY_COMPLETE_PATH = '/nn/entry/complete/';
-
-export function entryCompleteUrl(origin: string): string {
-  return `${origin}${ENTRY_COMPLETE_PATH}?session={CHECKOUT_SESSION_ID}`;
+export function entryCompleteUrl(origin: string, completePath: string): string {
+  return `${origin}${completePath}?session={CHECKOUT_SESSION_ID}`;
 }
 
 export type CheckoutSessionOutcome =

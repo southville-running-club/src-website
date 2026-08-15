@@ -99,24 +99,36 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/course/';
       walked past is furniture. This page, race day and spectators are the three that
       otherwise end with nothing to do.
 
+      **It stopped claiming that entries are not open, and it stopped naming a date.** Both
+      were true when this was a page about 2026; this page is about the race, and the
+      sentence "entries are not open yet" printed into a static evergreen page becomes false
+      the morning they open, silently, on the page most likely to be read by somebody deciding
+      whether to enter. Where entries have got to is the race page's answer, painted at serve
+      time, so this points there instead of repeating it.
+
       "Dare to enter?" is the mockup's heading and it is not used: entering is not what
       this offers, and a heading that promises the thing the button cannot do is worse
       than no heading. */
     }
     <section class="nn-panel">
-      <h2>Want fair warning?</h2>
+      <h2>{race.name}</h2>
       <p>
-        Entries are not open yet. Leave your name and the club will email you once — on
-        the day they open, and for nothing else, ever.
+        The race page has this year's date, what is happening on the day, and how to enter
+        when entries open.
       </p>
-      <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
-      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+      <p class="nn-panel-note">{race.distance}</p>
+      <a class="nn-cta" href="/nn/">The race</a>
     </section>
 
     <footer>
+      {
+        /* **The footer stopped promising a list this page cannot point at.** The race-facts
+        list belongs to one running and moved to the year page with the rest of them; this page
+        is about the race, so it links to the race and lets that page say which running is on. */
+      }
       <p>
-        Southville Running Club. The full list of race facts, including anything still to
-        be confirmed, is on <a href="/nn/">the race page</a>.
+        Southville Running Club. This page is about the race itself —
+        <a href="/nn/">the race page</a> has this year's running.
       </p>
       <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>

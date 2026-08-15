@@ -7,6 +7,7 @@ import {
   STRIPE_API_BASE,
   type CheckoutSessionInput,
 } from '../../worker/stripe';
+import { nnEntryCompletePath } from '../../worker/routing';
 
 /**
  * What is actually sent to a payment processor, asserted field by field with no network in
@@ -26,8 +27,8 @@ const INPUT: CheckoutSessionInput = {
   description: 'Nightingale Nightmare 2026 — Unaffiliated entry',
   purchaserEmail: 'grace@example.com',
   successUrl:
-    'https://new.southvillerunningclub.co.uk/nn/entry/complete/?session={CHECKOUT_SESSION_ID}',
-  cancelUrl: 'https://new.southvillerunningclub.co.uk/nn/',
+    'https://new.southvillerunningclub.co.uk/nn/2026/entry/complete/?session={CHECKOUT_SESSION_ID}',
+  cancelUrl: 'https://new.southvillerunningclub.co.uk/nn/2026/',
   // 12:00:00 UTC on a fixed day. Deterministic and invented, like every fixture here.
   expiresAt: new Date('2026-09-01T12:00:00.000Z'),
 };
@@ -131,7 +132,9 @@ describe('what the Checkout session is built from', () => {
     const built = params();
 
     expect(built.get('success_url')).toBe(INPUT.successUrl);
-    expect(built.get('cancel_url')).toBe('https://new.southvillerunningclub.co.uk/nn/');
+    expect(built.get('cancel_url')).toBe(
+      'https://new.southvillerunningclub.co.uk/nn/2026/',
+    );
   });
 });
 
@@ -141,15 +144,32 @@ describe('where Stripe sends somebody back to', () => {
     // Building this through `URLSearchParams` would percent-encode the braces into something
     // Stripe does not recognise, and the failure would be a return URL with a literal
     // `%7BCHECKOUT_SESSION_ID%7D` in it that nobody notices until somebody has paid.
-    expect(entryCompleteUrl('https://new.southvillerunningclub.co.uk')).toBe(
-      'https://new.southvillerunningclub.co.uk/nn/entry/complete/?session={CHECKOUT_SESSION_ID}',
+    expect(
+      entryCompleteUrl(
+        'https://new.southvillerunningclub.co.uk',
+        nnEntryCompletePath('/nn/2026/'),
+      ),
+    ).toBe(
+      'https://new.southvillerunningclub.co.uk/nn/2026/entry/complete/?session={CHECKOUT_SESSION_ID}',
     );
   });
 
+  it('returns somebody to the running they entered, not to a fixed address', () => {
+    // **The return page moved under the year with everything else about one running**, so
+    // this path is passed in rather than held in `stripe.ts`. A session created for 2027 that
+    // returned to 2026's page would be a payment confirmation for the wrong race, reported to
+    // the person who made it.
+    expect(
+      entryCompleteUrl('https://example.com', nnEntryCompletePath('/nn/2027/')),
+    ).toContain('/nn/2027/entry/complete/?');
+  });
+
   it('keeps the trailing slash Astro insists on', () => {
-    // `trailingSlash: 'always'`, so `/nn/entry/complete/` is the page's only address. Without
-    // the slash the return is a redirect somebody pays for in latency at the worst moment.
-    expect(entryCompleteUrl('https://example.com')).toContain('/nn/entry/complete/?');
+    // `trailingSlash: 'always'`, so there is exactly one address for the page. Without the
+    // slash the return is a redirect somebody pays for in latency at the worst moment.
+    expect(
+      entryCompleteUrl('https://example.com', nnEntryCompletePath('/nn/2026/')),
+    ).toContain('/entry/complete/?');
   });
 });
 

@@ -1,7 +1,7 @@
 ---
-import Base from '../../layouts/Base.astro';
-import NnMasthead from '../../components/NnMasthead.astro';
-import race from '../../content/race.json';
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import race from '../../../content/race.json';
 
 // The same event theme as the rest of Nightingale Nightmare — see
 // packages/shared/styles/nn-theme.css.
@@ -34,7 +34,7 @@ import '@src/shared/styles/nn-theme.css';
 // somebody deciding whether to enter, months out, so nothing here assumes either.
 //
 // See docs/architecture/principles.md#stop-and-ask
-const canonical = 'https://new.southvillerunningclub.co.uk/nn/race-day/';
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/race-day/';
 
 // **The start is not at race HQ, and that is the one fact on this page somebody most needs
 // on the morning.** The club's 2023 event profile carried it exactly once, as a `goo.gl`
@@ -215,20 +215,23 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
       /* The same call to action as the other two content pages — see the note on
     course.astro for why it is not on `/nn/`. */
     }
+    {
+      /* **It points at this year's page rather than at the interest form**, and it no longer
+      says entries are shut. Whether they are is decided by a row and read at serve time; a
+      static page cannot know it, and the sentence that used to be here becomes false the
+      morning entries open — silently, on a page somebody is reading to decide whether to
+      enter. The year page answers the question properly, in whichever state it is in. */
+    }
     <section class="nn-panel">
-      <h2>Want fair warning?</h2>
-      <p>
-        Entries are not open yet. Leave your name and the club will email you once — on
-        the day they open, and for nothing else, ever.
-      </p>
+      <h2>The 2026 race</h2>
       <p class="nn-panel-note">{race.date} · {race.startTime} · {race.distance}</p>
-      <a class="nn-cta" href="/nn/#register">Register your interest</a>
+      <a class="nn-cta" href="/nn/2026/">The date, the facts, and how to enter</a>
     </section>
 
     <footer>
       <p>
         Southville Running Club. The full list of race facts, including anything still to
-        be confirmed, is on <a href="/nn/">the race page</a>.
+        be confirmed, is on <a href="/nn/2026/">this year's race page</a>.
       </p>
       <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>

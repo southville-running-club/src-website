@@ -1,59 +1,62 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
-import NnEntryForm from '../../components/NnEntryForm.astro';
+import NnPreviousYears from '../../components/NnPreviousYears.astro';
+import NnRaceSummary from '../../components/NnRaceSummary.astro';
 import race from '../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
 // knows that this site does not. See packages/shared/styles/nn-theme.css.
 import '@src/shared/styles/nn-theme.css';
 
-// Still says nothing about the race that nobody has confirmed.
+// **The race, not one running of it — and this page never names a year.**
 //
-// **The date arrived, and it arrived as a one-line edit to `src/content/race.json` with no
-// change to this file at all.** That was the property the arrangement was built for and it
-// is worth recording that it held: `race.date` and `race.startTime` went from `null` to
-// values, and the date line, the facts list below and three new pages picked them up
-// without a line of markup moving.
+// A race is the recurring thing; an event is one running of it in one year. This page is the
+// first; `/nn/2026/` is the second. That distinction is why publishing 2027 is a row in
+// `entries.events` and a new directory of content pages, with **no edit to this file at all**.
 //
-// What is still `null` is still genuinely undecided rather than merely unwritten. `price` and
-// `entriesOpen` stay `null` here for a different reason from the rest: **they are the
-// database's**. The fees live in `entries.fees.price_pence` and the window in
-// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
-// file is how two numbers start disagreeing. The opening time nobody has decided, and the
-// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
-// trigger, not a placeholder.
+// **Every link from here to a year page is painted by the Worker**, from
+// `entries.current_entry_state('nn')`. There is no `href="/nn/2026/"` anywhere below, and
+// there must never be one: it would be the line somebody forgot in 2027, and it would be
+// wrong quietly rather than loudly. See `worker/nn-entry.ts`'s `renderNnRaceView`.
+//
+// ## Which of `race.json`'s keys this page may use, and why the split is not in that file yet
+//
+// `race.json` describes **the 2026 running**, and it always has: the date, the start time,
+// race HQ, the entry fee, the entry window and the ARC permit are all facts about one running
+// of this race. **None of them appears on this page any more.** What is left is what is true
+// of the race itself — its name, its distance, its field size, and the address to write to.
+//
+// **The file is not split, and that is deliberate rather than unfinished.** Separating it into
+// a race file and a year file is a content change of its own, with its own review, and doing
+// it inside a route reorganisation would put two unrelated diffs in one commit. Until then the
+// rule is this comment plus the tests: `site.spec.ts` asserts the date and race HQ are on the
+// year page and **not** here.
+//
+// **This page states no date, and that is the one thing somebody may notice is missing.** It
+// cannot use `race.json`'s, because that is 2026's; it could be painted from `entry_state()`,
+// which returns the event date — but rendering "Sunday 1 November 2026" from a `CivilDate`
+// means a second date formatter in a repository whose whole timezone discipline is that there
+// is exactly one. The date is one tap away, on the running the block below links to, and that
+// is the cheaper side of the trade. **Recorded as a gap rather than a decision to leave
+// closed** — see ADR-011.
 //
 // See docs/architecture/principles.md#stop-and-ask
 
 // One address, and it is a path rather than a subdomain — so at the Squarespace cutover
 // the hostname changes and this page does not move.
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
-
-// An absent fact is stated as absent. A blank cell reads as an oversight and an invented
-// value reads as a promise; "To be confirmed" is the only honest third option, and it is
-// what somebody deciding whether to come back next week actually needs to know.
-const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
-
-// **The one sentence about when this race happens.**
-//
-// It is now `race.date` — Sunday 1 November 2026, settled by the club's published campaign
-// artwork and confirmed by the maintainer. The fallback stays because it costs one `??` and
-// it is the honest thing to render if a future edit ever empties the field again: a blank
-// date line reads as a page that failed to load, and the qualifier belongs welded to the
-// claim rather than styled smaller beside it.
-//
-// **The start time joins it now that both are confirmed**, which is what the campaign
-// artwork does and what somebody actually wants from one line. It is composed rather than
-// stored as a third field, so there is still exactly one place a date lives.
-const dateLine = race.date
-  ? `${race.date}${race.startTime ? ` · ${race.startTime}` : ''}`
-  : 'Halloween weekend 2026 — exact date to be confirmed';
 ---
 
+{
+  /* **The title names the race and not what the page currently offers.** It read
+  "— register your interest", which is one of the two states this page has and became wrong
+  the moment the other one was possible. A title is also what a bookmark and a search result
+  are called, and both outlive a window. */
+}
 <Base
-  title="Nightingale Nightmare — register your interest"
-  description="Register your interest in Nightingale Nightmare and the club will email you once, when entries open."
+  title="Nightingale Nightmare"
+  description="Nightingale Nightmare — a tough off-road 10 km in fancy dress, put on by Southville Running Club."
   canonical={canonical}
   theme="nn"
 >
@@ -71,8 +74,6 @@ const dateLine = race.date
       <p class="nn-presents">presents…</p>
 
       <h1>{race.name}</h1>
-
-      <p class="nn-dateline">{dateLine}</p>
 
       {
         /* **The three answers somebody wants before they read a sentence.** A real list,
@@ -92,308 +93,162 @@ const dateLine = race.date
         <li>Fancy dress encouraged</li>
       </ul>
 
-      <p class="lede">
-        The club is putting on this race again. The date is settled and the course has not
-        got any kinder — what is not settled is what it costs and when entries open. Leave
-        your name and the club will email you once, when they do.
-      </p>
+      {
+        /* **The lede lost one clause and it was the year-specific one.** It used to say "the
+        date is settled", which is a statement about 2026 on a page about the race. That
+        sentence is on the year page now, where it is true of the thing being described. */
+      }
+      {
+        /* **The lede lost its second sentence with the button above.** "Leave your name and
+        the club will email you once" was an instruction about a form on this page, and the
+        form is on the running now. What is left is true of the race whichever year it is run,
+        which is all this page is for. */
+      }
+      <p class="lede">The course has not got any kinder.</p>
 
       {
-        /* **The loud button is the one this site can actually honour.** The mockup's is
-        "Enter the race — from £15", which is a price nobody has confirmed attached to a
-        payment flow that does not exist. Registering interest is the whole of what this
-        page does, so it is the whole of what the primary control offers. */
+        /* **No button in this hero, and that is the form move's tidiest consequence.**
+
+        It used to be "Register your interest", pointing at `#register` — a form that is no
+        longer on this page. An anchor to nothing is worse than no anchor: it looks like a
+        control, it is reached by keyboard, and pressing it does nothing at all.
+
+        What replaced it is two things that were already there and are both better placed: the
+        navigation's button, which is painted with what the window actually allows and sits at
+        the top of every page, and the panel below, which is the same action with the date
+        attached. A third copy in between was the one furthest from anything it was about. */
       }
-      {
-        /* **The button says the one thing this page can honour today**, and the Worker
-        changes it to "Enter the race" on the day `entries.events.entries_open_at` says
-        entries are open. That is one row edit and no deploy, which is the property the
-        event table exists for — and it is why the label and the target are painted on
-        rather than written in. */
-      }
-      <div class="nn-herobtns">
-        <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
-        <a class="nn-ghost" href="/nn/race-day/">Race-day plan</a>
-      </div>
     </div>
   </header>
 
   <div class="nn-wrap">
-    <h2>The race</h2>
-
-    <p>
-      Everything here is confirmed by the committee before it appears. Anything still
-      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
-    </p>
-
-    <dl class="status">
-      <dt>Date</dt>
-      <dd>{orTbc(race.date)}</dd>
-
-      <dt>Start time</dt>
-      <dd>{orTbc(race.startTime)}</dd>
-
-      <dt>Distance</dt>
-      <dd>{orTbc(race.distance)}</dd>
-
-      <dt>Race HQ</dt>
-      <dd>{orTbc(race.location)}</dd>
-
-      {
-        /* **The field size, not how much of it is left** — see the note on the hero row.
-        250 is how big the race is, and it does not change during the week somebody is
-        deciding whether to come. */
-      }
-      <dt>Field size</dt>
-      <dd>{race.places} places</dd>
-
-      <dt>Entry fee</dt>
-      <dd>{orTbc(race.price)}</dd>
-
-      <dt>Entries open</dt>
-      <dd>{orTbc(race.entriesOpen)}</dd>
-
-      {
-        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
-        on record and it belongs to the 2023 race; putting it here would be a claim that
-        this year's race is permitted, which is a different sort of wrong from a typo. */
-      }
-      <dt>ARC permit</dt>
-      <dd>{orTbc(race.permit)}</dd>
-    </dl>
-
     {
-      /* **A summary that ends in a link, not a second copy of the course page.** Four
-      things somebody should know before they leave their name, and then the page that
-      says the rest. The mockup has a fifth line here — "Minimum age 18 on race day" —
-      which is inferred from the prize categories rather than stated as a rule anywhere,
-      and is still an open decision. It is not here, and it is not softened into "18+
-      probably" either. */
+      /* **The race-facts list moved to the year page in one piece.** Every row in it — the
+      date, the start time, race HQ, the entry fee, when entries open, the ARC permit — is a
+      fact about *one running*, and half of them are `null` for 2026 specifically. A page about
+      the race would have been listing next year's unknowns as this year's.
+
+      What is left of it here is the row of three in the hero: the distance, the field size and
+      fancy dress, which are what this race is however it is run. */
+    }
+    {
+      /* **A summary that ends in a link, not a second copy of the course page.** Four things
+      somebody should know before they leave their name — and the same four somebody should
+      know before they enter, which is why they are one component rather than two copies. See
+      `NnRaceSummary.astro`.
+
+      The mockup has a fifth line here — "Minimum age 18 on race day" — which is inferred from
+      the prize categories rather than stated as a rule anywhere. It is not here, and it is not
+      softened into "18+ probably" either. */
     }
     <div class="nn-card nn-prose">
       <h2>Know what you are in for</h2>
 
-      <ul class="nn-arrows">
-        <li>
-          A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
-          <strong>Trail shoes recommended</strong>, road shoes acceptable.
-        </li>
-        <li><strong>No headphones of any type during the race.</strong></li>
-        <li>
-          One water station on the route, one at the finish, and marshals throughout.
-        </li>
-        <li>
-          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
-          together at 10:30, so there is nothing to find on your own.
-        </li>
-      </ul>
+      <NnRaceSummary />
 
       <p>
-        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
-        <a href="/nn/race-day/">the whole running order for the day</a>.
+        <a href="/nn/course/">The course and terrain, in full</a>.
       </p>
     </div>
 
     {
       /* ------------------------------------------------------------------------------
-       * The two states of this page, and which one somebody gets
+       * The year panel — when is it, and can I enter
        * ------------------------------------------------------------------------------
-       * **Both are in the HTML; the Worker reveals one.** Which one is decided by
-       * `entries.events.entries_open_at` and `entries_close_at`, read at request time
-       * through `entries.entry_state()` — so entries open when the committee says they do,
-       * by a row edit, not by somebody being available to deploy at seven in the morning.
+       * **A panel, not a link.** This is the front door's answer to the two questions
+       * somebody arriving from a shared link actually has, in the order they have them: the
+       * date first and largest, then whether they can enter yet.
        *
-       * **The interest form ships visible and the entry form ships hidden**, which is the
-       * safe default rather than an arbitrary one. If the Worker cannot reach the database
-       * at all, this page falls back to the form that was already here and that takes no
-       * money — a page that cannot tell whether entries are open must not offer to take an
-       * entry. See `worker/nn-entry.ts`.
+       * **Ships hidden and empty; the Worker fills it in** from
+       * `entries.current_entry_state('nn')`, so 2027 is a row in `entries.events` rather than
+       * an edit to this file. There is no `href="/nn/2026/"` anywhere below and there must
+       * never be one — see the note at the head of this file.
+       *
+       * **A database this Worker cannot reach paints nothing**, so the panel stays hidden and
+       * the page is the summary card and the interest form. One fewer door in the front door,
+       * which is the right side of that trade against a link to a year nobody confirmed.
+       *
+       * ## Two states, one shape
+       *
+       * The layout does not move when entries open, so nobody has to relearn the page at the
+       * one moment they are trying to do something. Only two things change: the action goes
+       * from a quiet outline to the filled button every other primary control on this site
+       * uses, and the fee line appears under it. **The difference in prominence is the
+       * message** — there is deliberately no badge and no banner saying "open", because the
+       * button already says it and a page that said it twice would be shouting.
        * ------------------------------------------------------------------------------ */
     }
 
-    <div data-nn-interest>
-      <h2 id="register">Register your interest</h2>
+    <section
+      class="nn-card nn-panel-year"
+      data-nn-panel
+      hidden
+      aria-labelledby="next-race"
+    >
+      <p class="nn-panel-label" id="next-race">The next race</p>
 
       {
-        /* The acknowledgement, the failure notice and the error summary are all served hidden
-      and revealed by the Worker — see worker/nn-signup.ts. Doing it this way means there is
-      exactly one copy of this page, in dist/, and the Worker paints an outcome onto it
-      rather than holding a second template that can drift from this one.
+        /* **The biggest thing in the panel, at 24px.** Somebody arriving from a shared link
+        asks "when is it" first, and everything else here is smaller than this on purpose.
 
-      Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it.
-      That is how focus moves **with JavaScript disabled**, which is the primary path here
-      rather than a fallback.
-
-      All three are white cards in the event theme, because all three are read rather than
-      glanced at, and none of them lets colour carry the meaning: each says in words what it
-      is. */
+        Painted rather than read from `race.json`: that file's date belongs to the 2026
+        running, and this page is about the race. The value comes through `packages/shared`'s
+        one date formatter — see `formatEventDate`. */
       }
+      <p class="nn-panel-date" data-nn-panel-date></p>
 
-      <div
-        class="notice notice-ok nn-card"
-        data-signup-ack
-        hidden
-        tabindex="-1"
-        role="status"
-      >
-        {
-          /* The mockup's confirmation tick. Decorative, and hidden from assistive technology
-        deliberately — this element is a live region, and what should be announced is the
-        sentence below, not the word "tick". */
-        }
-        <span class="nn-tick" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false"
-            ><path d="M4 12.5 10 18 20 6"></path></svg
-          >
-        </span>
-        <p><strong>Thank you — your interest is registered.</strong></p>
-        <p>
-          The club will email you once, when entries open. That is the only thing this
-          list is used for.
-        </p>
-      </div>
+      <p class="nn-panel-facts">
+        <span data-nn-panel-time></span> · {race.distance} · {race.places} places
+      </p>
 
-      <div
-        class="notice notice-bad nn-card"
-        data-signup-unavailable
-        hidden
-        tabindex="-1"
-        role="alert"
-      >
-        <p><strong>Sorry — that could not be saved just now.</strong></p>
-        <p>
-          Nothing has been recorded, and nothing you typed has been lost. Please press
-          "Register my interest" again in a moment.
-        </p>
-      </div>
-
-      <div
-        class="notice notice-bad nn-card"
-        data-signup-summary
-        hidden
-        tabindex="-1"
-        role="alert"
-      >
-        <h3>There is a problem</h3>
-        <ul class="summary-list">
-          <li data-signup-summary-item="name" hidden>
-            <a data-signup-summary-link="name" href="#signup-name"></a>
-          </li>
-          <li data-signup-summary-item="email" hidden>
-            <a data-signup-summary-link="email" href="#signup-email"></a>
-          </li>
-          <li data-signup-summary-item="consent" hidden>
-            <a data-signup-summary-link="consent" href="#signup-consent"></a>
-          </li>
-        </ul>
-      </div>
+      <hr class="nn-panel-rule" />
 
       {
-        /* **Above the form, not below it.** What happens to a name and an email address is
-      worth knowing before typing them rather than after, and somebody who wants to check
-      first should not have to scroll past the thing they are deciding about to find out. */
+        /* **One control in two weights**, not two controls with one hidden. A second button
+        revealed beside a hidden one is two things to keep in step and two places for a label
+        to go stale; the Worker swaps this one's class and its destination. */
       }
-
-      <p class="signup-privacy">
-        The club holds your name and email address, and uses them for nothing but this one
-        email. <a href="/nn/privacy/">What the club does with this</a>, including how to
-        have it removed.
+      <p class="nn-panel-actions">
+        <a class="nn-ghost" href="" data-nn-panel-action data-nn-panel-link="year">
+          The race this year
+        </a>
       </p>
 
       {
-        /* A real form, posting to a real address. No JavaScript is involved in submitting it,
-      validating it, or rendering what comes back — runners are on phones, on poor signal,
-      sometimes in bright sunlight with cold hands.
+        /* **Before entries open, and it names no month.** "Entries open in September" would be
+        a claim about a date nobody has confirmed — the entry open and close times are on this
+        repository's unconfirmed list and may not appear anywhere. What is true without
+        confirmation is that they are not open and that the club will say when they are.
 
-      `action` carries the trailing slash Astro is configured to insist on, so a submission
-      never arrives at a second address for the same page. */
+        When the committee settles the opening time, the honest home for it is
+        `entries.events.entries_open_at` — which `entry_state()` deliberately does not return
+        yet, for exactly this reason — and this line becomes painted like the date above it. */
       }
+      <p class="nn-panel-note" data-nn-panel-shut>
+        Entries are not open yet. Leave your name and the club will email you the day they
+        are.
+      </p>
 
-      <form class="signup nn-card" method="post" action="/nn/">
-        {
-          /* Which of this page's two forms arrived. Stated on both, so neither is identified
-        by the absence of something — a stale cached page with no `form` field is still read
-        as the interest form, which is the harmless direction. */
-        }
-        <input type="hidden" name="form" value="interest" />
+      {
+        /* The fee line, and it is the database's numbers or nothing. `entries.fees` is the
+        only place a price exists, and this is painted from the same read the rest of the
+        panel is. */
+      }
+      <p class="nn-panel-note" data-nn-panel-open hidden>
+        <span data-nn-panel-fees></span>
+      </p>
 
-        <div class="field">
-          <label class="field-label" for="signup-name">Your name</label>
-          <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
-          </p>
-          <input
-            class="field-input"
-            id="signup-name"
-            name="name"
-            type="text"
-            maxlength="100"
-            autocomplete="name"
-            required
-            aria-describedby="signup-name-error"
-            data-signup-value="name"
-          />
-        </div>
+      {
+        /* The rest of this year's running, inside the panel because that is what it is about.
+        Both are painted. */
+      }
+      <ul class="nn-panel-links">
+        <li><a href="" data-nn-panel-link="race-day">Race day</a></li>
+        <li><a href="" data-nn-panel-link="spectators">Watching the race</a></li>
+      </ul>
+    </section>
 
-        <div class="field">
-          <label class="field-label" for="signup-email">Email address</label>
-          <p class="field-hint" id="signup-email-hint">
-            The club will email you once, when entries open.
-          </p>
-          <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
-          </p>
-          <input
-            class="field-input"
-            id="signup-email"
-            name="email"
-            type="email"
-            maxlength="254"
-            autocomplete="email"
-            spellcheck="false"
-            required
-            aria-describedby="signup-email-hint signup-email-error"
-            data-signup-value="email"
-          />
-        </div>
-
-        <div class="field">
-          <p
-            class="field-error"
-            id="signup-consent-error"
-            data-signup-error="consent"
-            hidden
-          >
-          </p>
-          <div class="field-check">
-            {
-              /* **`required` is one half of the consent decision.** Consent is currently
-            required to submit; the other half is `z.literal(true)` in
-            packages/shared/src/nn-signup.ts. If the committee decides an unconsented
-            submission should be stored instead, remove `required` here and change that to
-            `z.boolean()`. No migration is involved — the policy's `with check` is
-            deliberately silent on consent. */
-            }
-            <input
-              class="field-checkbox"
-              id="signup-consent"
-              name="consent"
-              type="checkbox"
-              required
-              aria-describedby="signup-consent-error"
-              data-signup-value="consent"
-            />
-            <label class="field-label" for="signup-consent">
-              Yes, email me when entries open for this race.
-            </label>
-          </div>
-        </div>
-
-        <button class="button" type="submit">Register my interest</button>
-      </form>
-    </div>
-
-    <div data-nn-entry hidden>
-      <NnEntryForm />
-    </div>
+    <NnPreviousYears />
 
     {
       /* **The "What this page proves" block was here, and it is gone.**
@@ -408,13 +263,24 @@ const dateLine = race.date
        * page's reader is a runner deciding whether the club can be trusted with a card number,
        * and a page that reports its own plumbing reads as a page that is not finished.
        *
+       * **This branch had moved it to `/nn/2026/` rather than removed it**, which was the
+       * wrong half of the same instinct: a page a runner reads is not where a platform
+       * reports on itself, and the year page is read by more of them than this one. Both
+       * copies are gone; the round trips are unchanged.
+       *
        * See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
     }
 
     <footer>
+      {
+        /* **The "to be confirmed" sentence went with the facts list it was about.** There is
+        nothing above reading it any more — the rows that did are on the year page, which
+        carries the sentence. A footer explaining a marker the page does not use is the sort of
+        thing a reader trusts and then cannot find. */
+      }
       <p>
-        Southville Running Club. Anything above reading "to be confirmed" is with the
-        committee, and this page is updated when it is settled.
+        Southville Running Club. This page is about the race itself; each year's running
+        has its own, linked above.
       </p>
       <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>

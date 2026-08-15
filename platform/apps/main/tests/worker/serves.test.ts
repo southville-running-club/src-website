@@ -60,26 +60,52 @@ describe('Nightingale Nightmare', () => {
     );
   });
 
-  it('states the confirmed date, and none of what is still open', async () => {
-    // The date is confirmed — Sunday 1 November 2026 — and the entry fee, the opening date
-    // and the 2026 ARC permit number are not. Inventing one of those is a "stop and ask"
-    // trigger rather than a placeholder, which is why they are `null` in `race.json` and
-    // render as "To be confirmed" instead.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+  it('states the confirmed date on the running it belongs to, and not on the race', async () => {
+    // The date is confirmed — Sunday 1 November 2026 — and it is a fact about **one running**,
+    // so it is on the year page and not on the race page. The entry fee, the opening date and
+    // the 2026 ARC permit number are not confirmed at all; inventing one of those is a "stop
+    // and ask" trigger rather than a placeholder, which is why they are `null` in `race.json`
+    // and render as "To be confirmed" instead.
+    const year = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
+    const race = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
-    expect(page).toContain('Sunday 1 November 2026');
-    expect(page).not.toMatch(/£\s?\d/);
+    expect(year).toContain('Sunday 1 November 2026');
+    expect(race).not.toContain('Sunday 1 November 2026');
+
+    expect(year).not.toMatch(/£\s?\d/);
+    expect(race).not.toMatch(/£\s?\d/);
   });
 
-  it.each(['/nn/course/', '/nn/race-day/', '/nn/spectators/'])(
-    'serves %s from the same build',
-    async (path) => {
-      const response = await SELF.fetch(`${SITE}${path}`);
+  it.each([
+    // The race — evergreen, and none of these names a year.
+    '/nn/course/',
+    '/nn/privacy/',
+    // One running of it, and everything only true of that running.
+    '/nn/2026/',
+    '/nn/2026/race-day/',
+    '/nn/2026/spectators/',
+    '/nn/2026/entry/complete/',
+  ])('serves %s from the same build', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-type')).toContain('text/html');
-    },
-  );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+  });
+
+  it.each([
+    // **The addresses these three pages used to have, and nothing answers at them.** Nothing
+    // was ever published there — every page carries `noindex` and the only links were
+    // internal — so no redirect was added, deliberately: a redirect map is a thing somebody
+    // has to maintain and later remember to delete. A 404 is the honest answer for an
+    // address that never had a reader.
+    '/nn/race-day/',
+    '/nn/spectators/',
+    '/nn/entry/complete/',
+  ])('404s %s, the address it used to have', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
+
+    expect(response.status).toBe(404);
+  });
 
   it("keeps the event theme off the club's own pages", async () => {
     // **The theme is imported by the pages that use it, never from `Base.astro`.** That is
@@ -186,7 +212,7 @@ describe('the pages a runner sees', () => {
   // over £17 and an emergency contact on. The round trips still run; they answer at `/_health`
   // now. The failure this guards against is somebody re-adding a marker to a page because it
   // was convenient, which is how it got there the first time.
-  it.each(['/nn/', '/nn/entry/complete/', '/'])(
+  it.each(['/nn/', '/nn/2026/', '/nn/2026/entry/complete/', '/'])(
     '%s says nothing about databases, runtimes or workspaces',
     async (path) => {
       const page = await (await SELF.fetch(`${SITE}${path}`)).text();

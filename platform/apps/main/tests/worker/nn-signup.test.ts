@@ -21,7 +21,7 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
 const ALREADY_SEEDED = 'alice@example.com';
 
 function submit(fields: Record<string, string>): Promise<Response> {
-  return SELF.fetch(`${SITE}/nn/`, {
+  return SELF.fetch(`${SITE}/nn/2026/`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields),
@@ -41,7 +41,7 @@ describe('a submission that should be taken', () => {
     });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe(`${SITE}/nn/?signup=ok`);
+    expect(response.headers.get('location')).toBe(`${SITE}/nn/2026/?signup=ok`);
   });
 
   it('answers a repeated address exactly the same way, and says nothing about it', async () => {
@@ -68,7 +68,7 @@ describe('a submission that should be taken', () => {
   });
 
   it('acknowledges it on the page the redirect lands on', async () => {
-    const page = await (await SELF.fetch(`${SITE}/nn/?signup=ok`)).text();
+    const page = await (await SELF.fetch(`${SITE}/nn/2026/?signup=ok`)).text();
 
     // Revealed, and given focus — which is how focus moves with JavaScript disabled.
     expect(page).toMatch(/data-signup-ack[^>]*autofocus/);
@@ -77,7 +77,7 @@ describe('a submission that should be taken', () => {
   });
 
   it('says nothing on an ordinary visit', async () => {
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
 
     expect(page).toMatch(/data-signup-ack[^>]*hidden/);
   });
@@ -133,7 +133,7 @@ describe('a submission that should be refused', () => {
   it('rejects a body that is not a form at all', async () => {
     // A bot, or a JSON post. There is nothing to preserve and nothing to say about
     // individual fields, and it must not throw.
-    const response = await SELF.fetch(`${SITE}/nn/`, {
+    const response = await SELF.fetch(`${SITE}/nn/2026/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: 'Mallory', email: 'mallory@example.com' }),

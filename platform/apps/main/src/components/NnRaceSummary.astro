@@ -1,0 +1,43 @@
+---
+// **The four things somebody should know before they commit to this race**, in one place
+// because both pages that need them need exactly these four.
+//
+// `/nn/` shows them as *what this race is*, above the interest form. `/nn/2026/` shows them as
+// *what you are about to enter*, above the entry form. Two copies of four safety-relevant
+// bullets is two copies that drift, and the one that would drift is the one nobody re-read —
+// so there is one copy, here.
+//
+// ## What is deliberately not in it
+//
+// **A time.** The bullet used to end "everybody walks down together at 10:30", and 10:30 is a
+// row in this year's schedule rather than a property of the race. It is on
+// `/nn/<year>/race-day/`, in the schedule the committee edits, and this says the part that is
+// true whichever year it is: you do not have to find the start on your own.
+//
+// **A distance from HQ to the start.** Nobody has supplied one, and deriving it from the
+// coordinates and a guessed school entrance is exactly the plausible-looking number this
+// repository keeps out of markup. See the note in `2026/race-day.astro`.
+//
+// Every line here is the club's own 2023 copy and is **draft pending committee approval**,
+// like the rest of these pages.
+---
+
+<ul class="nn-arrows">
+  {
+    /* **`{' '}` is a real space, and it is here because a line break is not.** Prettier keeps
+    the `<strong>` on a line of its own, `compressHTML` removes the newline, and this rendered
+    "slippery when wet.Trail shoes recommended" on both pages that use this component from the
+    day it was extracted. The explicit space survives the reformat; a typed one does not. The
+    same trap is documented at the head of `nn/privacy.astro` and in CLAUDE.md. */
+  }
+  <li>
+    A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.{' '}
+    <strong>Trail shoes recommended</strong>, road shoes acceptable.
+  </li>
+  <li><strong>No headphones of any type during the race.</strong></li>
+  <li>One water station on the route, one at the finish, and marshals throughout.</li>
+  <li>
+    <strong>The start and the finish are not at race HQ.</strong> Everybody walks down together
+    beforehand, so there is nothing to find on your own.
+  </li>
+</ul>

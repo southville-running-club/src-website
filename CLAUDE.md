@@ -272,15 +272,26 @@ guard, and it runs in all three projects.
 So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
 email and no timing application code**.
 
-Nightingale Nightmare has a sign-up form at `/nn/`, a privacy notice at `/nn/privacy/`,
-three content pages at `/nn/course/`, `/nn/race-day/` and `/nn/spectators/`, and a
-column-scoped anonymous-insert policy on `intake.nn_interest`.
+**A race is the recurring thing; an event is one running of it in one year, and the routes say
+so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
+`/nn/` (the race, and the interest form), `/nn/course/`, `/nn/privacy/`. The 2026 running:
+`/nn/2026/` (the date, the facts, the entry form), `/nn/2026/race-day/`,
+`/nn/2026/spectators/`, `/nn/2026/entry/complete/`. Plus a column-scoped anonymous-insert
+policy on `intake.nn_interest`.
+
+**`/nn/` never names a year, and nothing in its markup may.** It asks
+`entries.current_entry_state('nn')` — the forthcoming running of race `nn`, else the most
+recent past one — and the Worker paints every link to a year page onto it. Publishing 2027 is a
+row in `entries.events` plus that year's content pages, with no edit to `/nn/` and none to the
+Worker. `/nn/<year>/` is the event `nn-<year>`, and `worker/routing.ts` owns that convention as
+two functions that are inverses of each other.
 
 **Entries are built here, in `apps/main`** — [ADR-009](docs/architecture/decisions/adr-009-entries-in-apps-main.md)
-retired the plan to give them a repository of their own. `/nn/` carries **two forms**: the
-entry form when `entries.events` says entries are open, and the interest form otherwise,
-decided per request rather than by a deploy. `entries.events.entries_open_at` is `null`
-today, so what production serves is the interest form.
+retired the plan to give them a repository of their own. **The two forms are on two pages**,
+and the address a submission arrives at is what tells them apart — there is no hidden `form`
+field any more. Each page carries two states and the Worker reveals one, decided per request
+rather than by a deploy. `entries.events.entries_open_at` is `null` today, so production serves
+the interest form on `/nn/` and "entries are not open yet" on `/nn/2026/`.
 
 **A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
 per-event advisory lock: re-check the window, count the places gone, price it from
@@ -306,15 +317,18 @@ five-minute cron shouts about it until a human clears the flag —
 status**: the capacity predicate counts `status = 'paid'`, and a new value would be invisible to
 it and let an oversold place be sold twice.
 
-**`/nn/entry/complete/` reports what the club has recorded, and only `paid` makes a positive
-claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
+**`/nn/<year>/entry/complete/` reports what the club has recorded, and only `paid` makes a
+positive claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
 charged", because the webhook may simply be late and somebody who believes it pays twice.
 
-**The anon role still holds no grant on any table in `entries`.** It may call six functions and
-nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()`,
-`attach_checkout_session()`, `record_checkout_event()` and `entry_completion_state()`. A seventh,
-`raise_attention()`, is granted to **nobody**. `packages/db/tests/entries.test.ts` asserts that
-exact set; if it fails, something granted a privilege to a key that is published in page source.
+**The anon role still holds no grant on any table in `entries`.** It may call seven functions
+and nothing else: `entry_state()`, `current_entry_state()`, `create_pending_purchase()`,
+`expire_pending_holds()`, `attach_checkout_session()`, `record_checkout_event()` and
+`entry_completion_state()`. An eighth, `raise_attention()`, is granted to **nobody**.
+`packages/db/tests/entries.test.ts` asserts that exact set; if it fails, something granted a
+privilege to a key that is published in page source. **Adding to that list is a decision, and
+the test is what forces it to be made in a diff** — `current_entry_state()` is the one time it
+has happened, and it discloses nothing `entry_state()` does not.
 
 **`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
 ordinary PostgREST calls with the published anon key would buy a free entry, because

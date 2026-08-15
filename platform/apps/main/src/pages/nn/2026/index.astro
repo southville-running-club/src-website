@@ -1,0 +1,450 @@
+---
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import NnEntryForm from '../../../components/NnEntryForm.astro';
+import NnRaceSummary from '../../../components/NnRaceSummary.astro';
+import race from '../../../content/race.json';
+
+// The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
+// knows that this site does not. See packages/shared/styles/nn-theme.css.
+import '@src/shared/styles/nn-theme.css';
+
+// **The 2026 running of the race, and the page that is allowed to say "2026".**
+//
+// `/nn/` is about the race and never names a year. This page is one running of it, so
+// everything only true of this year lives here: the date, the entry form, and the two content
+// pages beneath it. Publishing 2027 is a new directory beside this one plus a row in
+// `entries.events` — no edit to `/nn/`, which is the property the split exists for.
+//
+// **The event this page is about is its own address.** `/nn/2026/` is the event `nn-2026`,
+// and `worker/routing.ts` owns that one convention. Nothing in this file names a slug, and the
+// entry form posts to `Astro.url.pathname`.
+//
+// **`race.json` describes this running**, which is why every one of its year-specific keys is
+// read here and none of them on `/nn/`: the date, the start time, race HQ, the fee, the entry
+// window and the ARC permit are facts about one running of this race. The file is not yet split
+// into a race file and a year file — that is a content change with its own review, and doing it
+// inside a route reorganisation would put two unrelated diffs in one commit.
+//
+// What is still `null` in it is still genuinely undecided rather than merely `price` and `entriesOpen` stay `null` for a different reason from the rest:
+// **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
+// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
+// file is how two numbers start disagreeing. The opening time nobody has decided, and the
+// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
+// trigger, not a placeholder.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
+
+// An absent fact is stated as absent. A blank cell reads as an oversight and an invented
+// value reads as a promise; "To be confirmed" is the only honest third option, and it is
+// what somebody deciding whether to come back next week actually needs to know.
+const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
+
+// **The one sentence about when this race happens.**
+//
+// The start time joins the date now that both are confirmed, which is what the campaign
+// artwork does and what somebody actually wants from one line. It is composed rather than
+// stored as a third field, so there is still exactly one place a date lives.
+const dateLine = race.date
+  ? `${race.date}${race.startTime ? ` · ${race.startTime}` : ''}`
+  : 'Halloween weekend 2026 — exact date to be confirmed';
+---
+
+<Base
+  title="Nightingale Nightmare 2026"
+  description="The 2026 running of Nightingale Nightmare — the date, the race facts, and how to enter."
+  canonical={canonical}
+  theme="nn"
+>
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero">
+    <div class="nn-wrap">
+      {
+        /* **"presents…" opens the hero**, and the sentence it belongs to still reads the same
+        way down the page — "Southville Running Club" in the header, then "presents…", then
+        the title — which is what somebody seeing it gets and, because the header is the first
+        thing in the DOM, what somebody hearing it gets too. */
+      }
+      <p class="nn-presents">presents…</p>
+
+      <h1>{race.name} 2026</h1>
+
+      <p class="nn-dateline">{dateLine}</p>
+
+      {
+        /* **The three answers somebody wants before they read a sentence.** A real list,
+        because that is what it is, with the bullets taken off — a screen reader still says
+        "list, three items" and gets the same summary a sighted reader gets from the row.
+
+        The mockup has a fourth item here, a live "238 of 250 places remaining" bar. That is
+        demo data, and the database could answer it now — but a number that is wrong within a
+        day of anybody entering, cached at the edge and read off a poster-shaped page, is a
+        claim the club would have to keep true. How big the race is does not change, so that
+        is what this says. Somebody who tries to enter a full race is told plainly, on the
+        form, at the moment it matters. */
+      }
+      <ul class="nn-facts">
+        <li>{race.distance}</li>
+        <li>{race.places} places</li>
+        <li>Fancy dress encouraged</li>
+      </ul>
+
+      {
+        /* **The lede lost its last clause, which was a claim that goes false.** "What is not
+        settled is when entries open" is printed into a static page; the morning entries open
+        it is wrong, silently, on the page somebody is reading to decide whether to enter.
+        Whether they are open is a row read at serve time, and the forms below are what say
+        so. The same correction the three call-to-action panels needed. */
+      }
+      <p class="lede">
+        The club is putting on this race again. The date is settled and the course has not
+        got any kinder.
+      </p>
+
+      {
+        /* **The button says the one thing this page can honour today**, and the Worker
+        changes it to "Enter the race" on the day `entries.events.entries_open_at` says
+        entries are open. That is one row edit and no deploy, which is the property the
+        event table exists for — and it is why the label and the target are painted on
+        rather than written in. */
+      }
+      {
+        /* **The loud button offers the one thing this page can honour today**, which is the
+        interest form below — entries are not open, and a button that said "Enter the race"
+        while they were shut would be a promise this page cannot keep. The Worker repoints it
+        at the entry form and relabels it on the day `entries.events.entries_open_at` says
+        entries are open: one row edit and no deploy, which is the property the event table
+        exists for. */
+      }
+      <div class="nn-herobtns">
+        <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
+        <a class="nn-ghost" href="/nn/2026/race-day/">Race-day plan</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <h2>The race</h2>
+
+    <p>
+      Everything here is confirmed by the committee before it appears. Anything still
+      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
+    </p>
+
+    <dl class="status">
+      <dt>Date</dt>
+      <dd>{orTbc(race.date)}</dd>
+
+      <dt>Start time</dt>
+      <dd>{orTbc(race.startTime)}</dd>
+
+      <dt>Distance</dt>
+      <dd>{orTbc(race.distance)}</dd>
+
+      <dt>Race HQ</dt>
+      <dd>{orTbc(race.location)}</dd>
+
+      {
+        /* **The field size, not how much of it is left** — see the note on the hero row.
+        250 is how big the race is, and it does not change during the week somebody is
+        deciding whether to come. */
+      }
+      <dt>Field size</dt>
+      <dd>{race.places} places</dd>
+
+      <dt>Entry fee</dt>
+      <dd>{orTbc(race.price)}</dd>
+
+      <dt>Entries open</dt>
+      <dd>{orTbc(race.entriesOpen)}</dd>
+
+      {
+        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
+        on record and it belongs to the 2023 race; putting it here would be a claim that
+        this year's race is permitted, which is a different sort of wrong from a typo. */
+      }
+      <dt>ARC permit</dt>
+      <dd>{orTbc(race.permit)}</dd>
+    </dl>
+
+    {
+      /* **A summary that ends in a link, not a second copy of the course page.** The same four
+      things `/nn/` shows above the interest form, from the same component — read there as what
+      this race is, and here as what you are about to enter. Two copies of four safety-relevant
+      bullets is two copies that drift. See `NnRaceSummary.astro`. */
+    }
+    <div class="nn-card nn-prose">
+      <h2>Know what you are in for</h2>
+
+      <NnRaceSummary />
+
+      <p>
+        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
+        <a href="/nn/2026/race-day/">the whole running order for the day</a>.
+      </p>
+    </div>
+
+    {
+      /* ------------------------------------------------------------------------------
+       * The two states of this page, and which one somebody gets
+       * ------------------------------------------------------------------------------
+       * **Both are in the HTML; the Worker reveals one.** Which one is decided by
+       * `entries.events.entries_open_at` and `entries_close_at`, read at request time
+       * through `entries.entry_state()` — so entries open when the committee says they do,
+       * by a row edit, not by somebody being available to deploy at seven in the morning.
+       *
+       * **The "not open" notice ships visible and the entry form ships hidden**, which is the
+       * safe default rather than an arbitrary one. If the Worker cannot reach the database at
+       * all, this page says entries are not open and points at the interest form on `/nn/` —
+       * a page that cannot tell whether entries are open must not offer to take an entry.
+       * See `worker/nn-entry.ts`.
+       * ------------------------------------------------------------------------------ */
+    }
+
+    {
+      /* **No `id="enter"` here, and that is not an oversight.** `NnEntryForm.astro` carries
+      it, and two elements sharing one id is invalid HTML and an ambiguous fragment — the
+      hero's painted `#enter` would land on whichever the browser happened to find first.
+      Nothing links to this block: the hero points at the interest form while entries are
+      shut and at the form below once they are open. */
+    }
+    {
+      /* **The interest form, on the running it is an interest in.** It was on `/nn/`, which
+      was the wrong page: interest in what — the race in general, or this year's? It is this
+      year's, and this page now reads as one thing in both states. `/nn/` keeps a route to it,
+      which is the panel's button.
+
+      It ships **visible** and the entry form ships hidden, which is the safe default: a page
+      that cannot tell whether entries are open must not offer to take one. */
+    }
+    <div data-nn-interest>
+      <h2 id="register">Register your interest</h2>
+
+      {
+        /* The acknowledgement, the failure notice and the error summary are all served hidden
+      and revealed by the Worker — see worker/nn-signup.ts. Doing it this way means there is
+      exactly one copy of this page, in dist/, and the Worker paints an outcome onto it
+      rather than holding a second template that can drift from this one.
+
+      Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it.
+      That is how focus moves **with JavaScript disabled**, which is the primary path here
+      rather than a fallback.
+
+      All three are white cards in the event theme, because all three are read rather than
+      glanced at, and none of them lets colour carry the meaning: each says in words what it
+      is. */
+      }
+
+      <div
+        class="notice notice-ok nn-card"
+        data-signup-ack
+        hidden
+        tabindex="-1"
+        role="status"
+      >
+        {
+          /* The mockup's confirmation tick. Decorative, and hidden from assistive technology
+        deliberately — this element is a live region, and what should be announced is the
+        sentence below, not the word "tick". */
+        }
+        <span class="nn-tick" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false"
+            ><path d="M4 12.5 10 18 20 6"></path></svg
+          >
+        </span>
+        <p><strong>Thank you — your interest is registered.</strong></p>
+        <p>
+          The club will email you once, when entries open. That is the only thing this
+          list is used for.
+        </p>
+      </div>
+
+      <div
+        class="notice notice-bad nn-card"
+        data-signup-unavailable
+        hidden
+        tabindex="-1"
+        role="alert"
+      >
+        <p><strong>Sorry — that could not be saved just now.</strong></p>
+        <p>
+          Nothing has been recorded, and nothing you typed has been lost. Please press
+          "Register my interest" again in a moment.
+        </p>
+      </div>
+
+      <div
+        class="notice notice-bad nn-card"
+        data-signup-summary
+        hidden
+        tabindex="-1"
+        role="alert"
+      >
+        <h3>There is a problem</h3>
+        <ul class="summary-list">
+          <li data-signup-summary-item="name" hidden>
+            <a data-signup-summary-link="name" href="#signup-name"></a>
+          </li>
+          <li data-signup-summary-item="email" hidden>
+            <a data-signup-summary-link="email" href="#signup-email"></a>
+          </li>
+          <li data-signup-summary-item="consent" hidden>
+            <a data-signup-summary-link="consent" href="#signup-consent"></a>
+          </li>
+        </ul>
+      </div>
+
+      {
+        /* **Above the form, not below it.** What happens to a name and an email address is
+      worth knowing before typing them rather than after, and somebody who wants to check
+      first should not have to scroll past the thing they are deciding about to find out. */
+      }
+
+      <p class="signup-privacy">
+        The club holds your name and email address, and uses them for nothing but this one
+        email. <a href="/nn/privacy/">What the club does with this</a>, including how to
+        have it removed.
+      </p>
+
+      {
+        /* A real form, posting to a real address. No JavaScript is involved in submitting it,
+      validating it, or rendering what comes back — runners are on phones, on poor signal,
+      sometimes in bright sunlight with cold hands.
+
+      `action` carries the trailing slash Astro is configured to insist on, so a submission
+      never arrives at a second address for the same page. */
+      }
+
+      {
+        /* **The hidden `form` field is back, because the ambiguity is back.** The two forms
+        were on one page, then on two, and now they are on one again — this page, one at a
+        time. The address cannot tell them apart any more, so the body does.
+
+        **Not the window state, which would nearly work and fail at the worst moment.** The
+        Worker could infer "shut means interest"; then somebody who opened this page a minute
+        before entries opened would have their name and email read as an entry and be shown
+        fourteen validation errors. The field says what was actually submitted.
+
+        Stated on both forms, so neither is identified by the absence of something: a stale
+        cached page with no field is read as the interest form, which is the harmless side. */
+      }
+      <input type="hidden" name="form" value="interest" />
+
+      <form class="signup nn-card" method="post" action={Astro.url.pathname}>
+        <div class="field">
+          <label class="field-label" for="signup-name">Your name</label>
+          <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-name"
+            name="name"
+            type="text"
+            maxlength="100"
+            autocomplete="name"
+            required
+            aria-describedby="signup-name-error"
+            data-signup-value="name"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="signup-email">Email address</label>
+          <p class="field-hint" id="signup-email-hint">
+            The club will email you once, when entries open.
+          </p>
+          <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-email"
+            name="email"
+            type="email"
+            maxlength="254"
+            autocomplete="email"
+            spellcheck="false"
+            required
+            aria-describedby="signup-email-hint signup-email-error"
+            data-signup-value="email"
+          />
+        </div>
+
+        <div class="field">
+          <p
+            class="field-error"
+            id="signup-consent-error"
+            data-signup-error="consent"
+            hidden
+          >
+          </p>
+          <div class="field-check">
+            {
+              /* **`required` is one half of the consent decision.** Consent is currently
+            required to submit; the other half is `z.literal(true)` in
+            packages/shared/src/nn-signup.ts. If the committee decides an unconsented
+            submission should be stored instead, remove `required` here and change that to
+            `z.boolean()`. No migration is involved — the policy's `with check` is
+            deliberately silent on consent. */
+            }
+            <input
+              class="field-checkbox"
+              id="signup-consent"
+              name="consent"
+              type="checkbox"
+              required
+              aria-describedby="signup-consent-error"
+              data-signup-value="consent"
+            />
+            <label class="field-label" for="signup-consent">
+              Yes, email me when entries open for this race.
+            </label>
+          </div>
+        </div>
+
+        <button class="button" type="submit">Register my interest</button>
+      </form>
+    </div>
+
+    <div data-nn-entry hidden>
+      <NnEntryForm />
+    </div>
+
+    {
+      /* **The "What this page proves" block is gone from here too.**
+       *
+       * This branch moved it from `/nn/` to this page, on the argument that a failed
+       * submission is exactly when somebody wants to know whether the Worker can reach
+       * Postgres. `main` answered the same question better: **the check was never the
+       * problem, its audience was.** A `<dl>` of a database timestamp, a runtime and a
+       * workspace directory, directly below the form somebody hands over £17 and an
+       * emergency contact on, reads as a page that is not finished.
+       *
+       * Every round trip is still made, still by this Worker, still in the real runtime, and
+       * the smoke test still fails the deploy if either breaks. They answer at `/_health`,
+       * as JSON. See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
+    }
+
+    <footer>
+      <p>
+        Southville Running Club. Anything above reading "to be confirmed" is with the
+        committee, and this page is updated when it is settled.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+      <p>
+        <a href="/nn/privacy/">What the club does with your details</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The club's own artwork, at the foot of the page. **Empty on purpose** — it is a CSS
+    background, not an `<img>`, because it is decoration that states nothing and because an
+    image with intrinsic dimensions is briefly 1080 pixels wide before the stylesheet lands.
+    See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

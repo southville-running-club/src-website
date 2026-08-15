@@ -4,31 +4,42 @@ Static Astro plus one Worker, serving `new.southvillerunningclub.co.uk`. At the 
 cutover the hostname changes and nothing else does —
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
-A holding page saying a new site is coming, **five Nightingale Nightmare pages** — the race
-page and its two forms, three content pages, and the privacy notice both forms are required
-to have — and a timestamp fetched from Postgres by the Worker while it serves the request.
+A holding page saying a new site is coming, **seven Nightingale Nightmare pages** — the race
+and its running, told apart by path — and a timestamp fetched from Postgres by the Worker
+while it serves the request.
 
-**`/nn/` carries two forms and shows one.** The entry form when the event row says entries
-are open, the interest form otherwise; the Worker decides per request. See
-[the entry form](#the-entry-form) and
+**A race is the recurring thing; an event is one running of it in one year, and the routes
+now say so.** `/nn/` is evergreen and never names a year; `/nn/2026/` is the 2026 running and
+carries the entry form. Publishing 2027 is a row in `entries.events` plus that year's content
+pages, with **no edit to `/nn/`** —
+[ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md).
+
+**Both forms are on `/nn/2026/`, one shown at a time.** Interest in what — the race in
+general, or this year's running? It is this year's, so the interest form sits with the entry
+form on the running they are both about, and the page reads as one thing in either state. The
+event row decides which, per request. See [the entry form](#the-entry-form) and
 [ADR-009](../../../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
 ## Layout
 
 ```
 src/content/race.json          Every race fact, as data. See below
+src/components/NnNav.astro     The two-level Nightingale Nightmare navigation
+src/layouts/Base.astro         The document, and the optional `theme` prop
 src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
-src/pages/nn/index.astro       Nightingale Nightmare, the facts, and both forms
-src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
-src/pages/nn/course.astro      Course and terrain
-src/pages/nn/race-day.astro    Race day — HQ, the morning in order, prizes
-src/pages/nn/spectators.astro  Watching the race
+src/pages/nn/index.astro       The race — evergreen, the year panel, no year in it
+src/pages/nn/course.astro      Course and terrain — evergreen
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
-src/pages/nn/entry/complete.astro  Where Stripe sends somebody back to
-worker/routing.ts              Which paths belong to whom. Pure and tested
+src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
+src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
+src/pages/nn/2026/race-day.astro   Race day — HQ, the morning in order, prizes
+src/pages/nn/2026/spectators.astro Watching the race
+src/pages/nn/2026/entry/complete.astro  Where Stripe sends somebody back to
+worker/routing.ts              Which paths belong to whom, and where a year lives.
+                               Pure and tested
 worker/index.ts                Forward /timing locally, take the POSTs, fill in the
                                timestamp, and sweep lapsed holds on a cron
 worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
@@ -41,24 +52,122 @@ worker/nn-entry-complete.ts    Paint what the club has recorded onto the return 
 
 ## The routes
 
+**The race, and one running of it.** Everything above the year is true of the race whichever
+year it is run; everything below it belongs to 2026 and stays there when 2027 is published.
+
 | | |
 | --- | --- |
-| `/nn/` | The race, the facts, and **whichever of the two forms applies**. **The only one the Worker does anything to** — it decides which form to show, takes the POST here, and reveals the acknowledgement on `?signup=ok` |
-| `/nn/course/` | Course and terrain |
-| `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
-| `/nn/spectators/` | Watching the race — where to stand, where to park |
-| `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types |
-| `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
+| `/nn/` | **The race — evergreen, and it names no year.** No form posts here; a POST gets 405 from the assets binding, as `/nn/privacy/` always has. The Worker paints on which running is current, its date and its links, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
+| `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
+| `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
+| `/nn/2026/` | **The 2026 running.** The date, the facts, and **both forms** — interest before entries open, entry after. Both post here, and a hidden `form` field says which |
+| `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
+| `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
+| `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 | `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
 
-The first four carry `src/components/NnNav.astro`, which links them and marks the current
-one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
-rather than taking a prop**, because a prop is a second place to state the same thing and a
-page that passes the wrong one renders a nav that lies with no other symptom.
+**`/nn/<year>/` is the event `nn-<year>`**, and that convention is the whole of the coupling
+between a URL and a database row. It lives in `worker/routing.ts` as two functions that are
+inverses of each other, tested as such — because two halves of one convention in two places is
+where a convention drifts, and the symptom would be a Stripe return URL that 404s.
 
-`/nn/privacy/` is deliberately outside that nav: it is a legal notice reached from the form,
-it has no entry in the four, and a nav with nothing marked current is worse than no nav.
+**The old addresses 404 and no redirect was added.** `/nn/race-day/`, `/nn/spectators/` and
+`/nn/entry/complete/` existed only on this branch, only ever carried `noindex`, and were linked
+from nothing outside the repository. `tests/worker/serves.test.ts` asserts the 404s.
+
+### The navigation — one bar, five controls
+
+```
+[wordmark]   Race   Course   Race day   Spectators        [ Enter the race ]
+```
+
+`src/components/NnNav.astro` (the four links) and `src/components/NnMasthead.astro` (the
+button) — [ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md).
+
+**Identical on every page that carries it; only the current-page marker moves.** Three signals,
+never colour alone: `aria-current="page"`, a 2px rule under the label, and full brightness
+against the 0.78 the others rest at.
+
+**The year is never in the bar and never in `dist/`.** Race day, Spectators and the button ship
+`hidden` with `href=""`, and the Worker paints them from `entries.current_entry_state('nn')` on
+**every** page that renders the masthead — including `/nn/course/` and `/nn/privacy/`, which it
+previously did nothing to. That is one database round trip on those pages, resolved once per
+request and shared. `tests/unit/nn-nav.test.ts` greps the components for a hand-typed year,
+because a Worker test only ever sees the painted result.
+
+**The button's label is the entry window's**, because "Enter" on a button that does not let you
+enter is a small dishonesty on a site that is about to ask for money:
+
+| Window | Long | Short (320px) |
+| --- | --- | --- |
+| `open` | Enter the race | Enter |
+| `pre_open` | Register interest | Interest |
+| `closed` | Race details | Details |
+
+Each short label is a substring of its long one and the `aria-label` carries the long one at
+both widths — WCAG 2.5.3.
+
+**At 320px it is two rows**: wordmark and button, then the four links. 109px, against **207px**
+when it was sticky and two-rowed. No hamburger, no dropdown, no script.
+
+**It is not sticky**, and the full account of the three defects that bought — plus the
+before/after keyboard-sweep numbers — is at the head of the masthead section in
+`packages/shared/styles/nn-theme.css` and in ADR-012.
+
+`/nn/privacy/` is deliberately not one of the five: it is a legal notice reached from the
+forms, and it is the one page in the bar that carries no marker.
+
+### The year panel, on the front door
+
+Below the hero on `/nn/`, and it is the answer to the two questions somebody arriving from a
+shared link actually has, in the order they have them:
+
+```
+                    THE NEXT RACE
+                  1 November 2026            ← 24px, the biggest thing in it
+        11:00 · 10 km, off-road · 250 places
+        ────────────────────────────────────
+                [ The 2026 race ]            ← outline while entries are shut
+     Entries are not open yet. Leave your…      filled, "Enter the race", once open
+              Race day · Watching the race
+```
+
+**Two states, one shape.** The layout does not move when entries open — only the action's
+weight changes and the fee line appears. **The difference in prominence is the message**: there
+is deliberately no badge and no banner saying "open", because the button already says it and a
+page that said it twice would be shouting.
+
+**Everything year-specific in it is painted**, from the same `entries.current_entry_state('nn')`
+read the navigation uses. The date comes through `packages/shared`'s one date formatter — see
+[the race-facts note](#which-of-its-keys-belong-to-the-race-and-which-to-one-running) for why
+`race.json`'s date cannot be used here — and the fee line comes from `entries.fees`, dearest
+first, **with a free place left out**: "Free" beside two prices reads as an offer anybody can
+take, and a guide's place is not.
+
+**It names no month for when entries open**, and that is deliberate: the entry open and close
+times are unconfirmed and may not appear anywhere. When the committee settles the opening time,
+the honest home for it is `entries.events.entries_open_at` — which `entry_state()` does not
+return yet, for exactly that reason.
+
+### Previous years, and why it never appears
+
+A quiet row of pills beneath the panel, for runnings that have already happened. **It renders
+nothing at all today** — no heading, no container, no empty list — because there is one running
+of this race and it is the current one.
+
+**The row is built and the data source is not.** `NnRunning.previous` is always `[]`:
+`entries.current_entry_state()` answers for one running, and listing the rest needs a second
+read of `entries.events`, which means another function in that schema. Adding one was outside
+the slice that built this. Everything on this side of that call is finished and tested in both
+directions — `tests/worker/nn-panel.test.ts` drives the paint against a fabricated list, because
+proving it against real data would mean seeding a running that has already happened, and a past
+running has nowhere to point until there are results.
+
+Four slots, because the pills are markup rather than generated — assembling them from data
+would need `setInnerContent(..., { html: true })`, and there is deliberately no such call
+anywhere in this repository to audit. A fifth is one more `<a>` and a deploy, which is the same
+trade the three fee cards make.
 
 ## The banner
 
@@ -116,6 +225,31 @@ a schedule row, a prize category. The committee edits one file.
 line, the facts list and three content pages all picked it up without a line of markup
 moving.
 
+### Which of its keys belong to the race, and which to one running
+
+**The file describes the 2026 running, and it always has.** Since the routes split, that
+matters: `/nn/` and `/nn/course/` are about the race and may read only the keys that are true
+of it whichever year it is run.
+
+| | |
+| --- | --- |
+| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/` |
+| **One running's** | `date`, `startTime`, `location`, `price`, `entriesOpen`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
+
+**The file is not split in two, and that is deliberate rather than unfinished.** Separating it
+into a race file and a year file is a content change with its own review, and doing it inside a
+route reorganisation would put two unrelated diffs in one commit. Until then the rule is the
+table above plus the tests: `site.spec.ts` asserts the date and race HQ appear on the year page
+and **not** on `/nn/`, and `serves.test.ts` asserts the same about the date in the built HTML.
+
+**`/nn/` therefore states no date**, which is the one thing a reader may notice is missing. It
+cannot use this file's, because that is 2026's; it could be painted from `entry_state()`, which
+returns the event date — but rendering "Sunday 1 November 2026" from a `CivilDate` means a
+second date formatter in a repository whose whole timezone discipline is that there is exactly
+one. The date is one tap away, on the running `/nn/` links to. Recorded as a gap in
+[ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) rather than
+as a decision to leave closed.
+
 **A `null` is a fact nobody has confirmed, and it renders as "To be confirmed"** rather than
 as a blank or an invention. Three still are, and each for a different reason:
 
@@ -148,6 +282,22 @@ guard that caught it.
 cards as they scroll in. Both stop under `prefers-reduced-motion`; neither changes opacity,
 so no text is ever at a contrast ratio nobody computed; and the rise is kept off the form
 and the notices, because a moving box under a pointer is a click waiting to miss.
+
+## The two forms, and which one arrived
+
+**Both are on `/nn/2026/`**, one revealed at a time by the event row. That address cannot tell
+them apart, so a hidden `form` field does — `interest` or `entry`, stated on **both** so that
+neither is identified by the absence of something. A stale cached page with no field is read as
+the interest form, which is the harmless side: it takes no money.
+
+**Not the entry window, which would nearly work and fail at the worst moment.** The Worker
+could infer "open means entry"; then somebody who opened the page a minute before entries
+opened would have their name and email address read as an entry and be shown fourteen
+validation errors about fields they were never asked for. What was submitted is a fact about
+the submission, so it travels with it.
+
+The field existed, was removed when the two forms briefly lived on two pages, and is back with
+the ambiguity that needs it.
 
 ## The sign-up form
 
@@ -209,17 +359,28 @@ No payment, no accounts, no admin surface, no confirmation email to the submitte
 
 ## The entry form
 
-**`/nn/` carries two forms and reveals one.** Which one is decided by `entries.events` —
-`entries_open_at` and `entries_close_at` — read through `entries.entry_state()` on every
-request. **Opening entries is a row edit, not a deploy**, which is the whole point of the
-event table: nobody has to be free to push a commit at seven in the morning.
+**It is on `/nn/2026/`, and it posts to the page it is on.** That address is the whole of what
+tells the Worker which running an entry is for — there is no hidden event field and there
+should not be one, because a slug in a body is a slug somebody can change.
+
+**Each of the two pages carries two states and reveals one.** Which one is decided by
+`entries.events` — `entries_open_at` and `entries_close_at` — read through
+`entries.entry_state()` on every request. **Opening entries is a row edit, not a deploy**,
+which is the whole point of the event table: nobody has to be free to push a commit at seven
+in the morning.
+
+| | Entries shut | Entries open |
+| --- | --- | --- |
+| `/nn/` | The year panel, with a quiet outlined action | The same panel, the action filled and a fee line under it |
+| `/nn/2026/` | The interest form | The entry form |
 
 `entries_open_at` is `null` today, because the opening time has not been decided. That reads
-as `pre_open`, and `pre_open` shows the interest form — the page that was already here.
+as `pre_open`, which is the left-hand column.
 
-**Every failure resolves to the interest form.** Migration not landed, database unreachable,
-function returning a shape that does not parse: all of them show the form that takes no
-money. A page that cannot tell whether entries are open must not offer to take one, and that
+**Every failure resolves to the left-hand column.** Migration not landed, database
+unreachable, function returning a shape that does not parse: all of them show the state that
+takes no money and makes no claim. A page that cannot tell whether entries are open must not
+offer to take one, and that
 matters more once a card payment is on the end of it.
 
 ### What happens to a good entry
@@ -399,7 +560,7 @@ put anybody on a list that does not exist.
 | **One page, not a wizard** | A multi-step flow needs JavaScript or server-held state. This site has neither by design |
 | **Six `<fieldset>`s** | Your details, about you, entry type, emergency contact, medical information, agreements |
 | **Date of birth is three number boxes** | Not a date picker. A picker opens on this month and asks somebody to page back forty years on a phone |
-| **The England Athletics box is always in the DOM** | Inside the affiliated card. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
+| **The England Athletics box is always in the DOM** | A plain field after all three cards, not inside one. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
 | **Medical information has its own consent** | Special category data under UK GDPR Article 9, its own table, and a shorter retention. Never bundled with the entry terms |
 | **Prices are painted on** | Nothing in `dist/` knows a number. `entries.fees.price_pence` is the only place a price exists, and `tests/worker/nn-entry.test.ts` asserts the page carries no `£` at all while entries are shut |
 
@@ -569,7 +730,8 @@ could legitimately want. That is asserted, not assumed.
 | Local | | |
 | --- | --- | --- |
 | http://localhost:8787/ | the holding page | this Worker |
-| http://localhost:8787/nn/ | Nightingale Nightmare | this Worker |
+| http://localhost:8787/nn/ | Nightingale Nightmare, the race | this Worker |
+| http://localhost:8787/nn/2026/ | the 2026 running, and the entry form | this Worker |
 | http://localhost:8787/timing | race timing | forwarded to :8788 |
 | http://localhost:8787/membership/ | **404** | nothing built yet |
 
@@ -584,8 +746,8 @@ npm run test:worker  # Workers runtime tests. Needs dist/ — build first
 
 ### Seeing the entry form on a laptop
 
-`/nn/` shows the interest form until the event row says otherwise, which is what production
-does. To see the entry form, open the window:
+`/nn/2026/` says entries are not open until the event row says otherwise, which is what
+production does. To see the entry form, open the window:
 
 ```bash
 npm run entries:open  --workspace=packages/db   # entries open, from a day ago
