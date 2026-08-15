@@ -16,6 +16,16 @@
   --colour-accent: #16543f;
   --colour-rule: #d8d8d4;
 
+  /* The banner band, and **its own text and link colours rather than the page's**.
+     `body.theme-nn` restates `--colour-text` and `--colour-accent` in campaign colours —
+     both become bone, `#fff6ec` — so a banner drawn with them would be 1.04:1 on this
+     band and invisible on all five Nightingale Nightmare pages. The theme does not touch
+     these three, so the bar looks the same everywhere, which is what a statement about the
+     whole site should do. Measured: 15.62:1 and 7.94:1. */
+  --colour-banner: #eef4f1;
+  --colour-banner-text: #1a1a1a;
+  --colour-banner-link: #16543f;
+
   /* 7.3:1 against the page background. Used for error text and error rules only, and
      never as the sole carrier of the meaning — see the form section at the foot. */
   --colour-error: #a4231a;
@@ -36,6 +46,10 @@
     --colour-muted: #a9a9b0;
     --colour-accent: #6fd3a8;
     --colour-rule: #33333a;
+    /* Measured: 13.22:1 for the text, 8.15:1 for the link. */
+    --colour-banner: #1f2a26;
+    --colour-banner-text: #f2f2f0;
+    --colour-banner-link: #6fd3a8;
 
     /* 10.6:1 against the dark page background. A red dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */
@@ -53,7 +67,10 @@
 
 body {
   margin: 0;
-  padding: calc(var(--space) * 2) var(--space);
+  /* No padding here, so the banner below can run edge to edge. Everything that used to
+     rely on it now carries its own — see `main` and `.site-banner > p`, which pad to the
+     same rhythm and align with each other. */
+  padding: 0;
   background: var(--colour-background);
   color: var(--colour-text);
   font-family: var(--font-body);
@@ -64,8 +81,11 @@ body {
 }
 
 main {
-  max-width: var(--measure);
+  /* The measure is the *text* width, so the padding is added to it rather than taken out
+     of it. Getting this wrong narrows every page by 2rem and reads as a font bug. */
+  max-width: calc(var(--measure) + var(--space) * 2);
   margin-inline: auto;
+  padding: calc(var(--space) * 2) var(--space);
 }
 
 h1 {
@@ -101,7 +121,60 @@ a {
 .skip-link:focus {
   position: static;
   display: inline-block;
-  margin-bottom: var(--space);
+  /* Its own margin, because the body no longer has padding to lend it one. */
+  margin: var(--space);
+}
+
+/*
+ * The banner that says which site this is.
+ *
+ * Full width deliberately — it is the first thing on the page and it has to read as a
+ * statement about the whole site rather than as a note at the top of one page. The bar
+ * runs edge to edge; the words inside it line up with the page's text.
+ *
+ * It is a `div` rather than a `header`, so it is not a second `banner` landmark competing
+ * with the Nightingale Nightmare masthead. See the note in `Base.astro`.
+ */
+.site-banner {
+  background: var(--colour-banner);
+  color: var(--colour-banner-text);
+  /* Its own rule colour too: `--colour-rule` is translucent bone under the event theme,
+     which on this pale band is a border nobody can see. */
+  border-bottom: 1px solid #d8d8d4;
+}
+
+.site-banner > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  /* Aligned with `main`, and padded the same, so the two edges agree. */
+  max-width: calc(var(--measure) + var(--space) * 2);
+  margin: 0 auto;
+  padding: calc(var(--space) * 0.75) var(--space);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+/*
+ * At 320px the link drops below the sentence rather than pushing the page sideways.
+ *
+ * **`> p > a` rather than the plain descendant, and the extra two elements are the point.**
+ * `nn-theme.css` carries `.theme-nn a { color: var(--nn-bone) }`, which is (0,1,1) — exactly
+ * what `.site-banner a` would be. A tie is broken by source order, the theme is imported
+ * after this file, and the bar's link came out bone-on-bone at **1.04:1** on all five
+ * Nightingale Nightmare pages. This selector is (0,1,2) and wins outright rather than by
+ * luck. Whichever stylesheet loads first must not decide whether a link is readable.
+ */
+.site-banner > p > a {
+  color: var(--colour-banner-link);
+  font-weight: 600;
+}
+
+/* The focus ring, for the same reason and with the same specificity: the event theme's ring
+   is the campaign yellow, which on this pale band is a ring nobody can see. */
+.site-banner > p > a:focus-visible {
+  outline-color: var(--colour-banner-link);
 }
 
 .lede {

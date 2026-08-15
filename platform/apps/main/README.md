@@ -18,7 +18,7 @@ are open, the interest form otherwise; the Worker decides per request. See
 ```
 src/content/race.json          Every race fact, as data. See below
 src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
-src/layouts/Base.astro         The document, and the optional `theme` prop
+src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
 src/pages/nn/index.astro       Nightingale Nightmare, the facts, and both forms
@@ -59,6 +59,51 @@ page that passes the wrong one renders a nav that lies with no other symptom.
 
 `/nn/privacy/` is deliberately outside that nav: it is a legal notice reached from the form,
 it has no entry in the four, and a nav with nothing marked current is worse than no nav.
+
+## The banner
+
+Every page here opens with a bar that welcomes the visitor, says what is on this site, and
+links to `southvillerunningclub.co.uk`. It is in the layout rather than on a page because it
+is a statement about the whole site, and because **`/nn/` needs it more than the home page
+does** — somebody arriving there from a shared link has no other route to the club.
+
+Three parts, each earning its place:
+
+- **The welcome.** It is the club's site, not a staging server somebody stumbled into.
+- **What is here** — only the race. Somebody who came for session times or membership must
+  be sent onward rather than left concluding the club's information has disappeared.
+- **The link, which names the club's own domain.** Following a link to an unfamiliar address
+  is the shape of the thing everybody is warned about, and half-recognising
+  `southvillerunningclub.co.uk` in the link text is what answers it. It also means the link
+  says where it goes when a screen reader reads it out of context, which "click here" never
+  does.
+
+**Keep it to those three.** A page explaining how domain names work is for somebody who
+already knows what a domain name is; the people this is for are on a phone, in a hurry,
+wondering whether a link is safe.
+
+**It says "Nightingale Nightmare" and no longer mentions the timing app.** `/timing` is a
+holding page that says it is not open yet, so listing it as something the club *has* would
+send somebody to a page whose whole message is that there is nothing there.
+
+**It is a `div`, not a `header`, and that is load-bearing.** A `<header>` outside `<main>` is
+the `banner` landmark, which is what `NnMasthead` already is on five pages. A second one
+would be an axe `landmark-no-duplicate-banner` violation and a screen reader offering
+"banner" twice.
+
+Each part is its own element rather than one sentence with tags inside it, because **Astro
+compresses the newline between a tag and the text after it to nothing** — the mixed form
+renders as `…soon.For everything else…` and reads as a typo. The parts are flex items; the
+gap does the spacing, and lets each drop onto its own line on a phone.
+
+**The page's padding lives on `main` because of this bar.** It used to be on `body`, which
+would have inset the banner from both edges. `.theme-nn main` therefore sets `padding: 0`,
+or every Nightingale Nightmare page would gain a gutter its full-bleed hero is built not to
+have.
+
+The banner comes down at the cutover, when its middle sentence stops being true. The
+[Squarespace side of the same signpost](../../../docs/delivery/runbooks/squarespace-signposting.md)
+points the other way and is done by hand, because Squarespace has no API for it.
 
 ## Where race facts live
 

@@ -47,6 +47,14 @@ interface Props {
  * true because neither fills this slot.
  */
 
+// The club website as it stands today. Everything that is not `/nn` or `/timing` is still
+// there, and until the cutover it is the answer to almost every question a visitor has.
+//
+// This is a whole-site statement, so it lives in the layout rather than on a page. `/nn`
+// needs it more than the home page does: somebody arriving there from a shared link has
+// no other route to the club.
+const CLUB_WEBSITE = 'https://southvillerunningclub.co.uk';
+
 const { title, description, canonical, theme } = Astro.props;
 ---
 
@@ -64,6 +72,53 @@ const { title, description, canonical, theme } = Astro.props;
   </head>
   <body class={theme ? `theme-${theme}` : undefined}>
     <a class="skip-link" href="#main">Skip to content</a>
+
+    {
+      /* **A `div`, and not a `header`, which is the one thing about this element that is
+      not obvious.**
+
+      A `<header>` outside `main` maps to the `banner` landmark — which is exactly why
+      `NnMasthead` is one, and why the note above is careful that there is only ever one on
+      a page. This bar sits above that masthead on all five Nightingale Nightmare pages, so
+      making it a second `<header>` would put two competing `banner` landmarks on every one
+      of them: an axe `landmark-no-duplicate-banner` violation, and a screen reader offering
+      "banner" twice with no way to tell which is which.
+
+      It loses nothing by being a `div`. It is one sentence and a link, met first in reading
+      order and first by the keyboard, which is what it is for. */
+    }
+    <div class="site-banner">
+      <p>
+        {
+          /* Three parts, each its own element rather than one sentence with tags inside
+            it. Astro compresses the newline between a tag and the text after it to
+            *nothing*, so the mixed form silently renders as "…soon.For everything else…".
+            These are flex items and the gap does the spacing, which is also what lets
+            each part drop onto its own line on a phone. */
+        }
+        <strong>Welcome to Southville Running Club's new website.</strong>
+        {
+          /* **It used to name the race timing app here too**, and that stopped being true
+            when `/timing` became an honest holding page that says it is not open yet. A
+            banner listing it as something the club "has" would send somebody to a page
+            whose whole message is that there is nothing there — the same over-promise the
+            home page's link to it used to make. The race is what this site has. */
+        }
+        <span>
+          We just have Nightingale Nightmare for now — the rest of the club's website is
+          still on the old site.
+        </span>
+        {
+          /* Short deliberately: with the hostname spelled out this wrapped to two lines on
+            a 320px phone and the banner ate a third of the first screen. The wording still
+            says where it goes when a screen reader reads it out of a link list, which
+            "click here" never does — and the club's domain is visible in the address bar
+            of the site it lands on, which is the only place it can be trusted anyway. */
+        }
+        <a href={CLUB_WEBSITE}>For everything else, please see the old site</a>
+      </p>
+    </div>
+
     <slot name="masthead" />
     <main id="main">
       <slot />

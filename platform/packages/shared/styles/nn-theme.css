@@ -375,6 +375,13 @@ body.theme-nn {
 .theme-nn main {
   max-width: none;
   margin-inline: 0;
+  /* **And no padding, which is the half that is easy to miss.** The site banner needed the
+     page's padding off `body` and onto `main`, so `main` now carries 2rem/1rem by default.
+     Inherited here that would inset the hero, the artwork strip and every full-bleed
+     section by a gutter they are built not to have — visible as a band of page background
+     down both edges of a poster that is supposed to reach them. `body.theme-nn` already
+     sets `padding: 0` for the same reason; this is the same decision one element down. */
+  padding: 0;
 }
 
 .theme-nn .nn-wrap {

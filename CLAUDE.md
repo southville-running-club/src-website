@@ -79,7 +79,7 @@ Use `./dev`, or `cd platform` first.
 ```bash
 ./dev up      # rebuild the database, then the whole site on http://localhost:8787
               # --keep-data skips the rebuild, when the schema is already current
-./dev test    # 274 acceptance tests, then everything stopped
+./dev test    # the Worker and acceptance tests, then everything stopped
 ./dev check   # rebuild the database, then lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
@@ -160,6 +160,11 @@ good enough — it usually is, and a third volunteer will already know it.
 
 Four layers, and each tests something the layer below cannot: unit, database against a real
 Postgres, the Workers runtime via Miniflare, and Playwright with axe.
+
+**`./dev check` runs the first two; `./dev test` runs the other two** — the Miniflare layer
+needs a build, which is why it waits for `test` rather than `check`. Between them the two
+commands run every layer CI does, which was not true until a green laptop sent a red pull
+request.
 
 **The negative case is usually the one that matters.** That an anonymous client *cannot*
 read `club` proves more than that a member can. Assert the specific error, not merely that
