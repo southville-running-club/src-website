@@ -115,6 +115,57 @@ before/after keyboard-sweep numbers — is at the head of the masthead section i
 `/nn/privacy/` is deliberately not one of the five: it is a legal notice reached from the
 forms, and it is the one page in the bar that carries no marker.
 
+### The year panel, on the front door
+
+Below the hero on `/nn/`, and it is the answer to the two questions somebody arriving from a
+shared link actually has, in the order they have them:
+
+```
+                    THE NEXT RACE
+                  1 November 2026            ← 24px, the biggest thing in it
+        11:00 · 10 km, off-road · 250 places
+        ────────────────────────────────────
+                [ The 2026 race ]            ← outline while entries are shut
+     Entries are not open yet. Leave your…      filled, "Enter the race", once open
+              Race day · Watching the race
+```
+
+**Two states, one shape.** The layout does not move when entries open — only the action's
+weight changes and the fee line appears. **The difference in prominence is the message**: there
+is deliberately no badge and no banner saying "open", because the button already says it and a
+page that said it twice would be shouting.
+
+**Everything year-specific in it is painted**, from the same `entries.current_entry_state('nn')`
+read the navigation uses. The date comes through `packages/shared`'s one date formatter — see
+[the race-facts note](#which-of-its-keys-belong-to-the-race-and-which-to-one-running) for why
+`race.json`'s date cannot be used here — and the fee line comes from `entries.fees`, dearest
+first, **with a free place left out**: "Free" beside two prices reads as an offer anybody can
+take, and a guide's place is not.
+
+**It names no month for when entries open**, and that is deliberate: the entry open and close
+times are unconfirmed and may not appear anywhere. When the committee settles the opening time,
+the honest home for it is `entries.events.entries_open_at` — which `entry_state()` does not
+return yet, for exactly that reason.
+
+### Previous years, and why it never appears
+
+A quiet row of pills beneath the panel, for runnings that have already happened. **It renders
+nothing at all today** — no heading, no container, no empty list — because there is one running
+of this race and it is the current one.
+
+**The row is built and the data source is not.** `NnRunning.previous` is always `[]`:
+`entries.current_entry_state()` answers for one running, and listing the rest needs a second
+read of `entries.events`, which means another function in that schema. Adding one was outside
+the slice that built this. Everything on this side of that call is finished and tested in both
+directions — `tests/worker/nn-panel.test.ts` drives the paint against a fabricated list, because
+proving it against real data would mean seeding a running that has already happened, and a past
+running has nowhere to point until there are results.
+
+Four slots, because the pills are markup rather than generated — assembling them from data
+would need `setInnerContent(..., { html: true })`, and there is deliberately no such call
+anywhere in this repository to audit. A fifth is one more `<a>` and a deploy, which is the same
+trade the three fee cards make.
+
 ## Where race facts live
 
 **`src/content/race.json` holds every fact, and the pages hold none of them.** Prose is the

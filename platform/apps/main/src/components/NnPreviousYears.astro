@@ -1,0 +1,55 @@
+---
+// The row of runnings that have already happened, below the year panel on `/nn/`.
+//
+// **Quiet on purpose.** These are pills on the gradient rather than a card, small, and they do
+// not compete with the panel above them — somebody arriving at this page is almost always
+// asking about the next race, and last year's is a thing you go looking for rather than a
+// thing you are offered.
+//
+// ## Why the pills are markup with empty labels
+//
+// The same trade the three fee cards make. Assembling them from data would need
+// `setInnerContent(..., { html: true })`, and there is deliberately **no such call anywhere in
+// this repository** to audit — a year that arrived from the database and was written as markup
+// would be the one place an injection had to be reasoned about. So there are four slots, they
+// ship `hidden` with an empty label and `href=""`, and `worker/nn-entry.ts` fills in as many as
+// it was given. A fifth past running is one more `<a>` here and a deploy.
+//
+// **`NN_PREVIOUS_SLOTS` in the Worker is the same four**, and the Worker slices to it, so a
+// longer list silently shows the first four rather than dropping off the end of the markup.
+//
+// ## Why it renders nothing today, and what would change that
+//
+// The container ships `hidden` and the Worker reveals it only when it has at least one past
+// running to put in it. It has none: `entries.current_entry_state()` answers for **one**
+// running, and listing the rest needs a second read of `entries.events` — which means another
+// function in that schema, and adding one is a decision this slice was told not to take.
+//
+// Everything on this side of that is finished and tested both ways. See the note on
+// `renderNnPreviousYears`.
+//
+// **Four, written here and again as `NN_PREVIOUS_SLOTS` in the Worker.** Importing the
+// Worker's constant would pull `worker/nn-entry.ts` — and with it zod and the whole shared
+// entry module — into the page build, to share one integer. `nn-nav.test.ts` asserts the two
+// agree, which is the same trade `NnEntryForm.astro` makes with the three fee codes.
+const SLOTS = 4;
+---
+
+<section class="nn-previous" data-nn-previous hidden aria-labelledby="previous-years">
+  {
+    /* A real heading, and a real list. It is quiet because of its size and its colour, not
+    because it is a row of anonymous links — somebody using a screen reader gets "Previous
+    years, list, two items" exactly as somebody looking at it gets a row of two pills. */
+  }
+  <h2 class="nn-previous-heading" id="previous-years">Previous years</h2>
+
+  <ul class="nn-previous-list">
+    {
+      Array.from({ length: SLOTS }, (_, index) => (
+        <li>
+          <a href="" data-nn-previous-item={String(index)} hidden />
+        </li>
+      ))
+    }
+  </ul>
+</section>

@@ -106,16 +106,53 @@ async function sessionsCreated(): Promise<number> {
 const STUB_KEY = 'sk_test_STUB_NOT_A_REAL_KEY_0000000000';
 
 describe('the race page, once the event row says entries are open', () => {
-  it('says so where somebody cannot miss it, and points at the running', async () => {
-    // **`/nn/` has no entry form and never will**: an entry is an entry to one running, and
-    // two forms writing to one table is two places for a rule to be wrong. What it does have
-    // is a loud announcement and a link, and the link is painted rather than written in.
+  it('changes the panel’s weight rather than adding a banner', async () => {
+    // **The difference in prominence is the message.** The action goes from an outline to the
+    // filled button and the fee line appears beneath it; there is deliberately no badge and no
+    // sentence saying "entries are open", because the button already says it.
     const html = await racePage();
 
-    expect(html).not.toMatch(/data-nn-entries-open[^>]*hidden/);
-    expect(html).toContain('Entries are open.');
-    expect(html).toContain('href="/nn/2026/#enter" data-nn-entries-open-link');
-    expect(html).not.toContain('data-entry-form');
+    expect(html).toMatch(
+      /class="nn-cta"[^>]*href="\/nn\/2026\/#enter"[^>]*data-nn-panel-action/,
+    );
+    expect(html).toMatch(/data-nn-panel-shut[^>]*hidden/);
+    expect(html).not.toMatch(/data-nn-panel-open[^>]*hidden/);
+    expect(html.toLowerCase()).not.toContain('entries are open');
+  });
+
+  it('quotes the fees from the database, dearest first, without the free place', async () => {
+    // `entries.fees` is the only place a price exists. A guide's place is left out: "Free"
+    // beside two prices reads as an offer anybody can take, and it is not.
+    const html = await racePage();
+
+    expect(html).toContain('£17.00 unaffiliated · £15.00 affiliated');
+    expect(html).not.toContain('>Free<');
+  });
+
+  it('keeps the panel in the order it had while entries were shut', async () => {
+    // **Nothing moves when entries open**, so nobody has to relearn the page at the one moment
+    // they are trying to do something. Only the action's weight and the note beneath it change.
+    const html = await racePage();
+
+    const at = (marker: string) => html.indexOf(marker);
+
+    expect(at('data-nn-panel-date')).toBeLessThan(at('data-nn-panel-time'));
+    expect(at('data-nn-panel-time')).toBeLessThan(at('data-nn-panel-action'));
+    expect(at('data-nn-panel-action')).toBeLessThan(at('data-nn-panel-link="race-day"'));
+  });
+
+  it('has no entry form on it, and never will', async () => {
+    // An entry is an entry to one running, and two forms writing to one table is two places
+    // for a rule to be wrong.
+    expect(await racePage()).not.toContain('data-entry-form');
+  });
+
+  it('relabels the navigation button, on the race page and on the year page', async () => {
+    // The bar is painted from the same read. "Enter" is honest now, and it was not before.
+    for (const html of [await racePage(), await page()]) {
+      expect(html).toContain('aria-label="Enter the race"');
+      expect(html).toContain('>Enter<');
+    }
   });
 
   it('hides the interest form and repoints the loud button at the entry', async () => {

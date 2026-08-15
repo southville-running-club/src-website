@@ -258,6 +258,60 @@ test.describe('before entries open', () => {
     await expect(cta).toHaveAttribute('href', '#register');
   });
 
+  test('the year panel answers when it is, and whether you can enter', async ({
+    page,
+  }) => {
+    // **Two questions, in the order somebody arriving from a shared link has them.** The date
+    // is the largest thing in the panel; whether they can enter is the button under it.
+    await page.goto('/nn/');
+
+    const panel = page.locator('[data-nn-panel]');
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText('The next race')).toBeVisible();
+
+    // Pinned as a literal, as `site.spec.ts` does with the race date — reading `race.json`
+    // here would make the expectation and the page read the same source.
+    await expect(panel.locator('[data-nn-panel-date]')).toHaveText('1 November 2026');
+    await expect(panel.locator('[data-nn-panel-time]')).toHaveText('11:00');
+
+    // The date is the biggest thing in it, and that is the design rather than a side effect.
+    const sizes = await panel.evaluate((el) => ({
+      date: parseFloat(
+        getComputedStyle(el.querySelector('[data-nn-panel-date]')!).fontSize,
+      ),
+      facts: parseFloat(getComputedStyle(el.querySelector('.nn-panel-facts')!).fontSize),
+      label: parseFloat(getComputedStyle(el.querySelector('.nn-panel-label')!).fontSize),
+    }));
+    expect(sizes.date).toBeGreaterThan(sizes.facts);
+    expect(sizes.date).toBeGreaterThan(sizes.label);
+  });
+
+  test('the panel is quiet while entries are shut, and names no month', async ({
+    page,
+  }) => {
+    // **The entry open and close times are unconfirmed and may not appear anywhere.**
+    // "Entries open in September" would be a claim nobody has authorised.
+    await page.goto('/nn/');
+
+    const panel = page.locator('[data-nn-panel]');
+    await expect(panel.locator('[data-nn-panel-action]')).toHaveClass(/nn-ghost/);
+    await expect(panel).toContainText('Entries are not open yet');
+    await expect(panel.locator('[data-nn-panel-open]')).toBeHidden();
+
+    expect(await panel.textContent()).not.toMatch(
+      /January|February|March|April|May|June|July|August|September|October|December/,
+    );
+  });
+
+  test('the previous-years row is not rendered at all', async ({ page }) => {
+    // **No heading, no empty container, no blank pills.** There is one running of this race
+    // and it is the current one, so the row has nothing to show and shows nothing.
+    await page.goto('/nn/');
+
+    await expect(page.locator('[data-nn-previous]')).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Previous years' })).toBeHidden();
+  });
+
   test('the race page still links to this year, painted from the event row', async ({
     page,
     request,
@@ -267,11 +321,10 @@ test.describe('before entries open', () => {
     // `entries.events` rather than an edit to a page.
     await page.goto('/nn/');
 
-    const running = page.locator('[data-nn-running]');
-    await expect(running).toBeVisible();
-    await expect(running.getByRole('heading')).toHaveText('The 2026 race');
+    const panel = page.locator('[data-nn-panel]');
+    await expect(panel).toBeVisible();
 
-    const hrefs = await running
+    const hrefs = await panel
       .getByRole('link')
       .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
 
@@ -343,22 +396,40 @@ test.describe('once entries are open', () => {
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
   });
 
-  test('the race page says so prominently and links to the running', async ({ page }) => {
-    // **"When entries are open it says so prominently and links to the year page."** The
-    // interest form goes away — there is nothing left to register an interest in — and the
-    // loud button stops offering it.
+  test('the panel changes weight, and the page adds no banner', async ({ page }) => {
+    // **The difference in prominence is the message.** The action goes from a quiet outline to
+    // the filled button every other primary control on this site uses, and the fee line
+    // appears. Nothing else moves, and nothing announces the state in words.
     await page.goto('/nn/');
 
-    const announcement = page.locator('[data-nn-entries-open]');
-    await expect(announcement).toBeVisible();
-    await expect(announcement).toContainText('Entries are open');
-    await expect(announcement.getByRole('link')).toHaveAttribute(
-      'href',
-      '/nn/2026/#enter',
+    const panel = page.locator('[data-nn-panel]');
+    const action = panel.locator('[data-nn-panel-action]');
+
+    await expect(action).toHaveClass(/nn-cta/);
+    await expect(action).toHaveAttribute('href', '/nn/2026/#enter');
+    await expect(action).toHaveText('Enter the race');
+    await expect(panel.locator('[data-nn-panel-fees]')).toHaveText(
+      '£17.00 unaffiliated · £15.00 affiliated',
     );
+    await expect(panel.locator('[data-nn-panel-shut]')).toBeHidden();
+
+    expect((await panel.textContent())?.toLowerCase()).not.toContain('entries are open');
 
     await expect(page.locator('[data-nn-interest]')).toBeHidden();
     await expect(page.locator('[data-entry-form]')).toHaveCount(0);
+  });
+
+  test('the panel keeps its shape across the two states', async ({ page }) => {
+    // **The layout must not move when entries open**, so nobody has to relearn the page at the
+    // one moment they are trying to do something. The date, the fact line and the two links
+    // are where they were; only the action's weight and the note under it differ.
+    await page.goto('/nn/');
+
+    const panel = page.locator('[data-nn-panel]');
+    await expect(panel.locator('[data-nn-panel-date]')).toHaveText('1 November 2026');
+    await expect(panel.locator('[data-nn-panel-time]')).toHaveText('11:00');
+    await expect(panel.getByRole('link', { name: 'Race day' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Watching the race' })).toBeVisible();
   });
 
   test('the race page hero button leads to the form, on the other page', async ({

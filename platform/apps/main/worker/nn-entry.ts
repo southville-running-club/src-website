@@ -5,11 +5,14 @@ import {
   entryRulesFrom,
   fetchCurrentEntryState,
   fetchEntryState,
+  formatEventDate,
+  formatEventStartTime,
   formatPence,
   parseNnEntry,
   toIsoDate,
   NN_ENTRY_FIELDS,
   type AnonClient,
+  type EntryFee,
   type EntryState,
   type EntryStateResult,
   type EntryWindowState,
@@ -143,6 +146,28 @@ export interface NnRunning {
   yearPath: string;
   /** Which of the three window states, so a label can be honest about what it offers. */
   state: EntryWindowState;
+  /** `1 November 2026` — through `packages/shared`'s one date formatter. */
+  date: string;
+  /** `11:00` — civil, as published, and never through a timezone formatter. */
+  startTime: string;
+  /** Dearest first, as `entry_state()` orders them. The panel's fee line, once open. */
+  fees: EntryFee[];
+  /**
+   * Runnings of this race that have already happened.
+   *
+   * **Always empty today, and that is a missing data source rather than a missing feature.**
+   * `entries.current_entry_state()` answers for one running; listing past ones needs a second
+   * read of `entries.events`, which means another function in that schema — and adding one is
+   * a decision this slice was told not to take. Everything downstream is built and tested;
+   * filling this is one call. See `renderNnPreviousYears`.
+   */
+  previous: NnPastRunning[];
+}
+
+/** A running of this race that is already over. */
+export interface NnPastRunning {
+  year: string;
+  yearPath: string;
 }
 
 export type NnRaceView = { running: null } | { running: NnRunning };
@@ -173,6 +198,10 @@ export async function resolveNnRaceView(env: NnEntryEnv): Promise<NnRaceView> {
       year: yearPath.split('/').filter(Boolean).at(-1) ?? '',
       yearPath,
       state: view.state.state,
+      date: formatEventDate(view.state.eventDate),
+      startTime: formatEventStartTime(view.state.startTime),
+      fees: view.state.fees,
+      previous: [],
     },
   };
 }
@@ -626,40 +655,133 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
     return rewriter;
   }
 
-  const { year, yearPath, state } = view.running;
+  const { year, yearPath, state, date, startTime, fees, previous } = view.running;
 
-  // The block of links to this year's running, and its heading. Revealed in **both** window
-  // states: somebody wants the race-day plan whether or not they can enter today, and a front
-  // door that only opens during the entry window is shut for eleven months of the twelve.
+  // **The panel is revealed in every window state, and its shape does not change between
+  // them.** Somebody wants the date whether or not they can enter today, and a layout that
+  // rearranged itself the morning entries opened would ask everybody to relearn the page at
+  // the one moment they are trying to do something.
   rewriter
-    .on('[data-nn-running]', new RevealHandler())
-    .on('[data-nn-running-heading]', new TextHandler(`The ${year} race`))
-    .on('[data-nn-running-link="year"]', new AttributeHandler('href', yearPath))
+    .on('[data-nn-panel]', new RevealHandler())
+    .on('[data-nn-panel-date]', new TextHandler(date))
+    .on('[data-nn-panel-time]', new TextHandler(startTime))
+    .on('[data-nn-panel-link="year"]', new AttributeHandler('href', yearPath))
     .on(
-      '[data-nn-running-link="race-day"]',
+      '[data-nn-panel-link="race-day"]',
       new AttributeHandler('href', `${yearPath}race-day/`),
     )
     .on(
-      '[data-nn-running-link="spectators"]',
+      '[data-nn-panel-link="spectators"]',
       new AttributeHandler('href', `${yearPath}spectators/`),
     );
 
   if (state === 'open') {
-    // **Entries are open, so the page says so where somebody cannot miss it and the loud
-    // button stops offering the quiet thing.** The entry form is not on this page and must not
-    // be copied onto it: two forms writing to one table is two places for a rule to be wrong.
+    // **The difference in prominence is the message**: the action goes from an outline to the
+    // filled button, and the fee line appears under it. No badge and no banner saying "open" —
+    // the button already says it, and a page that said it twice would be shouting.
+    //
+    // The interest form goes with it. The entry form is not on this page and must not be
+    // copied onto it: two forms writing to one table is two places for a rule to be wrong.
     rewriter
       .on('[data-nn-interest]', new HideHandler())
-      .on('[data-nn-entries-open]', new RevealHandler())
+      .on('[data-nn-panel-shut]', new HideHandler())
+      .on('[data-nn-panel-open]', new RevealHandler())
+      .on('[data-nn-panel-fees]', new TextHandler(feeLine(fees)))
       .on(
-        '[data-nn-entries-open-link]',
-        new AttributeHandler('href', `${yearPath}#enter`),
+        '[data-nn-panel-action]',
+        new PanelActionHandler(`${yearPath}#enter`, year, true),
       )
       .on('[data-nn-cta]', new CtaHandler(`${yearPath}#enter`, 'Enter the race'));
+  } else {
+    rewriter.on('[data-nn-panel-action]', new PanelActionHandler(yearPath, year, false));
+  }
+
+  return renderNnPreviousYears(rewriter, previous);
+}
+
+/**
+ * The fee line, and it is the database's numbers or nothing.
+ *
+ * `entry_state()` returns the fees the event is actually offering, dearest first. **A free
+ * place is left out**: "Free" beside two prices reads as an offer anybody can take, and a
+ * guide's place is not — the form says what it is at the moment somebody chooses it.
+ */
+export function feeLine(fees: EntryFee[]): string {
+  return fees
+    .filter((fee) => fee.pricePence > 0)
+    .map((fee) => `${formatPence(fee.pricePence)} ${fee.label.toLowerCase()}`)
+    .join(' · ');
+}
+
+/**
+ * The panel's one action, in its two weights.
+ *
+ * **One control, not two.** A second button revealed beside a hidden one is two things to keep
+ * in step and two places for a label to go stale; this is the same anchor with a different
+ * class, a different destination and a different label.
+ *
+ * The label names the year, because this control is the one thing on the page that says which
+ * running it is sending somebody to — the panel's own heading is "The next race", which is true
+ * and vague, and a button should be neither vague nor a surprise.
+ */
+class PanelActionHandler {
+  constructor(
+    private readonly href: string,
+    private readonly year: string,
+    private readonly open: boolean,
+  ) {}
+
+  element(element: Element): void {
+    element.setAttribute('href', this.href);
+    element.setAttribute('class', this.open ? 'nn-cta' : 'nn-ghost');
+    element.setInnerContent(this.open ? 'Enter the race' : `The ${this.year} race`);
+  }
+}
+
+/**
+ * The row of past runnings, and **the only reason it never appears is that nothing fills it.**
+ *
+ * The pills ship in the markup with empty labels and `href=""`, exactly as the three fee cards
+ * do — because the alternative is assembling markup from data with
+ * `setInnerContent(..., { html: true })`, and there is deliberately no such call anywhere in
+ * this repository to audit. This fills as many as it was given and reveals the container only
+ * if that is more than none.
+ *
+ * **Empty renders nothing at all** — no heading, no container, no empty list — which is what a
+ * site with a single running needs. `nn-previous-years.test.ts` proves both directions against
+ * a fabricated list, because proving the populated one against real data would mean seeding a
+ * running that has already happened.
+ */
+export function renderNnPreviousYears(
+  rewriter: HTMLRewriter,
+  previous: NnPastRunning[],
+): HTMLRewriter {
+  if (previous.length === 0) {
+    return rewriter;
+  }
+
+  rewriter.on('[data-nn-previous]', new RevealHandler());
+
+  for (const [index, { year, yearPath }] of previous
+    .slice(0, NN_PREVIOUS_SLOTS)
+    .entries()) {
+    rewriter
+      .on(`[data-nn-previous-item="${index}"]`, new RevealHandler())
+      .on(`[data-nn-previous-item="${index}"]`, new AttributeHandler('href', yearPath))
+      .on(`[data-nn-previous-item="${index}"]`, new TextHandler(year));
   }
 
   return rewriter;
 }
+
+/**
+ * How many past runnings the markup has room for.
+ *
+ * **A fixed number because the pills are markup rather than generated.** A fifth would need one
+ * more `<a>` in `NnPreviousYears.astro`, which is a deploy — the same trade the three fee cards
+ * make for the same reason. `nn-previous-years.test.ts` asserts the component agrees with this.
+ */
+export const NN_PREVIOUS_SLOTS = 4;
 
 /**
  * The navigation bar, on every page that carries it.

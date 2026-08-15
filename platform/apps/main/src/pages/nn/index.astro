@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
+import NnPreviousYears from '../../components/NnPreviousYears.astro';
 import NnRaceSummary from '../../components/NnRaceSummary.astro';
 import race from '../../content/race.json';
 
@@ -153,84 +154,102 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
 
     {
       /* ------------------------------------------------------------------------------
-       * This year's running, and the only place this page links to one
+       * The year panel — when is it, and can I enter
        * ------------------------------------------------------------------------------
-       * **Ships hidden with empty hrefs, and the Worker fills them in.** Which running is on
-       * comes from `entries.current_entry_state('nn')`, so 2027 is a row rather than an edit
-       * to this file — see the note at the head of it.
+       * **A panel, not a link.** This is the front door's answer to the two questions
+       * somebody arriving from a shared link actually has, in the order they have them: the
+       * date first and largest, then whether they can enter yet.
        *
-       * It is revealed in **both** window states. Somebody wants the race-day plan whether or
-       * not they can enter today, and a front door that only opens during the entry window is
-       * shut for eleven months of the twelve.
+       * **Ships hidden and empty; the Worker fills it in** from
+       * `entries.current_entry_state('nn')`, so 2027 is a row in `entries.events` rather than
+       * an edit to this file. There is no `href="/nn/2026/"` anywhere below and there must
+       * never be one — see the note at the head of this file.
        *
-       * **A database this Worker cannot reach paints nothing**, so this block stays hidden and
-       * the page is the one that was here before the year layer: the interest form, and no
-       * link to a year nobody confirmed. One fewer door in the front door, which is the right
-       * side of that trade.
+       * **A database this Worker cannot reach paints nothing**, so the panel stays hidden and
+       * the page is the summary card and the interest form. One fewer door in the front door,
+       * which is the right side of that trade against a link to a year nobody confirmed.
        *
-       * The heading is painted too — it ships saying something true of any year and is
-       * replaced with the year itself. `href=""` on a hidden link resolves to this page, so
-       * even a half-painted block cannot send anybody somewhere that does not exist.
+       * ## Two states, one shape
+       *
+       * The layout does not move when entries open, so nobody has to relearn the page at the
+       * one moment they are trying to do something. Only two things change: the action goes
+       * from a quiet outline to the filled button every other primary control on this site
+       * uses, and the fee line appears under it. **The difference in prominence is the
+       * message** — there is deliberately no badge and no banner saying "open", because the
+       * button already says it and a page that said it twice would be shouting.
        * ------------------------------------------------------------------------------ */
     }
 
-    <section class="nn-card nn-prose" data-nn-running hidden>
-      <h2 data-nn-running-heading>This year's race</h2>
+    <section
+      class="nn-card nn-panel-year"
+      data-nn-panel
+      hidden
+      aria-labelledby="next-race"
+    >
+      <p class="nn-panel-label" id="next-race">The next race</p>
 
-      <ul class="nn-arrows">
-        <li>
-          <a href="" data-nn-running-link="year">The date, the facts, and how to enter</a>
-        </li>
-        <li>
-          <a href="" data-nn-running-link="race-day">
-            Race day — race HQ, the morning in order, the prizes
-          </a>
-        </li>
-        <li>
-          <a href="" data-nn-running-link="spectators">
-            Watching the race — where to stand, where to park
-          </a>
-        </li>
+      {
+        /* **The biggest thing in the panel, at 24px.** Somebody arriving from a shared link
+        asks "when is it" first, and everything else here is smaller than this on purpose.
+
+        Painted rather than read from `race.json`: that file's date belongs to the 2026
+        running, and this page is about the race. The value comes through `packages/shared`'s
+        one date formatter — see `formatEventDate`. */
+      }
+      <p class="nn-panel-date" data-nn-panel-date></p>
+
+      <p class="nn-panel-facts">
+        <span data-nn-panel-time></span> · {race.distance} · {race.places} places
+      </p>
+
+      <hr class="nn-panel-rule" />
+
+      {
+        /* **One control in two weights**, not two controls with one hidden. A second button
+        revealed beside a hidden one is two things to keep in step and two places for a label
+        to go stale; the Worker swaps this one's class and its destination. */
+      }
+      <p class="nn-panel-actions">
+        <a class="nn-ghost" href="" data-nn-panel-action data-nn-panel-link="year">
+          The race this year
+        </a>
+      </p>
+
+      {
+        /* **Before entries open, and it names no month.** "Entries open in September" would be
+        a claim about a date nobody has confirmed — the entry open and close times are on this
+        repository's unconfirmed list and may not appear anywhere. What is true without
+        confirmation is that they are not open and that the club will say when they are.
+
+        When the committee settles the opening time, the honest home for it is
+        `entries.events.entries_open_at` — which `entry_state()` deliberately does not return
+        yet, for exactly this reason — and this line becomes painted like the date above it. */
+      }
+      <p class="nn-panel-note" data-nn-panel-shut>
+        Entries are not open yet. Leave your name and the club will email you the day they
+        are.
+      </p>
+
+      {
+        /* The fee line, and it is the database's numbers or nothing. `entries.fees` is the
+        only place a price exists, and this is painted from the same read the rest of the
+        panel is. */
+      }
+      <p class="nn-panel-note" data-nn-panel-open hidden>
+        <span data-nn-panel-fees></span>
+      </p>
+
+      {
+        /* The rest of this year's running, inside the panel because that is what it is about.
+        Both are painted. */
+      }
+      <ul class="nn-panel-links">
+        <li><a href="" data-nn-panel-link="race-day">Race day</a></li>
+        <li><a href="" data-nn-panel-link="spectators">Watching the race</a></li>
       </ul>
     </section>
 
-    {
-      /* ------------------------------------------------------------------------------
-       * The two states of this page, and which one somebody gets
-       * ------------------------------------------------------------------------------
-       * **Both are in the HTML; the Worker reveals one.** Which one is decided by
-       * `entries.events.entries_open_at` and `entries_close_at`, read at request time
-       * through `entries.current_entry_state()` — so entries open when the committee says
-       * they do, by a row edit, not by somebody being available to deploy at seven in the
-       * morning.
-       *
-       * **The interest form ships visible and the announcement ships hidden**, which is the
-       * safe default rather than an arbitrary one. If the Worker cannot reach the database
-       * at all, this page falls back to the form that was already here and that takes no
-       * money — a page that cannot tell whether entries are open must not announce that they
-       * are. See `worker/nn-entry.ts`.
-       *
-       * **The entry form is not on this page and must not be copied onto it.** It is on the
-       * year page, because an entry is an entry to one running; two forms writing to one
-       * table is two places for a rule to be wrong.
-       * ------------------------------------------------------------------------------ */
-    }
-
-    {
-      /* **Nothing here states a fact this file was not given.** The field size is
-      `race.json`'s, and everything else is a sentence about where the form is. How many places
-      are left, when entries close and what an entry costs are all the database's, and they are
-      on the form at the moment they matter. */
-    }
-    <div class="notice notice-ok nn-card" data-nn-entries-open hidden role="status">
-      <p class="lede"><strong>Entries are open.</strong></p>
-      <p>
-        {race.places} places, and entering is on this year's race page.
-      </p>
-      <p>
-        <a class="nn-cta" href="" data-nn-entries-open-link>Enter the race</a>
-      </p>
-    </div>
+    <NnPreviousYears />
 
     <div data-nn-interest>
       <h2 id="register">Register your interest</h2>

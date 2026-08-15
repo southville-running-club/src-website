@@ -51,7 +51,8 @@ describe('the race page, while entries are not open', () => {
 
     expect(html).toContain('Register your interest');
     expect(html).not.toMatch(/data-nn-interest hidden/);
-    expect(html).toMatch(/data-nn-entries-open[^>]*hidden/);
+    // The panel's fee line is what appears when they are, and it is the only thing that does.
+    expect(html).toMatch(/data-nn-panel-open[^>]*hidden/);
   });
 
   it('offers the interest form from the hero button', async () => {
@@ -73,14 +74,14 @@ describe('the race page, while entries are not open', () => {
   });
 
   it('still links to this year’s running, painted from the event row', async () => {
-    // **A front door, not a dead end.** The links are revealed whether or not entries are
-    // open — somebody wants the race-day plan either way — and none of them is written into
-    // the markup, which is what makes 2027 a row rather than an edit.
+    // **A front door, not a dead end.** The panel is revealed whether or not entries are
+    // open — somebody wants the date and the race-day plan either way — and none of its links
+    // is written into the markup, which is what makes 2027 a row rather than an edit.
     const html = await racePage();
 
-    expect(html).not.toMatch(/data-nn-running[^-][^>]*hidden/);
+    expect(html).not.toMatch(/data-nn-panel[^-][^>]*hidden/);
     expect(html).toContain('The 2026 race');
-    expect(html).toContain('href="/nn/2026/" data-nn-running-link="year"');
+    expect(html).toContain('href="/nn/2026/" data-nn-panel-action');
     expect(html).toContain('href="/nn/2026/race-day/"');
     expect(html).toContain('href="/nn/2026/spectators/"');
   });
@@ -107,10 +108,12 @@ describe('the race page, while entries are not open', () => {
     ]);
   });
 
-  it('paints the heading with the year it is pointing at', async () => {
+  it('paints the action with the year it is pointing at', async () => {
+    // The panel's own label is "The next race", which is true and vague. The button is the one
+    // thing that says which running it is sending somebody to, so it names it.
     const html = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
-    expect(html).toContain('<h2 data-nn-running-heading>The 2026 race</h2>');
+    expect(html).toMatch(/data-nn-panel-link="year">\s*The 2026 race\s*</);
   });
 });
 
