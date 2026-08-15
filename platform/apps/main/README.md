@@ -26,6 +26,8 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 src/content/race.json          Every race fact, as data. See below
 src/components/NnNav.astro     The two-level Nightingale Nightmare navigation
 src/layouts/Base.astro         The document, and the optional `theme` prop
+src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
+src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
 src/pages/nn/index.astro       The race — evergreen, the year panel, no year in it
@@ -63,6 +65,7 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
+| `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
 
 **`/nn/<year>/` is the event `nn-<year>`**, and that convention is the whole of the coupling
 between a URL and a database row. It lives in `worker/routing.ts` as two functions that are
@@ -165,6 +168,51 @@ Four slots, because the pills are markup rather than generated — assembling th
 would need `setInnerContent(..., { html: true })`, and there is deliberately no such call
 anywhere in this repository to audit. A fifth is one more `<a>` and a deploy, which is the same
 trade the three fee cards make.
+
+## The banner
+
+Every page here opens with a bar that welcomes the visitor, says what is on this site, and
+links to `southvillerunningclub.co.uk`. It is in the layout rather than on a page because it
+is a statement about the whole site, and because **`/nn/` needs it more than the home page
+does** — somebody arriving there from a shared link has no other route to the club.
+
+Three parts, each earning its place:
+
+- **The welcome.** It is the club's site, not a staging server somebody stumbled into.
+- **What is here** — only the race. Somebody who came for session times or membership must
+  be sent onward rather than left concluding the club's information has disappeared.
+- **The link, which names the club's own domain.** Following a link to an unfamiliar address
+  is the shape of the thing everybody is warned about, and half-recognising
+  `southvillerunningclub.co.uk` in the link text is what answers it. It also means the link
+  says where it goes when a screen reader reads it out of context, which "click here" never
+  does.
+
+**Keep it to those three.** A page explaining how domain names work is for somebody who
+already knows what a domain name is; the people this is for are on a phone, in a hurry,
+wondering whether a link is safe.
+
+**It says "Nightingale Nightmare" and no longer mentions the timing app.** `/timing` is a
+holding page that says it is not open yet, so listing it as something the club *has* would
+send somebody to a page whose whole message is that there is nothing there.
+
+**It is a `div`, not a `header`, and that is load-bearing.** A `<header>` outside `<main>` is
+the `banner` landmark, which is what `NnMasthead` already is on five pages. A second one
+would be an axe `landmark-no-duplicate-banner` violation and a screen reader offering
+"banner" twice.
+
+Each part is its own element rather than one sentence with tags inside it, because **Astro
+compresses the newline between a tag and the text after it to nothing** — the mixed form
+renders as `…soon.For everything else…` and reads as a typo. The parts are flex items; the
+gap does the spacing, and lets each drop onto its own line on a phone.
+
+**The page's padding lives on `main` because of this bar.** It used to be on `body`, which
+would have inset the banner from both edges. `.theme-nn main` therefore sets `padding: 0`,
+or every Nightingale Nightmare page would gain a gutter its full-bleed hero is built not to
+have.
+
+The banner comes down at the cutover, when its middle sentence stops being true. The
+[Squarespace side of the same signpost](../../../docs/delivery/runbooks/squarespace-signposting.md)
+points the other way and is done by hand, because Squarespace has no API for it.
 
 ## Where race facts live
 
@@ -273,10 +321,15 @@ happen; the static-assets binding serves `dist/` and will not answer a POST at a
 submission reaching it is already lost.
 
 **Both failure responses are the static page rewritten by `HTMLRewriter`**, the same
-technique the health timestamp already uses — so there is one copy of the page, in `dist/`,
-and no second template in the Worker to drift from it. The health and pipeline-check
-handlers still run on those responses, deliberately: a 503 from the form beside a broken
-database timestamp is a different problem from one beside a working timestamp.
+technique the entry form's outcomes use — so there is one copy of the page, in `dist/`, and
+no second template in the Worker to drift from it.
+
+**What no longer runs on those responses is the pair of database round trips.** They used to,
+on the argument that a submission which just failed is exactly when somebody wants to know
+whether the Worker can reach Postgres — right about the need, wrong about the audience. The
+person reading that page is a runner whose form did not save, and a database timestamp beside
+the apology helps them not at all. It is the maintainer who wants it, and the maintainer has
+[`/_health`](#the-health-endpoints), which answers whatever the page says.
 
 **User input re-enters the HTML only through `setAttribute` and text-mode
 `setInnerContent`, both of which escape.** There is no `{ html: true }` call in
@@ -582,6 +635,80 @@ write goes through a `security definer` function that decides the price, the cap
 consent version itself, and `packages/db/tests/entries.test.ts` asserts the refusals on every
 table, for every verb, by error code. That file staying green is what says this slice granted
 nothing it should not have.
+
+## The health endpoints
+
+Two database round trips, answered as JSON at **`/_health`** here and **`/timing/health`** in
+`apps/timing`. `intake.health()` returns `now()`; `intake.ping()` returns a constant and was
+added *after* the first deploy, so between them they prove the migration applied, `intake` is
+exposed through PostgREST, the anon key and the grant are right, the client is wired, the
+Worker can reach the network — and that a **later** migration reached production the same way
+the first one did. `scripts/smoke.mjs` reads both, from both applications, which is what proves
+the two are talking to one Supabase project.
+
+```json
+{
+  "ok": true,
+  "database": { "ok": true, "at": "2026-08-15T11:16:24.080Z", "formatted": "15 August 2026 at 12:16 BST" },
+  "pipeline": { "ok": true, "value": "pipeline-ok" }
+}
+```
+
+`200` when `ok` is true and **`503` when it is not** — a health endpoint answering 200 while
+its body says `ok: false` is the shape that lets an outage sit behind a green tick. `no-store`,
+because a cached answer to "can you reach the database" is not an answer. `at` is UTC and
+`formatted` is `Europe/London`, so a check can catch the two disagreeing on the weekend the
+clocks change, which is the weekend before this race.
+
+### Why the two names differ
+
+**`/_health` here, `/timing/health` there**, and neither spelling is free to change.
+
+The underscore is what stops this endpoint ever colliding with a page. Astro is
+`trailingSlash: 'always'`, so a future `src/pages/health.astro` would serve at `/health/`
+while this Worker went on answering `/health` — it matches before the assets binding. Both
+would work, one character apart, and somebody typing "health" would get a database report:
+no error, no failing test, and no way for whoever added the page to find out. **This is a
+running club**, so training, injury and wellbeing are exactly what `/health/` is for. A
+leading underscore cannot be an Astro route, so the collision becomes impossible rather than
+unlikely. `tests/worker/serves.test.ts` asserts `/health` no longer answers this endpoint's
+JSON.
+
+**`apps/timing` cannot copy it.** A leading underscore makes an App Router folder *private* —
+`app/_health/route.ts` builds, deploys and 404s, with nothing saying why. It is
+`app/health/route.ts`, and the trap is in CLAUDE.md because the same name is fine on one side
+of the hostname and invisible on the other.
+
+### Why they are not on a page any more
+
+**They were.** `/nn/` carried a `<dl>` under the heading "What this page proves" — the database
+timestamp, a pipeline-check marker, "Served by: Cloudflare Workers, static assets plus one
+handler" and "Application: apps/main" — directly below the form somebody hands over £17 and an
+emergency contact on. `/timing` was nothing *but* that table, and the club's front door linked
+to it as "live results and marshal screens".
+
+**The check was never the problem; its audience was.** A page that reports its own plumbing
+reads as a page that is not finished, and this is the page the club's first public transaction
+happens on. Nothing was given up by moving it: the same calls run in the same Worker, in the
+same runtime, against the same project, and the smoke test still fails a deploy if either
+breaks. Two things were gained — the race page no longer waits on Supabase to render, and the
+checks are now readable by a monitor instead of by a regex over HTML.
+
+`scripts/smoke.mjs` also asserts the markers have **not** come back. A page is only clean while
+nobody puts them back, and "the smoke test still passes" is exactly the argument somebody would
+make for re-adding one.
+
+### What is exposed, and what that costs
+
+**No personal data can appear here.** Neither function reads a row, which is what makes it safe
+to serve without a credential — and it is a property to preserve rather than a coincidence. A
+future health check that counted entries would be a different thing entirely.
+
+What it does cost is two anonymous database round trips per request, on a path anybody can find.
+That is the same free-tier exposure `entries.expire_pending_holds()` already has, and the same
+answer applies: **cover it with the Cloudflare WAF rate-limiting rule** when that rule is
+created, rather than building a second mechanism here. See
+[issue #19](https://github.com/southville-running-club/src-website/issues/19).
 
 ## The one routing decision
 

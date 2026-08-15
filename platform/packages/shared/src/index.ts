@@ -16,6 +16,13 @@ export { fetchHealth, type HealthResult } from './health';
 export { fetchPing, type PingResult } from './ping';
 
 export {
+  buildHealthReport,
+  healthReportFromFailure,
+  healthResponse,
+  type HealthReport,
+} from './health-report';
+
+export {
   nnSignupSchema,
   parseNnSignup,
   NN_SIGNUP_NAME_MAX_LENGTH,

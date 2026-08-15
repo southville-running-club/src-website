@@ -79,7 +79,7 @@ Use `./dev`, or `cd platform` first.
 ```bash
 ./dev up      # rebuild the database, then the whole site on http://localhost:8787
               # --keep-data skips the rebuild, when the schema is already current
-./dev test    # 274 acceptance tests, then everything stopped
+./dev test    # the Worker and acceptance tests, then everything stopped
 ./dev check   # rebuild the database, then lint, types, unit and database tests
 ./dev down    # stop the Workers and the database
 ```
@@ -135,6 +135,14 @@ normal within a month.
 
 **Every change by pull request.** Both volunteers review.
 
+**One change per pull request, and since 15 August 2026 that is mechanical rather than
+tidiness.** The repository is **squash-only**, so every commit in a branch collapses into one
+on `main`. Two unrelated things in one pull request become one commit that cannot be reverted
+or bisected apart afterwards, and a careful commit-by-commit branch arrives as a single entry —
+so **the reasoning belongs in the pull request body and the commit message, not in the shape of
+the branch.** Settings and the full trade are in
+[the GitHub runbook](docs/delivery/runbooks/github-setup.md#3b-merge-behaviour--squash-only).
+
 **Documentation ships with the change it describes**, not afterwards. If you change
 behaviour that a README or ADR describes, change it in the same commit. A document that is
 wrong is worse than one that is missing, because it is trusted.
@@ -161,6 +169,11 @@ good enough — it usually is, and a third volunteer will already know it.
 Four layers, and each tests something the layer below cannot: unit, database against a real
 Postgres, the Workers runtime via Miniflare, and Playwright with axe.
 
+**`./dev check` runs the first two; `./dev test` runs the other two** — the Miniflare layer
+needs a build, which is why it waits for `test` rather than `check`. Between them the two
+commands run every layer CI does, which was not true until a green laptop sent a red pull
+request.
+
 **The negative case is usually the one that matters.** That an anonymous client *cannot*
 read `club` proves more than that a member can. Assert the specific error, not merely that
 something failed — a test that passes because the table does not exist yet is a test that
@@ -181,6 +194,23 @@ Each of these cost an hour or more, and none is obvious from the outside.
 script `opennextjs-cloudflare build` makes it invoke itself. It recursed 205 levels and took
 a laptop down. `build:next` exists solely to be what OpenNext calls, and the duplication is
 the guard.
+
+**A leading underscore on an App Router folder silently deletes the route.** `_health/` is the
+conventional spelling for an endpoint that is not a page on more or less every other platform,
+and in `apps/timing` it is a **private folder**: Next opts it out of routing entirely, so
+`app/_health/route.ts` builds clean, deploys clean, and 404s — with nothing anywhere saying
+why. The timing app's health endpoint is `app/health/route.ts` for that reason, and the comment
+at the top of it says so. `apps/main` is Astro plus a Worker and has no such rule, which is
+what makes the pair easy to get wrong: the same name is fine on one side of the hostname and
+invisible on the other.
+
+**So the two health endpoints are spelled differently on purpose** — `/_health` in `apps/main`
+and `/timing/health` in `apps/timing` — and **the underscore on the Astro side is load-bearing
+too, for the opposite reason.** `trailingSlash` is `'always'`, so a page at
+`src/pages/health.astro` would serve at `/health/` while the Worker went on answering
+`/health`, because it matches before the assets binding. Two live addresses one character
+apart, no error and no failing test, and a runner looking for the club's advice on training
+gets a database report. This is a running club; `/health/` is a page somebody will want.
 
 **An ambient `NODE_ENV=development` breaks the Next.js build**, reporting it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody

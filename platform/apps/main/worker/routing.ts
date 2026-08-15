@@ -111,6 +111,44 @@ export function isTimingPath(pathname: string): boolean {
 /**
  * The Nightingale Nightmare pages that carry the navigation bar, and therefore the ones whose
  * year-bearing links the Worker has to paint.
+ * The machine-readable health report — **not a page, and it must never become one.**
+ *
+ * The two database round trips it reports used to be rendered into a "What this page proves"
+ * block on `/nn/`, which put a build-in-progress diagnostic on the page somebody pays on.
+ * They are worth running and worth watching; they are not worth showing to a runner. So they
+ * moved here, where `scripts/smoke.mjs` reads them.
+ *
+ * **The underscore is the whole point, and `/health` was wrong for this club specifically.**
+ *
+ * An Astro page at `src/pages/health.astro` would serve at `/health/` — `trailingSlash` is
+ * `'always'` — while this Worker keeps answering `/health`, because it matches before the
+ * assets binding. Both would work, at addresses one character apart, and somebody typing
+ * "health" would get a database report. Nothing errors, nothing fails CI, and the person who
+ * added the page has no way to find out.
+ *
+ * That is not a hypothetical here. **This is a running club**, and training, injury and
+ * wellbeing are exactly the pages `/health/` is for. A leading underscore cannot be an Astro
+ * route, so the collision stops being unlikely and becomes impossible.
+ *
+ * **`apps/timing` cannot use this spelling**, and answers at `/timing/health` instead: a
+ * leading underscore makes an App Router folder *private*, so `app/_health/route.ts` would
+ * build, deploy, and 404. Two names is the honest cost of two frameworks. Both are named in
+ * `scripts/smoke.mjs` and in `apps/main/README.md`, and CLAUDE.md carries the trap.
+ *
+ * **No trailing-slash variant, unlike every other predicate in this file.** The two above
+ * accept both spellings because a human typed them into a form's `action` or a Stripe
+ * dashboard once, and a mistyped slash there is a silent failure discovered by somebody who
+ * paid. Nothing types this. One spelling, and `/_health/` 404s like any other address that is
+ * not a page.
+ */
+export const HEALTH_PATH = '/_health';
+
+export function isHealthPath(pathname: string): boolean {
+  return pathname === HEALTH_PATH;
+}
+
+/**
+ * Where the sign-up form posts.
  *
  * **Everything under `/nn` except two.** The webhook is not a page at all, and the return page
  * carries the wordmark without the links — somebody who has just paid should not be offered

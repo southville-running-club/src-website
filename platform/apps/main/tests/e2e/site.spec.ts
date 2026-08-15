@@ -9,13 +9,78 @@ import AxeBuilder from '@axe-core/playwright';
  * which is the property this arrangement exists to give.
  */
 
+test.describe('the banner that says which site this is', () => {
+  // Both pages, not just the home page. `/nn/` is the one somebody reaches from a shared
+  // link with no idea the club has two sites, and a test that only covered `/` would pass
+  // while that page was a dead end.
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+  ] as const) {
+    test(`${name} says it is unfinished and links to the club website`, async ({
+      page,
+    }) => {
+      await page.goto(path);
+
+      // **`.site-banner`, not `getByRole('banner')`.** The bar is a `div` on purpose — the
+      // Nightingale Nightmare masthead is the page's one `banner` landmark and a second
+      // would be an axe violation. So there is no role to select it by, which is the
+      // trade-off working as intended rather than a weaker assertion.
+      const banner = page.locator('.site-banner');
+
+      // Says what is here, so nobody concludes the club's information has vanished. It no
+      // longer claims the timing app: `/timing` is a holding page that says it is not open.
+      await expect(banner).toContainText('We just have Nightingale Nightmare for now');
+      await expect(banner).not.toContainText('race timing app');
+
+      // Named as a destination. "Click here" would pass every automated check and tell a
+      // screen-reader user nothing.
+      const link = banner.getByRole('link', {
+        name: 'For everything else, please see the old site',
+      });
+      await expect(link).toHaveAttribute('href', 'https://southvillerunningclub.co.uk');
+      await expect(link).toBeVisible();
+    });
+  }
+
+  test('comes before the page content, not after it', async ({ page }) => {
+    // A signpost below the fold is not a signpost. This asserts document order, which is
+    // also the order a screen reader and a keyboard will meet it in.
+    await page.goto('/nn/');
+
+    const bannerIsBeforeMain = await page.evaluate(() => {
+      const banner = document.querySelector('.site-banner');
+      const main = document.querySelector('main');
+      if (!banner || !main) return false;
+      return (
+        (banner.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      );
+    });
+
+    expect(bannerIsBeforeMain).toBe(true);
+  });
+
+  test('does not give Nightingale Nightmare a second banner landmark', async ({
+    page,
+  }) => {
+    // The reason the bar is a `div`. Five pages carry the masthead, and `<header>` outside
+    // `<main>` is the `banner` landmark — two of them is `landmark-no-duplicate-banner`.
+    await page.goto('/nn/');
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+  });
+});
+
 test.describe('the club website', () => {
   test('says a new site is coming, without promising when', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(
-      'A new Southville Running Club website',
+    // The heading is the club's name; the banner above it does the welcoming. What this
+    // test is really guarding is the next assertion — that no date is promised anywhere.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Southville Running Club',
     );
+    await expect(page.locator('main')).toContainText('being built here');
 
     // When the new site replaces the old one is a committee decision, and a date invented
     // here would be a factual claim nobody authorised.
@@ -44,24 +109,33 @@ test.describe('Nightingale Nightmare, at /nn', () => {
   }) => {
     // The markers live on the year page with the forms — see `serves.test.ts`.
     await page.goto('/nn/2026/');
+  test('renders', async ({ page }) => {
+    await page.goto('/nn/');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'Nightingale Nightmare 2026',
     );
-
-    const health = page.locator('[data-health]');
-    await expect(health).toHaveAttribute('data-health', 'ok');
-    await expect(health).toHaveText(/\d{1,2} \w+ \d{4} at \d{2}:\d{2} (GMT|BST)/);
   });
 
   test('renders a second, independent database round trip', async ({ page }) => {
     // intake.ping() — added after health() to prove a later migration reaches this page
     // the same way the first one already did.
     await page.goto('/nn/2026/');
+  test('shows a runner nothing about databases, runtimes or workspaces', async ({
+    page,
+  }) => {
+    // **The two assertions this replaces were the diagnostics themselves.** They checked a
+    // database timestamp and a pipeline-check marker rendered on this page — below the form
+    // somebody hands over £17 and an emergency contact on. Both round trips still run and are
+    // still checked, at `/_health`, a few tests below.
+    await page.goto('/nn/');
+    const body = (await page.locator('body').textContent()) ?? '';
 
-    const ping = page.locator('[data-pipeline-check]');
-    await expect(ping).toHaveAttribute('data-pipeline-check', 'ok');
-    await expect(ping).toHaveText('pipeline-ok');
+    expect(body).not.toContain('What this page proves');
+    expect(body).not.toContain('Database time');
+    expect(body).not.toContain('Pipeline check');
+    expect(body).not.toContain('apps/main');
+    expect(body).not.toContain('Cloudflare Workers');
   });
 
   test('states what is true of the race, and names no year', async ({ page }) => {
@@ -630,21 +704,64 @@ test.describe('race timing, at /timing', () => {
     expect(background).not.toBe('rgba(0, 0, 0, 0)');
   });
 
-  test('shows a database timestamp from the same project', async ({ page }) => {
+  test('is a holding page rather than a status table', async ({ page }) => {
+    // **This whole page used to be the diagnostics** — "this page exists to prove the path it
+    // will move onto", then a `<dl>` of the database time, a pipeline-check marker, the
+    // runtime and the workspace directory — and the club's front door linked to it as "live
+    // results and marshal screens".
     await page.goto('/timing');
+    const body = (await page.locator('body').textContent()) ?? '';
 
-    await expect(page.locator('[data-health]')).toHaveAttribute('data-health', 'ok');
+    expect(body).not.toContain('What this page proves');
+    expect(body).not.toContain('Database time');
+    expect(body).not.toContain('Pipeline check');
+    expect(body).not.toContain('apps/timing');
+    expect(body).not.toContain('prove');
+
+    // It says the one thing somebody following that link came to find out.
+    expect(body).toContain('not open yet');
   });
+});
 
-  test('renders the same second database round trip as the website', async ({ page }) => {
-    // The same intake.ping() call, reached by a different application — proving the
-    // pipeline reaches both front doors, not just the one it was first proven on.
-    await page.goto('/timing');
+test.describe('the health endpoints', () => {
+  // **Both round trips, still checked, at an address no runner is ever sent to.**
+  //
+  // `intake.health()` says a Worker can reach Supabase at all. `intake.ping()` was added
+  // *after* the first deploy, so it says a migration went through the whole path — CI's scope
+  // guard, `supabase db push` on merge, and a deploy of both applications. Checking both from
+  // both applications is what proves the two are talking to **one** project, which is the
+  // arrangement ADR-002 chose and the thing that would fail silently if a second appeared.
+  //
+  // `request` rather than `page`: these are endpoints, and going through a browser would only
+  // add a renderer to something that answers JSON. It also means they run in the
+  // scripting-disabled project unchanged.
+  for (const [name, path] of [
+    ['the website', '/_health'],
+    ['race timing', '/timing/health'],
+  ] as const) {
+    test(`${name} reports both database round trips`, async ({ request }) => {
+      const response = await request.get(path);
 
-    const ping = page.locator('[data-pipeline-check]');
-    await expect(ping).toHaveAttribute('data-pipeline-check', 'ok');
-    await expect(ping).toHaveText('pipeline-ok');
-  });
+      expect(response.status()).toBe(200);
+      expect(response.headers()['cache-control']).toBe('no-store');
+
+      expect(await response.json()).toMatchObject({
+        ok: true,
+        database: { ok: true },
+        pipeline: { ok: true, value: 'pipeline-ok' },
+      });
+    });
+
+    test(`${name} reports the hour in Europe/London`, async ({ request }) => {
+      // The one assertion worth making about the *content* of the timestamp. Nightingale
+      // Nightmare is raced the weekend after the clocks go back, and an endpoint reporting
+      // UTC as though it were local is the drift this repository has a whole module to stop.
+      const { database } = await (await request.get(path)).json();
+
+      expect(database.at).toMatch(/Z$/);
+      expect(database.formatted).toMatch(/\d{1,2} \w+ \d{4} at \d{2}:\d{2} (GMT|BST)/);
+    });
+  }
 });
 
 test.describe('accessibility', () => {

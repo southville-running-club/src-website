@@ -74,7 +74,7 @@ request from today. What you cannot do is stop yourself deviating from it.
 
 | | Cost | |
 | --- | --- | --- |
-| **A CI guard** | £0 | A workflow that fails loudly when a commit reaches `main` without a pull request. Detection rather than prevention — exactly the trade [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) already ratified for DNS |
+| **A CI guard** ✅ | £0 | **Built** — `.github/workflows/main-guard.yml`. It fails on a push to `main` whose commit belongs to no pull request. Detection rather than prevention, which is exactly the trade [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) already ratified for DNS |
 | **GitHub Team** | ~£70–90/yr for two | Real enforcement, and it also unlocks the environment protection in step 4 |
 | **Make the repository public** | £0 | Full enforcement and unlimited Actions minutes. Needs the [DNS zone export](../../reference/zone-fasthosts-2026-08-08.txt) moved or redacted first, and makes the club's infrastructure reasoning public |
 
@@ -83,14 +83,79 @@ one, and the gap it leaves is the same gap the club has already accepted elsewhe
 in the [decision log](../../decisions/decision-log.md) so it is a deferral rather than an
 oversight.
 
-## 3. Actions permissions
+## 3. Repository settings — **admin only, and none of it can be done from a diff**
 
-**Settings → Actions → General.**
+> **Everything in this section needs the shared `southville-running-club` login.**
+> `chessser` and `bindalshah` are *collaborators* with write, and every setting below is
+> admin-gated: `PATCH /repos/{owner}/{repo}` is refused, and both
+> `/actions/permissions` and `/vulnerability-alerts` answer `404` to a write-level token
+> rather than reporting their state. So a volunteer cannot even *confirm* these, let alone
+> change them.
+>
+> That is why the four workflow-permission declarations moved **into the workflow files**,
+> where they are reviewed in a pull request. This section is what is left over.
 
-- [ ] **Allow all actions and reusable workflows** — the workflows use `actions/checkout`
+> ### ✅ Done — 15 August 2026
+>
+> All of 3a–3c were set by Mark through the shared login. What is recorded below is what the
+> settings **are**, not what somebody once intended; re-read it before changing any of them.
+
+### 3a. Actions → General
+
+**Settings → Actions → General**, as the shared login.
+
+- [x] **Allow all actions and reusable workflows** — the workflows use `actions/checkout`
       and `actions/setup-node` only.
-- [ ] **Workflow permissions: Read repository contents.** Nothing here writes to the
-      repository, so nothing needs write.
+- [x] **Workflow permissions: Read repository contents.** Belt and braces now: all four
+      workflows declare `permissions: contents: read` themselves, so this is the floor rather
+      than the only control. Set it anyway — a workflow added later without a `permissions:`
+      block inherits this.
+- [x] **Checked 15 August 2026.** The state is invisible to everybody else, so an unrecorded
+      check is the same as no check.
+
+### 3b. Merge behaviour — **squash only**
+
+**Settings → General → Pull Requests.**
+
+- [x] **Automatically delete head branches.** On since 15 August 2026. Merged branches no
+      longer accumulate — and note the consequence: **after a merge the branch is gone**, so
+      the pre-squash commits survive only on the pull request page, not in any ref.
+- [x] **One merge method: "Squash and merge".** Merge commits and rebase are both off.
+
+> **This reverses what this runbook first recommended, and the correction is the point.**
+> It said to keep merge commits, on the grounds that the history already was merge commits
+> and that `Merge pull request #N` is how a commit is traced back to its review. **The second
+> half of that was simply wrong**: GitHub appends the number to a squashed subject too, so
+> traceability is identical —
+>
+> ```
+> c88d994 Correct the branch-protection claim, and notice a push that skips review (#29)
+> ```
+>
+> `main-guard.yml` is unaffected: it asks GitHub which pull request a commit belongs to, and a
+> squashed commit is associated exactly as a merge commit is. Verified on the merge of #29,
+> which is the line above.
+
+**What squash actually costs, and it is worth knowing before writing a branch.** Every commit
+in a pull request collapses into one on `main`. A branch that tells a story commit by commit
+arrives as a single entry, so:
+
+- **Do not mix two unrelated changes in one pull request.** Under merge commits that was untidy;
+  under squash it is unfixable, because the two cannot be reverted or bisected apart afterwards.
+- Put the reasoning in the **pull request body and the commit message**, not in the shape of the
+  branch — the branch's shape does not survive.
+
+### 3c. Dependabot
+
+- [x] **Settings → Code security → Dependabot alerts.** Checked and set 15 August 2026.
+
+### 3d. What is *not* here, and why
+
+**Nothing in this section is enforcement.** Branch protection, required reviews, required
+checks and the required reviewer on `supabase db push` all need a paid plan — sections
+[2](#2-protecting-main--not-available-yet-and-the-decision-is-open) and
+[4](#4-the-production-environment--also-unavailable-same-reason). These are the settings that
+are free, have never been set, and need no committee decision.
 
 ## 4. The production environment — **also unavailable, same reason**
 
@@ -165,9 +230,16 @@ Once the Cloudflare Workers exist, a third workflow appears on merges to `main`:
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| **CI** | Every pull request, and pushes to `main` | Lint, types, generated types current, unit, Worker, migrations from zero, build, Playwright + axe |
+| **CI** | Every pull request. **Not pushes to `main`** | Lint, types, generated types current, unit, Worker, migrations from zero, build, Playwright + axe |
+| **Main guard** | Every push to `main` | Fails if the commit belongs to no pull request. Seconds, and the only thing watching that path |
 | **Deploy database** | Merges to `main` touching `platform/packages/db/supabase/migrations/**` | `supabase db push --linked` |
-| **Smoke test** | Merges to `main`, daily at 08:17, and by hand | Seven checks against the live site |
+| **Smoke test** | Merges to `main`, daily at 08:17, and by hand | The live-site checks |
+
+> **This table said CI ran on pushes to `main`. It never has.** The claim came from
+> `ci.yml`'s own comment, which asserted a branch protection that does not exist on this
+> plan — so the row that was meant to reassure was describing the exact gap. Corrected in
+> both places, and **Main guard** is what now watches that path. Issue #26 has the full
+> account.
 
 **Nothing in GitHub deploys the Workers.** Cloudflare does that itself when it sees the
 push, which means the migration and the code that uses it go out concurrently and in no

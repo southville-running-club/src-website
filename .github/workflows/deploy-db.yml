@@ -35,7 +35,20 @@ on:
       - '.github/workflows/deploy-db.yml'
 
   # Available by hand for the case the path filter misses, and for re-running a failure.
+  #
+  # **This is the widest hole in the repository and branch protection would not close it.**
+  # A manual dispatch runs *the chosen branch's* copy of this workflow, with the three
+  # production Supabase secrets, and any collaborator with write can do it from a branch
+  # nobody has reviewed. The control that closes it is an Actions environment with a required
+  # reviewer, which the note on the job below already identifies as the strongest argument
+  # for paying. Recorded in issue #26 so it is a known gap rather than an unnoticed one.
   workflow_dispatch:
+
+# Read-only for the repository, which is not the same as harmless — see the note above. The
+# `GITHUB_TOKEN` needs nothing here: the credentials that matter are the three Supabase
+# secrets in `env` below, and this declaration does not constrain those.
+permissions:
+  contents: read
 
 concurrency:
   # Never two migration runs at once against one database.

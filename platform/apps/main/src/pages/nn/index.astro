@@ -249,6 +249,107 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
     </section>
 
     <NnPreviousYears />
+      <form class="signup nn-card" method="post" action="/nn/">
+        {
+          /* Which of this page's two forms arrived. Stated on both, so neither is identified
+        by the absence of something — a stale cached page with no `form` field is still read
+        as the interest form, which is the harmless direction. */
+        }
+        <input type="hidden" name="form" value="interest" />
+
+        <div class="field">
+          <label class="field-label" for="signup-name">Your name</label>
+          <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-name"
+            name="name"
+            type="text"
+            maxlength="100"
+            autocomplete="name"
+            required
+            aria-describedby="signup-name-error"
+            data-signup-value="name"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="signup-email">Email address</label>
+          <p class="field-hint" id="signup-email-hint">
+            The club will email you once, when entries open.
+          </p>
+          <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-email"
+            name="email"
+            type="email"
+            maxlength="254"
+            autocomplete="email"
+            spellcheck="false"
+            required
+            aria-describedby="signup-email-hint signup-email-error"
+            data-signup-value="email"
+          />
+        </div>
+
+        <div class="field">
+          <p
+            class="field-error"
+            id="signup-consent-error"
+            data-signup-error="consent"
+            hidden
+          >
+          </p>
+          <div class="field-check">
+            {
+              /* **`required` is one half of the consent decision.** Consent is currently
+            required to submit; the other half is `z.literal(true)` in
+            packages/shared/src/nn-signup.ts. If the committee decides an unconsented
+            submission should be stored instead, remove `required` here and change that to
+            `z.boolean()`. No migration is involved — the policy's `with check` is
+            deliberately silent on consent. */
+            }
+            <input
+              class="field-checkbox"
+              id="signup-consent"
+              name="consent"
+              type="checkbox"
+              required
+              aria-describedby="signup-consent-error"
+              data-signup-value="consent"
+            />
+            <label class="field-label" for="signup-consent">
+              Yes, email me when entries open for this race.
+            </label>
+          </div>
+        </div>
+
+        <button class="button" type="submit">Register my interest</button>
+      </form>
+    </div>
+
+    <div data-nn-entry hidden>
+      <NnEntryForm />
+    </div>
+
+    {
+      /* **The "What this page proves" block was here, and it is gone.**
+       *
+       * A `<dl>` of the database timestamp, a pipeline-check marker, "Served by: Cloudflare
+       * Workers, static assets plus one handler" and "Application: apps/main" — directly
+       * below the form somebody hands over £17 and their emergency contact on.
+       *
+       * Every one of those round trips is still made, still by this Worker, still in the real
+       * runtime, and the smoke test still fails the deploy if either breaks. They are answered
+       * at `/_health` now, as JSON. **The check was never the problem; its audience was** — this
+       * page's reader is a runner deciding whether the club can be trusted with a card number,
+       * and a page that reports its own plumbing reads as a page that is not finished.
+       *
+       * See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
+    }
 
     <footer>
       {

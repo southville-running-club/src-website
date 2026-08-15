@@ -22,7 +22,16 @@ describe('the club website', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
-    await expect(response.text()).resolves.toContain('A new Southville Running Club');
+    await expect(response.text()).resolves.toContain('Southville Running Club');
+  });
+
+  it('carries the banner, on the built output rather than in a browser', async () => {
+    // The banner is in the layout, so every page gets it — including `/nn/`, and this is
+    // the only layer that reads what the static-assets binding actually returns.
+    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(page).toContain('Welcome to Southville Running Club');
+    expect(page).toContain('href="https://southvillerunningclub.co.uk"');
   });
 
   it('links to both of the things that already exist', async () => {
@@ -133,18 +142,100 @@ describe('the health placeholder', () => {
     // **On the year page**, which is where the two markers went with the forms: their whole
     // purpose is to sit beside a failed submission, and both forms are there now.
     const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
+describe('the health endpoint', () => {
+  // Whether it *reached* the database is a separate matter — the local stack may not be up
+  // in every environment — so these assert the endpoint's contract, not the verdict. The
+  // verdict is the smoke test's, against a real deploy.
 
-    expect(page).not.toContain('Not fetched — the Worker did not run.');
-    expect(page).toMatch(/data-health="(ok|error)"/);
+  it('answers JSON, and never caches it', async () => {
+    const response = await SELF.fetch(`${SITE}/_health`);
+
+    expect(response.headers.get('content-type')).toContain('application/json');
+    // A cached answer to "can you reach the database" is not an answer.
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    // An endpoint, not a page. It has no business in a search result.
+    expect(response.headers.get('x-robots-tag')).toBe('noindex');
   });
-});
 
 describe('the pipeline-check placeholder', () => {
   it('is rewritten by the same Worker, via a second HTMLRewriter handler', async () => {
     // intake.ping() proves a migration added after health() reaches this page the same
     // way — a second handler on a second selector, not a special case of the first.
     const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
+  it('reports both round trips, and agrees with its own status code', async () => {
+    const response = await SELF.fetch(`${SITE}/_health`);
+    const report = (await response.json()) as {
+      ok: boolean;
+      database: { ok: boolean };
+      pipeline: { ok: boolean };
+    };
 
-    expect(page).toMatch(/data-pipeline-check="(ok|error)"/);
+    expect(report).toHaveProperty('database.ok');
+    expect(report).toHaveProperty('pipeline.ok');
+
+    // **`ok` is the one field a monitor need read, so it has to mean what it says.** Both
+    // halves, and the status code with it — a health endpoint answering 200 while its body
+    // says `ok: false` is the shape that lets an outage sit behind a green tick.
+    expect(report.ok).toBe(report.database.ok && report.pipeline.ok);
+    expect(response.status).toBe(report.ok ? 200 : 503);
   });
+
+  it('reports a failure rather than throwing one', async () => {
+    // Whatever state the database is in, this endpoint answers. A 500 here would tell a
+    // monitor that the check broke rather than that the thing being checked did.
+    const response = await SELF.fetch(`${SITE}/_health`);
+
+    expect([200, 503]).toContain(response.status);
+  });
+
+  it('is one address, and /_health/ is not a page', async () => {
+    // Every other predicate in `worker/routing.ts` takes both spellings, because a human
+    // typed those into a form action or a Stripe dashboard. Nothing types this one.
+    const response = await SELF.fetch(`${SITE}/_health/`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('is not something the assets binding will answer for a POST', async () => {
+    const response = await SELF.fetch(`${SITE}/_health`, { method: 'POST' });
+
+    expect(response.status).not.toBe(200);
+  });
+
+  it('leaves /health free for a page about running and health', async () => {
+    // **The reason for the underscore, asserted rather than left as a comment.**
+    //
+    // This is a running club. `/health/` is a plausible content page — training, injury,
+    // wellbeing — and at the old spelling the Worker answered `/health` before the assets
+    // binding while a page served at `/health/`. Both worked, one character apart, and
+    // somebody typing "health" got a database report. Nothing errored and nothing failed CI.
+    //
+    // Nothing is there today, so this asserts the endpoint has let go of the name: whatever
+    // `/health` answers, it must not be this endpoint's JSON.
+    const response = await SELF.fetch(`${SITE}/health`);
+
+    expect(response.headers.get('content-type') ?? '').not.toContain('application/json');
+  });
+});
+
+describe('the pages a runner sees', () => {
+  // **The diagnostics came off `/nn/` deliberately, and this is what keeps them off.**
+  //
+  // The block said "What this page proves" and listed the database time, a pipeline-check
+  // marker, the runtime and the workspace directory — directly below the form somebody hands
+  // over £17 and an emergency contact on. The round trips still run; they answer at `/_health`
+  // now. The failure this guards against is somebody re-adding a marker to a page because it
+  // was convenient, which is how it got there the first time.
+  it.each(['/nn/', '/nn/entry/complete/', '/'])(
+    '%s says nothing about databases, runtimes or workspaces',
+    async (path) => {
+      const page = await (await SELF.fetch(`${SITE}${path}`)).text();
+
+      expect(page).not.toContain('What this page proves');
+      expect(page).not.toContain('data-health');
+      expect(page).not.toContain('data-pipeline-check');
+      expect(page).not.toContain('pipeline-ok');
+      expect(page).not.toContain('Not fetched — the Worker did not run.');
+    },
+  );
 });

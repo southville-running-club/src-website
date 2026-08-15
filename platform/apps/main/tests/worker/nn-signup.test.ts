@@ -211,16 +211,23 @@ describe('what the sign-up route does not claim', () => {
   });
 });
 
-describe('the status markers, on a page that is reporting a failure', () => {
-  it('are still filled in', async () => {
-    // **The two database round trips have to keep running on the failure paths**, and this
-    // is the test that says so. A form that has just failed to save is exactly when
-    // somebody wants to know whether this Worker can reach Postgres at all: a 503 beside a
-    // broken health timestamp is a different problem from one beside a working timestamp.
+describe('a page that is reporting a failed submission', () => {
+  it('carries no diagnostics either', async () => {
+    // **This test used to assert the opposite, and the change is worth recording.**
+    //
+    // The two status markers were rewritten onto every HTML response including this one, on
+    // the argument that a submission which just failed is exactly when somebody wants to know
+    // whether the Worker can reach Postgres. That argument is right about the *need* and wrong
+    // about the *audience*: the person reading this page is a runner whose form did not save,
+    // and a database timestamp beside the apology helps them not at all. It is the maintainer
+    // who wants it, and the maintainer has `/_health`, which answers whatever this page says.
+    //
+    // What the person gets instead is the notice — "nothing has been recorded, and nothing you
+    // typed has been lost" — which is the sentence that was always doing the work.
     const page = await (await submit({ name: '', email: '', consent: '' })).text();
 
-    expect(page).not.toContain('Not fetched — the Worker did not run.');
-    expect(page).toMatch(/data-health="(ok|error)"/);
-    expect(page).toMatch(/data-pipeline-check="(ok|error)"/);
+    expect(page).not.toContain('data-health');
+    expect(page).not.toContain('data-pipeline-check');
+    expect(page).not.toContain('What this page proves');
   });
 });

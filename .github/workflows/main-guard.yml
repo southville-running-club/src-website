@@ -1,0 +1,91 @@
+name: Main guard
+
+# **Did this commit reach `main` through a pull request?**
+#
+# On the free plan nothing can *stop* a direct push to `main`, so this notices one instead.
+# It is option A in the decision log — costed at £0, described in two documents, and until
+# now never written.
+#
+# ## Why detection is worth having when prevention is not available
+#
+# A direct push to `main` is the one path in this repository where **no suite runs at all**,
+# and it is also a path that deploys: `smoke.yml` and `deploy-db.yml` both trigger on push
+# to `main`, so an unreviewed commit can push schema to the club's live database without a
+# single test having run against it.
+#
+# The convention has held — twelve merges, and the only non-merge commit on `main`'s
+# first-parent history is `199b9ad chore: initialise repository`. This turns "it has held so
+# far" into something that says so out loud when it stops holding, which is the second
+# revisit trigger the decision log set for the plan question.
+#
+# **It runs after the fact and cannot undo anything.** That is the trade ADR-005 already
+# ratified for DNS: a reviewable artefact rather than an enforced gate, on the grounds that
+# the club would otherwise be paying to enforce a rule two people are already keeping.
+#
+# See docs/decisions/decision-log.md and docs/delivery/runbooks/github-setup.md#2-protecting-main
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only, and it is the whole of what this needs: the commit, and whether a pull request
+# claims it. Declared here rather than left to the repository default so it is reviewed in a
+# diff instead of read off a settings page neither volunteer can see the state of.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pull-request:
+    name: the commit arrived by pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ask GitHub which pull request this commit belongs to
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # The commit-to-PR association is GitHub's own, so it is right for every merge
+          # style the repository might use — a merge commit, a squashed commit, or a rebased
+          # one all come back associated. A commit pushed straight to the branch does not.
+          count=$(gh api "repos/${REPO}/commits/${SHA}/pulls" --jq 'length')
+
+          if [ "$count" -gt 0 ]; then
+            echo "ok — ${SHA} arrived through a pull request."
+            exit 0
+          fi
+
+          # `::error::` so it is on the run's summary rather than only in the log, and says
+          # what to do rather than only what happened.
+          echo "::error::${SHA} is on main and belongs to no pull request."
+          cat <<'MESSAGE'
+
+          A commit reached main without a pull request.
+
+          Nothing tested it: CI runs on pull_request, so this code has had no lint, no
+          types, no unit, database, Worker or acceptance run. smoke.yml and deploy-db.yml
+          trigger on this same push, so it may already be deploying.
+
+          What to do now:
+
+            1. Check whether deploy-db.yml ran. If it pushed a migration, that migration is
+               on the club's live database and was never reviewed.
+            2. Run the suite against main locally: ./dev check && ./dev test
+            3. If it is bad, revert by pull request rather than by a second direct push.
+
+          This is a detection, not a gate — the free plan cannot block the push itself.
+          The decision log's second revisit trigger is "somebody pushes to main by
+          accident". This is that, and it is worth recording that it fired:
+          docs/decisions/decision-log.md
+
+          MESSAGE
+          exit 1
