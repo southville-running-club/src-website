@@ -250,6 +250,25 @@ async function resolveView(
 // -----------------------------------------------------------------------------------------
 
 /**
+ * Which of the year page's two forms a request is about.
+ *
+ * **The hidden field, and not the entry window.** Inferring it from the window nearly works
+ * and fails at the worst moment: somebody who opened the page a minute before entries opened
+ * would have their name and email address read as an entry and be shown fourteen validation
+ * errors about fields they were never asked for. What was submitted is a fact about the
+ * submission, so it travels with it.
+ *
+ * **Anything unrecognised is the interest form**, deliberately: that is the form that takes no
+ * money and no personal data beyond a name, so an unlabelled or stale submission lands on the
+ * harmless side of the fork.
+ */
+export type NnFormKind = 'interest' | 'entry';
+
+export function nnFormKind(form: FormData | null): NnFormKind {
+  return form?.get('form') === 'entry' ? 'entry' : 'interest';
+}
+
+/**
  * Every value exactly as it was typed — untrimmed, unvalidated, and echoed back into the
  * form on a failure so nothing has to be entered twice.
  *
@@ -680,18 +699,16 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
     // filled button, and the fee line appears under it. No badge and no banner saying "open" —
     // the button already says it, and a page that said it twice would be shouting.
     //
-    // The interest form goes with it. The entry form is not on this page and must not be
-    // copied onto it: two forms writing to one table is two places for a rule to be wrong.
+    // **Nothing hides an interest form here any more.** Both forms are on the running; this
+    // page links to them and carries neither.
     rewriter
-      .on('[data-nn-interest]', new HideHandler())
       .on('[data-nn-panel-shut]', new HideHandler())
       .on('[data-nn-panel-open]', new RevealHandler())
       .on('[data-nn-panel-fees]', new TextHandler(feeLine(fees)))
       .on(
         '[data-nn-panel-action]',
         new PanelActionHandler(`${yearPath}#enter`, year, true),
-      )
-      .on('[data-nn-cta]', new CtaHandler(`${yearPath}#enter`, 'Enter the race'));
+      );
   } else {
     rewriter.on('[data-nn-panel-action]', new PanelActionHandler(yearPath, year, false));
   }
@@ -842,11 +859,11 @@ const NAV_LABELS: Record<EntryWindowState, { long: string; short: string }> = {
  * Reveal whichever of the year page's two states applies, and fill in what only the database
  * knows.
  *
- * **The "entries are not open" notice ships visible and the form ships hidden**, which is the
- * safe default rather than an arbitrary one — the same inversion `/nn/` uses for its two
- * forms, arrived at from the other side. A year page that cannot tell whether entries are open
- * must not offer to take one, so the `closed` case does no rewriting at all and the common
- * path and the database-unreachable path produce byte-identical HTML.
+ * **The interest form ships visible and the entry form ships hidden**, which is the safe
+ * default rather than an arbitrary one: a page that cannot tell whether entries are open must
+ * not offer to take one, and the form that takes no money is the one to fall back to. So the
+ * `closed` case does no rewriting at all, and the common path and the database-unreachable
+ * path produce byte-identical HTML.
  */
 export function renderNnEntryView(
   rewriter: HTMLRewriter,
@@ -859,7 +876,7 @@ export function renderNnEntryView(
   const { state } = view;
 
   rewriter
-    .on('[data-nn-not-open]', new HideHandler())
+    .on('[data-nn-interest]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
     .on('[data-nn-cta]', new CtaHandler('#enter', 'Enter the race'));
 
@@ -992,7 +1009,7 @@ export function renderNnEntryClosed(rewriter: HTMLRewriter): HTMLRewriter {
   // pressed a button deserves to be told what happened rather than to be handed a page that
   // looks as though nothing did.
   return rewriter
-    .on('[data-nn-not-open]', new HideHandler())
+    .on('[data-nn-interest]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
     .on('[data-entry-closed]', new RevealHandler(true));
 }

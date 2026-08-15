@@ -105,14 +105,14 @@ const dateLine = race.date
       }
       {
         /* **The loud button offers the one thing this page can honour today**, which is the
-        interest form on the race page — entries are not open, and a button that said
-        "Enter the race" while they were shut would be a promise this page cannot keep. The
-        Worker repoints it at the form below and relabels it on the day
-        `entries.events.entries_open_at` says entries are open: one row edit and no deploy,
-        which is the property the event table exists for. */
+        interest form below — entries are not open, and a button that said "Enter the race"
+        while they were shut would be a promise this page cannot keep. The Worker repoints it
+        at the entry form and relabels it on the day `entries.events.entries_open_at` says
+        entries are open: one row edit and no deploy, which is the property the event table
+        exists for. */
       }
       <div class="nn-herobtns">
-        <a class="nn-cta" href="/nn/#register" data-nn-cta>Register your interest</a>
+        <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
         <a class="nn-ghost" href="/nn/2026/race-day/">Race-day plan</a>
       </div>
     </div>
@@ -203,23 +203,249 @@ const dateLine = race.date
       Nothing links to this block: the hero points at the interest form while entries are
       shut and at the form below once they are open. */
     }
-    <div class="nn-card nn-prose" data-nn-not-open>
-      <h2>Entering</h2>
+    {
+      /* **The interest form, on the running it is an interest in.** It was on `/nn/`, which
+      was the wrong page: interest in what — the race in general, or this year's? It is this
+      year's, and this page now reads as one thing in both states. `/nn/` keeps a route to it,
+      which is the panel's button.
 
-      <p>
-        <strong>Entries are not open yet.</strong> When they open, this is the page they open
-        on.
+      It ships **visible** and the entry form ships hidden, which is the safe default: a page
+      that cannot tell whether entries are open must not offer to take one. */
+    }
+    <div data-nn-interest>
+      <h2 id="register">Register your interest</h2>
+
+      {
+        /* The acknowledgement, the failure notice and the error summary are all served hidden
+      and revealed by the Worker — see worker/nn-signup.ts. Doing it this way means there is
+      exactly one copy of this page, in dist/, and the Worker paints an outcome onto it
+      rather than holding a second template that can drift from this one.
+
+      Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it.
+      That is how focus moves **with JavaScript disabled**, which is the primary path here
+      rather than a fallback.
+
+      All three are white cards in the event theme, because all three are read rather than
+      glanced at, and none of them lets colour carry the meaning: each says in words what it
+      is. */
+      }
+
+      <div
+        class="notice notice-ok nn-card"
+        data-signup-ack
+        hidden
+        tabindex="-1"
+        role="status"
+      >
+        {
+          /* The mockup's confirmation tick. Decorative, and hidden from assistive technology
+        deliberately — this element is a live region, and what should be announced is the
+        sentence below, not the word "tick". */
+        }
+        <span class="nn-tick" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false"
+            ><path d="M4 12.5 10 18 20 6"></path></svg
+          >
+        </span>
+        <p><strong>Thank you — your interest is registered.</strong></p>
+        <p>
+          The club will email you once, when entries open. That is the only thing this
+          list is used for.
+        </p>
+      </div>
+
+      <div
+        class="notice notice-bad nn-card"
+        data-signup-unavailable
+        hidden
+        tabindex="-1"
+        role="alert"
+      >
+        <p><strong>Sorry — that could not be saved just now.</strong></p>
+        <p>
+          Nothing has been recorded, and nothing you typed has been lost. Please press
+          "Register my interest" again in a moment.
+        </p>
+      </div>
+
+      <div
+        class="notice notice-bad nn-card"
+        data-signup-summary
+        hidden
+        tabindex="-1"
+        role="alert"
+      >
+        <h3>There is a problem</h3>
+        <ul class="summary-list">
+          <li data-signup-summary-item="name" hidden>
+            <a data-signup-summary-link="name" href="#signup-name"></a>
+          </li>
+          <li data-signup-summary-item="email" hidden>
+            <a data-signup-summary-link="email" href="#signup-email"></a>
+          </li>
+          <li data-signup-summary-item="consent" hidden>
+            <a data-signup-summary-link="consent" href="#signup-consent"></a>
+          </li>
+        </ul>
+      </div>
+
+      {
+        /* **Above the form, not below it.** What happens to a name and an email address is
+      worth knowing before typing them rather than after, and somebody who wants to check
+      first should not have to scroll past the thing they are deciding about to find out. */
+      }
+
+      <p class="signup-privacy">
+        The club holds your name and email address, and uses them for nothing but this one
+        email. <a href="/nn/privacy/">What the club does with this</a>, including how to
+        have it removed.
       </p>
 
-      <p>
-        <a href="/nn/">Leave your name on the race page</a> and the club will email you once
-        — on the day they open, and for nothing else, ever.
-      </p>
+      {
+        /* A real form, posting to a real address. No JavaScript is involved in submitting it,
+      validating it, or rendering what comes back — runners are on phones, on poor signal,
+      sometimes in bright sunlight with cold hands.
+
+      `action` carries the trailing slash Astro is configured to insist on, so a submission
+      never arrives at a second address for the same page. */
+      }
+
+      {
+        /* **The hidden `form` field is back, because the ambiguity is back.** The two forms
+        were on one page, then on two, and now they are on one again — this page, one at a
+        time. The address cannot tell them apart any more, so the body does.
+
+        **Not the window state, which would nearly work and fail at the worst moment.** The
+        Worker could infer "shut means interest"; then somebody who opened this page a minute
+        before entries opened would have their name and email read as an entry and be shown
+        fourteen validation errors. The field says what was actually submitted.
+
+        Stated on both forms, so neither is identified by the absence of something: a stale
+        cached page with no field is read as the interest form, which is the harmless side. */
+      }
+      <input type="hidden" name="form" value="interest" />
+
+      <form class="signup nn-card" method="post" action={Astro.url.pathname}>
+        <div class="field">
+          <label class="field-label" for="signup-name">Your name</label>
+          <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-name"
+            name="name"
+            type="text"
+            maxlength="100"
+            autocomplete="name"
+            required
+            aria-describedby="signup-name-error"
+            data-signup-value="name"
+          />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="signup-email">Email address</label>
+          <p class="field-hint" id="signup-email-hint">
+            The club will email you once, when entries open.
+          </p>
+          <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
+          </p>
+          <input
+            class="field-input"
+            id="signup-email"
+            name="email"
+            type="email"
+            maxlength="254"
+            autocomplete="email"
+            spellcheck="false"
+            required
+            aria-describedby="signup-email-hint signup-email-error"
+            data-signup-value="email"
+          />
+        </div>
+
+        <div class="field">
+          <p
+            class="field-error"
+            id="signup-consent-error"
+            data-signup-error="consent"
+            hidden
+          >
+          </p>
+          <div class="field-check">
+            {
+              /* **`required` is one half of the consent decision.** Consent is currently
+            required to submit; the other half is `z.literal(true)` in
+            packages/shared/src/nn-signup.ts. If the committee decides an unconsented
+            submission should be stored instead, remove `required` here and change that to
+            `z.boolean()`. No migration is involved — the policy's `with check` is
+            deliberately silent on consent. */
+            }
+            <input
+              class="field-checkbox"
+              id="signup-consent"
+              name="consent"
+              type="checkbox"
+              required
+              aria-describedby="signup-consent-error"
+              data-signup-value="consent"
+            />
+            <label class="field-label" for="signup-consent">
+              Yes, email me when entries open for this race.
+            </label>
+          </div>
+        </div>
+
+        <button class="button" type="submit">Register my interest</button>
+      </form>
     </div>
 
     <div data-nn-entry hidden>
       <NnEntryForm />
     </div>
+
+    {
+      /* **It moved here with the forms, and that is the whole reason it exists.** The two
+      database round trips are on the page a failed submission is re-served on, deliberately:
+      a 503 from a form beside a broken health timestamp is a different problem from a 503
+      beside a working one, and somebody who has just failed to submit is exactly who wants to
+      know which. Both forms are on this page now, so this is where it belongs. */
+    }
+    <h2>What this page proves</h2>
+
+    <p>
+      The timestamp below was fetched from Postgres by the Worker while it served this
+      request. It is rendered server-side, so it is here with JavaScript disabled. If it
+      reads as an error, the connection is genuinely broken and that is the useful answer.
+    </p>
+
+    <dl class="status">
+      <dt>Database time, Europe/London</dt>
+      <dd>
+        {
+          /* The Worker fills this in while serving the request — see worker/index.ts. The
+          `datetime` attribute carries UTC and the text carries Europe/London, which is
+          the storage-and-display rule expressed in one element. */
+        }
+        <time data-health="pending">Not fetched — the Worker did not run.</time>
+      </dd>
+
+      <dt>Pipeline check</dt>
+      <dd>
+        {
+          /* A second, independent database round trip — intake.ping(), added after the
+          skeleton's first deploy to prove a *new* migration reaches this page the same
+          way the one above already did. */
+        }
+        <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
+      </dd>
+
+      <dt>Served by</dt>
+      <dd>Cloudflare Workers, static assets plus one handler</dd>
+
+      <dt>Application</dt>
+      <dd>apps/main</dd>
+    </dl>
 
     <footer>
       <p>

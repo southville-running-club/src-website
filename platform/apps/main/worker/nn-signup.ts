@@ -51,10 +51,18 @@ export type NnSignupOutcome =
   | { status: 'invalid'; errors: NnSignupErrors; submitted: NnSignupSubmission }
   | { status: 'unavailable'; submitted: NnSignupSubmission };
 
-/** Where a successful submission is sent. The trailing slash is Astro's canonical form. */
-export const NN_SIGNUP_SUCCESS_PATH = '/nn/?signup=ok';
+/**
+ * Where a successful submission is sent — **back to the page it came from**.
+ *
+ * The interest form is on the running it is an interest in, so this is built from that
+ * running's path rather than fixed at `/nn/`. POST/Redirect/GET, so a refresh does not
+ * re-post; the trailing slash is Astro's canonical form and arrives with the path.
+ */
+export function nnSignupSuccessPath(yearPath: string): string {
+  return `${yearPath}?${NN_SIGNUP_SUCCESS_QUERY}=${NN_SIGNUP_SUCCESS_VALUE}`;
+}
 
-/** What `/nn/` is asked for in its query string to render the acknowledgement. */
+/** What the page is asked for in its query string to render the acknowledgement. */
 export const NN_SIGNUP_SUCCESS_QUERY = 'signup';
 const NN_SIGNUP_SUCCESS_VALUE = 'ok';
 

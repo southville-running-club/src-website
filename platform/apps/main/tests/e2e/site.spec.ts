@@ -42,10 +42,11 @@ test.describe('Nightingale Nightmare, at /nn', () => {
   test('renders and shows a database timestamp fetched by the Worker', async ({
     page,
   }) => {
-    await page.goto('/nn/');
+    // The markers live on the year page with the forms — see `serves.test.ts`.
+    await page.goto('/nn/2026/');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Nightingale Nightmare',
+      'Nightingale Nightmare 2026',
     );
 
     const health = page.locator('[data-health]');
@@ -56,7 +57,7 @@ test.describe('Nightingale Nightmare, at /nn', () => {
   test('renders a second, independent database round trip', async ({ page }) => {
     // intake.ping() — added after health() to prove a later migration reaches this page
     // the same way the first one already did.
-    await page.goto('/nn/');
+    await page.goto('/nn/2026/');
 
     const ping = page.locator('[data-pipeline-check]');
     await expect(ping).toHaveAttribute('data-pipeline-check', 'ok');
@@ -386,13 +387,17 @@ test.describe('the Nightingale Nightmare content pages', () => {
   test('the loudest control offers the only thing this site can do', async ({ page }) => {
     // **This is the assertion that keeps a payment link off a site with no payment.** The
     // mockup's primary button is "Enter the race — from £15" — an unconfirmed price on a
-    // control that goes to a checkout. Registering interest is the whole of what `/nn/`
-    // does, so it has to be the whole of what the loudest control offers.
+    // control that goes to a checkout.
+    //
+    // The loudest control on `/nn/` is the panel's action, and while entries are shut it goes
+    // to this year's page rather than to anything that takes money. The seeded state is shut,
+    // which is what production serves.
     await page.goto('/nn/');
 
-    const primary = page.locator('.nn-cta').first();
-    await expect(primary).toHaveText('Register your interest');
-    await expect(primary).toHaveAttribute('href', '#register');
+    const primary = page.locator('[data-nn-panel-action]');
+    await expect(primary).toHaveText('The 2026 race');
+    await expect(primary).toHaveAttribute('href', '/nn/2026/');
+    await expect(primary).toHaveClass(/nn-ghost/);
 
     // Nothing anywhere on the page may lead somewhere that takes money.
     const hrefs = await page

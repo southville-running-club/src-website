@@ -7,7 +7,7 @@ import {
 import {
   isNnEntryCompletePath,
   isNnMastheadPath,
-  isNnSignupPath,
+  isNnRacePath,
   isNnWebhookPath,
   isNnYearPath,
   isTimingPath,
@@ -23,10 +23,11 @@ import {
   renderNnSignupAcknowledgement,
   renderNnSignupErrors,
   renderNnSignupUnavailable,
-  NN_SIGNUP_SUCCESS_PATH,
+  nnSignupSuccessPath,
   type NnSignupOutcome,
 } from './nn-signup';
 import {
+  nnFormKind,
   processNnEntry,
   renderNnEntryClosed,
   renderNnEntryErrors,
@@ -137,25 +138,26 @@ export default {
     // sees the request first, and it has to: the binding serves `dist/`, which is static
     // HTML, and it will not answer a POST at all.
     //
-    // The webhook is matched **before** the two form paths, and none of the three can
-    // collide — `isNnSignupPath` is `/nn` and `/nn/` exactly, `isNnYearPath` is four digits
-    // beneath it, and this is `/nn/stripe-webhook`. The order is stated rather than relied
-    // on: a future predicate that widened one of them would otherwise turn payment
-    // confirmations into form submissions, silently.
+    // The webhook is matched **before** the form path, and the two cannot collide —
+    // `isNnYearPath` is four digits beneath `/nn/`, and this is `/nn/stripe-webhook`. The
+    // order is stated rather than relied on: a future predicate that widened one of them
+    // would otherwise turn payment confirmations into form submissions, silently.
     if (request.method === 'POST' && isNnWebhookPath(url.pathname)) {
       return handleStripeWebhook(request, env);
     }
 
-    // **The address decides which form this is, not a field in the body.** It used to be the
-    // hidden `form` field, because both forms were on one page; they are on two pages now, and
-    // the request's own path is a thing nobody can mistype into the wrong handler. The hidden
-    // field is gone with the ambiguity that needed it.
-    if (request.method === 'POST' && isNnSignupPath(url.pathname)) {
-      return handleNnSignup(await readForm(request), env, url);
-    }
-
+    // **Both forms post to the running they belong to**, and the hidden `form` field is what
+    // tells them apart. The interest form moved here with the entry form: interest in what —
+    // the race in general, or this year's running? It is this year's.
+    //
+    // The body is read once, here, and handed on. Reading a request twice to avoid threading a
+    // `FormData` through would be the worse trade.
     if (request.method === 'POST' && isNnYearPath(url.pathname)) {
-      return handleNnEntry(await readForm(request), env, url);
+      const form = await readForm(request);
+
+      return nnFormKind(form) === 'entry'
+        ? handleNnEntry(form, env, url)
+        : handleNnSignup(form, env, url);
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -191,26 +193,26 @@ export default {
       renderNnNav(rewriter, race);
     }
 
-    if (isNnSignupPath(url.pathname)) {
+    if (isNnRacePath(url.pathname)) {
       // **Which running is on, and where it is, decided per request.** The race page holds no
-      // year, so every link it makes to one is painted here.
+      // year, so every link it makes to one — and every value in its panel — is painted here.
       renderNnRaceView(rewriter, race ?? { running: null });
-
-      // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET,
-      // and `?signup=ok` is what tells this pass to reveal the acknowledgement.
-      if (isNnSignupSuccess(url)) {
-        renderNnSignupAcknowledgement(rewriter);
-      }
     }
 
     const yearSlug = nnEventSlugForYearPath(url.pathname);
 
     if (yearSlug !== null) {
-      // **Which of the year page's two states somebody gets, decided per request.** The event
+      // **Which of the year page's two forms somebody gets, decided per request.** The event
       // row says whether entries are open; nothing here is baked into the build. Every failure
-      // resolves to "entries are not open", so a database this Worker cannot reach produces
-      // the page that claims least rather than an offer to take an entry it cannot record.
+      // resolves to the interest form, so a database this Worker cannot reach produces the
+      // page that takes no money rather than an offer to take an entry it cannot record.
       renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug));
+
+      // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET, and
+      // `?signup=ok` is what tells this pass to reveal the acknowledgement.
+      if (isNnSignupSuccess(url)) {
+        renderNnSignupAcknowledgement(rewriter);
+      }
     }
 
     if (isNnEntryCompletePath(url.pathname)) {
@@ -336,10 +338,13 @@ async function handleNnSignup(
     // POST/Redirect/GET. Without it, a refresh re-posts and the person is left wondering
     // whether they have signed up twice — which they have not, because of the unique
     // index, but the form should not make them guess.
-    return Response.redirect(new URL(NN_SIGNUP_SUCCESS_PATH, url).toString(), 303);
+    return Response.redirect(
+      new URL(nnSignupSuccessPath(yearPath(url)), url).toString(),
+      303,
+    );
   }
 
-  const page = await nnPage(env, url, `${NN_PREFIX}/`);
+  const page = await nnPage(env, url, yearPath(url));
   if (!page.ok) {
     return page;
   }
@@ -399,16 +404,9 @@ async function handleNnEntry(
     });
   }
 
-  // **The canonical spelling of the address it was posted to.** A form posting to `/nn/2026`
-  // without the trailing slash is accepted, and the page it is re-served from is the one Astro
-  // actually built — `trailingSlash: 'always'` means there is only ever the one.
   const yearSlug = nnEventSlugForYearPath(url.pathname);
-  const yearPath =
-    yearSlug === null
-      ? `${NN_PREFIX}/`
-      : (nnYearPathForEventSlug(yearSlug) ?? url.pathname);
 
-  const page = await nnPage(env, url, yearPath);
+  const page = await nnPage(env, url, yearPath(url));
   if (!page.ok) {
     return page;
   }
@@ -443,6 +441,19 @@ async function handleNnEntry(
   // thing "entries closed" above is saying. The other three are outages of one kind or
   // another and 503 says so.
   return typedPage(rewriter.transform(page), outcome.status === 'sold-out' ? 409 : 503);
+}
+
+/**
+ * **The canonical spelling of the address a form posted to.**
+ *
+ * A form posting to `/nn/2026` without the trailing slash is accepted, and the page it is
+ * re-served from — or redirected to — has to be the one Astro actually built:
+ * `trailingSlash: 'always'` means there is only ever the one. Round-tripped through the slug
+ * rather than patched onto `url.pathname`, so there is one rule and it is `routing.ts`'s.
+ */
+function yearPath(url: URL): string {
+  const slug = nnEventSlugForYearPath(url.pathname);
+  return slug === null ? `${NN_PREFIX}/` : (nnYearPathForEventSlug(slug) ?? url.pathname);
 }
 
 /** A GET the assets binding will actually answer, for the canonical address of a page. */

@@ -129,7 +129,10 @@ describe('the health placeholder', () => {
     // Proves the HTMLRewriter ran. Whether it reached the database is a separate matter —
     // the local stack may not be up in every environment — so this asserts the handler
     // replaced the content, not what it replaced it with.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    //
+    // **On the year page**, which is where the two markers went with the forms: their whole
+    // purpose is to sit beside a failed submission, and both forms are there now.
+    const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
 
     expect(page).not.toContain('Not fetched — the Worker did not run.');
     expect(page).toMatch(/data-health="(ok|error)"/);
@@ -140,7 +143,7 @@ describe('the pipeline-check placeholder', () => {
   it('is rewritten by the same Worker, via a second HTMLRewriter handler', async () => {
     // intake.ping() proves a migration added after health() reaches this page the same
     // way — a second handler on a second selector, not a special case of the first.
-    const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    const page = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
 
     expect(page).toMatch(/data-pipeline-check="(ok|error)"/);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isNnEntryCompletePath,
-  isNnSignupPath,
+  isNnRacePath,
   isNnYearPath,
   isTimingPath,
   nnEntryCompletePath,
@@ -43,12 +43,11 @@ describe('what belongs to the timing Worker', () => {
   });
 });
 
-describe('where the sign-up form may post', () => {
-  it.each(['/nn', '/nn/'])('accepts %s', (pathname) => {
-    // Both, deliberately. Astro insists on the trailing slash for the page, but a form
-    // posting to the other address must not have its submission 404'd on the way in — the
-    // person filled it in either way.
-    expect(isNnSignupPath(pathname)).toBe(true);
+describe('the race page, which no form posts to any more', () => {
+  it.each(['/nn', '/nn/'])('is recognised at %s', (pathname) => {
+    // Both, deliberately. Astro insists on the trailing slash for the page, but a request for
+    // the other spelling should still get the painted panel rather than an empty one.
+    expect(isNnRacePath(pathname)).toBe(true);
   });
 
   it.each([
@@ -57,10 +56,9 @@ describe('where the sign-up form may post', () => {
     // than quietly become a sign-up.
     '/nn/privacy/',
     '/nn/signup/',
-    // **The entry form's address, and this is the one that matters now.** The two forms are
-    // on two pages, and the address is the whole of what tells them apart — so a year path
-    // reaching the interest handler would silently record an entry as an expression of
-    // interest, which is a submission lost with no error anywhere.
+    // **Both forms' address.** They are on the running now — interest and entry, one shown at
+    // a time — and the hidden `form` field is what tells them apart. This predicate is only
+    // about which page gets the panel painted onto it.
     '/nn/2026/',
     '/nn/2026',
     // The near-misses, for the same reason `isTimingPath` has them: these are addresses a
@@ -68,15 +66,15 @@ describe('where the sign-up form may post', () => {
     '/nnn/',
     '/nn-2026/',
     '/timing',
-  ])('refuses %s', (pathname) => {
-    expect(isNnSignupPath(pathname)).toBe(false);
+  ])('is not %s', (pathname) => {
+    expect(isNnRacePath(pathname)).toBe(false);
   });
 
   it('never claims a path the timing Worker claims', () => {
     // Both predicates run against the same request, so an overlap would be a request two
     // handlers both believe is theirs.
     for (const pathname of ['/nn', '/nn/', '/timing', '/timing/live']) {
-      expect(isNnSignupPath(pathname) && isTimingPath(pathname)).toBe(false);
+      expect(isNnRacePath(pathname) && isTimingPath(pathname)).toBe(false);
     }
   });
 });

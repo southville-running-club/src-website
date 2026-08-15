@@ -36,8 +36,11 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
  */
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   const fields: Record<string, string> = {
-    // No `form` field: the address is what says this is an entry now, and the hidden field
-    // that used to say it is gone with the page that carried both forms.
+    // **Both forms are on this page again**, one shown at a time, so the hidden field is what
+    // tells them apart. Inferring it from the entry window would read somebody's interest
+    // submission as an entry if entries opened between the page loading and the button being
+    // pressed.
+    form: 'entry',
     firstName: 'Grace',
     lastName: 'Hopper',
     email: 'worker-entry@example.com',
@@ -155,22 +158,27 @@ describe('the race page, once the event row says entries are open', () => {
     }
   });
 
-  it('hides the interest form and repoints the loud button at the entry', async () => {
+  it('carries neither form, and points its one action at the entry', async () => {
+    // **Neither form is on the race page any more** — both moved to the running. What changes
+    // here when entries open is the panel's action: where it goes, what it says, and its
+    // weight. There is no separate hero button; an anchor to a form that is not on the page
+    // looks like a control and does nothing.
     const html = await racePage();
 
-    expect(html).toMatch(/data-nn-interest hidden/);
-    expect(html).toMatch(
-      /<a class="nn-cta" href="\/nn\/2026\/#enter"[^>]*>Enter the race/,
-    );
+    expect(html).not.toContain('data-nn-interest');
+    expect(html).not.toContain('data-entry-form');
+    // Precisely: the navigation's button is `data-nn-nav-cta`, which contains this string.
+    expect(html).not.toMatch(/\sdata-nn-cta\b/);
+    expect(html).toMatch(/class="nn-cta" href="\/nn\/2026\/#enter"/);
   });
 });
 
 describe('the year page, once the event row says entries are open', () => {
-  it('serves the entry form and hides the "not open" notice', async () => {
+  it('serves the entry form and hides the interest form', async () => {
     const html = await page();
 
     expect(html).toContain('Enter the race');
-    expect(html).toMatch(/data-nn-not-open[^>]*hidden/);
+    expect(html).toMatch(/data-nn-interest[^>]*hidden/);
     expect(html).not.toMatch(/data-nn-entry hidden/);
   });
 

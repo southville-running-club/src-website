@@ -148,11 +148,12 @@ function blockStripePage(page: Page): Promise<void> {
  * redirect goes, and do not go there.
  */
 function postEntry(page: Page, fields: Record<string, string>) {
-  // **The address is what says this is an entry.** Both forms used to be on one page and a
-  // hidden `form` field told them apart; they are on two pages now, so the path is the
-  // discriminator and the hidden field is gone with the ambiguity that needed it.
+  // **Both forms are on this page**, one shown at a time, so the hidden field is what says
+  // which this is — the same field the real form carries. Inferring it from the entry window
+  // would read an interest submission as an entry if entries opened between the page loading
+  // and the button being pressed.
   return page.request.post(YEAR, {
-    form: fields,
+    form: { form: 'entry', ...fields },
     maxRedirects: 0,
   });
 }
@@ -194,24 +195,42 @@ test.describe('before entries open', () => {
     await closeEntries();
   });
 
-  test('the year page says entries are not open, and hides the form', async ({
+  test('the year page shows the interest form and hides the entry form', async ({
     page,
   }) => {
     // `entries.events.entries_open_at` is null for NN 2026 because the opening time has not
-    // been decided. To somebody looking at the page that means the same thing as "not yet".
+    // been decided. To somebody looking at the page that means the same thing as "not yet" —
+    // and what they get is the form that takes no money, on the running it is an interest in.
     await page.goto(YEAR);
 
-    await expect(page.getByRole('heading', { name: 'Entering' })).toBeVisible();
-    await expect(page.getByText('Entries are not open yet')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Register your interest' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Register my interest' }),
+    ).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Enter the race' })).toBeHidden();
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeHidden();
   });
 
+  test('both of the year page’s forms say which one they are', async ({ page }) => {
+    // **The address cannot tell them apart** — they are on one page, one at a time — so the
+    // body does. Not the window state, which would read an interest submission as an entry if
+    // entries opened between the page loading and the button being pressed.
+    await page.goto(YEAR);
+
+    const kinds = await page
+      .locator('input[name="form"]')
+      .evaluateAll((inputs) => inputs.map((i) => (i as HTMLInputElement).value).sort());
+
+    expect(kinds).toEqual(['entry', 'interest']);
+  });
+
   test('has exactly one #enter on the page, in either state', async ({ page }) => {
-    // **Two elements sharing one id is invalid HTML and an ambiguous fragment.** The "not
-    // open" block and the form's own heading both wanted to be the thing `#enter` meant, and
-    // the hero's painted link would have landed on whichever the browser found first — which
-    // is the sort of defect that works on one engine and not the next.
+    // **Two elements sharing one id is invalid HTML and an ambiguous fragment.** A "not open"
+    // block once carried `#enter` alongside the form's own heading, and the hero's painted
+    // link would have landed on whichever the browser found first — the sort of defect that
+    // works on one engine and not the next. The block is gone; the guard is not.
     await page.goto(YEAR);
 
     await expect(page.locator('#enter')).toHaveCount(1);
@@ -221,37 +240,30 @@ test.describe('before entries open', () => {
     await expect(page.locator('[data-nn-entry] #enter')).toHaveCount(1);
   });
 
-  test('the year page sends somebody to the interest form rather than nowhere', async ({
+  test('the race page keeps a route to the forms, which is the panel’s button', async ({
     page,
     request,
   }) => {
-    await page.goto(YEAR);
-
-    const back = page.getByRole('link', { name: 'Leave your name on the race page' });
-    await expect(back).toHaveAttribute('href', '/nn/');
-    expect((await request.get('/nn/')).status()).toBe(200);
-  });
-
-  test('the race page carries the interest form and no entry form at all', async ({
-    page,
-  }) => {
-    // **The entry form is on the year page and is not copied here.** An entry is an entry to
-    // one running, and two forms writing to one table is two places for a rule to be wrong.
     await page.goto('/nn/');
 
-    await expect(
-      page.getByRole('heading', { name: 'Register your interest' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Register my interest' }),
-    ).toBeVisible();
+    const action = page.locator('[data-nn-panel-action]');
+    await expect(action).toHaveAttribute('href', YEAR);
+    expect((await request.get(YEAR)).status()).toBe(200);
+  });
+
+  test('the race page carries neither form', async ({ page }) => {
+    // **Both forms are on the running now.** Interest in what — the race in general, or this
+    // year's? It is this year's, and the front door links to it rather than duplicating it.
+    await page.goto('/nn/');
+
     await expect(page.locator('[data-entry-form]')).toHaveCount(0);
+    await expect(page.locator('[data-nn-interest]')).toHaveCount(0);
   });
 
-  test('offers the interest form from the race page hero, not an entry', async ({
+  test('offers the interest form from the year page hero, not an entry', async ({
     page,
   }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const cta = page.locator('[data-nn-cta]');
     await expect(cta).toHaveText('Register your interest');
@@ -432,16 +444,20 @@ test.describe('once entries are open', () => {
     await expect(panel.getByRole('link', { name: 'Watching the race' })).toBeVisible();
   });
 
-  test('the race page hero button leads to the form, on the other page', async ({
-    page,
-  }) => {
+  test('the panel’s action leads to the form, on the other page', async ({ page }) => {
+    // **There is no button in the race page's hero any more.** It pointed at `#register`, and
+    // that form moved to the running — an anchor to nothing looks like a control, is reached
+    // by keyboard, and does nothing. The panel is the action, and the navigation carries one
+    // too; a third in between was the copy furthest from anything it was about.
     await page.goto('/nn/');
 
-    const cta = page.locator('[data-nn-cta]');
-    await expect(cta).toHaveText('Enter the race');
-    await expect(cta).toHaveAttribute('href', '/nn/2026/#enter');
+    await expect(page.locator('[data-nn-cta]')).toHaveCount(0);
 
-    await cta.click();
+    const action = page.locator('[data-nn-panel-action]');
+    await expect(action).toHaveText('Enter the race');
+    await expect(action).toHaveAttribute('href', '/nn/2026/#enter');
+
+    await action.click();
     await expect(page).toHaveURL(/\/nn\/2026\/#enter$/);
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
   });

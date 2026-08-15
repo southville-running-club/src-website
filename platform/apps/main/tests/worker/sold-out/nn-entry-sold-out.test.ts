@@ -23,7 +23,8 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
 
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   return {
-    // No `form` field: the address is what says this is an entry.
+    // Both forms are on this page, so the hidden field says which one this is.
+    form: 'entry',
     firstName: 'Grace',
     lastName: 'Hopper',
     email: 'sold-out@example.com',

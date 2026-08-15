@@ -14,10 +14,10 @@ carries the entry form. Publishing 2027 is a row in `entries.events` plus that y
 pages, with **no edit to `/nn/`** —
 [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md).
 
-**The two forms are on two pages.** The interest form is on `/nn/`, because registering an
-interest is about the race; the entry form is on `/nn/2026/`, because an entry is an entry to
-one running. The event row decides which state each page shows, per request. See
-[the entry form](#the-entry-form) and
+**Both forms are on `/nn/2026/`, one shown at a time.** Interest in what — the race in
+general, or this year's running? It is this year's, so the interest form sits with the entry
+form on the running they are both about, and the page reads as one thing in either state. The
+event row decides which, per request. See [the entry form](#the-entry-form) and
 [ADR-009](../../../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
 ## Layout
@@ -28,7 +28,7 @@ src/components/NnNav.astro     The two-level Nightingale Nightmare navigation
 src/layouts/Base.astro         The document, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
-src/pages/nn/index.astro       The race — evergreen, the interest form, no year
+src/pages/nn/index.astro       The race — evergreen, the year panel, no year in it
 src/pages/nn/course.astro      Course and terrain — evergreen
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
 src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
@@ -55,10 +55,10 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 
 | | |
 | --- | --- |
-| `/nn/` | **The race — evergreen, and it names no year.** Carries the interest form, and takes its POST. The Worker paints on which running is current and where its pages are, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
+| `/nn/` | **The race — evergreen, and it names no year.** No form posts here; a POST gets 405 from the assets binding, as `/nn/privacy/` always has. The Worker paints on which running is current, its date and its links, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
 | `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
-| `/nn/2026/` | **The 2026 running.** The date, the facts, and **the entry form** — which posts here, because an entry is an entry to one running |
+| `/nn/2026/` | **The 2026 running.** The date, the facts, and **both forms** — interest before entries open, entry after. Both post here, and a hidden `form` field says which |
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
@@ -235,6 +235,22 @@ cards as they scroll in. Both stop under `prefers-reduced-motion`; neither chang
 so no text is ever at a contrast ratio nobody computed; and the rise is kept off the form
 and the notices, because a moving box under a pointer is a click waiting to miss.
 
+## The two forms, and which one arrived
+
+**Both are on `/nn/2026/`**, one revealed at a time by the event row. That address cannot tell
+them apart, so a hidden `form` field does — `interest` or `entry`, stated on **both** so that
+neither is identified by the absence of something. A stale cached page with no field is read as
+the interest form, which is the harmless side: it takes no money.
+
+**Not the entry window, which would nearly work and fail at the worst moment.** The Worker
+could infer "open means entry"; then somebody who opened the page a minute before entries
+opened would have their name and email address read as an entry and be shown fourteen
+validation errors about fields they were never asked for. What was submitted is a fact about
+the submission, so it travels with it.
+
+The field existed, was removed when the two forms briefly lived on two pages, and is back with
+the ambiguity that needs it.
+
 ## The sign-up form
 
 **One form, three fields — name, email, consent — and adding a fourth is a committee
@@ -302,8 +318,8 @@ in the morning.
 
 | | Entries shut | Entries open |
 | --- | --- | --- |
-| `/nn/` | The interest form, and a link to the running | "Entries are open", the loud button pointing at the form, and the interest form hidden |
-| `/nn/2026/` | "Entries are not open yet", pointing back at the interest form | The entry form |
+| `/nn/` | The year panel, with a quiet outlined action | The same panel, the action filled and a fee line under it |
+| `/nn/2026/` | The interest form | The entry form |
 
 `entries_open_at` is `null` today, because the opening time has not been decided. That reads
 as `pre_open`, which is the left-hand column.

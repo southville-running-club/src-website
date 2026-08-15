@@ -71,9 +71,9 @@ const NN_YEAR_PATH = /^\/nn\/(\d{4})\/?$/;
 /**
  * The event slug for a year path, or `null` if this is not one.
  *
- * **Both spellings, for the reason `isNnSignupPath` takes both**: the entry form posts to this
- * address, and a submission arriving at the other one must not be 404'd on its way in when the
- * person filled the form in either way.
+ * **Both spellings, and it matters here**: both of this page's forms post to this address, and
+ * a submission arriving at the other spelling must not be 404'd on its way in when the person
+ * filled the form in either way.
  */
 export function nnEventSlugForYearPath(pathname: string): string | null {
   const year = NN_YEAR_PATH.exec(pathname)?.[1];
@@ -131,23 +131,19 @@ export function isNnMastheadPath(pathname: string): boolean {
 }
 
 /**
- * Where the sign-up form posts — the race's own page, and it stays there.
+ * The race's own page — evergreen, and the only thing the Worker does to it is paint.
  *
- * **`/nn` and `/nn/` are the same answer here, and that is deliberate.** Astro is
- * configured `trailingSlash: 'always'`, so the page itself only ever has one address — but
- * a form posting to the other one must not 404 the submission on its way in. Accepting
- * both costs nothing and the redirect afterwards is always to the canonical `/nn/`.
+ * **`/nn` and `/nn/` are the same answer here**, because `trailingSlash: 'always'` gives the
+ * page one address and a request for the other should still get the painted version rather
+ * than a page with an empty panel on it.
  *
- * **The interest form did not move with the year layer**, and that is the point of where it
- * sits: registering interest is a thing somebody does about *the race*, not about one running
- * of it, and the answer they get is an email whenever the next one opens. The **entry** form
- * is the one that belongs to a year, and it moved to `/nn/<year>/`.
- *
- * Nothing else beneath `/nn/` becomes a sign-up. `/nn/privacy/` is a page, not an endpoint,
- * and a POST to it should 404 exactly as it does today. The paths below are endpoints in
- * their own right and are matched by their own predicates, before this one is consulted.
+ * **No form posts here any more.** The interest form was on this page and moved to the running
+ * it is an interest in — interest in what, the race in general or this year's? — so a POST to
+ * `/nn/` now falls past every predicate to the assets binding, which answers **405**: the page
+ * exists and the method does not apply to it. That is the same answer `/nn/privacy/` has always
+ * given, and a better one than the 404 a missing page would get.
  */
-export function isNnSignupPath(pathname: string): boolean {
+export function isNnRacePath(pathname: string): boolean {
   return pathname === NN_PREFIX || pathname === `${NN_PREFIX}/`;
 }
 
@@ -158,7 +154,7 @@ export function isNnSignupPath(pathname: string): boolean {
  * it exists only as a POST handled before `env.ASSETS.fetch`, and a GET to it falls through to
  * the assets binding and 404s, which is the right answer to somebody who typed it.
  *
- * Both spellings, for the same reason `isNnSignupPath` takes both — except that here the
+ * Both spellings, for the same reason `nnEventSlugForYearPath` takes both — except that here the
  * caller is Stripe, configured once by hand against a URL somebody typed into a dashboard.
  * **A trailing slash mistyped there would mean every payment confirmation posting into a
  * 404**, discovered only by a runner who paid and heard nothing. Accepting both costs one

@@ -21,20 +21,26 @@ import { SELF } from 'cloudflare:test';
 
 const SITE = 'https://new.southvillerunningclub.co.uk';
 
-/** The entry form posts to the running it is for, which is its own address. */
+/**
+ * The entry form posts to the running it is for, and says which form it is.
+ *
+ * **Both forms are on this page**, one shown at a time, so the hidden field is what tells them
+ * apart — not the window state, which would read somebody's interest submission as an entry if
+ * entries opened between the page loading and the button being pressed.
+ */
 function submitEntry(fields: Record<string, string>): Promise<Response> {
   return SELF.fetch(`${SITE}/nn/2026/`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(fields),
+    body: new URLSearchParams({ form: 'entry', ...fields }),
     // Without this the runtime follows a redirect and the status under test disappears.
     redirect: 'manual',
   });
 }
 
-/** The interest form posts to the race, which is where it lives. */
+/** The interest form posts to the running it is an interest in, like the entry form. */
 function submitInterest(fields: Record<string, string>): Promise<Response> {
-  return SELF.fetch(`${SITE}/nn/`, {
+  return SELF.fetch(`${SITE}/nn/2026/`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields),
@@ -46,21 +52,23 @@ const racePage = () => SELF.fetch(`${SITE}/nn/`).then((response) => response.tex
 const yearPage = () => SELF.fetch(`${SITE}/nn/2026/`).then((response) => response.text());
 
 describe('the race page, while entries are not open', () => {
-  it('serves the interest form and says nothing about entries being open', async () => {
+  it('carries neither form, and says nothing about entries being open', async () => {
+    // **Both forms are on the running now.** This page links to them; the panel's fee line is
+    // the only thing that appears when entries open, and it is hidden here.
     const html = await racePage();
 
-    expect(html).toContain('Register your interest');
-    expect(html).not.toMatch(/data-nn-interest hidden/);
-    // The panel's fee line is what appears when they are, and it is the only thing that does.
+    expect(html).not.toContain('data-nn-interest');
+    expect(html).not.toContain('data-entry-form');
     expect(html).toMatch(/data-nn-panel-open[^>]*hidden/);
   });
 
-  it('offers the interest form from the hero button', async () => {
+  it('offers the running from the panel, in its quiet weight', async () => {
+    // The hero has no button: it pointed at `#register`, and that form moved. An anchor to
+    // nothing looks like a control, is reached by keyboard, and does nothing at all.
     const html = await racePage();
 
-    expect(html).toMatch(
-      /<a class="nn-cta" href="#register"[^>]*>Register your interest/,
-    );
+    expect(html).not.toMatch(/\sdata-nn-cta\b/);
+    expect(html).toMatch(/class="nn-ghost" href="\/nn\/2026\/"/);
   });
 
   it('carries no entry form at all, open or shut', async () => {
@@ -118,19 +126,24 @@ describe('the race page, while entries are not open', () => {
 });
 
 describe('the year page, while entries are not open', () => {
-  it('says entries are not open and hides the entry form', async () => {
+  it('shows the interest form and hides the entry form', async () => {
+    // **The interest form is the shut state now.** It moved here from `/nn/` with this slice:
+    // interest in what — the race in general, or this year's running? It is this year's, and
+    // this page reads as one thing in both states.
     const html = await yearPage();
 
     expect(html).toMatch(/data-nn-entry hidden/);
-    expect(html).not.toMatch(/data-nn-not-open[^>]*hidden/);
-    expect(html).toContain('Entries are not open yet');
+    expect(html).not.toMatch(/data-nn-interest[^>]*hidden/);
+    expect(html).toContain('Register your interest');
   });
 
-  it('points back at the interest form rather than at nothing', async () => {
+  it('posts the interest form to the page it is on', async () => {
     const html = await yearPage();
 
-    expect(html).toContain('Leave your name on the race page');
-    expect(html).toContain('href="/nn/"');
+    expect(html).toContain(
+      '<form class="signup nn-card" method="post" action="/nn/2026/">',
+    );
+    expect(html).toContain('<input type="hidden" name="form" value="interest">');
   });
 
   it('paints no price onto a page that cannot take an entry', async () => {
@@ -176,7 +189,7 @@ describe('an entry POST while entries are not open', () => {
     const html = await response.text();
 
     expect(html).not.toMatch(/data-nn-entry hidden/);
-    expect(html).toMatch(/data-nn-not-open[^>]*hidden/);
+    expect(html).toMatch(/data-nn-interest[^>]*hidden/);
   });
 
   it('is answered on the year page it was posted to, not on the race page', async () => {
@@ -193,7 +206,7 @@ describe('an entry POST while entries are not open', () => {
     const response = await SELF.fetch(`${SITE}/nn/2026`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ firstName: 'Grace' }),
+      body: new URLSearchParams({ form: 'entry', firstName: 'Grace' }),
       redirect: 'manual',
     });
 
@@ -203,29 +216,46 @@ describe('an entry POST while entries are not open', () => {
 
 describe('the two forms, at their two addresses', () => {
   it('leaves the interest form working exactly as it did', async () => {
-    // The route move must not have cost the form that was already here anything.
+    // The move must not have cost the form anything. It posts to the running now, and the
+    // acknowledgement comes back to the same page.
     const response = await submitInterest({
+      form: 'interest',
       name: 'Grace Hopper',
       email: 'worker-still-works@example.com',
       consent: 'on',
     });
 
     expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe(`${SITE}/nn/?signup=ok`);
+    expect(response.headers.get('location')).toBe(`${SITE}/nn/2026/?signup=ok`);
   });
 
-  it('reads a POST to the race page as the interest form, whatever the body says', async () => {
-    // **The address is the discriminator now, and the hidden `form` field is gone with the
-    // ambiguity that needed it.** A stale cached page posting `form=entry` to `/nn/` is still
-    // an interest submission, which is the harmless direction: that form takes no money.
+  it('reads a submission with no form field as the interest form', async () => {
+    // **The harmless side of the fork.** A stale cached page with no hidden field is read as
+    // the form that takes no money rather than as the one that will, and an unlabelled bot
+    // post lands there too.
     const response = await submitInterest({
-      form: 'entry',
       name: 'Grace Hopper',
-      email: 'worker-stale-field@example.com',
+      email: 'worker-no-kind@example.com',
       consent: 'on',
     });
 
     expect(response.status).toBe(303);
+  });
+
+  it('refuses a POST to the race page, which no form posts to any more', async () => {
+    // The interest form was here and moved to the running. Nothing posts to `/nn/`, so the
+    // request falls past every predicate to the assets binding — which answers **405**,
+    // because the page exists and the method does not apply to it. That is a better answer
+    // than the 404 a missing page would get, and it is the same one `/nn/privacy/` has always
+    // given.
+    const response = await SELF.fetch(`${SITE}/nn/`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ name: 'Grace', email: 'a@example.com', consent: 'on' }),
+      redirect: 'manual',
+    });
+
+    expect(response.status).toBe(405);
   });
 
   it('404s a POST to a year nobody has published a page for', async () => {

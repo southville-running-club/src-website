@@ -98,27 +98,26 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
         date is settled", which is a statement about 2026 on a page about the race. That
         sentence is on the year page now, where it is true of the thing being described. */
       }
-      <p class="lede">
-        The course has not got any kinder. Leave your name and the club will email you
-        once, when entries open.
-      </p>
+      {
+        /* **The lede lost its second sentence with the button above.** "Leave your name and
+        the club will email you once" was an instruction about a form on this page, and the
+        form is on the running now. What is left is true of the race whichever year it is run,
+        which is all this page is for. */
+      }
+      <p class="lede">The course has not got any kinder.</p>
 
       {
-        /* **The loud button is the one this site can actually honour**, and which that is
-        depends on the day. It ships as "Register your interest", pointing at the form on this
-        page; when `entries.events` says entries are open the Worker repoints it at the entry
-        form on the year page and relabels it. That is one row edit and no deploy, which is the
-        property the event table exists for — and it is why the label and the target are
-        painted on rather than written in.
+        /* **No button in this hero, and that is the form move's tidiest consequence.**
 
-        **There is no second button here any more.** It used to be "Race-day plan", pointing
-        straight at `/nn/race-day/`; that page now lives under the year, and a year in this
-        page's markup is exactly what this page must not hold. The links to this year's running
-        are in the block below, where the Worker fills them in. */
+        It used to be "Register your interest", pointing at `#register` — a form that is no
+        longer on this page. An anchor to nothing is worse than no anchor: it looks like a
+        control, it is reached by keyboard, and pressing it does nothing at all.
+
+        What replaced it is two things that were already there and are both better placed: the
+        navigation's button, which is painted with what the window actually allows and sits at
+        the top of every page, and the panel below, which is the same action with the date
+        attached. A third copy in between was the one furthest from anything it was about. */
       }
-      <div class="nn-herobtns">
-        <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
-      </div>
     </div>
   </header>
 
@@ -250,222 +249,6 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
     </section>
 
     <NnPreviousYears />
-
-    <div data-nn-interest>
-      <h2 id="register">Register your interest</h2>
-
-      {
-        /* The acknowledgement, the failure notice and the error summary are all served hidden
-      and revealed by the Worker — see worker/nn-signup.ts. Doing it this way means there is
-      exactly one copy of this page, in dist/, and the Worker paints an outcome onto it
-      rather than holding a second template that can drift from this one.
-
-      Each carries `tabindex="-1"` so the Worker can add `autofocus` and move focus to it.
-      That is how focus moves **with JavaScript disabled**, which is the primary path here
-      rather than a fallback.
-
-      All three are white cards in the event theme, because all three are read rather than
-      glanced at, and none of them lets colour carry the meaning: each says in words what it
-      is. */
-      }
-
-      <div
-        class="notice notice-ok nn-card"
-        data-signup-ack
-        hidden
-        tabindex="-1"
-        role="status"
-      >
-        {
-          /* The mockup's confirmation tick. Decorative, and hidden from assistive technology
-        deliberately — this element is a live region, and what should be announced is the
-        sentence below, not the word "tick". */
-        }
-        <span class="nn-tick" aria-hidden="true">
-          <svg viewBox="0 0 24 24" focusable="false"
-            ><path d="M4 12.5 10 18 20 6"></path></svg
-          >
-        </span>
-        <p><strong>Thank you — your interest is registered.</strong></p>
-        <p>
-          The club will email you once, when entries open. That is the only thing this
-          list is used for.
-        </p>
-      </div>
-
-      <div
-        class="notice notice-bad nn-card"
-        data-signup-unavailable
-        hidden
-        tabindex="-1"
-        role="alert"
-      >
-        <p><strong>Sorry — that could not be saved just now.</strong></p>
-        <p>
-          Nothing has been recorded, and nothing you typed has been lost. Please press
-          "Register my interest" again in a moment.
-        </p>
-      </div>
-
-      <div
-        class="notice notice-bad nn-card"
-        data-signup-summary
-        hidden
-        tabindex="-1"
-        role="alert"
-      >
-        <h3>There is a problem</h3>
-        <ul class="summary-list">
-          <li data-signup-summary-item="name" hidden>
-            <a data-signup-summary-link="name" href="#signup-name"></a>
-          </li>
-          <li data-signup-summary-item="email" hidden>
-            <a data-signup-summary-link="email" href="#signup-email"></a>
-          </li>
-          <li data-signup-summary-item="consent" hidden>
-            <a data-signup-summary-link="consent" href="#signup-consent"></a>
-          </li>
-        </ul>
-      </div>
-
-      {
-        /* **Above the form, not below it.** What happens to a name and an email address is
-      worth knowing before typing them rather than after, and somebody who wants to check
-      first should not have to scroll past the thing they are deciding about to find out. */
-      }
-
-      <p class="signup-privacy">
-        The club holds your name and email address, and uses them for nothing but this one
-        email. <a href="/nn/privacy/">What the club does with this</a>, including how to
-        have it removed.
-      </p>
-
-      {
-        /* A real form, posting to a real address. No JavaScript is involved in submitting it,
-      validating it, or rendering what comes back — runners are on phones, on poor signal,
-      sometimes in bright sunlight with cold hands.
-
-      `action` carries the trailing slash Astro is configured to insist on, so a submission
-      never arrives at a second address for the same page. */
-      }
-
-      {
-        /* **The hidden `form` field is gone with the ambiguity that needed it.** Both forms
-        used to be on this page and a field in the body was what told them apart. They are on
-        two pages now — interest here, entry on the year page — so the address a submission
-        arrives at is the discriminator, and it is one nobody can mistype into the wrong
-        handler. */
-      }
-      <form class="signup nn-card" method="post" action="/nn/">
-        <div class="field">
-          <label class="field-label" for="signup-name">Your name</label>
-          <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
-          </p>
-          <input
-            class="field-input"
-            id="signup-name"
-            name="name"
-            type="text"
-            maxlength="100"
-            autocomplete="name"
-            required
-            aria-describedby="signup-name-error"
-            data-signup-value="name"
-          />
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="signup-email">Email address</label>
-          <p class="field-hint" id="signup-email-hint">
-            The club will email you once, when entries open.
-          </p>
-          <p class="field-error" id="signup-email-error" data-signup-error="email" hidden>
-          </p>
-          <input
-            class="field-input"
-            id="signup-email"
-            name="email"
-            type="email"
-            maxlength="254"
-            autocomplete="email"
-            spellcheck="false"
-            required
-            aria-describedby="signup-email-hint signup-email-error"
-            data-signup-value="email"
-          />
-        </div>
-
-        <div class="field">
-          <p
-            class="field-error"
-            id="signup-consent-error"
-            data-signup-error="consent"
-            hidden
-          >
-          </p>
-          <div class="field-check">
-            {
-              /* **`required` is one half of the consent decision.** Consent is currently
-            required to submit; the other half is `z.literal(true)` in
-            packages/shared/src/nn-signup.ts. If the committee decides an unconsented
-            submission should be stored instead, remove `required` here and change that to
-            `z.boolean()`. No migration is involved — the policy's `with check` is
-            deliberately silent on consent. */
-            }
-            <input
-              class="field-checkbox"
-              id="signup-consent"
-              name="consent"
-              type="checkbox"
-              required
-              aria-describedby="signup-consent-error"
-              data-signup-value="consent"
-            />
-            <label class="field-label" for="signup-consent">
-              Yes, email me when entries open for this race.
-            </label>
-          </div>
-        </div>
-
-        <button class="button" type="submit">Register my interest</button>
-      </form>
-    </div>
-
-    <h2>What this page proves</h2>
-
-    <p>
-      The timestamp below was fetched from Postgres by the Worker while it served this
-      request. It is rendered server-side, so it is here with JavaScript disabled. If it
-      reads as an error, the connection is genuinely broken and that is the useful answer.
-    </p>
-
-    <dl class="status">
-      <dt>Database time, Europe/London</dt>
-      <dd>
-        {
-          /* The Worker fills this in while serving the request — see worker/index.ts. The
-          `datetime` attribute carries UTC and the text carries Europe/London, which is
-          the storage-and-display rule expressed in one element. */
-        }
-        <time data-health="pending">Not fetched — the Worker did not run.</time>
-      </dd>
-
-      <dt>Pipeline check</dt>
-      <dd>
-        {
-          /* A second, independent database round trip — intake.ping(), added after the
-          skeleton's first deploy to prove a *new* migration reaches this page the same
-          way the one above already did. */
-        }
-        <span data-pipeline-check="pending">Not fetched — the Worker did not run.</span>
-      </dd>
-
-      <dt>Served by</dt>
-      <dd>Cloudflare Workers, static assets plus one handler</dd>
-
-      <dt>Application</dt>
-      <dd>apps/main</dd>
-    </dl>
 
     <footer>
       {

@@ -250,6 +250,19 @@ const SUMMARY_LINKS = [
   data-entry-event-date=""
   data-entry-minimum-age=""
 >
+  {
+    /* **Which of this page's two forms arrived.** The interest form is on this page too — one
+    is shown at a time — so the address cannot tell them apart and the body does.
+
+    **Not the entry window, which would nearly work.** The Worker could infer "open means
+    entry"; then somebody who opened this page a minute before entries opened would have their
+    name and email address read as an entry and be shown fourteen validation errors about
+    fields they were never asked for. What was submitted is a fact about the submission.
+
+    Stated on both forms, so neither is identified by the absence of something — a stale cached
+    page with no field is read as the interest form, which is the harmless side. */
+  }
+  <input type="hidden" name="form" value="entry" />
   <!-- 1 — Your details ------------------------------------------------------------- -->
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Your details</legend>
