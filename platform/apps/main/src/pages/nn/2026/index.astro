@@ -91,9 +91,16 @@ const dateLine = race.date
         <li>Fancy dress encouraged</li>
       </ul>
 
+      {
+        /* **The lede lost its last clause, which was a claim that goes false.** "What is not
+        settled is when entries open" is printed into a static page; the morning entries open
+        it is wrong, silently, on the page somebody is reading to decide whether to enter.
+        Whether they are open is a row read at serve time, and the forms below are what say
+        so. The same correction the three call-to-action panels needed. */
+      }
       <p class="lede">
         The club is putting on this race again. The date is settled and the course has not
-        got any kinder — what is not settled is when entries open.
+        got any kinder.
       </p>
 
       {
