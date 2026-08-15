@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AnonClient } from './supabase';
-import { parseIsoDate, type CivilDate } from './age-category';
+import { parseIsoDate, toIsoDate, type CivilDate } from './age-category';
+import { formatLondonDate } from './london-time';
 
 /**
  * What `/nn/` needs to know before it can decide which form to show.
@@ -197,6 +198,50 @@ function readEntryState(
       })),
     },
   };
+}
+
+/**
+ * The event's date, as a page shows it — **through the one formatter this repository has**.
+ *
+ * ## Why a civil date can go through an instant formatter, safely
+ *
+ * `event_date` is civil time, as published: "1 November 2026" is what the committee decided
+ * and what the poster says, and it does not move if somebody reads it from another timezone.
+ * `formatLondonDate` takes an *instant*. Handing it one built from the civil date needs an
+ * argument, and this is it:
+ *
+ * **London's offset from UTC is never negative.** It is `+00:00` in winter and `+01:00` in
+ * summer, so an instant at `00:00Z` on a given day is either `00:00` or `01:00` on **that same
+ * day** in London. The calendar day therefore survives the conversion for every date in the
+ * year, including the two on which the clocks change. `london-time.test.ts` pins the two
+ * transition dates of 2026 and this module's own test pins a date either side of each.
+ *
+ * That is the whole of it. There is **no second formatter** here — this composes `toIsoDate`
+ * with `formatLondonDate` and adds one `T00:00:00Z`. A second formatter is what the timezone
+ * discipline in this repository exists to prevent, and it is what
+ * `docs/architecture/decisions/adr-011-a-race-and-its-runnings.md` recorded as the reason
+ * `/nn/` had no date at all. This closes that gap without opening the one it was avoiding.
+ *
+ * **Not `race.json`'s pre-formatted string.** That one says "Sunday 1 November 2026" and
+ * belongs to the 2026 running; a page about the race cannot read it without naming a year.
+ * This reads the running the database says is current, which is the point.
+ */
+export function formatEventDate(date: CivilDate): string {
+  return formatLondonDate(`${toIsoDate(date)}T00:00:00Z`);
+}
+
+/**
+ * The event's start time, as a page shows it: `11:00:00` → `11:00`.
+ *
+ * **Deliberately not put through `formatLondonTime`, and that is the interesting half.** A
+ * start time is civil local time, as published — the same "11:00" the poster carries. It is
+ * not an instant, and turning it into one to format it would mean choosing a date and an
+ * offset for a race held six days after the clocks go back, which is precisely the conversion
+ * the storage-UTC rule exists to keep away from. Postgres renders a `time` as `HH:MM:SS`;
+ * dropping the seconds is a string operation and nothing more.
+ */
+export function formatEventStartTime(startTime: string): string {
+  return /^\d{2}:\d{2}/.exec(startTime)?.[0] ?? startTime;
 }
 
 /**

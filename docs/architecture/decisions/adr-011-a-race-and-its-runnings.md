@@ -140,6 +140,15 @@ because they are two lists, one landmark because it is one navigation.
   the weekend after the clocks change. The date is one tap away, on the running the front door
   links to. **A gap, recorded, not a decision to leave closed**: if a civil-date formatter is
   ever wanted for another reason, this is the second caller for it.
+
+  > **Closed, 15 August 2026, and with no second formatter.** `/nn/`'s year panel states the
+  > date. `packages/shared`'s `formatEventDate` composes `toIsoDate` with the existing
+  > `formatLondonDate` and one `T00:00:00Z`: **London's offset is never negative**, so an
+  > instant at midnight UTC is either `00:00` or `01:00` on the same calendar day in London,
+  > and the day survives the conversion for every date in the year. `event-format.test.ts`
+  > asserts that across a whole year of them, and on both 2026 transitions by name. The start
+  > time is *not* put through a formatter at all — it is civil time as published, and dropping
+  > Postgres's seconds is a string operation.
 - **`src/content/race.json` is not split in two.** It describes the 2026 running and it always
   has; which of its keys each page may read is a table in `apps/main/README.md` and two tests,
   rather than two files. Splitting it is a content change with its own review, and doing it
