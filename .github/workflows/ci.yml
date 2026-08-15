@@ -3,12 +3,37 @@ name: CI
 # Every pull request. All gates must pass before review is meaningful — the other
 # volunteer reading a diff should be reading a diff that works.
 #
-# Not on push to main: branch protection requires this check to pass against an
-# up-to-date branch before a pull request can merge, so the code landing on main has
-# already run this suite against exactly what main becomes. Running it a second time
-# after the merge would test nothing new — deploying and checking the deployment are
-# `smoke.yml` and `deploy-db.yml`'s jobs, and both already trigger on push to main
-# independently of this workflow.
+# **Not on push to main, and the reason previously given here was false.**
+#
+# This comment used to say that branch protection required the check to pass against an
+# up-to-date branch before a pull request could merge, and that a second run after the merge
+# would therefore test nothing new. Neither half was ever true: the repository is private on
+# the free plan, the rulesets API answers
+# `403 — Upgrade to GitHub Pro or make this repository public`, and
+# `/branches/main/protection` answers `404`. Nothing requires this check to pass, and nothing
+# requires a branch to be up to date before it merges.
+#
+# It was load-bearing rather than decorative — it is the whole justification #10 gave for
+# removing the `push: [main]` trigger. So it is corrected here rather than deleted, because
+# the next person to wonder why this only runs on pull requests deserves the real answer.
+#
+# **What is actually true, and what it leaves open:**
+#
+#   * A pull request merged with CI red merges. Nothing stops it.
+#   * A branch merged while stale merges, having never run against what main becomes.
+#   * A direct push to main runs no suite at all — and `smoke.yml` and `deploy-db.yml` both
+#     trigger on that same push, so it deploys.
+#
+# The third is now noticed by `main-guard.yml`, which is detection rather than prevention
+# and is all the free plan allows. The first two need a paid plan and are a committee
+# decision, priced in issue #26.
+#
+# **Adding `push: [main]` back would close the stale-branch gap** and is deliberately not
+# done here: at the measured rate this repository is already on course to spend its whole
+# 2,000-minute monthly Actions allowance, and this suite starts a real Postgres, builds both
+# Workers and runs Playwright across two engines. Roughly doubling its runs to catch a case
+# a required-up-to-date-branch rule would catch for nothing is a trade worth making
+# deliberately, not by default. See issue #26, part 7.
 #
 # The whole stack comes up here: `supabase start` runs in Actions, so this pipeline tests
 # against a **real Postgres** rather than a substitute. That matters because there is no
@@ -19,6 +44,15 @@ name: CI
 
 on:
   pull_request:
+
+# **Read-only, declared here rather than inherited.**
+#
+# Without this the job runs on whatever the repository's default workflow token grants, which
+# is a settings page neither volunteer can see the state of from a diff and which can be
+# changed without a commit. In the file it is reviewed like anything else and cannot silently
+# drift. Nothing in this workflow writes to the repository.
+permissions:
+  contents: read
 
 concurrency:
   # Keyed on the workflow as well as the ref. `ci-` was already unique among the three
