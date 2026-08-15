@@ -16,6 +16,26 @@ available, and not at seven in the morning.
 
 ---
 
+## Who does which part
+
+**Every step below carries a tag, so nobody has to read the whole page to find their half.**
+This runbook spans both volunteers by nature — it is the one procedure where the platform, the
+race pages and the committee all have to be ready at the same moment — and the tags are what
+stop that being a reason to skip it.
+
+| Tag | Means | Today |
+| --- | --- | --- |
+| **⚙️ Ops** | The platform: Cloudflare, GitHub, Supabase, secrets, the database row | Mark |
+| **🏁 Race pages** | `/nn/`, the entry form, and what a runner reads | Bindal |
+| **🏛️ Committee** | Not a build decision at all. Somebody has to chase it | Both, to ask |
+| **👥 Both** | Do it together, in the same room or the same call | — |
+
+**Read your own tags before the day and the whole page on the day.** The ordering matters more
+than the split: 0.1 gates everything, and step 3 must not happen until every box above it is
+ticked, whoever ticked it.
+
+---
+
 ## Stop conditions
 
 Do not continue past step 0 if any of these is true. Each one is a way for this to go wrong
@@ -37,6 +57,8 @@ that cannot be undone by closing entries again afterwards.
 links to the issue that explains it properly.
 
 ### 0.1 — the WAF rate-limiting rule must be live
+
+> **⚙️ Ops**
 
 **[#19](https://github.com/southville-running-club/src-website/issues/19). Do this one first
 and do not skip it.**
@@ -60,6 +82,8 @@ up, and every remedy available on the day lands on real entrants too.
 
 ### 0.2 — somebody is watching the attention alarm
 
+> **⚙️ Ops**
+
 **[#20](https://github.com/southville-running-club/src-website/issues/20).** The alarm fires
 when somebody has paid and has no place. It is a `console.error` in the Cloudflare
 observability panel, which is a place a person has to decide to open.
@@ -72,6 +96,8 @@ observability panel, which is a place a person has to decide to open.
       confirmation email makes it redundant, rather than left running as a second half-alarm
 
 ### 0.3 — a backup exists and a restore has been performed
+
+> **⚙️ Ops**
 
 **[#23 item 2](https://github.com/southville-running-club/src-website/issues/23).** Not "a
 backup is configured" — a restore that somebody has actually carried out.
@@ -88,6 +114,8 @@ backup is configured" — a restore that somebody has actually carried out.
 
 ### 0.4 — the free place is not a dead end
 
+> **🏁 Race pages**
+
 **[#22](https://github.com/southville-running-club/src-website/issues/22).** Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide cannot complete online —
 and today they find that out *after* filling in fourteen fields.
@@ -99,6 +127,8 @@ and today they find that out *after* filling in fourteen fields.
       discount code that zeroes a fee that is not itself free
 
 ### 0.5 — the governance prerequisites
+
+> **🏛️ Committee**
 
 From [the phases](../phases.md#prerequisites-for-the-payment-half). These are the committee's,
 not the build's, and they sit on the critical path.
@@ -112,6 +142,8 @@ not the build's, and they sit on the critical path.
 
 ### 0.6 — the platform is actually wired up
 
+> **⚙️ Ops**
+
 - [ ] All [manual steps](../../../platform/apps/main/README.md#manual-steps) are done, including
       the **three Worker secrets** and the **Stripe dashboard endpoint**
 - [ ] `npm run smoke` passes against production
@@ -121,6 +153,8 @@ not the build's, and they sit on the critical path.
 ---
 
 ## Step 1 — decide the window, from the committee
+
+> **🏛️ Committee**
 
 The two values come from the committee and from nowhere else. **Do not derive them, do not
 round them to something tidier, and do not put a placeholder in while you wait.**
@@ -143,6 +177,8 @@ check constraint that will refuse the reverse, which is the one mistake here tha
 ---
 
 ## Step 2 — rehearse a real payment
+
+> **👥 Both**
 
 **Nothing has ever been paid for, in test mode or otherwise.** The first payment through this
 chain should be a committee member's own card, not a stranger's.
@@ -171,6 +207,8 @@ chain should be a committee member's own card, not a stranger's.
 
 ## Step 3 — the row edit
 
+> **👥 Both**
+
 **Both volunteers present.** One types, one reads it back before it runs.
 
 ```sql
@@ -191,6 +229,8 @@ per request, from this row.
 
 ## Step 4 — verify, from outside
 
+> **🏁 Race pages**
+
 Do all of these from a browser that has never seen the site, not from the SQL editor.
 
 - [ ] `/nn/` shows the **entry form**, not the interest form
@@ -204,6 +244,8 @@ Do all of these from a browser that has never seen the site, not from the SQL ed
 ---
 
 ## Step 5 — write down what happened
+
+> **👥 Both**
 
 Per the [pragmatic exception](../../foundations/requirements.md#everything-is-defined-as-code),
 manual work is legitimate *because* it is recorded.
