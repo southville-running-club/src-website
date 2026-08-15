@@ -1,10 +1,12 @@
 import {
+  buildHealthReport,
   createAnonClient,
   expirePendingHolds,
-  fetchHealth,
-  fetchPing,
+  healthReportFromFailure,
+  healthResponse,
 } from '@src/shared';
 import {
+  isHealthPath,
   isNnEntryCompletePath,
   isNnSignupPath,
   isNnWebhookPath,
@@ -49,18 +51,19 @@ import {
  *   3. **Take Stripe's confirmation.** A POST to `/nn/stripe-webhook`, also before the assets
  *      binding, and **the only thing in this platform that records a payment**. It is not a
  *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
- *   4. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
- *      rewriting the served HTML — and paint the recorded payment state onto
- *      `/nn/entry/complete/` the same way.
- *   5. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
+ *   4. **Paint the recorded payment state onto `/nn/entry/complete/`**, server-side, by
+ *      rewriting the served HTML.
+ *   5. **Answer `GET /health`** with the two database round trips, as JSON.
+ *   6. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
  *      every five minutes. See `scheduled()` at the foot of this file.
  *
- * The third is the skeleton's reason for existing. Doing it in the Worker rather than in
- * the browser proves the **Worker itself** can reach Supabase, in the real runtime, over
- * the real network — and it means the page works with JavaScript disabled, which is a
- * requirement here rather than a nicety. `intake.ping()` exists alongside
- * `intake.health()` to prove the same thing a second time, for a migration added *after*
- * the first deploy rather than only the original one.
+ * The fifth is the skeleton's original reason for existing, moved. Doing those round trips
+ * in the Worker rather than in the browser proves the **Worker itself** can reach Supabase,
+ * in the real runtime, over the real network, and `intake.ping()` proves it a second time
+ * for a migration added *after* the first deploy. What changed is only who reads the answer:
+ * it was rendered into a "What this page proves" block on `/nn/` and on `/timing`, which put
+ * a build-in-progress diagnostic on the page somebody pays on. **The check was never the
+ * problem; its audience was.** See `packages/shared/src/health-report.ts`.
  *
  * `run_worker_first` is set in wrangler.jsonc, so this handler sees every request that is
  * not routed away. That costs one Worker invocation per request against a 100,000/day
@@ -141,6 +144,13 @@ export default {
       return handleNnPost(request, env, url);
     }
 
+    // Also before the assets binding, for the plainer reason that there is nothing at this
+    // address in `dist/` — it is an endpoint rather than a page. A non-GET falls through and
+    // 404s, which is the right answer to anything but a monitor.
+    if (request.method === 'GET' && isHealthPath(url.pathname)) {
+      return handleHealth(env);
+    }
+
     const response = await env.ASSETS.fetch(request);
 
     // Only HTML gets rewritten, and only when it was served successfully. An asset, a
@@ -150,7 +160,7 @@ export default {
       return response;
     }
 
-    const rewriter = statusRewriter(env);
+    const rewriter = new HTMLRewriter();
 
     if (isNnSignupPath(url.pathname)) {
       // **Which of the page's two forms somebody gets, decided per request.** The event row
@@ -243,18 +253,31 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 /**
- * Every HTML response gets the health and pipeline-check handlers, including the ones that
- * are reporting a failed sign-up.
+ * `GET /health` — the two database round trips, as JSON, for `scripts/smoke.mjs`.
  *
- * That is not incidental tidiness. Those two markers report whether this Worker can reach
- * Postgres at all, and **a submission that just failed is exactly when somebody wants to
- * know that** — a 503 from the form beside a broken health timestamp is a different problem
- * from a 503 beside a working one, and the page should be able to tell them apart.
+ * **The audience is a monitor, and that is the whole design.** These same two calls used to
+ * be rewritten into a `<dl>` on `/nn/` under the heading "What this page proves", where the
+ * people who read them were runners deciding whether to trust the club with £17. A page that
+ * reports its own plumbing reads as a page that is not finished.
+ *
+ * Nothing is lost by moving them: this runs in the same Worker, in the same runtime, against
+ * the same project, on every request the smoke test makes. What it no longer does is run on
+ * the *rendering* path — so a slow Supabase no longer slows down serving the race page, which
+ * is a second, smaller win.
  */
-function statusRewriter(env: Env): HTMLRewriter {
-  return new HTMLRewriter()
-    .on('[data-health]', new HealthHandler(env))
-    .on('[data-pipeline-check]', new PingHandler(env));
+async function handleHealth(env: Env): Promise<Response> {
+  try {
+    const client = createAnonClient({
+      url: env.PUBLIC_SUPABASE_URL,
+      anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+    });
+    return healthResponse(await buildHealthReport(client));
+  } catch (cause) {
+    // A client that could not be constructed at all — an empty or malformed URL, which
+    // throws before any request is made. Reported rather than thrown, like every other
+    // failure this endpoint can have.
+    return healthResponse(healthReportFromFailure(cause));
+  }
 }
 
 /**
@@ -306,7 +329,7 @@ async function handleNnSignup(
     return page;
   }
 
-  const rewriter = statusRewriter(env);
+  const rewriter = new HTMLRewriter();
 
   // The interest form only ever renders in the state where it is the visible one, so no
   // view rewriting is needed here: it ships visible.
@@ -360,7 +383,7 @@ async function handleNnEntry(
     return page;
   }
 
-  const rewriter = statusRewriter(env);
+  const rewriter = new HTMLRewriter();
 
   if (outcome.status === 'closed') {
     // 409, not 422 or 503: the submission was well-formed and the state of the world moved.
@@ -407,75 +430,4 @@ function typedPage(rendered: Response, status: number): Response {
   const headers = new Headers(rendered.headers);
   headers.set('cache-control', 'no-store');
   return new Response(rendered.body, { status, headers });
-}
-
-/**
- * Replaces the contents of `<... data-health>` with the result of `intake.health()`.
- *
- * A failure is rendered rather than thrown. This page's entire job is to report whether
- * the connection works, so "it did not" is the useful answer, not a 500. Nothing in the
- * message can contain personal data — the function reads none.
- */
-class HealthHandler {
-  constructor(private readonly env: Env) {}
-
-  async element(element: Element): Promise<void> {
-    try {
-      const client = createAnonClient({
-        url: this.env.PUBLIC_SUPABASE_URL,
-        anonKey: this.env.PUBLIC_SUPABASE_ANON_KEY,
-      });
-      const health = await fetchHealth(client);
-
-      if (health.ok) {
-        element.setAttribute('data-health', 'ok');
-        // UTC in the attribute, Europe/London in the text.
-        element.setAttribute('datetime', health.at.toISOString());
-        element.setInnerContent(health.formatted);
-      } else {
-        element.setAttribute('data-health', 'error');
-        element.setInnerContent(`Could not reach the database — ${health.error}`);
-      }
-    } catch (cause) {
-      element.setAttribute('data-health', 'error');
-      element.setInnerContent(
-        `Could not reach the database — ${cause instanceof Error ? cause.message : String(cause)}`,
-      );
-    }
-  }
-}
-
-/**
- * Replaces the contents of `<... data-pipeline-check>` with the result of `intake.ping()`.
- *
- * `intake.ping()` exists to prove that a *new* migration — added after the skeleton's
- * first deploy — reaches this Worker through the same path `intake.health()` proved once
- * already. Same rendering shape as `HealthHandler`, deliberately: a failure here is read
- * the same way a reader has already learned to read a health failure.
- */
-class PingHandler {
-  constructor(private readonly env: Env) {}
-
-  async element(element: Element): Promise<void> {
-    try {
-      const client = createAnonClient({
-        url: this.env.PUBLIC_SUPABASE_URL,
-        anonKey: this.env.PUBLIC_SUPABASE_ANON_KEY,
-      });
-      const ping = await fetchPing(client);
-
-      if (ping.ok) {
-        element.setAttribute('data-pipeline-check', 'ok');
-        element.setInnerContent(ping.value);
-      } else {
-        element.setAttribute('data-pipeline-check', 'error');
-        element.setInnerContent(`Could not reach the database — ${ping.error}`);
-      }
-    } catch (cause) {
-      element.setAttribute('data-pipeline-check', 'error');
-      element.setInnerContent(
-        `Could not reach the database — ${cause instanceof Error ? cause.message : String(cause)}`,
-      );
-    }
-  }
 }

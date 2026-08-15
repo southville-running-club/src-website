@@ -182,6 +182,15 @@ script `opennextjs-cloudflare build` makes it invoke itself. It recursed 205 lev
 a laptop down. `build:next` exists solely to be what OpenNext calls, and the duplication is
 the guard.
 
+**A leading underscore on an App Router folder silently deletes the route.** `_health/` is the
+conventional spelling for an endpoint that is not a page on more or less every other platform,
+and in `apps/timing` it is a **private folder**: Next opts it out of routing entirely, so
+`app/_health/route.ts` builds clean, deploys clean, and 404s — with nothing anywhere saying
+why. The timing app's health endpoint is `app/health/route.ts` for that reason, and the comment
+at the top of it says so. `apps/main` is Astro plus a Worker and has no such rule, which is
+what makes the pair easy to get wrong: the same name is fine on one side of the hostname and
+invisible on the other.
+
 **An ambient `NODE_ENV=development` breaks the Next.js build**, reporting it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.

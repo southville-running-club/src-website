@@ -13,7 +13,7 @@
 #                   --keep-up leaves the site running afterwards
 #   ./dev check     rebuild the database, then lint, types, unit and database tests
 #                   — no browsers, no builds
-#   ./dev smoke     the seven live-site assertions, against localhost
+#   ./dev smoke     the live-site assertions, against localhost
 #                   --live checks the deployed site at new.southvillerunningclub.co.uk
 #                   instead — the same check smoke.yml runs after every push to main
 #   ./dev reset     rebuild the database from migrations and re-seed

@@ -28,32 +28,45 @@ const SITE = LOCAL ? 'http://localhost:8787' : 'https://new.southvillerunningclu
 const DEADLINE_MS = LOCAL ? 30_000 : 5 * 60_000;
 const RETRY_MS = LOCAL ? 1_000 : 15_000;
 
-/** The database check both applications share. */
-function reachesDatabase(body) {
-  if (body.includes('data-health="error"')) {
-    const [, message] = /data-health="error"[^>]*>([^<]*)/.exec(body) ?? [];
-    return `the page reports a database error: ${message?.trim() ?? 'unknown'}`;
-  }
-  if (!body.includes('data-health="ok"')) return 'the health element was never filled in';
-  return null;
-}
-
 /**
- * The second database check both applications share — `intake.ping()`, added after
- * `intake.health()`. This is what actually proves the point: the same smoke test that
- * already caught a live deploy failure once (the wrangler route schema error) now also
- * proves a *migration* landed correctly on the shared project, not just that the two
- * Workers can reach it at all.
+ * The database check both applications share, read from `/health` and `/timing/health`.
+ *
+ * **It used to be scraped out of page HTML** — `data-health="ok"` in a status table on `/nn/`
+ * and on `/timing`. Those markers are gone, because a diagnostic on the page somebody pays on
+ * reads as a build in progress. Both applications now answer the same JSON from the same
+ * function in `packages/shared`, so this parses one shape rather than two pages.
+ *
+ * Two round trips are checked, and the second is the one that proves the point.
+ * `intake.health()` says the Worker can reach Supabase at all; `intake.ping()` was added
+ * *after* the first deploy, so it says a **migration** went through CI's scope guard,
+ * `supabase db push` on merge, and a deploy of both applications. This test has already
+ * caught one live deploy failure the whole of CI missed (the wrangler route schema error).
  */
-function reachesPipelineCheck(body) {
-  if (body.includes('data-pipeline-check="error"')) {
-    const [, message] = /data-pipeline-check="error"[^>]*>([^<]*)/.exec(body) ?? [];
-    return `the page reports a pipeline-check error: ${message?.trim() ?? 'unknown'}`;
+async function reportsHealthy(response) {
+  // A 503 is the endpoint working correctly and saying the database is not — so the body is
+  // still the interesting part, and it is read before the status is judged.
+  let report;
+  try {
+    report = await response.json();
+  } catch {
+    return `expected JSON from the health endpoint, got ${response.status} and something else`;
   }
-  if (!body.includes('data-pipeline-check="ok"'))
-    return 'the pipeline-check element was never filled in';
-  if (!body.includes('pipeline-ok'))
-    return 'the pipeline-check element did not contain the expected value';
+
+  if (report?.database?.ok !== true)
+    return `the database round trip failed: ${report?.database?.error ?? 'no reason given'}`;
+
+  if (report?.pipeline?.ok !== true)
+    return `the pipeline check failed: ${report?.pipeline?.error ?? 'no reason given'}`;
+
+  if (report.pipeline.value !== 'pipeline-ok')
+    return `the pipeline check returned ${JSON.stringify(report.pipeline.value)}`;
+
+  // Checked last, and deliberately: the two failures above say *what* broke, and this one
+  // would only say that something did. It catches the endpoint disagreeing with itself.
+  if (report.ok !== true) return 'both round trips passed but the report says ok: false';
+  if (response.status !== 200)
+    return `the report is healthy but the status was ${response.status}`;
+
   return null;
 }
 
@@ -87,16 +100,34 @@ const CHECKS = [
     },
   },
   {
-    name: 'Nightingale Nightmare reaches the database',
-    url: `${SITE}/nn/`,
-    proves: 'the Worker can reach Supabase, and the anon key and grants are right',
-    check: async (response) => reachesDatabase(await response.text()),
+    name: 'the website Worker reaches the database',
+    url: `${SITE}/health`,
+    proves:
+      'the Worker can reach Supabase with the anon key and grants, and a migration added ' +
+      'after the first deploy reached production the same way',
+    check: reportsHealthy,
   },
   {
-    name: "Nightingale Nightmare's pipeline check passes",
+    // **The counterpart to the check above, and the reason this pair is worth two entries.**
+    // The diagnostics came off the race page on purpose; a page is only clean while nobody
+    // puts them back, and "the smoke test still passes" is exactly the argument somebody
+    // would make for re-adding one. This fails if they do.
+    name: 'the race page carries no diagnostics',
     url: `${SITE}/nn/`,
-    proves: 'a migration added after the first deploy reached production the same way',
-    check: async (response) => reachesPipelineCheck(await response.text()),
+    proves:
+      'the page a runner pays on says nothing about databases, runtimes or workspaces',
+    check: async (response) => {
+      const body = await response.text();
+      for (const marker of [
+        'What this page proves',
+        'data-health',
+        'data-pipeline-check',
+        'pipeline-ok',
+      ]) {
+        if (body.includes(marker)) return `the page still contains ${marker}`;
+      }
+      return null;
+    },
   },
   {
     name: 'race timing is served at /timing',
@@ -112,15 +143,11 @@ const CHECKS = [
   },
   {
     name: 'race timing reaches the same database',
-    url: `${SITE}/timing`,
-    proves: 'both applications are talking to one Supabase project',
-    check: async (response) => reachesDatabase(await response.text()),
-  },
-  {
-    name: "race timing's pipeline check passes",
-    url: `${SITE}/timing`,
-    proves: 'the same migration reached the second application too, not just the first',
-    check: async (response) => reachesPipelineCheck(await response.text()),
+    url: `${SITE}/timing/health`,
+    proves:
+      'both applications talk to one Supabase project, and the same migration reached the ' +
+      'second one too — not just the first',
+    check: reportsHealthy,
   },
   {
     name: "race timing's own assets resolve under /timing",

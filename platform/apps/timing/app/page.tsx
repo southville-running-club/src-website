@@ -1,138 +1,60 @@
-import { getCloudflareContext } from '@opennextjs/cloudflare';
-import {
-  createAnonClient,
-  fetchHealth,
-  fetchPing,
-  type SupabaseConfig,
-} from '@src/shared';
-
-// Rendered on every request, never cached.
-//
-// The whole point of this page is to report the state of a live connection, and a cached
-// answer to "can you reach the database" is not an answer. The real timing app has the
-// same property for a different reason: a leaderboard that serves a cached crossing is
-// worse than one that is slow.
-export const dynamic = 'force-dynamic';
-
-export default async function Page() {
-  const health = await readHealth();
-  const ping = await readPing();
-
+/**
+ * The `/timing` holding page.
+ *
+ * ## What this used to be
+ *
+ * A status table. `<h1>Race timing</h1>`, then "this page exists to prove the path it will
+ * move onto", then "What this page proves", then a `<dl>` of the database timestamp, a
+ * pipeline-check marker, the runtime it was served by and the name of the workspace
+ * directory. It did prove those things, and it was linked from the club's front door as
+ * "live results and marshal screens".
+ *
+ * **Somebody following that link is a runner, not a maintainer.** The two round trips moved
+ * to `/timing/health`, where the smoke test reads them, and this became a page that says the
+ * one thing its visitor came to find out.
+ *
+ * ## What it does not say
+ *
+ * No date, and no promise that results will appear *here*. The port is gated on the race
+ * simulation and the existing deployment stays live until that passes
+ * ([ADR-008](docs/architecture/decisions/adr-008-timing-port-before-the-race.md)) — so "results
+ * for this year's race will be on this page" is a claim this repository is not in a position
+ * to make. Where to look on the day is the club's to announce when it knows.
+ *
+ * Static, unlike its predecessor: with no database call left on the rendering path there is
+ * nothing here to render per request, and a holding page is the most cacheable thing a site
+ * has.
+ */
+export default function Page() {
   return (
     <>
       <h1>Race timing</h1>
 
       <p className="lede">
-        There is nothing here yet. The timing platform still runs from its existing
-        deployment; this page exists to prove the path it will move onto — a Cloudflare
-        Worker on the club&rsquo;s own domain, reading the club&rsquo;s own database.
+        This is where Southville Running Club&rsquo;s race timing will live — live results
+        while a race is running, and the finish times afterwards.
       </p>
-
-      <h2>What this page proves</h2>
 
       <p>
-        Next.js is running under <code>@opennextjs/cloudflare</code> in the Workers
-        runtime, and reached Postgres while serving this request. The timestamp is
-        rendered server-side, so it is here with JavaScript disabled.
+        <strong>It is not open yet.</strong> The club is moving its timing system onto
+        this address, and there is nothing to see here until that is finished. Nothing you
+        are looking for is missing; it has not arrived.
       </p>
 
-      <dl className="status">
-        <dt>Database time, Europe/London</dt>
-        <dd>
-          {health.ok ? (
-            // The machine-readable value is UTC and the visible text is Europe/London,
-            // which is the storage-and-display rule expressed in one element.
-            <time data-health="ok" dateTime={health.at.toISOString()}>
-              {health.formatted}
-            </time>
-          ) : (
-            <span data-health="error">Could not reach the database — {health.error}</span>
-          )}
-        </dd>
-
-        <dt>Pipeline check</dt>
-        <dd>
-          {
-            // A second, independent database round trip — intake.ping(), added after the
-            // skeleton's first deploy to prove a *new* migration reaches this page the
-            // same way the one above already did.
-          }
-          {ping.ok ? (
-            <span data-pipeline-check="ok">{ping.value}</span>
-          ) : (
-            <span data-pipeline-check="error">
-              Could not reach the database — {ping.error}
-            </span>
-          )}
-        </dd>
-
-        <dt>Served by</dt>
-        <dd>Cloudflare Workers, via @opennextjs/cloudflare</dd>
-
-        <dt>Application</dt>
-        <dd>apps/timing</dd>
-      </dl>
+      <p>
+        The club will say where to find results for a particular race when that race is
+        announced.
+      </p>
 
       <footer>
         <p>
-          Southville Running Club. The live leaderboard and marshal screens are not part
-          of this deployment yet.
+          <a href="/nn/">Nightingale Nightmare</a> — the club&rsquo;s Halloween trail
+          race.
+        </p>
+        <p>
+          <a href="/">Southville Running Club</a>
         </p>
       </footer>
     </>
   );
-}
-
-async function readHealth() {
-  // A failure is rendered rather than thrown: this page's job is to report whether the
-  // connection works, so "it does not" is the useful answer, not a 500.
-  try {
-    return await fetchHealth(createAnonClient(await readSupabaseConfig()));
-  } catch (cause) {
-    return {
-      ok: false as const,
-      error: cause instanceof Error ? cause.message : String(cause),
-    };
-  }
-}
-
-async function readPing() {
-  try {
-    return await fetchPing(createAnonClient(await readSupabaseConfig()));
-  } catch (cause) {
-    return {
-      ok: false as const,
-      error: cause instanceof Error ? cause.message : String(cause),
-    };
-  }
-}
-
-/**
- * Where the two Supabase variables come from, which is **not the same place in every
- * environment** — and getting this wrong is silent until a page renders an error.
- *
- * Deployed, OpenNext puts the Worker's `vars` into `process.env`, so that alone would
- * work. Under `next dev` it does not: `wrangler.jsonc` vars are Worker configuration and
- * Next reads `.env` files, so the page rendered "could not reach the database" on the fast
- * loop while working perfectly under `preview`.
- *
- * `getCloudflareContext()` is the bridge. It is exactly what
- * `initOpenNextCloudflareForDev()` in `next.config.ts` exists to populate, so one code
- * path now works in both — no `.env` file to keep in step, and one less thing that is true
- * on a laptop and false in production.
- */
-async function readSupabaseConfig(): Promise<SupabaseConfig> {
-  try {
-    const { env } = await getCloudflareContext({ async: true });
-    return {
-      url: env.PUBLIC_SUPABASE_URL ?? process.env.PUBLIC_SUPABASE_URL ?? '',
-      anonKey: env.PUBLIC_SUPABASE_ANON_KEY ?? process.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
-    };
-  } catch {
-    // No Cloudflare context — a plain Node render. `process.env` is the whole answer.
-    return {
-      url: process.env.PUBLIC_SUPABASE_URL ?? '',
-      anonKey: process.env.PUBLIC_SUPABASE_ANON_KEY ?? '',
-    };
-  }
 }

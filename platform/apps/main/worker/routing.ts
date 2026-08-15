@@ -46,6 +46,27 @@ export function isTimingPath(pathname: string): boolean {
 }
 
 /**
+ * The machine-readable health report — **not a page, and it must never become one.**
+ *
+ * The two database round trips it reports used to be rendered into a "What this page proves"
+ * block on `/nn/`, which put a build-in-progress diagnostic on the page somebody pays on.
+ * They are worth running and worth watching; they are not worth showing to a runner. So they
+ * moved here, where `scripts/smoke.mjs` reads them.
+ *
+ * **No trailing-slash variant, unlike every other predicate in this file.** The two above
+ * accept both spellings because a human typed them into a form's `action` or a Stripe
+ * dashboard once, and a mistyped slash there is a silent failure discovered by somebody who
+ * paid. Nothing types this: it is in the smoke script and in `apps/main/README.md`, both of
+ * which are edited with the endpoint. One spelling, and `/health/` 404s like any other
+ * address that is not a page.
+ */
+export const HEALTH_PATH = '/health';
+
+export function isHealthPath(pathname: string): boolean {
+  return pathname === HEALTH_PATH;
+}
+
+/**
  * Where the sign-up form posts.
  *
  * **`/nn` and `/nn/` are the same answer here, and that is deliberate.** Astro is

@@ -92,7 +92,7 @@ content and CSS, misleading for anything else.
 | `npm run dev` | `astro dev` — the fast loop, `apps/main`, :4321 |
 | `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
 | `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
-| `npm run smoke` | The seven checks against **production**. `-- --local` for localhost |
+| `npm run smoke` | The live-site checks against **production**. `-- --local` for localhost |
 | `npm test` | Vitest: unit and database |
 | `npm run entries:open` / `entries:close` | Move the local NN entry window, so `/nn/` shows the entry form or the interest one. `--workspace=packages/db` |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
