@@ -85,14 +85,18 @@ describe('the race page, while entries are not open', () => {
     expect(html).toContain('href="/nn/2026/spectators/"');
   });
 
-  it('links to no year except through the three the Worker paints', async () => {
+  it('links to no year except through the ones the Worker paints', async () => {
     // **The failure this guards is a year typed into a link.** It would work perfectly for a
     // year and then quietly point at a page that no longer exists, and it would not look
-    // wrong in a diff. Every year-bearing href on this page has to be one `renderNnRaceView`
-    // wrote, so a fourth appearing means somebody hard-coded a route.
+    // wrong in a diff. Every year-bearing href in the page **body** has to be one
+    // `renderNnRaceView` wrote, so a fourth appearing means somebody hard-coded a route.
+    //
+    // Scoped to `<main>`: the navigation bar sits outside it and carries three year links of
+    // its own, which `nn-nav.test.ts` owns.
     const html = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    const body = html.slice(html.indexOf('<main id="main">'));
 
-    const yearLinks = [...html.matchAll(/href="([^"]*)"/g)]
+    const yearLinks = [...body.matchAll(/href="([^"]*)"/g)]
       .map((match) => match[1]!)
       .filter((href) => /\/nn\/\d{4}\b/.test(href));
 

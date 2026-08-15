@@ -73,25 +73,47 @@ where a convention drifts, and the symptom would be a Stripe return URL that 404
 `/nn/entry/complete/` existed only on this branch, only ever carried `noindex`, and were linked
 from nothing outside the repository. `tests/worker/serves.test.ts` asserts the 404s.
 
-### The navigation, on two levels
+### The navigation — one bar, five controls
 
 ```
-the race       Race · Course                    every Nightingale Nightmare page
-the running    2026 · Race day · Spectators     year pages only
+[wordmark]   Race   Course   Race day   Spectators        [ Enter the race ]
 ```
 
-`src/components/NnNav.astro`. **It derives everything from `Astro.url.pathname`** — which page
-is current, and which year the running row is about — because a prop is a second place to state
-the same thing and a page that passes the wrong one renders a nav that lies with no other
-symptom. No database, no rewriting, no script, which is what lets it be right on the content
-pages the Worker never touches.
+`src/components/NnNav.astro` (the four links) and `src/components/NnMasthead.astro` (the
+button) — [ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md).
 
-**An evergreen page shows only the race row**, because it cannot know which running is current
-without asking. The cost is one extra tap through `/nn/`, and the alternatives are a database
-call on every content-page view or a year written into a component.
+**Identical on every page that carries it; only the current-page marker moves.** Three signals,
+never colour alone: `aria-current="page"`, a 2px rule under the label, and full brightness
+against the 0.78 the others rest at.
 
-`/nn/privacy/` is deliberately outside both rows: it is a legal notice reached from the forms,
-and a nav with nothing marked current is worse than no nav.
+**The year is never in the bar and never in `dist/`.** Race day, Spectators and the button ship
+`hidden` with `href=""`, and the Worker paints them from `entries.current_entry_state('nn')` on
+**every** page that renders the masthead — including `/nn/course/` and `/nn/privacy/`, which it
+previously did nothing to. That is one database round trip on those pages, resolved once per
+request and shared. `tests/unit/nn-nav.test.ts` greps the components for a hand-typed year,
+because a Worker test only ever sees the painted result.
+
+**The button's label is the entry window's**, because "Enter" on a button that does not let you
+enter is a small dishonesty on a site that is about to ask for money:
+
+| Window | Long | Short (320px) |
+| --- | --- | --- |
+| `open` | Enter the race | Enter |
+| `pre_open` | Register interest | Interest |
+| `closed` | Race details | Details |
+
+Each short label is a substring of its long one and the `aria-label` carries the long one at
+both widths — WCAG 2.5.3.
+
+**At 320px it is two rows**: wordmark and button, then the four links. 109px, against **207px**
+when it was sticky and two-rowed. No hamburger, no dropdown, no script.
+
+**It is not sticky**, and the full account of the three defects that bought — plus the
+before/after keyboard-sweep numbers — is at the head of the masthead section in
+`packages/shared/styles/nn-theme.css` and in ADR-012.
+
+`/nn/privacy/` is deliberately not one of the five: it is a legal notice reached from the
+forms, and it is the one page in the bar that carries no marker.
 
 ## Where race facts live
 

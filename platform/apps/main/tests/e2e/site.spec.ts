@@ -132,36 +132,26 @@ test.describe('Nightingale Nightmare, at /nn', () => {
 
 test.describe('the Nightingale Nightmare content pages', () => {
   /**
-   * **Every page, its nav label, its heading, and the links its nav should carry.**
+   * **One bar, five controls, identical on every page that carries it.**
    *
-   * The nav spans two levels now, because the routes do: a *race* is the recurring thing and
-   * an *event* is one running of it in one year. The race row is on every page; the running
-   * row appears only beneath a year, derived from the page's own path with no database and no
-   * script.
+   * The first version of this nav had two rows, the second appearing only beneath a year —
+   * which was the *routes* leaking into the interface. A runner does not care that race day
+   * lives inside a year directory; they care where race day is. So the bar is the same five
+   * things wherever they are standing, and only the current-page marker moves.
    *
-   * **An evergreen page shows only the race row, and that is the decision rather than an
-   * omission.** `/nn/course/` cannot know which running is current without asking, and giving
-   * it a year would mean either a database call on every content page view or a year written
-   * into markup — the second being the thing this whole slice removes. The cost is one extra
-   * tap from the course page, through "Race".
-   *
-   * **The years are literals.** Reading them from `race.json` or from the database would make
-   * the expectation and the page read the same source, which asserts nothing.
+   * **Two of the five are painted by the Worker** from `entries.current_entry_state('nn')`,
+   * on every one of these pages rather than only on `/nn/`. The years below are literals:
+   * reading them from `race.json` or from the database would make the expectation and the
+   * page read the same source, which asserts nothing.
    */
-  const RACE_ROW = ['/nn/', '/nn/course/'];
-  const RUNNING_ROW = ['/nn/2026/', '/nn/2026/race-day/', '/nn/2026/spectators/'];
+  const NAV_LINKS = ['/nn/', '/nn/course/', '/nn/2026/race-day/', '/nn/2026/spectators/'];
 
   const NN_PAGES = [
-    ['/nn/', 'Race', 'Nightingale Nightmare', RACE_ROW],
-    ['/nn/course/', 'Course', 'Course and terrain', RACE_ROW],
-    ['/nn/2026/', '2026', 'Nightingale Nightmare 2026', [...RACE_ROW, ...RUNNING_ROW]],
-    ['/nn/2026/race-day/', 'Race day', 'Race day', [...RACE_ROW, ...RUNNING_ROW]],
-    [
-      '/nn/2026/spectators/',
-      'Spectators',
-      'Watching the race',
-      [...RACE_ROW, ...RUNNING_ROW],
-    ],
+    ['/nn/', 'Race', 'Nightingale Nightmare'],
+    ['/nn/course/', 'Course', 'Course and terrain'],
+    ['/nn/2026/', null, 'Nightingale Nightmare 2026'],
+    ['/nn/2026/race-day/', 'Race day', 'Race day'],
+    ['/nn/2026/spectators/', 'Spectators', 'Watching the race'],
   ] as const;
 
   for (const [path, navLabel, heading] of NN_PAGES) {
@@ -175,6 +165,13 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
       const nav = page.getByRole('navigation', { name: 'Nightingale Nightmare' });
       await expect(nav).toBeVisible();
+
+      if (navLabel === null) {
+        // **The year page is reached by the button, which is not in the list.** So the four
+        // links carry no marker there, and that is the one page where none is right.
+        await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
+        return;
+      }
 
       // **Exactly one link is current, and it is this page's.** Two would be a copied
       // component that was never re-pointed; none would be a path that stopped matching
@@ -190,24 +187,26 @@ test.describe('the Nightingale Nightmare content pages', () => {
     });
   }
 
-  test('one navigation landmark, however many rows it is drawn on', async ({ page }) => {
-    // Two `<nav>` elements would be two landmarks a screen-reader user has to tell apart,
-    // for one navigation that happens to wrap. The two `<ul>`s inside it are the structure,
-    // and they are read out as two lists.
-    await page.goto('/nn/2026/race-day/');
+  test('one navigation landmark, and one list inside it', async ({ page }) => {
+    // Two `<nav>` elements would be two landmarks a screen-reader user has to tell apart, for
+    // one navigation that happens to wrap onto two rows at 320px.
+    for (const path of ['/nn/2026/race-day/', '/nn/course/']) {
+      await page.goto(path);
 
-    await expect(
-      page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
-    ).toHaveCount(1);
-    await expect(page.locator('.nn-nav > ul')).toHaveCount(2);
-
-    await page.goto('/nn/course/');
-    await expect(page.locator('.nn-nav > ul')).toHaveCount(1);
+      await expect(
+        page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+        path,
+      ).toHaveCount(1);
+      await expect(page.locator('.nn-nav > ul'), path).toHaveCount(1);
+    }
   });
 
-  test('every nav link resolves, from every page', async ({ page, request }) => {
+  test('the bar offers the same five things from every page', async ({
+    page,
+    request,
+  }) => {
     // A nav is the one component where a broken link is invisible from the page it is on.
-    for (const [from, , , expected] of NN_PAGES) {
+    for (const [from] of NN_PAGES) {
       await page.goto(from);
 
       const hrefs = await page
@@ -215,12 +214,73 @@ test.describe('the Nightingale Nightmare content pages', () => {
         .getByRole('link')
         .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
 
-      expect(hrefs, from).toEqual(expected);
+      expect(hrefs, from).toEqual(NAV_LINKS);
 
-      for (const href of hrefs) {
+      // The fifth control. It is outside the navigation landmark because at 320px it shares
+      // the wordmark's row, which means it has to be the wordmark's sibling — see the note in
+      // `NnMasthead.astro`.
+      const cta = page.locator('[data-nn-nav-cta]');
+      await expect(cta, from).toBeVisible();
+      await expect(cta, from).toHaveAttribute('href', '/nn/2026/');
+
+      for (const href of [...hrefs, '/nn/2026/']) {
         expect((await request.get(href)).status(), `${from} -> ${href}`).toBe(200);
       }
     }
+  });
+
+  test('the button says what the destination can actually do', async ({ page }) => {
+    // **Entries are shut in this project's seeded state**, so "Enter" would be a promise the
+    // site cannot keep. The interest form is on the year page, which is exactly what the
+    // label offers. `nn-entry.spec.ts` carries the open-state half.
+    await page.goto('/nn/');
+
+    const cta = page.locator('[data-nn-nav-cta]');
+    await expect(cta).toHaveAttribute('aria-label', 'Register interest');
+
+    // WCAG 2.5.3: the visible label has to appear in the accessible name, at both widths.
+    const visible = (await cta.innerText()).trim();
+    expect('Register interest'.toLowerCase()).toContain(visible.toLowerCase());
+  });
+
+  test('the header scrolls away with the page @requires-js', async ({ page }) => {
+    // **This assertion is the reverse of the one it replaces.** The bar was sticky for one
+    // slice; it cost a broken measurement harness, arrow-keyed radios hidden at 320px in
+    // WebKit, and 207px of a 568px phone held permanently on pages people read and scroll.
+    // What replaces it is the guard that it does not come back.
+    for (const [width, height] of [
+      [1280, 800],
+      [320, 640],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto('/nn/2026/race-day/');
+
+      const before = await page.evaluate(
+        () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
+      );
+      expect(before, `starts at the top at ${width}px`).toBe(0);
+
+      await page.evaluate(() => window.scrollTo(0, 1200));
+      const after = await page.evaluate(
+        () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
+      );
+      expect(after, `scrolled away at ${width}px`).toBeLessThan(-100);
+    }
+  });
+
+  test('an anchor lands where it was aimed, with no scroll-margin propping it up', async ({
+    page,
+  }) => {
+    // The `scroll-margin-top: 168px` on every `[id]` in the theme existed only to keep
+    // anchors clear of the sticky bar. With the bar gone the rule is gone, and this is what
+    // says the anchors did not go with it.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/nn/2026/');
+
+    const margin = await page.evaluate(
+      () => getComputedStyle(document.querySelector('h1')!).scrollMarginTop,
+    );
+    expect(margin).toBe('0px');
   });
 
   // -------------------------------------------------------------------------------------
@@ -231,7 +291,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
   // rather than the ones that were easy to assert.
   // -------------------------------------------------------------------------------------
 
-  test('the masthead is on the five pages that get it, and not the sixth', async ({
+  test('the masthead is on the six pages that get it, and not the seventh', async ({
     page,
   }) => {
     // **`/nn/entry/complete/` keeps the wordmark and loses the links**, deliberately:
@@ -257,6 +317,9 @@ test.describe('the Nightingale Nightmare content pages', () => {
     await expect(
       page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
     ).toHaveCount(0);
+    // The button goes with the links, and for the same reason: somebody who has just paid is
+    // reading one paragraph, not choosing where to go next.
+    await expect(page.locator('[data-nn-nav-cta]')).toHaveCount(0);
   });
 
   test('the wordmark is a link home, and there is exactly one of it', async ({
@@ -318,43 +381,6 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
     await expect(page.getByRole('banner')).toHaveCount(1);
     await expect(page.locator('main .nn-masthead')).toHaveCount(0);
-  });
-
-  test('the header stays put, and anchors still clear it @requires-js', async ({
-    page,
-  }) => {
-    // **Sticking it was asked for against this file's own advice**, so the cost is written
-    // down rather than discovered: 64px of a laptop and 159px of a 320px phone, held for
-    // the whole page. What must not also be true is that it hides the things people jump
-    // to — `scroll-margin-top` on every target in the theme is what pays for it, and this
-    // is the assertion that stops a later tidy-up removing the rule without noticing.
-    for (const [width, height] of [
-      [1280, 800],
-      [320, 640],
-    ] as const) {
-      await page.setViewportSize({ width, height });
-      await page.goto('/nn/2026/race-day/');
-
-      await page.evaluate(() => window.scrollTo(0, 1200));
-      const stuck = await page.evaluate(() => {
-        const r = document.querySelector('.nn-masthead')?.getBoundingClientRect();
-        return r ? Math.round(r.top) : null;
-      });
-      expect(stuck, `stuck at ${width}px`).toBe(0);
-
-      // A target reached by fragment must land below the bar rather than behind it —
-      // WCAG 2.4.11, and the reason the skip link still means anything.
-      await page.goto('/nn/');
-      await page.evaluate(() => {
-        window.location.hash = '#register';
-      });
-      const clears = await page.evaluate(() => {
-        const t = document.querySelector('#register')?.getBoundingClientRect();
-        const m = document.querySelector('.nn-masthead')?.getBoundingClientRect();
-        return t && m ? t.top >= m.bottom : null;
-      });
-      expect(clears, `#register clears the bar at ${width}px`).toBe(true);
-    }
   });
 
   test('the loudest control offers the only thing this site can do', async ({ page }) => {

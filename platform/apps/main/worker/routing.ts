@@ -109,6 +109,28 @@ export function isTimingPath(pathname: string): boolean {
 }
 
 /**
+ * The Nightingale Nightmare pages that carry the navigation bar, and therefore the ones whose
+ * year-bearing links the Worker has to paint.
+ *
+ * **Everything under `/nn` except two.** The webhook is not a page at all, and the return page
+ * carries the wordmark without the links — somebody who has just paid should not be offered
+ * four ways to wander off before reading what the club has recorded.
+ *
+ * Deliberately a path predicate rather than a list of the six pages that exist. A seventh page
+ * added under `/nn/` gets the bar because it renders the masthead, and a predicate that had to
+ * be edited to match would be the second place that fact was written down.
+ */
+export function isNnMastheadPath(pathname: string): boolean {
+  const path = pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+  if (!path.startsWith(`${NN_PREFIX}/`)) {
+    return false;
+  }
+
+  return !isNnWebhookPath(pathname) && !isNnEntryCompletePath(pathname);
+}
+
+/**
  * Where the sign-up form posts — the race's own page, and it stays there.
  *
  * **`/nn` and `/nn/` are the same answer here, and that is deliberate.** Astro is

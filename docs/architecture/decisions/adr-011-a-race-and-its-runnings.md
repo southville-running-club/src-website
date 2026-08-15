@@ -89,6 +89,11 @@ discovered by somebody who had just paid.
 
 ### The navigation spans two levels, and only year pages get the second
 
+> **Superseded by [ADR-012](adr-012-one-navigation-bar.md), 15 August 2026.** The bar is one
+> row of five controls, identical on every page, with the year painted rather than routed
+> around. What follows is left as it was accepted — the reasoning it gives for the two levels
+> is the reasoning ADR-012 answers.
+
 ```
 the race       Race · Course                    every Nightingale Nightmare page
 the running    2026 · Race day · Spectators     year pages only

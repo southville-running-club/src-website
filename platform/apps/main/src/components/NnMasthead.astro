@@ -28,12 +28,25 @@ import NnNav from './NnNav.astro';
 //
 // ## No JavaScript, and no hamburger
 //
-// Four links fit. A menu behind a toggle would need a script to open, and every form on
+// Five controls fit. A menu behind a toggle would need a script to open, and every form on
 // this site is built to work without one — a navigation that fails with JavaScript off
 // while the entry form beneath it still works would be an odd place to draw the line.
 //
-// **Not sticky, either.** These are read-and-scroll pages rather than an application, and a
-// fixed bar spends vertical space a phone does not have on something already read.
+// **Not sticky.** It was, for one slice, and it cost three defects and 207px of a 568px phone
+// — the full account is at the head of the masthead section in `nn-theme.css`. These are
+// read-and-scroll pages rather than an application, and a bar that never leaves spends
+// vertical space a phone does not have on something already read.
+//
+// ## The button lives here rather than in the navigation, and why
+//
+// At 320px the bar is two rows: the wordmark and the button on the first, the four links on
+// the second. Getting the button onto the wordmark's row means it has to be the wordmark's
+// **sibling** — inside `<nav>` it could only ever be on the links' row. So it is a child of
+// this header, and `nn-theme.css` reorders it with one `order` at that width.
+//
+// The semantic cost is that it is not inside the navigation landmark. It is a call to action
+// rather than a place to go, it is still inside the banner, and it is announced immediately
+// after the four links — which is what somebody jumping by landmark would want anyway.
 
 interface Props {
   /**
@@ -47,6 +60,16 @@ interface Props {
 }
 
 const { nav = true } = Astro.props;
+
+// **The button is a destination too, so it carries the marker on its own page.** Matched on
+// the *shape* of the path rather than on the painted href, exactly as the four links are:
+// `/nn/2027/` is the running's own page whatever the year, and the marker is therefore right
+// before the Worker has painted anything.
+const path = Astro.url.pathname.endsWith('/')
+  ? Astro.url.pathname
+  : `${Astro.url.pathname}/`;
+
+const onTheRunning = /^\/nn\/\d{4}\/$/.test(path);
 ---
 
 <header class="nn-masthead">
@@ -72,5 +95,43 @@ const { nav = true } = Astro.props;
     </a>
 
     {nav && <NnNav />}
+
+    {
+      /* **The one thing this site exists to do, and the label is painted from the entry
+      window.** "Enter" on a button that does not let you enter is a small dishonesty on a
+      site that is about to ask for money, so the Worker chooses between three pairs:
+
+        open       Enter the race / Enter
+        pre_open   Register interest / Interest    — the interest form is on that page
+        closed     Race details / Details          — and that page says entries have closed
+
+      **Two labels because 320px cannot hold the long one beside the wordmark**, and an
+      `aria-label` carrying the long one so the accessible name does not change with the
+      viewport. Each short label is a substring of its long one, which is what WCAG 2.5.3
+      asks: what somebody says out loud has to be in what the machine reads.
+
+      It ships `hidden` with `href=""`, like the two year links in the nav, so a database this
+      Worker cannot reach leaves a bar of two evergreen links rather than a button into a year
+      nobody confirmed. The shipped text is the neutral pair and is never seen. */
+    }
+    {
+      nav && (
+        <a
+          class="nn-nav-cta"
+          href=""
+          data-nn-nav-cta
+          hidden
+          aria-label="Race details"
+          aria-current={onTheRunning ? 'page' : undefined}
+        >
+          <span class="nn-nav-cta-long" data-nn-nav-cta-long>
+            Race details
+          </span>
+          <span class="nn-nav-cta-short" data-nn-nav-cta-short>
+            Details
+          </span>
+        </a>
+      )
+    }
   </div>
 </header>

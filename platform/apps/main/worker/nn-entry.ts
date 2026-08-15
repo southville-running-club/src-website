@@ -12,6 +12,7 @@ import {
   type AnonClient,
   type EntryState,
   type EntryStateResult,
+  type EntryWindowState,
   type NnEntryErrors,
   type NnEntryField,
 } from '@src/shared';
@@ -135,9 +136,16 @@ export async function resolveNnEntryView(
  * front door with one fewer door in it, which is worse than the full page and much better
  * than a link to a year nobody confirmed.
  */
-export type NnRaceView =
-  | { running: null }
-  | { running: { year: string; yearPath: string; entriesOpen: boolean } };
+export interface NnRunning {
+  /** `2026`. Off the path, so it always agrees with what the links point at. */
+  year: string;
+  /** `/nn/2026/` */
+  yearPath: string;
+  /** Which of the three window states, so a label can be honest about what it offers. */
+  state: EntryWindowState;
+}
+
+export type NnRaceView = { running: null } | { running: NnRunning };
 
 export async function resolveNnRaceView(env: NnEntryEnv): Promise<NnRaceView> {
   const view = await resolveView(env, (client) =>
@@ -159,12 +167,12 @@ export async function resolveNnRaceView(env: NnEntryEnv): Promise<NnRaceView> {
 
   // **The year comes off the path, not out of the date.** They agree today and they would
   // agree for any sane row, but two derivations of one number is one derivation too many —
-  // and the path is the thing the links use, so the heading names what they point at.
+  // and the path is the thing the links use, so what is rendered names what they point at.
   return {
     running: {
       year: yearPath.split('/').filter(Boolean).at(-1) ?? '',
       yearPath,
-      entriesOpen: view.show === 'entry',
+      state: view.state.state,
     },
   };
 }
@@ -618,7 +626,7 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
     return rewriter;
   }
 
-  const { year, yearPath, entriesOpen } = view.running;
+  const { year, yearPath, state } = view.running;
 
   // The block of links to this year's running, and its heading. Revealed in **both** window
   // states: somebody wants the race-day plan whether or not they can enter today, and a front
@@ -636,19 +644,77 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
       new AttributeHandler('href', `${yearPath}spectators/`),
     );
 
-  if (!entriesOpen) {
+  if (state === 'open') {
+    // **Entries are open, so the page says so where somebody cannot miss it and the loud
+    // button stops offering the quiet thing.** The entry form is not on this page and must not
+    // be copied onto it: two forms writing to one table is two places for a rule to be wrong.
+    rewriter
+      .on('[data-nn-interest]', new HideHandler())
+      .on('[data-nn-entries-open]', new RevealHandler())
+      .on(
+        '[data-nn-entries-open-link]',
+        new AttributeHandler('href', `${yearPath}#enter`),
+      )
+      .on('[data-nn-cta]', new CtaHandler(`${yearPath}#enter`, 'Enter the race'));
+  }
+
+  return rewriter;
+}
+
+/**
+ * The navigation bar, on every page that carries it.
+ *
+ * **Two links and a button, and none of them may name a year in `dist/`.** They ship hidden
+ * with `href=""`; this is the only thing that fills them in, on every Nightingale Nightmare
+ * page rather than only on `/nn/`, because the bar is the same bar everywhere.
+ *
+ * The label is the honest one for the window: an "Enter" that does not let you enter is a
+ * small dishonesty on a site that is about to ask for money.
+ */
+export function renderNnNav(rewriter: HTMLRewriter, view: NnRaceView): HTMLRewriter {
+  if (view.running === null) {
+    // Two evergreen links and nothing else. Fewer doors, and never a door into a year nobody
+    // confirmed — the same direction every other failure here takes.
     return rewriter;
   }
 
-  // **Entries are open, so the page says so where somebody cannot miss it and the loud button
-  // stops offering the quiet thing.** The entry form is not on this page and must not be
-  // copied onto it: two forms writing to one table is two places for a rule to be wrong.
+  const { yearPath, state } = view.running;
+  const { long, short } = NAV_LABELS[state];
+
   return rewriter
-    .on('[data-nn-interest]', new HideHandler())
-    .on('[data-nn-entries-open]', new RevealHandler())
-    .on('[data-nn-entries-open-link]', new AttributeHandler('href', `${yearPath}#enter`))
-    .on('[data-nn-cta]', new CtaHandler(`${yearPath}#enter`, 'Enter the race'));
+    .on('[data-nn-nav-item="race-day"]', new RevealHandler())
+    .on(
+      '[data-nn-nav-link="race-day"]',
+      new AttributeHandler('href', `${yearPath}race-day/`),
+    )
+    .on('[data-nn-nav-item="spectators"]', new RevealHandler())
+    .on(
+      '[data-nn-nav-link="spectators"]',
+      new AttributeHandler('href', `${yearPath}spectators/`),
+    )
+    .on('[data-nn-nav-cta]', new RevealHandler())
+    .on('[data-nn-nav-cta]', new AttributeHandler('href', yearPath))
+    .on('[data-nn-nav-cta]', new AttributeHandler('aria-label', long))
+    .on('[data-nn-nav-cta-long]', new TextHandler(long))
+    .on('[data-nn-nav-cta-short]', new TextHandler(short));
 }
+
+/**
+ * What the button says, per window state.
+ *
+ * **Each short label is a substring of its long one**, which is WCAG 2.5.3: what somebody says
+ * out loud has to appear in what the machine reads, and the accessible name is the long one at
+ * every width.
+ *
+ * `pre_open` says "Register interest" because that is exactly what the destination offers —
+ * the interest form is on the year page. `closed` promises neither, because neither is on
+ * offer, and the page it goes to says entries have closed.
+ */
+const NAV_LABELS: Record<EntryWindowState, { long: string; short: string }> = {
+  open: { long: 'Enter the race', short: 'Enter' },
+  pre_open: { long: 'Register interest', short: 'Interest' },
+  closed: { long: 'Race details', short: 'Details' },
+};
 
 /**
  * Reveal whichever of the year page's two states applies, and fill in what only the database

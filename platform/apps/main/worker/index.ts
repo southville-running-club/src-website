@@ -6,6 +6,7 @@ import {
 } from '@src/shared';
 import {
   isNnEntryCompletePath,
+  isNnMastheadPath,
   isNnSignupPath,
   isNnWebhookPath,
   isNnYearPath,
@@ -31,6 +32,7 @@ import {
   renderNnEntryErrors,
   renderNnEntryStopped,
   renderNnEntryView,
+  renderNnNav,
   renderNnRaceView,
   resolveNnEntryView,
   resolveNnRaceView,
@@ -167,12 +169,32 @@ export default {
 
     const rewriter = statusRewriter(env);
 
+    // -------------------------------------------------------------------------------------
+    // The navigation, on every Nightingale Nightmare page that carries it
+    // -------------------------------------------------------------------------------------
+    // **The bar is the same bar everywhere, so it is painted everywhere.** Two of its five
+    // controls point at the current running, and the pages that carry them include
+    // `/nn/course/` and `/nn/privacy/`, which this Worker previously did nothing to at all.
+    //
+    // **That is one database round trip per content-page view, and it was a real trade.** The
+    // alternative is a year written into a component — the thing the route split exists to
+    // remove — or a navigation that differs by page, which is the thing this slice exists to
+    // remove. The read is `entries.current_entry_state()`, which touches two small tables and
+    // no personal data, and it is **resolved once and shared** with whatever else the page
+    // needs it for.
+    //
+    // Every failure paints nothing: the bar keeps its two evergreen links and drops the rest.
+    // Fewer doors, and never a door into a year nobody confirmed.
+    const race = isNnMastheadPath(url.pathname) ? await resolveNnRaceView(env) : null;
+
+    if (race !== null) {
+      renderNnNav(rewriter, race);
+    }
+
     if (isNnSignupPath(url.pathname)) {
       // **Which running is on, and where it is, decided per request.** The race page holds no
-      // year, so every link it makes to one is painted here. Every failure paints nothing at
-      // all, which leaves the interest form that was already on the page — a front door with
-      // one fewer door in it rather than a link to a year nobody confirmed.
-      renderNnRaceView(rewriter, await resolveNnRaceView(env));
+      // year, so every link it makes to one is painted here.
+      renderNnRaceView(rewriter, race ?? { running: null });
 
       // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET,
       // and `?signup=ok` is what tells this pass to reveal the acknowledgement.

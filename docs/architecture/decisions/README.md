@@ -14,7 +14,8 @@ Technical decisions the volunteers take themselves.
 | [**ADR-008**](adr-008-timing-port-before-the-race.md) | **The timing port lands before the race**, gated on a simulation with Vercel as the standing fallback. *Reverses the plan's earlier "after the race"* | 9 Aug 2026 |
 | [**ADR-009**](adr-009-entries-in-apps-main.md) | **Race entries live in `apps/main`**, in a new `entries` schema — not in a repository of their own. *Retires the "separate entries application" working assumption* | 13 Aug 2026 |
 | [**ADR-010**](adr-010-webhook-writes-paid.md) | **The Stripe webhook is the only thing that writes `paid`**, and the failure direction is inverted there | 13 Aug 2026 |
-| [**ADR-011**](adr-011-a-race-and-its-runnings.md) | **A race and one running of it are different pages** — `/nn/` is evergreen, `/nn/2026/` is the year. *Extends ADR-007 by one path segment* | 15 Aug 2026 |
+| [**ADR-011**](adr-011-a-race-and-its-runnings.md) | **A race and one running of it are different pages** — `/nn/` is evergreen, `/nn/2026/` is the year. *Extends ADR-007 by one path segment; its navigation section is superseded by ADR-012* | 15 Aug 2026 |
+| [**ADR-012**](adr-012-one-navigation-bar.md) | **One navigation bar, and the year is never in it** — five controls, painted, and no longer sticky. *Supersedes ADR-011's navigation section* | 15 Aug 2026 |
 
 ---
 

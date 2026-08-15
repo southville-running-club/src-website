@@ -23,8 +23,15 @@
 ---
 
 <ul class="nn-arrows">
+  {
+    /* **`{' '}` is a real space, and it is here because a line break is not.** Prettier keeps
+    the `<strong>` on a line of its own, `compressHTML` removes the newline, and this rendered
+    "slippery when wet.Trail shoes recommended" on both pages that use this component from the
+    day it was extracted. The explicit space survives the reformat; a typed one does not. The
+    same trap is documented at the head of `nn/privacy.astro` and in CLAUDE.md. */
+  }
   <li>
-    A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
+    A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.{' '}
     <strong>Trail shoes recommended</strong>, road shoes acceptable.
   </li>
   <li><strong>No headphones of any type during the race.</strong></li>
