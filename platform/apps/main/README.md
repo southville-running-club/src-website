@@ -4,12 +4,19 @@ Static Astro plus one Worker, serving `new.southvillerunningclub.co.uk`. At the 
 cutover the hostname changes and nothing else does —
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md).
 
-A holding page saying a new site is coming, **five Nightingale Nightmare pages** — the race
-page and its two forms, three content pages, and the privacy notice both forms are required
-to have — and a timestamp fetched from Postgres by the Worker while it serves the request.
+A holding page saying a new site is coming, **seven Nightingale Nightmare pages** — the race
+and its running, told apart by path — and a timestamp fetched from Postgres by the Worker
+while it serves the request.
 
-**`/nn/` carries two forms and shows one.** The entry form when the event row says entries
-are open, the interest form otherwise; the Worker decides per request. See
+**A race is the recurring thing; an event is one running of it in one year, and the routes
+now say so.** `/nn/` is evergreen and never names a year; `/nn/2026/` is the 2026 running and
+carries the entry form. Publishing 2027 is a row in `entries.events` plus that year's content
+pages, with **no edit to `/nn/`** —
+[ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md).
+
+**The two forms are on two pages.** The interest form is on `/nn/`, because registering an
+interest is about the race; the entry form is on `/nn/2026/`, because an entry is an entry to
+one running. The event row decides which state each page shows, per request. See
 [the entry form](#the-entry-form) and
 [ADR-009](../../../docs/architecture/decisions/adr-009-entries-in-apps-main.md).
 
@@ -17,18 +24,20 @@ are open, the interest form otherwise; the Worker decides per request. See
 
 ```
 src/content/race.json          Every race fact, as data. See below
-src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
+src/components/NnNav.astro     The two-level Nightingale Nightmare navigation
 src/layouts/Base.astro         The document, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
-src/pages/nn/index.astro       Nightingale Nightmare, the facts, and both forms
-src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
-src/pages/nn/course.astro      Course and terrain
-src/pages/nn/race-day.astro    Race day — HQ, the morning in order, prizes
-src/pages/nn/spectators.astro  Watching the race
+src/pages/nn/index.astro       The race — evergreen, the interest form, no year
+src/pages/nn/course.astro      Course and terrain — evergreen
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
-src/pages/nn/entry/complete.astro  Where Stripe sends somebody back to
-worker/routing.ts              Which paths belong to whom. Pure and tested
+src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
+src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
+src/pages/nn/2026/race-day.astro   Race day — HQ, the morning in order, prizes
+src/pages/nn/2026/spectators.astro Watching the race
+src/pages/nn/2026/entry/complete.astro  Where Stripe sends somebody back to
+worker/routing.ts              Which paths belong to whom, and where a year lives.
+                               Pure and tested
 worker/index.ts                Forward /timing locally, take the POSTs, fill in the
                                timestamp, and sweep lapsed holds on a cron
 worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
@@ -41,23 +50,48 @@ worker/nn-entry-complete.ts    Paint what the club has recorded onto the return 
 
 ## The routes
 
+**The race, and one running of it.** Everything above the year is true of the race whichever
+year it is run; everything below it belongs to 2026 and stays there when 2027 is published.
+
 | | |
 | --- | --- |
-| `/nn/` | The race, the facts, and **whichever of the two forms applies**. **The only one the Worker does anything to** — it decides which form to show, takes the POST here, and reveals the acknowledgement on `?signup=ok` |
-| `/nn/course/` | Course and terrain |
-| `/nn/race-day/` | Race day — race HQ, the schedule, the prizes |
-| `/nn/spectators/` | Watching the race — where to stand, where to park |
-| `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types |
-| `/nn/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
+| `/nn/` | **The race — evergreen, and it names no year.** Carries the interest form, and takes its POST. The Worker paints on which running is current and where its pages are, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
+| `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
+| `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
+| `/nn/2026/` | **The 2026 running.** The date, the facts, and **the entry form** — which posts here, because an entry is an entry to one running |
+| `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
+| `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
+| `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 
-The first four carry `src/components/NnNav.astro`, which links them and marks the current
-one with `aria-current="page"`. **It derives the current page from `Astro.url.pathname`
-rather than taking a prop**, because a prop is a second place to state the same thing and a
-page that passes the wrong one renders a nav that lies with no other symptom.
+**`/nn/<year>/` is the event `nn-<year>`**, and that convention is the whole of the coupling
+between a URL and a database row. It lives in `worker/routing.ts` as two functions that are
+inverses of each other, tested as such — because two halves of one convention in two places is
+where a convention drifts, and the symptom would be a Stripe return URL that 404s.
 
-`/nn/privacy/` is deliberately outside that nav: it is a legal notice reached from the form,
-it has no entry in the four, and a nav with nothing marked current is worse than no nav.
+**The old addresses 404 and no redirect was added.** `/nn/race-day/`, `/nn/spectators/` and
+`/nn/entry/complete/` existed only on this branch, only ever carried `noindex`, and were linked
+from nothing outside the repository. `tests/worker/serves.test.ts` asserts the 404s.
+
+### The navigation, on two levels
+
+```
+the race       Race · Course                    every Nightingale Nightmare page
+the running    2026 · Race day · Spectators     year pages only
+```
+
+`src/components/NnNav.astro`. **It derives everything from `Astro.url.pathname`** — which page
+is current, and which year the running row is about — because a prop is a second place to state
+the same thing and a page that passes the wrong one renders a nav that lies with no other
+symptom. No database, no rewriting, no script, which is what lets it be right on the content
+pages the Worker never touches.
+
+**An evergreen page shows only the race row**, because it cannot know which running is current
+without asking. The cost is one extra tap through `/nn/`, and the alternatives are a database
+call on every content-page view or a year written into a component.
+
+`/nn/privacy/` is deliberately outside both rows: it is a legal notice reached from the forms,
+and a nav with nothing marked current is worse than no nav.
 
 ## Where race facts live
 
@@ -158,17 +192,28 @@ No payment, no accounts, no admin surface, no confirmation email to the submitte
 
 ## The entry form
 
-**`/nn/` carries two forms and reveals one.** Which one is decided by `entries.events` —
-`entries_open_at` and `entries_close_at` — read through `entries.entry_state()` on every
-request. **Opening entries is a row edit, not a deploy**, which is the whole point of the
-event table: nobody has to be free to push a commit at seven in the morning.
+**It is on `/nn/2026/`, and it posts to the page it is on.** That address is the whole of what
+tells the Worker which running an entry is for — there is no hidden event field and there
+should not be one, because a slug in a body is a slug somebody can change.
+
+**Each of the two pages carries two states and reveals one.** Which one is decided by
+`entries.events` — `entries_open_at` and `entries_close_at` — read through
+`entries.entry_state()` on every request. **Opening entries is a row edit, not a deploy**,
+which is the whole point of the event table: nobody has to be free to push a commit at seven
+in the morning.
+
+| | Entries shut | Entries open |
+| --- | --- | --- |
+| `/nn/` | The interest form, and a link to the running | "Entries are open", the loud button pointing at the form, and the interest form hidden |
+| `/nn/2026/` | "Entries are not open yet", pointing back at the interest form | The entry form |
 
 `entries_open_at` is `null` today, because the opening time has not been decided. That reads
-as `pre_open`, and `pre_open` shows the interest form — the page that was already here.
+as `pre_open`, which is the left-hand column.
 
-**Every failure resolves to the interest form.** Migration not landed, database unreachable,
-function returning a shape that does not parse: all of them show the form that takes no
-money. A page that cannot tell whether entries are open must not offer to take one, and that
+**Every failure resolves to the left-hand column.** Migration not landed, database
+unreachable, function returning a shape that does not parse: all of them show the state that
+takes no money and makes no claim. A page that cannot tell whether entries are open must not
+offer to take one, and that
 matters more once a card payment is on the end of it.
 
 ### What happens to a good entry
@@ -348,7 +393,7 @@ put anybody on a list that does not exist.
 | **One page, not a wizard** | A multi-step flow needs JavaScript or server-held state. This site has neither by design |
 | **Six `<fieldset>`s** | Your details, about you, entry type, emergency contact, medical information, agreements |
 | **Date of birth is three number boxes** | Not a date picker. A picker opens on this month and asks somebody to page back forty years on a phone |
-| **The England Athletics box is always in the DOM** | Inside the affiliated card. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
+| **The England Athletics box is always in the DOM** | A plain field after all three cards, not inside one. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
 | **Medical information has its own consent** | Special category data under UK GDPR Article 9, its own table, and a shorter retention. Never bundled with the entry terms |
 | **Prices are painted on** | Nothing in `dist/` knows a number. `entries.fees.price_pence` is the only place a price exists, and `tests/worker/nn-entry.test.ts` asserts the page carries no `£` at all while entries are shut |
 
@@ -444,7 +489,8 @@ could legitimately want. That is asserted, not assumed.
 | Local | | |
 | --- | --- | --- |
 | http://localhost:8787/ | the holding page | this Worker |
-| http://localhost:8787/nn/ | Nightingale Nightmare | this Worker |
+| http://localhost:8787/nn/ | Nightingale Nightmare, the race | this Worker |
+| http://localhost:8787/nn/2026/ | the 2026 running, and the entry form | this Worker |
 | http://localhost:8787/timing | race timing | forwarded to :8788 |
 | http://localhost:8787/membership/ | **404** | nothing built yet |
 
@@ -459,8 +505,8 @@ npm run test:worker  # Workers runtime tests. Needs dist/ — build first
 
 ### Seeing the entry form on a laptop
 
-`/nn/` shows the interest form until the event row says otherwise, which is what production
-does. To see the entry form, open the window:
+`/nn/2026/` says entries are not open until the event row says otherwise, which is what
+production does. To see the entry form, open the window:
 
 ```bash
 npm run entries:open  --workspace=packages/db   # entries open, from a day ago

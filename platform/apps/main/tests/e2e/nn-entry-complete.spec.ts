@@ -16,7 +16,7 @@ import {
 } from '../webhook-fixtures';
 
 /**
- * `/nn/entry/complete/` in a real browser, in every state it can be in.
+ * `/nn/2026/entry/complete/` in a real browser, in every state it can be in.
  *
  * **Nothing here is tagged `@requires-js` except the axe checks**, and that is the point of the
  * file: the `no-javascript` project runs all of it with scripting turned off, so "this page
@@ -97,7 +97,7 @@ test.describe('the page Stripe returns somebody to', () => {
   // ---------------------------------------------------------------------------------------
 
   test('confirms a payment the webhook has recorded', async ({ page }) => {
-    await page.goto(`/nn/entry/complete/?session=${PAID_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
     await expect(block(page, 'paid')).toBeVisible();
     await expect(confirming(page)).toBeHidden();
@@ -107,7 +107,7 @@ test.describe('the page Stripe returns somebody to', () => {
   });
 
   test('says it is still confirming while the payment is pending', async ({ page }) => {
-    await page.goto(`/nn/entry/complete/?session=${PENDING_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PENDING_SESSION_ID}`);
 
     await expect(confirming(page)).toBeVisible();
     await expect(block(page, 'paid')).toBeHidden();
@@ -119,7 +119,7 @@ test.describe('the page Stripe returns somebody to', () => {
   }) => {
     // Somebody who typed the bare address has asked nothing, and "we have no record of your
     // payment" would be alarming and meaningless.
-    await page.goto('/nn/entry/complete/');
+    await page.goto('/nn/2026/entry/complete/');
 
     await expect(confirming(page)).toBeVisible();
   });
@@ -132,7 +132,7 @@ test.describe('the page Stripe returns somebody to', () => {
     // on a phone, under somebody who has just paid and is reading. The link is the reader's
     // decision instead, it costs one tap, and it works with scripting off — which is the
     // project this test also runs in.
-    await page.goto(`/nn/entry/complete/?session=${PENDING_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PENDING_SESSION_ID}`);
 
     const again = confirming(page).getByRole('link', { name: 'Check again' });
     await expect(again).toBeVisible();
@@ -156,7 +156,7 @@ test.describe('the page Stripe returns somebody to', () => {
       LAPSED_SESSION_ID,
       UNKNOWN_SESSION_ID,
     ]) {
-      await page.goto(`/nn/entry/complete/?session=${session}`);
+      await page.goto(`/nn/2026/entry/complete/?session=${session}`);
 
       const text = await page.locator('body').innerText();
 
@@ -168,7 +168,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('tells somebody with a lapsed hold not to enter again', async ({ page }) => {
     // **The webhook may simply be late.** The hold running out says nothing about whether a
     // card was charged, and the page must not pretend otherwise.
-    await page.goto(`/nn/entry/complete/?session=${LAPSED_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${LAPSED_SESSION_ID}`);
 
     await expect(block(page, 'no-record')).toBeVisible();
     await expect(confirming(page)).toBeHidden();
@@ -180,7 +180,7 @@ test.describe('the page Stripe returns somebody to', () => {
   // ---------------------------------------------------------------------------------------
 
   test('a made-up session id reveals nothing about anybody', async ({ page }) => {
-    await page.goto(`/nn/entry/complete/?session=${UNKNOWN_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${UNKNOWN_SESSION_ID}`);
 
     await expect(block(page, 'no-record')).toBeVisible();
 
@@ -200,7 +200,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('a real session id reveals nothing about anybody either', async ({ page }) => {
     // **The stronger half.** Somebody holding a genuine session id — off a screenshot, out of
     // browser history, from a `Referer` header — learns one word and no more.
-    await page.goto(`/nn/entry/complete/?session=${PAID_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
     const html = await page.content();
 
@@ -220,7 +220,7 @@ test.describe('the page Stripe returns somebody to', () => {
     // The parameter reaches the Worker and is passed to Postgres as a bound argument; nothing
     // paints it onto the page. This is the assertion that says so.
     await page.goto(
-      `/nn/entry/complete/?session=${encodeURIComponent('"><script>window.__x=1</script>')}`,
+      `/nn/2026/entry/complete/?session=${encodeURIComponent('"><script>window.__x=1</script>')}`,
     );
 
     await expect(block(page, 'no-record')).toBeVisible();
@@ -236,7 +236,7 @@ test.describe('the page Stripe returns somebody to', () => {
     await page.setViewportSize({ width: 320, height: 640 });
 
     for (const session of [PAID_SESSION_ID, PENDING_SESSION_ID, LAPSED_SESSION_ID]) {
-      await page.goto(`/nn/entry/complete/?session=${session}`);
+      await page.goto(`/nn/2026/entry/complete/?session=${session}`);
 
       // Nothing overflows sideways. A horizontal scrollbar on a phone is how a card ends up
       // with half a sentence off the edge.
@@ -258,7 +258,7 @@ test.describe('the page Stripe returns somebody to', () => {
     // under WCAG 2.2.1; a polling script would break the page this file runs against with
     // scripting off.
     for (const session of [PAID_SESSION_ID, PENDING_SESSION_ID, LAPSED_SESSION_ID]) {
-      await page.goto(`/nn/entry/complete/?session=${session}`);
+      await page.goto(`/nn/2026/entry/complete/?session=${session}`);
 
       await expect(page.locator('meta[http-equiv="refresh" i]')).toHaveCount(0);
       await expect(page.locator('script')).toHaveCount(0);
@@ -266,7 +266,7 @@ test.describe('the page Stripe returns somebody to', () => {
   });
 
   test('the confirmed state has zero axe violations @requires-js', async ({ page }) => {
-    await page.goto(`/nn/entry/complete/?session=${PAID_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
@@ -274,7 +274,7 @@ test.describe('the page Stripe returns somebody to', () => {
   });
 
   test('the pending state has zero axe violations @requires-js', async ({ page }) => {
-    await page.goto(`/nn/entry/complete/?session=${PENDING_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PENDING_SESSION_ID}`);
 
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
@@ -284,7 +284,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('the no-record state has zero axe violations @requires-js', async ({ page }) => {
     // **The state least likely to have been looked at, and the one somebody is most likely to
     // be struggling with**, which is the same argument the entry form's error state makes.
-    await page.goto(`/nn/entry/complete/?session=${LAPSED_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${LAPSED_SESSION_ID}`);
 
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
@@ -293,7 +293,7 @@ test.describe('the page Stripe returns somebody to', () => {
 
   test('has zero axe violations at 320px @requires-js', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto(`/nn/entry/complete/?session=${PAID_SESSION_ID}`);
+    await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 

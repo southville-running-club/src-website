@@ -30,7 +30,7 @@ from the connection the browser already has open. 70% of visitors are on a phone
 | `inter-latin-var.woff2` | Inter (variable) | 400–700 | 48,432 |
 | `jetbrains-mono-latin-var.woff2` | JetBrains Mono (variable) | 500–700 | 31,340 |
 
-94 kB in total, fetched only by `/nn/` and `/nn/privacy/`, and only once — they are
+94 kB in total, fetched only by the Nightingale Nightmare pages, and only once — they are
 immutable and cached by filename.
 
 **Latin subset only.** Google's `latin` subset is `U+0000–00FF` plus the general

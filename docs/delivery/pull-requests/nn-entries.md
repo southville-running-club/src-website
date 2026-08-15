@@ -1,11 +1,12 @@
-# Nightingale Nightmare: interest, entry, payment, confirmation and the privacy notice
+# Nightingale Nightmare: interest, entry, payment, confirmation, the privacy notice and the routes
 
 **This is more than should be reviewed at once, and that is a fair criticism rather than a
-framing.** Five slices arrived on one branch: the interest form and the `entries` schema, the
-entry form, taking money, confirming it, and the privacy notice all of that made necessary.
-Each was reviewable on its own and none of them was offered for review on its own. Subsequent
-slices will be pushed separately, and the reading order below is an attempt to make this one
-tractable rather than an argument that it is fine.
+framing.** Six slices arrived on one branch: the interest form and the `entries` schema, the
+entry form, taking money, confirming it, the privacy notice all of that made necessary, and
+the route split between the race and one running of it. Each was reviewable on its own and
+none of them was offered for review on its own. Subsequent slices will be pushed separately,
+and the reading order below is an attempt to make this one tractable rather than an argument
+that it is fine.
 
 **The privacy notice is the part with a deadline attached.** Entries cannot open without it:
 the form takes a date of birth, an emergency contact, medical information and a card payment,
@@ -15,17 +16,23 @@ and until this branch the notice it links to described a three-field mailing lis
 
 ## What it does, in the order it happens
 
-1. **`/nn/` shows one of two forms**, decided per request by `entries.events`, not by a deploy.
-   `entries_open_at` is `null` today, so production serves the interest form.
-2. **A valid entry holds a place and hands over to Stripe.** One transaction under a per-event
+1. **The race and one running of it are different pages.** `/nn/` and `/nn/course/` are
+   evergreen and name no year; `/nn/2026/` carries the date, the facts and the entry form,
+   with race day and spectators beneath it. `/nn/` finds the current running by asking the
+   database, so publishing 2027 is a row rather than an edit —
+   [ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md).
+2. **Each page shows one of two states**, decided per request by `entries.events`, not by a
+   deploy. `entries_open_at` is `null` today, so production serves the interest form on
+   `/nn/` and "entries are not open yet" on `/nn/2026/`.
+3. **A valid entry holds a place and hands over to Stripe.** One transaction under a per-event
    advisory lock: re-check the window, count the places gone, price it from `entries.fees`,
    write a `pending` purchase with a 31-minute hold. Then a Checkout session for exactly that
    amount and a 303 to it.
-3. **`POST /nn/stripe-webhook` moves a purchase to `paid`, and nothing else may.** It verifies
+4. **`POST /nn/stripe-webhook` moves a purchase to `paid`, and nothing else may.** It verifies
    Stripe's signature over the raw bytes before parsing them.
-4. **`/nn/entry/complete/` reports what the club has recorded.** Only `paid` makes a positive
-   claim; no state ever makes a negative one.
-5. **`/nn/privacy/` says what all of that collects**, in nine sections and three tables, from
+5. **`/nn/2026/entry/complete/` reports what the club has recorded.** Only `paid` makes a
+   positive claim; no state ever makes a negative one.
+6. **`/nn/privacy/` says what all of that collects**, in nine sections and three tables, from
    both forms' links. It is written from the schema rather than from the form — see below.
 
 **Deliberately not done:** no confirmation email, no timing application code, and no real
@@ -47,6 +54,7 @@ Six files, in sequence. Each is the one that makes the next legible.
 | 4 | `platform/apps/main/worker/nn-entry.ts` | The request path: which form to show, and what a valid entry does. Read after 2 and 3 and it is mostly wiring; read first and it is not. |
 | 5 | [ADR-010](../../architecture/decisions/adr-010-webhook-writes-paid.md) | The three decisions behind the money path, including one the brief did not anticipate. **Read before the code in 6**, which will otherwise look over-built. |
 | 6 | `platform/packages/db/supabase/migrations/20260813203000_entries_webhook_confirmation.sql` | `record_checkout_event()` — the key, the state guard, and the transition itself. |
+| 7 | [ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md) | Why the routes split, which pages are evergreen and why, what happened to the old addresses, and the one column the split needed. Read last: it moves things 2–6 describe. |
 
 Then, if you read one test, read
 `platform/packages/db/tests/entries-capacity.test.ts`: it drives real concurrent connections
@@ -64,8 +72,15 @@ it computed*. Two ordinary PostgREST calls with the published key would therefor
 free entry. `record_checkout_event()` is the one function that takes a key.
 `ENTRIES_WEBHOOK_KEY` is a **Worker secret**; the database holds only its SHA-256 digest, and
 it ships `null`, which refuses everything. `packages/db/tests/entries.test.ts` asserts the exact
-set of six functions anon may call, and that a seventh — `raise_attention()` — is granted to
-nobody.
+set of functions anon may call, and that `raise_attention()` is granted to nobody.
+
+**The seventh anon-executable function, and why it is not a widening.** ADR-011 needed `/nn/`
+to find the current running without naming a year, so `entries.current_entry_state()` was
+added and granted to `anon` — taking that list from six to seven. It returns exactly what
+`entry_state()` returns, for an event the caller could have named itself, since the slug is in
+the page's own URL; the test asserts the two answers are **equal**, so a field added to one and
+not the other fails. What it adds is that the caller no longer has to know the slug, which is
+the thing that would otherwise be written into markup as a year.
 
 **The capacity lock, and why the function is `volatile`.** Overselling is the failure this club
 actually had in 2023. Capacity is decided inside `create_pending_purchase()` under a per-event
@@ -173,7 +188,7 @@ as a guess:
    privilege granted to a key published in page source is the whole of the threat model here.
 3. **The webhook's 4xx/5xx split**, `worker/stripe-webhook.ts`. Every branch that answers 2xx
    should be one where the transition is genuinely durable.
-4. **`/nn/entry/complete/`'s wording.** No state may make a negative claim. A lapsed hold that
+4. **`/nn/2026/entry/complete/`'s wording.** No state may make a negative claim. A lapsed hold that
    said "nothing was charged" would be read by somebody whose webhook was merely late, and they
    would pay twice.
 5. **The form with JavaScript disabled.** It is the primary path, not a fallback. The

@@ -62,15 +62,36 @@ describe('Nightingale Nightmare', () => {
     expect(page).not.toMatch(/£\s?\d/);
   });
 
-  it.each(['/nn/course/', '/nn/race-day/', '/nn/spectators/'])(
-    'serves %s from the same build',
-    async (path) => {
-      const response = await SELF.fetch(`${SITE}${path}`);
+  it.each([
+    // The race — evergreen, and none of these names a year.
+    '/nn/course/',
+    '/nn/privacy/',
+    // One running of it, and everything only true of that running.
+    '/nn/2026/',
+    '/nn/2026/race-day/',
+    '/nn/2026/spectators/',
+    '/nn/2026/entry/complete/',
+  ])('serves %s from the same build', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-type')).toContain('text/html');
-    },
-  );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+  });
+
+  it.each([
+    // **The addresses these three pages used to have, and nothing answers at them.** Nothing
+    // was ever published there — every page carries `noindex` and the only links were
+    // internal — so no redirect was added, deliberately: a redirect map is a thing somebody
+    // has to maintain and later remember to delete. A 404 is the honest answer for an
+    // address that never had a reader.
+    '/nn/race-day/',
+    '/nn/spectators/',
+    '/nn/entry/complete/',
+  ])('404s %s, the address it used to have', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
+
+    expect(response.status).toBe(404);
+  });
 
   it("keeps the event theme off the club's own pages", async () => {
     // **The theme is imported by the pages that use it, never from `Base.astro`.** That is

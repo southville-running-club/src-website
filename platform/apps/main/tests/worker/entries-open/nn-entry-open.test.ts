@@ -36,7 +36,8 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
  */
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   const fields: Record<string, string> = {
-    form: 'entry',
+    // No `form` field: the address is what says this is an entry now, and the hidden field
+    // that used to say it is gone with the page that carried both forms.
     firstName: 'Grace',
     lastName: 'Hopper',
     email: 'worker-entry@example.com',
@@ -71,8 +72,9 @@ function refusedEntry(overrides: Record<string, string> = {}): Record<string, st
   return goodEntry({ emailConfirm: 'a-different-address@example.com', ...overrides });
 }
 
+/** The entry form posts to the running it is for, which is its own address. */
 function submit(fields: Record<string, string>): Promise<Response> {
-  return SELF.fetch(`${SITE}/nn/`, {
+  return SELF.fetch(`${SITE}${YEAR_PATH}`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields),
@@ -80,7 +82,12 @@ function submit(fields: Record<string, string>): Promise<Response> {
   });
 }
 
-const page = () => SELF.fetch(`${SITE}/nn/`).then((response) => response.text());
+/** The page the entry form is on. `/nn/` is the race; this is the 2026 running of it. */
+const YEAR_PATH = '/nn/2026/';
+
+const page = () => SELF.fetch(`${SITE}${YEAR_PATH}`).then((response) => response.text());
+
+const racePage = () => SELF.fetch(`${SITE}/nn/`).then((response) => response.text());
 
 /**
  * The fake Stripe's own counter, which is how this layer knows a session was created.
@@ -98,12 +105,35 @@ async function sessionsCreated(): Promise<number> {
 /** The stub key the pool binds. Never a real one — see `vitest.worker.entries-open.config.ts`. */
 const STUB_KEY = 'sk_test_STUB_NOT_A_REAL_KEY_0000000000';
 
-describe('the page, once the event row says entries are open', () => {
-  it('serves the entry form and hides the interest form', async () => {
+describe('the race page, once the event row says entries are open', () => {
+  it('says so where somebody cannot miss it, and points at the running', async () => {
+    // **`/nn/` has no entry form and never will**: an entry is an entry to one running, and
+    // two forms writing to one table is two places for a rule to be wrong. What it does have
+    // is a loud announcement and a link, and the link is painted rather than written in.
+    const html = await racePage();
+
+    expect(html).not.toMatch(/data-nn-entries-open[^>]*hidden/);
+    expect(html).toContain('Entries are open.');
+    expect(html).toContain('href="/nn/2026/#enter" data-nn-entries-open-link');
+    expect(html).not.toContain('data-entry-form');
+  });
+
+  it('hides the interest form and repoints the loud button at the entry', async () => {
+    const html = await racePage();
+
+    expect(html).toMatch(/data-nn-interest hidden/);
+    expect(html).toMatch(
+      /<a class="nn-cta" href="\/nn\/2026\/#enter"[^>]*>Enter the race/,
+    );
+  });
+});
+
+describe('the year page, once the event row says entries are open', () => {
+  it('serves the entry form and hides the "not open" notice', async () => {
     const html = await page();
 
     expect(html).toContain('Enter the race');
-    expect(html).toMatch(/data-nn-interest hidden/);
+    expect(html).toMatch(/data-nn-not-open[^>]*hidden/);
     expect(html).not.toMatch(/data-nn-entry hidden/);
   });
 
@@ -174,9 +204,9 @@ describe('a valid entry, which now holds a place and goes to Stripe', () => {
   });
 
   it('is never mistaken for a sign-up acknowledgement', async () => {
-    // The interest form's acknowledgement lives on the same page, and a 303 is now what a
-    // *successful* entry looks like too — so this checks where it goes rather than that it
-    // is not a redirect at all.
+    // The interest form's 303 and the entry's 303 are both redirects, and they used to be
+    // reachable from one address — so this checks where it goes rather than that it is not a
+    // redirect at all. The two forms are on two pages now and this is belt and braces.
     const response = await submit(goodEntry({ email: 'worker-fork@example.com' }));
 
     expect(response.headers.get('location')).not.toContain('signup=ok');
@@ -264,7 +294,7 @@ describe('the Stripe key, which must not appear anywhere a person can see', () =
       submit(goodEntry({ firstName: '   ' })),
       submit(goodEntry({ feeCode: 'vi_guide' })),
       SELF.fetch(`${SITE}/nn/`),
-      SELF.fetch(`${SITE}/nn/entry/complete/?session=cs_test_notreal`),
+      SELF.fetch(`${SITE}/nn/2026/entry/complete/?session=cs_test_notreal`),
     ]);
 
     for (const response of responses) {

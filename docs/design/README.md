@@ -38,4 +38,4 @@ profile drawing is a sketch rather than a survey, the minimum age is inferred fr
 prize categories rather than stated, and **"clocks change the night before" is simply false
 for 2026** — the clocks go back on 25 October and the race is a week later. Each of those
 is listed against the page that had to decide about it, in the comment at the head of
-`apps/main/src/pages/nn/course.astro` and `race-day.astro`.
+`apps/main/src/pages/nn/course.astro` and `apps/main/src/pages/nn/2026/race-day.astro`.

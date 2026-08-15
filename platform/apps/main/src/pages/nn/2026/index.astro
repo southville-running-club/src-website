@@ -1,0 +1,235 @@
+---
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import NnEntryForm from '../../../components/NnEntryForm.astro';
+import race from '../../../content/race.json';
+
+// The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
+// knows that this site does not. See packages/shared/styles/nn-theme.css.
+import '@src/shared/styles/nn-theme.css';
+
+// **The 2026 running of the race, and the page that is allowed to say "2026".**
+//
+// `/nn/` is about the race and never names a year. This page is one running of it, so
+// everything only true of this year lives here: the date, the entry form, and the two content
+// pages beneath it. Publishing 2027 is a new directory beside this one plus a row in
+// `entries.events` — no edit to `/nn/`, which is the property the split exists for.
+//
+// **The event this page is about is its own address.** `/nn/2026/` is the event `nn-2026`,
+// and `worker/routing.ts` owns that one convention. Nothing in this file names a slug, and the
+// entry form posts to `Astro.url.pathname`.
+//
+// What is still `null` in `race.json` is still genuinely undecided rather than merely
+// unwritten. `price` and `entriesOpen` stay `null` for a different reason from the rest:
+// **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
+// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
+// file is how two numbers start disagreeing. The opening time nobody has decided, and the
+// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
+// trigger, not a placeholder.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
+
+// An absent fact is stated as absent. A blank cell reads as an oversight and an invented
+// value reads as a promise; "To be confirmed" is the only honest third option, and it is
+// what somebody deciding whether to come back next week actually needs to know.
+const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
+
+// **The one sentence about when this race happens.**
+//
+// The start time joins the date now that both are confirmed, which is what the campaign
+// artwork does and what somebody actually wants from one line. It is composed rather than
+// stored as a third field, so there is still exactly one place a date lives.
+const dateLine = race.date
+  ? `${race.date}${race.startTime ? ` · ${race.startTime}` : ''}`
+  : 'Halloween weekend 2026 — exact date to be confirmed';
+---
+
+<Base
+  title="Nightingale Nightmare 2026"
+  description="The 2026 running of Nightingale Nightmare — the date, the race facts, and how to enter."
+  canonical={canonical}
+  theme="nn"
+>
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero">
+    <div class="nn-wrap">
+      {
+        /* **"presents…" opens the hero**, and the sentence it belongs to still reads the same
+        way down the page — "Southville Running Club" in the header, then "presents…", then
+        the title — which is what somebody seeing it gets and, because the header is the first
+        thing in the DOM, what somebody hearing it gets too. */
+      }
+      <p class="nn-presents">presents…</p>
+
+      <h1>{race.name} 2026</h1>
+
+      <p class="nn-dateline">{dateLine}</p>
+
+      {
+        /* **The three answers somebody wants before they read a sentence.** A real list,
+        because that is what it is, with the bullets taken off — a screen reader still says
+        "list, three items" and gets the same summary a sighted reader gets from the row.
+
+        The mockup has a fourth item here, a live "238 of 250 places remaining" bar. That is
+        demo data, and the database could answer it now — but a number that is wrong within a
+        day of anybody entering, cached at the edge and read off a poster-shaped page, is a
+        claim the club would have to keep true. How big the race is does not change, so that
+        is what this says. Somebody who tries to enter a full race is told plainly, on the
+        form, at the moment it matters. */
+      }
+      <ul class="nn-facts">
+        <li>{race.distance}</li>
+        <li>{race.places} places</li>
+        <li>Fancy dress encouraged</li>
+      </ul>
+
+      <p class="lede">
+        The club is putting on this race again. The date is settled and the course has not
+        got any kinder — what is not settled is when entries open.
+      </p>
+
+      {
+        /* **The button says the one thing this page can honour today**, and the Worker
+        changes it to "Enter the race" on the day `entries.events.entries_open_at` says
+        entries are open. That is one row edit and no deploy, which is the property the
+        event table exists for — and it is why the label and the target are painted on
+        rather than written in. */
+      }
+      <div class="nn-herobtns">
+        <a class="nn-cta" href="#enter" data-nn-cta>What is happening on the day</a>
+        <a class="nn-ghost" href="/nn/2026/race-day/">Race-day plan</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <h2>The race</h2>
+
+    <p>
+      Everything here is confirmed by the committee before it appears. Anything still
+      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
+    </p>
+
+    <dl class="status">
+      <dt>Date</dt>
+      <dd>{orTbc(race.date)}</dd>
+
+      <dt>Start time</dt>
+      <dd>{orTbc(race.startTime)}</dd>
+
+      <dt>Distance</dt>
+      <dd>{orTbc(race.distance)}</dd>
+
+      <dt>Race HQ</dt>
+      <dd>{orTbc(race.location)}</dd>
+
+      {
+        /* **The field size, not how much of it is left** — see the note on the hero row.
+        250 is how big the race is, and it does not change during the week somebody is
+        deciding whether to come. */
+      }
+      <dt>Field size</dt>
+      <dd>{race.places} places</dd>
+
+      <dt>Entry fee</dt>
+      <dd>{orTbc(race.price)}</dd>
+
+      <dt>Entries open</dt>
+      <dd>{orTbc(race.entriesOpen)}</dd>
+
+      {
+        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
+        on record and it belongs to the 2023 race; putting it here would be a claim that
+        this year's race is permitted, which is a different sort of wrong from a typo. */
+      }
+      <dt>ARC permit</dt>
+      <dd>{orTbc(race.permit)}</dd>
+    </dl>
+
+    {
+      /* **A summary that ends in a link, not a second copy of the course page.** Four
+      things somebody should know before they enter, and then the page that says the rest. */
+    }
+    <div class="nn-card nn-prose">
+      <h2>Know what you are in for</h2>
+
+      <ul class="nn-arrows">
+        <li>
+          A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.
+          <strong>Trail shoes recommended</strong>, road shoes acceptable.
+        </li>
+        <li><strong>No headphones of any type during the race.</strong></li>
+        <li>
+          One water station on the route, one at the finish, and marshals throughout.
+        </li>
+        <li>
+          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
+          together at 10:30, so there is nothing to find on your own.
+        </li>
+      </ul>
+
+      <p>
+        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
+        <a href="/nn/2026/race-day/">the whole running order for the day</a>.
+      </p>
+    </div>
+
+    {
+      /* ------------------------------------------------------------------------------
+       * The two states of this page, and which one somebody gets
+       * ------------------------------------------------------------------------------
+       * **Both are in the HTML; the Worker reveals one.** Which one is decided by
+       * `entries.events.entries_open_at` and `entries_close_at`, read at request time
+       * through `entries.entry_state()` — so entries open when the committee says they do,
+       * by a row edit, not by somebody being available to deploy at seven in the morning.
+       *
+       * **The "not open" notice ships visible and the entry form ships hidden**, which is the
+       * safe default rather than an arbitrary one. If the Worker cannot reach the database at
+       * all, this page says entries are not open and points at the interest form on `/nn/` —
+       * a page that cannot tell whether entries are open must not offer to take an entry.
+       * See `worker/nn-entry.ts`.
+       * ------------------------------------------------------------------------------ */
+    }
+
+    <div class="nn-card nn-prose" data-nn-not-open>
+      <h2 id="enter">Entering</h2>
+
+      <p>
+        <strong>Entries are not open yet.</strong> When they open, this is the page they open
+        on.
+      </p>
+
+      <p>
+        <a href="/nn/">Leave your name on the race page</a> and the club will email you once
+        — on the day they open, and for nothing else, ever.
+      </p>
+    </div>
+
+    <div data-nn-entry hidden>
+      <NnEntryForm />
+    </div>
+
+    <footer>
+      <p>
+        Southville Running Club. Anything above reading "to be confirmed" is with the
+        committee, and this page is updated when it is settled.
+      </p>
+      <p>
+        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
+      </p>
+      <p>
+        <a href="/nn/privacy/">What the club does with your details</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The club's own artwork, at the foot of the page. **Empty on purpose** — it is a CSS
+    background, not an `<img>`, because it is decoration that states nothing and because an
+    image with intrinsic dimensions is briefly 1080 pixels wide before the stylesheet lands.
+    See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

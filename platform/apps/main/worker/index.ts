@@ -8,7 +8,10 @@ import {
   isNnEntryCompletePath,
   isNnSignupPath,
   isNnWebhookPath,
+  isNnYearPath,
   isTimingPath,
+  nnEventSlugForYearPath,
+  nnYearPathForEventSlug,
   NN_PREFIX,
 } from './routing';
 import { handleStripeWebhook } from './stripe-webhook';
@@ -23,13 +26,14 @@ import {
   type NnSignupOutcome,
 } from './nn-signup';
 import {
-  nnFormKind,
   processNnEntry,
   renderNnEntryClosed,
   renderNnEntryErrors,
   renderNnEntryStopped,
   renderNnEntryView,
+  renderNnRaceView,
   resolveNnEntryView,
+  resolveNnRaceView,
   type NnEntryOutcome,
 } from './nn-entry';
 
@@ -42,16 +46,18 @@ import {
  *      dispatched to the timing Worker at the edge and never arrives here. On a laptop
  *      there is no edge, so when `TIMING_ORIGIN` is set this Worker forwards those
  *      requests itself — which is what lets one port serve the whole site locally.
- *   2. **Take the Nightingale Nightmare sign-up, and the entry.** A POST to `/nn/` is
- *      handled here, **before `env.ASSETS.fetch`** — the static-assets binding will not
- *      serve a POST, so anything reaching it is already lost. See `nn-signup.ts` and
- *      `nn-entry.ts`.
+ *   2. **Take the Nightingale Nightmare sign-up, and the entry.** Two forms at two addresses
+ *      now: a POST to `/nn/` is the interest form, which is about **the race**, and a POST to
+ *      `/nn/<year>/` is the entry form, which is about **one running of it**. Both are handled
+ *      here, **before `env.ASSETS.fetch`** — the static-assets binding will not serve a POST,
+ *      so anything reaching it is already lost. See `nn-signup.ts` and `nn-entry.ts`.
  *   3. **Take Stripe's confirmation.** A POST to `/nn/stripe-webhook`, also before the assets
  *      binding, and **the only thing in this platform that records a payment**. It is not a
  *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
  *   4. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
- *      rewriting the served HTML — and paint the recorded payment state onto
- *      `/nn/entry/complete/` the same way.
+ *      rewriting the served HTML — paint which running is on onto `/nn/`, which form applies
+ *      onto `/nn/<year>/`, and the recorded payment state onto `/nn/<year>/entry/complete/`,
+ *      all the same way.
  *   5. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
  *      every five minutes. See `scheduled()` at the foot of this file.
  *
@@ -129,16 +135,25 @@ export default {
     // sees the request first, and it has to: the binding serves `dist/`, which is static
     // HTML, and it will not answer a POST at all.
     //
-    // The webhook is matched **before** the sign-up path, and the two cannot collide —
-    // `isNnSignupPath` is `/nn` and `/nn/` exactly, and this is `/nn/stripe-webhook`. The
-    // order is stated rather than relied on: a future predicate that widened one of them
-    // would otherwise turn payment confirmations into sign-up submissions, silently.
+    // The webhook is matched **before** the two form paths, and none of the three can
+    // collide — `isNnSignupPath` is `/nn` and `/nn/` exactly, `isNnYearPath` is four digits
+    // beneath it, and this is `/nn/stripe-webhook`. The order is stated rather than relied
+    // on: a future predicate that widened one of them would otherwise turn payment
+    // confirmations into form submissions, silently.
     if (request.method === 'POST' && isNnWebhookPath(url.pathname)) {
       return handleStripeWebhook(request, env);
     }
 
+    // **The address decides which form this is, not a field in the body.** It used to be the
+    // hidden `form` field, because both forms were on one page; they are on two pages now, and
+    // the request's own path is a thing nobody can mistype into the wrong handler. The hidden
+    // field is gone with the ambiguity that needed it.
     if (request.method === 'POST' && isNnSignupPath(url.pathname)) {
-      return handleNnPost(request, env, url);
+      return handleNnSignup(await readForm(request), env, url);
+    }
+
+    if (request.method === 'POST' && isNnYearPath(url.pathname)) {
+      return handleNnEntry(await readForm(request), env, url);
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -153,17 +168,27 @@ export default {
     const rewriter = statusRewriter(env);
 
     if (isNnSignupPath(url.pathname)) {
-      // **Which of the page's two forms somebody gets, decided per request.** The event row
-      // says whether entries are open; nothing here is baked into the build. Every failure
-      // resolves to the interest form, so a database this Worker cannot reach produces the
-      // page that was already there rather than an offer to take an entry it cannot record.
-      renderNnEntryView(rewriter, await resolveNnEntryView(env));
+      // **Which running is on, and where it is, decided per request.** The race page holds no
+      // year, so every link it makes to one is painted here. Every failure paints nothing at
+      // all, which leaves the interest form that was already on the page — a front door with
+      // one fewer door in it rather than a link to a year nobody confirmed.
+      renderNnRaceView(rewriter, await resolveNnRaceView(env));
 
       // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET,
       // and `?signup=ok` is what tells this pass to reveal the acknowledgement.
       if (isNnSignupSuccess(url)) {
         renderNnSignupAcknowledgement(rewriter);
       }
+    }
+
+    const yearSlug = nnEventSlugForYearPath(url.pathname);
+
+    if (yearSlug !== null) {
+      // **Which of the year page's two states somebody gets, decided per request.** The event
+      // row says whether entries are open; nothing here is baked into the build. Every failure
+      // resolves to "entries are not open", so a database this Worker cannot reach produces
+      // the page that claims least rather than an offer to take an entry it cannot record.
+      renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug));
     }
 
     if (isNnEntryCompletePath(url.pathname)) {
@@ -258,11 +283,10 @@ function statusRewriter(env: Env): HTMLRewriter {
 }
 
 /**
- * The POST to `/nn/`, whichever of the page's two forms sent it.
+ * The submitted body, or `null` when there was not one.
  *
- * **The body is read once, here, and handed on.** The hidden `form` field is what tells the
- * two apart, so the router has to look inside the body before it can dispatch — and reading
- * a request twice to avoid threading a `FormData` through would be the worse trade.
+ * Not a form at all — a JSON body, or nothing — is treated by both handlers exactly the way
+ * an empty submission is treated, which is the honest answer: there is no input to give back.
  *
  * A rejected or unrecorded submission is answered by **re-serving the page the form is on**
  * and painting the outcome onto it, rather than by redirecting somewhere. That is what
@@ -270,20 +294,12 @@ function statusRewriter(env: Env): HTMLRewriter {
  * and email address in a URL, and a query string is the one place personal data is
  * guaranteed to end up in a log.
  */
-async function handleNnPost(request: Request, env: Env, url: URL): Promise<Response> {
-  let form: FormData | null;
-
+async function readForm(request: Request): Promise<FormData | null> {
   try {
-    form = await request.formData();
+    return await request.formData();
   } catch {
-    // Not a form at all — a JSON body, or nothing. Both handlers treat this the same way an
-    // empty submission is treated.
-    form = null;
+    return null;
   }
-
-  return nnFormKind(form) === 'entry'
-    ? handleNnEntry(form, env, url)
-    : handleNnSignup(form, env, url);
 }
 
 /** The interest form: validate, record, and answer with something a person can act on. */
@@ -301,15 +317,21 @@ async function handleNnSignup(
     return Response.redirect(new URL(NN_SIGNUP_SUCCESS_PATH, url).toString(), 303);
   }
 
-  const page = await nnPage(env, url);
+  const page = await nnPage(env, url, `${NN_PREFIX}/`);
   if (!page.ok) {
     return page;
   }
 
   const rewriter = statusRewriter(env);
 
-  // The interest form only ever renders in the state where it is the visible one, so no
-  // view rewriting is needed here: it ships visible.
+  // **The year links are not repainted here, and that is deliberate.** This response is the
+  // race page re-served with a failed submission on it, and painting the links would mean a
+  // second database round trip on the path where the database is most likely to be the reason
+  // the submission failed. Somebody looking at "that could not be saved" is looking at the
+  // notice, not at the navigation.
+  //
+  // The interest form itself only ever renders in the state where it is the visible one, so
+  // no view rewriting is needed for it either: it ships visible.
   const status =
     outcome.status === 'invalid'
       ? // Unprocessable content: the request was understood and refused on its contents.
@@ -332,11 +354,11 @@ async function handleNnSignup(
  *
  * **The only success is a 303 to `checkout.stripe.com`**, and it is a success only in the
  * sense that a place is held and a payment page exists. Nothing here has been paid for —
- * `/nn/entry/complete/` says so in as many words, and Slice C's webhook is what changes it.
+ * `/nn/<year>/entry/complete/` says so in as many words, and the webhook is what changes it.
  *
- * Every other outcome re-serves this page with the person's input still in it. Which status
- * each carries is in `nn-entry.ts`; the mapping to HTTP is here because that is the layer
- * that speaks HTTP.
+ * Every other outcome re-serves **the year page this was posted to** with the person's input
+ * still in it. Which status each carries is in `nn-entry.ts`; the mapping to HTTP is here
+ * because that is the layer that speaks HTTP.
  */
 async function handleNnEntry(
   form: FormData | null,
@@ -355,7 +377,16 @@ async function handleNnEntry(
     });
   }
 
-  const page = await nnPage(env, url);
+  // **The canonical spelling of the address it was posted to.** A form posting to `/nn/2026`
+  // without the trailing slash is accepted, and the page it is re-served from is the one Astro
+  // actually built — `trailingSlash: 'always'` means there is only ever the one.
+  const yearSlug = nnEventSlugForYearPath(url.pathname);
+  const yearPath =
+    yearSlug === null
+      ? `${NN_PREFIX}/`
+      : (nnYearPathForEventSlug(yearSlug) ?? url.pathname);
+
+  const page = await nnPage(env, url, yearPath);
   if (!page.ok) {
     return page;
   }
@@ -371,10 +402,11 @@ async function handleNnEntry(
   }
 
   // Every remaining outcome renders the entry form, so the view has to be painted first —
-  // the section ships hidden and `handleNnPost` did not go through the GET path that
-  // reveals it. `processNnEntry` has already established that the window is open, so this
-  // second read is answering "with what fees", not "should this be here".
-  renderNnEntryView(rewriter, await resolveNnEntryView(env));
+  // the section ships hidden and this POST did not go through the GET path that reveals it.
+  // `processNnEntry` has already established that the window is open, so this second read is
+  // answering "with what fees", not "should this be here". `yearSlug` is non-null on every
+  // path that reaches here, because `worker/index.ts` only routes a year path to this handler.
+  renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug ?? ''));
 
   if (outcome.status === 'invalid') {
     renderNnEntryErrors(rewriter, outcome);
@@ -391,11 +423,9 @@ async function handleNnEntry(
   return typedPage(rewriter.transform(page), outcome.status === 'sold-out' ? 409 : 503);
 }
 
-/** A GET the assets binding will actually answer, for the canonical address of the page. */
-function nnPage(env: Env, url: URL): Promise<Response> {
-  return env.ASSETS.fetch(
-    new Request(new URL(`${NN_PREFIX}/`, url).toString(), { method: 'GET' }),
-  );
+/** A GET the assets binding will actually answer, for the canonical address of a page. */
+function nnPage(env: Env, url: URL, path: string): Promise<Response> {
+  return env.ASSETS.fetch(new Request(new URL(path, url).toString(), { method: 'GET' }));
 }
 
 /**

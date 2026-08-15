@@ -46,6 +46,7 @@ export {
 
 export {
   ENTRY_WINDOW_STATES,
+  fetchCurrentEntryState,
   fetchEntryState,
   formatPence,
   type EntryFee,

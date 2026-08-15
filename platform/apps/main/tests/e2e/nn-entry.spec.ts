@@ -42,6 +42,15 @@ import { clearPurchases, purchases, restoreCapacity, sellOut } from '../entries-
 const entry = (page: Page) => page.locator('[data-nn-entry]');
 
 /**
+ * The page the entry form is on — one running of the race, addressed by its year.
+ *
+ * **Pinned as a literal rather than read from `race.json` or from the database.** An
+ * expectation that reads the same source as the page under test asserts nothing; this is the
+ * same rule `site.spec.ts` follows for the race date.
+ */
+const YEAR = '/nn/2026/';
+
+/**
  * Everything a valid entry needs, filled the way somebody would fill it — **including the
  * entry-terms box and an entry type**.
  *
@@ -139,8 +148,11 @@ function blockStripePage(page: Page): Promise<void> {
  * redirect goes, and do not go there.
  */
 function postEntry(page: Page, fields: Record<string, string>) {
-  return page.request.post('/nn/', {
-    form: { form: 'entry', ...fields },
+  // **The address is what says this is an entry.** Both forms used to be on one page and a
+  // hidden `form` field told them apart; they are on two pages now, so the path is the
+  // discriminator and the hidden field is gone with the ambiguity that needed it.
+  return page.request.post(YEAR, {
+    form: fields,
     maxRedirects: 0,
   });
 }
@@ -182,23 +194,49 @@ test.describe('before entries open', () => {
     await closeEntries();
   });
 
-  test('shows the interest form and not the entry form', async ({ page }) => {
+  test('the year page says entries are not open, and hides the form', async ({
+    page,
+  }) => {
     // `entries.events.entries_open_at` is null for NN 2026 because the opening time has not
-    // been decided. To somebody looking at the page that means the same thing as "not yet",
-    // and the interest form is what they get — which is what they got before this slice.
+    // been decided. To somebody looking at the page that means the same thing as "not yet".
+    await page.goto(YEAR);
+
+    await expect(page.getByRole('heading', { name: 'Entering' })).toBeVisible();
+    await expect(page.getByText('Entries are not open yet')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Enter the race' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeHidden();
+  });
+
+  test('the year page sends somebody to the interest form rather than nowhere', async ({
+    page,
+    request,
+  }) => {
+    await page.goto(YEAR);
+
+    const back = page.getByRole('link', { name: 'Leave your name on the race page' });
+    await expect(back).toHaveAttribute('href', '/nn/');
+    expect((await request.get('/nn/')).status()).toBe(200);
+  });
+
+  test('the race page carries the interest form and no entry form at all', async ({
+    page,
+  }) => {
+    // **The entry form is on the year page and is not copied here.** An entry is an entry to
+    // one running, and two forms writing to one table is two places for a rule to be wrong.
     await page.goto('/nn/');
 
     await expect(
       page.getByRole('heading', { name: 'Register your interest' }),
     ).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Enter the race' })).toBeHidden();
     await expect(
       page.getByRole('button', { name: 'Register my interest' }),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeHidden();
+    await expect(page.locator('[data-entry-form]')).toHaveCount(0);
   });
 
-  test('offers the interest form from the hero, not an entry', async ({ page }) => {
+  test('offers the interest form from the race page hero, not an entry', async ({
+    page,
+  }) => {
     await page.goto('/nn/');
 
     const cta = page.locator('[data-nn-cta]');
@@ -206,23 +244,57 @@ test.describe('before entries open', () => {
     await expect(cta).toHaveAttribute('href', '#register');
   });
 
+  test('the race page still links to this year, painted from the event row', async ({
+    page,
+    request,
+  }) => {
+    // **A front door, not a dead end.** The links are there whether or not entries are open,
+    // and not one of them is written into the markup — which is what makes 2027 a row in
+    // `entries.events` rather than an edit to a page.
+    await page.goto('/nn/');
+
+    const running = page.locator('[data-nn-running]');
+    await expect(running).toBeVisible();
+    await expect(running.getByRole('heading')).toHaveText('The 2026 race');
+
+    const hrefs = await running
+      .getByRole('link')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+
+    expect(hrefs).toEqual(['/nn/2026/', '/nn/2026/race-day/', '/nn/2026/spectators/']);
+
+    for (const href of hrefs) {
+      expect((await request.get(href)).status()).toBe(200);
+    }
+  });
+
+  test('the race page makes no claim that entries are open', async ({ page }) => {
+    await page.goto('/nn/');
+
+    await expect(page.locator('[data-nn-entries-open]')).toBeHidden();
+  });
+
   test('quotes no price, because prices belong to an open entry', async ({ page }) => {
     // The three fee cards are in the DOM and stay hidden, with their prices unpainted. A
     // price on a page that cannot take an entry is a claim about a race nobody can enter.
-    await page.goto('/nn/');
+    for (const path of ['/nn/', YEAR]) {
+      await page.goto(path);
 
-    const body = (await page.locator('body').textContent()) ?? '';
-    expect(body).not.toMatch(/£\s?\d/);
+      const body = (await page.locator('body').textContent()) ?? '';
+      expect(body, path).not.toMatch(/£\s?\d/);
+    }
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {
-    await page.goto('/nn/');
+    for (const path of ['/nn/', YEAR]) {
+      await page.goto(path);
 
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
 
-    expect(violations).toEqual([]);
+      expect(violations, path).toEqual([]);
+    }
   });
 });
 
@@ -247,20 +319,52 @@ test.describe('once entries are open', () => {
     await closeEntries();
   });
 
-  test('shows the entry form and not the interest form', async ({ page }) => {
-    await page.goto('/nn/');
+  test('the year page shows the entry form and drops the "not open" notice', async ({
+    page,
+  }) => {
+    await page.goto(YEAR);
 
     await expect(page.getByRole('heading', { name: 'Enter the race' })).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Register your interest' }),
-    ).toBeHidden();
+    await expect(page.locator('[data-nn-not-open]')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
+  });
+
+  test('the race page says so prominently and links to the running', async ({ page }) => {
+    // **"When entries are open it says so prominently and links to the year page."** The
+    // interest form goes away — there is nothing left to register an interest in — and the
+    // loud button stops offering it.
+    await page.goto('/nn/');
+
+    const announcement = page.locator('[data-nn-entries-open]');
+    await expect(announcement).toBeVisible();
+    await expect(announcement).toContainText('Entries are open');
+    await expect(announcement.getByRole('link')).toHaveAttribute(
+      'href',
+      '/nn/2026/#enter',
+    );
+
+    await expect(page.locator('[data-nn-interest]')).toBeHidden();
+    await expect(page.locator('[data-entry-form]')).toHaveCount(0);
+  });
+
+  test('the race page hero button leads to the form, on the other page', async ({
+    page,
+  }) => {
+    await page.goto('/nn/');
+
+    const cta = page.locator('[data-nn-cta]');
+    await expect(cta).toHaveText('Enter the race');
+    await expect(cta).toHaveAttribute('href', '/nn/2026/#enter');
+
+    await cta.click();
+    await expect(page).toHaveURL(/\/nn\/2026\/#enter$/);
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
   });
 
   test('takes its prices from the database, not from the markup', async ({ page }) => {
     // £15, £17 and a free guide's place. The numbers live in `entries.fees.price_pence` and
     // reach the page through the Worker; nothing in `dist/` knows them.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await expect(page.locator('[data-entry-fee-price="affiliated"]')).toHaveText(
       '£15.00',
@@ -271,8 +375,8 @@ test.describe('once entries are open', () => {
     await expect(page.locator('[data-entry-fee-price="vi_guide"]')).toHaveText('Free');
   });
 
-  test('points the hero button at the entry form', async ({ page }) => {
-    await page.goto('/nn/');
+  test('points the year page hero button at the form below it', async ({ page }) => {
+    await page.goto(YEAR);
 
     const cta = page.locator('[data-nn-cta]');
     await expect(cta).toHaveText('Enter the race');
@@ -286,7 +390,7 @@ test.describe('once entries are open', () => {
     // **The link has to be true of the page it lands on**, and it was not: it pointed at a
     // notice describing a three-field interest form while this form collects fourteen fields
     // and takes a payment. The notice covers both now, and this is what says so.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const agreements = entry(page).getByRole('group', { name: 'Agreements' });
     await expect(
@@ -306,7 +410,7 @@ test.describe('once entries are open', () => {
     // hint instead of a link — and the agreements section has exactly one link in it, which
     // is the privacy notice above. This fails the moment somebody links the terms to
     // something plausible rather than to something written.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const agreements = entry(page).getByRole('group', { name: 'Agreements' });
 
@@ -333,7 +437,7 @@ test.describe('once entries are open', () => {
     await blockStripePage(page);
     const output = collectOutput(page);
 
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-stripe@example.com' });
     await entry(page)
@@ -411,7 +515,7 @@ test.describe('once entries are open', () => {
     await clearPurchases();
 
     await blockStripePage(page);
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-once@example.com' });
     await entry(page)
@@ -437,7 +541,7 @@ test.describe('once entries are open', () => {
     await clearPurchases();
 
     await blockStripePage(page);
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-medical@example.com' });
     await entry(page)
@@ -464,7 +568,7 @@ test.describe('once entries are open', () => {
     // deciding here that an unpaid entry counts as paid. It says so, gives the race address,
     // and **writes nothing**.
     await clearPurchases();
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-guide@example.com' });
     await entry(page)
@@ -491,7 +595,7 @@ test.describe('once entries are open', () => {
     // "print it so we can debug it" would go in.
     const output = collectOutput(page);
 
-    await page.goto('/nn/');
+    await page.goto(YEAR);
     expectNoKeys((await page.content()) ?? '');
 
     await fillEntry(page, { firstName: '   ' });
@@ -499,7 +603,7 @@ test.describe('once entries are open', () => {
     await expect(page.locator('[data-entry-summary]')).toBeVisible();
     expectNoKeys(await page.content());
 
-    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
     expectNoKeys(await page.content());
 
     expectNoKeys(output.join('\n'));
@@ -508,7 +612,7 @@ test.describe('once entries are open', () => {
   test('keeps every value when the server refuses it', async ({ page }) => {
     // **The failure that actually matters on a form this long.** Losing fourteen fields on a
     // phone on bad signal is the difference between one more tap and giving up.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { firstName: '   ', emailConfirm: 'wrong@example.com' });
     await entry(page)
@@ -550,11 +654,11 @@ test.describe('once entries are open', () => {
     ).toHaveValue('Type 1 diabetic.');
 
     // Still on the form's own address, so correcting and pressing again is all that is left.
-    await expect(page).toHaveURL(/\/nn\/$/);
+    await expect(page).toHaveURL(/\/nn\/2026\/$/);
   });
 
   test('attaches each message to the field it is about', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { firstName: '   ' });
     await page.getByRole('button', { name: 'Continue to payment' }).click();
@@ -577,7 +681,7 @@ test.describe('once entries are open', () => {
   test('links from the summary to the field it is about', async ({ page }) => {
     // The same guard the interest form carries, and the one that caught the view-transition
     // overlay swallowing clicks with scripting off. See the foot of nn-theme.css.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { firstName: '   ' });
     await page.getByRole('button', { name: 'Continue to payment' }).click();
@@ -588,7 +692,7 @@ test.describe('once entries are open', () => {
   });
 
   test('marks the date of birth as one question, not three', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { dobDay: '31', dobMonth: '2' });
     await entry(page)
@@ -614,7 +718,7 @@ test.describe('once entries are open', () => {
   }) => {
     // **The England Athletics box is in the DOM whatever is selected**, so this works with
     // scripting off: the server is what decides whether it had to be filled in.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page);
     await entry(page)
@@ -630,7 +734,7 @@ test.describe('once entries are open', () => {
   test('refuses medical notes written without the separate consent', async ({ page }) => {
     // Special category data under UK GDPR Article 9. Ticking the entry terms is not consent
     // to hold it, and the form does not quietly bin what somebody wrote either.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page);
     await entry(page)
@@ -648,7 +752,7 @@ test.describe('once entries are open', () => {
   });
 
   test('never lets a typed value come back as markup', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { firstName: '"><script>window.__xss = 1</script>' });
     await page.getByRole('button', { name: 'Continue to payment' }).click();
@@ -662,7 +766,7 @@ test.describe('once entries are open', () => {
     // Run more than once by the suite's own repetition, and worth the paranoia: a one-in-four
     // intermittent was caught at this width when the hands artwork was an `<img>`.
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -672,7 +776,7 @@ test.describe('once entries are open', () => {
 
   test('is still operable at 320px with every error showing', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     // **Filled, not empty.** An empty form never leaves the browser: `required` on the text
     // inputs means the submit is refused client-side and no error state is ever reached, so
@@ -701,7 +805,7 @@ test.describe('once entries are open', () => {
     // Asserted in every project, including `no-javascript` — where the box never collapses at
     // all, so the card must not move by so much as a pixel.
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const cardPosition = () =>
       page.evaluate(() => {
@@ -736,7 +840,7 @@ test.describe('once entries are open', () => {
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -748,7 +852,7 @@ test.describe('once entries are open', () => {
   test('the error state has zero axe violations @requires-js', async ({ page }) => {
     // The state a page is in when something has gone wrong is the state least likely to have
     // been checked, and the one somebody is most likely to be struggling with.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { firstName: '   ' });
     await page.getByRole('button', { name: 'Continue to payment' }).click();
@@ -778,7 +882,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   test('shows the age category as the date of birth and gender are typed', async ({
     page,
   }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const category = page.locator('[data-entry-category]');
     await expect(category).toBeHidden();
@@ -797,7 +901,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   test('says plainly that non-binary categories are undecided rather than inventing one', async ({
     page,
   }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await entry(page).getByLabel('Day', { exact: true }).fill('9');
     await entry(page).getByLabel('Month', { exact: true }).fill('12');
@@ -813,7 +917,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   test('hides the England Athletics box unless affiliated is chosen', async ({
     page,
   }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const eaField = page.locator('[data-entry-ea-field]');
 
@@ -829,7 +933,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   });
 
   test('shows a running total once an entry type is chosen', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     const total = page.locator('[data-entry-total]');
     await expect(total).toBeHidden();
@@ -846,7 +950,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   });
 
   test('validates inline without ever blocking a submission', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await entry(page)
       .getByLabel('Email address', { exact: true })
@@ -871,7 +975,7 @@ test.describe('what JavaScript adds @requires-js', () => {
   test('says nothing about fields nobody has touched yet', async ({ page }) => {
     // Walking down a form lighting up every box ahead of the person is the version of this
     // that makes a long form feel hostile.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await entry(page).getByLabel('First name', { exact: true }).fill('Grace');
     await entry(page).getByLabel('Last name', { exact: true }).focus();
@@ -888,7 +992,7 @@ test.describe('what JavaScript adds @requires-js', () => {
     // that: the box complained about a number nobody had reached, and because the message
     // appeared between the press and the release of the click that caused it, it moved the
     // other two cards out from under the pointer and the entry type could not be changed.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await entry(page)
       .getByLabel(/^Affiliated/)
@@ -930,7 +1034,7 @@ test.describe('when the race is full', () => {
   });
 
   test('says so plainly, and keeps every value that was typed', async ({ page }) => {
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-soldout@example.com' });
     await entry(page)
@@ -980,7 +1084,7 @@ test.describe('when the race is full', () => {
     await expect(entry(page).getByLabel(/I agree to the club holding/)).toBeChecked();
 
     // Still on the form's own address, so asking about a waiting list costs one more tap.
-    await expect(page).toHaveURL(/\/nn\/$/);
+    await expect(page).toHaveURL(/\/nn\/2026\/$/);
   });
 
   test('never sends anybody to a payment page for a place that has gone', async ({
@@ -1012,7 +1116,7 @@ test.describe('when the race is full', () => {
 
   test('is operable at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-soldout-320@example.com' });
     await entry(page)
@@ -1030,7 +1134,7 @@ test.describe('when the race is full', () => {
   test('has zero axe violations @requires-js', async ({ page }) => {
     // The state a page is in when something has gone wrong is the state least likely to have
     // been checked, and the one somebody is most likely to be struggling with.
-    await page.goto('/nn/');
+    await page.goto(YEAR);
 
     await fillEntry(page, { email: 'e2e-soldout-axe@example.com' });
     await entry(page)
@@ -1065,7 +1169,7 @@ test.describe('the return page', () => {
   test('renders the honest state for a session that matches nothing', async ({
     page,
   }) => {
-    const response = await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    const response = await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
     // Not an error. Somebody who has genuinely just paid must not meet a 500 because the
     // session id in their URL means nothing to the club's records.
@@ -1087,7 +1191,7 @@ test.describe('the return page', () => {
     // The wording is the whole feature. A tick, a "thank you", or the word "confirmed" for a
     // session the club has no record of would be a confirmation for an entry that may not
     // exist — the one failure on this page worth more than every other put together.
-    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
     const body = (await page.locator('body').textContent()) ?? '';
 
@@ -1100,7 +1204,7 @@ test.describe('the return page', () => {
   });
 
   test('is reachable with no session parameter at all', async ({ page }) => {
-    const response = await page.goto('/nn/entry/complete/');
+    const response = await page.goto('/nn/2026/entry/complete/');
 
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('heading', { name: 'Your entry' })).toBeVisible();
@@ -1112,7 +1216,7 @@ test.describe('the return page', () => {
 
   test('is operable at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -1121,7 +1225,7 @@ test.describe('the return page', () => {
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {
-    await page.goto('/nn/entry/complete/?session=cs_test_notreal');
+    await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])

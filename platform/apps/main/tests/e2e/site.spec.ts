@@ -104,11 +104,37 @@ test.describe('Nightingale Nightmare, at /nn', () => {
 });
 
 test.describe('the Nightingale Nightmare content pages', () => {
+  /**
+   * **Every page, its nav label, its heading, and the links its nav should carry.**
+   *
+   * The nav spans two levels now, because the routes do: a *race* is the recurring thing and
+   * an *event* is one running of it in one year. The race row is on every page; the running
+   * row appears only beneath a year, derived from the page's own path with no database and no
+   * script.
+   *
+   * **An evergreen page shows only the race row, and that is the decision rather than an
+   * omission.** `/nn/course/` cannot know which running is current without asking, and giving
+   * it a year would mean either a database call on every content page view or a year written
+   * into markup — the second being the thing this whole slice removes. The cost is one extra
+   * tap from the course page, through "Race".
+   *
+   * **The years are literals.** Reading them from `race.json` or from the database would make
+   * the expectation and the page read the same source, which asserts nothing.
+   */
+  const RACE_ROW = ['/nn/', '/nn/course/'];
+  const RUNNING_ROW = ['/nn/2026/', '/nn/2026/race-day/', '/nn/2026/spectators/'];
+
   const NN_PAGES = [
-    ['/nn/', 'Race', 'Nightingale Nightmare'],
-    ['/nn/course/', 'Course', 'Course and terrain'],
-    ['/nn/race-day/', 'Race day', 'Race day'],
-    ['/nn/spectators/', 'Spectators', 'Watching the race'],
+    ['/nn/', 'Race', 'Nightingale Nightmare', RACE_ROW],
+    ['/nn/course/', 'Course', 'Course and terrain', RACE_ROW],
+    ['/nn/2026/', '2026', 'Nightingale Nightmare 2026', [...RACE_ROW, ...RUNNING_ROW]],
+    ['/nn/2026/race-day/', 'Race day', 'Race day', [...RACE_ROW, ...RUNNING_ROW]],
+    [
+      '/nn/2026/spectators/',
+      'Spectators',
+      'Watching the race',
+      [...RACE_ROW, ...RUNNING_ROW],
+    ],
   ] as const;
 
   for (const [path, navLabel, heading] of NN_PAGES) {
@@ -137,9 +163,24 @@ test.describe('the Nightingale Nightmare content pages', () => {
     });
   }
 
+  test('one navigation landmark, however many rows it is drawn on', async ({ page }) => {
+    // Two `<nav>` elements would be two landmarks a screen-reader user has to tell apart,
+    // for one navigation that happens to wrap. The two `<ul>`s inside it are the structure,
+    // and they are read out as two lists.
+    await page.goto('/nn/2026/race-day/');
+
+    await expect(
+      page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+    ).toHaveCount(1);
+    await expect(page.locator('.nn-nav > ul')).toHaveCount(2);
+
+    await page.goto('/nn/course/');
+    await expect(page.locator('.nn-nav > ul')).toHaveCount(1);
+  });
+
   test('every nav link resolves, from every page', async ({ page, request }) => {
     // A nav is the one component where a broken link is invisible from the page it is on.
-    for (const [from] of NN_PAGES) {
+    for (const [from, , , expected] of NN_PAGES) {
       await page.goto(from);
 
       const hrefs = await page
@@ -147,10 +188,10 @@ test.describe('the Nightingale Nightmare content pages', () => {
         .getByRole('link')
         .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
 
-      expect(hrefs).toEqual(['/nn/', '/nn/course/', '/nn/race-day/', '/nn/spectators/']);
+      expect(hrefs, from).toEqual(expected);
 
       for (const href of hrefs) {
-        expect((await request.get(href)).status()).toBe(200);
+        expect((await request.get(href)).status(), `${from} -> ${href}`).toBe(200);
       }
     }
   });
@@ -172,9 +213,10 @@ test.describe('the Nightingale Nightmare content pages', () => {
     for (const path of [
       '/nn/',
       '/nn/course/',
-      '/nn/race-day/',
-      '/nn/spectators/',
       '/nn/privacy/',
+      '/nn/2026/',
+      '/nn/2026/race-day/',
+      '/nn/2026/spectators/',
     ]) {
       await page.goto(path);
       await expect(page.locator('.nn-masthead')).toBeVisible();
@@ -183,7 +225,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
       ).toBeVisible();
     }
 
-    await page.goto('/nn/entry/complete/');
+    await page.goto('/nn/2026/entry/complete/');
     await expect(page.locator('.nn-masthead')).toBeVisible();
     await expect(
       page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
@@ -195,7 +237,12 @@ test.describe('the Nightingale Nightmare content pages', () => {
   }) => {
     // It moved out of the hero rather than being copied into the header. Two would mean
     // every page announced the club's name twice to anybody listening to it.
-    for (const path of ['/nn/', '/nn/course/', '/nn/privacy/', '/nn/entry/complete/']) {
+    for (const path of [
+      '/nn/',
+      '/nn/course/',
+      '/nn/privacy/',
+      '/nn/2026/entry/complete/',
+    ]) {
       await page.goto(path);
 
       const mark = page.getByRole('link', { name: 'Southville Running Club' });
@@ -259,7 +306,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
       [320, 640],
     ] as const) {
       await page.setViewportSize({ width, height });
-      await page.goto('/nn/race-day/');
+      await page.goto('/nn/2026/race-day/');
 
       await page.evaluate(() => window.scrollTo(0, 1200));
       const stuck = await page.evaluate(() => {
@@ -309,7 +356,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // The panel exists because course, race day and spectators otherwise end with nothing
     // to do. `/nn/` has the form on it, so a panel there would only scroll somebody back
     // up to something they already walked past.
-    for (const path of ['/nn/course/', '/nn/race-day/', '/nn/spectators/']) {
+    for (const path of ['/nn/course/', '/nn/2026/race-day/', '/nn/2026/spectators/']) {
       await page.goto(path);
 
       const panel = page.locator('.nn-panel');
@@ -330,7 +377,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
   }) => {
     // Which tile is yellow is data, not a class written into the page — so the committee
     // can move the emphasis without a CSS change. Exactly one, or the accent means nothing.
-    await page.goto('/nn/race-day/');
+    await page.goto('/nn/2026/race-day/');
 
     await expect(page.locator('.nn-prize')).toHaveCount(4);
     await expect(page.locator('.nn-prize-highlight')).toHaveCount(1);
@@ -380,7 +427,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
   test('the content pages state the facts they were given, and no others', async ({
     page,
   }) => {
-    await page.goto('/nn/race-day/');
+    await page.goto('/nn/2026/race-day/');
     const raceDay = (await page.locator('body').textContent()) ?? '';
 
     // The schedule, which is the reason this page exists.
@@ -389,7 +436,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
     expect(raceDay).toContain('BS3 2JL');
 
-    await page.goto('/nn/spectators/');
+    await page.goto('/nn/2026/spectators/');
     const spectators = (await page.locator('body').textContent()) ?? '';
     expect(spectators).toContain('BS8 3PL');
     expect(spectators).toContain('Brunel Lock Road');
@@ -425,7 +472,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // exactly once — as a `goo.gl` shortlink, which Google has been retiring. The
     // coordinates are `race.json`'s now and the link is built from them, so the answer
     // survives the shortener.
-    await page.goto('/nn/race-day/');
+    await page.goto('/nn/2026/race-day/');
 
     const body = (await page.locator('body').textContent()) ?? '';
 
@@ -448,7 +495,13 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
   test('a shortened map link never reaches a page', async ({ page }) => {
     // The failure this guards is a later edit pasting the convenient thing back in.
-    for (const path of ['/nn/', '/nn/course/', '/nn/race-day/', '/nn/spectators/']) {
+    for (const path of [
+      '/nn/',
+      '/nn/course/',
+      '/nn/2026/',
+      '/nn/2026/race-day/',
+      '/nn/2026/spectators/',
+    ]) {
       await page.goto(path);
 
       const hrefs = await page
@@ -470,7 +523,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // safe to state. Anything not on that list stays off the page — the entry price, the
     // deadline for passing a place on, and the 2026 permit number are all still open, and
     // the assertions above are what keep them off.
-    await page.goto('/nn/race-day/');
+    await page.goto('/nn/2026/race-day/');
     const body = (await page.locator('body').textContent()) ?? '';
 
     expect(body).toMatch(/bag drop at HQ and another one at the start/i);
@@ -532,9 +585,11 @@ test.describe('accessibility', () => {
     ['the website', '/'],
     ['Nightingale Nightmare', '/nn/'],
     ['the course page', '/nn/course/'],
-    ['the race-day page', '/nn/race-day/'],
-    ['the spectators page', '/nn/spectators/'],
     ['the privacy notice', '/nn/privacy/'],
+    ['the 2026 race', '/nn/2026/'],
+    ['the race-day page', '/nn/2026/race-day/'],
+    ['the spectators page', '/nn/2026/spectators/'],
+    ['the return page', '/nn/2026/entry/complete/'],
     ['race timing', '/timing'],
   ] as const) {
     test(`${name} has zero axe violations @requires-js`, async ({ page }) => {

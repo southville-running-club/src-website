@@ -649,6 +649,22 @@ body.theme-nn {
  *
  * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart.
  * ------------------------------------------------------------------------------------- */
+/* **Two lists, one row, and the gap between them is the only thing that says so.** The nav
+   spans two levels now — the race (Race, Course) and the running it is currently about (2026,
+   Race day, Spectators), the second present only on a year page. They are separate `<ul>`s
+   because they are separate lists, and a screen reader saying "list, two items" then "list,
+   three items" is the structure being read out rather than decorated.
+
+   **20px between the lists against 8px within them**, which is grouping by proximity and
+   nothing else: no divider, no second colour, no rule that has to be measured for contrast.
+   On a phone the whole thing wraps and the two lists usually land on their own lines anyway,
+   which is the same grouping arrived at for free. */
+.theme-nn .nn-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
 .theme-nn .nn-nav ul {
   display: flex;
   flex-wrap: wrap;

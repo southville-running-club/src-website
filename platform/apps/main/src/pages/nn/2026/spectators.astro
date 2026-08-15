@@ -1,7 +1,7 @@
 ---
-import Base from '../../layouts/Base.astro';
-import NnMasthead from '../../components/NnMasthead.astro';
-import race from '../../content/race.json';
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import race from '../../../content/race.json';
 
 // The same event theme as the rest of Nightingale Nightmare — see
 // packages/shared/styles/nn-theme.css.
@@ -24,7 +24,7 @@ import '@src/shared/styles/nn-theme.css';
 // somebody on the wrong side of the gorge. The postcodes are what the club has.
 //
 // See docs/architecture/principles.md#stop-and-ask
-const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/spectators/';
 ---
 
 <Base
@@ -53,8 +53,9 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
       <p>
         <strong>The start and the finish</strong> are the easiest watching, and the two places
         you are guaranteed to see your runner. They are in the same place as each other and
-        <strong>not at race HQ</strong> — <a href="/nn/race-day/">the race-day page</a> has
-        the exact spot and a map.
+        <strong>not at race HQ</strong> — <a href="/nn/2026/race-day/"
+          >the race-day page</a
+        > has the exact spot and a map.
       </p>
 
       <p>
@@ -88,8 +89,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/spectators/';
 
       <p>
         Prizegiving is at race HQ, <strong>{race.location}</strong>, once the last
-        finisher is in. The full running order for the day is on <a href="/nn/race-day/"
-          >the race-day page</a
+        finisher is in. The full running order for the day is on <a
+          href="/nn/2026/race-day/">the race-day page</a
         >.
       </p>
     </div>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SELF } from 'cloudflare:test';
 
 /**
- * `/nn/` **when the race is full**, in the real Workers runtime.
+ * `/nn/2026/` **when the race is full**, in the real Workers runtime.
  *
  * A third run rather than a third describe block, because capacity is global state and a
  * sold-out event inside the entries-open run would make every other assertion there depend on
@@ -23,7 +23,7 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
 
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   return {
-    form: 'entry',
+    // No `form` field: the address is what says this is an entry.
     firstName: 'Grace',
     lastName: 'Hopper',
     email: 'sold-out@example.com',
@@ -40,8 +40,9 @@ function goodEntry(overrides: Record<string, string> = {}): Record<string, strin
   };
 }
 
+/** The entry form posts to the running it is for, which is its own address. */
 function submit(fields: Record<string, string>): Promise<Response> {
-  return SELF.fetch(`${SITE}/nn/`, {
+  return SELF.fetch(`${SITE}/nn/2026/`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields),

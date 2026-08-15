@@ -3,12 +3,15 @@ import {
   createAnonClient,
   createNnPendingPurchase,
   entryRulesFrom,
+  fetchCurrentEntryState,
   fetchEntryState,
   formatPence,
   parseNnEntry,
   toIsoDate,
   NN_ENTRY_FIELDS,
+  type AnonClient,
   type EntryState,
+  type EntryStateResult,
   type NnEntryErrors,
   type NnEntryField,
 } from '@src/shared';
@@ -18,19 +21,38 @@ import {
   stripeConfig,
   type StripeEnv,
 } from './stripe';
+import {
+  nnEntryCompletePath,
+  nnEventSlugForYearPath,
+  nnYearPathForEventSlug,
+  NN_PREFIX,
+  NN_RACE_SLUG,
+} from './routing';
 
 /**
  * The entry form's two halves: deciding whether to show it at all, and what to do when it
  * arrives.
  *
- * ## Which form `/nn/` shows, and who decides
+ * ## Two pages now, and which one is about what
+ *
+ *   `/nn/`        the **race**. Evergreen, names no year, and carries the interest form.
+ *                 When entries are open it says so and links to the running they are open for.
+ *   `/nn/2026/`   one **running**. Carries the entry form, and says entries are not open when
+ *                 they are not.
+ *
+ * **Neither page holds a year and neither holds a slug.** The year page's own path is what
+ * says which running it is — `/nn/2026/` is the event `nn-2026`, and `worker/routing.ts` owns
+ * that one convention. The race page asks `entries.current_entry_state('nn')` and is told
+ * which running is on, which is how it links to a year page it does not know the name of.
+ *
+ * ## Which form is shown, and who decides
  *
  * **The event row decides, not a deploy.** `entries.events.entries_open_at` and
  * `entries_close_at` are read on every request through `entries.entry_state()`, so entries
  * open when the committee says they do rather than when somebody is free to push a commit at
- * seven in the morning. The page ships with both forms in it and this module reveals one,
- * which is the same arrangement the interest form's acknowledgement already uses: one copy
- * of the page, in `dist/`, painted at serve time.
+ * seven in the morning. Each page ships with both of its states in it and this module reveals
+ * one, which is the same arrangement the interest form's acknowledgement already uses: one
+ * copy of the page, in `dist/`, painted at serve time.
  *
  * ## The failure direction is towards taking no entries
  *
@@ -76,54 +98,113 @@ export interface NnEntryEnv extends StripeEnv {
   PUBLIC_SUPABASE_ANON_KEY: string;
 }
 
-/** The event this page is about. One page, one race, and the slug is the join between them. */
-export const NN_EVENT_SLUG = 'nn-2026';
-
-/** Which of the page's two forms a request is about. */
-export type NnFormKind = 'interest' | 'entry';
-
 /**
- * Read the hidden `form` field.
+ * What `/nn/<year>/` shows.
  *
- * **Anything unrecognised is the interest form**, deliberately: that is the form that takes
- * no money and no personal data beyond a name, so an unlabelled or stale submission lands on
- * the harmless side of the fork.
+ * `closed` covers every reason the form is not on offer — not yet, no longer, no such event,
+ * and a database this Worker could not reach. To somebody looking at the page they are one
+ * fact, and collapsing them here is what makes the failure direction a property of the type
+ * rather than of whoever reads it next.
  */
-export function nnFormKind(form: FormData | null): NnFormKind {
-  return form?.get('form') === 'entry' ? 'entry' : 'interest';
-}
-
-export type NnEntryView = { show: 'interest' } | { show: 'entry'; state: EntryState };
+export type NnEntryView = { show: 'closed' } | { show: 'entry'; state: EntryState };
 
 /**
- * Ask the database which form to show.
+ * Ask the database whether entries are open for the running this page is about.
  *
- * Errors are swallowed into `interest` rather than propagated. The one thing worth logging
+ * Errors are swallowed into `closed` rather than propagated. The one thing worth logging
  * is *why*, and `fetchEntryState` builds that string from a PostgREST code and message —
  * neither of which can carry personal data, because the function reads none.
  */
-export async function resolveNnEntryView(env: NnEntryEnv): Promise<NnEntryView> {
+export async function resolveNnEntryView(
+  env: NnEntryEnv,
+  eventSlug: string,
+): Promise<NnEntryView> {
+  return resolveView(env, (client) => fetchEntryState(client, eventSlug));
+}
+
+/**
+ * What `/nn/` shows, which is a different question with a different failure.
+ *
+ * The race page has no form to reveal when entries are open — the form is on the year page —
+ * so what it needs is **where that page is**, and whether to shout about it. That comes back
+ * as a path rather than a year, because a year is a thing the page would then have to render
+ * and this way it renders a link.
+ *
+ * `null` is the honest answer when the database cannot be reached or holds no running of this
+ * race: no link is painted and the page is the interest form it has always been. That is a
+ * front door with one fewer door in it, which is worse than the full page and much better
+ * than a link to a year nobody confirmed.
+ */
+export type NnRaceView =
+  | { running: null }
+  | { running: { year: string; yearPath: string; entriesOpen: boolean } };
+
+export async function resolveNnRaceView(env: NnEntryEnv): Promise<NnRaceView> {
+  const view = await resolveView(env, (client) =>
+    fetchCurrentEntryState(client, NN_RACE_SLUG),
+  );
+
+  if (view.state === undefined) {
+    return { running: null };
+  }
+
+  const yearPath = nnYearPathForEventSlug(view.state.slug);
+
+  if (yearPath === null) {
+    // A running of this race named some other way. There is no page for it, so linking to a
+    // guess would be a 404 on the front door — worse than the missing link.
+    console.error(`entries: no year page for event slug ${view.state.slug}`);
+    return { running: null };
+  }
+
+  // **The year comes off the path, not out of the date.** They agree today and they would
+  // agree for any sane row, but two derivations of one number is one derivation too many —
+  // and the path is the thing the links use, so the heading names what they point at.
+  return {
+    running: {
+      year: yearPath.split('/').filter(Boolean).at(-1) ?? '',
+      yearPath,
+      entriesOpen: view.show === 'entry',
+    },
+  };
+}
+
+/**
+ * The half both resolvers share: never throw, never guess `open`.
+ *
+ * The `state` rides along on the closed answer too, because `/nn/` needs to know *which*
+ * running is current whether or not its entries are open — a front door that only links to
+ * the year page during the entry window would be shut for eleven months of the twelve.
+ */
+type ResolvedView =
+  | { show: 'closed'; state: EntryState | undefined }
+  | { show: 'entry'; state: EntryState };
+
+async function resolveView(
+  env: NnEntryEnv,
+  read: (client: AnonClient) => Promise<EntryStateResult>,
+): Promise<ResolvedView> {
   try {
     const client = createAnonClient({
       url: env.PUBLIC_SUPABASE_URL,
       anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
     });
 
-    const result = await fetchEntryState(client, NN_EVENT_SLUG);
+    const result = await read(client);
 
     if (!result.ok) {
       console.error(`entries.entry_state unavailable — ${result.error}`);
-      return { show: 'interest' };
+      return { show: 'closed', state: undefined };
     }
 
     return result.value.state === 'open'
       ? { show: 'entry', state: result.value }
-      : { show: 'interest' };
+      : { show: 'closed', state: result.value };
   } catch (cause) {
     console.error(
       `entries.entry_state threw — ${cause instanceof Error ? cause.name : 'unknown'}`,
     );
-    return { show: 'interest' };
+    return { show: 'closed', state: undefined };
   }
 }
 
@@ -211,7 +292,21 @@ export async function processNnEntry(
   env: NnEntryEnv,
   url: URL,
 ): Promise<NnEntryOutcome> {
-  const view = await resolveNnEntryView(env);
+  // **The running is the address it was posted to**, and nothing else says which one it is.
+  // There is no hidden event field on the form, deliberately: a slug in a body is a slug
+  // somebody can change, and while `create_pending_purchase()` would refuse a closed or
+  // unknown one, an entry landing against a *different open* running is a mistake nothing
+  // would catch. The path is the request, and the request cannot lie about itself.
+  const eventSlug = nnEventSlugForYearPath(url.pathname);
+
+  if (eventSlug === null) {
+    // Not a year page at all. `worker/index.ts` only routes year paths here, so this is
+    // unreachable by any request the Worker accepts — stated rather than assumed, because the
+    // alternative is a slug of `nn-null` reaching the database.
+    return { status: 'closed' };
+  }
+
+  const view = await resolveNnEntryView(env, eventSlug);
 
   if (view.show !== 'entry') {
     // Nothing to preserve and nothing to say about fields: the form is not on offer. That
@@ -279,7 +374,7 @@ export async function processNnEntry(
   });
 
   const outcome = await createNnPendingPurchase(client, {
-    slug: NN_EVENT_SLUG,
+    slug: eventSlug,
     entry: parsed.value,
   });
 
@@ -317,14 +412,26 @@ export async function processNnEntry(
     return { status: 'free', submitted };
   }
 
+  // **Both Stripe URLs are under the running this entry is for**, built from the event rather
+  // than from a constant. Somebody who backs out of the payment page lands back on the form
+  // they were filling in — not on the race page, where they would have to find their way to it
+  // again — and somebody who pays lands on that running's own return page.
+  //
+  // Round-tripped through the slug rather than reused from `url.pathname`, so a POST to
+  // `/nn/2026` without the trailing slash still produces the canonical `/nn/2026/`. Stripe is
+  // handed these once and cannot be corrected afterwards; a redirect in the middle of a
+  // payment is latency somebody pays for at the worst moment. Non-null by construction —
+  // `eventSlug` came out of `nnEventSlugForYearPath` a few lines up.
+  const yearPath = nnYearPathForEventSlug(eventSlug) ?? `${NN_PREFIX}/`;
+
   const session = await createCheckoutSession(stripe, {
     purchaseId: purchase.purchaseId,
-    eventSlug: NN_EVENT_SLUG,
+    eventSlug,
     amountPence: purchase.amountPence,
     description: `${view.state.displayName} — ${purchase.feeLabel} entry`,
     purchaserEmail: parsed.value.email,
-    successUrl: entryCompleteUrl(url.origin),
-    cancelUrl: new URL('/nn/', url.origin).toString(),
+    successUrl: entryCompleteUrl(url.origin, nnEntryCompletePath(yearPath)),
+    cancelUrl: new URL(yearPath, url.origin).toString(),
     expiresAt: purchase.holdExpiresAt,
   });
 
@@ -479,7 +586,7 @@ class AttributeHandler {
   }
 }
 
-/** Points the hero's primary button at whichever form is on the page. */
+/** Points the hero's primary button at whichever thing the page can actually offer. */
 class CtaHandler {
   constructor(
     private readonly href: string,
@@ -493,12 +600,65 @@ class CtaHandler {
 }
 
 /**
- * Reveal whichever of the page's two forms applies, and fill in what only the database
+ * Paint `/nn/` — the race page — with where this year's running is, and whether it is taking
+ * entries.
+ *
+ * **Every link to a year page on this page is painted here and nowhere else.** That is the
+ * whole reason this function exists: a `href="/nn/2026/"` written into the markup would put
+ * the year back into a page whose entire point is not to have one, and it would be the line
+ * somebody forgot in 2027.
+ *
+ * **`{ running: null }` does nothing at all**, which is the correct rendering of "the database
+ * could not be reached". The interest form ships visible, so a page that cannot find out which
+ * running is on is the page that was there before this slice: no year link, no claim about
+ * entries, and byte-identical HTML on the common closed path and every failure path.
+ */
+export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTMLRewriter {
+  if (view.running === null) {
+    return rewriter;
+  }
+
+  const { year, yearPath, entriesOpen } = view.running;
+
+  // The block of links to this year's running, and its heading. Revealed in **both** window
+  // states: somebody wants the race-day plan whether or not they can enter today, and a front
+  // door that only opens during the entry window is shut for eleven months of the twelve.
+  rewriter
+    .on('[data-nn-running]', new RevealHandler())
+    .on('[data-nn-running-heading]', new TextHandler(`The ${year} race`))
+    .on('[data-nn-running-link="year"]', new AttributeHandler('href', yearPath))
+    .on(
+      '[data-nn-running-link="race-day"]',
+      new AttributeHandler('href', `${yearPath}race-day/`),
+    )
+    .on(
+      '[data-nn-running-link="spectators"]',
+      new AttributeHandler('href', `${yearPath}spectators/`),
+    );
+
+  if (!entriesOpen) {
+    return rewriter;
+  }
+
+  // **Entries are open, so the page says so where somebody cannot miss it and the loud button
+  // stops offering the quiet thing.** The entry form is not on this page and must not be
+  // copied onto it: two forms writing to one table is two places for a rule to be wrong.
+  return rewriter
+    .on('[data-nn-interest]', new HideHandler())
+    .on('[data-nn-entries-open]', new RevealHandler())
+    .on('[data-nn-entries-open-link]', new AttributeHandler('href', `${yearPath}#enter`))
+    .on('[data-nn-cta]', new CtaHandler(`${yearPath}#enter`, 'Enter the race'));
+}
+
+/**
+ * Reveal whichever of the year page's two states applies, and fill in what only the database
  * knows.
  *
- * The interest form ships visible, so the `interest` case does nothing at all: no rewriting
- * is the correct rendering of "entries are not open", which means the common path and the
- * database-unreachable path produce byte-identical HTML.
+ * **The "entries are not open" notice ships visible and the form ships hidden**, which is the
+ * safe default rather than an arbitrary one — the same inversion `/nn/` uses for its two
+ * forms, arrived at from the other side. A year page that cannot tell whether entries are open
+ * must not offer to take one, so the `closed` case does no rewriting at all and the common
+ * path and the database-unreachable path produce byte-identical HTML.
  */
 export function renderNnEntryView(
   rewriter: HTMLRewriter,
@@ -511,7 +671,7 @@ export function renderNnEntryView(
   const { state } = view;
 
   rewriter
-    .on('[data-nn-interest]', new HideHandler())
+    .on('[data-nn-not-open]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
     .on('[data-nn-cta]', new CtaHandler('#enter', 'Enter the race'));
 
@@ -619,7 +779,7 @@ const STOPPED_NOTICES: Record<NnEntryStoppedStatus, string> = {
 };
 
 /**
- * Rewrites `/nn/` to say why the entry stopped, keeping everything typed.
+ * Rewrites the year page to say why the entry stopped, keeping everything typed.
  *
  * The preservation is not a courtesy here. **Sold out is the case where losing it hurts
  * most** — somebody has filled in fourteen fields and been told the race went while they
@@ -635,14 +795,16 @@ export function renderNnEntryStopped(
   return rewriter;
 }
 
-/** Rewrites `/nn/` to say entries are not open. There is nothing to restore — see below. */
+/**
+ * Rewrites the year page to say entries are not open. There is nothing to restore — see below.
+ */
 export function renderNnEntryClosed(rewriter: HTMLRewriter): HTMLRewriter {
   // The notice lives inside `[data-nn-entry]`, which stays hidden in this state because
   // `renderNnEntryView` never revealed it. So this reveals the section too — somebody who
   // pressed a button deserves to be told what happened rather than to be handed a page that
   // looks as though nothing did.
   return rewriter
-    .on('[data-nn-interest]', new HideHandler())
+    .on('[data-nn-not-open]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
     .on('[data-entry-closed]', new RevealHandler(true));
 }

@@ -1,28 +1,28 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
-import NnEntryForm from '../../components/NnEntryForm.astro';
 import race from '../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
 // knows that this site does not. See packages/shared/styles/nn-theme.css.
 import '@src/shared/styles/nn-theme.css';
 
-// Still says nothing about the race that nobody has confirmed.
+// **The race, not one running of it — and this page never names a year.**
 //
-// **The date arrived, and it arrived as a one-line edit to `src/content/race.json` with no
-// change to this file at all.** That was the property the arrangement was built for and it
-// is worth recording that it held: `race.date` and `race.startTime` went from `null` to
-// values, and the date line, the facts list below and three new pages picked them up
-// without a line of markup moving.
+// A race is the recurring thing; an event is one running of it in one year. This page is the
+// first; `/nn/2026/` is the second. That distinction is why publishing 2027 is a row in
+// `entries.events` and a new directory of content pages, with **no edit to this file at all**.
 //
-// What is still `null` is still genuinely undecided rather than merely unwritten. `price` and
-// `entriesOpen` stay `null` here for a different reason from the rest: **they are the
-// database's**. The fees live in `entries.fees.price_pence` and the window in
-// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
-// file is how two numbers start disagreeing. The opening time nobody has decided, and the
-// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
-// trigger, not a placeholder.
+// **Every link from here to a year page is painted by the Worker**, from
+// `entries.current_entry_state('nn')`. There is no `href="/nn/2026/"` anywhere below, and
+// there must never be one: it would be the line somebody forgot in 2027, and it would be
+// wrong quietly rather than loudly. See `worker/nn-entry.ts`'s `renderNnRaceView`.
+//
+// What is still `null` in `race.json` is still genuinely undecided rather than merely
+// unwritten. `price` and `entriesOpen` stay `null` for a different reason from the rest:
+// **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
+// `entries.events`. The 2026 ARC permit number has not been issued. Inventing any of them
+// here is a "stop and ask" trigger, not a placeholder.
 //
 // See docs/architecture/principles.md#stop-and-ask
 
@@ -99,21 +99,20 @@ const dateLine = race.date
       </p>
 
       {
-        /* **The loud button is the one this site can actually honour.** The mockup's is
-        "Enter the race — from £15", which is a price nobody has confirmed attached to a
-        payment flow that does not exist. Registering interest is the whole of what this
-        page does, so it is the whole of what the primary control offers. */
-      }
-      {
-        /* **The button says the one thing this page can honour today**, and the Worker
-        changes it to "Enter the race" on the day `entries.events.entries_open_at` says
-        entries are open. That is one row edit and no deploy, which is the property the
-        event table exists for — and it is why the label and the target are painted on
-        rather than written in. */
+        /* **The loud button is the one this site can actually honour**, and which that is
+        depends on the day. It ships as "Register your interest", pointing at the form on this
+        page; when `entries.events` says entries are open the Worker repoints it at the entry
+        form on the year page and relabels it. That is one row edit and no deploy, which is the
+        property the event table exists for — and it is why the label and the target are
+        painted on rather than written in.
+
+        **There is no second button here any more.** It used to be "Race-day plan", pointing
+        straight at `/nn/race-day/`; that page now lives under the year, and a year in this
+        page's markup is exactly what this page must not hold. The links to this year's running
+        are in the block below, where the Worker fills them in. */
       }
       <div class="nn-herobtns">
         <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
-        <a class="nn-ghost" href="/nn/race-day/">Race-day plan</a>
       </div>
     </div>
   </header>
@@ -189,10 +188,52 @@ const dateLine = race.date
       </ul>
 
       <p>
-        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
-        <a href="/nn/race-day/">the whole running order for the day</a>.
+        <a href="/nn/course/">The course and terrain, in full</a>.
       </p>
     </div>
+
+    {
+      /* ------------------------------------------------------------------------------
+       * This year's running, and the only place this page links to one
+       * ------------------------------------------------------------------------------
+       * **Ships hidden with empty hrefs, and the Worker fills them in.** Which running is on
+       * comes from `entries.current_entry_state('nn')`, so 2027 is a row rather than an edit
+       * to this file — see the note at the head of it.
+       *
+       * It is revealed in **both** window states. Somebody wants the race-day plan whether or
+       * not they can enter today, and a front door that only opens during the entry window is
+       * shut for eleven months of the twelve.
+       *
+       * **A database this Worker cannot reach paints nothing**, so this block stays hidden and
+       * the page is the one that was here before the year layer: the interest form, and no
+       * link to a year nobody confirmed. One fewer door in the front door, which is the right
+       * side of that trade.
+       *
+       * The heading is painted too — it ships saying something true of any year and is
+       * replaced with the year itself. `href=""` on a hidden link resolves to this page, so
+       * even a half-painted block cannot send anybody somewhere that does not exist.
+       * ------------------------------------------------------------------------------ */
+    }
+
+    <section class="nn-card nn-prose" data-nn-running hidden>
+      <h2 data-nn-running-heading>This year's race</h2>
+
+      <ul class="nn-arrows">
+        <li>
+          <a href="" data-nn-running-link="year">The date, the facts, and how to enter</a>
+        </li>
+        <li>
+          <a href="" data-nn-running-link="race-day">
+            Race day — race HQ, the morning in order, the prizes
+          </a>
+        </li>
+        <li>
+          <a href="" data-nn-running-link="spectators">
+            Watching the race — where to stand, where to park
+          </a>
+        </li>
+      </ul>
+    </section>
 
     {
       /* ------------------------------------------------------------------------------
@@ -200,16 +241,37 @@ const dateLine = race.date
        * ------------------------------------------------------------------------------
        * **Both are in the HTML; the Worker reveals one.** Which one is decided by
        * `entries.events.entries_open_at` and `entries_close_at`, read at request time
-       * through `entries.entry_state()` — so entries open when the committee says they do,
-       * by a row edit, not by somebody being available to deploy at seven in the morning.
+       * through `entries.current_entry_state()` — so entries open when the committee says
+       * they do, by a row edit, not by somebody being available to deploy at seven in the
+       * morning.
        *
-       * **The interest form ships visible and the entry form ships hidden**, which is the
+       * **The interest form ships visible and the announcement ships hidden**, which is the
        * safe default rather than an arbitrary one. If the Worker cannot reach the database
        * at all, this page falls back to the form that was already here and that takes no
-       * money — a page that cannot tell whether entries are open must not offer to take an
-       * entry. See `worker/nn-entry.ts`.
+       * money — a page that cannot tell whether entries are open must not announce that they
+       * are. See `worker/nn-entry.ts`.
+       *
+       * **The entry form is not on this page and must not be copied onto it.** It is on the
+       * year page, because an entry is an entry to one running; two forms writing to one
+       * table is two places for a rule to be wrong.
        * ------------------------------------------------------------------------------ */
     }
+
+    {
+      /* **Nothing here states a fact this file was not given.** The field size is
+      `race.json`'s, and everything else is a sentence about where the form is. How many places
+      are left, when entries close and what an entry costs are all the database's, and they are
+      on the form at the moment they matter. */
+    }
+    <div class="notice notice-ok nn-card" data-nn-entries-open hidden role="status">
+      <p class="lede"><strong>Entries are open.</strong></p>
+      <p>
+        {race.places} places, and entering is on this year's race page.
+      </p>
+      <p>
+        <a class="nn-cta" href="" data-nn-entries-open-link>Enter the race</a>
+      </p>
+    </div>
 
     <div data-nn-interest>
       <h2 id="register">Register your interest</h2>
@@ -309,14 +371,14 @@ const dateLine = race.date
       never arrives at a second address for the same page. */
       }
 
+      {
+        /* **The hidden `form` field is gone with the ambiguity that needed it.** Both forms
+        used to be on this page and a field in the body was what told them apart. They are on
+        two pages now — interest here, entry on the year page — so the address a submission
+        arrives at is the discriminator, and it is one nobody can mistype into the wrong
+        handler. */
+      }
       <form class="signup nn-card" method="post" action="/nn/">
-        {
-          /* Which of this page's two forms arrived. Stated on both, so neither is identified
-        by the absence of something — a stale cached page with no `form` field is still read
-        as the interest form, which is the harmless direction. */
-        }
-        <input type="hidden" name="form" value="interest" />
-
         <div class="field">
           <label class="field-label" for="signup-name">Your name</label>
           <p class="field-error" id="signup-name-error" data-signup-error="name" hidden>
@@ -389,10 +451,6 @@ const dateLine = race.date
 
         <button class="button" type="submit">Register my interest</button>
       </form>
-    </div>
-
-    <div data-nn-entry hidden>
-      <NnEntryForm />
     </div>
 
     <h2>What this page proves</h2>
