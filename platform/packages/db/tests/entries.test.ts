@@ -74,6 +74,15 @@ const FIXTURE_SLUGS = [
   'zz-window-open',
   'zz-window-closed',
   'zz-window-inactive',
+  // The fabricated runnings that `current_entry_state()` chooses between. **None of them is a
+  // running of `nn`**, so nothing here can change what the site's front door resolves to.
+  'zz-current-past',
+  'zz-current-soon',
+  'zz-current-later',
+  'zz-gone-old',
+  'zz-gone-new',
+  'zz-off-live',
+  'zz-off-dead',
 ] as const;
 
 afterAll(async () => {
@@ -232,6 +241,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(rows.map((row) => row.proname)).toEqual([
       'attach_checkout_session',
       'create_pending_purchase',
+      'current_entry_state',
       'entry_completion_state',
       'entry_state',
       'expire_pending_holds',
@@ -240,7 +250,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     ]);
   });
 
-  it('lets anon execute exactly six of the seven, and never PUBLIC', async () => {
+  it('lets anon execute exactly seven of the eight, and never PUBLIC', async () => {
+    // **This list went from six to seven when `current_entry_state()` was added, and that is
+    // the change this test exists to force.** It returns exactly what `entry_state()` already
+    // returns, for an event the caller could have named itself — so it discloses nothing new;
+    // what it adds is that `/nn/` no longer has to *know* which running is current, which is
+    // the thing that would otherwise be written into markup as a year.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -251,6 +266,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(rows.map((row) => row.routine_name)).toEqual([
       'attach_checkout_session',
       'create_pending_purchase',
+      'current_entry_state',
       'entry_completion_state',
       'entry_state',
       'expire_pending_holds',
@@ -266,7 +282,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
   });
 
   it('lets nobody at all execute raise_attention', async () => {
-    // **The seventh, and it is granted to no role.** It writes the flag that says a human must
+    // **The one that is granted to no role.** It writes the flag that says a human must
     // look at a purchase, and it is reachable only from `record_checkout_event`, which runs as
     // this schema's owner because it is `security definer`. A grant here would let anybody
     // holding the published anon key clear or forge an alarm.
@@ -315,7 +331,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     }
   });
 
-  it('makes the two readers stable and every writer volatile', async () => {
+  it('makes every reader stable and every writer volatile', async () => {
     // **Volatility is load-bearing here rather than a default that happened to be right.**
     // Under READ COMMITTED a `stable` function's queries run against the *calling* statement's
     // snapshot — so a writer that waited behind another transaction would read state from
@@ -336,6 +352,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(volatility).toEqual({
       attach_checkout_session: 'v',
       create_pending_purchase: 'v',
+      current_entry_state: 's',
       entry_completion_state: 's',
       entry_state: 's',
       expire_pending_holds: 'v',
@@ -434,6 +451,161 @@ describe('entries.entry_state(), the only object anon may reach', () => {
   });
 });
 
+// -----------------------------------------------------------------------------------------
+// The second door: which running of a race is the current one
+// -----------------------------------------------------------------------------------------
+
+describe('entries.current_entry_state(), the door that does not need a year', () => {
+  // **The whole point of this function is that `/nn/` never names a year.** If it did, the
+  // year would be in markup and publishing 2027 would mean editing every page that mentions
+  // it. These assertions are about the *choice* it makes, which is the part with a rule in it.
+
+  it('answers for the real race, and says which running it chose', async () => {
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('current_entry_state', { p_race_slug: 'nn' });
+
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ slug: 'nn-2026', state: 'pre_open' });
+  });
+
+  it('returns exactly what entry_state returns, and nothing more', async () => {
+    // **This is the assertion that keeps the new grant honest.** A function anon may call
+    // that disclosed one field more than the one anon may already call would be a widening
+    // nobody argued for, and it would not look like one in a diff.
+    const { data: viaRace } = await anon
+      .schema('entries')
+      .rpc('current_entry_state', { p_race_slug: 'nn' });
+    const { data: viaEvent } = await anon
+      .schema('entries')
+      .rpc('entry_state', { p_slug: 'nn-2026' });
+
+    expect(viaRace).toEqual(viaEvent);
+  });
+
+  it('answers null for a race that does not exist, rather than erroring', async () => {
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('current_entry_state', { p_race_slug: 'no-such-race' });
+
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+  });
+
+  describe('which running it picks, on fabricated races rather than the real one', () => {
+    // Fixed dates, an invented race slug, and the real `nn` row untouched — mutating that
+    // would make the site's front door depend on whether this block had run.
+    const RACE = 'zz-current';
+
+    async function seedRunning(
+      race: string,
+      slug: string,
+      eventDate: string,
+      active = true,
+    ): Promise<void> {
+      await query(
+        `insert into entries.events (
+           slug, display_name, race_slug, event_date, start_time, capacity,
+           from_address, consent_version, active
+         ) values ($1, $2, $3, $4::date, time '11:00', 250,
+                   'fixture@example.com', 'fixture-v1', $5)
+         on conflict (slug) do nothing`,
+        [slug, `Fixture ${slug}`, race, eventDate, active],
+      );
+    }
+
+    async function currentSlug(race: string): Promise<string | null> {
+      const { data } = await anon
+        .schema('entries')
+        .rpc('current_entry_state', { p_race_slug: race });
+      return data === null ? null : (data as { slug: string }).slug;
+    }
+
+    // Far enough either side of today that these never depend on the calendar — a fixture
+    // dated "next month" is a test that starts failing on a Tuesday.
+    const wellPast = '2020-11-01';
+    const recentPast = '2024-11-03';
+    const soon = '2099-11-01';
+    const later = '2100-10-31';
+
+    it('prefers a forthcoming running over a past one', async () => {
+      await seedRunning(RACE, 'zz-current-past', recentPast);
+      await seedRunning(RACE, 'zz-current-soon', soon);
+
+      expect(await currentSlug(RACE)).toBe('zz-current-soon');
+    });
+
+    it('prefers the nearest forthcoming running when there are two', async () => {
+      await seedRunning(RACE, 'zz-current-later', later);
+
+      // `zz-current-soon` from the case above is still the nearer of the two.
+      expect(await currentSlug(RACE)).toBe('zz-current-soon');
+    });
+
+    it('falls back to the most recent past running when none is forthcoming', async () => {
+      // **The months between one November and next year's row being added.** Returning
+      // nothing there would make `/nn/` a dead end exactly when somebody is looking for what
+      // happened last time, so the rule is "the last time this happened" rather than silence.
+      await seedRunning('zz-gone', 'zz-gone-old', wellPast);
+      await seedRunning('zz-gone', 'zz-gone-new', recentPast);
+
+      expect(await currentSlug('zz-gone')).toBe('zz-gone-new');
+    });
+
+    it('never picks an inactive running', async () => {
+      // `zz-off-dead` is the nearer of the two and is skipped because it is switched off —
+      // which is the same answer `entry_state()` gives for an inactive event, arrived at a
+      // step earlier so a shut-down running is not merely reported as closed but not chosen.
+      await seedRunning('zz-off', 'zz-off-live', later);
+      await seedRunning('zz-off', 'zz-off-dead', soon, false);
+
+      expect(await currentSlug('zz-off')).toBe('zz-off-live');
+    });
+
+    it('answers null for a race whose only runnings are somebody else’s', async () => {
+      expect(await currentSlug('zz-no-such')).toBeNull();
+    });
+  });
+});
+
+describe('entries.events.race_slug', () => {
+  it('says which recurring race the real running belongs to', async () => {
+    const rows = await query<{ race_slug: string }>(
+      "select race_slug from entries.events where slug = 'nn-2026'",
+    );
+
+    // The same two letters the path has used since the first deploy. The URL and the row
+    // agree, and neither was chosen to fit the other.
+    expect(rows[0]?.race_slug).toBe('nn');
+  });
+
+  it('refuses an event that does not say which race it is a running of', async () => {
+    // **`not null` is the point of the column.** A running with no race is a row `/nn/` can
+    // never find, which would present as a page that quietly stopped linking anywhere.
+    await expect(
+      query(
+        `insert into entries.events (
+           slug, display_name, event_date, start_time, capacity,
+           from_address, consent_version
+         ) values ('zz-raceless', 'Raceless', date '2026-11-01', time '11:00', 250,
+                   'f@example.com', 'v1')`,
+      ),
+    ).rejects.toThrow(/race_slug/);
+  });
+
+  it('refuses a race slug that could not be a path segment', async () => {
+    await expect(
+      query(
+        `insert into entries.events (
+           slug, display_name, race_slug, event_date, start_time, capacity,
+           from_address, consent_version
+         ) values ('zz-badrace', 'Bad race', 'Nightingale Nightmare',
+                   date '2026-11-01', time '11:00', 250, 'f@example.com', 'v1')`,
+      ),
+    ).rejects.toThrow(/events_race_slug_format/);
+  });
+});
+
 describe('the window states, on fabricated events rather than the real one', () => {
   // Deterministic fixtures with fixed timestamps, inserted and removed by this file. The
   // real `nn-2026` row is left alone: mutating it would make this suite's answer depend on
@@ -446,10 +618,14 @@ describe('the window states, on fabricated events rather than the real one', () 
     active = true,
   ): Promise<void> {
     await query(
+      // **`race_slug` is a fixture race and never `nn`, deliberately.** A fixture claiming to
+      // be a running of the real race would change what `current_entry_state('nn')` answers,
+      // and the acceptance suite reads that on every `/nn/` request — so the site's front
+      // door would start depending on whether this file had run.
       `insert into entries.events (
-         slug, display_name, event_date, start_time, capacity,
+         slug, display_name, race_slug, event_date, start_time, capacity,
          entries_open_at, entries_close_at, from_address, consent_version, active
-       ) values ($1, $2, date '2026-11-01', time '11:00', 250, $3, $4, 'fixture@example.com', 'fixture-v1', $5)
+       ) values ($1, $2, 'zz-fixture', date '2026-11-01', time '11:00', 250, $3, $4, 'fixture@example.com', 'fixture-v1', $5)
        on conflict (slug) do nothing`,
       [slug, `Fixture ${slug}`, opensAt, closesAt, active],
     );
@@ -484,9 +660,9 @@ describe('the window states, on fabricated events rather than the real one', () 
     await expect(
       query(
         `insert into entries.events (
-           slug, display_name, event_date, start_time, capacity,
+           slug, display_name, race_slug, event_date, start_time, capacity,
            entries_open_at, entries_close_at, from_address, consent_version
-         ) values ('zz-backwards', 'Backwards', date '2026-11-01', time '11:00', 250,
+         ) values ('zz-backwards', 'Backwards', 'zz-fixture', date '2026-11-01', time '11:00', 250,
                    '2026-09-01T00:00:00Z', '2026-08-01T00:00:00Z', 'f@example.com', 'v1')`,
       ),
     ).rejects.toThrow(/events_window_ordered/);

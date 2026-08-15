@@ -99,10 +99,13 @@ async function seedEvent(slug: string, options: EventOptions = {}): Promise<stri
   } = options;
 
   const rows = await query<{ id: string }>(
+    // `race_slug` is a fixture race and never `nn` — a fixture claiming to be a running of
+    // the real race would change what `entries.current_entry_state('nn')` answers, and the
+    // site's front door reads that on every request.
     `insert into entries.events (
-       slug, display_name, event_date, start_time, entrants_per_entry, capacity,
+       slug, display_name, race_slug, event_date, start_time, entrants_per_entry, capacity,
        entries_open_at, entries_close_at, minimum_age, from_address, consent_version, active
-     ) values ($1, $2, date '2026-11-01', time '11:00', $3, $4, $5, $6, $7,
+     ) values ($1, $2, 'zz-fixture', date '2026-11-01', time '11:00', $3, $4, $5, $6, $7,
                'fixture@example.com', 'fixture-v1', $8)
      returning id`,
     [

@@ -104,24 +104,67 @@ export async function fetchEntryState(
     p_slug: slug,
   });
 
+  return readEntryState(data, error, `No event with slug ${slug}`, slug);
+}
+
+/**
+ * Read the **current running** of a recurring race, without having to know which one it is.
+ *
+ * This is what `/nn/` uses, and the reason it exists is a route rather than a database
+ * convenience: a page about the race in general has to link to the running that is on, and
+ * naming that running in markup means every such page needs editing the year it changes.
+ * `entries.events.race_slug` holds the answer and `entries.current_entry_state()` picks the
+ * forthcoming running, or the most recent past one when there is no forthcoming one.
+ *
+ * **The answer carries its own `slug`**, which is how the caller learns *which* running it
+ * got — and therefore which year page to point at. That is the one fact the evergreen page
+ * needs and the one it must not hold itself.
+ *
+ * Same failure direction as `fetchEntryState`, for the same reason: a race with no readable
+ * running is a page with no entry form and no year link, never a page that guesses.
+ */
+export async function fetchCurrentEntryState(
+  client: AnonClient,
+  raceSlug: string,
+): Promise<EntryStateResult> {
+  const { data, error } = await client.schema('entries').rpc('current_entry_state', {
+    p_race_slug: raceSlug,
+  });
+
+  return readEntryState(data, error, `No running of race ${raceSlug}`, raceSlug);
+}
+
+/**
+ * The half both readers share: PostgREST's answer in, an `EntryState` or a reason out.
+ *
+ * Split out rather than duplicated because the *failure* handling is the part that matters,
+ * and two copies of "never guess open" is one copy too many. The two RPCs differ only in
+ * which name they ask for.
+ */
+function readEntryState(
+  data: unknown,
+  error: { code?: string | null; message: string } | null,
+  emptyMessage: string,
+  label: string,
+): EntryStateResult {
   if (error) {
     // The code and the message from PostgREST, neither of which can carry personal data:
-    // this function reads none. `PGRST202` means the function is not there yet and
+    // these functions read none. `PGRST202` means the function is not there yet and
     // `PGRST106` means the schema is not exposed — both are deployment states rather than
     // bugs, and both should read as such in a log.
     return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
   }
 
-  // A slug with no row comes back as SQL null rather than an error, because "no such event"
+  // A name with no row comes back as SQL null rather than an error, because "no such thing"
   // is a legitimate answer to a legitimate question.
   if (data === null) {
-    return { ok: false, error: `No event with slug ${slug}` };
+    return { ok: false, error: emptyMessage };
   }
 
   const parsed = entryStateShape.safeParse(data);
 
   if (!parsed.success) {
-    return { ok: false, error: `entry_state returned an unexpected shape for ${slug}` };
+    return { ok: false, error: `entry_state returned an unexpected shape for ${label}` };
   }
 
   const eventDate = parseIsoDate(parsed.data.event_date);
@@ -129,7 +172,7 @@ export async function fetchEntryState(
   if (eventDate === null) {
     return {
       ok: false,
-      error: `entry_state returned an unusable event_date for ${slug}`,
+      error: `entry_state returned an unusable event_date for ${label}`,
     };
   }
 

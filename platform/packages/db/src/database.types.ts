@@ -250,6 +250,7 @@ export type Database = {
           from_address: string
           id: string
           minimum_age: number | null
+          race_slug: string
           requires_dob: boolean
           slug: string
           start_time: string
@@ -266,6 +267,7 @@ export type Database = {
           from_address: string
           id?: string
           minimum_age?: number | null
+          race_slug: string
           requires_dob?: boolean
           slug: string
           start_time: string
@@ -282,6 +284,7 @@ export type Database = {
           from_address?: string
           id?: string
           minimum_age?: number | null
+          race_slug?: string
           requires_dob?: boolean
           slug?: string
           start_time?: string
@@ -372,6 +375,7 @@ export type Database = {
         }
         Returns: Json
       }
+      current_entry_state: { Args: { p_race_slug: string }; Returns: Json }
       entry_completion_state: { Args: { p_session_id: string }; Returns: Json }
       entry_state: { Args: { p_slug: string }; Returns: Json }
       expire_pending_holds: { Args: never; Returns: Json }

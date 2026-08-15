@@ -280,11 +280,14 @@ it and let an oversold place be sold twice.
 claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
 charged", because the webhook may simply be late and somebody who believes it pays twice.
 
-**The anon role still holds no grant on any table in `entries`.** It may call six functions and
-nothing else: `entry_state()`, `create_pending_purchase()`, `expire_pending_holds()`,
-`attach_checkout_session()`, `record_checkout_event()` and `entry_completion_state()`. A seventh,
-`raise_attention()`, is granted to **nobody**. `packages/db/tests/entries.test.ts` asserts that
-exact set; if it fails, something granted a privilege to a key that is published in page source.
+**The anon role still holds no grant on any table in `entries`.** It may call seven functions
+and nothing else: `entry_state()`, `current_entry_state()`, `create_pending_purchase()`,
+`expire_pending_holds()`, `attach_checkout_session()`, `record_checkout_event()` and
+`entry_completion_state()`. An eighth, `raise_attention()`, is granted to **nobody**.
+`packages/db/tests/entries.test.ts` asserts that exact set; if it fails, something granted a
+privilege to a key that is published in page source. **Adding to that list is a decision, and
+the test is what forces it to be made in a diff** — `current_entry_state()` is the one time it
+has happened, and it discloses nothing `entry_state()` does not.
 
 **`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
 ordinary PostgREST calls with the published anon key would buy a free entry, because
