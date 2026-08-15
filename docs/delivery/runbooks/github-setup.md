@@ -95,35 +95,59 @@ oversight.
 > That is why the four workflow-permission declarations moved **into the workflow files**,
 > where they are reviewed in a pull request. This section is what is left over.
 
+> ### ✅ Done — 15 August 2026
+>
+> All of 3a–3c were set by Mark through the shared login. What is recorded below is what the
+> settings **are**, not what somebody once intended; re-read it before changing any of them.
+
 ### 3a. Actions → General
 
 **Settings → Actions → General**, as the shared login.
 
-- [ ] **Allow all actions and reusable workflows** — the workflows use `actions/checkout`
+- [x] **Allow all actions and reusable workflows** — the workflows use `actions/checkout`
       and `actions/setup-node` only.
-- [ ] **Workflow permissions: Read repository contents.** Belt and braces now: all four
+- [x] **Workflow permissions: Read repository contents.** Belt and braces now: all four
       workflows declare `permissions: contents: read` themselves, so this is the floor rather
       than the only control. Set it anyway — a workflow added later without a `permissions:`
       block inherits this.
-- [ ] **Record here that it was checked, with the date.** The state is invisible to everybody
-      else, so an unrecorded check is the same as no check.
+- [x] **Checked 15 August 2026.** The state is invisible to everybody else, so an unrecorded
+      check is the same as no check.
 
-### 3b. Merge behaviour
+### 3b. Merge behaviour — **squash only**
 
-**Settings → General → Pull Requests.** Both are one click and neither needs a plan change.
+**Settings → General → Pull Requests.**
 
-- [ ] **Automatically delete head branches.** Currently `false`, so every merged branch stays
-      forever. The repository already carries a dozen.
-- [ ] **Allow one merge method, not three.** All three are enabled today, so the shape of the
-      history depends on which button somebody clicks at eleven at night.
-      **Keep "Create a merge commit" and turn off squash and rebase** — that is what the
-      history already is, every merge to date is a `Merge pull request #N`, and the pull
-      request number in the first line of each is how a commit is traced back to its review.
+- [x] **Automatically delete head branches.** On since 15 August 2026. Merged branches no
+      longer accumulate — and note the consequence: **after a merge the branch is gone**, so
+      the pre-squash commits survive only on the pull request page, not in any ref.
+- [x] **One merge method: "Squash and merge".** Merge commits and rebase are both off.
+
+> **This reverses what this runbook first recommended, and the correction is the point.**
+> It said to keep merge commits, on the grounds that the history already was merge commits
+> and that `Merge pull request #N` is how a commit is traced back to its review. **The second
+> half of that was simply wrong**: GitHub appends the number to a squashed subject too, so
+> traceability is identical —
+>
+> ```
+> c88d994 Correct the branch-protection claim, and notice a push that skips review (#29)
+> ```
+>
+> `main-guard.yml` is unaffected: it asks GitHub which pull request a commit belongs to, and a
+> squashed commit is associated exactly as a merge commit is. Verified on the merge of #29,
+> which is the line above.
+
+**What squash actually costs, and it is worth knowing before writing a branch.** Every commit
+in a pull request collapses into one on `main`. A branch that tells a story commit by commit
+arrives as a single entry, so:
+
+- **Do not mix two unrelated changes in one pull request.** Under merge commits that was untidy;
+  under squash it is unfixable, because the two cannot be reverted or bisected apart afterwards.
+- Put the reasoning in the **pull request body and the commit message**, not in the shape of the
+  branch — the branch's shape does not survive.
 
 ### 3c. Dependabot
 
-- [ ] **Settings → Code security → Dependabot alerts.** State unknown, for the reason at the
-      top of this section. Turn it on if it is off, and record the answer either way.
+- [x] **Settings → Code security → Dependabot alerts.** Checked and set 15 August 2026.
 
 ### 3d. What is *not* here, and why
 

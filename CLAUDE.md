@@ -135,6 +135,14 @@ normal within a month.
 
 **Every change by pull request.** Both volunteers review.
 
+**One change per pull request, and since 15 August 2026 that is mechanical rather than
+tidiness.** The repository is **squash-only**, so every commit in a branch collapses into one
+on `main`. Two unrelated things in one pull request become one commit that cannot be reverted
+or bisected apart afterwards, and a careful commit-by-commit branch arrives as a single entry —
+so **the reasoning belongs in the pull request body and the commit message, not in the shape of
+the branch.** Settings and the full trade are in
+[the GitHub runbook](docs/delivery/runbooks/github-setup.md#3b-merge-behaviour--squash-only).
+
 **Documentation ships with the change it describes**, not afterwards. If you change
 behaviour that a README or ADR describes, change it in the same commit. A document that is
 wrong is worse than one that is missing, because it is trusted.
