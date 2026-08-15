@@ -14,7 +14,9 @@ import { fetchPing } from './ping';
  * that must never look like a build in progress: **the page somebody pays on.**
  *
  * The check was never the problem; its audience was. Both applications now answer it at
- * `/health` and `/timing/health`, where the smoke test reads it and a runner never does.
+ * `/_health` and `/timing/health`, where the smoke test reads it and a runner never does.
+ * (The two spellings differ for framework reasons that are load-bearing on both sides — see
+ * `apps/main/README.md`, "Why the two names differ".)
  *
  * ## One function, so two apps cannot drift
  *

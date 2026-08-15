@@ -404,7 +404,7 @@ const dateLine = race.date
        *
        * Every one of those round trips is still made, still by this Worker, still in the real
        * runtime, and the smoke test still fails the deploy if either breaks. They are answered
-       * at `/health` now, as JSON. **The check was never the problem; its audience was** — this
+       * at `/_health` now, as JSON. **The check was never the problem; its audience was** — this
        * page's reader is a runner deciding whether the club can be trusted with a card number,
        * and a page that reports its own plumbing reads as a page that is not finished.
        *

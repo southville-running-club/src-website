@@ -220,7 +220,7 @@ describe('a page that is reporting a failed submission', () => {
     // whether the Worker can reach Postgres. That argument is right about the *need* and wrong
     // about the *audience*: the person reading this page is a runner whose form did not save,
     // and a database timestamp beside the apology helps them not at all. It is the maintainer
-    // who wants it, and the maintainer has `/health`, which answers whatever this page says.
+    // who wants it, and the maintainer has `/_health`, which answers whatever this page says.
     //
     // What the person gets instead is the notice — "nothing has been recorded, and nothing you
     // typed has been lost" — which is the sentence that was always doing the work.

@@ -53,7 +53,7 @@ import {
  *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
  *   4. **Paint the recorded payment state onto `/nn/entry/complete/`**, server-side, by
  *      rewriting the served HTML.
- *   5. **Answer `GET /health`** with the two database round trips, as JSON.
+ *   5. **Answer `GET /_health`** with the two database round trips, as JSON.
  *   6. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
  *      every five minutes. See `scheduled()` at the foot of this file.
  *
@@ -253,7 +253,7 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 /**
- * `GET /health` — the two database round trips, as JSON, for `scripts/smoke.mjs`.
+ * `GET /_health` — the two database round trips, as JSON, for `scripts/smoke.mjs`.
  *
  * **The audience is a monitor, and that is the whole design.** These same two calls used to
  * be rewritten into a `<dl>` on `/nn/` under the heading "What this page proves", where the
