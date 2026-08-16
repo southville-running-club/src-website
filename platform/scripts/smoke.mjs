@@ -84,8 +84,9 @@ const CHECKS = [
       if (response.status !== 200) return `expected 200, got ${response.status}`;
       const body = await response.text();
       // The banner's own words, so this stays true as the holding page's copy changes and
-      // fails loudly if the layout ever stops wrapping the root.
-      if (!body.includes("Welcome to Southville Running Club's new website"))
+      // fails loudly if the layout ever stops wrapping the root. HTML-escaped apostrophe,
+      // because that is what the rendered page actually contains.
+      if (!body.includes('Welcome to Southville Running Club&#39;s new website'))
         return 'the root is not the holding page';
       return null;
     },
@@ -193,13 +194,18 @@ async function runCheck(spec) {
  */
 async function runUntilPass(spec) {
   const started = Date.now();
+  let attempt = 0;
   for (;;) {
     const failure = await runCheck(spec);
     if (!failure) return null;
 
+    attempt += 1;
     const elapsed = Date.now() - started;
     if (elapsed > DEADLINE_MS) return failure;
 
+    console.log(
+      `..    ${spec.name} not ready after ${Math.round(elapsed / 1000)}s (attempt ${attempt}) — retrying`,
+    );
     await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
   }
 }
