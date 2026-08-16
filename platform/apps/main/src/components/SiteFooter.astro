@@ -1,0 +1,27 @@
+---
+// The one footer, rendered on every page from `Base.astro`.
+//
+// Just the club's social profiles for now — the old site carried these as a row of icon
+// links reachable from every page, and that is the one piece of it this rebuild replaces
+// so far. Everything else on the old footer (membership links, documents, newsletters) is
+// still on `southvillerunningclub.co.uk`; see `SITE_BANNER` for the link back there.
+const SOCIAL_LINKS = [
+  { name: 'Instagram', href: 'https://www.instagram.com/southvillerunningclub/' },
+  { name: 'Facebook', href: 'https://www.facebook.com/groups/22333122208' },
+  { name: 'Twitter', href: 'https://twitter.com/SouthvilleRC' },
+  { name: 'TikTok', href: 'https://www.tiktok.com/@southvillerunningclub' },
+] as const;
+---
+
+<footer class="site-footer">
+  <p class="site-footer-heading">Follow the club</p>
+  <ul class="site-footer-social">
+    {
+      SOCIAL_LINKS.map((link) => (
+        <li>
+          <a href={link.href}>{link.name}</a>
+        </li>
+      ))
+    }
+  </ul>
+</footer>
