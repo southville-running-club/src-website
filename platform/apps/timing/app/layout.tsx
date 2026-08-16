@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   // Still `noindex`: the page is honest now, but it is a holding page, and there is no reason
   // for it to be the club's first search result for its own race timing.
   robots: { index: false, follow: false },
+  // The old site (southvillerunningclub.co.uk, still Squarespace) sets no theme-color meta
+  // tag at all, so there is nothing there to match. This is the club's own brand green from
+  // tokens.css's `--src-green`, applied the same way apps/main now does.
+  themeColor: '#00c85a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

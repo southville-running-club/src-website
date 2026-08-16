@@ -67,9 +67,7 @@ test.describe('the banner that says which site this is', () => {
 
       // Named as a destination. "Click here" would pass every automated check and tell a
       // screen-reader user nothing.
-      const link = banner.getByRole('link', {
-        name: 'For everything else, please see the old site',
-      });
+      const link = banner.getByRole('link', { name: 'the old site' });
       await expect(link).toHaveAttribute('href', 'https://southvillerunningclub.co.uk');
       await expect(link).toBeVisible();
     });
@@ -115,9 +113,10 @@ test.describe('the banner that says which site this is', () => {
 
     const banner = page.locator('.site-banner');
     await expect(banner).toContainText('We just have Nightingale Nightmare for now');
-    await expect(
-      banner.getByRole('link', { name: 'For everything else, please see the old site' }),
-    ).toHaveAttribute('href', 'https://southvillerunningclub.co.uk');
+    await expect(banner.getByRole('link', { name: 'the old site' })).toHaveAttribute(
+      'href',
+      'https://southvillerunningclub.co.uk',
+    );
   });
 });
 

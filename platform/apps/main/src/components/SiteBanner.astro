@@ -34,15 +34,18 @@ import { SITE_BANNER } from '@src/shared/brand';
 
     <p>
       {
-        /* Three parts, each its own element rather than one sentence with tags inside it.
-          Astro compresses the newline between a tag and the text after it to *nothing*, so
-          the mixed form silently renders as "…soon.For everything else…". These are flex
-          items and the gap does the spacing, which is also what lets each part drop onto its
-          own line on a phone. */
+        /* `welcome` and `scope` are two elements so the gap between them can drop onto its
+          own line on a phone. `scope`, the link and `scopeEnd` are written wall to wall on
+          one line with no JSX whitespace between them — Astro compresses the newline between
+          a tag and the text after it to *nothing*, so any line break here would silently
+          swallow the space before "the old site" or the full stop after it. */
       }
       <strong>{SITE_BANNER.welcome}</strong>
-      <span>{SITE_BANNER.scope}</span>
-      <a href={SITE_BANNER.clubWebsite}>{SITE_BANNER.clubWebsiteLabel}</a>
+      <span
+        >{SITE_BANNER.scope}<a href={SITE_BANNER.clubWebsite}
+          >{SITE_BANNER.scopeLinkLabel}</a
+        >{SITE_BANNER.scopeEnd}</span
+      >
     </p>
   </div>
 </div>

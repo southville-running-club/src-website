@@ -1,34 +1,16 @@
-<!-- The browser-tab icon: the club's initials, "SRC", rather than the full wordmark.
+<!-- The browser-tab icon: the club's own "SRC" monogram artwork, supplied directly as
+     logo_src.pdf on 16 August 2026 — real vector source, not a hand trace of a rendered
+     image. Extracted path-for-path (see packages/shared/src/brand.ts's CLUB_LOGO, which is
+     the same geometry, and docs/foundations/brand.md for the history of the placeholder
+     this replaces: a false claim that a traced monogram already existed, when the file
+     that had shipped was actually the full "SOUTHVILLE RUNNING CLUB" wordmark shrunk into
+     a 100x100 box).
 
-     **This replaces a favicon that was the full "SOUTHVILLE RUNNING CLUB" wordmark shrunk
-     into a 100x100 box.** At a 16-32px tab size that rendered as an illegible smear of fine
-     print rather than a mark — the two-line wordmark was traced at a size meant for a
-     banner, not a tab icon, and shrinking it doesn't make it a monogram. `docs/foundations/
-     brand.md` claimed a separately-traced "SRC" monogram was already in use here; the file
-     that actually shipped never was one. This corrects that.
-
-     **Set in type, not traced from an asset**, because no source artwork for a club "SRC"
-     monogram exists anywhere in this repository or its downloaded brand assets
-     (SRC_GREEN.png, logo_src.svg) — inventing a geometric mark and presenting it as the
-     club's would be exactly the kind of unconfirmed brand fact this repository's principles
-     say not to guess at. Three bold letters in Inter, the repository's own vendored
-     typeface, is a legible, honest placeholder rather than a fabricated logotype; if the
-     club has (or commissions) real "SRC" mark artwork, that should replace this file
-     directly.
-
-     Colour is `#00c85a`, the race-timing app's brand green adopted 16 August 2026 (see
-     `docs/foundations/race-timing-brand-guidelines.md`), baked in because a static favicon
+     Colour is #00c85a, the race-timing app's brand green adopted 16 August 2026 (see
+     docs/foundations/race-timing-brand-guidelines.md), baked in because a static favicon
      cannot read a CSS custom property. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Southville Running Club">
-  <text
-    x="50"
-    y="50"
-    fill="#00c85a"
-    font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-    font-weight="700"
-    font-size="42"
-    letter-spacing="-1"
-    text-anchor="middle"
-    dominant-baseline="central"
-  >SRC</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 412.236 215.679" role="img" aria-label="Southville Running Club">
+  <path fill="#00c85a" fill-rule="nonzero" d="M21.667 205.14 C19.412 203.209 17.337 201.06 15.444 198.693 C5.148 185.823 0 166.023 0 139.293 L49.896 139.293 C49.896 145.233 49.945 149.44 50.044 151.915 C50.144 154.39 50.44 157.41 50.936 160.974 C51.431 164.538 52.173 166.963 53.163 168.25 C54.153 169.537 55.539 170.775 57.321 171.963 C59.103 173.151 61.38 173.844 64.152 174.042 C72.468 174.042 76.626 168.597 76.626 157.707 C76.626 152.361 75.735 148.104 73.953 144.936 C72.171 141.768 69.993 139.293 67.419 137.511 C62.073 133.947 56.628 130.482 51.084 127.116 C39.996 120.384 31.482 114.444 25.542 109.296 C11.088 97.218 3.861 80.586 3.861 59.4 C3.861 39.798 9.257 24.997 20.048 14.998 C30.838 4.999 45.936 0 65.34 0 C86.13 0 101.574 5.692 111.672 17.077 C121.77 28.462 126.819 45.837 126.819 69.201 L76.923 69.201 C76.923 59.697 76.032 53.163 74.25 49.599 C72.468 46.035 69.102 44.253 64.152 44.253 C56.628 44.253 52.866 48.411 52.866 56.727 C52.866 62.073 54.648 66.528 58.212 70.092 C61.776 73.656 68.607 78.309 78.705 84.051 L87.318 89.397 C96.228 94.941 103.257 99.99 108.405 104.544 C120.483 115.236 126.522 130.878 126.522 151.47 C126.522 164.245 124.434 175.274 120.258 184.559 C98.597 185.049 74.864 188.538 48.225 196.712 C39.188 199.485 30.344 202.294 21.667 205.14 Z" />
+  <path fill="#00c85a" fill-rule="nonzero" d="M143.748 185.183 L143.748 4.752 L203.742 4.752 C248.292 4.752 270.567 24.948 270.567 65.34 C270.567 92.664 261.657 111.177 243.837 120.879 L278.289 212.652 L264.697 212.652 C250.773 209.663 236.938 205.604 222.695 201.502 L201.366 140.778 L192.456 140.778 L192.456 193.279 C177.176 189.544 161.113 186.489 143.748 185.183 Z M221.859 72.171 C221.859 58.113 215.622 51.084 203.148 51.084 L192.456 51.084 L192.456 94.743 L200.178 94.743 C207.108 94.743 212.454 92.763 216.216 88.803 C219.978 84.843 221.859 79.299 221.859 72.171 Z" />
+  <path fill="#00c85a" fill-rule="nonzero" d="M328.023 215.679 C319.689 213.555 312.714 209.972 307.098 204.93 C297.99 196.416 291.753 184.734 288.387 169.884 C285.021 155.034 283.338 134.739 283.338 108.999 C283.338 83.655 284.922 63.657 288.09 49.005 C295.218 16.335 315.909 0 350.163 0 C372.339 0 388.179 6.385 397.683 19.156 C407.187 31.927 411.939 52.074 411.939 79.596 L362.637 79.596 C362.637 67.32 361.746 58.558 359.964 53.311 C358.182 48.064 354.42 45.441 348.678 45.441 C341.55 46.233 337.046 50.143 335.164 57.172 C333.284 64.201 332.343 78.507 332.343 100.089 C332.343 120.483 332.64 135.432 333.234 144.936 C333.828 154.638 335.164 161.568 337.243 165.726 C339.322 169.884 342.738 171.963 347.49 171.963 C353.826 171.963 357.934 168.795 359.816 162.459 C361.696 156.123 362.637 145.53 362.637 130.68 L412.236 130.68 C412.236 154.048 409.121 172.608 402.893 186.359 L401.651 186.968 C397.776 188.887 393.929 190.859 390.117 192.899 C387.591 194.25 385.09 195.646 382.555 196.98 C379.273 198.706 375.948 200.352 372.581 201.905 C363.85 205.934 354.824 209.341 345.553 211.907 C339.896 213.473 334.155 214.711 328.357 215.628 L328.023 215.679 Z" />
 </svg>

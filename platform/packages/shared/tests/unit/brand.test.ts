@@ -192,7 +192,6 @@ describe('the wordmark', () => {
     expect(logoSvg).toContain(`viewBox="${CLUB_LOGO.viewBox}"`);
     for (const path of CLUB_LOGO.paths) {
       expect(logoSvg, 'a path in brand.ts is not in logo.svg').toContain(path.d);
-      expect(logoSvg).toContain(path.transform);
     }
     // Both paths and no more — an extra one in the file would be artwork the apps never draw.
     expect(logoSvg.match(/<path\b/g)).toHaveLength(CLUB_LOGO.paths.length);
@@ -208,9 +207,11 @@ describe('the wordmark', () => {
   });
 
   it('is the club’s own artwork, at the club’s own dimensions', () => {
-    // The official PNG on southvillerunningclub.co.uk is 876x267. This trace matching it
-    // exactly is the evidence that it *is* the club's wordmark rather than a lookalike.
-    expect(CLUB_LOGO.viewBox).toBe('0 0 876 267');
+    // Replaced 16 August 2026: this is `logo_src.pdf`'s own page size, extracted directly
+    // from the vector source the club supplied rather than measured off a rendered image —
+    // see the comment above `CLUB_LOGO` in brand.ts for the full history.
+    expect(CLUB_LOGO.viewBox).toBe('0 0 412.236 215.679');
+    expect(CLUB_LOGO.paths).toHaveLength(3);
     expect(CLUB_LOGO.title).toBe('Southville Running Club');
   });
 });
@@ -223,6 +224,6 @@ describe('the site banner copy', () => {
     expect(SITE_BANNER.welcome).toContain('Southville Running Club');
     expect(SITE_BANNER.scope).toContain('Nightingale Nightmare');
     // The link text has to say where it goes when read out of a link list on its own.
-    expect(SITE_BANNER.clubWebsiteLabel.toLowerCase()).toContain('old site');
+    expect(SITE_BANNER.scopeLinkLabel.toLowerCase()).toContain('old site');
   });
 });

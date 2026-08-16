@@ -53,19 +53,21 @@ a runner.
   than a colour sampled off a rendered page. It replaces `#209D50`, which this document
   carried as a provisional stand-in; see "What changed" below for why that value existed
   and what it was superseded by.
-- **Corrected, 16 August 2026: there never was a traced "SRC" monogram.** This bullet
-  previously claimed one, traced from `logo_src.svg`. What actually shipped at
-  `apps/main/public/favicon.svg` was the full two-line wordmark's geometry — the same
-  `CLUB_LOGO` paths as the banner — scaled into a 100x100 box, which reads as an illegible
-  smear at a 16-32px tab size rather than a monogram. No source artwork for a distinct
-  "SRC" mark exists anywhere in this repository or its downloaded assets. The favicon is
-  now three letters set in Inter, filled with the current brand green — legible and
-  honestly not-traced, rather than a claim this document can't back up. If the club has or
-  commissions real "SRC" mark artwork, that should replace the file directly.
-- **The wordmark's geometry.** `apps/main/public/logo.svg`'s viewBox is `0 0 876 267`,
-  matching the club's own PNG pixel for pixel
-  (`blacktransparantlogo-removebg-preview.png`, linked from `southvillerunningclub.co.uk`'s
-  `og:image`). The trace is exact; nothing about the letterforms was invented.
+- **Corrected once, then genuinely confirmed, both on 16 August 2026.** This bullet
+  originally claimed a traced "SRC" monogram existed when the file that had actually
+  shipped at `apps/main/public/favicon.svg` was the full two-line wordmark's geometry
+  scaled into a 100x100 box — illegible at tab size, not a monogram. That was corrected to
+  three letters set in Inter, honestly not-traced. **Superseded again the same day**: the
+  club supplied `logo_src.pdf`, real vector artwork for an "SRC" monogram. Both the
+  wordmark and the favicon now use it — see the next bullet.
+- **The wordmark's geometry, replaced.** `apps/main/public/logo.svg`'s viewBox is now
+  `0 0 412.236 215.679`, `logo_src.pdf`'s own page size, and its three paths — S, R, C —
+  are extracted directly from that PDF's vector drawing operators, not hand-traced from a
+  rendered image. This replaces the previous two-line "SOUTHVILLE RUNNING CLUB" lockup
+  (which had matched `blacktransparantlogo-removebg-preview.png`, the club's PNG,
+  pixel for pixel) as the mark rendered everywhere: the site banner, the masthead, and now
+  a legible favicon at `apps/main/public/favicon.svg`, all from the same
+  [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts) geometry.
 - **Inter and JetBrains Mono as the typefaces.** Both are already vendored at
   `apps/main/public/fonts` with their OFL licences, having arrived for Nightingale
   Nightmare. `bindalshah/src-race-timing`'s `design-tokens.json` independently names the
@@ -98,15 +100,14 @@ theme's rendering of the club's colour is not the same fact as the club's own as
 
 Three things fall out of the measurement, each a decision rather than a detail:
 
-**The wordmark itself still carries no colour of its own.** The club's mark on the live
-site reads as green because a black wordmark (`blacktransparantlogo-removebg-preview.png`)
-sits on a green header — that PNG has no colour information beyond its own black ink. This
-repository's `logo.svg` is filled with `currentColor` for the same reason: one piece of
-artwork, coloured by whichever stylesheet is in charge, rather than a black file and a
-hand-made green variant that can drift apart. See
+**The wordmark itself still carries no colour of its own.** This repository's `logo.svg`
+(inline in `apps/main/src/components/ClubLogo.astro`, `apps/timing/app/club-logo.tsx`) is
+filled with `currentColor`: one piece of artwork, coloured by whichever stylesheet is in
+charge, rather than a black file and a hand-made green variant that can drift apart. See
 [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts). The
-favicon's "SRC" initials are a separate case — that artwork *is* the confirmed green, baked
-in, because a static `.svg` served as a browser-tab icon cannot read a CSS custom property.
+standalone `apps/main/public/logo.svg` and the favicon are the exception, and for the same
+reason as each other now: both are static files that cannot read a CSS custom property, so
+both bake in the confirmed brand green directly.
 
 **`#4C9B58` cannot be a text colour.** On the page background it measures **3.36:1** —
 above the 3:1 floor for large text and non-text UI, below the 4.5:1 body-text floor. Black
@@ -182,12 +183,16 @@ a blank. Recorded here rather than in code, per
 
 - [x] **Is `#4C9B58` the club's official green?** — confirmed 16 August 2026, from the
       club's own downloaded `SRC_GREEN.png` and `logo_src.svg`. Superseded `#209D50`, which
-      was read off a Squarespace theme's rendering rather than an asset.
+      was read off a Squarespace theme's rendering rather than an asset. **`#4C9B58` itself
+      was then superseded the same day** by `#00C85A`, the race-timing app's brand green —
+      see the note at the top of this document and
+      [`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md). This row is kept
+      to record that the club's own asset colour genuinely was confirmed at the time; it is
+      not what `--src-green` currently is.
 - [x] **Does an official green wordmark exist?** — not the full lockup, which is still a
       black PNG (see above).
-- [ ] **Does an official "SRC" monogram exist?** — no source artwork for one has turned up
-      in this repository or its downloaded assets. The favicon is currently three letters
-      set in Inter rather than a traced mark; see the favicon bullet above.
+- [x] **Does an official "SRC" monogram exist?** — confirmed 16 August 2026: `logo_src.pdf`,
+      real vector artwork, supplied directly. Both the wordmark and the favicon now use it.
 - [ ] **A secondary and neutral palette**, if the club has one beyond the single green.
 - [ ] **The typeface** — licence Halyard, or accept Inter as the substitute.
 - [ ] **What the brand should look like in dark mode.** The live club site has none; this
