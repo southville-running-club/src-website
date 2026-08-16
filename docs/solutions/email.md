@@ -11,6 +11,10 @@ recurring cost and because getting the split wrong is expensive.
 Baseline facts are in [current state](../foundations/current-state.md#dns-and-email); the
 capability is [C8](../foundations/requirements.md#c8--send-email-as-the-club).
 
+**This document costs the options. For what the club actually has today** — every address,
+which mailbox it lands in, and which one a page is allowed to print — see
+[email addressing](../architecture/investigations/email-addressing.md).
+
 ---
 
 ## Two problems, and one purchase will not solve both

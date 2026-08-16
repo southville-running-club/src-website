@@ -5,6 +5,10 @@ mail an entry form or sign-up sends back to a member. Not a decision by itself �
 in the detail that document left open once the five Fasthosts role addresses were chosen,
 and it should be read alongside it, not instead of it.
 
+The addresses themselves — the five mailboxes, the aliases onto them, and which one each
+`/nn` page prints — are in
+[email addressing](../architecture/investigations/email-addressing.md).
+
 ---
 
 ## Current status: backlogged, `info@` used directly in the meantime

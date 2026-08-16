@@ -107,6 +107,16 @@ a {
   color: var(--colour-accent);
 }
 
+/* An email address is one unbreakable token, and the club's is 47 characters — long enough
+ * to push a 320px page 35px wide on its own. That is a horizontal scrollbar on every
+ * Nightingale Nightmare page at once, because the address is in the footer of all of them.
+ * `anywhere` rather than `break-word` so the break counts when the browser is measuring
+ * min-content, which is what a narrow flex or grid item asks for. Found by the "operable at
+ * 320px" tests when `race.contact` moved off Gmail onto the club domain. */
+a[href^='mailto:'] {
+  overflow-wrap: anywhere;
+}
+
 /* A visible focus ring, on everything, always. */
 :focus-visible {
   outline: 3px solid var(--colour-accent);

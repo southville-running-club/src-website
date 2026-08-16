@@ -35,6 +35,7 @@ to a requirement or a decision is just somebody's preference that survived.
 | [Deployment](investigations/deployment.md) | **Settled** — Workers throughout, since the nameservers moved on 8 Aug 2026 |
 | [Local development](investigations/local-development.md) | **Settled** — [ADR-003](decisions/adr-003-local-development-and-pipeline.md), [ADR-004](decisions/adr-004-no-staging-environment.md) |
 | [Infrastructure as code](investigations/infrastructure-as-code.md) | **Settled** — [ADR-005](decisions/adr-005-manual-with-a-reviewable-artefact.md). Counts the work, and concludes no tool earns its keep yet |
+| [Email addressing](investigations/email-addressing.md) | **The as-is.** Every club address, where mail to it lands, and which one a page may print. Nightingale Nightmare's Gmail address is gone |
 
 ### Decided
 
