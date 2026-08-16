@@ -7,6 +7,7 @@ import {
 } from '@src/shared';
 import {
   isHealthPath,
+  isNnAdminPath,
   isNnEntryCompletePath,
   isNnMastheadPath,
   isNnRacePath,
@@ -17,6 +18,7 @@ import {
   nnYearPathForEventSlug,
   NN_PREFIX,
 } from './routing';
+import { handleNnAdmin } from './nn-admin';
 import { handleStripeWebhook } from './stripe-webhook';
 import { renderNnEntryComplete, resolveNnEntryCompleteView } from './nn-entry-complete';
 import {
@@ -45,7 +47,9 @@ import {
 /**
  * The club's main Worker — the website, and Nightingale Nightmare under `/nn`.
  *
- * Four jobs:
+ * Six jobs. **The numbering was wrong here** — two fours and two fives, from a merge that
+ * added the webhook and the return page in the same paragraph — and this slice needed to add a
+ * seventh line to a list that could not be counted, so it is corrected rather than extended:
  *
  *   1. **Stand in for Cloudflare's router locally.** In production `/timing/*` is
  *      dispatched to the timing Worker at the edge and never arrives here. On a laptop
@@ -59,18 +63,21 @@ import {
  *   3. **Take Stripe's confirmation.** A POST to `/nn/stripe-webhook`, also before the assets
  *      binding, and **the only thing in this platform that records a payment**. It is not a
  *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
- *   4. **Fill in the health timestamp and the pipeline-check marker**, server-side, by
- *      rewriting the served HTML — paint which running is on onto `/nn/`, which form applies
- *      onto `/nn/<year>/`, and the recorded payment state onto `/nn/<year>/entry/complete/`,
- *      all the same way.
- *   5. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
- *   4. **Paint the recorded payment state onto `/nn/entry/complete/`**, server-side, by
- *      rewriting the served HTML.
- *   5. **Answer `GET /_health`** with the two database round trips, as JSON.
- *   6. **Sweep lapsed holds and shout about anything needing a human**, on a Cron Trigger
- *      every five minutes. See `scheduled()` at the foot of this file.
+ *   4. **Serve `/nn/admin`, when there is a key to serve it with.** The entries, the interest
+ *      list, one medical note at a time and three exports — the only pages on this site the
+ *      Worker *builds* rather than paints, because a list of entries is a variable number of
+ *      rows and there is deliberately no html-mode rewriting anywhere here. With no
+ *      `ENTRIES_ADMIN_KEY` bound it declines and the request 404s like any other unknown
+ *      address. See `nn-admin.ts` and ADR-013.
+ *   5. **Paint what only the database knows onto the pages that ship without it**, by
+ *      rewriting the served HTML — which running is on, onto `/nn/`; which form applies, onto
+ *      `/nn/<year>/`; and the recorded payment state, onto `/nn/<year>/entry/complete/`.
+ *   6. **Answer `GET /_health`** with the two database round trips, as JSON.
+ *   7. **Sweep lapsed holds, shout about anything needing a human, and delete the medical
+ *      notes the club has promised to delete**, on a Cron Trigger every five minutes. See
+ *      `scheduled()` at the foot of this file.
  *
- * The fifth is the skeleton's original reason for existing, moved. Doing those round trips
+ * The sixth is the skeleton's original reason for existing, moved. Doing those round trips
  * in the Worker rather than in the browser proves the **Worker itself** can reach Supabase,
  * in the real runtime, over the real network, and `intake.ping()` proves it a second time
  * for a migration added *after* the first deploy. What changed is only who reads the answer:
@@ -130,6 +137,16 @@ interface Env {
    * database holds only this key's SHA-256 digest. The full argument is in the migration.
    */
   ENTRIES_WEBHOOK_KEY?: string;
+  /**
+   * **A third Worker secret, and its absence is what makes `/nn/admin` not exist.**
+   *
+   * The admin surface is the first read path in this platform that returns real people. Every
+   * database function behind it requires this key, and every route under `/nn/admin` is declined
+   * without it — declined rather than refused, so the request falls through to the assets
+   * binding and 404s exactly as an address nobody has published does. **That is the deployed
+   * state today.** See ADR-013 and `worker/nn-admin.ts`.
+   */
+  ENTRIES_ADMIN_KEY?: string;
 }
 
 export default {
@@ -151,6 +168,22 @@ export default {
     // would otherwise turn payment confirmations into form submissions, silently.
     if (request.method === 'POST' && isNnWebhookPath(url.pathname)) {
       return handleStripeWebhook(request, env);
+    }
+
+    // **The admin surface, and it answers `null` when it is not switched on.** Nothing under
+    // `/nn/admin` exists in `dist/`, so declining here means the request continues to the assets
+    // binding and gets the ordinary 404 — which is what makes an admin surface whose key nobody
+    // has installed indistinguishable from one that was never built. See `nn-admin.ts`.
+    //
+    // Matched before the year path and before the assets binding, like the webhook, and for the
+    // same two reasons: some of these are POSTs, which the binding will not answer, and the
+    // pages are built here rather than served from a file.
+    if (isNnAdminPath(url.pathname)) {
+      const admin = await handleNnAdmin(request, env, url);
+
+      if (admin !== null) {
+        return admin;
+      }
     }
 
     // **Both forms post to the running they belong to**, and the hidden `form` field is what
@@ -241,8 +274,15 @@ export default {
   },
 
   /**
-   * Every five minutes: move lapsed holds to `expired`, and **shout about anything a person
-   * has to deal with**.
+   * Every five minutes: move lapsed holds to `expired`, **shout about anything a person has to
+   * deal with**, and **delete the medical notes the club has published a promise to delete**.
+   *
+   * ## Three jobs on one schedule, and none of them may stop another
+   *
+   * They share a Cron Trigger because a second schedule is a second thing to configure, to get
+   * wrong, and to not notice has stopped. They share nothing else, and the code below is
+   * written so that a failure in one still leaves the others having run — the retention sweep
+   * in particular, because it is the one with a legal obligation behind it.
    *
    * ## The sweep is housekeeping, and the difference matters
    *
@@ -276,7 +316,16 @@ export default {
    * nothing at all — 288 "expired 0" lines a day is a free-tier observability allowance spent
    * on nothing. `console.warn` rather than the casual one, which the lint rule bans outright.
    */
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+  // **The third parameter is declared and unused, and it is not decoration.** Two of the
+  // Miniflare tests already call this handler the way the runtime does — controller, env,
+  // context — and with a two-parameter signature that is a type error nobody saw, because
+  // nothing typechecked this file. It is the documented shape of a scheduled handler, and
+  // `ctx.waitUntil` is the thing a future job here would need.
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    _ctx: ExecutionContext,
+  ): Promise<void> {
     const client = createAnonClient({
       url: env.PUBLIC_SUPABASE_URL,
       anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
@@ -286,21 +335,20 @@ export default {
 
     if (!result.ok) {
       console.error(`entries.expire_pending_holds failed — ${result.error}`);
-      return;
-    }
+    } else {
+      if (result.expired > 0) {
+        console.warn(`entries.expire_pending_holds released ${result.expired} hold(s)`);
+      }
 
-    if (result.expired > 0) {
-      console.warn(`entries.expire_pending_holds released ${result.expired} hold(s)`);
-    }
-
-    // **`console.error`, and it says what to do.** A log line nobody knows how to act on is a
-    // log line that gets scrolled past; the runbook is named in the message because that is
-    // the only place the name will be when somebody needs it.
-    if (result.attention > 0) {
-      console.error(
-        `entries: ${result.attention} purchase(s) need a human, oldest ${result.attentionOldestHours}h. ` +
-          'Somebody may have paid and have no place. See docs/delivery/runbooks/entries-attention.md',
-      );
+      // **`console.error`, and it says what to do.** A log line nobody knows how to act on is
+      // a log line that gets scrolled past; the runbook is named in the message because that
+      // is the only place the name will be when somebody needs it.
+      if (result.attention > 0) {
+        console.error(
+          `entries: ${result.attention} purchase(s) need a human, oldest ${result.attentionOldestHours}h. ` +
+            'Somebody may have paid and have no place. See docs/delivery/runbooks/entries-attention.md',
+        );
+      }
     }
   },
 } satisfies ExportedHandler<Env>;

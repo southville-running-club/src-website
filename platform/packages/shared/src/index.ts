@@ -35,6 +35,7 @@ export {
 
 export {
   AGE_CATEGORY_CODES,
+  ageCategoryFor,
   ageCategoryLabel,
   ageOn,
   compareCivilDates,
@@ -88,6 +89,34 @@ export {
   type EntryCompletionState,
   type RecordCheckoutOutcome,
 } from './entry-confirmation';
+
+export {
+  ENTRY_STATUSES,
+  EXPORT_KINDS,
+  adminSignIn,
+  fetchAdminEntryList,
+  fetchAdminExport,
+  fetchAdminInterestList,
+  fetchAdminMedicalNote,
+  isExportKind,
+  type AdminEntry,
+  type AdminEntryEvent,
+  type AdminEntryList,
+  type AdminExport,
+  type AdminExportEvent,
+  type AdminFailure,
+  type AdminInterest,
+  type AdminInterestList,
+  type AdminMedicalNote,
+  type AdminResult,
+  type EaExportRow,
+  type EntryStatus,
+  type ExportKind,
+  type MedicalExportRow,
+  type StartListExportRow,
+} from './admin';
+
+export { BOM, csvDocument, csvField, csvRow } from './csv';
 
 export {
   EA_NUMBER_PATTERN,

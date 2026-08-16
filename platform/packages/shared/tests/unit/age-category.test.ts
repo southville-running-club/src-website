@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ageCategoryFor,
   ageOn,
   compareCivilDates,
   daysInMonth,
@@ -180,6 +181,58 @@ describe('the two gaps, which are the club’s and are not filled by guessing', 
       known: false,
       reason: 'younger-than-any-category',
       age: 17,
+    });
+  });
+});
+
+describe('ageCategoryFor — the same answer, from an age that has already been worked out', () => {
+  // **This exists so a date of birth does not have to travel to reach a category.** The admin
+  // list gets an age computed in Postgres — by the identical expression
+  // `entries.create_pending_purchase()` enforces the minimum age with — and names the band
+  // here, so a date of birth never leaves the database.
+
+  it('agrees with deriveAgeCategory at every band boundary', () => {
+    // The assertion that keeps the two from becoming two rules. `deriveAgeCategory` delegates
+    // to this, and if a future edit ever un-delegated it, these are the pairs that would
+    // disagree first.
+    const raceDay = { year: 2026, month: 11, day: 1 };
+
+    for (const age of [17, 18, 39, 40, 49, 50, 59, 60, 61]) {
+      for (const gender of ['female', 'male', 'non_binary'] as const) {
+        const birthday = { year: 2026 - age, month: 11, day: 1 };
+
+        expect(ageCategoryFor(age, gender), `age ${age}, ${gender}`).toEqual(
+          deriveAgeCategory(birthday, gender, raceDay),
+        );
+      }
+    }
+  });
+
+  it('names the four bands', () => {
+    expect(ageCategoryFor(18, 'female')).toMatchObject({
+      code: 'senior',
+      label: 'Senior',
+    });
+    expect(ageCategoryFor(40, 'male')).toMatchObject({ code: 'vet40', label: 'Vet 40' });
+    expect(ageCategoryFor(50, 'female')).toMatchObject({
+      code: 'vet50',
+      label: 'Vet 50',
+    });
+    expect(ageCategoryFor(60, 'male')).toMatchObject({ code: 'vet60', label: 'Vet 60' });
+  });
+
+  it('keeps the club’s two unfinished decisions apart', () => {
+    // A non-binary runner has no category at any age, which is not the same fact as being too
+    // young for one — and saying the wrong one of those two would be worse than saying nothing.
+    expect(ageCategoryFor(12, 'non_binary')).toEqual({
+      known: false,
+      reason: 'gender-has-no-categories',
+      age: 12,
+    });
+    expect(ageCategoryFor(12, 'female')).toEqual({
+      known: false,
+      reason: 'younger-than-any-category',
+      age: 12,
     });
   });
 });
