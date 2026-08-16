@@ -32,7 +32,12 @@
     "build:worker": "npm run build:worker --workspaces --if-present",
     "dev:all": "concurrently --kill-others --names main,timing --prefix-colors green,cyan \"npm run dev:worker\" \"npm run dev:timing\"",
     "smoke": "node scripts/smoke.mjs",
-    "stripe:stub": "node scripts/stripe-stub.mjs"
+    "stripe:stub": "node scripts/stripe-stub.mjs",
+    "prepare": "cd .. && node platform/node_modules/husky/bin.js .husky || true"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,astro}": "eslint --fix",
+    "*.{js,jsx,ts,tsx,astro,json,md,css,yml,yaml}": "prettier --write"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -43,6 +48,8 @@
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-astro": "^3.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
     "prettier": "^3.9.6",
     "prettier-plugin-astro": "^0.14.1",
     "supabase": "^2.113.0",
