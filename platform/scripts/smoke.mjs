@@ -84,8 +84,9 @@ const CHECKS = [
       if (response.status !== 200) return `expected 200, got ${response.status}`;
       const body = await response.text();
       // The banner's own words, so this stays true as the holding page's copy changes and
-      // fails loudly if the layout ever stops wrapping the root.
-      if (!body.includes("Welcome to Southville Running Club's new website"))
+      // fails loudly if the layout ever stops wrapping the root. HTML-escaped apostrophe,
+      // because that is what the rendered page actually contains.
+      if (!body.includes('Welcome to Southville Running Club&#39;s new website'))
         return 'the root is not the holding page';
       return null;
     },
@@ -185,45 +186,53 @@ async function runCheck(spec) {
   }
 }
 
-const started = Date.now();
-const failures = new Map(CHECKS.map((spec) => [spec.name, 'not yet run']));
+/**
+ * Retries one check on its own clock until it passes or its deadline runs out, rather than
+ * every check waiting on the slowest one before anything is reported. A deploy that only
+ * breaks one path — the timing Worker, say — no longer hides behind seven passing checks
+ * that keep re-running with it.
+ */
+async function runUntilPass(spec) {
+  const started = Date.now();
+  let attempt = 0;
+  for (;;) {
+    const failure = await runCheck(spec);
+    if (!failure) return null;
+
+    attempt += 1;
+    const elapsed = Date.now() - started;
+    if (elapsed > DEADLINE_MS) return failure;
+
+    console.log(
+      `..    ${spec.name} not ready after ${Math.round(elapsed / 1000)}s (attempt ${attempt}) — retrying`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+  }
+}
 
 console.log(`Smoke testing ${LOCAL ? 'the local stack' : 'the live platform'}`);
 console.log(`  ${SITE}\n`);
 
-// Retry the whole set until it is clean or the deadline passes. Retrying everything rather
-// than only the failures keeps the final report a true snapshot of one moment.
-for (;;) {
-  for (const spec of CHECKS) {
-    const failure = await runCheck(spec);
-    if (failure) failures.set(spec.name, failure);
-    else failures.delete(spec.name);
-  }
+// Each check retries independently and reports the moment it settles — pass or timeout —
+// so a slow check doesn't delay the report for the ones that already passed.
+const results = await Promise.all(
+  CHECKS.map(async (spec) => {
+    const failure = await runUntilPass(spec);
+    if (failure) {
+      console.error(`FAIL  ${spec.name}`);
+      console.error(`      ${failure}`);
+      console.error(`      this proves: ${spec.proves}`);
+    } else {
+      console.log(`ok    ${spec.name}`);
+    }
+    return { spec, failure };
+  }),
+);
 
-  if (failures.size === 0) break;
+const failed = results.filter((r) => r.failure);
 
-  const elapsed = Date.now() - started;
-  if (elapsed > DEADLINE_MS) break;
-
-  console.log(
-    `${failures.size} of ${CHECKS.length} not ready after ${Math.round(elapsed / 1000)}s — retrying`,
-  );
-  await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
-}
-
-for (const spec of CHECKS) {
-  const failure = failures.get(spec.name);
-  if (failure) {
-    console.error(`FAIL  ${spec.name}`);
-    console.error(`      ${failure}`);
-    console.error(`      this proves: ${spec.proves}`);
-  } else {
-    console.log(`ok    ${spec.name}`);
-  }
-}
-
-if (failures.size > 0) {
-  console.error(`\n${failures.size} of ${CHECKS.length} checks failed.`);
+if (failed.length > 0) {
+  console.error(`\n${failed.length} of ${CHECKS.length} checks failed.`);
   console.error('If the Workers have not been created yet, this is expected —');
   console.error('see platform/apps/main/README.md for the Cloudflare setup.');
   process.exit(1);
