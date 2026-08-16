@@ -3,19 +3,19 @@
   "$description": "Southville Running Club brand tokens. A MIRROR of styles/tokens.css, which is canonical and is what ships; tests/brand.test.ts fails if the two disagree. This file exists so the palette can be diffed against bindalshah/src-race-timing's design-tokens.json, which uses this same format, and imported into Figma (Tokens Studio) without anybody retyping a hex code.",
   "color": {
     "green": {
-      "value": "#209D50",
+      "value": "#4C9B58",
       "type": "color",
-      "$description": "The brand green, read off the live club site's header band on 16 August 2026. AWAITING COMMITTEE CONFIRMATION. Surfaces and the logo only: 3.44:1 on the light page, below the 4.5:1 body-text floor. WCAG sets no contrast floor for a logotype, which is what lets the wordmark be this exact value."
+      "$description": "The brand green, from the club's own downloaded assets (SRC_GREEN.png, logo_src.svg), confirmed 16 August 2026. Replaces #209D50, a provisional stand-in read off the live site's header band before a green logo asset was known to exist. Surfaces and the logo only: 3.36:1 on the light page, below the 4.5:1 body-text floor. WCAG sets no contrast floor for a logotype, which is what lets the wordmark be this exact value."
     },
     "greenText": {
-      "value": "#11552C",
+      "value": "#29532F",
       "type": "color",
-      "$description": "The brand green at a lightness that can be read. Hue and saturation held. 8.74:1 on the light page, 7.99:1 on the banner band, 8.90:1 for white on it."
+      "$description": "The brand green at a lightness that can be read. Hue and saturation held. 8.69:1 on the light page, 7.94:1 on the banner band, 8.85:1 for white on it."
     },
     "greenTextDark": {
-      "value": "#47DA80",
+      "value": "#98CDA0",
       "type": "color",
-      "$description": "The same, for the dark scheme. 9.97:1 on the dark page, 8.19:1 on the dark banner band."
+      "$description": "The same, for the dark scheme. 9.93:1 on the dark page, 8.16:1 on the dark banner band."
     },
     "ink": {
       "value": "#1A1A1A",
