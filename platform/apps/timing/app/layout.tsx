@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
-// The same stylesheet apps/main uses, imported rather than copied. See packages/shared.
+// The same stylesheet apps/main uses, imported rather than copied. See packages/shared. It
+// pulls in `tokens.css`, which is where the club's brand actually lives — so this app is on
+// the club's palette by importing one file, and stays on it without a second edit here.
 import '@src/shared/styles/base.css';
+import { SiteBanner } from './site-banner';
 
 export const metadata: Metadata = {
   // **A browser tab is consumer-facing too.** This said "Race timing — deployment skeleton",
@@ -20,6 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip-link" href="#main">
           Skip to content
         </a>
+        {/* Above `<main>`, like it is on the club's side, so "Skip to content" keeps meaning
+            what it says rather than skipping to something that is already behind it. */}
+        <SiteBanner />
         <main id="main">{children}</main>
       </body>
     </html>

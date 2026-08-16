@@ -5,35 +5,58 @@
  * smallest payload for somebody on poor mobile signal, which is most of the people who
  * will load this. 70% of visitors are on a phone.
  *
- * Contrast ratios below are real rather than assumed: the text pair is 13.9:1 and the
- * muted pair 5.9:1 against the page background, both clear of WCAG 2.2 AA.
+ * ## Two layers, and which one to reach for
+ *
+ * `tokens.css` holds the club's brand **primitives** — the colours the club *is*, named
+ * after what they are. This file maps them onto **semantic** names, and pages use only
+ * those. So a page asks for `--colour-accent` and never for `--src-green`, and the decision
+ * about which green an accent should be stays in these two files rather than spreading.
+ *
+ * The mapping is also what made the brand safe to land: every semantic name below already
+ * existed and every consumer of them is untouched.
+ *
+ * Contrast ratios in comments are computed rather than estimated, and
+ * `packages/shared/tests/brand.test.ts` recomputes all of them and fails on drift.
  */
 
+@import './tokens.css';
+
 :root {
-  --colour-background: #fdfdfc;
-  --colour-text: #1a1a1a;
-  --colour-muted: #58585d;
-  --colour-accent: #16543f;
-  --colour-rule: #d8d8d4;
+  --colour-background: var(--src-paper);
+  --colour-text: var(--src-ink);
+  --colour-muted: var(--src-slate);
+  /* The brand green, dark enough to be read: 8.74:1 here. This used to be `#16543f`, an
+     invented green at 8.69:1 — so the club's own colour arrived at no cost in contrast. */
+  --colour-accent: var(--src-green-text);
+  --colour-rule: var(--src-rule);
 
   /* The banner band, and **its own text and link colours rather than the page's**.
      `body.theme-nn` restates `--colour-text` and `--colour-accent` in campaign colours —
      both become bone, `#fff6ec` — so a banner drawn with them would be 1.04:1 on this
      band and invisible on all five Nightingale Nightmare pages. The theme does not touch
      these three, so the bar looks the same everywhere, which is what a statement about the
-     whole site should do. Measured: 15.62:1 and 7.94:1. */
-  --colour-banner: #eef4f1;
-  --colour-banner-text: #1a1a1a;
-  --colour-banner-link: #16543f;
+     whole site should do. Measured: 15.62:1 and 7.99:1. */
+  --colour-banner: var(--src-band);
+  --colour-banner-text: var(--src-ink);
+  --colour-banner-link: var(--src-green-text);
 
-  /* 7.3:1 against the page background. Used for error text and error rules only, and
+  /* **The one place the undiluted brand green is allowed**, and the logo is why.
+     `--src-green` is 3.14:1 on this band — fine for the wordmark, because WCAG puts no
+     contrast requirement on a logotype, and wrong for anything anybody has to read. It is
+     deliberately not `--colour-accent`: nothing but the mark may use it. */
+  --colour-banner-mark: var(--src-green);
+
+  /* 7.28:1 against the page background. Used for error text and error rules only, and
      never as the sole carrier of the meaning — see the form section at the foot. */
-  --colour-error: #a4231a;
-  /* What sits on top of an accent-filled button. 8.9:1 against --colour-accent. */
+  --colour-error: var(--src-error);
+  /* What sits on top of an accent-filled button. 8.90:1 against --colour-accent. */
   --colour-on-accent: #ffffff;
 
-  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: var(--src-font-body);
+  --font-mono: var(--src-font-mono);
+
+  --radius-button: var(--src-radius-button);
+  --radius-card: var(--src-radius-card);
 
   --space: 1rem;
   --measure: 38rem;
@@ -41,21 +64,31 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --colour-background: #16161a;
+    --colour-background: var(--src-paper-dark);
     --colour-text: #f2f2f0;
-    --colour-muted: #a9a9b0;
-    --colour-accent: #6fd3a8;
-    --colour-rule: #33333a;
-    /* Measured: 13.22:1 for the text, 8.15:1 for the link. */
-    --colour-banner: #1f2a26;
+    --colour-muted: var(--src-slate-dark);
+    /* 9.97:1, against the 9.93:1 of the invented green this replaces. */
+    --colour-accent: var(--src-green-text-dark);
+    --colour-rule: var(--src-rule-dark);
+    /* Measured: 13.22:1 for the text, 8.19:1 for the link. */
+    --colour-banner: var(--src-band-dark);
     --colour-banner-text: #f2f2f0;
-    --colour-banner-link: #6fd3a8;
+    --colour-banner-link: var(--src-green-text-dark);
 
-    /* 10.6:1 against the dark page background. A red dark enough to read on paper is
+    /* **The mark takes the dark scheme's own green, and this one is a judgement rather than
+       a threshold.** The brand green is legible on the dark band — 4.23:1, comfortably above
+       the 3:1 that non-text needs and exempt anyway as a logotype — so this is not a rescue.
+       It is that `--src-green-text-dark` is already what every link in the dark scheme is,
+       at 8.19:1 here, and a wordmark a shade duller than the text beside it reads as a badly
+       converted asset rather than as a decision. Light scheme keeps the true brand colour;
+       dark scheme is a rendering of it, and says so. */
+    --colour-banner-mark: var(--src-green-text-dark);
+
+    /* 10.63:1 against the dark page background. A red dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */
-    --colour-error: #ffb4ab;
-    /* 9.9:1 against the dark scheme's lighter accent. */
-    --colour-on-accent: #16161a;
+    --colour-error: var(--src-error-dark);
+    /* 9.97:1 against the dark scheme's lighter accent. */
+    --colour-on-accent: var(--src-paper-dark);
   }
 }
 
@@ -148,20 +181,71 @@ a[href^='mailto:'] {
 .site-banner {
   background: var(--colour-banner);
   color: var(--colour-banner-text);
-  /* Its own rule colour too: `--colour-rule` is translucent bone under the event theme,
-     which on this pale band is a border nobody can see. */
-  border-bottom: 1px solid #d8d8d4;
+  /* `--src-rule`, the primitive, rather than `--colour-rule`, the semantic name.
+     `nn-theme.css` overrides the latter to translucent bone, which on this pale band is a
+     border nobody can see — the primitive is never touched by any theme, which is what
+     keeps the bar's own border constant regardless of which page it sits above. */
+  border-bottom: 1px solid var(--src-rule);
 }
 
-.site-banner > p {
+/* The row inside the bar: the club's wordmark, then the sentence. The bar itself runs edge
+   to edge; this is what lines its contents up with the page's text. */
+.site-banner-inner {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem 0.75rem;
+  align-items: center;
+  gap: 0.5rem var(--space);
   /* Aligned with `main`, and padded the same, so the two edges agree. */
   max-width: calc(var(--measure) + var(--space) * 2);
   margin: 0 auto;
   padding: calc(var(--space) * 0.75) var(--space);
+}
+
+/*
+ * The club's wordmark, in the club's green.
+ *
+ * **`color`, not `fill`.** The mark is inline `<svg>` whose paths are `fill="currentColor"`,
+ * so one piece of artwork is the club's green here and bone on the Nightingale Nightmare
+ * hero, decided by whichever stylesheet is in charge rather than by shipping two files that
+ * drift. It is why `logo.svg` carries no colour of its own.
+ *
+ * `--colour-banner-mark` rather than `--colour-accent`: the undiluted brand green is 3.14:1
+ * on this band, which is legitimate for a logotype — WCAG exempts them — and wrong for
+ * anything a person has to read. Keeping it on its own name is what stops it leaking into
+ * text.
+ */
+.site-banner-mark {
+  display: flex;
+  color: var(--colour-banner-mark);
+}
+
+.site-logo {
+  display: block;
+  width: 132px;
+  /* The artwork is 876x267, so the box is fixed here and the height follows. Stated on the
+     element too, so the row does not reflow between the HTML arriving and the CSS landing. */
+  height: auto;
+}
+
+/*
+ * **The Nightingale Nightmare pages carry the wordmark in their own masthead**, and two
+ * elements with the accessible name "Southville Running Club" — pointing at two different
+ * addresses — is the exact redundancy `NnMasthead.astro` removed from the hero. So the bar
+ * keeps its sentence there and drops its mark. Exactly one copy on every page, whichever
+ * theme it is wearing.
+ */
+.theme-nn .site-banner-mark {
+  display: none;
+}
+
+.site-banner-inner > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  /* Takes the rest of the row beside the mark, and drops below it at 320px. */
+  flex: 1 1 18rem;
+  margin: 0;
   font-size: 0.9375rem;
   line-height: 1.4;
 }
@@ -169,21 +253,30 @@ a[href^='mailto:'] {
 /*
  * At 320px the link drops below the sentence rather than pushing the page sideways.
  *
- * **`> p > a` rather than the plain descendant, and the extra two elements are the point.**
- * `nn-theme.css` carries `.theme-nn a { color: var(--nn-bone) }`, which is (0,1,1) — exactly
- * what `.site-banner a` would be. A tie is broken by source order, the theme is imported
- * after this file, and the bar's link came out bone-on-bone at **1.04:1** on all five
- * Nightingale Nightmare pages. This selector is (0,1,2) and wins outright rather than by
- * luck. Whichever stylesheet loads first must not decide whether a link is readable.
+ * **The class on the ancestor is the point, not the tag names.** `nn-theme.css` carries
+ * `.theme-nn a { color: var(--nn-bone) }`, which is (0,1,1) — exactly what `.site-banner a`
+ * would be. A tie is broken by source order, the theme is imported after this file, and the
+ * bar's link came out bone-on-bone at **1.04:1** on all five Nightingale Nightmare pages.
+ * This selector is (0,2,2) and wins outright rather than by luck. Whichever stylesheet loads
+ * first must not decide whether a link is readable.
+ *
+ * It was `.site-banner > p > a` at (0,1,2) before the wordmark moved the paragraph inside
+ * `.site-banner-inner`. Still a class-and-two-elements deep, still clear of the theme.
  */
-.site-banner > p > a {
+.site-banner-inner > p > a {
   color: var(--colour-banner-link);
   font-weight: 600;
 }
 
 /* The focus ring, for the same reason and with the same specificity: the event theme's ring
    is the campaign yellow, which on this pale band is a ring nobody can see. */
-.site-banner > p > a:focus-visible {
+.site-banner-inner > p > a:focus-visible {
+  outline-color: var(--colour-banner-link);
+}
+
+/* The mark's ring too — same reason, and it needs its own rule because it is not inside the
+   paragraph. */
+.site-banner-mark:focus-visible {
   outline-color: var(--colour-banner-link);
 }
 

@@ -1,0 +1,59 @@
+---
+// The club's wordmark, as inline `<svg>`.
+//
+// **Inline rather than `<img src="/logo.svg">`, and `currentColor` is the whole reason.** An
+// SVG referenced by `<img>` is a separate document: `currentColor` inside it resolves against
+// nothing and falls back to black, so an `<img>` can only ever be the colour it was saved as.
+// That is what forced the old file to be `fill:#fff` — a white-only wordmark, usable on the
+// Nightingale Nightmare hero and nowhere else, which is why `/` and `/timing` had no logo at
+// all.
+//
+// Inline, the paths inherit from CSS, and one piece of artwork is club green on the site
+// banner, bone on the campaign hero, and whatever a future page needs. See
+// `.site-banner-mark` in `base.css`.
+//
+// The geometry comes from `@src/shared/brand` rather than living here, because `apps/timing`
+// is Next and needs the same mark from the same numbers —
+// `apps/timing/app/club-logo.tsx` is this file's opposite number, twelve lines of JSX around
+// the identical import.
+import { CLUB_LOGO } from '@src/shared/brand';
+
+interface Props {
+  /** Rendered width in CSS pixels. The height follows from the artwork's 876:267. */
+  width?: number;
+  /** Class on the `<svg>` itself, so a theme can size and colour it. */
+  class?: string;
+  /**
+   * Whether the mark carries its own accessible name.
+   *
+   * `false` where an ancestor already names it — a link whose text says the club's name, for
+   * instance — so a screen reader does not read "Southville Running Club" twice in a row.
+   */
+  labelled?: boolean;
+}
+
+const { width = 176, class: className, labelled = true } = Astro.props;
+
+const [, , vbWidth, vbHeight] = CLUB_LOGO.viewBox.split(' ').map(Number);
+const height = Math.round((width * vbHeight) / vbWidth);
+---
+
+<svg
+  class={className}
+  viewBox={CLUB_LOGO.viewBox}
+  width={width}
+  height={height}
+  role={labelled ? 'img' : undefined}
+  aria-label={labelled ? CLUB_LOGO.title : undefined}
+  aria-hidden={labelled ? undefined : 'true'}
+  focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  {
+    /* `fill="currentColor"` on every path, and no `fill` anywhere else. The `fill-rule` is
+      carried over from the trace — without it the counters in the letters fill in. */
+    CLUB_LOGO.paths.map((p) => (
+      <path d={p.d} transform={p.transform} fill="currentColor" fill-rule="nonzero" />
+    ))
+  }
+</svg>
