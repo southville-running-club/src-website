@@ -40,11 +40,16 @@ const anon = createClient(LOCAL_API, ANON_KEY, {
 });
 
 /** Every table in the schema. The refusal tests walk this list rather than naming
- *  three of seven, so an eighth table cannot arrive without a decision about its grants.
+ *  three of nine, so a tenth table cannot arrive without a decision about its grants.
  *
- *  **`webhook_secrets` is the one that would hurt most.** It holds the SHA-256 digest of the
- *  key that lets the webhook write `paid`. If its refusals ever start failing, that digest is
- *  readable with a key that is published in page source. */
+ *  **`webhook_secrets` and `admin_keys` are the two that would hurt most.** The first holds the
+ *  digest of the key that lets the webhook write `paid` and the digest of the key that opens
+ *  the admin surface; the second holds one digest per person who may read that surface. If
+ *  their refusals ever start failing, those digests are readable with a key that is published
+ *  in page source.
+ *
+ *  **`admin_audit` is the third.** It is the record of who read a medical note, and a table
+ *  anybody can write to is an audit trail anybody can forge. */
 const TABLES = [
   'events',
   'fees',
@@ -53,11 +58,13 @@ const TABLES = [
   'entrants',
   'entrant_medical',
   'webhook_secrets',
+  'admin_keys',
+  'admin_audit',
 ] as const;
 
 /**
  * One column each table really has, for the update and delete refusals below. `entrant_medical`
- * is keyed on `entrant_id` rather than `id`, and only three of the seven carry `active`.
+ * is keyed on `entrant_id` rather than `id`, and only three of the nine carry `active`.
  */
 const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   events: 'active',
@@ -67,6 +74,8 @@ const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   entrants: 'created_at',
   entrant_medical: 'created_at',
   webhook_secrets: 'updated_at',
+  admin_keys: 'issued_at',
+  admin_audit: 'at',
 };
 
 /** Fabricated events, used to exercise the window states without touching the real row. */
@@ -239,23 +248,46 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.proname)).toEqual([
+      'admin_entrant_medical',
+      'admin_entry_list',
+      'admin_export',
+      'admin_interest_list',
+      'admin_key_ok',
+      'admin_sign_in',
       'attach_checkout_session',
       'create_pending_purchase',
       'current_entry_state',
+      'delete_expired_medical_notes',
       'entry_completion_state',
       'entry_state',
       'expire_pending_holds',
       'raise_attention',
+      'record_admin_action',
       'record_checkout_event',
     ]);
   });
 
-  it('lets anon execute exactly seven of the eight, and never PUBLIC', async () => {
-    // **This list went from six to seven when `current_entry_state()` was added, and that is
-    // the change this test exists to force.** It returns exactly what `entry_state()` already
-    // returns, for an event the caller could have named itself — so it discloses nothing new;
-    // what it adds is that `/nn/` no longer has to *know* which running is current, which is
-    // the thing that would otherwise be written into markup as a year.
+  it('lets anon execute exactly thirteen of the sixteen, and never PUBLIC', async () => {
+    // **This list went from six to seven when `current_entry_state()` was added, and from seven
+    // to thirteen when the admin surface did.** That is the change this test exists to force,
+    // and this is the largest it will ever have been asked to force at once — so the argument
+    // for each of the six belongs here rather than only in the migration:
+    //
+    //   * **Five of them require the admin key** and check it before they read anything.
+    //     `anon` is the grant because it is the only role a Worker can reach Postgres as —
+    //     ADR-010 settled that and ADR-013 extends it — and the key, not the role, is the
+    //     control. `packages/db/tests/entries-admin.test.ts` asserts every one of the five
+    //     refuses a wrong key, a null key, and an uninstalled digest.
+    //
+    //   * **`delete_expired_medical_notes` takes no key, and that is deliberate.** It can only
+    //     delete what `/nn/privacy/` has published a promise to delete, it takes no arguments
+    //     and returns a count, and gating it behind the admin key would make a legal retention
+    //     obligation stop being kept on any day that key was not installed. It is
+    //     `expire_pending_holds`'s argument exactly.
+    //
+    // The two that are **not** on this list are the ones that would each be a hole on their
+    // own: `admin_key_ok` is an oracle for the key, and `record_admin_action` is a way to forge
+    // an audit trail. Both are granted to nobody, like `raise_attention`.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -264,9 +296,15 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.routine_name)).toEqual([
+      'admin_entrant_medical',
+      'admin_entry_list',
+      'admin_export',
+      'admin_interest_list',
+      'admin_sign_in',
       'attach_checkout_session',
       'create_pending_purchase',
       'current_entry_state',
+      'delete_expired_medical_notes',
       'entry_completion_state',
       'entry_state',
       'expire_pending_holds',
@@ -281,14 +319,22 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets nobody at all execute raise_attention', async () => {
-    // **The one that is granted to no role.** It writes the flag that says a human must
-    // look at a purchase, and it is reachable only from `record_checkout_event`, which runs as
-    // this schema's owner because it is `security definer`. A grant here would let anybody
-    // holding the published anon key clear or forge an alarm.
+  it('lets nobody at all execute the three internal helpers', async () => {
+    // **The three granted to no role**, and each would be a hole on its own:
+    //
+    //   `raise_attention`     writes the flag that says a human must look at a purchase. A
+    //                         grant would let anybody clear or forge an alarm.
+    //   `admin_key_ok`        answers whether a string is the admin key. That single bit is
+    //                         the whole of the admin surface's security.
+    //   `record_admin_action` writes the audit trail. A grant would make it forgeable, which
+    //                         is worse than not having one.
+    //
+    // All three are reachable only from the definer functions that call them, which run as this
+    // schema's owner.
     const granted = await query(
       `select grantee from information_schema.routine_privileges
-        where routine_schema = 'entries' and routine_name = 'raise_attention'
+        where routine_schema = 'entries'
+          and routine_name in ('raise_attention', 'admin_key_ok', 'record_admin_action')
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );
 
@@ -350,13 +396,23 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(volatility).toEqual({
+      // The two admin reads that write an audit row are volatile because of the write, and
+      // the two lists are stable because rendering a list is deliberately not audited.
+      admin_entrant_medical: 'v',
+      admin_entry_list: 's',
+      admin_export: 'v',
+      admin_interest_list: 's',
+      admin_key_ok: 's',
+      admin_sign_in: 'v',
       attach_checkout_session: 'v',
       create_pending_purchase: 'v',
       current_entry_state: 's',
+      delete_expired_medical_notes: 'v',
       entry_completion_state: 's',
       entry_state: 's',
       expire_pending_holds: 'v',
       raise_attention: 'v',
+      record_admin_action: 'v',
       record_checkout_event: 'v',
     });
   });
@@ -822,7 +878,23 @@ describe('the discount codes table', () => {
     );
     expect(found).toHaveLength(1);
 
-    await query("delete from entries.discount_codes where code = 'LHGRC10'");
+    // **The cleanup was the half that stayed unscoped, and it was the more dangerous half.**
+    // The `select` above was narrowed to `nn-2026` when this file's own assertion started
+    // failing about one run in three; this `delete` was left matching **every** `LHGRC10` in
+    // the table — including the one `entries-capacity.test.ts` seeds against its own fabricated
+    // event, moments before it redeems it.
+    //
+    // A test reading somebody else's row fails its own assertion. A test **deleting** somebody
+    // else's row fails *theirs*, in another file, with `invalid_discount` — which reads as a
+    // bug in `create_pending_purchase` rather than as tidy-up in a file nobody was looking at.
+    // It surfaced when two more files joined this project and changed the interleaving.
+    //
+    // Scope every fixture query to its own event, cleanup included.
+    await query(
+      `delete from entries.discount_codes
+        where code = 'LHGRC10'
+          and event_id = (select id from entries.events where slug = 'nn-2026')`,
+    );
   });
 });
 

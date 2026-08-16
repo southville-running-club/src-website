@@ -44,6 +44,19 @@ export default [
             'Use formatLondon() from @src/shared. A bare toLocale*String takes the ambient timezone, which is the bug — see docs/architecture/principles.md',
         },
       ],
+
+      // A leading underscore means "this parameter exists because the signature says so".
+      //
+      // The default `after-used` already tolerated `_controller` — an unused parameter before
+      // a used one is not reported — so the convention was in the code and not in this file,
+      // and it broke the first time a *trailing* one appeared: `scheduled(controller, env,
+      // ctx)` is the runtime's shape and this Worker uses none of the third. Declaring the
+      // parameter is what makes the handler's type honest, and the name is what says it is
+      // unused on purpose rather than by accident.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'all' },
+      ],
     },
   },
   {

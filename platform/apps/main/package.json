@@ -8,10 +8,11 @@
     "dev": "astro dev",
     "dev:worker": "npm run preview",
     "build": "astro build",
-    "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789",
+    "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789 --var ENTRIES_ADMIN_KEY:local-development-only-not-a-real-key",
     "deploy": "wrangler deploy",
-    "typecheck": "astro check",
-    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.worker.entries-open.config.ts && vitest run --config vitest.worker.sold-out.config.ts && vitest run --config vitest.worker.webhook.config.ts"
+    "typecheck": "astro check && npm run typecheck:worker",
+    "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
+    "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.worker.entries-open.config.ts && vitest run --config vitest.worker.sold-out.config.ts && vitest run --config vitest.worker.webhook.config.ts && vitest run --config vitest.worker.admin.config.ts"
   },
   "dependencies": {
     "@src/db": "*",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@cloudflare/vitest-pool-workers": "^0.20.3",
+    "@cloudflare/workers-types": "^5.20260816.1",
     "@types/pg": "^8.21.0",
     "pg": "^8.23.0",
     "wrangler": "^4.120.0"
