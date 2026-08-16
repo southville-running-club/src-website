@@ -45,7 +45,10 @@
   /* **The one place the undiluted brand green is allowed**, and the logo is why.
      `--src-green` is 2.04:1 on this band — under even the 3:1 non-text floor, which WCAG
      still permits because a logotype is exempt from any contrast requirement. It is
-     deliberately not `--colour-accent`: nothing but the mark may use it. */
+     deliberately not `--colour-accent`: nothing but the mark may use it.
+
+     **Not overridden in dark mode**, on purpose: see the note beside the media query
+     below. The true bright green is the mark's colour in both schemes. */
   --colour-banner-mark: var(--src-green);
 
   /* 7.04:1 against the page background, derived from the guideline's `color.danger`
@@ -86,14 +89,14 @@
     --colour-banner-text: #f2f2f0;
     --colour-banner-link: var(--src-green-text-dark);
 
-    /* **The mark takes the dark scheme's link colour, and this is coherence rather than a
-       rescue.** Both clear the 3:1 non-text floor easily on the dark band — the raw brand
-       green is 7.54:1 there and `--src-green-text-dark` is 6.53:1, so neither needs the
-       other's help. It is that `--src-green-text-dark` is already what every link in the
-       dark scheme is, and a wordmark a different green from the text beside it reads as a
-       mismatch rather than a decision. Light scheme keeps the true brand colour; dark
-       scheme is a rendering of it, and says so. */
-    --colour-banner-mark: var(--src-green-text-dark);
+    /* **`--colour-banner-mark` is deliberately not redefined here.** A logotype is exempt
+       from WCAG's contrast rules (1.4.3), and the standard practice that exemption exists
+       for is to keep a brand mark's colour constant across themes rather than derive a
+       theme-specific tint of it — the mark is a fixed asset, not body copy. It also isn't a
+       trade here: the raw `--src-green` measures 7.54:1 on the dark band, which is *higher*
+       than the derived link green it replaces (6.53:1), so the true bright SRC green reads
+       better in dark mode than the muted variant ever did. Falls through from `:root`
+       above, where `--colour-banner-mark: var(--src-green)` is the only definition. */
 
     /* 7.02:1 against the dark page background. A red dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */

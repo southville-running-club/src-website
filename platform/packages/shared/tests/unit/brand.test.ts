@@ -168,18 +168,22 @@ describe('contrast', () => {
     ).toBeGreaterThanOrEqual(7);
   });
 
-  it('gives the wordmark the dark scheme’s own link colour, not because it has to', () => {
-    // Worth pinning precisely because it is *not* forced. Both the raw brand green and its
-    // derived link colour clear the 3:1 non-text floor comfortably on the dark band — the
-    // raw green is actually the higher of the two here — so keeping the mark on
-    // `--src-green-text-dark` is a decision about matching the links beside it, not a
-    // legibility rescue. Asserting both numbers keeps the reasoning in `base.css` honest.
+  it('keeps the wordmark the one true brand green in both schemes', () => {
+    // A logotype is exempt from WCAG's contrast rules (1.4.3) — the raw green is 2.04:1 on
+    // the light band, under even the 3:1 non-text floor, which is only legal because of
+    // that exemption. `--colour-banner-mark` is defined once in `base.css`, under `:root`,
+    // and not redefined by the dark media query — this pins that it does not need to be:
+    // on the dark band the same raw green clears 3:1 outright, and does so *better*
+    // (7.54:1) than the derived link green it used to fall back to there (6.53:1).
     expect(
       contrastRatio(tokens.color.green.value, tokens.color.bandDark.value),
     ).toBeGreaterThanOrEqual(3);
     expect(
+      contrastRatio(tokens.color.green.value, tokens.color.bandDark.value),
+    ).toBeGreaterThan(
       contrastRatio(tokens.color.greenTextDark.value, tokens.color.bandDark.value),
-    ).toBeGreaterThanOrEqual(3);
+    );
+    expect(baseCss).not.toMatch(/--colour-banner-mark:\s*var\(--src-green-text-dark\)/);
   });
 });
 

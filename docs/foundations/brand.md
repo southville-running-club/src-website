@@ -53,10 +53,15 @@ a runner.
   than a colour sampled off a rendered page. It replaces `#209D50`, which this document
   carried as a provisional stand-in; see "What changed" below for why that value existed
   and what it was superseded by.
-- **The "SRC" monogram, as the favicon.** Traced from `logo_src.svg`, one of the same
-  downloaded assets, and served at `apps/main/public/favicon.svg`, filled with the
-  confirmed `--src-green`. Distinct artwork from the full wordmark below — a mark for a
-  32px browser tab rather than a lockup for a banner.
+- **Corrected, 16 August 2026: there never was a traced "SRC" monogram.** This bullet
+  previously claimed one, traced from `logo_src.svg`. What actually shipped at
+  `apps/main/public/favicon.svg` was the full two-line wordmark's geometry — the same
+  `CLUB_LOGO` paths as the banner — scaled into a 100x100 box, which reads as an illegible
+  smear at a 16-32px tab size rather than a monogram. No source artwork for a distinct
+  "SRC" mark exists anywhere in this repository or its downloaded assets. The favicon is
+  now three letters set in Inter, filled with the current brand green — legible and
+  honestly not-traced, rather than a claim this document can't back up. If the club has or
+  commissions real "SRC" mark artwork, that should replace the file directly.
 - **The wordmark's geometry.** `apps/main/public/logo.svg`'s viewBox is `0 0 876 267`,
   matching the club's own PNG pixel for pixel
   (`blacktransparantlogo-removebg-preview.png`, linked from `southvillerunningclub.co.uk`'s
@@ -100,7 +105,7 @@ repository's `logo.svg` is filled with `currentColor` for the same reason: one p
 artwork, coloured by whichever stylesheet is in charge, rather than a black file and a
 hand-made green variant that can drift apart. See
 [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts). The
-favicon's "SRC" monogram is a separate case — that artwork *is* the confirmed green, baked
+favicon's "SRC" initials are a separate case — that artwork *is* the confirmed green, baked
 in, because a static `.svg` served as a browser-tab icon cannot read a CSS custom property.
 
 **`#4C9B58` cannot be a text colour.** On the page background it measures **3.36:1** —
@@ -179,7 +184,10 @@ a blank. Recorded here rather than in code, per
       club's own downloaded `SRC_GREEN.png` and `logo_src.svg`. Superseded `#209D50`, which
       was read off a Squarespace theme's rendering rather than an asset.
 - [x] **Does an official green wordmark exist?** — not the full lockup, which is still a
-      black PNG (see above), but the "SRC" monogram does, and is now the favicon.
+      black PNG (see above).
+- [ ] **Does an official "SRC" monogram exist?** — no source artwork for one has turned up
+      in this repository or its downloaded assets. The favicon is currently three letters
+      set in Inter rather than a traced mark; see the favicon bullet above.
 - [ ] **A secondary and neutral palette**, if the club has one beyond the single green.
 - [ ] **The typeface** — licence Halyard, or accept Inter as the substitute.
 - [ ] **What the brand should look like in dark mode.** The live club site has none; this
