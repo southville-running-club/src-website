@@ -22,6 +22,12 @@
 #
 # Everything is idempotent. Running `up` twice is fine; so is `down` when nothing is up.
 #
+# **`test` and `check` write their whole transcript to `.dev/test.log`** and, on a failure,
+# end by naming every test that failed. Neither runner does that on its own: both print the
+# list and then keep printing — detail blocks, stack traces — so the end of a failing run is
+# the end of *one* failure rather than a summary of all of them. Read the tail of a hundred
+# failures and it looks like one. `.dev/` is gitignored; the file is the last run only.
+#
 # **`up`, `test` and `check` all mean the same thing by "the database": the schema this
 # checkout's migrations describe.** They did not until recently — `up` and `check` started the
 # stack and trusted whatever was on the volume, which `supabase start` only migrates when it
@@ -33,6 +39,17 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM="$REPO_ROOT/platform"
 RUN_DIR="$REPO_ROOT/.dev"
+
+# The whole transcript of the last `test` or `check`, kept so a failure can be *read* rather
+# than reconstructed from whatever happened to still be on screen. `.dev/` is gitignored, so
+# this never reaches a commit.
+#
+# **It exists because a tail is the one part of a failing run guaranteed not to explain it.**
+# Both runners print their list of failures and then keep going — Playwright follows it with
+# per-failure detail blocks, vitest with stack traces — so the last hundred lines of a run
+# with a hundred failures are the *end of one stack trace*. A run that failed 118 tests was
+# read from its tail as a handful, and the fix was in neither the tail nor the summary.
+TEST_LOG="$RUN_DIR/test.log"
 
 MAIN_PORT=8787
 TIMING_PORT=8788
@@ -67,6 +84,76 @@ die() {
   printf '\n%serror%s %s\n\n' "$RED" "$RESET" "$1" >&2
   [ "$STARTING_WORKERS" -eq 1 ] && stop_workers >/dev/null 2>&1
   exit 1
+}
+
+# ---------------------------------------------------------------------------------------
+# Running a suite, and saying afterwards what failed
+# ---------------------------------------------------------------------------------------
+
+# Start a fresh transcript. Called once per `test` or `check`, so the file is always the
+# last run rather than every run this laptop has ever done.
+begin_test_log() {
+  : >"$TEST_LOG"
+  printf 'The last ./dev %s, in full. Regenerated on every run; .dev/ is gitignored.\n' \
+    "$1" >>"$TEST_LOG"
+}
+
+# Run a suite, live on screen and in full to the transcript.
+#
+# `tee` rather than a plain redirect, because a test run nobody can watch is a test run
+# everybody assumes has hung — which is its own afternoon. `pipefail` is set at the top of
+# this file, so the pipeline's status is the runner's and not `tee`'s (which always
+# succeeds); without it every suite would appear to pass.
+run_suite() {
+  local label="$1"; shift
+  printf '\n===== %s =====\n' "$label" >>"$TEST_LOG"
+  (cd "$PLATFORM" && "$@") 2>&1 | tee -a "$TEST_LOG"
+}
+
+# Every failing test named in the transcript, once each.
+#
+# Two shapes, because there are two runners:
+#
+#   Playwright  `[chromium] › apps/main/tests/e2e/site.spec.ts:134:5 › describe › test`
+#   vitest      `FAIL  packages/shared/tests/unit/brand.test.ts > describe > test`
+#
+# Playwright prints each failure twice — numbered above its detail block, bare in the closing
+# summary — so the leading `N)` is stripped before `sort -u` collapses the pair. `|| true`
+# because `grep`/`sort` finding nothing is a zero-failure run, not an error, and `set -e`
+# would otherwise take the empty result as one.
+failing_tests() {
+  [ -f "$TEST_LOG" ] || return 0
+  sed -n \
+    -e 's/^[[:space:]]*[0-9]*)[[:space:]]*\(\[[a-z0-9_-]*\] › .*\)$/\1/p' \
+    -e 's/^[[:space:]]*\(\[[a-z0-9_-]*\] › .*\)$/\1/p' \
+    -e 's/^[[:space:]]*FAIL[[:space:]]\{1,\}\(.*[>›].*\)$/\1/p' \
+    "$TEST_LOG" 2>/dev/null \
+    | sed -e 's/[[:space:]]*$//' -e '/^$/d' \
+    | sort -u || true
+}
+
+# The last thing on screen after a failure: what broke, and where to read the rest.
+#
+# Named in full rather than counted, because "118 failed" sends somebody back to the log to
+# find out which — and a list of names is often enough to see the shape without opening it
+# at all (three suites failing on one selector reads very differently from one suite failing
+# on everything, which is a crashed server rather than a broken assertion).
+report_failures() {
+  local failures count
+  failures="$(failing_tests)"
+
+  if [ -z "$failures" ]; then
+    # A suite can fail without naming a test — a runner that crashed, a server that never
+    # came up. Say so, rather than printing an empty list that reads like "nothing failed".
+    printf '\n%sno individual test was named — the runner itself failed.%s\n' "$BOLD" "$RESET" >&2
+    printf '    the whole run: %s\n' "$TEST_LOG" >&2
+    return
+  fi
+
+  count="$(printf '%s\n' "$failures" | wc -l | tr -d ' ')"
+  printf '\n%s%s failed:%s\n' "$BOLD" "$count" "$RESET" >&2
+  printf '%s\n' "$failures" | sed 's/^/    /' >&2
+  printf '\n    the whole run, with the stack traces: %s\n' "$TEST_LOG" >&2
 }
 
 # A Ctrl-C mid-startup means "cancel this", not "leave whatever came up running" — the
@@ -382,6 +469,7 @@ cmd_test() {
   ensure_database
   cmd_reset_quiet
   build_site
+  begin_test_log test
 
   # Both suites want the ports to themselves: the worker run starts its own Stripe stub on
   # 8789, and Playwright starts all three servers itself.
@@ -413,9 +501,10 @@ cmd_test() {
   info "96 tests, four Miniflare configs, the real Workers runtime — about 15s"
 
   local status=0
-  (cd "$PLATFORM" && npm run test:worker) || status=$?
+  run_suite 'Worker tests' npm run test:worker || status=$?
 
   if [ "$status" -ne 0 ]; then
+    report_failures
     cmd_down
     die "the worker tests failed."
   fi
@@ -424,7 +513,7 @@ cmd_test() {
   step "Acceptance tests"
   info "Playwright drives the servers itself — three browser projects, and a stubbed Stripe"
 
-  (cd "$PLATFORM" && npx --no-install playwright test --reporter=list) || status=$?
+  run_suite 'Acceptance tests' npx --no-install playwright test --reporter=list || status=$?
 
   if [ "$keep_up" -eq 1 ]; then
     start_workers
@@ -435,8 +524,12 @@ cmd_test() {
     cmd_down
   fi
 
-  [ "$status" -eq 0 ] || die "the acceptance tests failed."
+  if [ "$status" -ne 0 ]; then
+    report_failures
+    die "the acceptance tests failed."
+  fi
   ok "all tests passed"
+  info "the whole run: $TEST_LOG"
 }
 
 cmd_check() {
@@ -447,6 +540,7 @@ cmd_check() {
   # report success, so a green `./dev check` could mean "green against a schema this branch
   # does not have" — which is the one thing a check command must never be able to mean.
   cmd_reset_quiet
+  begin_test_log check
 
   step "Lint and format"
   (cd "$PLATFORM" && npm run lint)
@@ -462,7 +556,13 @@ cmd_check() {
 
   step "Unit and database tests"
   export_supabase_env
-  (cd "$PLATFORM" && npm test)
+  local status=0
+  run_suite 'Unit and database tests' npm test || status=$?
+  if [ "$status" -ne 0 ]; then
+    report_failures
+    die "the unit and database tests failed."
+  fi
+  info "the whole run: $TEST_LOG"
 
   remind_down
 }
