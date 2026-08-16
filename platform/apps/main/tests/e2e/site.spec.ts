@@ -603,7 +603,16 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
       const mark = page.getByRole('link', { name: 'Southville Running Club' });
       await expect(mark).toHaveCount(1);
-      await expect(mark).toHaveAttribute('href', '/nn/');
+
+      // **`/`, the club — not `/nn/`.** A wordmark in the top-left corner conventionally
+      // means home, and it used to mean "the page the first link in the bar already goes
+      // to". That left the campaign with no route out to the club: the cross-site banner
+      // drops its own mark on these pages precisely because this one is here.
+      await expect(mark, path).toHaveAttribute('href', '/');
+
+      // And the name says where it goes, because "Southville Running Club" read out of a
+      // link list is the club's name rather than a destination.
+      await expect(mark, path).toHaveAccessibleName('Southville Running Club, home');
 
       // **No longer `img[alt=…]`.** The mark is inline `<svg>` now, filled with
       // `currentColor` rather than a separate white-only file — see the note in
