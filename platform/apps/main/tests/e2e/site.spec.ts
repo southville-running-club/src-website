@@ -137,11 +137,12 @@ test.describe('the club wordmark', () => {
       const mark = page.locator('.site-banner .site-logo');
       await expect(mark).toBeVisible();
 
-      // The computed `color` is what the paths inherit as their fill. `#4c9b58` is the club's
-      // confirmed brand green, from its own downloaded assets — the literal is pinned
+      // The computed `color` is what the paths inherit as their fill. `#00c85a` is the
+      // race-timing app's brand green, adopted 16 August 2026 (see
+      // docs/foundations/race-timing-brand-guidelines.md) — the literal is pinned
       // deliberately, because reading it from the stylesheet the page already loaded asserts
       // nothing.
-      await expect(mark).toHaveCSS('color', 'rgb(76, 155, 88)');
+      await expect(mark).toHaveCSS('color', 'rgb(0, 200, 90)');
 
       const fills = await mark
         .locator('path')
