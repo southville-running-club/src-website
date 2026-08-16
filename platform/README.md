@@ -104,6 +104,22 @@ content and CSS, misleading for anything else.
 | `npm run db:start` / `db:stop` / `db:reset` | The local Supabase stack |
 | `npm run db:types` | Regenerate `packages/db/src/database.types.ts` |
 
+## The pre-commit hook
+
+`npm install` wires up a git hook (via husky) that runs on every commit: lint-staged
+(`eslint --fix` and `prettier --write` on staged files), `npm run typecheck`, and the
+**unit** Vitest project — [`vitest.config.ts`](vitest.config.ts)'s `unit` project needs no
+database. It's the fast checks a commit shouldn't skip, not the full suite.
+
+**Deliberately excluded: the `db` Vitest project, `npm run test:worker`, and
+`npm run test:e2e`.** All three need the local Supabase stack running, and Playwright needs
+two browser engines — real minutes, not a formatting slip's worth, and this repository is two
+volunteers each committing many times a day. Those stay CI's job, in
+[`ci.yml`](../.github/workflows/ci.yml), which still runs on every pull request regardless of
+what a hook checked locally. The hook narrows how often a broken commit reaches CI; it is not
+a substitute for it, and `git commit --no-verify` still exists for the rare case that calls
+for it.
+
 ## Things that will bite you
 
 Each of these cost real time on 8 August 2026 and none is obvious from the outside.

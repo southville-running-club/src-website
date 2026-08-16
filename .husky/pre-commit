@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+# Fast local gate, not a substitute for CI. Runs lint-staged (eslint --fix +
+# prettier on staged files), the type check, and the *unit* vitest project —
+# none of which need the local Supabase stack or a browser.
+#
+# Deliberately excluded: the `db` vitest project, worker tests and Playwright.
+# Those need `supabase start` and, for Playwright, two browser engines — real
+# minutes on every commit, not a formatting slip's worth. .github/workflows/ci.yml
+# still runs all of it on every pull request; this hook only narrows how often a
+# broken commit reaches that point.
+cd platform || exit 1
+
+npx lint-staged || exit 1
+npm run typecheck || exit 1
+npx vitest run --project unit || exit 1
