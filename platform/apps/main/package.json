@@ -17,7 +17,8 @@
     "@src/db": "*",
     "@src/shared": "*",
     "@supabase/supabase-js": "^2.112.2",
-    "astro": "^7.2.0"
+    "astro": "^7.2.0",
+    "simple-icons": "^16.28.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

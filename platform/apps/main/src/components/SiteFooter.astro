@@ -5,11 +5,50 @@
 // links reachable from every page, and that is the one piece of it this rebuild replaces
 // so far. Everything else on the old footer (membership links, documents, newsletters) is
 // still on `southvillerunningclub.co.uk`; see `SITE_BANNER` for the link back there.
+//
+// **Icons, not words, matching the old site and industry practice for a social-links row.**
+// `simple-icons` is the dependency for that — official brand marks as plain SVG path data,
+// no framework attached, imported at build time via Vite's `?raw` so the icon set stays a
+// real pinned dependency (`npm outdated` surfaces updates) rather than hand-copied artwork
+// this repository would have to notice had drifted. Each `d` below is extracted from the
+// raw file rather than the file being inlined wholesale, so the path can be filled with
+// `currentColor` the same way `ClubLogo.astro` fills the wordmark — one colour decision,
+// made in CSS, rather than baked into borrowed artwork.
+import instagramSvg from 'simple-icons/icons/instagram.svg?raw';
+import facebookSvg from 'simple-icons/icons/facebook.svg?raw';
+import xSvg from 'simple-icons/icons/x.svg?raw';
+import tiktokSvg from 'simple-icons/icons/tiktok.svg?raw';
+
+/** simple-icons ships one `<path d="…">` per mark; this is the whole file's markup. */
+function pathFrom(svg: string): string {
+  const match = svg.match(/<path d="([^"]+)"/);
+  if (!match?.[1]) throw new Error('simple-icons SVG has no path data');
+  return match[1];
+}
+
 const SOCIAL_LINKS = [
-  { name: 'Instagram', href: 'https://www.instagram.com/southvillerunningclub/' },
-  { name: 'Facebook', href: 'https://www.facebook.com/groups/22333122208' },
-  { name: 'Twitter', href: 'https://twitter.com/SouthvilleRC' },
-  { name: 'TikTok', href: 'https://www.tiktok.com/@southvillerunningclub' },
+  {
+    name: 'Instagram',
+    href: 'https://www.instagram.com/southvillerunningclub/',
+    d: pathFrom(instagramSvg),
+  },
+  {
+    name: 'Facebook',
+    href: 'https://www.facebook.com/groups/22333122208',
+    d: pathFrom(facebookSvg),
+  },
+  {
+    // The platform's current brand is "X"; the club's own link is still its legacy
+    // twitter.com address, which X still resolves.
+    name: 'X',
+    href: 'https://twitter.com/SouthvilleRC',
+    d: pathFrom(xSvg),
+  },
+  {
+    name: 'TikTok',
+    href: 'https://www.tiktok.com/@southvillerunningclub',
+    d: pathFrom(tiktokSvg),
+  },
 ] as const;
 ---
 
@@ -19,7 +58,17 @@ const SOCIAL_LINKS = [
     {
       SOCIAL_LINKS.map((link) => (
         <li>
-          <a href={link.href}>{link.name}</a>
+          <a href={link.href} aria-label={link.name}>
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path d={link.d} fill="currentColor" />
+            </svg>
+          </a>
         </li>
       ))
     }

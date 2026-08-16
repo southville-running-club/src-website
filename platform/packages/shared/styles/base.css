@@ -366,8 +366,24 @@ footer {
   list-style: none;
 }
 
+/* Icons, not text — `aria-label` on the link carries the accessible name, and the SVG is
+   `aria-hidden`. Padded to a 44px hit target (comfortably past WCAG 2.2's 24px floor; most
+   visitors here are on a phone) even though the visible icon stays 24px. `currentColor`
+   inherits `.site-footer`'s slate, 7.53:1 on the page — the 3:1 WCAG asks of non-text UI
+   was never in question, so the accent colour on hover is a hover cue, not a fix. */
 .site-footer-social a {
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.625rem;
+  border-radius: var(--radius-button);
+  color: inherit;
+}
+
+.site-footer-social a:hover {
+  color: var(--colour-accent);
 }
 
 /* -----------------------------------------------------------------------------------------
