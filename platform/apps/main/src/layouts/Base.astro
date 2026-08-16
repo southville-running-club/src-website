@@ -7,6 +7,7 @@
 // looks like.
 import '@src/shared/styles/base.css';
 import SiteBanner from '../components/SiteBanner.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 
 interface Props {
   title: string;
@@ -58,6 +59,12 @@ const { title, description, canonical, theme } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    {
+      /* The old site (southvillerunningclub.co.uk, still Squarespace) sets no theme-color
+        meta tag at all, so there is nothing there to match. This is the club's own brand
+        green from tokens.css's `--src-green`, not a value read off the old site. */
+    }
+    <meta name="theme-color" content="#00c85a" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     {canonical && <link rel="canonical" href={canonical} />}
     {/* Nothing here is finished, and none of it should be found in a search yet. */}
@@ -77,5 +84,6 @@ const { title, description, canonical, theme } = Astro.props;
     <main id="main">
       <slot />
     </main>
+    <SiteFooter />
   </body>
 </html>

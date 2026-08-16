@@ -16,7 +16,7 @@ export function ClubLogo({
   className,
   labelled = true,
 }: {
-  /** Rendered width in CSS pixels. The height follows from the artwork's 876:267. */
+  /** Rendered width in CSS pixels. The height follows from the artwork's aspect ratio. */
   width?: number;
   className?: string;
   /**
@@ -41,15 +41,10 @@ export function ClubLogo({
       xmlns="http://www.w3.org/2000/svg"
     >
       {/* `fill="currentColor"` on every path, and no fill anywhere else. `fillRule` is
-          carried over from the trace — without it the counters in the letters fill in. */}
+          carried over from the trace — without it the R's bowl (a counter-wound subpath
+          within its own `d`) fills in solid instead of leaving a hole. */}
       {CLUB_LOGO.paths.map((p, i) => (
-        <path
-          key={i}
-          d={p.d}
-          transform={p.transform}
-          fill="currentColor"
-          fillRule="nonzero"
-        />
+        <path key={i} d={p.d} fill="currentColor" fillRule="nonzero" />
       ))}
     </svg>
   );

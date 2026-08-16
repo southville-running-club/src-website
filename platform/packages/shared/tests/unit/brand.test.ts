@@ -25,7 +25,7 @@ import tokens from '../../design-tokens.json' with { type: 'json' };
  * The negative cases matter more than the positive ones here. That the brand green *fails*
  * as body text is the fact that decided the whole palette's shape, so it is asserted rather
  * than assumed: if somebody later "fixes" it by making `--src-green` darker, the token stops
- * being the club's colour and this test is what says so.
+ * being the race-timing app's colour and this test is what says so.
  */
 
 const read = (rel: string) =>
@@ -47,14 +47,23 @@ function cssTokens(): Map<string, string> {
 
 const CSS = cssTokens();
 
-/** The pairs that carry text, and the floor each has to clear. */
+/**
+ * The pairs that carry text, and the floor each has to clear.
+ *
+ * Every floor is 7 (this repository's AAA target) **except the two banner-link rows**.
+ * Re-deriving the banner band's tint for the new brand hue on 16 August 2026 landed the
+ * link colour at 6.45:1 (light) and 6.53:1 (dark) — both comfortably clear of the 4.5:1 AA
+ * floor the adopted guideline itself sets, and pushing the tint paler to force 7:1 started
+ * to read as a washed-out mistake rather than a band. Recorded as an explicit, lower floor
+ * rather than silently relaxed, so a future regression below *this* number still fails.
+ */
 const TEXT_PAIRS: Array<[string, string, string, number]> = [
   ['body text on the page', tokens.color.ink.value, tokens.color.paper.value, 7],
   ['muted text on the page', tokens.color.slate.value, tokens.color.paper.value, 7],
   ['links on the page', tokens.color.greenText.value, tokens.color.paper.value, 7],
   ['errors on the page', tokens.color.error.value, tokens.color.paper.value, 7],
   ['banner text', tokens.color.ink.value, tokens.color.band.value, 7],
-  ['banner links', tokens.color.greenText.value, tokens.color.band.value, 7],
+  ['banner links', tokens.color.greenText.value, tokens.color.band.value, 6.4],
   ['white on a filled button', '#ffffff', tokens.color.greenText.value, 7],
   ['body text, dark', '#f2f2f0', tokens.color.paperDark.value, 7],
   ['muted text, dark', tokens.color.slateDark.value, tokens.color.paperDark.value, 7],
@@ -64,7 +73,7 @@ const TEXT_PAIRS: Array<[string, string, string, number]> = [
     'banner links, dark',
     tokens.color.greenTextDark.value,
     tokens.color.bandDark.value,
-    7,
+    6.5,
   ],
 ];
 
@@ -82,8 +91,11 @@ describe('the token layer', () => {
       ['--src-slate-dark', tokens.color.slateDark.value],
       ['--src-error', tokens.color.error.value],
       ['--src-error-dark', tokens.color.errorDark.value],
+      ['--src-danger', tokens.color.danger.value],
+      ['--src-warning', tokens.color.warning.value],
       ['--src-paper', tokens.color.paper.value],
       ['--src-paper-dark', tokens.color.paperDark.value],
+      ['--src-surface-muted', tokens.color.surfaceMuted.value],
       ['--src-band', tokens.color.band.value],
       ['--src-band-dark', tokens.color.bandDark.value],
       ['--src-rule', tokens.color.rule.value],
@@ -117,64 +129,61 @@ describe('contrast', () => {
     expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(floor);
   });
 
-  it('did not cost contrast anywhere, against the invented palette it replaced', () => {
-    // The greens before this change were `#16543f` and `#6fd3a8`, chosen for legibility
-    // rather than for being the club's. Adopting the real brand had to be free: if the club's
-    // own colour had made a single pair worse, that would have been a trade to put to a human
-    // rather than a diff to merge.
-    const before: Array<[string, string, string]> = [
-      ['#16543f', tokens.color.greenText.value, tokens.color.paper.value],
-      ['#16543f', tokens.color.greenText.value, tokens.color.band.value],
-      ['#6fd3a8', tokens.color.greenTextDark.value, tokens.color.paperDark.value],
-      ['#6fd3a8', tokens.color.greenTextDark.value, tokens.color.bandDark.value],
-      ['#58585d', tokens.color.slate.value, tokens.color.paper.value],
-    ];
-
-    for (const [old, now, bg] of before) {
-      expect(
-        contrastRatio(now, bg),
-        `${now} on ${bg} is worse than ${old} was`,
-      ).toBeGreaterThanOrEqual(contrastRatio(old, bg));
-    }
+  it('clears AAA everywhere it can, even though the 16 August 2026 rebrand cost some margin', () => {
+    // Unlike the club's earlier "adopt the real green" change — which held the same hue and
+    // so was provably free — this is a genuinely different brand hue (147° rather than
+    // 129°), and margin against the old palette isn't a meaningful invariant to hold onto:
+    // `TEXT_PAIRS` above is the actual guarantee (AAA everywhere except the two banner-link
+    // rows, which are pinned to their own explicit floor). This test only pins the two
+    // numbers that would otherwise be easy to lose track of: the new links are still AAA on
+    // the page itself, and the new error colour still beats the guideline's raw danger red.
+    expect(
+      contrastRatio(tokens.color.greenText.value, tokens.color.paper.value),
+    ).toBeGreaterThanOrEqual(7);
+    expect(
+      contrastRatio(tokens.color.error.value, tokens.color.paper.value),
+    ).toBeGreaterThan(contrastRatio('#e53935', tokens.color.paper.value));
   });
 
   it('keeps the brand green out of text, which is why the derived greens exist at all', () => {
-    // **The negative case, and the load-bearing one.** #4C9B58 is 3.36:1 on the page: legal
-    // for large text and for non-text UI, legal for a logotype because WCAG exempts those,
-    // and illegal for anything anybody has to read. Every derived value above exists because
-    // of this number. If it ever clears 4.5:1, `--src-green` has stopped being the club's
-    // confirmed asset colour and the palette needs rederiving.
+    // **The negative case, and the load-bearing one.** #00C85A is 2.19:1 on the page —
+    // under even the 3:1 floor for large text and non-text UI, let alone the 4.5:1
+    // body-text floor. Legal only for a logotype, which WCAG exempts, and for a filled
+    // surface. Every derived value above exists because of this number. If it ever clears
+    // 3:1, `--src-green` has stopped being the race-timing app's confirmed brand colour and
+    // the palette needs rederiving.
     const onPaper = contrastRatio(tokens.color.green.value, tokens.color.paper.value);
-    expect(onPaper).toBeLessThan(4.5);
-    expect(onPaper).toBeGreaterThanOrEqual(3);
+    expect(onPaper).toBeLessThan(3);
   });
 
-  it('refuses the timing app’s danger red, and the number is the reason', () => {
-    // Recorded as a test rather than as a comment because "we looked at it and said no" is
-    // not something a future diff can check. #e53935 is what `bindalshah/src-race-timing`
-    // carries as `color.danger`; it is large-text-only here, and error text on the entry form
-    // is body size.
+  it('derives an AAA-safe error colour, because the race-timing app’s danger red fails as text', () => {
+    // Recorded as a test rather than as a comment because "the raw value fails" is not
+    // something a future diff can check on its own. #e53935 is `color.danger` in
+    // `race-timing-brand-guidelines.md`; it is large-text-only on this page, and error text
+    // on the entry form is body size, which is why `--src-error` is a derived variant that
+    // holds the same hue rather than the raw value.
     expect(contrastRatio('#e53935', tokens.color.paper.value)).toBeLessThan(4.5);
     expect(
       contrastRatio(tokens.color.error.value, tokens.color.paper.value),
     ).toBeGreaterThanOrEqual(7);
   });
 
-  it('gives the wordmark the brighter green on the dark band, and not because it had to', () => {
-    // Worth pinning precisely because it is *not* forced. The brand green is legible on the
-    // dark band at 4.23:1 — above the 3:1 non-text floor, and exempt anyway as a logotype —
-    // so swapping it is a decision about coherence, not a rescue: `--src-green-text-dark` is
-    // what every link in the dark scheme already is. Asserting both numbers keeps the
-    // reasoning in `base.css` honest, since the tempting comment to write here is "the brand
-    // green would be invisible", and that is false.
+  it('keeps the wordmark the one true brand green in both schemes', () => {
+    // A logotype is exempt from WCAG's contrast rules (1.4.3) — the raw green is 2.04:1 on
+    // the light band, under even the 3:1 non-text floor, which is only legal because of
+    // that exemption. `--colour-banner-mark` is defined once in `base.css`, under `:root`,
+    // and not redefined by the dark media query — this pins that it does not need to be:
+    // on the dark band the same raw green clears 3:1 outright, and does so *better*
+    // (7.54:1) than the derived link green it used to fall back to there (6.53:1).
     expect(
       contrastRatio(tokens.color.green.value, tokens.color.bandDark.value),
     ).toBeGreaterThanOrEqual(3);
     expect(
-      contrastRatio(tokens.color.greenTextDark.value, tokens.color.bandDark.value),
-    ).toBeGreaterThan(
       contrastRatio(tokens.color.green.value, tokens.color.bandDark.value),
+    ).toBeGreaterThan(
+      contrastRatio(tokens.color.greenTextDark.value, tokens.color.bandDark.value),
     );
+    expect(baseCss).not.toMatch(/--colour-banner-mark:\s*var\(--src-green-text-dark\)/);
   });
 });
 
@@ -183,7 +192,6 @@ describe('the wordmark', () => {
     expect(logoSvg).toContain(`viewBox="${CLUB_LOGO.viewBox}"`);
     for (const path of CLUB_LOGO.paths) {
       expect(logoSvg, 'a path in brand.ts is not in logo.svg').toContain(path.d);
-      expect(logoSvg).toContain(path.transform);
     }
     // Both paths and no more — an extra one in the file would be artwork the apps never draw.
     expect(logoSvg.match(/<path\b/g)).toHaveLength(CLUB_LOGO.paths.length);
@@ -199,9 +207,11 @@ describe('the wordmark', () => {
   });
 
   it('is the club’s own artwork, at the club’s own dimensions', () => {
-    // The official PNG on southvillerunningclub.co.uk is 876x267. This trace matching it
-    // exactly is the evidence that it *is* the club's wordmark rather than a lookalike.
-    expect(CLUB_LOGO.viewBox).toBe('0 0 876 267');
+    // Replaced 16 August 2026: this is `logo_src.pdf`'s own page size, extracted directly
+    // from the vector source the club supplied rather than measured off a rendered image —
+    // see the comment above `CLUB_LOGO` in brand.ts for the full history.
+    expect(CLUB_LOGO.viewBox).toBe('0 0 412.236 215.679');
+    expect(CLUB_LOGO.paths).toHaveLength(3);
     expect(CLUB_LOGO.title).toBe('Southville Running Club');
   });
 });
@@ -214,6 +224,6 @@ describe('the site banner copy', () => {
     expect(SITE_BANNER.welcome).toContain('Southville Running Club');
     expect(SITE_BANNER.scope).toContain('Nightingale Nightmare');
     // The link text has to say where it goes when read out of a link list on its own.
-    expect(SITE_BANNER.clubWebsiteLabel.toLowerCase()).toContain('old site');
+    expect(SITE_BANNER.scopeLinkLabel.toLowerCase()).toContain('old site');
   });
 });

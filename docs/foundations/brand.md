@@ -1,5 +1,15 @@
 # The club's brand
 
+> **Superseded in part, 16 August 2026.** The colour, neutral and type tokens this document
+> describes below were replaced by `bindalshah/src-race-timing`'s own palette — see
+> [`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md) for the adopted
+> document and `tokens.css` for the derived values. This page is kept rather than rewritten,
+> per this repository's rule against silently editing an accepted decision: the reasoning
+> below for why the club's own green was confirmed, and why the timing app's palette was
+> originally refused, is still true history — it explains what changed and why. **The
+> wordmark, the favicon, and the 8px/12px radii were not touched** and remain exactly as
+> this document describes them.
+
 Where the site's colours, wordmark and typeface come from, what the club has confirmed,
 and what is still a proposal. Written to be read alongside
 [`packages/shared/styles/tokens.css`](../../platform/packages/shared/styles/tokens.css),
@@ -43,14 +53,21 @@ a runner.
   than a colour sampled off a rendered page. It replaces `#209D50`, which this document
   carried as a provisional stand-in; see "What changed" below for why that value existed
   and what it was superseded by.
-- **The "SRC" monogram, as the favicon.** Traced from `logo_src.svg`, one of the same
-  downloaded assets, and served at `apps/main/public/favicon.svg`, filled with the
-  confirmed `--src-green`. Distinct artwork from the full wordmark below — a mark for a
-  32px browser tab rather than a lockup for a banner.
-- **The wordmark's geometry.** `apps/main/public/logo.svg`'s viewBox is `0 0 876 267`,
-  matching the club's own PNG pixel for pixel
-  (`blacktransparantlogo-removebg-preview.png`, linked from `southvillerunningclub.co.uk`'s
-  `og:image`). The trace is exact; nothing about the letterforms was invented.
+- **Corrected once, then genuinely confirmed, both on 16 August 2026.** This bullet
+  originally claimed a traced "SRC" monogram existed when the file that had actually
+  shipped at `apps/main/public/favicon.svg` was the full two-line wordmark's geometry
+  scaled into a 100x100 box — illegible at tab size, not a monogram. That was corrected to
+  three letters set in Inter, honestly not-traced. **Superseded again the same day**: the
+  club supplied `logo_src.pdf`, real vector artwork for an "SRC" monogram. Both the
+  wordmark and the favicon now use it — see the next bullet.
+- **The wordmark's geometry, replaced.** `apps/main/public/logo.svg`'s viewBox is now
+  `0 0 412.236 215.679`, `logo_src.pdf`'s own page size, and its three paths — S, R, C —
+  are extracted directly from that PDF's vector drawing operators, not hand-traced from a
+  rendered image. This replaces the previous two-line "SOUTHVILLE RUNNING CLUB" lockup
+  (which had matched `blacktransparantlogo-removebg-preview.png`, the club's PNG,
+  pixel for pixel) as the mark rendered everywhere: the site banner, the masthead, and now
+  a legible favicon at `apps/main/public/favicon.svg`, all from the same
+  [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts) geometry.
 - **Inter and JetBrains Mono as the typefaces.** Both are already vendored at
   `apps/main/public/fonts` with their OFL licences, having arrived for Nightingale
   Nightmare. `bindalshah/src-race-timing`'s `design-tokens.json` independently names the
@@ -83,15 +100,14 @@ theme's rendering of the club's colour is not the same fact as the club's own as
 
 Three things fall out of the measurement, each a decision rather than a detail:
 
-**The wordmark itself still carries no colour of its own.** The club's mark on the live
-site reads as green because a black wordmark (`blacktransparantlogo-removebg-preview.png`)
-sits on a green header — that PNG has no colour information beyond its own black ink. This
-repository's `logo.svg` is filled with `currentColor` for the same reason: one piece of
-artwork, coloured by whichever stylesheet is in charge, rather than a black file and a
-hand-made green variant that can drift apart. See
+**The wordmark itself still carries no colour of its own.** This repository's `logo.svg`
+(inline in `apps/main/src/components/ClubLogo.astro`, `apps/timing/app/club-logo.tsx`) is
+filled with `currentColor`: one piece of artwork, coloured by whichever stylesheet is in
+charge, rather than a black file and a hand-made green variant that can drift apart. See
 [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts). The
-favicon's "SRC" monogram is a separate case — that artwork *is* the confirmed green, baked
-in, because a static `.svg` served as a browser-tab icon cannot read a CSS custom property.
+standalone `apps/main/public/logo.svg` and the favicon are the exception, and for the same
+reason as each other now: both are static files that cannot read a CSS custom property, so
+both bake in the confirmed brand green directly.
 
 **`#4C9B58` cannot be a text colour.** On the page background it measures **3.36:1** —
 above the 3:1 floor for large text and non-text UI, below the 4.5:1 body-text floor. Black
@@ -146,10 +162,16 @@ money, so `--src-error` was kept. Both figures are asserted in
 `packages/shared/tests/unit/brand.test.ts`, so the refusal cannot be silently reversed by a
 future "let's just match the other repo" edit.
 
-**Not compared:** `color.primary` (`#00C85A`), the timing app's own green. It is 1.53:1 from
-`#4C9B58` — close enough to read as a mistake side by side, far enough to not be the same
-colour — and is that app's own brand rather than the club's, so no attempt was made to
-reconcile the two.
+**Not compared, at the time:** `color.primary` (`#00C85A`), the timing app's own green. It
+was 1.53:1 from `#4C9B58` — close enough to read as a mistake side by side, far enough to
+not be the same colour — and was that app's own brand rather than the club's, so no attempt
+was made to reconcile the two. **This was superseded on 16 August 2026**: `#00C85A` is now
+`apps/main`'s `--src-green`, by explicit decision rather than by drift. See
+[`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md) for the adopted
+document. It carries the same limitation this section already found: 2.19:1 on white, under
+even the 3:1 non-text floor, so it remains a surface-and-logo colour only, never text —
+`--src-green-text` (`#00672F`, 7.04:1) is what a link or an accent actually renders as, the
+same two-layer shape this document describes for the colour it replaced.
 
 ---
 
@@ -161,9 +183,16 @@ a blank. Recorded here rather than in code, per
 
 - [x] **Is `#4C9B58` the club's official green?** — confirmed 16 August 2026, from the
       club's own downloaded `SRC_GREEN.png` and `logo_src.svg`. Superseded `#209D50`, which
-      was read off a Squarespace theme's rendering rather than an asset.
+      was read off a Squarespace theme's rendering rather than an asset. **`#4C9B58` itself
+      was then superseded the same day** by `#00C85A`, the race-timing app's brand green —
+      see the note at the top of this document and
+      [`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md). This row is kept
+      to record that the club's own asset colour genuinely was confirmed at the time; it is
+      not what `--src-green` currently is.
 - [x] **Does an official green wordmark exist?** — not the full lockup, which is still a
-      black PNG (see above), but the "SRC" monogram does, and is now the favicon.
+      black PNG (see above).
+- [x] **Does an official "SRC" monogram exist?** — confirmed 16 August 2026: `logo_src.pdf`,
+      real vector artwork, supplied directly. Both the wordmark and the favicon now use it.
 - [ ] **A secondary and neutral palette**, if the club has one beyond the single green.
 - [ ] **The typeface** — licence Halyard, or accept Inter as the substitute.
 - [ ] **What the brand should look like in dark mode.** The live club site has none; this

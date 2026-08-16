@@ -25,33 +25,46 @@
   --colour-background: var(--src-paper);
   --colour-text: var(--src-ink);
   --colour-muted: var(--src-slate);
-  /* The brand green, dark enough to be read: 8.74:1 here. This used to be `#16543f`, an
-     invented green at 8.69:1 — so the club's own colour arrived at no cost in contrast. */
+  /* The race-timing app's brand green, derived for text: 7.04:1 here. Adopted 16 August
+     2026 from `docs/foundations/race-timing-brand-guidelines.md`, superseding the club's
+     own green (8.74:1) — see `docs/foundations/brand.md` for that history. */
   --colour-accent: var(--src-green-text);
   --colour-rule: var(--src-rule);
+  --colour-surface-muted: var(--src-surface-muted);
 
   /* The banner band, and **its own text and link colours rather than the page's**.
      `body.theme-nn` restates `--colour-text` and `--colour-accent` in campaign colours —
-     both become bone, `#fff6ec` — so a banner drawn with them would be 1.04:1 on this
-     band and invisible on all five Nightingale Nightmare pages. The theme does not touch
-     these three, so the bar looks the same everywhere, which is what a statement about the
-     whole site should do. Measured: 15.62:1 and 7.99:1. */
+     both become bone, `#fff6ec` — so a banner drawn with them would be off `--colour-text`
+     unreadable on this band and invisible on all five Nightingale Nightmare pages. The
+     theme does not touch these three, so the bar looks the same everywhere, which is what a
+     statement about the whole site should do. Measured: 12.78:1 and 6.45:1. */
   --colour-banner: var(--src-band);
   --colour-banner-text: var(--src-ink);
   --colour-banner-link: var(--src-green-text);
 
   /* **The one place the undiluted brand green is allowed**, and the logo is why.
-     `--src-green` is 3.14:1 on this band — fine for the wordmark, because WCAG puts no
-     contrast requirement on a logotype, and wrong for anything anybody has to read. It is
-     deliberately not `--colour-accent`: nothing but the mark may use it. */
+     `--src-green` is 2.04:1 on this band — under even the 3:1 non-text floor, which WCAG
+     still permits because a logotype is exempt from any contrast requirement. It is
+     deliberately not `--colour-accent`: nothing but the mark may use it.
+
+     **Not overridden in dark mode**, on purpose: see the note beside the media query
+     below. The true bright green is the mark's colour in both schemes. */
   --colour-banner-mark: var(--src-green);
 
-  /* 7.28:1 against the page background. Used for error text and error rules only, and
-     never as the sole carrier of the meaning — see the form section at the foot. */
+  /* 7.04:1 against the page background, derived from the guideline's `color.danger`
+     (`#e53935`, 4.15:1 raw). Used for error text and error rules only, and never as the
+     sole carrier of the meaning — see the form section at the foot. */
   --colour-error: var(--src-error);
-  /* What sits on top of an accent-filled button. 8.90:1 against --colour-accent. */
+  /* The guideline's `color.danger`, undiluted — icons, borders, large-scale DNF fills. */
+  --colour-danger: var(--src-danger);
+  /* The guideline's `color.warning` — decorative and large-scale only (countdown panels).
+     1.80:1 on white, so it never carries text on its own; pair with ink, per the
+     guideline's "never rely on colour alone" rule. */
+  --colour-warning: var(--src-warning);
+  /* What sits on top of an accent-filled button. 7.04:1 against --colour-accent. */
   --colour-on-accent: #ffffff;
 
+  --font-display: var(--src-font-display);
   --font-body: var(--src-font-body);
   --font-mono: var(--src-font-mono);
 
@@ -67,27 +80,28 @@
     --colour-background: var(--src-paper-dark);
     --colour-text: #f2f2f0;
     --colour-muted: var(--src-slate-dark);
-    /* 9.97:1, against the 9.93:1 of the invented green this replaces. */
+    /* 7.00:1. The guideline defines no dark palette, so this is derived — hue and
+       saturation held from `--src-green`, same as the light-scheme text colour. */
     --colour-accent: var(--src-green-text-dark);
     --colour-rule: var(--src-rule-dark);
-    /* Measured: 13.22:1 for the text, 8.19:1 for the link. */
+    /* Measured: 15.01:1 for the text, 6.53:1 for the link. */
     --colour-banner: var(--src-band-dark);
     --colour-banner-text: #f2f2f0;
     --colour-banner-link: var(--src-green-text-dark);
 
-    /* **The mark takes the dark scheme's own green, and this one is a judgement rather than
-       a threshold.** The brand green is legible on the dark band — 4.23:1, comfortably above
-       the 3:1 that non-text needs and exempt anyway as a logotype — so this is not a rescue.
-       It is that `--src-green-text-dark` is already what every link in the dark scheme is,
-       at 8.19:1 here, and a wordmark a shade duller than the text beside it reads as a badly
-       converted asset rather than as a decision. Light scheme keeps the true brand colour;
-       dark scheme is a rendering of it, and says so. */
-    --colour-banner-mark: var(--src-green-text-dark);
+    /* **`--colour-banner-mark` is deliberately not redefined here.** A logotype is exempt
+       from WCAG's contrast rules (1.4.3), and the standard practice that exemption exists
+       for is to keep a brand mark's colour constant across themes rather than derive a
+       theme-specific tint of it — the mark is a fixed asset, not body copy. It also isn't a
+       trade here: the raw `--src-green` measures 7.54:1 on the dark band, which is *higher*
+       than the derived link green it replaces (6.53:1), so the true bright SRC green reads
+       better in dark mode than the muted variant ever did. Falls through from `:root`
+       above, where `--colour-banner-mark: var(--src-green)` is the only definition. */
 
-    /* 10.63:1 against the dark page background. A red dark enough to read on paper is
+    /* 7.02:1 against the dark page background. A red dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */
     --colour-error: var(--src-error-dark);
-    /* 9.97:1 against the dark scheme's lighter accent. */
+    /* 7.00:1 against the dark scheme's lighter accent. */
     --colour-on-accent: var(--src-paper-dark);
   }
 }
@@ -122,12 +136,14 @@ main {
 }
 
 h1 {
+  font-family: var(--font-display);
   font-size: clamp(1.6rem, 5vw, 2.2rem);
   line-height: 1.2;
   margin: 0 0 calc(var(--space) * 0.5);
 }
 
 h2 {
+  font-family: var(--font-display);
   font-size: 1.15rem;
   margin: calc(var(--space) * 2) 0 calc(var(--space) * 0.5);
 }
@@ -251,26 +267,35 @@ a[href^='mailto:'] {
 }
 
 /*
- * At 320px the link drops below the sentence rather than pushing the page sideways.
+ * The banner's link, kept readable on the pale band whatever theme the page is wearing.
  *
  * **The class on the ancestor is the point, not the tag names.** `nn-theme.css` carries
  * `.theme-nn a { color: var(--nn-bone) }`, which is (0,1,1) — exactly what `.site-banner a`
  * would be. A tie is broken by source order, the theme is imported after this file, and the
  * bar's link came out bone-on-bone at **1.04:1** on all five Nightingale Nightmare pages.
- * This selector is (0,2,2) and wins outright rather than by luck. Whichever stylesheet loads
- * first must not decide whether a link is readable.
+ * This selector is a class and two elements deep and wins outright rather than by luck.
+ * Whichever stylesheet loads first must not decide whether a link is readable.
  *
- * It was `.site-banner > p > a` at (0,1,2) before the wordmark moved the paragraph inside
- * `.site-banner-inner`. Still a class-and-two-elements deep, still clear of the theme.
+ * **A descendant combinator before the `a`, and that is the whole lesson of this rule.**
+ * It was `.site-banner > p > a`, then `.site-banner-inner > p > a` when the wordmark moved
+ * the paragraph — a chain of direct children, each step of which is a bet on the markup's
+ * exact shape. When the link moved *inside* the sentence's `<span>` (it used to trail after
+ * it as "For everything else, please see the old site"; it is the words "the old site"
+ * within the sentence now), `> a` stopped matching, the theme won by default, and the link
+ * went back to **1.02:1** — the identical failure this comment already described, on all
+ * seven Nightingale Nightmare pages, caught by axe in `site.spec.ts` and not by eye.
+ *
+ * So the `a` is matched wherever it sits in the paragraph. The specificity that clears the
+ * theme is unchanged; what is gone is the assumption that a sentence cannot be re-worded.
  */
-.site-banner-inner > p > a {
+.site-banner-inner > p a {
   color: var(--colour-banner-link);
   font-weight: 600;
 }
 
 /* The focus ring, for the same reason and with the same specificity: the event theme's ring
    is the campaign yellow, which on this pale band is a ring nobody can see. */
-.site-banner-inner > p > a:focus-visible {
+.site-banner-inner > p a:focus-visible {
   outline-color: var(--colour-banner-link);
 }
 
@@ -315,6 +340,59 @@ footer {
   border-top: 1px solid var(--colour-rule);
   color: var(--colour-muted);
   font-size: 0.9375rem;
+}
+
+/*
+ * The one global footer, rendered by `SiteFooter.astro` outside `<main>` on every page.
+ *
+ * Outside `<main>` is what makes it the page's single `contentinfo` landmark — a `<footer>`
+ * inside `main`, `article`, `aside`, `nav` or `section` is generic instead, which is what the
+ * per-page footers (contact details, copyright) already rely on to avoid a second one.
+ */
+.site-footer {
+  margin-top: calc(var(--space) * 2);
+  padding: calc(var(--space) * 1.5) var(--space);
+  border-top: 1px solid var(--colour-rule);
+  color: var(--colour-muted);
+  font-size: 0.9375rem;
+}
+
+.site-footer-heading {
+  margin: 0 0 0.5rem;
+  max-width: calc(var(--measure) + var(--space) * 2);
+  margin-inline: auto;
+  font-weight: 600;
+  color: var(--colour-text);
+}
+
+.site-footer-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--space);
+  max-width: calc(var(--measure) + var(--space) * 2);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+/* Icons, not text — `aria-label` on the link carries the accessible name, and the SVG is
+   `aria-hidden`. Padded to a 44px hit target (comfortably past WCAG 2.2's 24px floor; most
+   visitors here are on a phone) even though the visible icon stays 24px. `currentColor`
+   inherits `.site-footer`'s slate, 7.53:1 on the page — the 3:1 WCAG asks of non-text UI
+   was never in question, so the accent colour on hover is a hover cue, not a fix. */
+.site-footer-social a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.625rem;
+  border-radius: var(--radius-button);
+  color: inherit;
+}
+
+.site-footer-social a:hover {
+  color: var(--colour-accent);
 }
 
 /* -----------------------------------------------------------------------------------------

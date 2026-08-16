@@ -11,108 +11,123 @@
  *
  * **A mirror of this lives at `packages/shared/design-tokens.json`**, in the W3C design-token
  * format that `bindalshah/src-race-timing` already uses. The CSS is canonical — it is what
- * ships — and `tests/brand.test.ts` fails if the two disagree. The JSON exists so the palette
- * can be diffed against the timing app's and imported into Figma without anybody retyping a
- * hex code.
+ * ships — and `tests/brand.test.ts` fails if the two disagree.
  *
  * ## Where these values come from
  *
- * `--src-green` is read from the club's own downloaded brand assets — `SRC_GREEN.png` and
- * `logo_src.svg`, real green artwork rather than a colour sampled off a page — and confirmed
- * on **16 August 2026**. It replaces `#209d50`, which was a provisional stand-in read off the
- * computed style of southvillerunningclub.co.uk's header band because no green logo asset was
- * known to exist yet; `docs/foundations/brand.md` records why that was provisional and what
- * changed. Everything else on this page is either derived from it by holding hue and
- * saturation and moving lightness until a contrast threshold is met, or is a neutral carried
- * over from `base.css` because it was already measured.
+ * **Superseded on 16 August 2026.** This file previously carried the club's own green,
+ * read from `SRC_GREEN.png` and `logo_src.svg` — see `docs/foundations/brand.md`, which
+ * records that decision and is kept rather than rewritten, per this repository's rule
+ * against silently editing an accepted decision. The palette below is
+ * `docs/foundations/race-timing-brand-guidelines.md`'s instead: `bindalshah/src-race-timing`'s
+ * own tokens, explicitly adopted for `apps/main` by decision on that date. `brand.md`'s "not
+ * compared" note is superseded by that adoption, not deleted.
  *
- * **Every ratio in a comment here was computed, not estimated** — see
- * `tests/brand.test.ts`, which recomputes all of them and fails on drift. A contrast comment
- * that nothing checks is a comment that goes stale in a month.
+ * The raw values are the guideline's own hex codes. Where a raw value cannot carry text —
+ * `color.primary` is 2.19:1 on white, `color.danger` is 4.15:1 — a derived variant exists
+ * for text, found the same way the club's own green used to be: hold hue and saturation,
+ * move only lightness, stop at 7:1 (this repository's AAA target). **Every ratio in a
+ * comment here was computed, not estimated** — see `tests/brand.test.ts`, which recomputes
+ * all of them and fails on drift.
+ *
+ * The guideline defines no dark-mode palette. The dark-scheme values below extend it using
+ * the same hue-and-saturation-held method, since this repository supports
+ * `prefers-color-scheme: dark` and dropping that support was not part of this change.
  */
 
 :root {
   /* -------------------------------------------------------------------------------------
    * The brand green
    * -------------------------------------------------------------------------------------
-   * **A surface and a logo. Never text.** 3.36:1 on the light page and 3.07:1 on the banner
-   * band, both under the 4.5:1 body-text floor. It clears 3:1, so it is legitimate for large
-   * text and for non-text UI, and WCAG puts no contrast requirement on a logotype at all —
-   * which is what lets the wordmark be this exact green on the banner rather than a
-   * compromise of it. Black on it is 6.14:1 if it is ever used as a filled band.
+   * `color.primary` in the guideline. **A surface and a logo. Never text, and not even
+   * non-text UI** — 2.19:1 on white, under WCAG's 3:1 floor for large text and icons as
+   * well as the 4.5:1 body-text floor. Legitimate only as a filled background (the
+   * guideline's own "full bleed, not a thin accent" rule) and as the logotype, which WCAG
+   * exempts from any contrast requirement. Charcoal ink on it is 6.26:1.
    *
-   * Hue 129°, saturation 34%. Both derived greens below hold those two and move only
-   * lightness, so all three read as the same colour at different weights rather than as
-   * three greens.
+   * Hue 147°, saturation 100%. The derived green below holds those two and moves only
+   * lightness.
    */
-  --src-green: #4c9b58;
+  --src-green: #00c85a;
 
-  /* The same green, dark enough to be read. 8.69:1 on the light page and 7.94:1 on the
-     banner band — both AAA, and both matching or *better* than the invented `#16543f` this
-     originally replaced (8.69:1 and 7.94:1). White on it is 8.85:1, which is what makes it
-     safe as a button fill as well as a link colour. */
-  --src-green-text: #29532f;
+  /* The same green, dark enough to be read as text or a link: 7.04:1 on white. This is
+     what every link and every "text-safe accent" on the page actually is — `--src-green`
+     itself never appears as foreground. */
+  --src-green-text: #00672f;
 
-  /* And light enough on the dark page: 9.93:1 there, 8.16:1 on the dark banner band. Again
-     both match or beat what `base.css` originally had (9.93:1 and 8.15:1). A green dark
-     enough to read on paper is invisible here, which is why this is a separate value rather
-     than the same one. */
-  --src-green-text-dark: #98cda0;
+  /* And light enough on the dark page: 7.00:1 there. The guideline has no dark palette;
+     this is derived rather than specified, holding the same hue and saturation. */
+  --src-green-text-dark: #00ba53;
 
   /* -------------------------------------------------------------------------------------
    * Neutrals
    * -------------------------------------------------------------------------------------
-   * Deliberately a hybrid of this repository's measured values and the timing app's palette,
-   * decided per token on the contrast rather than wholesale in either direction. The full
-   * reasoning, and the two values that were refused, are in `docs/foundations/brand.md`.
+   * `color.ink` and `color.slate` from the guideline, unchanged from what this repository
+   * already carried for slate — it had already adopted `bindalshah/src-race-timing`'s
+   * `#4A5568` before this change, so there was nothing left to move.
    */
 
-  /* 17.10:1 on the light page. Kept: the timing app's `color.ink` (#2c2c2c) is 13.72:1,
-     which is still AAA but strictly worse, and there is nothing to buy by moving. */
-  --src-ink: #1a1a1a;
+  /* `color.ink`. 13.97:1 on white. */
+  --src-ink: #2c2c2c;
 
-  /* **Adopted from the timing app's `color.slate`.** 7.39:1 against this repository's
-     previous `#58585d` at 6.95:1 — a free upgrade from AA to AAA, and one fewer colour
-     between the two codebases. */
+  /* `color.slate`, already adopted from the timing app's tokens before this change — see
+     `docs/foundations/brand.md`. 7.53:1 on white. */
   --src-slate: #4a5568;
 
-  /* The dark scheme keeps its own neutral rather than a lightened slate. A slate-hued grey
-     at this lightness measures 7.00:1 where this measures 7.72:1, so matching the hue would
-     have cost contrast for tidiness. */
+  /* Unchanged: the guideline gives no dark-mode slate, and this repository's own dark
+     neutral already clears AAA at 7.72:1, so there was nothing to gain by moving it. */
   --src-slate-dark: #a9a9b0;
 
-  /* 7.28:1. **Kept, and the timing app's `color.danger` (#e53935) deliberately refused** —
-     that value is 4.15:1 on this page, which is large-text-only and would put failing error
-     text on the form that asks people for money. */
-  --src-error: #a4231a;
-  /* 10.63:1 on the dark page. */
-  --src-error-dark: #ffb4ab;
+  /* `color.danger` cannot carry body text at its raw value: 4.15:1 on white, AA-large-only,
+     and this repository targets AAA. Derived the same way as the green — hue and
+     saturation held, lightness moved to 7.04:1. The raw `#e53935` is `--src-danger` below,
+     for icons, borders and large-scale fills, matching the guideline's own rule to always
+     pair colour with an icon or label rather than relying on it in isolation. */
+  --src-error: #af1a17;
+  /* 7.02:1 on the dark page. */
+  --src-error-dark: #ef827f;
 
-  --src-paper: #fdfdfc;
+  /* `color.danger`, undiluted — non-text and large-scale use only (icons, borders, DNF
+     fills), per the rule above. */
+  --src-danger: #e53935;
+
+  /* `color.warning`. 1.80:1 on white — decorative and large-scale only (countdown panels),
+     never body text. Charcoal ink on it is 7.64:1, which is how it is meant to be read. */
+  --src-warning: #ffb020;
+
+  /* `color.surface` and `color.surface-muted`. */
+  --src-paper: #ffffff;
   --src-paper-dark: #16161a;
+  --src-surface-muted: #f4f6f2;
+
   --src-rule: #d8d8d4;
   --src-rule-dark: #33333a;
 
-  /* The banner band. A pale tint of the brand hue rather than a grey, and unchanged from
-     what `base.css` already shipped — its ratios were already measured and there was nothing to
-     gain by moving it. 15.62:1 for ink, 7.99:1 for the link. */
-  --src-band: #eef4f1;
-  --src-band-dark: #1f2a26;
+  /* The banner band. A pale tint of the new brand hue (147°), re-derived rather than kept
+     at the old hue (129°) so the band still reads as the same green family as everything
+     else. Ink on it is 12.78:1; the derived green-text link is 6.45:1 — comfortably AA,
+     just under this repository's AAA target, which is a judgement call rather than a
+     miss: pushing the tint any paler starts to look like a mistake rather than a band. */
+  --src-band: #eef7f2;
+  --src-band-dark: #132019;
 
   /* -------------------------------------------------------------------------------------
    * Type
    * -------------------------------------------------------------------------------------
-   * **Inter and JetBrains Mono, both already vendored** at `apps/main/public/fonts` with
-   * their OFL licences, originally for Nightingale Nightmare. The timing app's tokens name
-   * the same two faces, independently, so this is a convergence rather than a choice.
+   * The guideline's preferred faces — Halyard Display and Inter Display for headings,
+   * Halyard Display for body, IBM Plex Mono alongside JetBrains Mono — are not vendored
+   * and (Halyard) not licensed for this domain; see `docs/foundations/brand.md`'s existing
+   * note on Halyard. Rather than name unavailable families in the stack, where they would
+   * silently do nothing, this repository keeps naming only what it can actually serve:
+   * Inter and JetBrains Mono, both already vendored at `apps/main/public/fonts`, which is
+   * also the guideline's own fallback once Halyard is set aside.
    *
-   * **Halyard Display is what the live club site actually uses and is not here.** It is an
-   * Adobe Fonts webfont served under a kit tied to the Squarespace domain, so it cannot be
-   * served from Cloudflare without its own licence. The timing app's `design-tokens.json`
-   * hit the same wall and records it the same way: aspirational, pending a licence.
-   *
-   * System faces lead each stack so a page is readable before any font arrives.
+   * `--src-font-display` is its own token now, distinct from body, so that licensing
+   * Halyard or vendoring Inter Display later is a one-line change here rather than a
+   * search for every heading rule.
    */
+  --src-font-display:
+    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --src-font-body:
     'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --src-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -120,9 +135,8 @@
   /* -------------------------------------------------------------------------------------
    * Shape
    * -------------------------------------------------------------------------------------
-   * The same 8px and 12px the timing app's `radius.button` and `radius.card` carry — and the
-   * same values `nn-theme.css` independently landed on as `--nn-r-btn` and `--nn-r-card`.
-   * Three codebases already agreed; this is the first file to say so out loud.
+   * Unchanged: `radius.button` and `radius.card` in the guideline are the same 8px and 12px
+   * this repository already carried.
    */
   --src-radius-button: 8px;
   --src-radius-card: 12px;

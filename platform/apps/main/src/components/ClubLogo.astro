@@ -51,9 +51,8 @@ const height = Math.round((width * vbHeight) / vbWidth);
 >
   {
     /* `fill="currentColor"` on every path, and no `fill` anywhere else. The `fill-rule` is
-      carried over from the trace — without it the counters in the letters fill in. */
-    CLUB_LOGO.paths.map((p) => (
-      <path d={p.d} transform={p.transform} fill="currentColor" fill-rule="nonzero" />
-    ))
+      carried over from the trace — without it the R's bowl (a counter-wound subpath within
+      its own `d`) fills in solid instead of leaving a hole. */
+    CLUB_LOGO.paths.map((p) => <path d={p.d} fill="currentColor" fill-rule="nonzero" />)
   }
 </svg>

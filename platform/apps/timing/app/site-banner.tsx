@@ -32,12 +32,17 @@ export function SiteBanner() {
         </a>
 
         <p>
-          {/* Three parts, each its own element rather than one sentence with tags inside it.
-              They are flex items and the gap does the spacing, which is what lets each part
-              drop onto its own line on a phone. */}
+          {/* `welcome` and `scope` are two elements so the gap between them can drop onto
+              its own line on a phone. JSX does not collapse whitespace the way Astro's
+              compressed HTML output does, but `scope`, the link and `scopeEnd` still sit
+              wall to wall so the sentence and its embedded link read as one line of markup
+              matching `SiteBanner.astro`, this file's opposite number. */}
           <strong>{SITE_BANNER.welcome}</strong>
-          <span>{SITE_BANNER.scope}</span>
-          <a href={SITE_BANNER.clubWebsite}>{SITE_BANNER.clubWebsiteLabel}</a>
+          <span>
+            {SITE_BANNER.scope}
+            <a href={SITE_BANNER.clubWebsite}>{SITE_BANNER.scopeLinkLabel}</a>
+            {SITE_BANNER.scopeEnd}
+          </span>
         </p>
       </div>
     </div>
