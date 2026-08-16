@@ -25,33 +25,43 @@
   --colour-background: var(--src-paper);
   --colour-text: var(--src-ink);
   --colour-muted: var(--src-slate);
-  /* The brand green, dark enough to be read: 8.74:1 here. This used to be `#16543f`, an
-     invented green at 8.69:1 — so the club's own colour arrived at no cost in contrast. */
+  /* The race-timing app's brand green, derived for text: 7.04:1 here. Adopted 16 August
+     2026 from `docs/foundations/race-timing-brand-guidelines.md`, superseding the club's
+     own green (8.74:1) — see `docs/foundations/brand.md` for that history. */
   --colour-accent: var(--src-green-text);
   --colour-rule: var(--src-rule);
+  --colour-surface-muted: var(--src-surface-muted);
 
   /* The banner band, and **its own text and link colours rather than the page's**.
      `body.theme-nn` restates `--colour-text` and `--colour-accent` in campaign colours —
-     both become bone, `#fff6ec` — so a banner drawn with them would be 1.04:1 on this
-     band and invisible on all five Nightingale Nightmare pages. The theme does not touch
-     these three, so the bar looks the same everywhere, which is what a statement about the
-     whole site should do. Measured: 15.62:1 and 7.99:1. */
+     both become bone, `#fff6ec` — so a banner drawn with them would be off `--colour-text`
+     unreadable on this band and invisible on all five Nightingale Nightmare pages. The
+     theme does not touch these three, so the bar looks the same everywhere, which is what a
+     statement about the whole site should do. Measured: 12.78:1 and 6.45:1. */
   --colour-banner: var(--src-band);
   --colour-banner-text: var(--src-ink);
   --colour-banner-link: var(--src-green-text);
 
   /* **The one place the undiluted brand green is allowed**, and the logo is why.
-     `--src-green` is 3.14:1 on this band — fine for the wordmark, because WCAG puts no
-     contrast requirement on a logotype, and wrong for anything anybody has to read. It is
+     `--src-green` is 2.04:1 on this band — under even the 3:1 non-text floor, which WCAG
+     still permits because a logotype is exempt from any contrast requirement. It is
      deliberately not `--colour-accent`: nothing but the mark may use it. */
   --colour-banner-mark: var(--src-green);
 
-  /* 7.28:1 against the page background. Used for error text and error rules only, and
-     never as the sole carrier of the meaning — see the form section at the foot. */
+  /* 7.04:1 against the page background, derived from the guideline's `color.danger`
+     (`#e53935`, 4.15:1 raw). Used for error text and error rules only, and never as the
+     sole carrier of the meaning — see the form section at the foot. */
   --colour-error: var(--src-error);
-  /* What sits on top of an accent-filled button. 8.90:1 against --colour-accent. */
+  /* The guideline's `color.danger`, undiluted — icons, borders, large-scale DNF fills. */
+  --colour-danger: var(--src-danger);
+  /* The guideline's `color.warning` — decorative and large-scale only (countdown panels).
+     1.80:1 on white, so it never carries text on its own; pair with ink, per the
+     guideline's "never rely on colour alone" rule. */
+  --colour-warning: var(--src-warning);
+  /* What sits on top of an accent-filled button. 7.04:1 against --colour-accent. */
   --colour-on-accent: #ffffff;
 
+  --font-display: var(--src-font-display);
   --font-body: var(--src-font-body);
   --font-mono: var(--src-font-mono);
 
@@ -67,27 +77,28 @@
     --colour-background: var(--src-paper-dark);
     --colour-text: #f2f2f0;
     --colour-muted: var(--src-slate-dark);
-    /* 9.97:1, against the 9.93:1 of the invented green this replaces. */
+    /* 7.00:1. The guideline defines no dark palette, so this is derived — hue and
+       saturation held from `--src-green`, same as the light-scheme text colour. */
     --colour-accent: var(--src-green-text-dark);
     --colour-rule: var(--src-rule-dark);
-    /* Measured: 13.22:1 for the text, 8.19:1 for the link. */
+    /* Measured: 15.01:1 for the text, 6.53:1 for the link. */
     --colour-banner: var(--src-band-dark);
     --colour-banner-text: #f2f2f0;
     --colour-banner-link: var(--src-green-text-dark);
 
-    /* **The mark takes the dark scheme's own green, and this one is a judgement rather than
-       a threshold.** The brand green is legible on the dark band — 4.23:1, comfortably above
-       the 3:1 that non-text needs and exempt anyway as a logotype — so this is not a rescue.
-       It is that `--src-green-text-dark` is already what every link in the dark scheme is,
-       at 8.19:1 here, and a wordmark a shade duller than the text beside it reads as a badly
-       converted asset rather than as a decision. Light scheme keeps the true brand colour;
-       dark scheme is a rendering of it, and says so. */
+    /* **The mark takes the dark scheme's link colour, and this is coherence rather than a
+       rescue.** Both clear the 3:1 non-text floor easily on the dark band — the raw brand
+       green is 7.54:1 there and `--src-green-text-dark` is 6.53:1, so neither needs the
+       other's help. It is that `--src-green-text-dark` is already what every link in the
+       dark scheme is, and a wordmark a different green from the text beside it reads as a
+       mismatch rather than a decision. Light scheme keeps the true brand colour; dark
+       scheme is a rendering of it, and says so. */
     --colour-banner-mark: var(--src-green-text-dark);
 
-    /* 10.63:1 against the dark page background. A red dark enough to read on paper is
+    /* 7.02:1 against the dark page background. A red dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */
     --colour-error: var(--src-error-dark);
-    /* 9.97:1 against the dark scheme's lighter accent. */
+    /* 7.00:1 against the dark scheme's lighter accent. */
     --colour-on-accent: var(--src-paper-dark);
   }
 }
@@ -122,12 +133,14 @@ main {
 }
 
 h1 {
+  font-family: var(--font-display);
   font-size: clamp(1.6rem, 5vw, 2.2rem);
   line-height: 1.2;
   margin: 0 0 calc(var(--space) * 0.5);
 }
 
 h2 {
+  font-family: var(--font-display);
   font-size: 1.15rem;
   margin: calc(var(--space) * 2) 0 calc(var(--space) * 0.5);
 }

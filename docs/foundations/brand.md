@@ -1,5 +1,15 @@
 # The club's brand
 
+> **Superseded in part, 16 August 2026.** The colour, neutral and type tokens this document
+> describes below were replaced by `bindalshah/src-race-timing`'s own palette — see
+> [`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md) for the adopted
+> document and `tokens.css` for the derived values. This page is kept rather than rewritten,
+> per this repository's rule against silently editing an accepted decision: the reasoning
+> below for why the club's own green was confirmed, and why the timing app's palette was
+> originally refused, is still true history — it explains what changed and why. **The
+> wordmark, the favicon, and the 8px/12px radii were not touched** and remain exactly as
+> this document describes them.
+
 Where the site's colours, wordmark and typeface come from, what the club has confirmed,
 and what is still a proposal. Written to be read alongside
 [`packages/shared/styles/tokens.css`](../../platform/packages/shared/styles/tokens.css),
@@ -146,10 +156,16 @@ money, so `--src-error` was kept. Both figures are asserted in
 `packages/shared/tests/unit/brand.test.ts`, so the refusal cannot be silently reversed by a
 future "let's just match the other repo" edit.
 
-**Not compared:** `color.primary` (`#00C85A`), the timing app's own green. It is 1.53:1 from
-`#4C9B58` — close enough to read as a mistake side by side, far enough to not be the same
-colour — and is that app's own brand rather than the club's, so no attempt was made to
-reconcile the two.
+**Not compared, at the time:** `color.primary` (`#00C85A`), the timing app's own green. It
+was 1.53:1 from `#4C9B58` — close enough to read as a mistake side by side, far enough to
+not be the same colour — and was that app's own brand rather than the club's, so no attempt
+was made to reconcile the two. **This was superseded on 16 August 2026**: `#00C85A` is now
+`apps/main`'s `--src-green`, by explicit decision rather than by drift. See
+[`race-timing-brand-guidelines.md`](race-timing-brand-guidelines.md) for the adopted
+document. It carries the same limitation this section already found: 2.19:1 on white, under
+even the 3:1 non-text floor, so it remains a surface-and-logo colour only, never text —
+`--src-green-text` (`#00672F`, 7.04:1) is what a link or an accent actually renders as, the
+same two-layer shape this document describes for the colour it replaced.
 
 ---
 
