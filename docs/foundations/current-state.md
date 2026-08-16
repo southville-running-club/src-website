@@ -261,7 +261,10 @@ Cost: **£15.40 a year** for the domain and DNS.
 
 - **Email is forwarding-only**, through Fasthosts livemail, **forwarding to Gmail
   accounts**. There are addresses on the domain (the Membership Officer publishes one),
-  but no mailboxes the club hosts.
+  but no mailboxes the club hosts. *(Superseded — Fasthosts mailboxes were bought per
+  [decision 003](../decisions/decision-log.md). What is true now is in
+  [email addressing](../architecture/investigations/email-addressing.md); this line stays
+  as the 6 August capture it was.)*
 - **The MX points at a hostname inside the zone**, so `mail`'s A record is load-bearing
   for all inbound mail.
 - **DMARC is `p=none`** — monitoring, no enforcement. Authentication failures degrade
