@@ -10,6 +10,7 @@
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/nn-theme.css": "./styles/nn-theme.css",
     "./brand": "./src/brand.ts",
+    "./social": "./src/social.ts",
     "./contrast": "./src/contrast.ts",
     "./design-tokens.json": "./design-tokens.json",
     "./nn-entry": "./src/nn-entry.ts",
@@ -21,6 +22,7 @@
   "dependencies": {
     "@src/db": "*",
     "@supabase/supabase-js": "^2.112.2",
+    "simple-icons": "^16.28.0",
     "zod": "^4.4.3"
   }
 }

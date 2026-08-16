@@ -66,6 +66,37 @@ Relatedly: `initOpenNextCloudflareForDev()` in `next.config.ts` is guarded to
 loading the config — and `next build` loads the config again in every static-generation
 worker.
 
+## The club's chrome, on a path the club does not own the framework of
+
+This app is Next and `apps/main` is Astro, so a banner, a footer and a wordmark cannot be
+one component. They are one *set of values* instead — `CLUB_LOGO`, `SITE_BANNER` and
+`SOCIAL_LINKS` in `packages/shared` — with a dozen lines of JSX here and a dozen lines of
+Astro there. `apps/main/tests/e2e/site.spec.ts` visits both front doors and asserts they
+agree, because each app builds green on its own and nothing else would notice a drift.
+
+Three of them arrived after the club's front door already had them, and the gap was visible
+to anybody who reached `/timing` from a search: the club's colours, and no way back to the
+club.
+
+| | |
+| --- | --- |
+| `app/site-banner.tsx` | The bar that says which site this is, and the wordmark that links home |
+| `app/site-footer.tsx` | The club's four social profiles, outside `<main>` so it is the one `contentinfo` |
+| `metadata.icons` in `app/layout.tsx` | The browser-tab icon |
+
+**The favicon is `/favicon.svg`, which this app does not serve.** It is
+`apps/main/public/favicon.svg`, at the root of the hostname `/timing` is one path on — so
+there is one icon for the whole site rather than a copy here to keep in step. `basePath`
+prefixes `next/link` and leaves `metadata` alone, which is what makes the leading slash
+mean what it says; the e2e assertion is the guard if that ever changes. Running this app
+standalone on :8788 is the one place it 404s, because nothing serves the club's `public/`
+there.
+
+**The tab icon is the club's "SRC" monogram and the header is the full wordmark**, which is
+a deliberate split rather than an inconsistency: 16px of tab strip cannot hold three words,
+and a header has room for the club's name. See
+[`docs/foundations/brand.md`](../../../docs/foundations/brand.md).
+
 ## Commands
 
 ```bash

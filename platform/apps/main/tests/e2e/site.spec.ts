@@ -150,6 +150,24 @@ test.describe('the club wordmark', () => {
       expect(fills.length).toBeGreaterThan(0);
       expect(fills.every((f) => f === 'currentColor')).toBe(true);
     });
+
+    test(`${name} carries the full lockup, not the monogram`, async ({ page }) => {
+      // **The assertion that keeps the two marks where they belong.** For part of
+      // 16 August 2026 every surface rendered the "SRC" monogram, favicon included, because
+      // the argument for it — a wordmark at 16px is an illegible smear — was true about the
+      // favicon and got applied to everything. Three initials are what a tab strip needs and
+      // are not what a header needs: a visitor who has arrived from a search has never seen
+      // them before and a header has room for the club's name.
+      //
+      // The viewBox is what tells them apart in rendered markup — 876x267 is the club's own
+      // PNG, 412.236x215.679 is `logo_src.pdf` — and it is pinned as a literal, because
+      // reading it from `brand.ts` would let the two swap and still pass.
+      await page.goto(path);
+
+      const mark = page.locator('.site-banner .site-logo');
+      await expect(mark).toHaveAttribute('viewBox', '0 0 876 267');
+      await expect(mark.locator('path')).toHaveCount(2);
+    });
   }
 
   test('appears exactly once on a Nightingale Nightmare page', async ({ page }) => {
@@ -162,6 +180,13 @@ test.describe('the club wordmark', () => {
 
     await expect(page.locator('.site-banner .site-logo')).toBeHidden();
     await expect(page.locator('.nn-masthead .nn-logo')).toBeVisible();
+
+    // And it is the lockup here too. The campaign has its own type, its own colours and its
+    // own everything else; the one thing it does not get its own version of is the club.
+    await expect(page.locator('.nn-masthead .nn-logo')).toHaveAttribute(
+      'viewBox',
+      '0 0 876 267',
+    );
     await expect(page.getByRole('img', { name: 'Southville Running Club' })).toHaveCount(
       0,
     );
@@ -179,6 +204,112 @@ test.describe('the club wordmark', () => {
       'color',
       'rgb(255, 246, 236)',
     );
+  });
+});
+
+test.describe('the browser-tab icon', () => {
+  // **One file, one hostname, three paths.** `/timing` is a second Worker but not a second
+  // site, so it points at the club's `/favicon.svg` rather than shipping a copy under
+  // `/timing/`. Nothing about that is enforced by a framework — `basePath: '/timing'`
+  // prefixes `next/link` and leaves `metadata` alone — so these assertions are what say the
+  // arrangement still holds.
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+    ['race timing', '/timing'],
+  ] as const) {
+    test(`${name} points at the club's one favicon`, async ({ page }) => {
+      await page.goto(path);
+
+      const icon = page.locator('link[rel="icon"]');
+      await expect(icon).toHaveCount(1);
+      await expect(icon).toHaveAttribute('href', '/favicon.svg');
+    });
+  }
+
+  test('is the monogram, which is the only place the monogram appears', async ({
+    request,
+  }) => {
+    // **The other half of "the header carries the lockup".** Three initials are exactly
+    // right at 16px and wrong everywhere else; the wordmark is the reverse. The viewBox is
+    // what distinguishes the artwork, and this is the one asset that may hold `logo_src.pdf`'s.
+    const response = await request.get('/favicon.svg');
+    expect(response.status()).toBe(200);
+
+    const svg = await response.text();
+    expect(svg).toContain('viewBox="0 0 412.236 215.679"');
+    expect(svg.match(/<path\b/g)).toHaveLength(3);
+
+    // A static file cannot read a custom property, so the brand green is baked in here and
+    // nowhere the apps render inline.
+    expect(svg).toContain('#00c85a');
+
+    // The standalone wordmark is the other file, and it is not this one.
+    const logo = await (await request.get('/logo.svg')).text();
+    expect(logo).toContain('viewBox="0 0 876 267"');
+  });
+});
+
+test.describe('the footer the whole site carries', () => {
+  // **Added to `/timing` here.** The club's front door grew a social row and this app did
+  // not, so somebody who landed on the timing page from a search had the club's colours, the
+  // club's banner and no route to anywhere the club actually posts. Both apps render it from
+  // `SOCIAL_LINKS` in `@src/shared/social`; only the tags differ.
+  const PROFILES = ['Instagram', 'Facebook', 'X', 'TikTok'] as const;
+
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+    ['race timing', '/timing'],
+  ] as const) {
+    test(`${name} offers the club's four profiles`, async ({ page }) => {
+      await page.goto(path);
+
+      const footer = page.locator('.site-footer');
+      await expect(footer).toBeVisible();
+
+      for (const profile of PROFILES) {
+        // **Named, not "graphic".** The link's `aria-label` is the only text a screen reader
+        // gets — the mark inside it is `aria-hidden` — so a missing label turns the row into
+        // four unlabelled links, which is how an icon footer usually fails.
+        const link = footer.getByRole('link', { name: profile, exact: true });
+        await expect(link, `${path} -> ${profile}`).toHaveCount(1);
+        await expect(link).toHaveAttribute('href', /^https:\/\//);
+      }
+
+      // The artwork takes its colour from the footer, the same rule the wordmark follows.
+      const fills = await footer
+        .locator('svg path')
+        .evaluateAll((paths) => paths.map((p) => p.getAttribute('fill')));
+      expect(fills).toHaveLength(PROFILES.length);
+      expect(fills.every((f) => f === 'currentColor')).toBe(true);
+    });
+
+    test(`${name} has exactly one contentinfo landmark`, async ({ page }) => {
+      // A `<footer>` inside `main` is generic; outside it, it is `contentinfo`. Both the home
+      // page and the timing page sign off with their own footer *inside* `<main>`, so this is
+      // the assertion that says the global one did not become a second landmark next to it.
+      await page.goto(path);
+
+      await expect(page.getByRole('contentinfo')).toHaveCount(1);
+      await expect(page.getByRole('contentinfo')).toHaveClass(/site-footer/);
+    });
+  }
+
+  test('the two front doors say it in the same words, from one list', async ({
+    page,
+  }) => {
+    // Astro on one side of the hostname and Next on the other, so the markup is written
+    // twice and only `@src/shared/social` keeps the two in step. Nothing but a test that
+    // visits both can prove it, because each app builds green on its own.
+    const hrefsOn = async (path: string) => {
+      await page.goto(path);
+      return page
+        .locator('.site-footer-social a')
+        .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    };
+
+    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/'));
   });
 });
 

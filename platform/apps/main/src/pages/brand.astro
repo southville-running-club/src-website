@@ -160,6 +160,32 @@ const bodyFontName = tokens.font.body.value.split(',')[0].replace(/"/g, '');
     a paragraph of text, and perfectly fine for a piece of artwork.
   </p>
 
+  <h2>The monogram, and the one place it is used</h2>
+
+  <p>
+    The club also has an “SRC” monogram, and it is the browser-tab icon — nothing else. A
+    tab is about 16 pixels across, which is not enough room for three words: the full
+    wordmark shrunk into that space is an illegible smear. The reverse is true of a page
+    header, which has room for the club's name and is often the first time somebody has
+    seen the club at all. Three initials are recognised by people who already know the
+    club; a name is read by everybody.
+  </p>
+
+  <div class="brand-marks">
+    <div class="brand-mark" style={`background: ${c.paper.value}`}>
+      {
+        /* The file itself, not the shared geometry rendered inline — this is the one mark
+          that ships as a static asset with its colour baked in, because a favicon cannot
+          read a custom property, and showing the asset is the honest thing to show. */
+      }
+      {
+        /* 64x33 is the artwork's own 412.236:215.679, so nothing is letterboxed or squashed. */
+      }
+      <img src="/favicon.svg" width="64" height="33" alt="" />
+      <p>The browser-tab icon, at four times the size it is seen at</p>
+    </div>
+  </div>
+
   <h2>How readable each colour is</h2>
 
   <p>

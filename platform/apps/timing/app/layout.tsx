@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 // the club's palette by importing one file, and stays on it without a second edit here.
 import '@src/shared/styles/base.css';
 import { SiteBanner } from './site-banner';
+import { SiteFooter } from './site-footer';
 
 export const metadata: Metadata = {
   // **A browser tab is consumer-facing too.** This said "Race timing — deployment skeleton",
@@ -18,6 +19,18 @@ export const metadata: Metadata = {
   // tag at all, so there is nothing there to match. This is the club's own brand green from
   // tokens.css's `--src-green`, applied the same way apps/main now does.
   themeColor: '#00c85a',
+  // **`/favicon.svg`, not a copy of it under `/timing`.** The tab strip is the one place the
+  // club appears as three letters — `CLUB_MONOGRAM`, because a wordmark at 16px is a smear —
+  // and this app had no icon at all, so `/timing` showed a browser's blank page glyph beside
+  // two club-branded tabs.
+  //
+  // The file is `apps/main/public/favicon.svg`, served by the club's Worker at the root of
+  // the same hostname: `/timing` is one path on `new.southvillerunningclub.co.uk`, not a site
+  // of its own, so a second copy of the artwork here would be a second thing to keep in step
+  // for no gain. **The leading slash is load-bearing** — `basePath: '/timing'` prefixes
+  // `next/link` and nothing in `metadata`, which is what lets this point outside the app; the
+  // Playwright assertion in `site.spec.ts` is what would catch that changing.
+  icons: { icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +44,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             what it says rather than skipping to something that is already behind it. */}
         <SiteBanner />
         <main id="main">{children}</main>
+        {/* Below `<main>`, like it is on the club's side, and for the same reason: a
+            `<footer>` outside `main` is the page's one `contentinfo` landmark. */}
+        <SiteFooter />
       </body>
     </html>
   );

@@ -1,10 +1,18 @@
 <!-- The browser-tab icon: the club's own "SRC" monogram artwork, supplied directly as
      logo_src.pdf on 16 August 2026 — real vector source, not a hand trace of a rendered
-     image. Extracted path-for-path (see packages/shared/src/brand.ts's CLUB_LOGO, which is
-     the same geometry, and docs/foundations/brand.md for the history of the placeholder
+     image. Extracted path-for-path (see packages/shared/src/brand.ts's CLUB_MONOGRAM, which
+     is the same geometry, and docs/foundations/brand.md for the history of the placeholder
      this replaces: a false claim that a traced monogram already existed, when the file
      that had shipped was actually the full "SOUTHVILLE RUNNING CLUB" wordmark shrunk into
      a 100x100 box).
+
+     **This is the only place the monogram appears.** The mark in the site banner and the
+     Nightingale Nightmare masthead is the full lockup — CLUB_LOGO — because a header has
+     room for the club's name and three letters nobody has seen before decode to nothing.
+     16px of tab strip does not, which is what this file is for.
+
+     Served at the root of the hostname, so /timing links to it too rather than shipping a
+     second copy — see apps/timing/app/layout.tsx.
 
      Colour is #00c85a, the race-timing app's brand green adopted 16 August 2026 (see
      docs/foundations/race-timing-brand-guidelines.md), baked in because a static favicon

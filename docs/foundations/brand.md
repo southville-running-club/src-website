@@ -60,14 +60,16 @@ a runner.
   three letters set in Inter, honestly not-traced. **Superseded again the same day**: the
   club supplied `logo_src.pdf`, real vector artwork for an "SRC" monogram. Both the
   wordmark and the favicon now use it — see the next bullet.
-- **The wordmark's geometry, replaced.** `apps/main/public/logo.svg`'s viewBox is now
-  `0 0 412.236 215.679`, `logo_src.pdf`'s own page size, and its three paths — S, R, C —
-  are extracted directly from that PDF's vector drawing operators, not hand-traced from a
-  rendered image. This replaces the previous two-line "SOUTHVILLE RUNNING CLUB" lockup
-  (which had matched `blacktransparantlogo-removebg-preview.png`, the club's PNG,
-  pixel for pixel) as the mark rendered everywhere: the site banner, the masthead, and now
-  a legible favicon at `apps/main/public/favicon.svg`, all from the same
-  [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts) geometry.
+- **The wordmark's geometry, replaced — and then split in two, later the same day.** The
+  monogram is `logo_src.pdf`'s own three paths (S, R, C) at its own page size,
+  `0 0 412.236 215.679`, extracted directly from that PDF's vector drawing operators rather
+  than hand-traced from a rendered image. It was briefly the mark on *every* surface: the
+  site banner, the masthead and the favicon. **It is the favicon's alone now**, and the
+  two-line "SOUTHVILLE RUNNING CLUB" lockup — `0 0 876 267`, matching
+  `blacktransparantlogo-removebg-preview.png` pixel for pixel — is back everywhere else.
+  See "Two marks, split by size" below for why. Both live in
+  [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts), as
+  `CLUB_LOGO` and `CLUB_MONOGRAM`.
 - **Inter and JetBrains Mono as the typefaces.** Both are already vendored at
   `apps/main/public/fonts` with their OFL licences, having arrived for Nightingale
   Nightmare. `bindalshah/src-race-timing`'s `design-tokens.json` independently names the
@@ -76,6 +78,30 @@ a runner.
   carries as `--nn-r-btn` and `--nn-r-card`, and the same ones `bindalshah/src-race-timing`
   carries as `radius.button` and `radius.card`. Three codebases had already agreed; this is
   the first file to say so out loud.
+
+## Two marks, split by size
+
+**The lockup is the mark; the monogram is the favicon.** Both are the club's own artwork and
+neither is a compromise — what the split records is that they are good at different sizes,
+which is a fact about typography rather than a preference.
+
+| | |
+| --- | --- |
+| `CLUB_LOGO` — "SOUTHVILLE RUNNING CLUB", `0 0 876 267` | The site banner on `/`, `/nn` and `/timing`, and the Nightingale Nightmare masthead. Also the standalone `apps/main/public/logo.svg` |
+| `CLUB_MONOGRAM` — "SRC", `0 0 412.236 215.679` | `apps/main/public/favicon.svg`, and nothing else |
+
+For a few hours on 16 August 2026 the monogram was both. The argument that put it there is
+sound and is unchanged — three words shrunk into a 16px tab strip are an illegible smear —
+but it is an argument about the favicon, and it was applied to every surface at once. A
+header is the opposite case: it has room for the club's name, and most people who reach
+`/nn` arrive from a shared link having never seen the club's initials before. A monogram is
+recognised; a wordmark is *read*. A site nobody has visited yet needs the second.
+
+`packages/shared/tests/unit/brand.test.ts` asserts each mark matches its own file, and that
+the pair has not been crossed — the negative case, because a swap renders fine, keeps the
+right accessible name, and is invisible in a diff of two path strings.
+`apps/main/tests/e2e/site.spec.ts` asserts the same thing about the rendered pages, by
+viewBox, on all three paths.
 
 ## What changed, and why the earlier value was only provisional
 
@@ -192,7 +218,8 @@ a blank. Recorded here rather than in code, per
 - [x] **Does an official green wordmark exist?** — not the full lockup, which is still a
       black PNG (see above).
 - [x] **Does an official "SRC" monogram exist?** — confirmed 16 August 2026: `logo_src.pdf`,
-      real vector artwork, supplied directly. Both the wordmark and the favicon now use it.
+      real vector artwork, supplied directly. It is the favicon; the wordmark went back to
+      the full lockup the same day — see "Two marks, split by size".
 - [ ] **A secondary and neutral palette**, if the club has one beyond the single green.
 - [ ] **The typeface** — licence Halyard, or accept Inter as the substitute.
 - [ ] **What the brand should look like in dark mode.** The live club site has none; this

@@ -7,49 +7,14 @@
 // still on `southvillerunningclub.co.uk`; see `SITE_BANNER` for the link back there.
 //
 // **Icons, not words, matching the old site and industry practice for a social-links row.**
-// `simple-icons` is the dependency for that — official brand marks as plain SVG path data,
-// no framework attached, imported at build time via Vite's `?raw` so the icon set stays a
-// real pinned dependency (`npm outdated` surfaces updates) rather than hand-copied artwork
-// this repository would have to notice had drifted. Each `d` below is extracted from the
-// raw file rather than the file being inlined wholesale, so the path can be filled with
-// `currentColor` the same way `ClubLogo.astro` fills the wordmark — one colour decision,
-// made in CSS, rather than baked into borrowed artwork.
-import instagramSvg from 'simple-icons/icons/instagram.svg?raw';
-import facebookSvg from 'simple-icons/icons/facebook.svg?raw';
-import xSvg from 'simple-icons/icons/x.svg?raw';
-import tiktokSvg from 'simple-icons/icons/tiktok.svg?raw';
-
-/** simple-icons ships one `<path d="…">` per mark; this is the whole file's markup. */
-function pathFrom(svg: string): string {
-  const match = svg.match(/<path d="([^"]+)"/);
-  if (!match?.[1]) throw new Error('simple-icons SVG has no path data');
-  return match[1];
-}
-
-const SOCIAL_LINKS = [
-  {
-    name: 'Instagram',
-    href: 'https://www.instagram.com/southvillerunningclub/',
-    d: pathFrom(instagramSvg),
-  },
-  {
-    name: 'Facebook',
-    href: 'https://www.facebook.com/groups/22333122208',
-    d: pathFrom(facebookSvg),
-  },
-  {
-    // The platform's current brand is "X"; the club's own link is still its legacy
-    // twitter.com address, which X still resolves.
-    name: 'X',
-    href: 'https://twitter.com/SouthvilleRC',
-    d: pathFrom(xSvg),
-  },
-  {
-    name: 'TikTok',
-    href: 'https://www.tiktok.com/@southvillerunningclub',
-    d: pathFrom(tiktokSvg),
-  },
-] as const;
+// The addresses and the artwork both come from `@src/shared/social` now rather than from
+// four `?raw` imports here: `/timing` carries the same footer and is a Next app, where
+// Vite's `?raw` does not exist. `apps/timing/app/site-footer.tsx` is this file's opposite
+// number, and the two cannot drift because neither owns the list.
+//
+// Each path is filled with `currentColor` the same way `ClubLogo.astro` fills the wordmark
+// — one colour decision, made in CSS, rather than baked into borrowed artwork.
+import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
 ---
 
 <footer class="site-footer">
@@ -60,7 +25,7 @@ const SOCIAL_LINKS = [
         <li>
           <a href={link.href} aria-label={link.name}>
             <svg
-              viewBox="0 0 24 24"
+              viewBox={SOCIAL_ICON_VIEWBOX}
               width="24"
               height="24"
               aria-hidden="true"

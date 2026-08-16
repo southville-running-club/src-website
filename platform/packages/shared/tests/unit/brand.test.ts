@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { CLUB_LOGO, SITE_BANNER } from '../../src/brand.js';
+import { CLUB_LOGO, CLUB_MONOGRAM, SITE_BANNER } from '../../src/brand.js';
 import { contrastRatio } from '../../src/contrast.js';
+import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '../../src/social.js';
 import tokens from '../../design-tokens.json' with { type: 'json' };
 
 /**
@@ -20,7 +21,10 @@ import tokens from '../../design-tokens.json' with { type: 'json' };
  *      once and typed into a comment, which is exactly the kind of thing that survives the
  *      colour change that made it false. These are recomputed from the values themselves.
  *   3. `logo.svg` and `brand.ts` are the same artwork twice — the standalone asset served at
- *      `/logo.svg`, and the geometry both apps render inline.
+ *      `/logo.svg`, and the geometry both apps render inline. `favicon.svg` and
+ *      `CLUB_MONOGRAM` are the same pair one size down, and the two pairs must not be
+ *      crossed: the lockup in a 16px tab is a smear, and three initials in a masthead are
+ *      three initials a first-time visitor cannot decode.
  *
  * The negative cases matter more than the positive ones here. That the brand green *fails*
  * as body text is the fact that decided the whole palette's shape, so it is asserted rather
@@ -34,6 +38,7 @@ const read = (rel: string) =>
 const tokensCss = read('../../styles/tokens.css');
 const baseCss = read('../../styles/base.css');
 const logoSvg = read('../../../../apps/main/public/logo.svg');
+const faviconSvg = read('../../../../apps/main/public/favicon.svg');
 
 /** Every `--src-*: value;` declaration in `tokens.css`, as a map. */
 function cssTokens(): Map<string, string> {
@@ -192,6 +197,12 @@ describe('the wordmark', () => {
     expect(logoSvg).toContain(`viewBox="${CLUB_LOGO.viewBox}"`);
     for (const path of CLUB_LOGO.paths) {
       expect(logoSvg, 'a path in brand.ts is not in logo.svg').toContain(path.d);
+      // The transform too. It is what places each line of the lockup inside the viewBox, so
+      // a file that carried the same `d` without it would be the same data drawing a
+      // different picture — which is precisely the drift this test exists to catch.
+      expect(logoSvg, 'a transform in brand.ts is not in logo.svg').toContain(
+        path.transform,
+      );
     }
     // Both paths and no more — an extra one in the file would be artwork the apps never draw.
     expect(logoSvg.match(/<path\b/g)).toHaveLength(CLUB_LOGO.paths.length);
@@ -201,18 +212,88 @@ describe('the wordmark', () => {
     // The whole reason the mark could only ever appear on the Nightingale Nightmare hero was
     // that its fill was baked in. Nothing in `brand.ts` may name a colour: the apps fill every
     // path with `currentColor`, and CSS decides.
-    const asJson = JSON.stringify(CLUB_LOGO);
-    expect(asJson).not.toMatch(/#[0-9a-f]{3,8}\b/i);
-    expect(asJson).not.toMatch(/\bfill\b/i);
+    for (const mark of [CLUB_LOGO, CLUB_MONOGRAM]) {
+      const asJson = JSON.stringify(mark);
+      expect(asJson).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+      expect(asJson).not.toMatch(/\bfill\b/i);
+    }
   });
 
-  it('is the club’s own artwork, at the club’s own dimensions', () => {
-    // Replaced 16 August 2026: this is `logo_src.pdf`'s own page size, extracted directly
-    // from the vector source the club supplied rather than measured off a rendered image —
-    // see the comment above `CLUB_LOGO` in brand.ts for the full history.
-    expect(CLUB_LOGO.viewBox).toBe('0 0 412.236 215.679');
-    expect(CLUB_LOGO.paths).toHaveLength(3);
+  it('is the two-line lockup, at the club’s own dimensions', () => {
+    // **Restored 16 August 2026**, hours after the "SRC" monogram replaced it everywhere.
+    // 876x267 is the size of the club's own PNG, which this trace matches pixel for pixel.
+    // The monogram is real artwork and keeps the favicon; what it is not is the mark for a
+    // header, which is what this assertion pins — see `CLUB_LOGO` in brand.ts.
+    expect(CLUB_LOGO.viewBox).toBe('0 0 876 267');
+    expect(CLUB_LOGO.paths).toHaveLength(2);
     expect(CLUB_LOGO.title).toBe('Southville Running Club');
+  });
+});
+
+describe('the monogram', () => {
+  it('is the same artwork in brand.ts as in the file served at /favicon.svg', () => {
+    // The favicon is a static file with the brand green baked in, because it cannot read a
+    // custom property — so the geometry is the only thing the two can agree on, and this is
+    // what says they do.
+    expect(faviconSvg).toContain(`viewBox="${CLUB_MONOGRAM.viewBox}"`);
+    for (const path of CLUB_MONOGRAM.paths) {
+      expect(faviconSvg, 'a path in brand.ts is not in favicon.svg').toContain(path.d);
+    }
+    expect(faviconSvg.match(/<path\b/g)).toHaveLength(CLUB_MONOGRAM.paths.length);
+  });
+
+  it('is `logo_src.pdf`’s own three letters, at its own page size', () => {
+    expect(CLUB_MONOGRAM.viewBox).toBe('0 0 412.236 215.679');
+    expect(CLUB_MONOGRAM.paths).toHaveLength(3);
+    expect(CLUB_MONOGRAM.title).toBe('Southville Running Club');
+  });
+
+  it('is not the wordmark, which is the only reason both exist', () => {
+    // **The negative case, and the one that would fail silently.** Both constants carry the
+    // club's name as their accessible title, so a diff that pointed one at the other's paths
+    // would still read correctly to a screen reader and still render *something*. The two
+    // are different artwork for different sizes, and that is what is asserted.
+    expect(CLUB_MONOGRAM.viewBox).not.toBe(CLUB_LOGO.viewBox);
+    for (const path of CLUB_MONOGRAM.paths) {
+      expect(CLUB_LOGO.paths.map((p) => p.d)).not.toContain(path.d);
+    }
+
+    // And the favicon is the monogram's only home: the file the apps render inline is the
+    // lockup. A favicon holding the wordmark is the illegible smear that started all this.
+    expect(logoSvg).not.toContain(CLUB_MONOGRAM.paths[0]!.d);
+    expect(faviconSvg).not.toContain(CLUB_LOGO.paths[0]!.d);
+  });
+});
+
+describe('the club’s social profiles', () => {
+  it('names each platform and points at the club’s own account', () => {
+    // One list, rendered by an Astro component and a React one — see `social.ts`. The names
+    // are the accessible names of four icon links, so they are the only thing a screen
+    // reader gets: "Instagram", not "our socials".
+    expect(SOCIAL_LINKS.map((l) => l.name)).toEqual([
+      'Instagram',
+      'Facebook',
+      'X',
+      'TikTok',
+    ]);
+
+    for (const link of SOCIAL_LINKS) {
+      expect(link.href, link.name).toMatch(/^https:\/\//);
+      expect(link.href, link.name).toMatch(/southville|SouthvilleRC|22333122208/i);
+    }
+  });
+
+  it('takes its artwork from the pinned dependency, with no colour baked in', () => {
+    // `simple-icons` publishes each mark's `hex`, and none of it is used: every path is
+    // filled with `currentColor` so the footer decides, the same rule the wordmark follows.
+    // Hand-copied path data would pass every other assertion here and quietly stop tracking
+    // a brand that changed its mark, which is why the icons are a dependency at all.
+    for (const link of SOCIAL_LINKS) {
+      expect(link.d.length, link.name).toBeGreaterThan(50);
+      expect(link.d, link.name).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    }
+
+    expect(SOCIAL_ICON_VIEWBOX).toBe('0 0 24 24');
   });
 });
 
