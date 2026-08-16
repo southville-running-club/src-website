@@ -267,26 +267,35 @@ a[href^='mailto:'] {
 }
 
 /*
- * At 320px the link drops below the sentence rather than pushing the page sideways.
+ * The banner's link, kept readable on the pale band whatever theme the page is wearing.
  *
  * **The class on the ancestor is the point, not the tag names.** `nn-theme.css` carries
  * `.theme-nn a { color: var(--nn-bone) }`, which is (0,1,1) — exactly what `.site-banner a`
  * would be. A tie is broken by source order, the theme is imported after this file, and the
  * bar's link came out bone-on-bone at **1.04:1** on all five Nightingale Nightmare pages.
- * This selector is (0,2,2) and wins outright rather than by luck. Whichever stylesheet loads
- * first must not decide whether a link is readable.
+ * This selector is a class and two elements deep and wins outright rather than by luck.
+ * Whichever stylesheet loads first must not decide whether a link is readable.
  *
- * It was `.site-banner > p > a` at (0,1,2) before the wordmark moved the paragraph inside
- * `.site-banner-inner`. Still a class-and-two-elements deep, still clear of the theme.
+ * **A descendant combinator before the `a`, and that is the whole lesson of this rule.**
+ * It was `.site-banner > p > a`, then `.site-banner-inner > p > a` when the wordmark moved
+ * the paragraph — a chain of direct children, each step of which is a bet on the markup's
+ * exact shape. When the link moved *inside* the sentence's `<span>` (it used to trail after
+ * it as "For everything else, please see the old site"; it is the words "the old site"
+ * within the sentence now), `> a` stopped matching, the theme won by default, and the link
+ * went back to **1.02:1** — the identical failure this comment already described, on all
+ * seven Nightingale Nightmare pages, caught by axe in `site.spec.ts` and not by eye.
+ *
+ * So the `a` is matched wherever it sits in the paragraph. The specificity that clears the
+ * theme is unchanged; what is gone is the assumption that a sentence cannot be re-worded.
  */
-.site-banner-inner > p > a {
+.site-banner-inner > p a {
   color: var(--colour-banner-link);
   font-weight: 600;
 }
 
 /* The focus ring, for the same reason and with the same specificity: the event theme's ring
    is the campaign yellow, which on this pale band is a ring nobody can see. */
-.site-banner-inner > p > a:focus-visible {
+.site-banner-inner > p a:focus-visible {
   outline-color: var(--colour-banner-link);
 }
 
