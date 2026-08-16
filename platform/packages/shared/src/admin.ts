@@ -664,3 +664,48 @@ export async function fetchAdminExport(
     };
   }
 }
+
+// -----------------------------------------------------------------------------------------
+// The retention sweep
+// -----------------------------------------------------------------------------------------
+
+export interface MedicalRetentionSweep {
+  /** Medical notes deleted on this run. Zero on all but a handful of days a year. */
+  deleted: number;
+  /** How many events they belonged to, so a log line says whether it was one race or four. */
+  events: number;
+}
+
+/**
+ * Delete the medical notes the club has published a promise to delete.
+ *
+ * Called by the five-minute cron alongside the hold sweep, and safe to call as often as that:
+ * on every run but a handful a year it deletes nothing and returns zero. **A count and nothing
+ * else comes back** — these are the rows the whole retention rule is about.
+ */
+export async function deleteExpiredMedicalNotes(
+  client: AnonClient,
+): Promise<({ ok: true } & MedicalRetentionSweep) | { ok: false; error: string }> {
+  try {
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('delete_expired_medical_notes');
+
+    if (error) {
+      return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
+    }
+
+    const parsed = z
+      .object({
+        deleted: z.number().int().min(0),
+        events: z.number().int().min(0).catch(0),
+      })
+      .safeParse(data);
+
+    return parsed.success
+      ? { ok: true, deleted: parsed.data.deleted, events: parsed.data.events }
+      : { ok: false, error: 'delete_expired_medical_notes returned an unexpected shape' };
+  } catch (cause) {
+    return { ok: false, error: cause instanceof Error ? cause.name : 'unknown' };
+  }
+}

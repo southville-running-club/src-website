@@ -19,6 +19,7 @@ import {
   NN_PREFIX,
 } from './routing';
 import { handleNnAdmin } from './nn-admin';
+import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
 import { renderNnEntryComplete, resolveNnEntryCompleteView } from './nn-entry-complete';
 import {
@@ -350,6 +351,18 @@ export default {
         );
       }
     }
+
+    // **The published retention promise, kept — and it is not behind the sweep's failure.**
+    // `/nn/privacy/` says a medical note is deleted separately from and sooner than the rest of
+    // an entry; this is the thing that does it, and it rides on the schedule that already exists
+    // rather than on a second one to configure and to notice has stopped.
+    //
+    // The early `return` this replaces was the reason it had to be restructured: a failed hold
+    // sweep would otherwise have taken a **legal retention obligation** down with it, silently
+    // and for as long as the first call kept failing. The two jobs share a schedule and share
+    // nothing else, so neither may decide whether the other runs. On all but a handful of days
+    // a year this deletes nothing and says nothing.
+    await sweepExpiredMedicalNotes(env);
   },
 } satisfies ExportedHandler<Env>;
 

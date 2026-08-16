@@ -328,6 +328,14 @@ through to the assets binding and 404s like one nobody published. **That is the 
 Switching it on is two manual steps plus a key per volunteer:
 [the admin runbook](docs/delivery/runbooks/entries-admin.md).
 
+**The medical notes are deleted a month after the race, and the promise and the enforcement are
+tied together by a test.** `entries.events.medical_retention` is what the five-minute cron
+applies; `race.json`'s `privacy.medicalRetention` is what `/nn/privacy/` publishes;
+`packages/db/tests/entries-retention.test.ts` reads both and fails unless the words are the ones
+the interval generates through `packages/shared/src/medical-retention.ts`. **Changing either one
+alone goes red.** That is the only thing stopping the club publishing one period and keeping
+another.
+
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
 `/nn/` (the race, and the interest form), `/nn/course/`, `/nn/privacy/`. The 2026 running:

@@ -94,6 +94,7 @@ export {
   ENTRY_STATUSES,
   EXPORT_KINDS,
   adminSignIn,
+  deleteExpiredMedicalNotes,
   fetchAdminEntryList,
   fetchAdminExport,
   fetchAdminInterestList,
@@ -113,10 +114,13 @@ export {
   type EntryStatus,
   type ExportKind,
   type MedicalExportRow,
+  type MedicalRetentionSweep,
   type StartListExportRow,
 } from './admin';
 
 export { BOM, csvDocument, csvField, csvRow } from './csv';
+
+export { medicalRetentionWording } from './medical-retention';
 
 export {
   EA_NUMBER_PATTERN,
