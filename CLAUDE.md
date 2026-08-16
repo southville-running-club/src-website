@@ -133,6 +133,14 @@ normal within a month.
 
 ## How to work here
 
+**Run local tests and CI/pipeline checks through a Haiku subagent, not the main session.**
+When a task needs `./dev check`, `./dev test`, or a look at a GitHub Actions run (`gh run
+list` / `gh run view --log-failed`), spawn it as a background `Agent` call with
+`model: "haiku"` rather than running it inline or in the main model. Have that agent report
+only a terse pass/fail summary — failing step/test names and error snippets, not full logs —
+so the expensive raw output never reaches the main session's context. Do this automatically,
+without asking first; it is a standing instruction, not a per-task choice.
+
 **Every change by pull request.** Both volunteers review.
 
 **One change per pull request, and since 15 August 2026 that is mechanical rather than
