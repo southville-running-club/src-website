@@ -138,10 +138,11 @@ test.describe('the club wordmark', () => {
       const mark = page.locator('.site-banner .site-logo');
       await expect(mark).toBeVisible();
 
-      // The computed `color` is what the paths inherit as their fill. `#209d50` is the club
-      // green measured off southvillerunningclub.co.uk — the literal is pinned deliberately,
-      // because reading it from the stylesheet the page already loaded asserts nothing.
-      await expect(mark).toHaveCSS('color', 'rgb(32, 157, 80)');
+      // The computed `color` is what the paths inherit as their fill. `#4c9b58` is the club's
+      // confirmed brand green, from its own downloaded assets — the literal is pinned
+      // deliberately, because reading it from the stylesheet the page already loaded asserts
+      // nothing.
+      await expect(mark).toHaveCSS('color', 'rgb(76, 155, 88)');
 
       const fills = await mark
         .locator('path')

@@ -38,6 +38,15 @@ a runner.
 
 ## What is confirmed
 
+- **`#4C9B58`, as the brand green.** Confirmed **16 August 2026** from the club's own
+  downloaded brand assets — `SRC_GREEN.png` and `logo_src.svg`, real green artwork rather
+  than a colour sampled off a rendered page. It replaces `#209D50`, which this document
+  carried as a provisional stand-in; see "What changed" below for why that value existed
+  and what it was superseded by.
+- **The "SRC" monogram, as the favicon.** Traced from `logo_src.svg`, one of the same
+  downloaded assets, and served at `apps/main/public/favicon.svg`, filled with the
+  confirmed `--src-green`. Distinct artwork from the full wordmark below — a mark for a
+  32px browser tab rather than a lockup for a banner.
 - **The wordmark's geometry.** `apps/main/public/logo.svg`'s viewBox is `0 0 876 267`,
   matching the club's own PNG pixel for pixel
   (`blacktransparantlogo-removebg-preview.png`, linked from `southvillerunningclub.co.uk`'s
@@ -51,40 +60,46 @@ a runner.
   carries as `radius.button` and `radius.card`. Three codebases had already agreed; this is
   the first file to say so out loud.
 
-## What is provisional, and why it was used anyway
+## What changed, and why the earlier value was only provisional
 
-**`#209D50`, as the brand green.** Read off the computed style of the header band on
-`https://www.southvillerunningclub.co.uk/` on **16 August 2026** — not a value anybody at
-the club has confirmed. It was used provisionally rather than blocked on, because:
+**`#209D50` was read off the computed style of the header band on
+`https://www.southvillerunningclub.co.uk/`** on 16 August 2026 — not an asset, a colour
+sampled from a rendered page. It was used provisionally rather than blocked on, because:
 
-- it is what the club visibly looks like today, which is closer to "official" than a
-  placeholder chosen for legibility;
-- every value derived from it holds its hue (143°) and saturation (66%) and only moves
-  lightness, so a corrected green is one edit to `tokens.css` rather than a re-derivation;
-- `/brand/` and this document both say plainly that it awaits confirmation, so nobody
-  downstream can mistake it for settled.
+- it was what the club visibly looked like at the time, which was closer to "official" than
+  a placeholder chosen for legibility;
+- every value derived from it held its hue and saturation and moved only lightness, so a
+  corrected green was one edit to `tokens.css` rather than a re-derivation;
+- `/brand/` and this document both said plainly that it awaited confirmation, so nobody
+  downstream could mistake it for settled.
 
-**Until the club confirms otherwise, treat `--src-green` as "what the site looks like",
-not "what the club has approved".**
+That confirmation arrived the same day, as real green artwork rather than a second sample
+of the page: `SRC_GREEN.png` and `logo_src.svg`, downloaded from the club. `#4C9B58` is a
+visibly different green from `#209D50` — less saturated, a few degrees further round the
+hue wheel — which is the point of the distinction this section exists to make: a Squarespace
+theme's rendering of the club's colour is not the same fact as the club's own asset file.
 
 ## What was measured and what follows from it
 
 Three things fall out of the measurement, each a decision rather than a detail:
 
-**There is no green logo asset.** The club's mark reads as green today because a black
-wordmark (`blacktransparantlogo-removebg-preview.png`) sits on a green header — the PNG
-itself has no colour information of its own beyond its own black ink. This repository's
-`logo.svg` is filled with `currentColor` for the same reason: one piece of artwork, coloured
-by whichever stylesheet is in charge, rather than a black file and a hand-made green
-variant that can drift apart. See [`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts).
+**The wordmark itself still carries no colour of its own.** The club's mark on the live
+site reads as green because a black wordmark (`blacktransparantlogo-removebg-preview.png`)
+sits on a green header — that PNG has no colour information beyond its own black ink. This
+repository's `logo.svg` is filled with `currentColor` for the same reason: one piece of
+artwork, coloured by whichever stylesheet is in charge, rather than a black file and a
+hand-made green variant that can drift apart. See
+[`packages/shared/src/brand.ts`](../../platform/packages/shared/src/brand.ts). The
+favicon's "SRC" monogram is a separate case — that artwork *is* the confirmed green, baked
+in, because a static `.svg` served as a browser-tab icon cannot read a CSS custom property.
 
-**`#209D50` cannot be a text colour.** On the page background it measures **3.44:1** —
+**`#4C9B58` cannot be a text colour.** On the page background it measures **3.36:1** —
 above the 3:1 floor for large text and non-text UI, below the 4.5:1 body-text floor. Black
-on it is **6.00:1**, which is precisely how the live club site uses it: a *surface*, with
-black text, never green words. This repository targets AAA (7:1) rather than the AA floor,
-so two derived greens exist for text — see below — and the undiluted brand green is reserved
-for surfaces and the logotype, which WCAG exempts from any contrast requirement at all
-(1.4.3, "text that is part of a logo or brand name").
+on it is **6.14:1**, close to how the live club site uses the colour today: a *surface*,
+with dark text, never green words. This repository targets AAA (7:1) rather than the AA
+floor, so two derived greens exist for text — see below — and the undiluted brand green is
+reserved for surfaces and the logotype, which WCAG exempts from any contrast requirement at
+all (1.4.3, "text that is part of a logo or brand name").
 
 **Halyard Display, the live site's actual typeface, could not be adopted.** It is served to
 `southvillerunningclub.co.uk` under an Adobe Fonts kit tied to that domain, and cannot be
@@ -100,15 +115,16 @@ as the same colour at different weights.
 
 | Token | Value | Surface | Ratio |
 | --- | --- | --- | --- |
-| `--src-green` | `#209D50` | Page | 3.44:1 |
-| `--src-green` | `#209D50` | Banner band | 3.14:1 |
-| `--src-green-text` | `#11552C` | Page | 8.74:1 |
-| `--src-green-text` | `#11552C` | Banner band | 7.99:1 |
-| `--src-green-text-dark` | `#47DA80` | Dark page | 9.97:1 |
-| `--src-green-text-dark` | `#47DA80` | Dark banner band | 8.19:1 |
+| `--src-green` | `#4C9B58` | Page | 3.36:1 |
+| `--src-green` | `#4C9B58` | Banner band | 3.07:1 |
+| `--src-green-text` | `#29532F` | Page | 8.69:1 |
+| `--src-green-text` | `#29532F` | Banner band | 7.94:1 |
+| `--src-green-text-dark` | `#98CDA0` | Dark page | 9.93:1 |
+| `--src-green-text-dark` | `#98CDA0` | Dark banner band | 8.16:1 |
 
-Both derived values *beat* the invented greens they replaced (`#16543f` at 8.69:1/7.94:1,
-`#6fd3a8` at 9.93:1/8.15:1) — adopting the real brand cost nothing in contrast anywhere.
+Both derived values *at least match* the invented greens they originally replaced
+(`#16543f` at 8.69:1/7.94:1, `#6fd3a8` at 9.93:1/8.15:1) — adopting the real brand cost
+nothing in contrast anywhere, in either its provisional or its confirmed form.
 `packages/shared/tests/unit/brand.test.ts` asserts this directly, so a future change to
 either value cannot regress it silently.
 
@@ -130,8 +146,8 @@ money, so `--src-error` was kept. Both figures are asserted in
 `packages/shared/tests/unit/brand.test.ts`, so the refusal cannot be silently reversed by a
 future "let's just match the other repo" edit.
 
-**Not compared:** `color.primary` (`#00C85A`), the timing app's own green. It is 1.57:1 from
-`#209D50` — close enough to read as a mistake side by side, far enough to not be the same
+**Not compared:** `color.primary` (`#00C85A`), the timing app's own green. It is 1.53:1 from
+`#4C9B58` — close enough to read as a mistake side by side, far enough to not be the same
 colour — and is that app's own brand rather than the club's, so no attempt was made to
 reconcile the two.
 
@@ -143,12 +159,13 @@ None of the following can be inferred, and a plausible placeholder in markup is 
 a blank. Recorded here rather than in code, per
 [`principles.md`](../architecture/principles.md)'s stop-and-ask rule for unconfirmed facts.
 
-- [ ] **Is `#209D50` the club's official green?** — or is there a value the committee has
-      actually approved, distinct from what a Squarespace theme happens to render.
-- [ ] **Does an official green wordmark exist?** — the only public asset is the black PNG
-      described above.
+- [x] **Is `#4C9B58` the club's official green?** — confirmed 16 August 2026, from the
+      club's own downloaded `SRC_GREEN.png` and `logo_src.svg`. Superseded `#209D50`, which
+      was read off a Squarespace theme's rendering rather than an asset.
+- [x] **Does an official green wordmark exist?** — not the full lockup, which is still a
+      black PNG (see above), but the "SRC" monogram does, and is now the favicon.
 - [ ] **A secondary and neutral palette**, if the club has one beyond the single green.
 - [ ] **The typeface** — licence Halyard, or accept Inter as the substitute.
 - [ ] **What the brand should look like in dark mode.** The live club site has none; this
-      one does, and `#209D50` behaves very differently on a dark background (5.16:1) than
-      on white (3.50:1).
+      one does, and `#4C9B58` behaves differently on a dark background (5.27:1) than on
+      white (3.36:1).

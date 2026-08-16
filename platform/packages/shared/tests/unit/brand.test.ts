@@ -139,11 +139,11 @@ describe('contrast', () => {
   });
 
   it('keeps the brand green out of text, which is why the derived greens exist at all', () => {
-    // **The negative case, and the load-bearing one.** #209D50 is 3.44:1 on the page: legal
+    // **The negative case, and the load-bearing one.** #4C9B58 is 3.36:1 on the page: legal
     // for large text and for non-text UI, legal for a logotype because WCAG exempts those,
     // and illegal for anything anybody has to read. Every derived value above exists because
-    // of this number. If it ever clears 4.5:1, `--src-green` has stopped being the colour
-    // that was measured off the club's own site and the palette needs rederiving.
+    // of this number. If it ever clears 4.5:1, `--src-green` has stopped being the club's
+    // confirmed asset colour and the palette needs rederiving.
     const onPaper = contrastRatio(tokens.color.green.value, tokens.color.paper.value);
     expect(onPaper).toBeLessThan(4.5);
     expect(onPaper).toBeGreaterThanOrEqual(3);

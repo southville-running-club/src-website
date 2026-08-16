@@ -17,12 +17,14 @@
  *
  * ## Where these values come from
  *
- * `--src-green` was read off the computed style of the header band on
- * southvillerunningclub.co.uk on **16 August 2026**. It is what the club looks like today; it
- * is **not** a value the committee has confirmed, and `docs/foundations/brand.md` says so.
- * Everything else on this page is either derived from it by holding hue and saturation and
- * moving lightness until a contrast threshold is met, or is a neutral carried over from
- * `base.css` because it was already measured.
+ * `--src-green` is read from the club's own downloaded brand assets — `SRC_GREEN.png` and
+ * `logo_src.svg`, real green artwork rather than a colour sampled off a page — and confirmed
+ * on **16 August 2026**. It replaces `#209d50`, which was a provisional stand-in read off the
+ * computed style of southvillerunningclub.co.uk's header band because no green logo asset was
+ * known to exist yet; `docs/foundations/brand.md` records why that was provisional and what
+ * changed. Everything else on this page is either derived from it by holding hue and
+ * saturation and moving lightness until a contrast threshold is met, or is a neutral carried
+ * over from `base.css` because it was already measured.
  *
  * **Every ratio in a comment here was computed, not estimated** — see
  * `tests/brand.test.ts`, which recomputes all of them and fails on drift. A contrast comment
@@ -33,28 +35,29 @@
   /* -------------------------------------------------------------------------------------
    * The brand green
    * -------------------------------------------------------------------------------------
-   * **A surface and a logo. Never text.** 3.44:1 on the light page and 3.14:1 on the banner
+   * **A surface and a logo. Never text.** 3.36:1 on the light page and 3.07:1 on the banner
    * band, both under the 4.5:1 body-text floor. It clears 3:1, so it is legitimate for large
    * text and for non-text UI, and WCAG puts no contrast requirement on a logotype at all —
    * which is what lets the wordmark be this exact green on the banner rather than a
-   * compromise of it. Black on it is 6.00:1 if it is ever used as a filled band.
+   * compromise of it. Black on it is 6.14:1 if it is ever used as a filled band.
    *
-   * Hue 143°, saturation 66%. Both derived greens below hold those two and move only
+   * Hue 129°, saturation 34%. Both derived greens below hold those two and move only
    * lightness, so all three read as the same colour at different weights rather than as
    * three greens.
    */
-  --src-green: #209d50;
+  --src-green: #4c9b58;
 
-  /* The same green, dark enough to be read. 8.74:1 on the light page and 7.99:1 on the
-     banner band — both AAA, and both *better* than the invented `#16543f` this replaces
-     (8.69:1 and 7.94:1). White on it is 8.90:1, which is what makes it safe as a button
-     fill as well as a link colour. */
-  --src-green-text: #11552c;
+  /* The same green, dark enough to be read. 8.69:1 on the light page and 7.94:1 on the
+     banner band — both AAA, and both matching or *better* than the invented `#16543f` this
+     originally replaced (8.69:1 and 7.94:1). White on it is 8.85:1, which is what makes it
+     safe as a button fill as well as a link colour. */
+  --src-green-text: #29532f;
 
-  /* And light enough on the dark page: 9.97:1 there, 8.19:1 on the dark banner band. Again
-     both beat what `base.css` had (9.93:1 and 8.15:1). A green dark enough to read on paper
-     is invisible here, which is why this is a separate value rather than the same one. */
-  --src-green-text-dark: #47da80;
+  /* And light enough on the dark page: 9.93:1 there, 8.16:1 on the dark banner band. Again
+     both match or beat what `base.css` originally had (9.93:1 and 8.15:1). A green dark
+     enough to read on paper is invisible here, which is why this is a separate value rather
+     than the same one. */
+  --src-green-text-dark: #98cda0;
 
   /* -------------------------------------------------------------------------------------
    * Neutrals
