@@ -1,5 +1,6 @@
 ---
 import NnNav from './NnNav.astro';
+import ClubLogo from './ClubLogo.astro';
 
 // The header at the top of every Nightingale Nightmare page.
 //
@@ -80,18 +81,19 @@ const onTheRunning = /^\/nn\/\d{4}\/$/.test(path);
       links or images saying "Southville Running Club", which is one more than a screen
       reader user needs to hear. The hero's copy is removed rather than hidden.
 
-      `alt` carries the club's name because that is what the artwork says — not a
-      description of it. `width` and `height` are on the element so the row does not
-      reflow between the HTML arriving and the stylesheet landing. */
+      The accessible name carries the club's name because that is what the artwork says —
+      not a description of it. `width` and `height` are on the element so the row does not
+      reflow between the HTML arriving and the stylesheet landing.
+
+      **It was `<img src="/logo.svg">` and is now inline `<svg>`.** The file it pointed at
+      was `fill:#fff`, which is why it could only ever appear here: a white wordmark is
+      bone on this hero and invisible everywhere else, so `/` and `/timing` had no logo at
+      all. The mark is `currentColor` now and takes bone from `.theme-nn a` exactly as this
+      link's text would, which is what let the club's own pages have the same wordmark in
+      the club's own green. Nothing about how it looks here changes. */
     }
-    <a class="nn-masthead-mark" href="/nn/">
-      <img
-        class="nn-logo"
-        src="/logo.svg"
-        alt="Southville Running Club"
-        width="176"
-        height="54"
-      />
+    <a class="nn-masthead-mark" href="/nn/" aria-label="Southville Running Club">
+      <ClubLogo class="nn-logo" width={176} labelled={false} />
     </a>
 
     {nav && <NnNav />}

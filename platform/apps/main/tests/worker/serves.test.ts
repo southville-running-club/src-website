@@ -34,6 +34,17 @@ describe('the club website', () => {
     expect(page).toContain('href="https://southvillerunningclub.co.uk"');
   });
 
+  it('serves the brand page, noindex like everything else', async () => {
+    // Not linked from anywhere a visitor would find it — this only proves the route builds
+    // and that its own `noindex` was not accidentally dropped, the way a page-specific
+    // `<meta>` sometimes is.
+    const response = await SELF.fetch(`${SITE}/brand/`);
+    const page = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(page).toContain('name="robots" content="noindex"');
+  });
+
   it('links to both of the things that already exist', async () => {
     const page = await (await SELF.fetch(`${SITE}/`)).text();
 

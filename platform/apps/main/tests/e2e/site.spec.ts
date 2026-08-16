@@ -101,6 +101,84 @@ test.describe('the banner that says which site this is', () => {
 
     await expect(page.getByRole('banner')).toHaveCount(1);
   });
+
+  test('reaches /timing too, from the same words', async ({ page }) => {
+    // **The assertion that the two front doors have not drifted.** `apps/main` is Astro and
+    // `apps/timing` is Next, so the bar is two components; only `SITE_BANNER` in
+    // `@src/shared/brand` keeps them saying the same thing. Nothing but a test that visits
+    // both can prove that, because each app builds green on its own.
+    //
+    // It matters most here: before this, `/timing` imported the stylesheet and nothing else,
+    // so somebody landing on it from a search had the club's colours and no route back to
+    // the club at all.
+    await page.goto('/timing');
+
+    const banner = page.locator('.site-banner');
+    await expect(banner).toContainText('We just have Nightingale Nightmare for now');
+    await expect(
+      banner.getByRole('link', { name: 'For everything else, please see the old site' }),
+    ).toHaveAttribute('href', 'https://southvillerunningclub.co.uk');
+  });
+});
+
+test.describe('the club wordmark', () => {
+  // **One piece of artwork, painted by whichever stylesheet is in charge.** It was
+  // `<img src="/logo.svg">` with `fill:#fff` baked into the file, which is why it could only
+  // ever appear on the Nightingale Nightmare hero and why `/` and `/timing` had no logo. It
+  // is inline `<svg>` filled with `currentColor` now, and these tests are what stop it
+  // quietly going back to a colour of its own.
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['the brand page', '/brand/'],
+    ['race timing', '/timing'],
+  ] as const) {
+    test(`${name} carries the wordmark in the club's green`, async ({ page }) => {
+      await page.goto(path);
+
+      const mark = page.locator('.site-banner .site-logo');
+      await expect(mark).toBeVisible();
+
+      // The computed `color` is what the paths inherit as their fill. `#209d50` is the club
+      // green measured off southvillerunningclub.co.uk — the literal is pinned deliberately,
+      // because reading it from the stylesheet the page already loaded asserts nothing.
+      await expect(mark).toHaveCSS('color', 'rgb(32, 157, 80)');
+
+      const fills = await mark
+        .locator('path')
+        .evaluateAll((paths) => paths.map((p) => p.getAttribute('fill')));
+      expect(fills.length).toBeGreaterThan(0);
+      expect(fills.every((f) => f === 'currentColor')).toBe(true);
+    });
+  }
+
+  test('appears exactly once on a Nightingale Nightmare page', async ({ page }) => {
+    // **The campaign masthead already carries it.** Two elements with the accessible name
+    // "Southville Running Club", pointing at two different addresses, is the same redundancy
+    // `NnMasthead.astro` removed from the hero — so the bar keeps its sentence there and
+    // drops its mark. `display: none` takes it out of the accessibility tree and out of the
+    // tab order, which is what makes this a real fix rather than a visual one.
+    await page.goto('/nn/');
+
+    await expect(page.locator('.site-banner .site-logo')).toBeHidden();
+    await expect(page.locator('.nn-masthead .nn-logo')).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Southville Running Club' })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole('link', { name: 'Southville Running Club' })).toHaveCount(
+      1,
+    );
+  });
+
+  test('is bone on the campaign hero, from the same artwork', async ({ page }) => {
+    // The point of `currentColor`: the identical paths render in the campaign's colour here
+    // and the club's green everywhere else, with no second file to drift.
+    await page.goto('/nn/');
+
+    await expect(page.locator('.nn-masthead .nn-logo')).toHaveCSS(
+      'color',
+      'rgb(255, 246, 236)',
+    );
+  });
 });
 
 test.describe('Nightingale Nightmare, at /nn', () => {
@@ -738,6 +816,10 @@ test.describe('accessibility', () => {
     ['the spectators page', '/nn/2026/spectators/'],
     ['the return page', '/nn/2026/entry/complete/'],
     ['race timing', '/timing'],
+    // **The brand page earns its place in this list more than any other page here.** It is
+    // the only one that renders every token, on every surface, at body size — so a colour
+    // that fails is caught by axe whether or not any real page happens to use it yet.
+    ['the brand page', '/brand/'],
   ] as const) {
     test(`${name} has zero axe violations @requires-js`, async ({ page }) => {
       // Zero, not "few". Any threshold above zero becomes the new normal within a month,

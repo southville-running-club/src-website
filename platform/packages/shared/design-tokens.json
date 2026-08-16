@@ -1,0 +1,92 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "$description": "Southville Running Club brand tokens. A MIRROR of styles/tokens.css, which is canonical and is what ships; tests/brand.test.ts fails if the two disagree. This file exists so the palette can be diffed against bindalshah/src-race-timing's design-tokens.json, which uses this same format, and imported into Figma (Tokens Studio) without anybody retyping a hex code.",
+  "color": {
+    "green": {
+      "value": "#209D50",
+      "type": "color",
+      "$description": "The brand green, read off the live club site's header band on 16 August 2026. AWAITING COMMITTEE CONFIRMATION. Surfaces and the logo only: 3.44:1 on the light page, below the 4.5:1 body-text floor. WCAG sets no contrast floor for a logotype, which is what lets the wordmark be this exact value."
+    },
+    "greenText": {
+      "value": "#11552C",
+      "type": "color",
+      "$description": "The brand green at a lightness that can be read. Hue and saturation held. 8.74:1 on the light page, 7.99:1 on the banner band, 8.90:1 for white on it."
+    },
+    "greenTextDark": {
+      "value": "#47DA80",
+      "type": "color",
+      "$description": "The same, for the dark scheme. 9.97:1 on the dark page, 8.19:1 on the dark banner band."
+    },
+    "ink": {
+      "value": "#1A1A1A",
+      "type": "color",
+      "$description": "Body text. 17.10:1. Kept rather than moved to the timing app's #2C2C2C, which is 13.72:1 — still AAA, but strictly worse."
+    },
+    "slate": {
+      "value": "#4A5568",
+      "type": "color",
+      "$description": "Muted text. ADOPTED from the timing app's color.slate: 7.39:1 against this repository's previous #58585D at 6.95:1, an upgrade from AA to AAA."
+    },
+    "slateDark": {
+      "value": "#A9A9B0",
+      "type": "color",
+      "$description": "Muted text on the dark page, 7.72:1. Not a lightened slate: a slate-hued grey at this lightness measures 7.00:1, so matching the hue would cost contrast for tidiness."
+    },
+    "error": {
+      "value": "#A4231A",
+      "type": "color",
+      "$description": "7.28:1. The timing app's color.danger (#E53935) is deliberately REFUSED: 4.15:1 here, which is large-text-only and would put failing error text on the form that asks people for money."
+    },
+    "errorDark": {
+      "value": "#FFB4AB",
+      "type": "color",
+      "$description": "10.63:1 on the dark page."
+    },
+    "paper": { "value": "#FDFDFC", "type": "color", "$description": "Page background." },
+    "paperDark": {
+      "value": "#16161A",
+      "type": "color",
+      "$description": "Page background, dark scheme."
+    },
+    "band": {
+      "value": "#EEF4F1",
+      "type": "color",
+      "$description": "The site banner band. A pale tint of the brand hue. Ink on it is 15.62:1."
+    },
+    "bandDark": {
+      "value": "#1F2A26",
+      "type": "color",
+      "$description": "The site banner band, dark scheme."
+    },
+    "rule": { "value": "#D8D8D4", "type": "color" },
+    "ruleDark": { "value": "#33333A", "type": "color" }
+  },
+  "font": {
+    "$description": "Halyard Display is what the live club site uses and is NOT here: it is an Adobe Fonts webfont under a kit tied to the Squarespace domain and cannot be served from Cloudflare without its own licence. bindalshah/src-race-timing records the same constraint. Inter and JetBrains Mono are already vendored at apps/main/public/fonts with their OFL licences, and are the same two faces the timing app's tokens name.",
+    "body": {
+      "value": "\"Inter\", system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+      "type": "fontFamily"
+    },
+    "mono": {
+      "value": "\"JetBrains Mono\", ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+      "type": "fontFamily"
+    }
+  },
+  "radius": {
+    "$description": "The same values bindalshah/src-race-timing carries as radius.button and radius.card, and the same ones nn-theme.css independently landed on as --nn-r-btn and --nn-r-card.",
+    "button": { "value": "8px", "type": "dimension" },
+    "card": { "value": "12px", "type": "dimension" }
+  },
+  "contrast": {
+    "minTextRatio": { "value": 4.5, "type": "number" },
+    "targetTextRatio": {
+      "value": 7,
+      "type": "number",
+      "$description": "This repository targets AAA for text rather than the AA floor. Every derived colour above was found by holding hue and saturation and moving lightness until it cleared 7:1 on the surface it is used on."
+    }
+  },
+  "logo": {
+    "$description": "The wordmark is packages/shared/src/brand.ts (geometry) and apps/main/public/logo.svg (the standalone asset). It has no colour of its own — it is filled with currentColor and takes the colour of whatever renders it.",
+    "viewBox": { "value": "0 0 876 267", "type": "other" }
+  }
+}

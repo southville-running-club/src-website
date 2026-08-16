@@ -1,0 +1,48 @@
+---
+import ClubLogo from './ClubLogo.astro';
+import { SITE_BANNER } from '@src/shared/brand';
+
+// The bar that says which site this is.
+//
+// **A `div`, and not a `header`, which is the one thing about this element that is not
+// obvious.** A `<header>` outside `main` maps to the `banner` landmark — which is exactly why
+// `NnMasthead` is one. This bar sits above that masthead on all five Nightingale Nightmare
+// pages, so making it a second `<header>` would put two competing `banner` landmarks on every
+// one of them: an axe `landmark-no-duplicate-banner` violation, and a screen reader offering
+// "banner" twice with no way to tell which is which.
+//
+// It loses nothing by being a `div`. It is a wordmark, one sentence and a link, met first in
+// reading order and first by the keyboard, which is what it is for.
+//
+// **`apps/timing/app/site-banner.tsx` is this file's opposite number.** The two apps are
+// different frameworks and cannot share a component, so they share the thing that matters
+// instead: every word below comes from `SITE_BANNER`, and
+// `apps/main/tests/worker/serves.test.ts` asserts both front doors render the same sentence.
+// The tags are duplicated; the copy cannot drift.
+---
+
+<div class="site-banner">
+  <div class="site-banner-inner">
+    {
+      /* The mark links home rather than being decoration, because on `/timing` it is the
+        only route back to the club. `aria-label` on the link and `labelled={false}` on the
+        artwork inside it, so the name is announced once. */
+    }
+    <a class="site-banner-mark" href="/" aria-label="Southville Running Club, home">
+      <ClubLogo class="site-logo" width={132} labelled={false} />
+    </a>
+
+    <p>
+      {
+        /* Three parts, each its own element rather than one sentence with tags inside it.
+          Astro compresses the newline between a tag and the text after it to *nothing*, so
+          the mixed form silently renders as "…soon.For everything else…". These are flex
+          items and the gap does the spacing, which is also what lets each part drop onto its
+          own line on a phone. */
+      }
+      <strong>{SITE_BANNER.welcome}</strong>
+      <span>{SITE_BANNER.scope}</span>
+      <a href={SITE_BANNER.clubWebsite}>{SITE_BANNER.clubWebsiteLabel}</a>
+    </p>
+  </div>
+</div>

@@ -1,0 +1,396 @@
+---
+import Base from '../layouts/Base.astro';
+import ClubLogo from '../components/ClubLogo.astro';
+import tokens from '@src/shared/design-tokens.json';
+import { contrastRatio, contrastVerdict, ratioLabel } from '@src/shared/contrast';
+
+// The club's palette, rendered.
+//
+// **Every ratio on this page is computed at build time**, from the same `design-tokens.json`
+// the stylesheet is checked against and with the same function `tests/brand.test.ts` uses. So
+// there is no number here that anybody typed, and none that can survive a colour change it
+// stopped being true for. That is the whole reason the page exists rather than a table in a
+// document.
+//
+// The second reason is axe. The accessibility run walks the pages that exist; before this,
+// nothing rendered the full palette, so a colour used on one page in one state was checked
+// only if a test happened to visit that state. Here they are all on one page, at body size,
+// in both schemes.
+//
+// It is `noindex` like every other page — `Base.astro` sets that for the whole site — and it
+// is linked from nowhere. It is for the two volunteers and for the committee, not for a
+// runner looking for the club's training times.
+
+const c = tokens.color;
+
+/** The light scheme's surfaces, and what is allowed to sit on each. */
+const surfaces = [
+  {
+    name: 'Page',
+    bg: c.paper.value,
+    scheme: 'light' as const,
+    on: [
+      {
+        label: 'Body text',
+        token: '--src-ink',
+        value: c.ink.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Muted text',
+        token: '--src-slate',
+        value: c.slate.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Links, buttons',
+        token: '--src-green-text',
+        value: c.greenText.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Errors',
+        token: '--src-error',
+        value: c.error.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Brand green',
+        token: '--src-green',
+        value: c.green.value,
+        role: 'logotype' as const,
+      },
+    ],
+  },
+  {
+    name: 'Banner band',
+    bg: c.band.value,
+    scheme: 'light' as const,
+    on: [
+      {
+        label: 'Banner text',
+        token: '--src-ink',
+        value: c.ink.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Banner link',
+        token: '--src-green-text',
+        value: c.greenText.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'The wordmark',
+        token: '--src-green',
+        value: c.green.value,
+        role: 'logotype' as const,
+      },
+    ],
+  },
+  {
+    name: 'Page, dark',
+    bg: c.paperDark.value,
+    scheme: 'dark' as const,
+    on: [
+      { label: 'Body text', token: '(literal)', value: '#f2f2f0', role: 'text' as const },
+      {
+        label: 'Muted text',
+        token: '--src-slate-dark',
+        value: c.slateDark.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Links, buttons',
+        token: '--src-green-text-dark',
+        value: c.greenTextDark.value,
+        role: 'text' as const,
+      },
+      {
+        label: 'Errors',
+        token: '--src-error-dark',
+        value: c.errorDark.value,
+        role: 'text' as const,
+      },
+    ],
+  },
+  {
+    name: 'Banner band, dark',
+    bg: c.bandDark.value,
+    scheme: 'dark' as const,
+    on: [
+      {
+        label: 'Banner text',
+        token: '(literal)',
+        value: '#f2f2f0',
+        role: 'text' as const,
+      },
+      {
+        label: 'Banner link and wordmark',
+        token: '--src-green-text-dark',
+        value: c.greenTextDark.value,
+        role: 'text' as const,
+      },
+    ],
+  },
+];
+
+/**
+ * The two values from `bindalshah/src-race-timing` this repository deliberately did not take,
+ * with the number that decided it. Recorded here because a palette that only shows what was
+ * adopted reads as though nothing was rejected.
+ */
+const refused = [
+  {
+    token: 'color.ink',
+    value: '#2C2C2C',
+    instead: c.ink.value,
+    why: 'Both are AAA on the page; ours is higher, so there was nothing to buy by moving.',
+  },
+  {
+    token: 'color.danger',
+    value: '#E53935',
+    instead: c.error.value,
+    why: 'Large-text-only on this page. It would put failing error text on the entry form.',
+  },
+];
+---
+
+<Base
+  title="Brand — Southville Running Club"
+  description="The club's colours, wordmark and type, with every contrast ratio computed."
+>
+  <h1>Brand</h1>
+
+  <p class="lede">
+    The club's palette as it is actually defined, with every contrast ratio computed from
+    the tokens rather than written down beside them.
+  </p>
+
+  <p>
+    {
+      /* **`{' '}` before a tag that starts a line.** Astro compresses the newline between
+        text and the tag after it to *nothing*, so "…is in\n<code>docs/…" renders as
+        "indocs/…". It is the same trap the site banner's three spans exist to dodge, and it
+        is invisible until somebody reads the sentence out loud. */
+    }
+    The canonical source is <code>packages/shared/styles/tokens.css</code>. This page is
+    rendered from <code>packages/shared/design-tokens.json</code>, which a test holds to
+    the stylesheet. The reasoning behind each value is in{' '}
+    <code>docs/foundations/brand.md</code>.
+  </p>
+
+  <div class="notice notice-bad">
+    <h3>The green is not confirmed</h3>
+    <p>
+      <strong>{c.green.value}</strong> was read off the computed style of the header band on
+      southvillerunningclub.co.uk on <strong>16 August 2026</strong>. It is what the club
+      looks like today. It is not a value the committee has approved, and until they do,
+      this page is a proposal rather than a record.
+    </p>
+  </div>
+
+  <h2>The wordmark</h2>
+
+  <p>
+    One piece of artwork, filled with <code>currentColor</code>. It has no colour of its
+    own, which is what lets it be the club's green on the club's pages and bone on the
+    campaign's, without two files that drift apart.
+  </p>
+
+  <div class="brand-marks">
+    <div
+      class="brand-mark"
+      style={`background: ${c.band.value}; color: ${c.green.value}`}
+    >
+      <ClubLogo width={180} labelled={false} />
+      <p>On the banner band, in <code>--src-green</code></p>
+    </div>
+    <div
+      class="brand-mark"
+      style={`background: ${c.paperDark.value}; color: ${c.greenTextDark.value}`}
+    >
+      <ClubLogo width={180} labelled={false} />
+      <p>Dark scheme, in <code>--src-green-text-dark</code></p>
+    </div>
+    <div class="brand-mark" style={`background: ${c.green.value}; color: #ffffff`}>
+      <ClubLogo width={180} labelled={false} />
+      <p>Reversed out of a green band</p>
+    </div>
+  </div>
+
+  <p class="field-hint">
+    A logotype has no contrast requirement under WCAG 1.4.3 — that exemption is what
+    allows the first of these, at {ratioLabel(c.green.value, c.band.value)}, which would
+    be far too low for anything anybody has to read.
+  </p>
+
+  {
+    surfaces.map((surface) => (
+      <>
+        <h2>
+          {surface.name} <code>{surface.bg}</code>
+        </h2>
+        <table class="brand-table" style={`background: ${surface.bg}`}>
+          <thead>
+            <tr>
+              <th scope="col">Role</th>
+              <th scope="col">Token</th>
+              <th scope="col">Value</th>
+              <th scope="col">Ratio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {surface.on.map((entry) => {
+              const ratio = contrastRatio(entry.value, surface.bg);
+              const verdict = contrastVerdict(ratio);
+              return (
+                <tr>
+                  <th scope="row" style={`color: ${entry.value}`}>
+                    {entry.label}
+                  </th>
+                  <td style={`color: ${entry.value}`}>
+                    <code>{entry.token}</code>
+                  </td>
+                  <td style={`color: ${entry.value}`}>{entry.value}</td>
+                  <td style={`color: ${entry.value}`}>
+                    {ratioLabel(entry.value, surface.bg)}{' '}
+                    <span class="brand-verdict">
+                      {entry.role === 'logotype' ? 'logotype — exempt' : verdict}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </>
+    ))
+  }
+
+  <h2>Taken from the timing app</h2>
+
+  <p>
+    <code>bindalshah/src-race-timing</code> already had a brand in this same token format. Where
+    its values were better than this repository's, they were adopted:
+    <code>color.slate</code> is {ratioLabel(c.slate.value, c.paper.value)} against the
+    {' '}{ratioLabel('#58585d', c.paper.value)} it replaced. The radii and the two typefaces
+    were already the same on both sides without anybody arranging it.
+  </p>
+
+  <h2>Refused, and why</h2>
+
+  <table class="brand-table">
+    <thead>
+      <tr>
+        <th scope="col">Their token</th>
+        <th scope="col">On this page</th>
+        <th scope="col">Kept instead</th>
+        <th scope="col">Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        refused.map((r) => (
+          <tr>
+            <th scope="row">
+              <code>{r.token}</code> {r.value}
+            </th>
+            <td>
+              {ratioLabel(r.value, c.paper.value)}{' '}
+              <span class="brand-verdict">
+                {contrastVerdict(contrastRatio(r.value, c.paper.value))}
+              </span>
+            </td>
+            <td>
+              {r.instead}{' '}
+              <span class="brand-verdict">{ratioLabel(r.instead, c.paper.value)}</span>
+            </td>
+            <td>{r.why}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <h2>Type</h2>
+
+  <p>
+    Body is <code>{tokens.font.body.value.split(',')[0]}</code> and numerals are
+    {' '}<code>{tokens.font.mono.value.split(',')[0]}</code>, both already vendored with
+    their OFL licences. <strong
+      >Halyard Display is what the live club site uses and is not here</strong
+    >
+    — it is an Adobe Fonts webfont under a kit tied to the Squarespace domain, and the timing
+    app records the same constraint.
+  </p>
+
+  <p class="brand-mono">0123456789 — tabular figures, for finish times</p>
+
+  <footer>
+    <p><a href="/">Southville Running Club</a></p>
+  </footer>
+</Base>
+
+<style>
+  .brand-marks {
+    display: grid;
+    gap: var(--space);
+    margin: var(--space) 0;
+  }
+
+  .brand-mark {
+    padding: var(--space);
+    border: 1px solid var(--colour-rule);
+    border-radius: var(--radius-card);
+  }
+
+  /* The caption sits on the swatch's own background, so it needs the page's text colour
+     rather than the inherited `color` the mark is using as its fill. */
+  .brand-mark p {
+    margin: 0.75rem 0 0;
+    color: var(--colour-muted);
+    background: var(--colour-background);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  .brand-table {
+    width: 100%;
+    margin: var(--space) 0;
+    border-collapse: collapse;
+    border: 1px solid var(--colour-rule);
+    border-radius: var(--radius-card);
+    font-size: 0.9375rem;
+    /* Long values must not push the page sideways at 320px. */
+    display: block;
+    overflow-x: auto;
+  }
+
+  .brand-table th,
+  .brand-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .brand-table thead th {
+    border-bottom: 1px solid var(--colour-rule);
+    font-size: 0.8125rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--colour-muted);
+  }
+
+  .brand-verdict {
+    font-size: 0.8125rem;
+    opacity: 0.85;
+    white-space: nowrap;
+  }
+
+  .brand-mono {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+</style>

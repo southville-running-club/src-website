@@ -1,0 +1,126 @@
+/*
+ * The club's brand primitives. Imported by `base.css` and by nothing else directly.
+ *
+ * ## What this file is, and what it is not
+ *
+ * These are **primitives**: the colours the club *is*, named after what they are rather than
+ * what they do. `base.css` maps them onto semantic names (`--colour-accent`,
+ * `--colour-banner-link`) and pages use those. Two layers rather than one, because a page
+ * that reaches straight for `--src-green` is a page that has decided a green belongs there,
+ * and the whole point of the split is that only this file and `base.css` get to decide that.
+ *
+ * **A mirror of this lives at `packages/shared/design-tokens.json`**, in the W3C design-token
+ * format that `bindalshah/src-race-timing` already uses. The CSS is canonical — it is what
+ * ships — and `tests/brand.test.ts` fails if the two disagree. The JSON exists so the palette
+ * can be diffed against the timing app's and imported into Figma without anybody retyping a
+ * hex code.
+ *
+ * ## Where these values come from
+ *
+ * `--src-green` was read off the computed style of the header band on
+ * southvillerunningclub.co.uk on **16 August 2026**. It is what the club looks like today; it
+ * is **not** a value the committee has confirmed, and `docs/foundations/brand.md` says so.
+ * Everything else on this page is either derived from it by holding hue and saturation and
+ * moving lightness until a contrast threshold is met, or is a neutral carried over from
+ * `base.css` because it was already measured.
+ *
+ * **Every ratio in a comment here was computed, not estimated** — see
+ * `tests/brand.test.ts`, which recomputes all of them and fails on drift. A contrast comment
+ * that nothing checks is a comment that goes stale in a month.
+ */
+
+:root {
+  /* -------------------------------------------------------------------------------------
+   * The brand green
+   * -------------------------------------------------------------------------------------
+   * **A surface and a logo. Never text.** 3.44:1 on the light page and 3.14:1 on the banner
+   * band, both under the 4.5:1 body-text floor. It clears 3:1, so it is legitimate for large
+   * text and for non-text UI, and WCAG puts no contrast requirement on a logotype at all —
+   * which is what lets the wordmark be this exact green on the banner rather than a
+   * compromise of it. Black on it is 6.00:1 if it is ever used as a filled band.
+   *
+   * Hue 143°, saturation 66%. Both derived greens below hold those two and move only
+   * lightness, so all three read as the same colour at different weights rather than as
+   * three greens.
+   */
+  --src-green: #209d50;
+
+  /* The same green, dark enough to be read. 8.74:1 on the light page and 7.99:1 on the
+     banner band — both AAA, and both *better* than the invented `#16543f` this replaces
+     (8.69:1 and 7.94:1). White on it is 8.90:1, which is what makes it safe as a button
+     fill as well as a link colour. */
+  --src-green-text: #11552c;
+
+  /* And light enough on the dark page: 9.97:1 there, 8.19:1 on the dark banner band. Again
+     both beat what `base.css` had (9.93:1 and 8.15:1). A green dark enough to read on paper
+     is invisible here, which is why this is a separate value rather than the same one. */
+  --src-green-text-dark: #47da80;
+
+  /* -------------------------------------------------------------------------------------
+   * Neutrals
+   * -------------------------------------------------------------------------------------
+   * Deliberately a hybrid of this repository's measured values and the timing app's palette,
+   * decided per token on the contrast rather than wholesale in either direction. The full
+   * reasoning, and the two values that were refused, are in `docs/foundations/brand.md`.
+   */
+
+  /* 17.10:1 on the light page. Kept: the timing app's `color.ink` (#2c2c2c) is 13.72:1,
+     which is still AAA but strictly worse, and there is nothing to buy by moving. */
+  --src-ink: #1a1a1a;
+
+  /* **Adopted from the timing app's `color.slate`.** 7.39:1 against this repository's
+     previous `#58585d` at 6.95:1 — a free upgrade from AA to AAA, and one fewer colour
+     between the two codebases. */
+  --src-slate: #4a5568;
+
+  /* The dark scheme keeps its own neutral rather than a lightened slate. A slate-hued grey
+     at this lightness measures 7.00:1 where this measures 7.72:1, so matching the hue would
+     have cost contrast for tidiness. */
+  --src-slate-dark: #a9a9b0;
+
+  /* 7.28:1. **Kept, and the timing app's `color.danger` (#e53935) deliberately refused** —
+     that value is 4.15:1 on this page, which is large-text-only and would put failing error
+     text on the form that asks people for money. */
+  --src-error: #a4231a;
+  /* 10.63:1 on the dark page. */
+  --src-error-dark: #ffb4ab;
+
+  --src-paper: #fdfdfc;
+  --src-paper-dark: #16161a;
+  --src-rule: #d8d8d4;
+  --src-rule-dark: #33333a;
+
+  /* The banner band. A pale tint of the brand hue rather than a grey, and unchanged from
+     what `base.css` already shipped — its ratios were already measured and there was nothing to
+     gain by moving it. 15.62:1 for ink, 7.99:1 for the link. */
+  --src-band: #eef4f1;
+  --src-band-dark: #1f2a26;
+
+  /* -------------------------------------------------------------------------------------
+   * Type
+   * -------------------------------------------------------------------------------------
+   * **Inter and JetBrains Mono, both already vendored** at `apps/main/public/fonts` with
+   * their OFL licences, originally for Nightingale Nightmare. The timing app's tokens name
+   * the same two faces, independently, so this is a convergence rather than a choice.
+   *
+   * **Halyard Display is what the live club site actually uses and is not here.** It is an
+   * Adobe Fonts webfont served under a kit tied to the Squarespace domain, so it cannot be
+   * served from Cloudflare without its own licence. The timing app's `design-tokens.json`
+   * hit the same wall and records it the same way: aspirational, pending a licence.
+   *
+   * System faces lead each stack so a page is readable before any font arrives.
+   */
+  --src-font-body:
+    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --src-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* -------------------------------------------------------------------------------------
+   * Shape
+   * -------------------------------------------------------------------------------------
+   * The same 8px and 12px the timing app's `radius.button` and `radius.card` carry — and the
+   * same values `nn-theme.css` independently landed on as `--nn-r-btn` and `--nn-r-card`.
+   * Three codebases already agreed; this is the first file to say so out loud.
+   */
+  --src-radius-button: 8px;
+  --src-radius-card: 12px;
+}
