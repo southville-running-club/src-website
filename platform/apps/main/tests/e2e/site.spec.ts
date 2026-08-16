@@ -472,7 +472,17 @@ test.describe('the Nightingale Nightmare content pages', () => {
       const mark = page.getByRole('link', { name: 'Southville Running Club' });
       await expect(mark).toHaveCount(1);
       await expect(mark).toHaveAttribute('href', '/nn/');
-      await expect(page.locator('img[alt="Southville Running Club"]')).toHaveCount(1);
+
+      // **No longer `img[alt=…]`.** The mark is inline `<svg>` now, filled with
+      // `currentColor` rather than a separate white-only file — see the note in
+      // `ClubLogo.astro`. It carries `aria-hidden` and `labelled={false}` deliberately: the
+      // link above already has the accessible name, and a second one on the artwork inside
+      // it would be exactly the double announcement this test exists to catch. So "exactly
+      // one of it" is now the wordmark's *visual* count, not an `alt` count.
+      await expect(page.locator('.nn-masthead .nn-logo')).toHaveCount(1);
+      await expect(
+        page.getByRole('img', { name: 'Southville Running Club' }),
+      ).toHaveCount(0);
     }
   });
 

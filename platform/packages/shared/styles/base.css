@@ -181,9 +181,11 @@ a[href^='mailto:'] {
 .site-banner {
   background: var(--colour-banner);
   color: var(--colour-banner-text);
-  /* Its own rule colour too: `--colour-rule` is translucent bone under the event theme,
-     which on this pale band is a border nobody can see. */
-  border-bottom: 1px solid #d8d8d4;
+  /* `--src-rule`, the primitive, rather than `--colour-rule`, the semantic name.
+     `nn-theme.css` overrides the latter to translucent bone, which on this pale band is a
+     border nobody can see — the primitive is never touched by any theme, which is what
+     keeps the bar's own border constant regardless of which page it sits above. */
+  border-bottom: 1px solid var(--src-rule);
 }
 
 /* The row inside the bar: the club's wordmark, then the sentence. The bar itself runs edge

@@ -4,129 +4,68 @@ import ClubLogo from '../components/ClubLogo.astro';
 import tokens from '@src/shared/design-tokens.json';
 import { contrastRatio, contrastVerdict, ratioLabel } from '@src/shared/contrast';
 
-// The club's palette, rendered.
+// The club's palette, explained in plain terms for whoever is deciding whether it is right —
+// the committee, not a developer. Every colour and every ratio below is calculated live from
+// the same definition the website itself renders from, so nothing here can quietly go out of
+// date: if a colour changes on the site, it changes here too, automatically.
 //
-// **Every ratio on this page is computed at build time**, from the same `design-tokens.json`
-// the stylesheet is checked against and with the same function `tests/brand.test.ts` uses. So
-// there is no number here that anybody typed, and none that can survive a colour change it
-// stopped being true for. That is the whole reason the page exists rather than a table in a
-// document.
+// It carries no reference to where any of this lives in the codebase, deliberately. This page
+// is meant to be readable and judged on its own — a colour, a reason, a number — without
+// anybody needing to know what a "token" or a file path is.
 //
-// The second reason is axe. The accessibility run walks the pages that exist; before this,
-// nothing rendered the full palette, so a colour used on one page in one state was checked
-// only if a test happened to visit that state. Here they are all on one page, at body size,
-// in both schemes.
-//
-// It is `noindex` like every other page — `Base.astro` sets that for the whole site — and it
-// is linked from nowhere. It is for the two volunteers and for the committee, not for a
-// runner looking for the club's training times.
+// It is `noindex`, like every other page on this site, and linked from nowhere. It exists for
+// the two volunteers and the committee to look at, not for a runner searching for training
+// times.
 
 const c = tokens.color;
 
 /** The light scheme's surfaces, and what is allowed to sit on each. */
 const surfaces = [
   {
-    name: 'Page',
+    name: 'The page',
     bg: c.paper.value,
     scheme: 'light' as const,
     on: [
+      { label: 'Body text', value: c.ink.value, role: 'text' as const },
+      { label: 'Secondary text', value: c.slate.value, role: 'text' as const },
+      { label: 'Links and buttons', value: c.greenText.value, role: 'text' as const },
+      { label: 'Error messages', value: c.error.value, role: 'text' as const },
       {
-        label: 'Body text',
-        token: '--src-ink',
-        value: c.ink.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Muted text',
-        token: '--src-slate',
-        value: c.slate.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Links, buttons',
-        token: '--src-green-text',
-        value: c.greenText.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Errors',
-        token: '--src-error',
-        value: c.error.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Brand green',
-        token: '--src-green',
+        label: 'The brand green itself',
         value: c.green.value,
         role: 'logotype' as const,
       },
     ],
   },
   {
-    name: 'Banner band',
+    name: 'The welcome banner',
     bg: c.band.value,
     scheme: 'light' as const,
     on: [
-      {
-        label: 'Banner text',
-        token: '--src-ink',
-        value: c.ink.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Banner link',
-        token: '--src-green-text',
-        value: c.greenText.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'The wordmark',
-        token: '--src-green',
-        value: c.green.value,
-        role: 'logotype' as const,
-      },
+      { label: 'Banner text', value: c.ink.value, role: 'text' as const },
+      { label: 'Banner link', value: c.greenText.value, role: 'text' as const },
+      { label: 'The wordmark', value: c.green.value, role: 'logotype' as const },
     ],
   },
   {
-    name: 'Page, dark',
+    name: 'The page, in dark mode',
     bg: c.paperDark.value,
     scheme: 'dark' as const,
     on: [
-      { label: 'Body text', token: '(literal)', value: '#f2f2f0', role: 'text' as const },
-      {
-        label: 'Muted text',
-        token: '--src-slate-dark',
-        value: c.slateDark.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Links, buttons',
-        token: '--src-green-text-dark',
-        value: c.greenTextDark.value,
-        role: 'text' as const,
-      },
-      {
-        label: 'Errors',
-        token: '--src-error-dark',
-        value: c.errorDark.value,
-        role: 'text' as const,
-      },
+      { label: 'Body text', value: '#f2f2f0', role: 'text' as const },
+      { label: 'Secondary text', value: c.slateDark.value, role: 'text' as const },
+      { label: 'Links and buttons', value: c.greenTextDark.value, role: 'text' as const },
+      { label: 'Error messages', value: c.errorDark.value, role: 'text' as const },
     ],
   },
   {
-    name: 'Banner band, dark',
+    name: 'The welcome banner, in dark mode',
     bg: c.bandDark.value,
     scheme: 'dark' as const,
     on: [
-      {
-        label: 'Banner text',
-        token: '(literal)',
-        value: '#f2f2f0',
-        role: 'text' as const,
-      },
+      { label: 'Banner text', value: '#f2f2f0', role: 'text' as const },
       {
         label: 'Banner link and wordmark',
-        token: '--src-green-text-dark',
         value: c.greenTextDark.value,
         role: 'text' as const,
       },
@@ -135,66 +74,61 @@ const surfaces = [
 ];
 
 /**
- * The two values from `bindalshah/src-race-timing` this repository deliberately did not take,
- * with the number that decided it. Recorded here because a palette that only shows what was
- * adopted reads as though nothing was rejected.
+ * The two colours from the club's race-timing application that were deliberately not
+ * adopted here, with the reason. Shown because a page that only lists what was taken would
+ * read as though nothing was ever turned down.
  */
 const refused = [
   {
-    token: 'color.ink',
+    label: "The timing app's near-black",
     value: '#2C2C2C',
     instead: c.ink.value,
-    why: 'Both are AAA on the page; ours is higher, so there was nothing to buy by moving.',
+    why: 'Both read clearly against white. Ours reads slightly better, so there was nothing to gain by switching.',
   },
   {
-    token: 'color.danger',
+    label: "The timing app's error red",
     value: '#E53935',
     instead: c.error.value,
-    why: 'Large-text-only on this page. It would put failing error text on the entry form.',
+    why: 'On a white page it is too pale to count as properly readable body text. Error messages on the entry form have to be unmistakable, so the darker red was kept.',
   },
 ];
+
+// Computed here, not inline in the markup below — a regex literal sitting inside a template
+// expression reads ambiguously next to HTML tags and the formatter chokes on it.
+const bodyFontName = tokens.font.body.value.split(',')[0].replace(/"/g, '');
 ---
 
 <Base
   title="Brand — Southville Running Club"
-  description="The club's colours, wordmark and type, with every contrast ratio computed."
+  description="The club's colours, wordmark and type — what they are, and why, in plain terms."
 >
   <h1>Brand</h1>
 
   <p class="lede">
-    The club's palette as it is actually defined, with every contrast ratio computed from
-    the tokens rather than written down beside them.
-  </p>
-
-  <p>
-    {
-      /* **`{' '}` before a tag that starts a line.** Astro compresses the newline between
-        text and the tag after it to *nothing*, so "…is in\n<code>docs/…" renders as
-        "indocs/…". It is the same trap the site banner's three spans exist to dodge, and it
-        is invisible until somebody reads the sentence out loud. */
-    }
-    The canonical source is <code>packages/shared/styles/tokens.css</code>. This page is
-    rendered from <code>packages/shared/design-tokens.json</code>, which a test holds to
-    the stylesheet. The reasoning behind each value is in{' '}
-    <code>docs/foundations/brand.md</code>.
+    This page shows the club's colours and typeface exactly as the website uses them —
+    every hex value and every readability score below is calculated directly from the site
+    itself, not typed in separately. If the site's colours ever change, this page changes
+    with them.
   </p>
 
   <div class="notice notice-bad">
-    <h3>The green is not confirmed</h3>
+    <h3>The green is not yet officially confirmed</h3>
     <p>
-      <strong>{c.green.value}</strong> was read off the computed style of the header band on
-      southvillerunningclub.co.uk on <strong>16 August 2026</strong>. It is what the club
-      looks like today. It is not a value the committee has approved, and until they do,
-      this page is a proposal rather than a record.
+      <strong>{c.green.value}</strong> was measured directly from the colour of the header band
+      on southvillerunningclub.co.uk on <strong>16 August 2026</strong>. It is what the
+      club visibly looks like today, but nobody at the club has formally signed it off as
+      the official colour. Until that happens, treat this page as a proposal rather than a
+      settled record.
     </p>
   </div>
 
   <h2>The wordmark</h2>
 
   <p>
-    One piece of artwork, filled with <code>currentColor</code>. It has no colour of its
-    own, which is what lets it be the club's green on the club's pages and bone on the
-    campaign's, without two files that drift apart.
+    One piece of artwork. Its colour is decided by where it is placed rather than baked
+    into the image itself, so the same wordmark can appear in the club's green on the
+    club's own pages and in pale cream on the Nightingale Nightmare race pages, without
+    ever needing two separate copies that could end up looking different from each other.
   </p>
 
   <div class="brand-marks">
@@ -203,128 +137,188 @@ const refused = [
       style={`background: ${c.band.value}; color: ${c.green.value}`}
     >
       <ClubLogo width={180} labelled={false} />
-      <p>On the banner band, in <code>--src-green</code></p>
+      <p>On the welcome banner, in the club's brand green</p>
     </div>
     <div
       class="brand-mark"
       style={`background: ${c.paperDark.value}; color: ${c.greenTextDark.value}`}
     >
       <ClubLogo width={180} labelled={false} />
-      <p>Dark scheme, in <code>--src-green-text-dark</code></p>
+      <p>In dark mode</p>
     </div>
     <div class="brand-mark" style={`background: ${c.green.value}; color: #ffffff`}>
       <ClubLogo width={180} labelled={false} />
-      <p>Reversed out of a green band</p>
+      <p>Reversed out of a solid green panel</p>
     </div>
   </div>
 
   <p class="field-hint">
-    A logotype has no contrast requirement under WCAG 1.4.3 — that exemption is what
-    allows the first of these, at {ratioLabel(c.green.value, c.band.value)}, which would
-    be far too low for anything anybody has to read.
+    A logo is allowed to be a colour that would be too pale to read as ordinary text —
+    that is a long-standing, published accessibility rule (WCAG 1.4.3), not a shortcut
+    taken here. It is what allows the first example above, where the green measures only
+    {' '}{ratioLabel(c.green.value, c.band.value)} against its background — far too low for
+    a paragraph of text, and perfectly fine for a piece of artwork.
+  </p>
+
+  <h2>How readable each colour is</h2>
+
+  <p>
+    Every pairing below is scored against the internationally recognised
+    <abbr title="Web Content Accessibility Guidelines">WCAG</abbr> readability scale. A score
+    of <strong>4.5:1</strong> is the widely used minimum for ordinary text; this site aims higher,
+    at <strong>7:1</strong>, which is the top ("AAA") band and clearly comfortable to read
+    even in bright daylight on a phone.
   </p>
 
   {
-    surfaces.map((surface) => (
-      <>
-        <h2>
-          {surface.name} <code>{surface.bg}</code>
-        </h2>
-        <table class="brand-table" style={`background: ${surface.bg}`}>
-          <thead>
-            <tr>
-              <th scope="col">Role</th>
-              <th scope="col">Token</th>
-              <th scope="col">Value</th>
-              <th scope="col">Ratio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {surface.on.map((entry) => {
-              const ratio = contrastRatio(entry.value, surface.bg);
-              const verdict = contrastVerdict(ratio);
-              return (
+    surfaces.map((surface) => {
+      // **Not the theme-following secondary-text colour.** That colour switches with the
+      // reader's own device setting, which has nothing to do with which background this
+      // particular row is illustrating — a reader on a light-mode device looking at the
+      // "dark mode" example would otherwise see the *light-mode* secondary colour on a
+      // manually dark background, which genuinely fails to read clearly. Every colour
+      // shown on this page is the literal value being demonstrated, never one that changes
+      // depending on who is looking at it.
+      const headerColor = surface.scheme === 'dark' ? c.slateDark.value : c.slate.value;
+      return (
+        <>
+          <h3>
+            {surface.name} <code>{surface.bg}</code>
+          </h3>
+          {/* The table scrolls sideways inside this box on a narrow phone, rather than
+              the whole page doing so — a long hex value and a full sentence in the same
+              row need more width than 320px, and this is what keeps that contained. */}
+          <div
+            class="brand-table-scroll"
+            tabindex="0"
+            role="region"
+            aria-label={`Colours on ${surface.name.toLowerCase()}`}
+          >
+            <table class="brand-table" style={`background: ${surface.bg}`}>
+              <thead>
                 <tr>
-                  <th scope="row" style={`color: ${entry.value}`}>
-                    {entry.label}
+                  <th scope="col" style={`color: ${headerColor}`}>
+                    Used for
                   </th>
-                  <td style={`color: ${entry.value}`}>
-                    <code>{entry.token}</code>
-                  </td>
-                  <td style={`color: ${entry.value}`}>{entry.value}</td>
-                  <td style={`color: ${entry.value}`}>
-                    {ratioLabel(entry.value, surface.bg)}{' '}
-                    <span class="brand-verdict">
-                      {entry.role === 'logotype' ? 'logotype — exempt' : verdict}
-                    </span>
-                  </td>
+                  <th scope="col" style={`color: ${headerColor}`}>
+                    Colour
+                  </th>
+                  <th scope="col" style={`color: ${headerColor}`}>
+                    Readability
+                  </th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </>
-    ))
+              </thead>
+              <tbody>
+                {surface.on.map((entry) => {
+                  const ratio = contrastRatio(entry.value, surface.bg);
+                  const verdict = contrastVerdict(ratio);
+                  // **A swatch, not coloured text, for the brand green itself.** Every
+                  // other row colours its own sample text in the colour it is describing,
+                  // which is safe because each one has already been proven to read
+                  // clearly. The brand green has not — it measures below the minimum for
+                  // text, which is the whole point of this row — so colouring "too pale
+                  // to read" *in* that same pale colour would be self-defeating, and an
+                  // automated reading-clarity check correctly rejects it. A small square
+                  // shows the colour instead, and the words stay in the page's own ink.
+                  const textColor = entry.role === 'logotype' ? undefined : entry.value;
+                  return (
+                    <tr>
+                      <th scope="row" style={textColor && `color: ${textColor}`}>
+                        {entry.role === 'logotype' && (
+                          <span
+                            class="brand-swatch"
+                            style={`background: ${entry.value}`}
+                            aria-hidden="true"
+                          />
+                        )}
+                        {entry.label}
+                      </th>
+                      <td style={textColor && `color: ${textColor}`}>{entry.value}</td>
+                      <td style={textColor && `color: ${textColor}`}>
+                        {ratioLabel(entry.value, surface.bg)}{' '}
+                        <span class="brand-verdict">
+                          {entry.role === 'logotype' ? 'exempt — it is a logo' : verdict}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      );
+    })
   }
 
-  <h2>Taken from the timing app</h2>
+  <h2>Why some colours were borrowed, and some were not</h2>
 
   <p>
-    <code>bindalshah/src-race-timing</code> already had a brand in this same token format. Where
-    its values were better than this repository's, they were adopted:
-    <code>color.slate</code> is {ratioLabel(c.slate.value, c.paper.value)} against the
-    {' '}{ratioLabel('#58585d', c.paper.value)} it replaced. The radii and the two typefaces
-    were already the same on both sides without anybody arranging it.
+    The club's separate race-timing application already had its own colour palette,
+    defined independently of this website. Where its choices measured better than this
+    site's own, they were adopted here rather than ignored out of habit — the club's
+    secondary grey text colour, for instance, was replaced with the timing app's version
+    because it reads slightly more clearly. Two things were deliberately <em>not</em>
+    borrowed, and the table below says why.
   </p>
 
-  <h2>Refused, and why</h2>
+  <div
+    class="brand-table-scroll"
+    tabindex="0"
+    role="region"
+    aria-label="Colours considered and not adopted"
+  >
+    <table class="brand-table">
+      <thead>
+        <tr>
+          <th scope="col">Considered</th>
+          <th scope="col">Readability</th>
+          <th scope="col">Kept instead</th>
+          <th scope="col">Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          refused.map((r) => (
+            <tr>
+              <th scope="row">
+                {r.label} <span class="brand-hex">{r.value}</span>
+              </th>
+              <td>
+                {ratioLabel(r.value, c.paper.value)}{' '}
+                <span class="brand-verdict">
+                  {contrastVerdict(contrastRatio(r.value, c.paper.value))}
+                </span>
+              </td>
+              <td>
+                {r.instead}{' '}
+                <span class="brand-verdict">{ratioLabel(r.instead, c.paper.value)}</span>
+              </td>
+              <td>{r.why}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
 
-  <table class="brand-table">
-    <thead>
-      <tr>
-        <th scope="col">Their token</th>
-        <th scope="col">On this page</th>
-        <th scope="col">Kept instead</th>
-        <th scope="col">Reason</th>
-      </tr>
-    </thead>
-    <tbody>
-      {
-        refused.map((r) => (
-          <tr>
-            <th scope="row">
-              <code>{r.token}</code> {r.value}
-            </th>
-            <td>
-              {ratioLabel(r.value, c.paper.value)}{' '}
-              <span class="brand-verdict">
-                {contrastVerdict(contrastRatio(r.value, c.paper.value))}
-              </span>
-            </td>
-            <td>
-              {r.instead}{' '}
-              <span class="brand-verdict">{ratioLabel(r.instead, c.paper.value)}</span>
-            </td>
-            <td>{r.why}</td>
-          </tr>
-        ))
-      }
-    </tbody>
-  </table>
-
-  <h2>Type</h2>
+  <h2>Typeface</h2>
 
   <p>
-    Body is <code>{tokens.font.body.value.split(',')[0]}</code> and numerals are
-    {' '}<code>{tokens.font.mono.value.split(',')[0]}</code>, both already vendored with
-    their OFL licences. <strong
-      >Halyard Display is what the live club site uses and is not here</strong
-    >
-    — it is an Adobe Fonts webfont under a kit tied to the Squarespace domain, and the timing
-    app records the same constraint.
+    Body text is set in <strong>{bodyFontName}</strong>, and numbers — race times, splits,
+    finish positions — are set in a typeface built so every digit is the same width, so a
+    changing number never shifts the ones next to it. Both are free to use and already
+    part of the site.
   </p>
 
-  <p class="brand-mono">0123456789 — tabular figures, for finish times</p>
+  <p>
+    <strong>The club's current website does not use either of these.</strong> It uses a commercial
+    typeface licensed only for that site's own address, so it cannot legally be reused here
+    without buying a separate licence for it. Until the club decides whether that is worth doing,
+    this typeface stands in for it.
+  </p>
+
+  <p class="brand-mono">0123456789 — evenly spaced, for finish times</p>
 
   <footer>
     <p><a href="/">Southville Running Club</a></p>
@@ -332,6 +326,14 @@ const refused = [
 </Base>
 
 <style>
+  /* A long address or file-style string in running text is one unbreakable token — the
+     same class of problem `base.css` already fixes for the club's email address. Scoped
+     here rather than promoted to `base.css` because this is the one page that puts such
+     strings in prose rather than in a table cell that already scrolls. */
+  code {
+    overflow-wrap: anywhere;
+  }
+
   .brand-marks {
     display: grid;
     gap: var(--space);
@@ -355,16 +357,25 @@ const refused = [
     font-size: 0.875rem;
   }
 
-  .brand-table {
-    width: 100%;
+  /* **The scroll container, not the table.** `overflow-x: auto` directly on a `<table>`
+     does not cap it at 320px — table layout is allowed to render wider than a `width: 100%`
+     box to fit content that cannot shrink, such as a hex value or a full sentence, and that
+     is exactly what once pushed this page past the edge of a narrow phone. This wrapper is
+     a plain block, so its own `overflow-x` genuinely clips it to its container; the table
+     inside is free to be as wide as it needs and scrolls within this box instead of the
+     page. `tabindex="0"` plus the `role`/`aria-label` on the wrapper make the scrolling
+     itself reachable and operable from a keyboard, which a scrollable region needs to be. */
+  .brand-table-scroll {
     margin: var(--space) 0;
-    border-collapse: collapse;
     border: 1px solid var(--colour-rule);
     border-radius: var(--radius-card);
-    font-size: 0.9375rem;
-    /* Long values must not push the page sideways at 320px. */
-    display: block;
     overflow-x: auto;
+  }
+
+  .brand-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9375rem;
   }
 
   .brand-table th,
@@ -379,13 +390,33 @@ const refused = [
     font-size: 0.8125rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--colour-muted);
+    /* No `color` here. Each `<th>` carries its own literal colour inline — see the note
+       above on why the theme-following secondary-text colour is wrong for a row that is
+       deliberately demonstrating the *other* colour scheme. */
+  }
+
+  .brand-hex {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+  }
+
+  .brand-swatch {
+    display: inline-block;
+    width: 0.75em;
+    height: 0.75em;
+    margin-right: 0.4em;
+    border-radius: 2px;
+    vertical-align: middle;
   }
 
   .brand-verdict {
     font-size: 0.8125rem;
-    opacity: 0.85;
     white-space: nowrap;
+    /* **No `opacity` here, deliberately.** A dimmed verdict badge is a real, composited
+       colour to an automated reading-clarity check — blending a passing colour toward the
+       background only ever reduces its measured contrast, and doing that here once turned
+       an already-borderline exemption into a second, harder-to-spot failure on top of the
+       first. A verdict either reads clearly or it does not. */
   }
 
   .brand-mono {
