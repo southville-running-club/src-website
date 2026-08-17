@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isNnAdminPath,
   isNnEntryCompletePath,
   isNnRacePath,
   isNnYearPath,
   isTimingPath,
+  nnAdminSegments,
   nnEntryCompletePath,
   nnEventSlugForYearPath,
   nnYearPathForEventSlug,
+  NN_ADMIN_PREFIX,
   NN_PREFIX,
   NN_RACE_SLUG,
   TIMING_PREFIX,
@@ -177,5 +180,55 @@ describe('the paths the club has committed to', () => {
     // is `/nn`. They agree, and this is the line that says the agreement is deliberate.
     expect(NN_RACE_SLUG).toBe('nn');
     expect(`/${NN_RACE_SLUG}`).toBe(NN_PREFIX);
+  });
+});
+
+describe('the admin surface, and the one character that decides where it starts', () => {
+  it('matches the prefix itself and everything beneath it', () => {
+    expect(isNnAdminPath('/nn/admin')).toBe(true);
+    expect(isNnAdminPath('/nn/admin/')).toBe(true);
+    expect(isNnAdminPath('/nn/admin/entries/')).toBe(true);
+    expect(isNnAdminPath('/nn/admin/entries/nn-2026/')).toBe(true);
+  });
+
+  it('does not match the stylesheet that sits beside it', () => {
+    // **The character that matters.** `/nn/admin.css` is a real file in `dist/`, emitted by
+    // `src/pages/nn/admin.css.ts` from the shared stylesheets. If this predicate treated
+    // `/nn/admin` as a plain prefix, the Worker would answer the stylesheet request itself —
+    // with a sign-in page or a 404 — and every admin page would render unstyled, with nothing
+    // failing anywhere to say why.
+    expect(isNnAdminPath('/nn/admin.css')).toBe(false);
+  });
+
+  it('does not match another page that happens to start with the same letters', () => {
+    expect(isNnAdminPath('/nn/administration/')).toBe(false);
+    expect(isNnAdminPath('/nn/admin-guide/')).toBe(false);
+  });
+
+  it('does not match the pages a runner reads', () => {
+    expect(isNnAdminPath('/nn/')).toBe(false);
+    expect(isNnAdminPath('/nn/2026/')).toBe(false);
+    expect(isNnAdminPath('/nn/privacy/')).toBe(false);
+    expect(isNnAdminPath('/admin/')).toBe(false);
+  });
+
+  it('reads the two spellings of the front door as the same address', () => {
+    // `trailingSlash` is `'always'` for pages and somebody typing this into a bar will type
+    // it either way. Both are the index, which is `[]`.
+    expect(nnAdminSegments('/nn/admin')).toEqual([]);
+    expect(nnAdminSegments('/nn/admin/')).toEqual([]);
+  });
+
+  it('splits what comes after the prefix', () => {
+    expect(nnAdminSegments('/nn/admin/entries/')).toEqual(['entries']);
+    expect(nnAdminSegments('/nn/admin/entries/nn-2026/')).toEqual(['entries', 'nn-2026']);
+    expect(nnAdminSegments('/nn/admin/export/')).toEqual(['export']);
+  });
+
+  it('keeps the prefix under the race rather than at the root', () => {
+    // Under `/nn` with everything else, so the Squarespace cutover moves the hostname and
+    // not this — the same property ADR-007 buys for every other address here.
+    expect(NN_ADMIN_PREFIX).toBe('/nn/admin');
+    expect(NN_ADMIN_PREFIX.startsWith(NN_PREFIX)).toBe(true);
   });
 });

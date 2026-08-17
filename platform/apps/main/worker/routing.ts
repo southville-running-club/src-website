@@ -226,3 +226,35 @@ export function isNnEntryCompletePath(pathname: string): boolean {
 export function nnEntryCompletePath(yearPath: string): string {
   return `${yearPath}entry/complete/`;
 }
+
+/**
+ * The admin surface — **not a page, and not in `dist/`**.
+ *
+ * Every address beneath this prefix is answered by the Worker before the assets binding, and
+ * nothing beneath it exists as a file. When `ENTRIES_ADMIN_KEY` is not bound the Worker declines
+ * to answer at all and the request falls through to the binding, which 404s exactly as it does
+ * for an address nobody has ever published — so the surface is indistinguishable from absent
+ * until a human installs the key.
+ *
+ * **`/nn/admin.css` is deliberately not beneath this.** It is a real file in `dist/`, emitted by
+ * `src/pages/nn/admin.css.ts` from the shared stylesheets, and it must reach the assets binding
+ * like any other asset. That is why this matches `/nn/admin` exactly or `/nn/admin/` and beneath,
+ * and never `/nn/admin` as a prefix of a longer segment — the difference between the two is one
+ * character and a stylesheet that 404s.
+ */
+export const NN_ADMIN_PREFIX = `${NN_PREFIX}/admin`;
+
+export function isNnAdminPath(pathname: string): boolean {
+  return pathname === NN_ADMIN_PREFIX || pathname.startsWith(`${NN_ADMIN_PREFIX}/`);
+}
+
+/**
+ * What comes after the prefix, as a list of segments with the empty ones dropped.
+ *
+ * `/nn/admin/` and `/nn/admin` are both `[]` — the same address, because `trailingSlash` is
+ * `'always'` for pages and a person typing this one into a bar will type it either way.
+ * `/nn/admin/entries/nn-2026/` is `['entries', 'nn-2026']`.
+ */
+export function nnAdminSegments(pathname: string): string[] {
+  return pathname.slice(NN_ADMIN_PREFIX.length).split('/').filter(Boolean);
+}

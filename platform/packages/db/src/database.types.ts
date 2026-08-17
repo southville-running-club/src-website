@@ -26,6 +26,54 @@ export type Database = {
   }
   entries: {
     Tables: {
+      admin_audit: {
+        Row: {
+          action: string
+          actor: string
+          at: string
+          detail: Json
+          id: string
+        }
+        Insert: {
+          action: string
+          actor: string
+          at?: string
+          detail?: Json
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor?: string
+          at?: string
+          detail?: Json
+          id?: string
+        }
+        Relationships: []
+      }
+      admin_keys: {
+        Row: {
+          issued_at: string
+          key_sha256: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+        }
+        Insert: {
+          issued_at?: string
+          key_sha256: string
+          last_used_at?: string | null
+          name: string
+          revoked_at?: string | null
+        }
+        Update: {
+          issued_at?: string
+          key_sha256?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+        }
+        Relationships: []
+      }
       discount_codes: {
         Row: {
           active: boolean
@@ -249,6 +297,7 @@ export type Database = {
           event_date: string
           from_address: string
           id: string
+          medical_retention: string
           minimum_age: number | null
           race_slug: string
           requires_dob: boolean
@@ -266,6 +315,7 @@ export type Database = {
           event_date: string
           from_address: string
           id?: string
+          medical_retention?: string
           minimum_age?: number | null
           race_slug: string
           requires_dob?: boolean
@@ -283,6 +333,7 @@ export type Database = {
           event_date?: string
           from_address?: string
           id?: string
+          medical_retention?: string
           minimum_age?: number | null
           race_slug?: string
           requires_dob?: boolean
@@ -358,6 +409,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_entrant_medical: {
+        Args: { p_actor: string; p_entrant_id: string; p_key: string }
+        Returns: Json
+      }
+      admin_entry_list: {
+        Args: { p_event_slug: string; p_key: string }
+        Returns: Json
+      }
+      admin_export: {
+        Args: {
+          p_actor: string
+          p_event_slug: string
+          p_key: string
+          p_kind: string
+        }
+        Returns: Json
+      }
+      admin_interest_list: { Args: { p_key: string }; Returns: Json }
+      admin_key_ok: { Args: { p_key: string }; Returns: boolean }
+      admin_sign_in: {
+        Args: { p_key: string; p_person_key: string }
+        Returns: Json
+      }
       attach_checkout_session: {
         Args: { p_purchase_id: string; p_session_id: string }
         Returns: boolean
@@ -376,11 +450,16 @@ export type Database = {
         Returns: Json
       }
       current_entry_state: { Args: { p_race_slug: string }; Returns: Json }
+      delete_expired_medical_notes: { Args: never; Returns: Json }
       entry_completion_state: { Args: { p_session_id: string }; Returns: Json }
       entry_state: { Args: { p_slug: string }; Returns: Json }
       expire_pending_holds: { Args: never; Returns: Json }
       raise_attention: {
         Args: { p_detail: Json; p_purchase_id: string; p_reason: string }
+        Returns: undefined
+      }
+      record_admin_action: {
+        Args: { p_action: string; p_actor: string; p_detail: Json }
         Returns: undefined
       }
       record_checkout_event: {

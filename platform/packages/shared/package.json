@@ -9,6 +9,7 @@
     "./styles/base.css": "./styles/base.css",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/nn-theme.css": "./styles/nn-theme.css",
+    "./styles/nn-admin.css": "./styles/nn-admin.css",
     "./brand": "./src/brand.ts",
     "./social": "./src/social.ts",
     "./contrast": "./src/contrast.ts",
