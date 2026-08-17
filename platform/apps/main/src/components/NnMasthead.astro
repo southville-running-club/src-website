@@ -81,9 +81,17 @@ const onTheRunning = /^\/nn\/\d{4}\/$/.test(path);
       links or images saying "Southville Running Club", which is one more than a screen
       reader user needs to hear. The hero's copy is removed rather than hidden.
 
-      The accessible name carries the club's name because that is what the artwork says —
-      not a description of it. `width` and `height` are on the element so the row does not
-      reflow between the HTML arriving and the stylesheet landing.
+      **It goes to `/`, the club, not to `/nn/`.** A wordmark in the top-left corner is the
+      most conventional target on the web and what it conventionally means is *home* — the
+      organisation's front door, not the section you are standing in. Pointing it at `/nn/`
+      made it the fifth way to reach a page the bar's first link already offers, and left
+      the campaign with no route out to the club at all: the cross-site banner's own mark is
+      `display: none` here precisely because this one exists. So this is the way back, and
+      the accessible name says so, exactly as the banner's does on the club's own pages.
+
+      The name still carries the club's name because that is what the artwork says — not a
+      description of it. `width` and `height` are on the element so the row does not reflow
+      between the HTML arriving and the stylesheet landing.
 
       **It was `<img src="/logo.svg">` and is now inline `<svg>`.** The file it pointed at
       was `fill:#fff`, which is why it could only ever appear here: a white wordmark is
@@ -92,7 +100,7 @@ const onTheRunning = /^\/nn\/\d{4}\/$/.test(path);
       link's text would, which is what let the club's own pages have the same wordmark in
       the club's own green. Nothing about how it looks here changes. */
     }
-    <a class="nn-masthead-mark" href="/nn/" aria-label="Southville Running Club">
+    <a class="nn-masthead-mark" href="/" aria-label="Southville Running Club, home">
       <ClubLogo class="nn-logo" width={176} labelled={false} />
     </a>
 

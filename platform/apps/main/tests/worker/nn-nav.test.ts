@@ -55,8 +55,12 @@ describe('the same five controls, wherever you are standing', () => {
     const html = bar(await page(path));
 
     expect(hrefsIn(html)).toEqual([
-      // The wordmark.
-      '/nn/',
+      // **The wordmark, and it goes to the club rather than to the campaign.** It pointed at
+      // `/nn/` — the same place as the bar's first link, which left these pages with no
+      // route out at all: the cross-site banner hides its own mark here precisely because
+      // this one exists.
+      '/',
+      // Race.
       '/nn/',
       '/nn/course/',
       '/nn/2026/race-day/',
