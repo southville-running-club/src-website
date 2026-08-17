@@ -224,27 +224,82 @@ test.describe('the interest list', () => {
   });
 });
 
+/**
+ * The export, asserted on **the response rather than on a download event**.
+ *
+ * ## Why not `waitForEvent('download')`, which is the obvious thing
+ *
+ * **The three engines do not agree on what an attachment is, and one of them only disagrees on
+ * Linux.** Given `content-type: text/csv` and `content-disposition: attachment`:
+ *
+ *   * Chromium turns it into a download. The `download` event fires; `response.body()` is
+ *     **unreadable**, because the bytes went to the downloads directory rather than to the page.
+ *   * WebKit on macOS turns it into a download too — which is why this passed locally, nine runs
+ *     in a row.
+ *   * **WebKit on Linux renders it in the tab.** No download event ever fires, `waitForEvent`
+ *     times out, and the page navigates to `/nn/admin/export/` with the CSV as its body.
+ *
+ * That is the same shape as the radio-focus trap CLAUDE.md already records: the GTK/WPE WebKit
+ * that `playwright install webkit` puts on a Linux runner is not the WebKit on a laptop, and CI
+ * is the only place that sees it. It cost a red pipeline.
+ *
+ * **The response is the part that is actually specified**, and every engine agrees on it. What
+ * a browser then chooses to do with a correctly-formed attachment is the browser's business —
+ * and the volunteers use Chrome and desktop Safari, both of which download it.
+ *
+ * ## So it is asserted in two halves, and neither is the download machinery
+ *
+ *   1. **The journey**, driven by a real click with no JavaScript: the form posts and the answer
+ *      is a CSV attachment with the right filename.
+ *   2. **The bytes**, through `page.request`, which shares the context's cookies and hands back
+ *      a readable body in every engine. The byte-order mark cannot be checked any other way —
+ *      Chromium will not give a download's body back, and `Response.text()` strips the mark
+ *      anyway (see `packages/shared/src/csv.ts`).
+ *
+ * The columns, the escaping and the paid-only rule are the Worker suite's to prove, at the layer
+ * where the whole file can be read. This one proves a person can get it.
+ */
 test.describe('an export', () => {
-  test('downloads a CSV, with no JavaScript', async ({ page }) => {
+  test('answers a real form submission with a CSV attachment, with no JavaScript', async ({
+    page,
+  }) => {
     await signIn(page);
     await page.goto(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`);
 
-    const download = page.waitForEvent('download');
+    const response = page.waitForResponse((r) => r.url().endsWith('/nn/admin/export/'));
     await page.getByRole('button', { name: 'Start list' }).click();
+    const csv = await response;
 
-    const file = await download;
-    expect(file.suggestedFilename()).toBe(`${ADMIN_EVENT_SLUG}-start-list.csv`);
+    expect(csv.status()).toBe(200);
+    expect(csv.headers()['content-type']).toContain('text/csv');
+    expect(csv.headers()['content-disposition']).toContain(
+      `filename="${ADMIN_EVENT_SLUG}-start-list.csv"`,
+    );
+    // Nothing between the Worker and the person may keep a copy of a file of entrants.
+    expect(csv.headers()['cache-control']).toBe('no-store');
+  });
 
-    const stream = await file.createReadStream();
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.from(chunk));
-    }
-    const body = Buffer.concat(chunks).toString('utf8');
+  test('sends bytes Excel can read, with the awkward club escaped', async ({ page }) => {
+    await signIn(page);
 
-    expect(body.startsWith(BOM)).toBe(true);
-    expect(body).toContain(PAID_NON_ASCII_LAST_NAME);
-    expect(body).toContain('"Bristol & West AC, ""the Bees"""');
+    // `page.request` carries the context's cookies, so this is the same session the click
+    // above uses — and unlike a download, its body is readable in every engine.
+    const csv = await page.request.post(`${ADMIN}export/`, {
+      form: { event: ADMIN_EVENT_SLUG, kind: 'start-list' },
+    });
+
+    expect(csv.status()).toBe(200);
+
+    const bytes = await csv.body();
+    const text = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false }).decode(
+      bytes,
+    );
+
+    // The byte-order mark, on the bytes. Without it Excel opens `Sørensen` as mojibake.
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(text.startsWith(BOM)).toBe(true);
+    expect(text).toContain(PAID_NON_ASCII_LAST_NAME);
+    expect(text).toContain('"Bristol & West AC, ""the Bees"""');
   });
 });
 

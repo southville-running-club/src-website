@@ -266,6 +266,20 @@ looked wrong; the page just slid left under a thumb. `position: relative` on `.a
 makes it the containing block, measured 783 → 320. The same is waiting for any absolutely
 positioned thing inside any scroller.
 
+**The three browser engines do not agree on what an attachment is, and one of them only
+disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
+Chromium downloads it — the `download` event fires and `response.body()` is *unreadable*, because
+the bytes went to the downloads directory. macOS WebKit downloads it too, which is why
+`waitForEvent('download')` passed nine local runs in a row. **WebKit on a Linux runner renders it
+in the tab**: no download event ever fires, the page navigates to the endpoint, and the CSV is
+the body. Only CI saw it, exactly like the radio-focus bug, and it was the one red test in the
+first pipeline run of the admin slice. **Assert an attachment on the response, not on the
+download** — the status, the content type and the filename are what is specified and every
+engine agrees on them; for the bytes use `page.request`, which shares the context's cookies and
+hands back a readable body everywhere. Reproduced in
+`mcr.microsoft.com/playwright:v1.62.1-noble`. `nn-admin.spec.ts`'s two export tests are the
+shape to copy.
+
 **A CSV's byte-order mark is invisible to `Response.text()`.** `TextDecoder` strips a leading
 U+FEFF by default, so a test that decodes the body reports a mark that is on the wire as missing —
 and one written the other way round would pass on a file that opens as mojibake in Excel on every
