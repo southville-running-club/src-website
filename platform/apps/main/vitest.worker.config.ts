@@ -16,6 +16,20 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
+
+      // **Bound to the empty string on purpose, and it is an assertion rather than a setting.**
+      // `nn-admin-unconfigured.test.ts` proves that with no admin key the whole surface declines
+      // and 404s like an address nobody published — which is the deployed state today, and the
+      // property that makes an uninstalled admin surface indistinguishable from an absent one.
+      //
+      // Left unbound, that test would depend on `apps/main/.dev.vars`, **which the pool silently
+      // loads**: a laptop with the key in it would fail the run while CI passed. Pinning the
+      // absence here is what makes the two agree.
+      miniflare: {
+        bindings: {
+          ENTRIES_ADMIN_KEY: '',
+        },
+      },
     }),
   ],
   test: {
@@ -35,6 +49,7 @@ export default defineConfig({
       'tests/worker/entries-open/**',
       'tests/worker/sold-out/**',
       'tests/worker/webhook/**',
+      'tests/worker/admin/**',
     ],
 
     // The seeded, closed state — **set rather than assumed**. Leaving it to whatever the

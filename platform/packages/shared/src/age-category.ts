@@ -177,8 +177,24 @@ export function deriveAgeCategory(
   gender: Gender,
   eventDate: CivilDate,
 ): AgeCategory {
-  const age = ageOn(dateOfBirth, eventDate);
+  return ageCategoryFor(ageOn(dateOfBirth, eventDate), gender);
+}
 
+/**
+ * The same answer, from an age that has already been worked out.
+ *
+ * **This exists so that a date of birth does not have to travel to reach a category**, and it
+ * is the half of `deriveAgeCategory` that is only about the bands. The admin surface reads
+ * `entries.admin_entry_list()`, which computes completed years at `event_date` in SQL — with
+ * the identical expression `entries.create_pending_purchase()` enforces the minimum age with —
+ * and hands back an age and a gender. A date of birth is a far stronger identifier than a
+ * number of years and an entries list has no use for one, so it never leaves the database.
+ *
+ * `deriveAgeCategory` delegates here rather than repeating the bands, which is what keeps the
+ * two answers the same answer: the form's live preview and the organiser's list cannot
+ * disagree about what somebody runs as.
+ */
+export function ageCategoryFor(age: number, gender: Gender): AgeCategory {
   // Checked before the age bands, deliberately. A non-binary runner aged 12 is not
   // "too young for a category" — the club has no categories for them at any age, and
   // saying the wrong one of those two things would be worse than saying nothing.

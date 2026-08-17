@@ -17,10 +17,11 @@ Two channels, and only the first is reliable.
 | --- | --- |
 | **The Worker log** | Every five minutes the cron writes `entries: N purchase(s) need a human, oldest Hh` to the Cloudflare observability panel. It **repeats until somebody clears the flag** and the age climbs, because a single line at 02:14 is an artefact nobody sees |
 | **The row itself** | `attention is not null and attention_resolved_at is null`. Durable, greppable, and still true next month. This is the one to trust |
+| **The entries list** | [`/nn/admin/entries/`](entries-admin.md) counts unresolved flags at the top of the page and says in words when the field is over capacity. **It is somewhere to look rather than something that tells you**, and it only exists once its key is installed |
 
-There is no email and no alerting stack. That is [Slice D](../phases.md), and until it exists
-**the log line is the whole of the notification**. Somebody should look at the query below
-after entries open, and once a week while the window is open.
+There is still no email and no alerting stack — that is [Slice D](../phases.md) — so **the log
+line is the whole of the notification** and the admin page is where you go once something has
+prompted you. Somebody should look after entries open, and once a week while the window is open.
 
 ---
 

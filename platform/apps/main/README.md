@@ -846,6 +846,7 @@ timing data possible at all.
 | `STRIPE_SECRET_KEY` | A **Worker secret**, set with `wrangler secret put`. Never in `wrangler.jsonc`, never in a `vars` block, never committed. Its absence is a real, safe state: with no key the form validates and stops, saying nothing was stored and nothing charged |
 | `STRIPE_WEBHOOK_SECRET` | A **Worker secret**. What proves a delivery came from Stripe. Its absence is a real state too — the endpoint is created *after* this Worker is deployed — and every delivery in that window is answered **5xx and retried**, never 400 |
 | `ENTRIES_WEBHOOK_KEY` | A **Worker secret**, and the least obvious one. `entries.record_checkout_event()` is granted to `anon` like every other function, and the anon key is published in page source — so the key is what stops two PostgREST calls buying a free entry. The database holds only its SHA-256 digest |
+| `ENTRIES_ADMIN_KEY` | A **Worker secret**, on the same mechanism and for the same reason — the five admin read functions are granted to `anon` too. **Its absence is what makes `/nn/admin` not exist**: with no key bound the Worker declines every address under that prefix and the request 404s like one nobody published. That is the deployed state. See [ADR-013](../../../docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) |
 | `STRIPE_API_BASE` | Local only, and only so the site runs end to end against the stub without a Stripe account. Passed on the `wrangler dev` command line — there is no path from a dev-server flag to a deployed Worker |
 | `apps/main/.dev.vars` | Gitignored. The one place a real key belongs on a machine, and `wrangler dev` reads it automatically |
 
@@ -881,6 +882,13 @@ the digest of one. They are listed below as pending because nothing has been set
 Worker yet — which is why production still shows "payment is not connected yet" rather than a
 broken payment page.
 
+**The admin surface adds two more, and they are the same kind of thing.** A Worker secret and its
+digest, then one key per volunteer. They are **independent of the five above and can be done at
+any time**: nothing about entries depends on them, and until they are done `/nn/admin` answers
+404 at every address, which is the correct state for a surface whose key nobody has installed.
+[ADR-013](../../../docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)
+is the argument for two credentials rather than one.
+
 > **The order is not arbitrary and steps 4 and 5 must be last.** Creating the Stripe endpoint
 > before the Worker is deployed means Stripe posts into a 404 and marks the destination failing;
 > creating it before the secrets are set means every early delivery 5xxs. Nothing is *lost*
@@ -893,6 +901,8 @@ broken payment page.
 | _3. Set the entries webhook key, and install its digest_ | The function that writes `paid` is granted to `anon`, and the anon key is published in page source. **Two steps, and doing one without the other stops payments being recorded** | _pending_ | Generate one: `openssl rand -hex 32`. Then `npx wrangler secret put ENTRIES_WEBHOOK_KEY --env production --config apps/main/wrangler.jsonc`, and in the Supabase SQL editor: `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'stripe';` |
 | _4. Set the webhook signing secret_ | The webhook has to prove a request came from Stripe | _pending_ | Create the endpoint in step 5 first if it does not exist; Stripe shows its signing secret once. Then `npx wrangler secret put STRIPE_WEBHOOK_SECRET --env production --config apps/main/wrangler.jsonc` |
 | _5. Create the Stripe webhook endpoint_ | **Last, and only once the Worker is deployed.** Otherwise Stripe posts into a 404 | _pending_ | Stripe dashboard → Developers → Webhooks → Add endpoint. URL `https://new.southvillerunningclub.co.uk/nn/stripe-webhook`. Subscribe to **`checkout.session.completed` and `checkout.session.expired` and nothing else** — everything else is answered 200 and ignored, and subscribing to more is delivery volume for no benefit |
+| _6. Set the admin key, and install its digest_ | **Independent of the five above, and it can be done at any time.** It switches `/nn/admin` on: until it is done that whole prefix 404s, which is the correct state rather than a broken one | _pending_ | The full procedure, including issuing a key to each volunteer, is [the admin runbook](../../../docs/delivery/runbooks/entries-admin.md). Two steps: `npx wrangler secret put ENTRIES_ADMIN_KEY --env production --config apps/main/wrangler.jsonc`, then `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'admin';` |
+| _7. Issue a key to each volunteer_ | The Worker's key authorises the *Worker*; a per-person key is what says which human is looking, so an export can record who took it and one person can be revoked without revoking both | _pending_ | [The admin runbook](../../../docs/delivery/runbooks/entries-admin.md#step-2--issue-a-key-to-each-volunteer). One `insert` into `entries.admin_keys` per person, holding the digest and a **role handle rather than their name** |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the

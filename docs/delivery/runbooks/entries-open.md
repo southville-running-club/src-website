@@ -91,6 +91,11 @@ observability panel, which is a place a person has to decide to open.
 - [ ] Either a channel that reaches a person without them choosing to look, **or** a standing
       daily reminder on both volunteers to run the query in
       [the attention runbook](entries-attention.md)
+- [ ] **`/nn/admin` is not that channel and does not close this.** It counts unresolved flags at
+      the top of the entries list, which makes the check a page rather than a SQL query — but it
+      is still somewhere a person has to decide to look. Switching it on is worth doing before
+      entries open ([the admin runbook](entries-admin.md)); it is not a substitute for either
+      option above
 - [ ] Whichever it is, it is written into that runbook next to the diagnosis table
 - [ ] If it is the reminder, it is **marked as an interim** so it is removed when the
       confirmation email makes it redundant, rather than left running as a second half-alarm

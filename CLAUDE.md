@@ -52,6 +52,14 @@ re-run.
   block. A real key on a machine belongs in `apps/main/.dev.vars`, which is gitignored.
   **Registering the Stripe dashboard endpoint is still a human's job**, and it is the last of
   the manual steps in `apps/main/README.md` because it needs the production URL.
+- **Granting the anon role anything on a table, or adding a function it may execute.** The
+  thirteen it may call are named in `packages/db/tests/entries.test.ts`, and that list is there
+  to make a fourteenth a decision somebody takes in a diff rather than a side effect. **Reading
+  people is settled** — the admin surface is
+  [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md): a
+  Worker secret authorises, a key per person identifies, and `entries.admin_key_ok()` is checked
+  before anything is read. **Editing them is not.** No refunds, transfers, corrections, manual
+  entries or resends — each is a decision about changing a record somebody paid for.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -95,6 +103,7 @@ One hostname, three paths — the same locally and in production:
 | --- | --- |
 | `/` | The club website — `apps/main` |
 | `/nn` | Nightingale Nightmare — `apps/main` |
+| `/nn/admin` | The entries, the interest list and the exports — `apps/main`, behind two credentials, and **404 at every address until `ENTRIES_ADMIN_KEY` is bound** |
 | `/timing` | Race timing — `apps/timing`, a different Worker |
 
 ---
@@ -237,6 +246,52 @@ on a live hostname.
 **Detach background servers properly** — `nohup`, redirected streams, closed stdin. A child
 holding the terminal makes the parent never return.
 
+**Prettier reformats the contents of a template tagged `html`, and it is not configurable.**
+`worker/html.ts` is the auto-escaping template the admin pages are built with — the one place in
+this repository that builds markup in a Worker, because a list of entries is a variable number of
+rows and there is deliberately no `setInnerContent(..., { html: true })` anywhere here. Formatting
+the file reflows the markup inside every `` html`…` ``: nested elements are indented onto their own
+lines, and `attr='x'` becomes `attr="x"`. Harmless in a browser, and it means **a sentence written
+across a line break arrives with a newline in the middle of it**, so `toContain('over its field')`
+fails on markup that is perfectly correct. That is the `{' '}` trap one framework along. The tests
+squash whitespace before matching; the tag keeps its name because readable markup is worth more
+than exact-output assertions.
+
+**A visually-hidden span inside a horizontally scrolling table makes the whole page scroll
+sideways.** `overflow` only clips a descendant whose containing block is inside the scroller, and
+`.admin-visually-hidden` is `position: absolute` — so with no positioned ancestor its containing
+block was the *page*, it was laid out at the far edge of a 793px-wide table, and the document
+scrolled at 320px while the table scrolled correctly and the spans stayed invisible. Nothing
+looked wrong; the page just slid left under a thumb. `position: relative` on `.admin-scroll`
+makes it the containing block, measured 783 → 320. The same is waiting for any absolutely
+positioned thing inside any scroller.
+
+**The three browser engines do not agree on what an attachment is, and one of them only
+disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
+Chromium downloads it — the `download` event fires and `response.body()` is *unreadable*, because
+the bytes went to the downloads directory. macOS WebKit downloads it too, which is why
+`waitForEvent('download')` passed nine local runs in a row. **WebKit on a Linux runner renders it
+in the tab**: no download event ever fires, the page navigates to the endpoint, and the CSV is
+the body. Only CI saw it, exactly like the radio-focus bug, and it was the one red test in the
+first pipeline run of the admin slice. **Assert an attachment on the response, not on the
+download** — the status, the content type and the filename are what is specified and every
+engine agrees on them; for the bytes use `page.request`, which shares the context's cookies and
+hands back a readable body everywhere. Reproduced in
+`mcr.microsoft.com/playwright:v1.62.1-noble`. `nn-admin.spec.ts`'s two export tests are the
+shape to copy.
+
+**A CSV's byte-order mark is invisible to `Response.text()`.** `TextDecoder` strips a leading
+U+FEFF by default, so a test that decodes the body reports a mark that is on the wire as missing —
+and one written the other way round would pass on a file that opens as mojibake in Excel on every
+Windows machine the club owns. Assert on the bytes (`EF BB BF`), or decode with `ignoreBOM: true`.
+
+**The Worker was not typechecked at all until Slice E**, and the reason was one line:
+`worker/tsconfig.json` had named `@cloudflare/workers-types` since the skeleton and nothing ever
+installed it, so `tsc -p worker` failed at the first import and no script ran it — while
+`astro check`, which is what `npm run typecheck` calls, excludes `worker/` by its own tsconfig.
+Nothing covered the code that takes the money. It is wired in now as `typecheck:worker`, and it
+found a real defect on its first run.
+
 **A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
 no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
 click on the error summary's link — silently, so the person just finds that nothing happens.
@@ -279,6 +334,21 @@ guard, and it runs in all three projects.
 
 So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
 email and no timing application code**.
+
+**There is an admin surface, and it is switched off.** `/nn/admin` reads the entries for a
+running, the interest sign-ups, one medical note at a time, and three CSV exports — and with no
+`ENTRIES_ADMIN_KEY` bound it declines every address under that prefix, so the request falls
+through to the assets binding and 404s like one nobody published. **That is the deployed state.**
+Switching it on is two manual steps plus a key per volunteer:
+[the admin runbook](docs/delivery/runbooks/entries-admin.md).
+
+**The medical notes are deleted a month after the race, and the promise and the enforcement are
+tied together by a test.** `entries.events.medical_retention` is what the five-minute cron
+applies; `race.json`'s `privacy.medicalRetention` is what `/nn/privacy/` publishes;
+`packages/db/tests/entries-retention.test.ts` reads both and fails unless the words are the ones
+the interval generates through `packages/shared/src/medical-retention.ts`. **Changing either one
+alone goes red.** That is the only thing stopping the club publishing one period and keeping
+another.
 
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
@@ -329,20 +399,41 @@ it and let an oversold place be sold twice.
 positive claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
 charged", because the webhook may simply be late and somebody who believes it pays twice.
 
-**The anon role still holds no grant on any table in `entries`.** It may call seven functions
-and nothing else: `entry_state()`, `current_entry_state()`, `create_pending_purchase()`,
-`expire_pending_holds()`, `attach_checkout_session()`, `record_checkout_event()` and
-`entry_completion_state()`. An eighth, `raise_attention()`, is granted to **nobody**.
-`packages/db/tests/entries.test.ts` asserts that exact set; if it fails, something granted a
-privilege to a key that is published in page source. **Adding to that list is a decision, and
-the test is what forces it to be made in a diff** — `current_entry_state()` is the one time it
-has happened, and it discloses nothing `entry_state()` does not.
+**The anon role still holds no grant on any table in `entries`.** It may call **thirteen**
+functions and nothing else — the seven the entry and payment path needs, and the six the admin
+surface added:
 
-**`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
+| | |
+| --- | --- |
+| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()` |
+| **The entry path** | `create_pending_purchase()`, `attach_checkout_session()` |
+| **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
+| **Payment** | `record_checkout_event()` — **takes a key** |
+| **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
+
+**Three are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
+human, `admin_key_ok()` answers whether a string is the admin key, and `record_admin_action()`
+writes the audit trail. Each would be a hole on its own — an alarm anybody could forge, an oracle
+for the key, an audit trail anybody could fill — and all three are reachable only from the
+definer functions that call them.
+
+`packages/db/tests/entries.test.ts` asserts that exact set. If it fails, something granted a
+privilege to a key that is published in page source. **Adding to that list is a decision, and the
+test is what forces it to be made in a diff** — it has happened twice: `current_entry_state()`,
+which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
+[ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
+
+**Six functions take a key, and the key is what makes an anon grant safe.** Without one, two
 ordinary PostgREST calls with the published anon key would buy a free entry, because
-`create_pending_purchase()` issues purchase ids on request. `ENTRIES_WEBHOOK_KEY` is a **Worker
-secret**; the database holds only its SHA-256 digest, and it ships null, which refuses
-everything.
+`create_pending_purchase()` issues purchase ids on request — and the five admin reads would hand
+anybody the club's entry list. `ENTRIES_WEBHOOK_KEY` and `ENTRIES_ADMIN_KEY` are **Worker
+secrets**; the database holds only their SHA-256 digests, in `entries.webhook_secrets`, and both
+ship null, which refuses everything.
+
+**`delete_expired_medical_notes()` is the one anon-callable function that takes no key, and that
+is deliberate.** It can only delete what `/nn/privacy/` has published a promise to delete, it
+takes no arguments and returns a count — and gating it would make a legal retention obligation
+stop being kept on any day the admin key was not installed.
 
 **A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide is told so plainly and
