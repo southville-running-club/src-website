@@ -129,13 +129,26 @@ alter table entries.admin_keys enable row level security;
 -- -----------------------------------------------------------------------------------------
 -- entries.admin_audit — what was looked at, by which handle, and when
 -- -----------------------------------------------------------------------------------------
--- **Three actions, not every page view.** A row per list render would be a table nobody
--- reads, growing on every refresh, and it would bury the two entries that actually matter.
--- What is recorded is the three things somebody might later have to answer for:
+-- **Four actions, not every page view.** A row per list render would be a table nobody reads,
+-- growing on every refresh, and it would bury the entries that actually matter. What is
+-- recorded is the four things somebody might later have to answer for:
 --
---   `sign_in`      somebody opened the door.
---   `medical_note` somebody read one entrant's special category data.
---   `export`       somebody took a copy of the data out of the platform.
+--   `sign_in`        somebody opened the door.
+--   `medical_note`   somebody read one entrant's special category data, on screen.
+--   `medical_export` somebody took **a copy of every medical note** out of the platform.
+--   `export`         somebody took a copy of the other data out.
+--
+-- **`medical_export` is its own value rather than `export` with a kind, and that is the whole
+-- point of the split.** The question an access review asks is *"who has read medical data"*,
+-- and the honest answer has to include the person who downloaded the entire file — by far the
+-- larger disclosure — beside the person who clicked one note. With one `export` value the
+-- query that answers that question has to know to look inside `detail ->> 'kind'`, and the
+-- runbook's did not: it matched `medical_note` only, so the CSV was invisible and the single
+-- note was not. Making it a value means the two medical reads are found by
+-- `action in ('medical_note', 'medical_export')` and cannot be missed by forgetting a `->>`.
+--
+-- It also means adding a fifth kind of read has to change this check constraint, which is a
+-- diff somebody looks at — the property this schema keeps reaching for.
 --
 -- **The contents are never recorded, and no constraint can enforce that** — so the callers
 -- are written so there is nothing to enforce: `detail` carries an event slug, an export kind,
@@ -151,7 +164,8 @@ create table entries.admin_audit (
   -- not cascading from `events`.
   actor text not null check (length(trim(actor)) between 1 and 40),
 
-  action text not null check (action in ('sign_in', 'medical_note', 'export')),
+  action text not null
+    check (action in ('sign_in', 'medical_note', 'medical_export', 'export')),
 
   detail jsonb not null default '{}'::jsonb check (jsonb_typeof(detail) = 'object')
 );
@@ -225,9 +239,25 @@ as $$
 begin
   insert into entries.admin_audit (actor, action, detail)
   values (
-    -- Trimmed and capped rather than trusted: the actor arrives from a signed cookie the
-    -- Worker minted, and a check constraint that fires here would roll back the read as well.
-    pg_catalog.left(pg_catalog.btrim(coalesce(p_actor, '')), 40),
+    -- **Capped, and given a sentinel rather than an empty string.** The actor arrives from a
+    -- cookie the Worker signed itself, so it cannot be blank in practice — `readAdminSession`
+    -- refuses anything that is not a handle. The point of the fallback is that **the audit
+    -- write must never be the thing that fails a read**: `admin_audit.actor` is `check (length
+    -- (trim(actor)) between 1 and 40)`, so a null or blank would fire the constraint and roll
+    -- the whole transaction back, taking the read with it and leaving no trace that anybody
+    -- tried.
+    --
+    -- An earlier version coalesced to `''` and claimed this property in a comment without
+    -- having it — the cap defended and the coalesce did not. A row saying an unattributed read
+    -- happened is a louder signal than a rolled-back transaction that says nothing at all.
+    --
+    -- The sentinel is deliberately **not a possible handle**: `entries.admin_keys.name` is
+    -- constrained to `^[a-z][a-z0-9-]{0,39}$`, which parentheses cannot satisfy, so this can
+    -- never be confused with a person.
+    pg_catalog.left(
+      coalesce(nullif(pg_catalog.btrim(coalesce(p_actor, '')), ''), '(unattributed)'),
+      40
+    ),
     p_action,
     coalesce(p_detail, '{}'::jsonb)
   );

@@ -131,7 +131,10 @@ export async function handleNnAdmin(
     return page('Admin', dashboardPage(handle), {});
   }
 
-  if (request.method === 'GET' && segments[0] === 'entries') {
+  // `entries` is the one route with an optional second segment — the event slug. Bounded like
+  // the four around it, so `/nn/admin/entries/nn-2026/anything/` is a 404 rather than the
+  // entries page with a segment nobody read.
+  if (request.method === 'GET' && segments.length <= 2 && segments[0] === 'entries') {
     return entriesResponse(env, key, handle, segments[1] ?? null, url);
   }
 

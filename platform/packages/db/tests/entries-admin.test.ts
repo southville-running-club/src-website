@@ -536,6 +536,47 @@ describe('entries.admin_entrant_medical()', () => {
     expect(leaked).toEqual([]);
   });
 
+  it('records an unattributed read rather than failing the read', async () => {
+    // **Unreachable through the Worker**, which will not hand on anything that is not a handle
+    // — `readAdminSession` re-checks the shape before it returns one. It is asserted because
+    // the audit write must never be the thing that fails a read: `admin_audit.actor` is
+    // `check (length(trim(actor)) between 1 and 40)`, so a blank actor would fire the
+    // constraint and roll the whole transaction back, taking the read with it and leaving no
+    // trace that anybody tried.
+    //
+    // A row saying an unattributed read happened is the louder signal. An earlier version
+    // coalesced to an empty string and claimed this property in a comment without having it.
+    await query('delete from entries.admin_audit where actor like $1', [
+      '(unattributed)',
+    ]);
+
+    const data = (await rpc('admin_entrant_medical', {
+      p_key: GATE_KEY,
+      p_actor: null,
+      p_entrant_id: ENTRANT_PAID,
+    })) as { ok: boolean };
+
+    expect(data.ok).toBe(true);
+
+    const audit = await query<{ actor: string; action: string }>(
+      "select actor, action from entries.admin_audit where actor = '(unattributed)'",
+    );
+
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.action).toBe('medical_note');
+
+    // **The sentinel cannot be a handle**, so it can never be confused with a person:
+    // `admin_keys.name` is constrained to a slug and parentheses cannot satisfy it.
+    await expect(
+      query(
+        `insert into entries.admin_keys (name, key_sha256)
+         values ('(unattributed)', repeat('a', 64))`,
+      ),
+    ).rejects.toThrow(/admin_keys_name_check/);
+
+    await query("delete from entries.admin_audit where actor = '(unattributed)'");
+  });
+
   it('answers not_found for an entrant that does not exist', async () => {
     const data = await rpc('admin_entrant_medical', {
       p_key: GATE_KEY,
@@ -652,6 +693,65 @@ describe('entries.admin_export()', () => {
     expect(audit).toHaveLength(1);
     expect(audit[0]?.action).toBe('export');
     expect(audit[0]?.detail).toEqual({ event: EVENT, kind: 'start-list', rows: 1 });
+  });
+
+  it('records the medical export under its own action, not as an export with a kind', async () => {
+    // **The assertion that makes an access review answerable.** "Who has read medical data" has
+    // to find the person who downloaded every note as well as the person who clicked one — and
+    // with a single `export` value the query has to know to look inside `detail ->> 'kind'`.
+    // The runbook's did not, so the CSV was invisible while the single note was not.
+    await query('delete from entries.admin_audit where actor = $1', [ACTOR]);
+
+    await rpc('admin_export', {
+      p_key: GATE_KEY,
+      p_actor: ACTOR,
+      p_event_slug: EVENT,
+      p_kind: 'medical',
+    });
+
+    const audit = await query<{ action: string; detail: { kind: string } }>(
+      'select action, detail from entries.admin_audit where actor = $1',
+      [ACTOR],
+    );
+
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.action).toBe('medical_export');
+    // The kind is still recorded. The action is what makes it findable beside a note read.
+    expect(audit[0]?.detail.kind).toBe('medical');
+  });
+
+  it('finds both medical reads with one predicate, which is the runbook’s query', async () => {
+    // The query in `docs/delivery/runbooks/entries-admin.md`, run against both kinds of read.
+    // If this fails, that runbook is answering the wrong question.
+    await query('delete from entries.admin_audit where actor = $1', [ACTOR]);
+
+    await rpc('admin_entrant_medical', {
+      p_key: GATE_KEY,
+      p_actor: ACTOR,
+      p_entrant_id: ENTRANT_PAID,
+    });
+    await rpc('admin_export', {
+      p_key: GATE_KEY,
+      p_actor: ACTOR,
+      p_event_slug: EVENT,
+      p_kind: 'medical',
+    });
+    // And one that is not a medical read at all, which must not be caught by it.
+    await rpc('admin_export', {
+      p_key: GATE_KEY,
+      p_actor: ACTOR,
+      p_event_slug: EVENT,
+      p_kind: 'start-list',
+    });
+
+    const found = await query<{ action: string }>(
+      `select action from entries.admin_audit
+        where actor = $1 and action in ('medical_note', 'medical_export')
+        order by action`,
+      [ACTOR],
+    );
+
+    expect(found.map((row) => row.action)).toEqual(['medical_export', 'medical_note']);
   });
 
   it('refuses a kind it does not know, before it reads anything', async () => {

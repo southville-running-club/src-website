@@ -54,41 +54,51 @@ const NUMBER_WORDS = [
 ] as const;
 
 /**
- * Spelled out up to twelve, and digits above it.
+ * Spelled out, or not published at all.
  *
  * Not a style preference: the notice says "One month after the race" today, and a retention
- * period is the kind of number that reads as a decision when it is a word and as a setting when
- * it is a digit. Twelve is where the words stop being shorter than the digits.
+ * period is the kind of number that reads as a **decision** when it is a word and as a
+ * **setting** when it is a digit. A notice that said "One month" last year and "18 months" this
+ * year has changed register in the middle of a legal document.
+ *
+ * So above twelve this returns `undefined` and the caller answers `null`, which fails the drift
+ * test rather than publishing a sentence nobody chose the shape of. **It costs nothing real** —
+ * every plausible retention period is one, three or six months, or one or two years — and it
+ * puts a club that wants eighteen months in front of the same decision every other unsayable
+ * period gets: extend this module deliberately, in a diff.
  */
-function count(n: number): string {
-  return NUMBER_WORDS[n] ?? String(n);
+function count(n: number): string | undefined {
+  return NUMBER_WORDS[n];
+}
+
+/** `Two months after the race`, or nothing if the number cannot be spelled. */
+function phrase(raw: string | undefined, unit: string): string | null {
+  if (raw === undefined) {
+    return null;
+  }
+
+  const n = Number(raw);
+  const word = n > 0 ? count(n) : undefined;
+
+  return word === undefined
+    ? null
+    : `${word} ${unit}${n === 1 ? '' : 's'} after the race`;
 }
 
 /**
  * The sentence `/nn/privacy/` publishes, for the interval the database enforces.
  *
  * `null` when the interval is not one of the shapes above — a mixed interval like
- * `1 mon 15 days`, a zero, or anything with a time component. Those are all things the schema
- * would accept and the notice could not describe in one clause, which is exactly the case worth
- * failing on rather than approximating.
+ * `1 mon 15 days`, a zero, anything with a time component, **or a number above twelve**. Those
+ * are all things the schema would accept and the notice could not describe in one clause and one
+ * register, which is exactly the case worth failing on rather than approximating.
  */
 export function medicalRetentionWording(interval: string): string | null {
   const value = interval.trim().toLowerCase();
 
-  const months = MONTHS.exec(value)?.[1];
-  if (months !== undefined && Number(months) > 0) {
-    return `${count(Number(months))} month${Number(months) === 1 ? '' : 's'} after the race`;
-  }
-
-  const years = YEARS.exec(value)?.[1];
-  if (years !== undefined && Number(years) > 0) {
-    return `${count(Number(years))} year${Number(years) === 1 ? '' : 's'} after the race`;
-  }
-
-  const days = DAYS.exec(value)?.[1];
-  if (days !== undefined && Number(days) > 0) {
-    return `${count(Number(days))} day${Number(days) === 1 ? '' : 's'} after the race`;
-  }
-
-  return null;
+  return (
+    phrase(MONTHS.exec(value)?.[1], 'month') ??
+    phrase(YEARS.exec(value)?.[1], 'year') ??
+    phrase(DAYS.exec(value)?.[1], 'day')
+  );
 }

@@ -138,8 +138,13 @@ as $$
   ),
   -- Newest first for the cap, so what is dropped is the oldest rather than an arbitrary
   -- slice. The Worker sorts what it is given.
+  --
+  -- **`entrant_id` is the tiebreaker, and it is what makes "the most recent 2,000" mean one
+  -- specific set.** Two entrants created in the same millisecond — a plausible thing at the
+  -- moment entries open — would otherwise be ordered by whatever the planner felt like, so the
+  -- row that fell off the end could differ between two identical requests.
   rows_capped as (
-    select * from rows_all order by created_at desc limit 2000
+    select * from rows_all order by created_at desc, entrant_id limit 2000
   )
   select case
     when not (select ok from authorised)
@@ -242,7 +247,9 @@ as $$
     select interest.id, interest.name, interest.email, interest.consent, interest.created_at
       from intake.nn_interest as interest, authorised
      where authorised.ok
-     order by interest.created_at desc
+     -- `id` is the tiebreaker, for the reason the entry list's is: without one, which rows fall
+     -- off the end of the cap is not decided by anything.
+     order by interest.created_at desc, interest.id
      limit 2000
   )
   select case
@@ -497,9 +504,16 @@ begin
 
   -- **The count and never the contents.** Written in the same transaction as the read, so an
   -- export cannot leave this database without a row saying who took it and how big it was.
+  --
+  -- **The medical export records `medical_export`, not `export`.** The question an access
+  -- review asks is "who has read medical data", and the person who downloaded every note is a
+  -- larger disclosure than the person who clicked one. With a single `export` value that query
+  -- has to know to look inside `detail ->> 'kind'` — and the runbook's did not, so the file was
+  -- invisible while the single note was not. The kind is still recorded either way; the action
+  -- is what makes the two medical reads findable together.
   perform entries.record_admin_action(
     p_actor,
-    'export',
+    case when p_kind = 'medical' then 'medical_export' else 'export' end,
     jsonb_build_object(
       'event', v_event.slug,
       'kind', p_kind,

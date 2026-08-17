@@ -192,18 +192,43 @@ describe('the published wording and the enforced period cannot drift apart', () 
     privacy: { medicalRetention: string | null };
   };
 
-  it('says in the notice exactly what the database enforces', async () => {
-    const rows = await query<{ medical_retention: unknown }>(
-      "select medical_retention::text as medical_retention from entries.events where slug = 'nn-2026'",
+  it('says in the notice exactly what the database enforces, for every running', async () => {
+    // **Every active running of `nn`, not just 2026, and that scope is the point.**
+    //
+    // `medical_retention` is deliberately per event, so each running could carry a different
+    // one. `/nn/privacy/` is evergreen and names no year — the same rule `/nn/` follows — so
+    // one sentence has to be true of all of them. Pinning `nn-2026` alone would let somebody
+    // publish 2027 with a different interval and leave this green while the notice was wrong,
+    // which is the exact failure the mechanism exists to prevent.
+    //
+    // Scoped by `race_slug = 'nn'` rather than by "every event", because that is precisely what
+    // the notice covers — and because every fixture in this repository is a running of some
+    // `zz-` race, by a rule the other test files state out loud.
+    const rows = await query<{ slug: string; medical_retention: unknown }>(
+      `select slug, medical_retention::text as medical_retention
+         from entries.events
+        where race_slug = 'nn' and active
+        order by slug`,
     );
 
-    const enforced = String(rows[0]?.medical_retention);
-    const wording = medicalRetentionWording(enforced);
+    expect(rows.length, 'no running of nn to check the notice against').toBeGreaterThan(
+      0,
+    );
 
-    // A period this module cannot describe in one clause is one the notice cannot honestly
-    // describe either, and a red test is the right place to find that out.
-    expect(wording, `no wording for the interval "${enforced}"`).not.toBeNull();
-    expect(race.privacy.medicalRetention).toBe(wording);
+    for (const row of rows) {
+      const enforced = String(row.medical_retention);
+      const wording = medicalRetentionWording(enforced);
+
+      // A period this module cannot describe in one clause is one the notice cannot honestly
+      // describe either, and a red test is the right place to find that out.
+      expect(
+        wording,
+        `${row.slug}: no wording for the interval "${enforced}"`,
+      ).not.toBeNull();
+      expect(race.privacy.medicalRetention, `${row.slug} disagrees with the notice`).toBe(
+        wording,
+      );
+    }
   });
 
   it('is one month today, which is what the notice says', async () => {

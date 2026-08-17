@@ -69,7 +69,7 @@ be kept and read later. The mapping lives in
 
 ### How they compose
 
-```
+```text
                     ENTRIES_ADMIN_KEY (Worker secret)
                              │
    browser ── POST key ──► Worker ── p_key + p_person_key ──► entries.admin_sign_in()
@@ -89,6 +89,27 @@ entrant id names anybody.
 **One secret, two uses, kept apart.** The same secret signs the session cookie, under a fixed
 label so nothing signed here can be mistaken for anything else. A second Worker secret purely
 for signing would be one more thing to install and lose, and no more secure.
+
+### Cross-site request forgery is answered by `SameSite=Strict` and by nothing else
+
+**This is a decision rather than an omission, so it is written down.** There is no CSRF token on
+either of the two `POST`s that do anything, and there should not be one.
+
+`SameSite=Strict` means the session cookie is not attached to *any* cross-site request, including
+a top-level navigation — so a form on another origin posting to `/nn/admin/export/` arrives
+without a session and is answered with the sign-in page. Nothing links to this surface from
+anywhere, so the usual cost of `Strict` — a link from an email landing you signed out — is a cost
+this surface does not pay.
+
+What that leaves is worth stating plainly. **Both state-changing requests are audited reads
+rather than writes to an entry**: the worst a forged one could achieve is an audit row and a
+disclosure to a browser the person is already sitting at. Nothing on this surface refunds,
+transfers, edits or deletes, and if that ever changes, this paragraph is the one to revisit —
+a token becomes worth its machinery the moment a `POST` can alter a record somebody paid for.
+
+The residual risk is a browser that does not implement `SameSite`, which for a surface used by
+two volunteers on current browsers is not one worth a hidden-field mechanism, a per-session
+secret and the failure mode where a token expires mid-form and somebody loses what they typed.
 
 ### Three functions are granted to nobody
 

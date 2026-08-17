@@ -18,7 +18,7 @@ rather than good intentions:
 
 ## What is in it
 
-Three schemas, eight tables and ten functions.
+Three schemas, ten tables and sixteen functions.
 
 |  |  |
 | --- | --- |
@@ -28,12 +28,25 @@ Three schemas, eight tables and ten functions.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
-| `entries.webhook_secrets` | The **SHA-256 digest** of the key the Stripe webhook presents, never the key. RLS on, no policy, no grant. Ships with a null digest, which refuses everything — installing it is a manual step |
+| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **Two rows**: `stripe` for the payment webhook, `admin` for the admin surface. RLS on, no policy, no grant. Both ship with a null digest, which refuses everything — installing each is a manual step |
+| `entries.admin_keys` | One row per person who may read the admin surface: their key's digest, and a **handle rather than a name**, because it lands in every audit row. RLS on, no grant. Ships empty |
+| `entries.admin_audit` | Who opened the admin surface, who read a medical note, who exported what. **Never the contents.** RLS on, no grant |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
 | `entries.current_entry_state()` | The same answer for the **current running of a recurring race**, so a page about the race never has to name a year. Discloses nothing `entry_state()` does not |
 | `entries.create_pending_purchase()` | Holds a place and records a pending purchase, under a per-event lock. **The only object in this repository that writes an entry** |
 | `entries.expire_pending_holds()` | Moves lapsed holds to `expired`. Housekeeping — capacity does not depend on it |
 | `entries.attach_checkout_session()` | Writes the Stripe session id onto a pending purchase that has none. One column, one row, once |
+| `entries.record_checkout_event()` | The only object that writes `paid`. **Takes a key** — [ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) |
+| `entries.entry_completion_state()` | One word about one Checkout session. No personal data, and not the purchase id |
+| `entries.raise_attention()` | Flags a purchase for a human. **Granted to nobody** |
+| `entries.delete_expired_medical_notes()` | Deletes medical notes for events past their retention period — the promise `/nn/privacy/` publishes. Housekeeping, on the five-minute cron. **The one anon-callable function that takes no key**, deliberately |
+| `entries.admin_key_ok()` | Whether the caller presented the admin key. **Granted to nobody** — on its own it is an oracle for the key |
+| `entries.record_admin_action()` | Writes one audit row. **Granted to nobody** — a forgeable audit trail is worse than none |
+| `entries.admin_sign_in()` | Checks the Worker's key, then a person's, and answers with their handle. **Takes a key** |
+| `entries.admin_entry_list()` | The entries for one event, one row per entrant. No date of birth, no email address, no medical note. **Takes a key** |
+| `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Takes a key** |
+| `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Takes a key** |
+| `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Takes a key** |
 
 `intake.health()` earns its place: one call proves the migration applied, the schema is
 exposed, the anon key is right, the grant is right, and the Worker can reach the network.
@@ -92,7 +105,7 @@ personal-data incident and a financial one at once.
 
 | | |
 | --- | --- |
-| `events` | One running of one race in one year, and **every value that differs between events** — capacity, the entry window, the minimum age, whether a date of birth is collected. A new race is an `insert`, not a deploy |
+| `events` | One running of one race in one year, and **every value that differs between events** — capacity, the entry window, the minimum age, whether a date of birth is collected, and how long its medical notes are kept. A new race is an `insert`, not a deploy |
 | `fees` | What an entry costs, **in pence, and the only place a price exists**. Passed as `price_data` at Checkout, never as a Stripe Price object — a price held in two systems is a price that will disagree with itself |
 | `discount_codes` | Percentage discounts. **Deliberately empty**: the 2023 LHGRC code has not been confirmed for 2026 |
 | `entry_purchases` | One payment covering one or more entrants. **The Stripe reference, never the payment instrument** |
@@ -101,7 +114,7 @@ personal-data incident and a financial one at once.
 
 #### The anon role holds nothing here, and entries are written anyway
 
-Not insert, not select, on any of the six. RLS is on from the first migration and there is
+Not insert, not select, on any of the nine. RLS is on from the first migration and there is
 no grant, so a request is refused at `42501` before row-level security is even consulted.
 `tests/entries.test.ts` asserts that on **every table, for every verb, by error code**, and
 that assertion was written to outlive the slice that added it — which it now has. **Entries
@@ -111,14 +124,25 @@ starts failing, something handed a table privilege to a key that is published in
 
 **`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
 anything. A refusal that only happens because nothing can get as far as asking has not been
-tested. What the exposure is actually for is **seven functions** — and an eighth,
-`entries.raise_attention()`, which is granted to **nobody at all** and is reachable only from
-inside `record_checkout_event()`, because it writes the flag that says a purchase needs a human.
+tested. What the exposure is actually for is **thirteen functions** — and three more granted to
+**nobody at all**, reachable only from the definer functions that call them:
+`raise_attention()`, which writes the flag that says a purchase needs a human; `admin_key_ok()`,
+which answers whether a string is the admin key; and `record_admin_action()`, which writes the
+audit trail. Each would be a hole on its own — an alarm anybody could forge, an oracle for the
+key, an audit trail anybody could fill.
+
+**Six of the thirteen take a key**, and the key is what makes an anon grant safe on a function
+that writes money or reads a person:
+[ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) established the
+mechanism and
+[ADR-013](../../../docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)
+extended it. The digests live in `entries.webhook_secrets` and the keys are Worker secrets.
 
 `tests/entries.test.ts` asserts that exact set, by name, along with which of them `anon` may
-execute. **That assertion is the one this schema's whole shape rests on**, and it earned its
-keep the first time it was changed: the seventh, `current_entry_state()`, had to be added to
-that list in a diff somebody read, with the argument for it written down.
+execute. **That assertion is the one this schema's whole shape rests on**, and it has earned its
+keep twice: `current_entry_state()` had to be added to that list in a diff somebody read, and so
+did the admin surface's six — the largest single change it has been asked to force, with the
+argument for each written into the test beside the list.
 
 #### `entries.entry_state()` — the one door
 
@@ -319,7 +343,7 @@ on 25 October 2026 that both render as 01:30 in `Europe/London`.
 
 ## Testing
 
-Three files, all against the real local Postgres rather than a mock — there is no API tier
+Seven files, all against the real local Postgres rather than a mock — there is no API tier
 between the browser and the database, so a mock would only ever test the mock.
 
 | | |
@@ -329,11 +353,22 @@ between the browser and the database, so a mock would only ever test the mock.
 | `tests/nn-interest.test.ts` | The grant and the policy, **from both sides** |
 | `tests/entries.test.ts` | That every table in `entries` refuses the anon role, on every verb — and keeps refusing now that entries are written |
 | `tests/entries-capacity.test.ts` | What `create_pending_purchase()` does, **including under real concurrency** |
+| `tests/entries-webhook.test.ts` | What `record_checkout_event()` does — the key, idempotency, and a payment that arrived late |
+| `tests/entries-admin.test.ts` | That all five gated admin functions refuse a wrong key, a null key and an uninstalled digest **identically**, that the two internal helpers are callable by nobody, and that a medical read cannot happen without the audit row |
+| `tests/entries-retention.test.ts` | That the deletion removes only what it should, is safe to run twice, leaves the entrant intact — and that **the published wording and the enforced period cannot drift apart** |
 
 `entries-capacity.test.ts` runs against fabricated `zz-cap-*` events it creates and removes,
 so it cannot collide with the real `nn-2026` row, with the acceptance suite, or with a laptop
 somebody has left `./dev up` running on. The advisory lock is per event id, so fabricated
-events do not contend with each other either.
+events do not contend with each other either. Every file here follows the same rule, with its
+own prefix — and **the rule covers cleanup as much as assertions**: `entries.test.ts` once
+deleted every `LHGRC10` discount code rather than its own, which failed
+`entries-capacity.test.ts` in another file as `invalid_discount` the moment two more files
+changed the interleaving.
+
+`entries-admin.test.ts` installs the admin key's digest in `beforeAll` and **takes it out in
+`afterAll` whatever happened**, so a laptop is never left with a working admin surface for a
+key written in a test file.
 
 **The assertions that matter are the negative ones**, and every one of them asserts the
 error *code* rather than merely that something failed — a test that passes because a table

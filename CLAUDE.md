@@ -399,20 +399,41 @@ it and let an oversold place be sold twice.
 positive claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
 charged", because the webhook may simply be late and somebody who believes it pays twice.
 
-**The anon role still holds no grant on any table in `entries`.** It may call seven functions
-and nothing else: `entry_state()`, `current_entry_state()`, `create_pending_purchase()`,
-`expire_pending_holds()`, `attach_checkout_session()`, `record_checkout_event()` and
-`entry_completion_state()`. An eighth, `raise_attention()`, is granted to **nobody**.
-`packages/db/tests/entries.test.ts` asserts that exact set; if it fails, something granted a
-privilege to a key that is published in page source. **Adding to that list is a decision, and
-the test is what forces it to be made in a diff** — `current_entry_state()` is the one time it
-has happened, and it discloses nothing `entry_state()` does not.
+**The anon role still holds no grant on any table in `entries`.** It may call **thirteen**
+functions and nothing else — the seven the entry and payment path needs, and the six the admin
+surface added:
 
-**`record_checkout_event()` takes a key, and it is the one function that does.** Without it two
+| | |
+| --- | --- |
+| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()` |
+| **The entry path** | `create_pending_purchase()`, `attach_checkout_session()` |
+| **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
+| **Payment** | `record_checkout_event()` — **takes a key** |
+| **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
+
+**Three are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
+human, `admin_key_ok()` answers whether a string is the admin key, and `record_admin_action()`
+writes the audit trail. Each would be a hole on its own — an alarm anybody could forge, an oracle
+for the key, an audit trail anybody could fill — and all three are reachable only from the
+definer functions that call them.
+
+`packages/db/tests/entries.test.ts` asserts that exact set. If it fails, something granted a
+privilege to a key that is published in page source. **Adding to that list is a decision, and the
+test is what forces it to be made in a diff** — it has happened twice: `current_entry_state()`,
+which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
+[ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
+
+**Six functions take a key, and the key is what makes an anon grant safe.** Without one, two
 ordinary PostgREST calls with the published anon key would buy a free entry, because
-`create_pending_purchase()` issues purchase ids on request. `ENTRIES_WEBHOOK_KEY` is a **Worker
-secret**; the database holds only its SHA-256 digest, and it ships null, which refuses
-everything.
+`create_pending_purchase()` issues purchase ids on request — and the five admin reads would hand
+anybody the club's entry list. `ENTRIES_WEBHOOK_KEY` and `ENTRIES_ADMIN_KEY` are **Worker
+secrets**; the database holds only their SHA-256 digests, in `entries.webhook_secrets`, and both
+ship null, which refuses everything.
+
+**`delete_expired_medical_notes()` is the one anon-callable function that takes no key, and that
+is deliberate.** It can only delete what `/nn/privacy/` has published a promise to delete, it
+takes no arguments and returns a count — and gating it would make a legal retention obligation
+stop being kept on any day the admin key was not installed.
 
 **A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide is told so plainly and

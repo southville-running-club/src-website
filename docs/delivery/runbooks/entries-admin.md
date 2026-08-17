@@ -191,21 +191,48 @@ those people one email when entries open.
 It is behind a button on one entry, it is never in the list, and **reading it writes a row saying
 you did** — in the same database transaction, so there is no way to read one unrecorded.
 
+### Who has read medical data — the query to run
+
+**Two actions, and both belong in the answer.** Somebody who downloaded the whole medical CSV is
+a larger disclosure than somebody who clicked one note, so the query has to catch both:
+
 ```sql
-select at, actor, detail
+select at, actor, action, detail
   from entries.admin_audit
- where action = 'medical_note'
+ where action in ('medical_note', 'medical_export')
  order by at desc;
 ```
 
-The `detail` carries the entrant id and whether a note was found. **Never the note.**
+| | |
+| --- | --- |
+| `medical_note` | One entrant's note, on screen. `detail` carries the entrant id and whether a note was found |
+| `medical_export` | **The whole file.** `detail` carries the event and the row count |
+
+Neither ever carries the note itself.
+
+> **An earlier version of this page asked only for `medical_note`**, which meant the export — by
+> far the larger disclosure — did not appear in the answer to "who has read medical data" while a
+> single click did. That is why the export has its own action value rather than being an `export`
+> with a kind: a query that has to remember to look inside `detail ->> 'kind'` is a query somebody
+> gets wrong, and this one did. `entries-admin.test.ts` runs the predicate above against both
+> kinds of read, so the runbook and the schema cannot drift apart again.
+
+An `(unattributed)` actor should never appear. If one does, a read happened that the Worker could
+not put a handle to — which should be impossible, since the handle comes from a cookie it signed
+itself. Treat it as worth understanding rather than as noise.
 
 ---
 
 ## The audit trail
 
-Three things are recorded, and nothing else: somebody opened the door, somebody read a medical
-note, somebody took an export.
+Four things are recorded, and nothing else:
+
+| | |
+| --- | --- |
+| `sign_in` | Somebody opened the door |
+| `medical_note` | Somebody read one entrant's special category data, on screen |
+| `medical_export` | Somebody took **a copy of every medical note** out of the platform |
+| `export` | Somebody took a copy of the other data out |
 
 ```sql
 select at, actor, action, detail

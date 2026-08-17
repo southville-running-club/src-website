@@ -207,9 +207,20 @@
   border-bottom: 1px solid var(--colour-rule);
 }
 
+/*
+ * **No `position: sticky` here, and its absence is the decision.**
+ *
+ * It was here, and it never worked. `overflow-x: auto` computes `overflow-y` to `auto` as well,
+ * so this container *is* the scrollport for a sticky header — but nothing constrains its height,
+ * so it never scrolls vertically and the header never had anything to stick to. Scrolling a
+ * 250-row list happens on the *page*, and the header goes with it.
+ *
+ * Making it work means a `max-height` on the scroller, which puts a second scrolling region
+ * inside a page that already scrolls — on a phone that is the layout people complain about, and
+ * 70% of visitors are on a phone. So the rule is gone rather than propped up, and the band stays
+ * because telling the header row apart from the body is what it was really doing.
+ */
 .admin-scroll thead th {
-  position: sticky;
-  top: 0;
   background: var(--colour-banner);
   color: var(--colour-banner-text);
 }

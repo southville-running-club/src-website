@@ -25,8 +25,14 @@ describe('medicalRetentionWording', () => {
     expect(medicalRetentionWording('1 day')).toBe('One day after the race');
   });
 
-  it('falls back to digits above twelve, where a word stops being shorter', () => {
-    expect(medicalRetentionWording('18 mons')).toBe('18 months after the race');
+  it('refuses a number it cannot spell, rather than changing register', () => {
+    // **Not a digit fallback.** A notice that said "One month" last year and "18 months" this
+    // year has changed from a decision into a setting halfway through a legal document. Above
+    // twelve this is null, which fails the drift test and puts the club in front of the same
+    // deliberate choice every other unsayable period gets.
+    expect(medicalRetentionWording('18 mons')).toBeNull();
+    expect(medicalRetentionWording('13 mons')).toBeNull();
+    expect(medicalRetentionWording('12 mons')).toBe('Twelve months after the race');
   });
 
   it('is not fooled by case or by surrounding space', () => {
