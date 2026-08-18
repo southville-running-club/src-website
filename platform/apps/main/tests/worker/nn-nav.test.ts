@@ -4,10 +4,14 @@ import { SELF } from 'cloudflare:test';
 /**
  * The navigation bar, in the real runtime, on every page that carries it.
  *
- * **One bar, five controls, and not a year in the markup.** Two of the five point at whichever
+ * **One bar, six controls, and not a year in the markup.** Two of the six point at whichever
  * running `entries.current_entry_state('nn')` says is current, and the Worker paints them —
  * on `/nn/course/` and `/nn/privacy/` as much as on `/nn/`, because the bar is the same bar
  * everywhere and a runner does not care that race day lives inside a year directory.
+ *
+ * **The sixth is `Privacy`, added by ADR-014**, and it is the one that changes an assertion here
+ * rather than adding one: `/nn/privacy/` used to be the single page in the campaign whose bar
+ * marked nothing as current, and it no longer is.
  *
  * This file runs against the **seeded, closed** window, which is what production serves.
  * `tests/worker/entries-open/` carries the same bar's open-state assertions.
@@ -38,7 +42,7 @@ function bar(html: string): string {
 const hrefsIn = (fragment: string): string[] =>
   [...fragment.matchAll(/href="([^"]*)"/g)].map((match) => match[1]!);
 
-describe('the same five controls, wherever you are standing', () => {
+describe('the same six controls, wherever you are standing', () => {
   it.each(WITH_NAV)('renders the whole bar on %s', async (path) => {
     const html = bar(await page(path));
 
@@ -46,6 +50,7 @@ describe('the same five controls, wherever you are standing', () => {
     expect(html).toContain('>Course<');
     expect(html).toContain('>Race day<');
     expect(html).toContain('>Spectators<');
+    expect(html).toContain('>Privacy<');
     expect(html).toContain('data-nn-nav-cta');
   });
 
@@ -65,6 +70,9 @@ describe('the same five controls, wherever you are standing', () => {
       '/nn/course/',
       '/nn/2026/race-day/',
       '/nn/2026/spectators/',
+      // **Privacy, and it is last in the list rather than beside `Course`.** The order is
+      // ADR-014's decision, not an accident of which array it went into — see `NnNav.astro`.
+      '/nn/privacy/',
       '/nn/2026/',
     ]);
   });
@@ -87,8 +95,8 @@ describe('no year reaches the bar except through the Worker', () => {
   it.each(WITH_NAV)(
     'carries a year on exactly the three painted controls, on %s',
     async (path) => {
-      // **Three of the six hrefs in the bar may name a year, and they are the three the Worker
-      // paints.** The wordmark and the two evergreen links may never. That a year is absent
+      // **Three of the seven hrefs in the bar may name a year, and they are the three the Worker
+      // paints.** The wordmark and the three evergreen links may never. That a year is absent
       // from the *source* is asserted where it can actually be read — `tests/unit/nn-nav.test.ts`
       // greps the components, because a Worker test only ever sees the painted result.
       const painted = bar(await page(path));
@@ -107,9 +115,12 @@ describe('no year reaches the bar except through the Worker', () => {
       const html = bar(await page(path));
       const current = [...html.matchAll(/aria-current="page"/g)];
 
-      // `/nn/privacy/` is deliberately not one of the five, so it is the one page with none.
-      // On `/nn/2026/` the marker is on the **button**, which is a destination like any other.
-      expect(current.length, path).toBe(path === '/nn/privacy/' ? 0 : 1);
+      // **No exception any more, and losing the exception is the point of this slice.**
+      // `/nn/privacy/` used to be the one page in the campaign whose bar marked nothing,
+      // because it was the one page the bar did not link to — somebody who got there had no
+      // way to tell from the header where they were. Every page that carries the bar is now
+      // in it. On `/nn/2026/` the marker is on the **button**, a destination like any other.
+      expect(current.length, path).toBe(1);
     }
   });
 
@@ -118,6 +129,7 @@ describe('no year reaches the bar except through the Worker', () => {
     ['/nn/course/', 'Course'],
     ['/nn/2026/race-day/', 'Race day'],
     ['/nn/2026/spectators/', 'Spectators'],
+    ['/nn/privacy/', 'Privacy'],
   ] as const)('marks %s as %s', async (path, label) => {
     // The marker is derived from the **shape** of the page's own path, not from the painted
     // href — so it is right before the Worker has painted anything, including with the

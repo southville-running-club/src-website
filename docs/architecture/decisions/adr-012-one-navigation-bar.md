@@ -32,6 +32,11 @@ none, resolved once and shared with whatever else the page needs it for.
 
 ## Decision
 
+> **The control table below is superseded by
+> [ADR-014](adr-014-the-bar-stays-and-the-notice-is-in-it.md), 17 August 2026.** There are six
+> controls: `Privacy` joins as the fifth link, last in the list. Everything else here stands —
+> one bar, identical on every page, and the year never in it.
+
 **One bar, five controls, identical on every Nightingale Nightmare page that carries it.** Only
 the current-page marker moves.
 
@@ -75,6 +80,14 @@ is announced immediately after the four links.
 
 ### It is not sticky, and that is the other half of this record
 
+> **Superseded by [ADR-014](adr-014-the-bar-stays-and-the-notice-is-in-it.md), 17 August
+> 2026.** The bar is `position: sticky` again, with each of the three defects below paid for
+> rather than disputed — and with **the 207px corrected**: that figure belonged to the two-row
+> links bar *this* record replaced, and the one-row bar it introduced costs 62px on a laptop.
+> What follows is left as it was accepted; the defects it names are the ones ADR-014 answers,
+> one at a time, and the before/after keyboard-sweep numbers below are still the measurement of
+> record.
+
 ADR-011 inherited a sticky masthead. It cost three defects:
 
 1. **It broke a measurement harness**, which read the bar's rectangle as the page's.
@@ -105,6 +118,11 @@ produced before, and not something the page controls.
 Anchor targets land at the top of the viewport, which is where they belong.
 
 ### At 320px
+
+> **Superseded by [ADR-014](adr-014-the-bar-stays-and-the-notice-is-in-it.md), 17 August 2026**
+> as to the row count: six controls make it three rows, and the paddings are compact at this
+> width to buy the third one back. "No hamburger, no script" stands, and so does the `order`
+> note below.
 
 Two rows: the wordmark and the button on the first, the four links on the second. No hamburger,
 no dropdown, no toggle, no script — five controls fit, and a menu that has to be opened is more

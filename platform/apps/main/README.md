@@ -24,9 +24,8 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 
 ```
 src/content/race.json          Every race fact, as data. See below
-src/components/NnNav.astro     The two-level Nightingale Nightmare navigation
-src/layouts/Base.astro         The document, and the optional `theme` prop
-src/components/NnNav.astro     The four-page Nightingale Nightmare navigation
+src/components/NnNav.astro     The five Nightingale Nightmare links
+src/components/NnMasthead.astro   The header they sit in, and the button beside them
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/404.astro
@@ -76,14 +75,17 @@ where a convention drifts, and the symptom would be a Stripe return URL that 404
 `/nn/entry/complete/` existed only on this branch, only ever carried `noindex`, and were linked
 from nothing outside the repository. `tests/worker/serves.test.ts` asserts the 404s.
 
-### The navigation — one bar, five controls
+### The navigation — one bar, six controls, and it stays on screen
 
 ```
-[wordmark]   Race   Course   Race day   Spectators        [ Enter the race ]
+[wordmark]  Race  Course  Race day  Spectators  Privacy      [ Enter the race ]
 ```
 
-`src/components/NnNav.astro` (the four links) and `src/components/NnMasthead.astro` (the
-button) — [ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md).
+`src/components/NnNav.astro` (the five links) and `src/components/NnMasthead.astro` (the
+button) — [ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md), as
+amended by
+[ADR-014](../../../docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md),
+which added `Privacy` and made the bar sticky again.
 
 **Identical on every page that carries it; only the current-page marker moves.** Three signals,
 never colour alone: `aria-current="page"`, a 2px rule under the label, and full brightness
@@ -108,15 +110,29 @@ enter is a small dishonesty on a site that is about to ask for money:
 Each short label is a substring of its long one and the `aria-label` carries the long one at
 both widths — WCAG 2.5.3.
 
-**At 320px it is two rows**: wordmark and button, then the four links. 109px, against **207px**
-when it was sticky and two-rowed. No hamburger, no dropdown, no script.
+**At 320px it is three rows**: wordmark and button, then the five links over two. 134.8px, with
+the paddings compact at that width to buy back most of the row the sixth control costs — and at
+400–480px, where five compact labels still fit one row, the bar is **97.3px, about 10px shorter
+than the four-link bar was**. No hamburger, no dropdown, no script.
 
-**It is not sticky**, and the full account of the three defects that bought — plus the
-before/after keyboard-sweep numbers — is at the head of the masthead section in
-`packages/shared/styles/nn-theme.css` and in ADR-012.
+**It is sticky**, and the three defects ADR-012 gave for unsticking it are each paid for rather
+than disputed — the accounting is at the head of the masthead section in
+`packages/shared/styles/nn-theme.css`, and the argued version is ADR-014. Two things are worth
+knowing without reading either:
 
-`/nn/privacy/` is deliberately not one of the five: it is a legal notice reached from the
-forms, and it is the one page in the bar that carries no marker.
+- **The 207px in ADR-012 is not the cost of this bar.** It belonged to a two-row *links* bar that
+  ADR-012 itself replaced. This one is 62px on a laptop.
+- **The scrollport, not the targets.** `scroll-padding-top` on `<html>` is what keeps anchors and
+  focus clear of the bar. It replaces the `scroll-margin-top` on every `[id]` that ADR-012
+  deleted, and it is a better rule: it insets every scroll the browser performs, so it covers
+  focus moving onto a radio as well as a link to an id. The height is a token with three values,
+  and `site.spec.ts` sweeps nine widths to check each tracks the bar.
+
+**`/nn/privacy/` is the fifth link**, added by ADR-014. It was the one page in the campaign whose
+header linked everywhere except where you were standing; the notice describes fourteen fields, a
+payment and a special category of data, and the person most likely to want it is filling in the
+form that collects them. It stays at `/nn/privacy/` — ADR-011 flagged `/privacy/` as its eventual
+home once the club has a second form to cover, and putting it in the bar does not preempt that.
 
 ### The year panel, on the front door
 

@@ -1,17 +1,34 @@
 ---
 // One navigation bar, identical on every Nightingale Nightmare page that carries it.
 //
-// **Five destinations, five controls, and nothing about a year.** The route split put the
+// **Six destinations, six controls, and nothing about a year.** The route split put the
 // running under `/nn/<year>/`, and the first version of this nav showed that: two rows, the
 // second appearing only beneath a year. That was the *routes* leaking into the interface. A
 // runner does not care that race day lives inside a year directory — they care where race day
-// is — so the bar is one row of the same five things wherever they are standing.
+// is — so the bar is one row of the same six things wherever they are standing.
 //
 //   Race        /nn/                     the race in general
 //   Course      /nn/course/              evergreen
 //   Race day    the current running's    painted
 //   Spectators  the current running's    painted
+//   Privacy     /nn/privacy/             evergreen, and last — see below
 //   [button]    the current running      painted, and its label depends on the entry window
+//
+// ## Privacy is in the bar, and it is last on purpose
+//
+// **ADR-014 put it there.** The conventional home for a privacy notice is the footer, and the
+// argument that it belongs here instead is specific to this site rather than general: the notice
+// describes fourteen fields, a payment and a special category of data under its own consent, and
+// the person most likely to want it is standing on a page that is about to ask for all of that.
+// A link they have to go looking for is a link that gets read after the form rather than before
+// it.
+//
+// **It is rendered after the two painted links rather than beside `Course`**, which is the one
+// thing about it that is a layout decision. The four race links read as a set — where the race
+// is, what the course is, what happens on the day, where to watch — and dropping a legal notice
+// into the middle of that set breaks it. Last, it is the thing after the set, which is what it
+// is. It is also therefore the link that wraps onto a row of its own at 320px, and the compact
+// bar in `nn-theme.css` is what pays for that row.
 //
 // ## The year is never in this file, and a test fails if it appears
 //
@@ -39,20 +56,30 @@
 // ## The button is not in this file
 //
 // It is the masthead's, beside the wordmark — see `NnMasthead.astro`. That is a layout
-// decision with a semantic consequence worth stating: at 320px the bar is two rows, the mark
-// and the button on the first and these four links on the second, and getting the button onto
-// the mark's row means it has to be the mark's sibling rather than this list's. It is a call
-// to action rather than a place to go, so leaving it outside the navigation landmark costs
+// decision with a semantic consequence worth stating: at 320px the bar is three rows, the mark
+// and the button on the first and these five links over the next two, and getting the button
+// onto the mark's row means it has to be the mark's sibling rather than this list's. It is a
+// call to action rather than a place to go, so leaving it outside the navigation landmark costs
 // nothing a reader would miss — it is still inside the banner, announced immediately after.
 //
-// ## No script, no toggle, and no longer sticky
+// ## No script, no toggle, and it stays on screen again
 //
-// Five controls fit. A menu that has to be opened is more machinery than the thing it hides,
+// Six controls fit. A menu that has to be opened is more machinery than the thing it hides,
 // and every form on this site works with scripting off — a navigation that did not would be
-// an odd place to draw the line. The bar scrolls away with the page now; see the note in
-// `nn-theme.css` for the three defects that bought.
+// an odd place to draw the line.
+//
+// **The bar is `position: sticky` again, which reverses ADR-012 and is ADR-014.** It was stuck,
+// then unstuck for three recorded defects, and it is stuck now with all three paid for rather
+// than disputed. The accounting is at the head of the masthead section in `nn-theme.css`, and
+// the shortest version is that the 207px ADR-012 measured belonged to a two-row *links* bar that
+// no longer exists — this one costs 62px on a laptop.
 
-/** The two evergreen destinations. Neither can move, so neither is painted. */
+/**
+ * The evergreen destinations that open the bar. Neither can move, so neither is painted.
+ *
+ * `Privacy` is evergreen too and is deliberately **not** in this list — it is rendered after the
+ * painted pair, for the reason in the note above.
+ */
 const evergreen = [
   { href: '/nn/', label: 'Race', match: /^\/nn\/$/ },
   { href: '/nn/course/', label: 'Course', match: /^\/nn\/course\/$/ },
@@ -69,6 +96,19 @@ const running = [
   { key: 'spectators', label: 'Spectators', match: /^\/nn\/\d{4}\/spectators\/$/ },
 ] as const;
 
+/**
+ * The notice, and it comes after the race links rather than among them.
+ *
+ * Its own list rather than a third entry in `evergreen`, because the order is the decision: a
+ * legal notice dropped between `Course` and `Race day` splits the four links that are about the
+ * race. One-item lists usually mean somebody has over-generalised; here the alternative is a
+ * literal `<li>` in the markup below, which would be the one link in the bar whose label and
+ * marker were written twice.
+ */
+const notice = [
+  { href: '/nn/privacy/', label: 'Privacy', match: /^\/nn\/privacy\/$/ },
+] as const;
+
 const path = Astro.url.pathname.endsWith('/')
   ? Astro.url.pathname
   : `${Astro.url.pathname}/`;
@@ -78,7 +118,11 @@ const current = (match: RegExp): 'page' | undefined =>
 ---
 
 {
-  /* One `<nav>`, one landmark, one list of four. The button is the masthead's — see above. */
+  /* One `<nav>`, one landmark, one list of five. The button is the masthead's — see above.
+
+    The three groups are rendered in reading order: the two that cannot move, the two the
+    Worker paints, then the notice. A reader sees one list; the split is about which of them
+    can be written down here and which may not name a year. */
 }
 <nav class="nn-nav" aria-label="Nightingale Nightmare">
   <ul class="nn-nav-links">
@@ -95,6 +139,15 @@ const current = (match: RegExp): 'page' | undefined =>
       running.map(({ key, label, match }) => (
         <li data-nn-nav-item={key} hidden>
           <a href="" data-nn-nav-link={key} aria-current={current(match)}>
+            {label}
+          </a>
+        </li>
+      ))
+    }
+    {
+      notice.map(({ href, label, match }) => (
+        <li>
+          <a href={href} aria-current={current(match)}>
             {label}
           </a>
         </li>

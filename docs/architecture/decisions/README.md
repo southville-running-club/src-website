@@ -15,8 +15,9 @@ Technical decisions the volunteers take themselves.
 | [**ADR-009**](adr-009-entries-in-apps-main.md) | **Race entries live in `apps/main`**, in a new `entries` schema — not in a repository of their own. *Retires the "separate entries application" working assumption* | 13 Aug 2026 |
 | [**ADR-010**](adr-010-webhook-writes-paid.md) | **The Stripe webhook is the only thing that writes `paid`**, and the failure direction is inverted there | 13 Aug 2026 |
 | [**ADR-011**](adr-011-a-race-and-its-runnings.md) | **A race and one running of it are different pages** — `/nn/` is evergreen, `/nn/2026/` is the year. *Extends ADR-007 by one path segment; its navigation section is superseded by ADR-012* | 15 Aug 2026 |
-| [**ADR-012**](adr-012-one-navigation-bar.md) | **One navigation bar, and the year is never in it** — five controls, painted, and no longer sticky. *Supersedes ADR-011's navigation section* | 15 Aug 2026 |
+| [**ADR-012**](adr-012-one-navigation-bar.md) | **One navigation bar, and the year is never in it** — five controls, painted, and no longer sticky. *Supersedes ADR-011's navigation section; its sticky and five-control sections are superseded by ADR-014* | 15 Aug 2026 |
 | [**ADR-013**](adr-013-the-admin-surface-and-who-may-read-it.md) | **Two credentials open the admin surface** — a Worker secret for authorisation, a key per person for identity. *Extends ADR-010's shared-key mechanism to the first read path that returns people* | 16 Aug 2026 |
+| [**ADR-014**](adr-014-the-bar-stays-and-the-notice-is-in-it.md) | **The bar stays on screen, and the privacy notice is the sixth control in it** — the three defects that unstuck it are paid for rather than disputed. *Supersedes ADR-012's sticky and five-control sections* | 17 Aug 2026 |
 
 ---
 

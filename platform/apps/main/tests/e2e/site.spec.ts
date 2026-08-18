@@ -394,19 +394,30 @@ test.describe('Nightingale Nightmare, at /nn', () => {
 
 test.describe('the Nightingale Nightmare content pages', () => {
   /**
-   * **One bar, five controls, identical on every page that carries it.**
+   * **One bar, six controls, identical on every page that carries it.**
    *
    * The first version of this nav had two rows, the second appearing only beneath a year —
    * which was the *routes* leaking into the interface. A runner does not care that race day
-   * lives inside a year directory; they care where race day is. So the bar is the same five
+   * lives inside a year directory; they care where race day is. So the bar is the same six
    * things wherever they are standing, and only the current-page marker moves.
    *
-   * **Two of the five are painted by the Worker** from `entries.current_entry_state('nn')`,
+   * **Two of the six are painted by the Worker** from `entries.current_entry_state('nn')`,
    * on every one of these pages rather than only on `/nn/`. The years below are literals:
    * reading them from `race.json` or from the database would make the expectation and the
    * page read the same source, which asserts nothing.
+   *
+   * **`Privacy` is the sixth and the newest — ADR-014.** It is last rather than beside
+   * `Course`: the four before it read as a set about the race, and a legal notice dropped into
+   * the middle of that set breaks it. `NAV_LINKS` is order-sensitive, so that is asserted here
+   * rather than merely intended.
    */
-  const NAV_LINKS = ['/nn/', '/nn/course/', '/nn/2026/race-day/', '/nn/2026/spectators/'];
+  const NAV_LINKS = [
+    '/nn/',
+    '/nn/course/',
+    '/nn/2026/race-day/',
+    '/nn/2026/spectators/',
+    '/nn/privacy/',
+  ];
 
   const NN_PAGES = [
     ['/nn/', 'Race', 'Nightingale Nightmare'],
@@ -414,6 +425,11 @@ test.describe('the Nightingale Nightmare content pages', () => {
     ['/nn/2026/', null, 'Nightingale Nightmare 2026'],
     ['/nn/2026/race-day/', 'Race day', 'Race day'],
     ['/nn/2026/spectators/', 'Spectators', 'Watching the race'],
+    // **The notice is a content page of the campaign now, and it is tested as one.** It was
+    // absent from this list for as long as the bar did not link to it — so the one page whose
+    // header could not say where you were was also the one page whose header nothing here
+    // asserted. Both halves of that are fixed by the same line.
+    ['/nn/privacy/', 'Privacy', 'What the club does with your details'],
   ] as const;
 
   for (const [path, navLabel, heading] of NN_PAGES) {
@@ -463,7 +479,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
   });
 
-  test('the bar offers the same five things from every page', async ({
+  test('the bar offers the same six things from every page', async ({
     page,
     request,
   }) => {
@@ -478,7 +494,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
       expect(hrefs, from).toEqual(NAV_LINKS);
 
-      // The fifth control. It is outside the navigation landmark because at 320px it shares
+      // The sixth control. It is outside the navigation landmark because at 320px it shares
       // the wordmark's row, which means it has to be the wordmark's sibling — see the note in
       // `NnMasthead.astro`.
       const cta = page.locator('[data-nn-nav-cta]');
@@ -505,11 +521,15 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect('Register interest'.toLowerCase()).toContain(visible.toLowerCase());
   });
 
-  test('the header scrolls away with the page @requires-js', async ({ page }) => {
-    // **This assertion is the reverse of the one it replaces.** The bar was sticky for one
-    // slice; it cost a broken measurement harness, arrow-keyed radios hidden at 320px in
-    // WebKit, and 207px of a 568px phone held permanently on pages people read and scroll.
-    // What replaces it is the guard that it does not come back.
+  test('the header stays on screen once the page is scrolled @requires-js', async ({
+    page,
+  }) => {
+    // **This assertion has now been written in both directions, and the history is the reason
+    // it is worth reading.** The bar was sticky; ADR-012 unstuck it and this test asserted it
+    // scrolled away; ADR-014 sticks it back because reaching the navigation from anywhere on a
+    // long page is the requirement. The three defects ADR-012 recorded are paid for rather than
+    // disputed — the note at the head of the masthead section in `nn-theme.css` says how — and
+    // the two tests below are two of the three payments.
     for (const [width, height] of [
       [1280, 800],
       [320, 640],
@@ -517,36 +537,154 @@ test.describe('the Nightingale Nightmare content pages', () => {
       await page.setViewportSize({ width, height });
       await page.goto('/nn/2026/race-day/');
 
-      // **Not `toBe(0)`.** The cross-site banner sits above the masthead, so the header
-      // starts below it rather than at the very top of the viewport — which is a fact about
-      // the banner, not about stickiness. What matters is that it starts *on screen*.
+      // **Not `toBe(0)`.** The cross-site banner sits above the masthead, so the header starts
+      // below it rather than at the very top of the viewport — which is a fact about the
+      // banner, not about stickiness.
       const before = await page.evaluate(
         () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
       );
       expect(before, `starts on screen at ${width}px`).toBeGreaterThanOrEqual(0);
       expect(before, `starts above the fold at ${width}px`).toBeLessThan(height / 2);
 
+      // 1200px is well past the banner, so the bar has been pinned to the top rather than
+      // merely not yet reached. `toBeLessThanOrEqual(1)` rather than `toBe(0)`: sub-pixel
+      // rounding of a sticky offset differs between the three engines.
       await page.evaluate(() => window.scrollTo(0, 1200));
       const after = await page.evaluate(
         () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
       );
-      expect(after, `scrolled away at ${width}px`).toBeLessThan(-100);
+      expect(after, `pinned to the top at ${width}px`).toBeLessThanOrEqual(1);
+      expect(after, `still on screen at ${width}px`).toBeGreaterThanOrEqual(-1);
+
+      // **And the links are still usable, not merely still in the layout.** A bar pinned under
+      // the cross-site banner, or clipped to nothing, would satisfy the arithmetic above.
+      const race = page
+        .getByRole('navigation', { name: 'Nightingale Nightmare' })
+        .getByRole('link', { name: 'Race', exact: true });
+      await expect(race, `reachable at ${width}px`).toBeInViewport();
     }
   });
 
-  test('an anchor lands where it was aimed, with no scroll-margin propping it up', async ({
+  test('the stuck bar never covers what a scroll was aimed at, at any width', async ({
     page,
   }) => {
-    // The `scroll-margin-top: 168px` on every `[id]` in the theme existed only to keep
-    // anchors clear of the sticky bar. With the bar gone the rule is gone, and this is what
-    // says the anchors did not go with it.
-    await page.setViewportSize({ width: 320, height: 640 });
+    // **Defect 2 of ADR-012's three, and the rule that pays for it.** The bar being stuck means
+    // anything the browser scrolls into view can land underneath it — a fragment target, or the
+    // radio that focus has just moved to with an arrow key. `scroll-margin-top` on every `[id]`
+    // was the previous attempt and could only ever help the first of those. `scroll-padding-top`
+    // on the **scrollport** covers both, which is why the theme sets it on `<html>`.
+    //
+    // **A sweep rather than two widths, and that is the point of this test.** The inset is a
+    // hand-written number per breakpoint, and the bar has three heights: one row, two rows
+    // where the mark, the five links and the button cannot share a line, and three rows below
+    // 480px where the button lifts. The 480px boundary was measured for *four* links, so a
+    // token that stepped straight from the one-row value to the three-row one would have been
+    // too small across a band of tablet widths — with nothing visibly wrong, and every anchor
+    // on those screens landing under the header. Checking 1280 and 320 would have passed.
+    //
+    // **Two properties over two different sets of widths, and the second set is measured rather
+    // than reasoned about.** Clearing the bar has to hold *everywhere*. Tracking it closely can
+    // only be asked at the widths where the bar is as tall as its regime ever gets, because the
+    // token is one number per regime and the wrap points inside a regime are font metrics rather
+    // than anything this repository sets.
+    //
+    // The heights, measured on the three engines CI runs, are what pick this set:
+    //
+    //   width   bar      token   note
+    //   -----------------------------------------------------------------------------
+    //   1280    62.5px   64px    one row — the regime's tallest
+    //   900     62.5px   64px    one row — the regime's tallest
+    //   768     62.5px   112px   still one row; the boundary sits above the wrap point
+    //   700     62.5px   112px   still one row — slack, deliberately
+    //   640    110.9px   112px   two rows — the regime's tallest
+    //   560    110.9px   112px   two rows — the regime's tallest
+    //   480     97.3px   136px   compact, and five labels still fit one row — slack
+    //   400     97.3px   136px   compact, one row of links — slack
+    //   320    134.8px   136px   compact, two rows of links — the regime's tallest
+    //
+    // **Two things in that table were wrong when this was first written**, which is why it is
+    // written down. The one-row bar survives to somewhere between 640px and 700px rather than the
+    // ~620px estimated from label widths; and the ≤480px regime has *two* heights, because five
+    // labels fit on one row at 400px and wrap at 320px. Both were found by this sweep failing.
+    const TIGHT = new Set([1280, 900, 640, 560, 320]);
+
     await page.goto('/nn/2026/');
 
-    const margin = await page.evaluate(
-      () => getComputedStyle(document.querySelector('h1')!).scrollMarginTop,
-    );
-    expect(margin).toBe('0px');
+    for (const width of [1280, 900, 768, 700, 640, 560, 480, 400, 320]) {
+      await page.setViewportSize({ width, height: 640 });
+
+      const measured = await page.evaluate(() => {
+        const bar = document.querySelector('.nn-masthead')!;
+        return {
+          barHeight: bar.getBoundingClientRect().height,
+          padding: Number.parseFloat(
+            getComputedStyle(document.documentElement).scrollPaddingTop,
+          ),
+        };
+      });
+
+      // The safety property. Under the bar's height is the defect.
+      expect(
+        measured.padding,
+        `${width}px: scroll-padding-top ${measured.padding} must clear a ${measured.barHeight}px bar`,
+      ).toBeGreaterThanOrEqual(measured.barHeight);
+
+      // And the tightness, at the widths that are deep inside a regime. A number that is merely
+      // generous everywhere stops tracking the bar, and then nothing notices when the bar
+      // changes. 40px is one link row plus the 8px the focus ring needs — enough headroom for
+      // the three engines to disagree about a line box, not enough to hide a missing breakpoint.
+      if (TIGHT.has(width)) {
+        expect(
+          measured.padding,
+          `${width}px: scroll-padding-top ${measured.padding} still tracks a ${measured.barHeight}px bar`,
+        ).toBeLessThanOrEqual(measured.barHeight + 40);
+      }
+
+      // **And the bar is bounded.** ADR-012's loudest number was 207px of a 568px phone — 36%
+      // of it, held for the whole page. A quarter of the viewport is the ceiling this slice
+      // accepts: enough for three rows at 320px, and it fails rather than creeps if a seventh
+      // control is added without the height being argued again.
+      expect(
+        measured.barHeight,
+        `${width}px: the stuck bar is at most a quarter of a 640px viewport`,
+      ).toBeLessThanOrEqual(160);
+    }
+  });
+
+  test('an anchor lands clear of the bar rather than under it', async ({ page }) => {
+    // The other half of the same payment, end to end rather than by arithmetic. `#register` is
+    // a real fragment on a real page — the hero points at it while entries are shut — so this
+    // follows the link somebody actually follows.
+    for (const width of [1280, 320]) {
+      await page.setViewportSize({ width, height: 640 });
+      await page.goto('/nn/2026/#register');
+
+      // The interest form ships visible in the seeded, closed window — which is what production
+      // serves. Asserting it before measuring means a page that stopped rendering it fails here,
+      // saying so, rather than in the arithmetic below on a rectangle of zeroes.
+      await expect(page.locator('#register'), `${width}px`).toBeVisible();
+
+      const landed = await page.evaluate(() => {
+        const bar = document.querySelector('.nn-masthead')!.getBoundingClientRect();
+        const heading = document.querySelector('#register')!.getBoundingClientRect();
+        return {
+          barBottom: bar.bottom,
+          headingTop: heading.top,
+          scrolled: window.scrollY,
+        };
+      });
+
+      // The page has to have scrolled, or the assertion below passes on a heading that was
+      // already on screen and proves nothing about the bar.
+      expect(
+        landed.scrolled,
+        `${width}px: the page scrolled to the fragment`,
+      ).toBeGreaterThan(0);
+      expect(
+        landed.headingTop,
+        `${width}px: the heading landed below the stuck bar, not under it`,
+      ).toBeGreaterThanOrEqual(landed.barBottom - 1);
+    }
   });
 
   // -------------------------------------------------------------------------------------
@@ -690,6 +828,50 @@ test.describe('the Nightingale Nightmare content pages', () => {
     for (const href of hrefs) {
       expect(href).not.toMatch(/stripe|checkout|pay|entr(y|ies)\b.*\.(com|co\.uk)/i);
     }
+  });
+
+  test('the panel’s action looks like a button on the white card', async ({ page }) => {
+    // **A ghost button has no fill, so its border is the whole of what identifies it — and this
+    // one was drawing that border in bone on a white card at 1.06:1.** `.nn-ghost` was written
+    // for the hero, where bone on the gradient is 8.43:1; the year panel is a `.nn-card`, so
+    // while entries are shut the front door's one action was a legible label with no visible
+    // edge. WCAG 1.4.11, and the same pairing at the same ratio that `.lede` was caught at.
+    //
+    // **This is here rather than in the accessibility sweep because axe cannot see it.**
+    // `color-contrast` inspects text, and the text was never the problem: `.nn-card a` repaints
+    // it ink at 18.09:1. `/nn/` reported zero violations for as long as the button was
+    // invisible, so zero violations is not the guard — this is.
+    await page.goto('/nn/');
+
+    const action = page.locator('[data-nn-panel-action]');
+
+    // `#8f1b0f` — the campaign's blood, at 9.01:1 on white for the edge and the label alike.
+    // The literal is pinned rather than read from the stylesheet the page already loaded,
+    // because an expectation that reads its own subject asserts nothing.
+    await expect(action).toHaveCSS('border-top-color', 'rgb(143, 27, 15)');
+    await expect(action).toHaveCSS('color', 'rgb(143, 27, 15)');
+
+    // And it is still an *outline* rather than a fill, which is what keeps the two states of
+    // this panel different in weight. A filled action here would say "enter" on a page where
+    // entries are shut — the dishonesty the test above exists to prevent, in colour.
+    const filled = await action.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(['rgba(0, 0, 0, 0)', 'transparent']).toContain(filled);
+
+    // The border is thick enough to be the signal it is being asked to be.
+    await expect(action).toHaveCSS('border-top-width', '2px');
+  });
+
+  test('the hero’s ghost button keeps the colour the gradient needs', async ({
+    page,
+  }) => {
+    // **The other half of the fix, and the reason it is scoped to `.nn-card` rather than to
+    // `.nn-ghost`.** Recolouring the class outright would have made this one blood-on-blood —
+    // the identical defect facing the other way, on the page that takes the money.
+    await page.goto('/nn/2026/');
+
+    const ghost = page.getByRole('link', { name: 'Race-day plan' });
+    await expect(ghost).toHaveCSS('border-top-color', 'rgb(255, 246, 236)');
+    await expect(ghost).toHaveCSS('color', 'rgb(255, 246, 236)');
   });
 
   test('the content pages end with a call to action, and /nn/ does not', async ({
