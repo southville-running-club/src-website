@@ -1547,7 +1547,7 @@ function startListPage(
             <th scope="col">Runner</th>
             <th scope="col" class="admin-col-wide">Club</th>
             <th scope="col" class="admin-col-wide">Category</th>
-            <th scope="col">Emergency contact</th>
+            <th scope="col" class="admin-col-wide">Emergency contact</th>
             <th scope="col">Collected</th>
           </tr>
         </thead>
@@ -1572,10 +1572,21 @@ function startListPage(
  *
  * **It folds at narrow widths for the same reason the entries table does, and it matters more
  * here.** This is the registration-desk document: somebody will open it on a phone at the desk
- * even having been told to print it. Five columns do not fit 320px — worked out against
- * min-content it comes to about 364px, and the panel-less layout would have let the document
- * scroll sideways rather than clip. So Club and Category drop out below 48rem and reappear inside
- * the runner cell, leaving runner, emergency contact and the tick box.
+ * even having been told to print it. Five columns do not fit 320px — measured at 445px of table
+ * pushing the document to 461px — so four of them drop out below 48rem and reappear inside the
+ * runner cell, leaving the runner and the tick box.
+ *
+ * **The emergency contact folds too, and that is a CI failure's doing rather than a preference.**
+ * Keeping it as its own column left the table 297px inside a 288px container, saved only by the
+ * container's own 16px offset — about seven pixels of headroom. A Linux runner does not have those
+ * seven pixels: a classic vertical scrollbar takes ~15px off `clientWidth` and the font metrics are
+ * a shade wider, so the same page overflowed by 4px there while measuring 0 on a laptop. **And this
+ * table has no clipping ancestor** — unlike the entries table, which sits in an `overflow: hidden`
+ * panel — so every excess pixel becomes document overflow instead of being absorbed. Folding the
+ * contact takes the requirement to about 158px, which is slack rather than luck.
+ *
+ * The contact is still on screen at every width; below 48rem it is a line in the stack rather than
+ * a column, which is what the desk needs it to be.
  *
  * `admin-col-wide` is the same class the entries table uses, which also means `@media print`
  * restores all five columns and suppresses the stack — a printed sheet is wide, and the duplicated
@@ -1588,11 +1599,15 @@ function startListRow(row: StartListExportRow): Html {
       <span class="admin-stack">
         <span>${row.club ?? 'No club'}</span>
         <span>${categoryLabel(row.age, row.gender)}</span>
+        <span>
+          ${row.emergencyContactName}
+          <span class="admin-mono admin-nowrap">${row.emergencyContactPhone}</span>
+        </span>
       </span>
     </th>
     <td class="admin-col-wide">${row.club ?? '—'}</td>
     <td class="admin-col-wide">${categoryLabel(row.age, row.gender)}</td>
-    <td>
+    <td class="admin-col-wide">
       ${row.emergencyContactName}
       <span class="admin-mono admin-nowrap">${row.emergencyContactPhone}</span>
     </td>

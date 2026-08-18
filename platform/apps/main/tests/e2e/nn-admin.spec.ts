@@ -515,7 +515,11 @@ test.describe('the printable start list', () => {
 
     await expect(page.getByRole('heading', { name: /Start list/ })).toBeVisible();
     // The emergency contact is the reason this sheet exists, and the reason it is a separate act.
-    await expect(page.getByText('Kin Nwosu')).toBeVisible();
+    // Filtered to the visible copy: it is a column at this width and a line in the stack at 320px,
+    // and both are in the markup with one of them always `display: none`.
+    await expect(
+      page.getByText('Kin Nwosu').filter({ visible: true }).first(),
+    ).toBeVisible();
     // Paid entries only. A lapsed hold is not a runner, and a bib set out for one is wasted.
     await expect(page.getByRole('rowheader', { name: /Adjei, Kwame/ })).toHaveCount(0);
     // And never the notes, which are their own sheet.
@@ -659,12 +663,57 @@ test.describe('accessibility and small screens', () => {
 
     await expectNoSidewaysScroll(page, 'the start list at 320px');
 
-    // Folded to three columns, with the emergency contact — the reason the sheet exists — kept.
+    // **Folded to two columns — the runner and the tick box.** The emergency contact folds with the
+    // rest, which is what took this from seven pixels of headroom to about a hundred and thirty. It
+    // is still on screen, as a line in the stack rather than as a column.
     await expect(page.getByRole('columnheader', { name: 'Club' })).toBeHidden();
     await expect(
       page.getByRole('columnheader', { name: 'Emergency contact' }),
-    ).toBeVisible();
-    await expect(page.getByText('Kin Nwosu')).toBeVisible();
+    ).toBeHidden();
+    await expect(page.getByRole('columnheader', { name: 'Collected' })).toBeVisible();
+    await expect(page.getByText('Kin Nwosu').filter({ visible: true })).toBeVisible();
+
+    /**
+     * **And again at 300px, which is narrower than any phone.**
+     *
+     * Not a real device — a margin check. This test passed at 320px on a laptop and failed by 4px
+     * on a Linux runner, because there `clientWidth` is about fifteen pixels smaller: a classic
+     * vertical scrollbar takes its width out of the viewport, and the font metrics are a shade
+     * wider. Asserting at 300px means the layout has to hold with that margin already spent, so the
+     * next platform difference of a few pixels is absorbed instead of turning the pipeline red.
+     */
+    await page.setViewportSize({ width: 300, height: 900 });
+    await expectNoSidewaysScroll(page, 'the start list at 300px');
+  });
+
+  /**
+   * The printed sheet, which is what this page is for.
+   *
+   * **The duplication that makes the narrow layout work is a hazard on paper**: `@media print`
+   * has to restore all five columns *and* hide the stack, or every value prints twice. Nothing
+   * else in the suite looks at print, and a sheet that printed each club and category twice would
+   * reach a registration desk before anybody noticed.
+   */
+  test('prints as five columns with nothing duplicated @requires-js', async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.goto(OVERSOLD);
+    await page.getByRole('button', { name: 'Print the start list' }).click();
+    await expect(page.getByRole('heading', { name: /Start list/ })).toBeVisible();
+
+    await page.emulateMedia({ media: 'print' });
+
+    for (const column of ['Club', 'Category', 'Emergency contact', 'Collected']) {
+      await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
+    }
+
+    // Exactly one copy of the club on paper, not the column plus the stacked line.
+    await expect(
+      page.getByText('Southville Running Club').filter({ visible: true }),
+    ).toHaveCount(1);
+
+    await page.emulateMedia({ media: 'screen' });
   });
 
   test('keeps every wide column when the screen is wide enough for them', async ({
