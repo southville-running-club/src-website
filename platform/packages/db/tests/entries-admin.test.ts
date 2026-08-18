@@ -444,6 +444,166 @@ describe('entries.admin_entry_list()', () => {
   });
 });
 
+/**
+ * The figures the admin page **states**, against the rows this file seeded.
+ *
+ * Asserted here rather than only in the Worker suite because these are the numbers an organiser
+ * acts on, and the interesting property is that **they are computed over every purchase while the
+ * row array is capped at the most recent 2,000**. A test that counted the array would agree with
+ * the page and with nothing else.
+ *
+ * Every expectation below is derived from the two purchases in `beforeAll` — one paid affiliated
+ * entry at £15 with a medical note, one live unaffiliated hold at £17, against a capacity of two —
+ * rather than from a snapshot of what the function happened to return.
+ */
+describe('the figures on entries.admin_entry_list()', () => {
+  interface Figures {
+    paid: number;
+    over_capacity: number;
+    held: number;
+    holds_returned: number;
+    refunded: number;
+    fees_pence: number;
+    medical_count: number;
+    affiliated: number;
+    affiliated_missing_ea: number;
+    entries_open_at: string | null;
+    entries_close_at: string | null;
+    medical_retention: string;
+    medical_delete_after: string;
+  }
+
+  const figures = async (): Promise<Figures> => {
+    const data = (await rpc('admin_entry_list', {
+      p_key: GATE_KEY,
+      p_event_slug: EVENT,
+    })) as { event: Figures };
+
+    return data.event;
+  };
+
+  it('breaks the field down the way the legend does', async () => {
+    expect(await figures()).toMatchObject({
+      paid: 1,
+      over_capacity: 0,
+      held: 1,
+      holds_returned: 0,
+      refunded: 0,
+    });
+  });
+
+  it('counts only paid money, at the price each entry was charged', async () => {
+    // £15, not £32. The live hold is somebody halfway through a payment page.
+    expect((await figures()).fees_pence).toBe(1500);
+  });
+
+  it('counts medical notes without disclosing one', async () => {
+    const event = await figures();
+
+    expect(event.medical_count).toBe(1);
+    // The count travels; the note does not. It is `admin_entrant_medical()`'s to hand over, and
+    // that one writes an audit row in the same transaction.
+    expect(JSON.stringify(event)).not.toContain('nut allergy');
+  });
+
+  it('counts affiliated claims, and finds none missing a number in this fixture', async () => {
+    expect(await figures()).toMatchObject({ affiliated: 1, affiliated_missing_ea: 0 });
+  });
+
+  /**
+   * **The state the affiliation panel exists to catch, and the proof it is reachable.**
+   *
+   * `packages/shared/src/nn-entry.ts` requires an England Athletics number whenever the chosen fee
+   * does — but that is the *form's* control. Nothing in this schema enforces it:
+   * `entries.entrants.ea_number` validates the format of a non-null value and permits null
+   * outright, and `entries.create_pending_purchase()` writes whatever it was handed straight
+   * through with no reference to `fees.requires_ea_number`. That function is granted to `anon`.
+   *
+   * So this insert is not a fabricated impossibility — it is the row two ordinary PostgREST calls
+   * with the published anon key produce. The count is on the page because of it, and this test is
+   * what will fail if somebody later adds the check that makes it unreachable, which is the moment
+   * to take the panel off.
+   */
+  it('counts an affiliated entry that gave no number, which the schema permits', async () => {
+    const purchase = '0d0d0d0d-0000-4000-8000-0000000000a1';
+    const entrant = '0d0d0d0d-0000-4000-8000-0000000000b1';
+
+    await query(
+      `insert into entries.entry_purchases (
+         id, event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
+         consents, consent_version, paid_at
+       )
+       select $2::uuid, e.id, 'paid', 1500, f.id, 'noea@example.com', 'No EA Person',
+              '{"entryTerms":true}'::jsonb, 'zz-v1', now()
+         from entries.events e
+         join entries.fees f on f.event_id = e.id and f.code = 'affiliated'
+        where e.slug = $1`,
+      [EVENT, purchase],
+    );
+
+    // **This insert succeeding is the assertion.** A schema that tied the number to the fee would
+    // refuse it here.
+    await query(
+      `insert into entries.entrants (
+         id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
+         emergency_contact_name, emergency_contact_phone
+       ) values ($1::uuid, $2::uuid, 'No', 'Number', date '1990-01-01', 'female',
+                 null, null, 'Kin Three', '0117 496 0003')`,
+      [entrant, purchase],
+    );
+
+    try {
+      expect(await figures()).toMatchObject({
+        affiliated: 2,
+        affiliated_missing_ea: 1,
+      });
+    } finally {
+      // Scoped to the row this test wrote, so the figures above stay true for every other test in
+      // this file whatever order they run in.
+      await query('delete from entries.entry_purchases where id = $1::uuid', [purchase]);
+    }
+  });
+
+  it('reports the entry window as the club has actually decided it', async () => {
+    const event = await figures();
+
+    expect(event.entries_open_at).not.toBeNull();
+    // **Null, because the club has not decided.** The page says so in those words rather than
+    // publishing a closing time nobody chose — a runner arranges a weekend around one of those.
+    expect(event.entries_close_at).toBeNull();
+  });
+
+  /**
+   * The deletion date, from the interval the job enforces.
+   *
+   * `entries-retention.test.ts` already ties `race.json`'s published *wording* to this column.
+   * This ties the **date the admin page states** to the same column, which is the other half: a
+   * panel that computed its date from the published sentence would be reading the promise instead
+   * of the mechanism, and the two are only equal while that other test passes.
+   */
+  it('states a deletion date computed from the enforced retention, not the published words', async () => {
+    const event = await figures();
+    // **`::date`, as the function casts it.** `date + interval` is a *timestamp* in Postgres, so
+    // without the cast this compares `2027-01-06` against `2027-01-06 00:00:00` and fails on a
+    // difference that is not one. The function's own cast is what keeps a midnight out of a
+    // sentence a volunteer reads.
+    const rows = await query<{ enforced: string }>(
+      `select (event_date + medical_retention)::date::text as enforced
+         from entries.events where slug = $1`,
+      [EVENT],
+    );
+    // Indexing an array yields `T | undefined` under this repository's `noUncheckedIndexedAccess`,
+    // so the row is named rather than destructured. `./dev check`'s typecheck caught this; running
+    // the file through Vitest alone did not, because Vitest does not typecheck.
+    const enforced = rows[0]?.enforced;
+
+    expect(event.medical_delete_after).toBe(enforced);
+    // The fixture's race is 6 December 2026 and the interval is one month.
+    expect(event.medical_delete_after).toBe('2027-01-06');
+    expect(event.medical_retention).toBe('1 mon');
+  });
+});
+
 describe('entries.admin_interest_list()', () => {
   it('shows a withheld consent rather than filtering the row out', async () => {
     // **The one place in this surface an email address appears**, and the reason is the club's

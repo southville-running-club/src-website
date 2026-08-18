@@ -8,6 +8,8 @@ import {
   AWKWARD_CLUB,
   AWKWARD_FIRST_NAME,
   AWKWARD_LAST_NAME,
+  CLEAN_EVENT_SLUG,
+  CLEAN_PAID_LAST_NAME,
   MEDICAL_NOTE,
   OVER_ENTRANT_ID,
   PAID_EA_NUMBER,
@@ -239,7 +241,7 @@ describe('what every admin response carries', () => {
     }
   });
 
-  it('answers 404 for an address under the prefix that is not one of the six', async () => {
+  it('answers 404 for an address under the prefix that is not one of the seven', async () => {
     const response = await get(`${ADMIN}accounts/`, session);
 
     expect(response.status).toBe(404);
@@ -298,19 +300,21 @@ describe('the entries list', () => {
       await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
     );
 
-    expect(body).toContain('OVER CAPACITY');
-    expect(body).toContain('over its field');
+    expect(body).toContain('Needs a human');
+    expect(body).toContain('Over capacity');
+    expect(body).toContain('arrived after its place had gone');
   });
 
   it('counts places against capacity by the capacity predicate', async () => {
-    // Two paid and one live hold against a capacity of two: three of two. An expired hold and a
+    // Three paid and one live hold against a capacity of two: four of two. An expired hold and a
     // refund are not counted, which is what `create_pending_purchase()` counts and therefore
     // what the page must say.
     const body = await pageText(
       await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
     );
 
-    expect(body).toContain('3 of 2');
+    expect(body).toContain('4');
+    expect(body).toContain('of 2');
   });
 
   it('derives the category and shows no date of birth', async () => {
@@ -379,17 +383,275 @@ describe('the entries list', () => {
   });
 
   it('offers no way to change anything', async () => {
-    // **Slice E does not edit, and the page is built so that is visible rather than hidden.**
-    // If this ever fails, somebody has added a control that changes a record somebody paid for
-    // without the thinking that needs.
+    /**
+     * **Slice E does not edit, and the page is built so that is visible rather than hidden.**
+     *
+     * Asserted on **where every form goes** rather than on the absence of words like "Refund".
+     * The word is on the page legitimately — `Refunded` is one of the five statuses a purchase can
+     * be in, and a chip saying so is a fact rather than a control — so a substring test both
+     * failed on correct markup and would have passed on a button labelled "Change this entry".
+     *
+     * The action list is the real invariant: four endpoints, all of which read. If this fails,
+     * somebody has added a route that writes to an entry without the thinking that needs.
+     */
+    const body = await (
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session)
+    ).text();
+
+    const actions = new Set(
+      [...body.matchAll(/<form[^>]*action="([^"]*)"/g)].map((match) => match[1] ?? ''),
+    );
+
+    expect(actions).toEqual(
+      new Set([
+        // Signing out, which changes a session and nothing else.
+        '/nn/admin/',
+        // One medical note, audited.
+        '/nn/admin/medical/',
+        // The three CSVs, audited.
+        '/nn/admin/export/',
+        // The printable start list, audited.
+        '/nn/admin/start-list/',
+      ]),
+    );
+
+    // And nothing that takes input beyond the hidden fields those four need.
+    expect(body).not.toContain('type="checkbox"');
+    expect(body).not.toContain('type="text"');
+    expect(body.toLowerCase()).not.toContain('<textarea');
+    expect(body.toLowerCase()).not.toContain('<select');
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The page, in the order the design puts it
+// -----------------------------------------------------------------------------------------
+
+/**
+ * The dashboard is one page now, and this is the half of it that is not the table.
+ *
+ * **Every figure is asserted against the seeded rows rather than against a snapshot.** The
+ * fixtures are six purchases on the oversold event — three paid (one of them flagged
+ * `over_capacity`, one of them affiliated with no England Athletics number), one live hold, one
+ * expired hold and one refund — so each expectation below is arithmetic somebody can check against
+ * `admin-db.ts` rather than a number that was copied out of a passing run.
+ */
+describe('where the race stands', () => {
+  it('states the breakdown the legend claims, from the rows that were seeded', async () => {
     const body = await pageText(
       await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
     );
 
-    expect(body).not.toContain('Refund');
-    expect(body).not.toContain('Delete');
-    expect(body).not.toContain('type="checkbox"');
-    expect(body.toLowerCase()).not.toContain('<textarea');
+    // Three paid: Nwosu, Sørensen (flagged) and Pemberton (no EA number).
+    expect(body).toContain('>3</span> paid');
+    // One of those three is over capacity.
+    expect(body).toContain('>1</span> over capacity');
+    // One live hold — Inés O'Rourke.
+    expect(body).toContain('>1</span> held right now');
+    // One expired hold — Kwame Adjei. A place that came back. **Singular**, because there is one
+    // of it: the legend agrees with its own count rather than reading "1 holds".
+    expect(body).toContain('>1</span> hold expired and returned');
+    // And one refund.
+    expect(body).toContain('>1</span> refunded');
+  });
+
+  it('adds the fees the way the paid rows add up, and says whose figure is authoritative', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    // Three paid affiliated entries at £15. Not £45 plus the £17 hold, which is not money.
+    expect(body).toContain('£45.00');
+    expect(body).toContain('Not net of card fees');
+  });
+
+  it('states a medical deletion date computed from the enforced retention', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    // The fixture races on 6 December 2026 and `medical_retention` is one month. **This date is
+    // `event_date + medical_retention` out of the database**, not a reading of `race.json`'s
+    // published sentence — that one is `entries-retention.test.ts`'s to police.
+    expect(body).toContain('6 January 2027');
+    expect(body).toContain('one month after the race');
+  });
+
+  it('names the affiliated claim that gave no number', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    // Reachable, and not by a legacy row — `create_pending_purchase()` does not check it. See
+    // `admin-fixtures.ts`.
+    expect(body).toContain('without giving a number');
+    expect(body).toContain('claimed the affiliated price');
+  });
+
+  it('says the closing time is undecided rather than inventing one', async () => {
+    // **The one number on the approved design that could not be built.** The 2026 entry open and
+    // close times are not confirmed, and a plausible date on this bar is one a volunteer repeats
+    // to a runner who then arranges a weekend around it.
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    expect(body).toContain('not decided yet');
+  });
+});
+
+/**
+ * The attention panel, in both directions.
+ *
+ * **Both halves are the requirement.** That it appears when something is flagged is the obvious
+ * test; that it *stays away* when nothing is, is the one that keeps it worth reading. A panel that
+ * is always on the page — with a zero in it, or an "all clear" — is a panel somebody learns to
+ * scroll past, and this is the only thing on this surface with a deadline attached to a person.
+ *
+ * The absence is proved on a **second fabricated event** rather than by filtering the first: the
+ * flag is a column on a purchase, so there is no view of the oversold event in which it is not
+ * set.
+ */
+describe('the panel for anything needing a human', () => {
+  it('renders when a purchase is flagged, first on the page and in words', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    expect(body).toContain('Needs a human');
+    expect(body).toContain('arrived after its place had gone');
+    // Ahead of the figures, because it is the only thing here with a person waiting on it.
+    expect(body.indexOf('Needs a human')).toBeLessThan(
+      body.indexOf('Where the race stands'),
+    );
+  });
+
+  it('does not render at all when nothing is flagged', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${CLEAN_EVENT_SLUG}/`, session),
+    );
+
+    // The quiet event: two entries against ten places, nothing flagged.
+    expect(body).toContain(CLEAN_PAID_LAST_NAME);
+    expect(body).not.toContain('Needs a human');
+    // **And no empty state and no zero badge.** Neither an "all clear" nor a nought.
+    expect(body).not.toContain('0 need a human');
+    expect(body).not.toContain('Nothing needs a human');
+  });
+
+  it('names an entry by reference rather than by name, in the queue itself', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    // The panel is a list of decisions, so it carries the last four characters of a purchase id.
+    // The names are in the table below, where a list of people belongs.
+    expect(body).toContain('entry …');
+  });
+});
+
+/**
+ * The filters, which are links.
+ *
+ * Not a form and not a `<select>`: the page works with scripting off, a filtered view is a URL
+ * somebody can send to the other volunteer, and the back button behaves.
+ */
+describe('the filters', () => {
+  it('are anchors carrying a query parameter, with no form and no script', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session),
+    );
+
+    expect(body).toContain('?status=paid');
+    expect(body).toContain('?status=attention');
+    // The first pass used a GET form with three selects and an Apply button.
+    expect(body).not.toContain('Apply');
+    expect(body.toLowerCase()).not.toContain('<select');
+    expect(body.toLowerCase()).not.toContain('<script');
+  });
+
+  it('marks the current one with aria-current rather than with a colour alone', async () => {
+    const body = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/?status=paid`, session),
+    );
+
+    expect(body).toContain('aria-current="true"');
+  });
+
+  it('returns what each one claims', async () => {
+    const paid = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/?status=paid`, session),
+    );
+    expect(paid).toContain('Nwosu, Harriet');
+    expect(paid).not.toContain('Adjei, Kwame');
+
+    const attention = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/?status=attention`, session),
+    );
+    // Only the flagged row, which is the non-ASCII surname on the over-capacity purchase.
+    expect(attention).toContain(PAID_NON_ASCII_LAST_NAME);
+    expect(attention).not.toContain('Nwosu, Harriet');
+
+    const expired = await pageText(
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/?status=expired`, session),
+    );
+    expect(expired).toContain('Adjei, Kwame');
+    expect(expired).not.toContain('Nwosu, Harriet');
+  });
+
+  it('puts no personal data in any filter link it renders', async () => {
+    // **Read off the page rather than off one URL somebody navigated to.** Every `href` the page
+    // offers is checked, so a filter added later that carried a name would fail here.
+    const body = await (
+      await get(`${ADMIN}entries/${ADMIN_EVENT_SLUG}/`, session)
+    ).text();
+
+    const hrefs = [...body.matchAll(/href="([^"]*)"/g)].map((match) => match[1] ?? '');
+    expect(hrefs.length).toBeGreaterThan(4);
+
+    for (const href of hrefs) {
+      for (const personal of [
+        AWKWARD_LAST_NAME,
+        AWKWARD_FIRST_NAME,
+        'Nwosu',
+        'Adjei',
+        PAID_NON_ASCII_LAST_NAME,
+        PAID_EA_NUMBER,
+        'example.com',
+      ]) {
+        expect(href, `${personal} must not appear in ${href}`).not.toContain(personal);
+      }
+    }
+  });
+});
+
+/**
+ * The start list as a page, which is the thing somebody actually uses under pressure.
+ *
+ * **A POST, because rendering it writes an audit row.** Printing a sheet of names and emergency
+ * contacts is taking a copy out of the platform, exactly as the CSV is, so it goes through
+ * `entries.admin_export()` and is recorded the same way. A GET would let a prefetch, a scanner or
+ * a link pasted into a chat client file an export against somebody's handle.
+ */
+describe('the printable start list', () => {
+  it('renders paid entries with their emergency contacts, and no medical note', async () => {
+    const body = await pageText(
+      await post(`${ADMIN}start-list/`, { event: ADMIN_EVENT_SLUG }, session),
+    );
+
+    expect(body).toContain('Start list');
+    expect(body).toContain('Nwosu, Harriet');
+    expect(body).toContain('Kin Nwosu');
+    // Paid only: a lapsed hold is not a runner and a bib set out for one is a bib wasted.
+    expect(body).not.toContain('Adjei, Kwame');
+    // The notes are their own sheet, taken on purpose.
+    expect(body).not.toContain('inhaler');
+  });
+
+  it('is not reachable by a GET, because it writes an audit row', async () => {
+    const response = await get(`${ADMIN}start-list/`, session);
+
+    expect(response.status).toBe(404);
   });
 });
 

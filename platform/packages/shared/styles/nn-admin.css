@@ -13,63 +13,865 @@
  * That also means dark mode, focus rings and the font stack arrive for free, and a corrected
  * brand green is one edit to `tokens.css` rather than two.
  *
+ * **The club brand, and deliberately not the campaign theme.** `nn-theme.css` is not imported
+ * here and must not be. This is a tool rather than a page a runner reads — all content and no
+ * frame — and it will serve Pass the Buck, which has nothing to do with Halloween.
+ *
+ * ## The tints, and why `color-mix` rather than an `rgba()`
+ *
+ * The approved design tints its status chips and its two warning boxes: a green wash behind
+ * "Paid", an amber one behind "Held", a red one behind "Over capacity". Written as the design
+ * wrote them — `rgba(0, 200, 90, 0.14)` and so on — each would be **a new colour in this
+ * repository**, defined nowhere, computed by nobody, and wrong in dark mode where the page behind
+ * it is not white.
+ *
+ * `color-mix(in srgb, <a token> N%, var(--colour-background))` is the same wash with three
+ * properties the literal does not have: it is derived from a token rather than added beside one,
+ * it re-derives itself when the scheme flips because `--colour-background` flips, and the
+ * resulting pair is computable — `tests/unit/admin-contrast.test.ts` mixes the same two colours
+ * with the same ratio and asserts the contrast with `contrast.ts`, in both schemes. **No ratio in
+ * this file is written by hand, and none is written in a comment.**
+ *
+ * Every chip's text is `--colour-text` rather than a darkened version of its own hue, which is
+ * what makes one rule correct in both schemes: ink on the light tint, bone on the dark one.
+ *
  * ## Colour carries no meaning here
  *
  * An over-capacity payment is the thing on these pages that must be impossible to miss, and it
- * is marked with **the words "OVER CAPACITY", a warning sign, bold weight and a heavy rule** —
- * every one of which survives a monochrome screen, a colour-blind reader and a printout.
- * `--colour-error` is on top of that rather than instead of it. WCAG 1.4.1, and the practical
- * version of it: a printed start list is black ink.
+ * is marked with **the words "Needs a human", the words "Over capacity", a heavy rule and bold
+ * weight** — every one of which survives a monochrome screen, a colour-blind reader and a
+ * printout. `--colour-error` is on top of that rather than instead of it. WCAG 1.4.1, and the
+ * practical version of it: a printed start list is black ink.
  *
- * ## 320px
+ * Every status chip carries its own word for the same reason. There is no chip whose meaning is
+ * only its colour.
  *
- * A table of eight columns does not reflow into a phone, and pretending otherwise with stacked
- * `data-label` cells makes a list nobody can scan across. So the table scrolls sideways inside
- * a region that is **focusable and named** — `tabindex="0"` and an `aria-label` in the markup —
- * because a scrollable region a keyboard cannot reach is an axe violation and, more to the
- * point, a table somebody cannot read.
+ * ## Every number is in the mono face, with tabular figures
+ *
+ * A brand rule rather than a preference. `250` becoming `251` must not move the words after it,
+ * and a column of prices has to align on the decimal point. `.admin-mono` is the one class that
+ * does it and it is applied to every figure on the page.
+ *
+ * ## 320px: the table was restructured, and it used to scroll
+ *
+ * **This reverses the first pass's decision, which is recorded here rather than deleted.** That
+ * pass wrote: *"A table of eight columns does not reflow into a phone, and pretending otherwise
+ * with stacked `data-label` cells makes a list nobody can scan across"* — so the table scrolled
+ * sideways inside a region that was focusable and named, and a `position: relative` was load
+ * bearing on the scroller because the visually-hidden `<caption>` inside it was
+ * `position: absolute`, escaped the scroller, and made the **whole document** scroll sideways at
+ * 320px.
+ *
+ * That was correct about `::before` labels and wrong about the cost. It bought a second scrolling
+ * region inside a page that already scrolls, on a surface where 70% of visitors are on a phone,
+ * and a table a race director had to drag to read at a registration desk.
+ *
+ * **So below 48rem the table drops to three columns** — runner, status, note — and the five it
+ * drops reappear inside the runner cell, which is the only one wide enough to hold them. The
+ * mechanism is the part that matters:
+ *
+ *   * both copies are in the markup, and each is `display: none` at the width where the other is
+ *     showing. `display: none` removes a node from the accessibility tree, so **exactly one copy
+ *     is announced at any width** and nothing is read twice;
+ *   * the labels are real elements, not `::before` content, which is what the earlier note was
+ *     right to refuse;
+ *   * the table is never given `display: block`. It stays a real `<table>` with real
+ *     `<th scope="col">` and `<th scope="row">` at every size, so the semantics that make it
+ *     navigable are not traded for the layout.
+ *
+ * Nothing horizontally scrolls at any width, so `.admin-scroll` and its `position: relative` are
+ * both gone. `nn-admin.spec.ts`'s "is operable at 320px" is the guard and runs in all three
+ * projects.
  */
 
+/* ---------------------------------------------------------------------------------------
+ * The admin surface's own third layer
+ * ---------------------------------------------------------------------------------------
+ * `tokens.css` holds primitives, `base.css` maps them to semantic names, and pages use those.
+ * This surface needs three things the public pages have never needed: a page colour to sit cards
+ * on, a card colour to sit on it, and an **inverted** band for the masthead.
+ *
+ * They are mapped here rather than added to `base.css` because they are this tool's, and every
+ * one of them is derived from a `--colour-*` name rather than from a primitive — so the two-layer
+ * rule is followed rather than side-stepped, and there is still exactly one definition of every
+ * colour in this repository.
+ */
+.admin {
+  --admin-page: var(--colour-surface-muted);
+  --admin-card: var(--colour-background);
+  --admin-track: var(--colour-surface-muted);
+
+  /* The masthead is a dark band in both schemes — it is the one part of this page that reads as
+     chrome rather than as content, and inverting it is what says so without a border. */
+  --admin-mast: var(--colour-text);
+  --admin-mast-ink: var(--colour-background);
+}
+
+@media (prefers-color-scheme: dark) {
+  .admin {
+    /* The page is the dark background and the cards lift off it, which is the same figure and
+       ground as the light scheme rather than its opposite. 4% of the text colour is enough to
+       separate them and not enough to read as a second surface. */
+    --admin-page: var(--colour-background);
+    --admin-card: color-mix(in srgb, var(--colour-text) 4%, var(--colour-background));
+    --admin-track: color-mix(in srgb, var(--colour-text) 10%, var(--colour-background));
+
+    /* Ink on a dark page is nearly invisible, so the band inverts the other way: it is the
+       lifted surface, and the rule under it is what separates the two. */
+    --admin-mast: color-mix(in srgb, var(--colour-text) 8%, var(--colour-background));
+    --admin-mast-ink: var(--colour-text);
+  }
+}
+
+body.admin {
+  background: var(--admin-page);
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 1. The masthead
+ * --------------------------------------------------------------------------------------- */
+
+.admin-mast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--admin-mast);
+  color: var(--admin-mast-ink);
+}
+
+.admin-mast-mark {
+  display: flex;
+  /* The wordmark takes the band's own ink rather than the brand green. On this band the
+     undiluted green is a logotype, which WCAG exempts — but the lockup here is doing the job of
+     a page title, and a title should be as readable as the words beside it. */
+  color: var(--admin-mast-ink);
+}
+
+.admin-mast-mark svg {
+  display: block;
+  width: 9.5rem;
+  height: auto;
+}
+
+.admin-mast-title {
+  margin: 0;
+  padding-inline-start: 1.5rem;
+  border-inline-start: 1px solid currentcolor;
+  font-weight: 600;
+}
+
+.admin-mast-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  margin-inline-start: auto;
+  font-size: 0.9375rem;
+}
+
+.admin-mast-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.admin-mast-role-label {
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/*
+ * **Underlined rather than coloured, and that is a contrast decision.** The design put the sign
+ * out link in the brand green on the dark band, which measures under this repository's AAA
+ * target. The band's own ink is the highest-contrast colour available on it, and an underline is
+ * what makes it read as a link without spending any contrast to do it.
+ */
+.admin-mast-out {
+  padding: 0;
+  min-height: 2.75rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 2. The event bar
+ * --------------------------------------------------------------------------------------- */
+
+.admin-eventbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  padding: 1rem;
+  background: var(--admin-card);
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+.admin-eventbar h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.admin-eventbar-when {
+  margin: 0;
+  color: var(--colour-muted);
+  font-size: 0.9375rem;
+}
+
+.admin-eventbar-closes {
+  margin: 0;
+  margin-inline-start: auto;
+  color: var(--colour-muted);
+  font-size: 0.875rem;
+}
+
+.admin-pill {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--colour-rule);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-pill-open {
+  border-color: var(--colour-accent);
+  background: color-mix(in srgb, var(--colour-accent) 12%, var(--colour-background));
+}
+
+.admin-pill-shut {
+  background: var(--admin-track);
+  color: var(--colour-muted);
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The page
+ * --------------------------------------------------------------------------------------- */
+
+/*
+ * Wider than `base.css`'s `main`, and the class is what wins.
+ *
+ * The public pages are capped at a reading measure, which is right for prose and wrong for a
+ * table of eight columns. A class selector beats the element selector in `base.css` without an
+ * `!important`, which is the whole reason this is a class.
+ */
 .admin-page {
   max-width: 70rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 4rem;
 }
 
-/* ---------------------------------------------------------------------------------------
- * The bar
- * --------------------------------------------------------------------------------------- */
-
-.admin-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem 1.25rem;
-  padding-bottom: 0.75rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--colour-rule);
+/* The section labels. Mono and small, so they read as the page's structure rather than as
+   headings competing with the panel titles under them. */
+.admin-h2 {
+  margin: 2rem 0 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--colour-muted);
 }
 
-.admin-signout {
-  margin-inline-start: auto;
+.admin-page > .admin-h2:first-child {
+  margin-top: 0;
 }
 
 .admin-quiet {
   color: var(--colour-muted);
 }
 
-.admin-count {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
 .admin-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+.admin-nowrap {
+  white-space: nowrap;
+}
+
+/* An email address is one unbreakable token long enough to push a 320px page sideways on its
+   own — the same failure `base.css` fixes for `mailto:` links, here for one in a cell. */
+.admin-break {
+  overflow-wrap: anywhere;
+}
+
+.admin-error {
+  color: var(--colour-error);
+  font-weight: 600;
 }
 
 /* ---------------------------------------------------------------------------------------
- * Forms
+ * 3. Needs a human
+ * ---------------------------------------------------------------------------------------
+ * Heavier than anything else in the flow, and first. It renders only when there is something in
+ * it — there is no empty state, because a panel that is usually empty is one people learn to
+ * scroll past.
+ */
+
+.admin-attention {
+  margin-bottom: 1.5rem;
+  padding: 1.125rem 1.25rem;
+  background: var(--admin-card);
+  border: 2px solid var(--colour-danger);
+  border-radius: var(--radius-card);
+}
+
+.admin-attention-badge {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  background: var(--colour-error);
+  color: var(--colour-background);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-attention h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.admin-attention p {
+  max-width: 70ch;
+}
+
+.admin-attention-list {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-attention-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.875rem;
+  margin-bottom: 0.5rem;
+  padding: 0.7rem 0.875rem;
+  background: var(--admin-page);
+  border-radius: var(--radius-button);
+  font-size: 0.9375rem;
+}
+
+.admin-attention-foot {
+  margin-bottom: 0;
+  font-size: 0.875rem;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 4. Where the race stands
+ * --------------------------------------------------------------------------------------- */
+
+.admin-figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.875rem;
+}
+
+.admin-fig {
+  padding: 1.125rem 1.25rem;
+  background: var(--admin-card);
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+}
+
+/* Two columns' worth on a wide screen, because the bar and its legend need the room. It drops
+   back to one at the width where the grid itself is one column, so it never claims two of one. */
+@media (min-width: 48rem) {
+  .admin-fig-wide {
+    grid-column: span 2;
+  }
+}
+
+.admin-fig-label {
+  margin: 0;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.admin-fig-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.admin-fig-of {
+  color: var(--colour-muted);
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+
+.admin-fig-note {
+  margin: 0.4rem 0 0;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+}
+
+/*
+ * The capacity bar.
+ *
+ * **`aria-hidden` in the markup, and the border here is what makes that honest.** The bar
+ * restates the figure above it and the legend below it, so announcing it as well would read the
+ * same fact three times.
+ *
+ * **The ordinary fill is `--colour-accent`, not the raw brand green, and that is a contrast
+ * decision rather than a shade preference.** The design filled the bar with `color.primary`
+ * (`--src-green`), which measures 2.05:1 against this track — under WCAG's 3:1 floor for non-text
+ * UI. The text-safe green clears it at 6.48:1 while still reading as the club's colour.
+ *
+ * **The amber at full clears it on a dark page and not on a light one** — 7.61:1 against the dark
+ * track, 1.68:1 against the light. So it is a light-mode shortfall only, and there is no darker
+ * amber in the palette to reach for: `tokens.css` is explicit that `--src-warning` is "decorative
+ * and large-scale only", and ink *on* it is how it is meant to be read. It is accepted here, and
+ * only here, because every quantity the bar encodes is stated in words in the same panel, and
+ * because the 1px rule below makes the bar's *extent* visible without depending on the fill's hue
+ * at all. `tests/unit/admin-contrast.test.ts` computes all four numbers and pins them.
+ */
+.admin-bar {
+  height: 0.625rem;
+  margin-top: 0.75rem;
+  background: var(--admin-track);
+  border: 1px solid var(--colour-rule);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.admin-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--colour-accent);
+}
+
+/* **Amber at full, and full is the goal rather than a fault.** Over capacity is the fault, and
+   it has a panel of its own at the top of the page rather than a colour down here. */
+.admin-bar-full > span {
+  background: var(--colour-warning);
+}
+
+.admin-bar-over > span {
+  background: var(--colour-danger);
+}
+
+.admin-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.875rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+}
+
+.admin-legend-count {
+  color: var(--colour-text);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 5, 6, 7, 8. Panels
+ * --------------------------------------------------------------------------------------- */
+
+.admin-panel {
+  background: var(--admin-card);
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  /* So the header band and the table's own edges are clipped to the corner radius. */
+  overflow: hidden;
+
+  /*
+   * **`position: relative` is load-bearing and it is not about positioning anything.**
+   *
+   * `overflow` only clips a descendant whose containing block is inside the clipping box, and
+   * `.admin-visually-hidden` is `position: absolute` — the table's `<caption>` and the "for
+   * <name>" suffix on every Show-note button. With no positioned ancestor their containing block
+   * is the *initial* one, the page, so they escape this panel entirely and are laid out at the far
+   * edge of a table wider than the viewport. Measured: the document reached 354px against a 320px
+   * viewport, and the only symptom was a page that slid sideways under a thumb.
+   *
+   * **The first pass had this rule, on the scroll region this file removed.** Taking the scroller
+   * away took the containing block with it and brought the same bug back, on the same surface, at
+   * the same width — which is why the note stays here rather than in a commit message. The rule is
+   * general: any absolutely positioned thing inside any clipping or scrolling box needs that box
+   * to be its containing block.
+   */
+  position: relative;
+}
+
+.admin-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.875rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+.admin-panel-head h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.admin-panel-note {
+  margin: 0;
+  color: var(--colour-muted);
+  font-size: 0.875rem;
+}
+
+.admin-panel-body {
+  padding: 1.125rem 1.25rem;
+}
+
+.admin-panel-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Two panels side by side above 52rem, stacked below it. `1fr 1fr` rather than `auto-fit`,
+   because these two are a pair and a lone medical panel at half width reads as a mistake. */
+.admin-pair {
+  display: grid;
+  gap: 0.875rem;
+}
+
+@media (min-width: 52rem) {
+  .admin-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/*
+ * **The medical panel is visually heavier than the others, on purpose.** It is the most
+ * sensitive thing the club holds, and using it should feel like a deliberate act rather than a
+ * click. Its own border colour and its own warning are the whole of the difference.
+ */
+.admin-panel-grave {
+  border-width: 2px;
+  border-color: var(--colour-danger);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin: 1rem 0 0.75rem;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Buttons
+ * --------------------------------------------------------------------------------------- */
+
+.admin-button {
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--colour-accent);
+  border-radius: var(--radius-button);
+  background: var(--colour-accent);
+  color: var(--colour-on-accent);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* The secondary action beside a primary one: the same shape, the page's own ink, no fill. */
+.admin-button-quiet {
+  background: var(--admin-card);
+  border-color: var(--colour-text);
+  color: var(--colour-text);
+}
+
+/* The medical sheet. Outlined in the danger colour and labelled with what it is, so the button
+   itself says that taking it is a decision. */
+.admin-button-grave {
+  background: var(--admin-card);
+  border-color: var(--colour-error);
+  color: var(--colour-error);
+}
+
+/* A button that behaves like a link, for an action that must be a POST rather than a GET —
+   reading a medical note. It is a button because it changes something (an audit row); it looks
+   like a link because it reads as one in a row of cells. */
+.admin-linkish {
+  padding: 0.375rem 0;
+  min-height: 2.75rem;
+  border: 0;
+  background: none;
+  color: var(--colour-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 7. The filters — links, not a form
+ * ---------------------------------------------------------------------------------------
+ * Each one is an `<a>` with a query parameter, so the page works with scripting off, every
+ * filtered view is a URL somebody can send to the other volunteer, and the back button behaves.
+ */
+
+.admin-filters {
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+.admin-filters ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-filters ul:last-child {
+  margin-bottom: 0;
+}
+
+.admin-filters-label {
+  margin: 0 0 0.4rem;
+  color: var(--colour-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-filter {
+  display: inline-block;
+  /* 44px of target for a cold thumb in November, achieved with padding rather than a height so
+     the label still centres when it wraps. */
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  color: var(--colour-text);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.admin-filter:hover {
+  border-color: var(--colour-accent);
+}
+
+/*
+ * The selected one. **`aria-current` in the markup carries the meaning**; this is the visible
+ * half of the same fact, and it is a fill and a weight rather than only a colour.
+ */
+.admin-filter-on {
+  border-color: var(--colour-accent);
+  background: color-mix(in srgb, var(--colour-accent) 12%, var(--colour-background));
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Status chips
+ * ---------------------------------------------------------------------------------------
+ * **Every chip carries its own word.** The tint is emphasis; the word is the signal. Text is
+ * `--colour-text` in all four, which is what makes one set of rules correct in both schemes.
+ */
+
+.admin-chip {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: 4px;
+  background: var(--admin-track);
+  color: var(--colour-text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.admin-chip-paid {
+  border-color: var(--colour-accent);
+  background: color-mix(in srgb, var(--colour-accent) 14%, var(--colour-background));
+}
+
+.admin-chip-held {
+  border-color: var(--colour-warning);
+  background: color-mix(in srgb, var(--colour-warning) 18%, var(--colour-background));
+}
+
+/*
+ * A place that came back — an expired or lapsed hold.
+ *
+ * **No tint and no border colour, which is the point**: it is the one status on the page nobody
+ * has to act on, so it is the only chip that is not marked. The text stays `--colour-text` like
+ * every other chip rather than dropping to `--colour-muted`, which measured 6.92:1 on this track
+ * in the light scheme and 5.96:1 in the dark — under this repository's AAA target, for a chip
+ * whose whole job is to be legible in a list somebody is scanning.
+ */
+.admin-chip-gone {
+  background: var(--admin-track);
+}
+
+.admin-chip-flag {
+  border-color: var(--colour-danger);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--colour-danger) 14%, var(--colour-background));
+  font-weight: 700;
+  /* The one chip whose text may wrap: "No — do not write" must not be clipped at 320px. */
+  white-space: normal;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The two boxes that carry a warning
+ * --------------------------------------------------------------------------------------- */
+
+.admin-warn {
+  padding: 0.8rem 0.9rem;
+  margin: 0 0 0.875rem;
+  border: 1px solid var(--colour-warning);
+  border-inline-start-width: 6px;
+  border-radius: var(--radius-button);
+  background: color-mix(in srgb, var(--colour-warning) 12%, var(--colour-background));
+  font-size: 0.9375rem;
+}
+
+.admin-grave {
+  padding: 0.8rem 0.9rem;
+  margin: 0 0 0.875rem;
+  border: 1px solid var(--colour-danger);
+  border-inline-start-width: 6px;
+  border-radius: var(--radius-button);
+  background: color-mix(in srgb, var(--colour-danger) 10%, var(--colour-background));
+  font-size: 0.9375rem;
+}
+
+/* Information rather than an alarm — "showing the most recent 2,000". Same shape, no colour. */
+.admin-banner {
+  padding: 0.8rem 1.25rem;
+  margin: 0;
+  border-bottom: 1px solid var(--colour-rule);
+  background: var(--admin-page);
+  font-size: 0.9375rem;
+}
+
+.admin-note {
+  margin: 0 0 1.5rem;
+  padding: 1rem;
+  border-inline-start: 6px solid var(--colour-accent);
+  background: var(--admin-page);
+  /* A medical note is free text somebody typed into a textarea. Its line breaks are part of
+     what it says, and collapsing them can join two sentences into one that means something
+     else — "no known allergies" and "penicillin" being the obvious pair. */
+  white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The tables
+ * ---------------------------------------------------------------------------------------
+ * See the note at the head of this file for the 320px decision and what it replaced.
+ */
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: start;
+  vertical-align: top;
+  padding: 0.65rem 1.25rem;
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+.admin-table thead th {
+  background: var(--admin-page);
+  color: var(--colour-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-table tbody tr:last-child th,
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/*
+ * The narrow layout, and the two rules that are the whole of it.
+ *
+ * `display: none` rather than a clip, in both directions, so exactly one copy of every value is
+ * in the accessibility tree at any width. The table itself is never given `display: block`, so
+ * it stays a table at every size.
+ */
+.admin-stack {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .admin-col-wide {
+    display: none;
+  }
+
+  .admin-stack {
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--colour-muted);
+    font-size: 0.8125rem;
+    font-weight: 400;
+  }
+
+  .admin-stack > span,
+  .admin-stack > strong {
+    display: block;
+  }
+
+  /*
+   * **Three columns have to *fit*, not merely be fewer.** The panel clips rather than scrolls, so a
+   * table still wider than the viewport hides a column instead of offering it — which is worse than
+   * the sideways scroll this layout replaced, because nothing tells the reader it happened.
+   *
+   * Measured at 320px: 352px of table against 288px of usable width. The padding was 72px of it
+   * across three columns, and the status chip's `nowrap` held "Held · 22 min left" on one line.
+   * Both are relaxed here and only here.
+   */
+  .admin-table {
+    font-size: 0.875rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.55rem 0.4rem;
+  }
+
+  /* The chip may wrap on a phone. Its border and its word both survive two lines; the column
+     being cut off does not. */
+  .admin-chip {
+    white-space: normal;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Fields — the sign-in form, and nothing else on this surface takes input
  * --------------------------------------------------------------------------------------- */
 
 .admin-field {
@@ -89,13 +891,12 @@
   color: var(--colour-muted);
 }
 
-.admin-field input,
-.admin-field select {
+.admin-field input {
   /* 16px, so iOS does not zoom the page the moment a field takes focus. */
   font: inherit;
   font-size: 1rem;
   padding: 0.5rem;
-  border: 1px solid var(--colour-rule);
+  border: 2px solid var(--colour-rule);
   border-radius: var(--radius-button);
   background: var(--colour-background);
   color: var(--colour-text);
@@ -104,49 +905,6 @@
 
 .admin-field input[aria-invalid='true'] {
   border-color: var(--colour-error);
-  border-width: 2px;
-}
-
-.admin-button {
-  font: inherit;
-  font-weight: 600;
-  padding: 0.5rem 1rem;
-  /* 44px, so a cold thumb in November hits it. */
-  min-height: 2.75rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-button);
-  background: var(--colour-accent);
-  color: var(--colour-on-accent);
-  cursor: pointer;
-}
-
-/* A button that behaves like a link, for an action that must be a POST rather than a GET —
-   reading a medical note, and signing out. It is a button because it changes something (an
-   audit row, a session); it looks like a link because it reads as one in a row of cells. */
-.admin-linkish {
-  font: inherit;
-  padding: 0.375rem 0;
-  min-height: 2.75rem;
-  border: 0;
-  background: none;
-  color: var(--colour-accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.admin-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 1rem;
-  align-items: flex-end;
-  padding: 1rem;
-  border: 1px solid var(--colour-rule);
-  border-radius: var(--radius-card);
-  margin-bottom: 1.5rem;
-}
-
-.admin-filters .admin-button {
-  margin-bottom: 1rem;
 }
 
 .admin-signin {
@@ -154,139 +912,103 @@
 }
 
 /* ---------------------------------------------------------------------------------------
- * The tables
- * --------------------------------------------------------------------------------------- */
-
-.admin-scroll {
-  overflow-x: auto;
-
-  /*
-   * **`position: relative` is load-bearing and it is not about positioning anything.**
-   *
-   * `overflow` only clips a descendant whose containing block is inside the scroller. The
-   * visually-hidden `<caption>` and the "for <name>" suffix on each Show-note button are
-   * `position: absolute`, and with no positioned ancestor their containing block is the
-   * *initial* one — the page. So they were laid out at the far edge of a 793px-wide table,
-   * escaped the scroller completely, and made the **whole document** scroll sideways at 320px:
-   * `documentElement.scrollWidth` 783 against a 320px viewport.
-   *
-   * Nothing looked wrong. The table scrolled correctly, the spans were invisible as intended,
-   * and the only symptom was a page that slid left under a thumb — on the surface a race
-   * director reads on a phone. One line makes the scroller their containing block, and it
-   * clips them like everything else. Measured 783 → 320 in Chromium at 320px, with the
-   * scroller still scrolling and the hidden text still in the accessibility tree.
-   *
-   * `nn-admin.spec.ts`'s "is operable at 320px" is the guard, and it runs in all three
-   * projects.
-   */
-  position: relative;
-
-  border: 1px solid var(--colour-rule);
-  border-radius: var(--radius-card);
-}
-
-/* The focus ring belongs on the scroll region as much as on a control: it is a tab stop, and
-   a tab stop with no visible focus is the accessibility failure people actually hit. */
-.admin-scroll:focus-visible {
-  outline: 3px solid var(--colour-accent);
-  outline-offset: 2px;
-}
-
-.admin-scroll table {
-  border-collapse: collapse;
-  width: 100%;
-  /* Wider than a phone on purpose — see the note at the top of this file. */
-  min-width: 44rem;
-}
-
-.admin-scroll th,
-.admin-scroll td {
-  text-align: start;
-  vertical-align: top;
-  padding: 0.625rem 0.75rem;
-  border-bottom: 1px solid var(--colour-rule);
-}
-
-/*
- * **No `position: sticky` here, and its absence is the decision.**
- *
- * It was here, and it never worked. `overflow-x: auto` computes `overflow-y` to `auto` as well,
- * so this container *is* the scrollport for a sticky header — but nothing constrains its height,
- * so it never scrolls vertically and the header never had anything to stick to. Scrolling a
- * 250-row list happens on the *page*, and the header goes with it.
- *
- * Making it work means a `max-height` on the scroller, which puts a second scrolling region
- * inside a page that already scrolls — on a phone that is the layout people complain about, and
- * 70% of visitors are on a phone. So the rule is gone rather than propped up, and the band stays
- * because telling the header row apart from the body is what it was really doing.
+ * The start list, on paper
+ * ---------------------------------------------------------------------------------------
+ * The one page here designed to leave the screen. Race HQ has patchy signal and a phone in a
+ * cold hall at quarter past nine is a worse tool than paper on a clipboard.
  */
-.admin-scroll thead th {
-  background: var(--colour-banner);
-  color: var(--colour-banner-text);
+
+.admin-tick {
+  /* A box to tick with a biro, which is the whole reason this is paper. */
+  min-width: 2.5rem;
 }
 
-.admin-scroll tbody tr:last-child th,
-.admin-scroll tbody tr:last-child td {
-  border-bottom: 0;
+.admin-tick::after {
+  content: '';
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid var(--colour-text);
+  border-radius: 2px;
+}
+
+@media print {
+  /*
+   * **The primitives here, and not the semantic names, and that is the whole point.**
+   *
+   * A printed sheet has no colour scheme. `--colour-text` is bone in dark mode, so a print rule
+   * written with it would send a volunteer's printer a page of near-white ink on near-black
+   * paper — which is both unreadable and most of a cartridge. `--src-ink` and `--src-paper` are
+   * defined once in `tokens.css` and are never touched by a media query or a theme, which makes
+   * them the correct layer to reach for when what is wanted is "the same regardless of scheme".
+   *
+   * `base.css` already does this for exactly this reason, on the site banner's border:
+   * *"the primitive is never touched by any theme, which is what keeps the bar's own border
+   * constant regardless of which page it sits above."*
+   */
+  body.admin {
+    background: var(--src-paper);
+    color: var(--src-ink);
+  }
+
+  .admin-mast,
+  .admin-eventbar,
+  .admin-noprint {
+    display: none;
+  }
+
+  .admin-page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .admin-table {
+    font-size: 10pt;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.3rem 0.4rem;
+    border-bottom: 1px solid var(--src-slate);
+  }
+
+  .admin-table thead th {
+    background: none;
+    color: var(--src-ink);
+  }
+
+  /* A runner's row split across a page break is a row somebody misses at the desk. */
+  .admin-table tr {
+    break-inside: avoid;
+  }
+
+  /* The narrow layout must not apply on paper: a printed sheet is wide, and the duplicate
+     values inside the runner cell would print twice. */
+  .admin-col-wide {
+    display: table-cell;
+  }
+
+  .admin-stack {
+    display: none;
+  }
+
+  .admin-tick::after {
+    border-color: var(--src-ink);
+  }
 }
 
 /* ---------------------------------------------------------------------------------------
- * The thing that must not be missed
- * --------------------------------------------------------------------------------------- */
-
-.admin-flag {
-  display: inline-block;
-  color: var(--colour-error);
-}
-
-.admin-banner {
-  display: block;
-  padding: 0.75rem 1rem;
-  margin: 0 0 1.5rem;
-  border-inline-start: 6px solid currentcolor;
-  background: var(--colour-banner);
-}
-
-/* Not `.admin-flag`'s colour by inheritance: a banner that is only saying "showing the most
-   recent 2,000" is information rather than an alarm, and it uses this rule without the red. */
-.admin-banner:not(.admin-flag) {
-  color: var(--colour-text);
-  border-inline-start-color: var(--colour-rule);
-}
-
-.admin-error {
-  color: var(--colour-error);
-  font-weight: 600;
-}
-
-.admin-note {
-  margin: 0 0 1.5rem;
-  padding: 1rem;
-  border-inline-start: 6px solid var(--colour-accent);
-  background: var(--colour-banner);
-  /* A medical note is free text somebody typed into a textarea. Its line breaks are part of
-     what it says, and collapsing them can join two sentences into one that means something
-     else — "no known allergies" and "penicillin" being the obvious pair. */
-  white-space: pre-wrap;
-}
-
-.admin-index,
-.admin-exports {
-  padding-inline-start: 1.25rem;
-}
-
-.admin-exports li {
-  margin-bottom: 1.5rem;
-}
-
-.admin-export {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-/* The standard clip, so a `<caption>` and an in-context suffix on a button label reach a
-   screen reader without appearing on the page. Not `display: none`, which removes it from the
-   accessibility tree as well and would leave the tables unnamed. */
+ * The standard clip
+ * ---------------------------------------------------------------------------------------
+ * For a `<caption>` and an in-context suffix on a button label, which reach a screen reader
+ * without appearing on the page. Not `display: none`, which removes it from the accessibility
+ * tree as well and would leave the tables unnamed.
+ *
+ * **Nothing that uses this sits inside a horizontal scroller any more**, which is what made it
+ * dangerous in the first pass: `position: absolute` with no positioned ancestor took its
+ * containing block from the page, escaped the scroller, and dragged the whole document sideways
+ * at 320px. There is no scroller on this surface now, so there is nothing for it to escape.
+ */
 .admin-visually-hidden {
   position: absolute;
   width: 1px;

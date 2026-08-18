@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race admin — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Club brand tokens — design-tokens.json. NOT the Nightingale campaign theme:
+   this is an internal tool, it is all content and no frame, and it will serve
+   Pass the Buck too. Flat, no gradients, no shadows, per BRANDING.md. */
+:root{
+  --primary:#00C85A;
+  --primary-deep:#00A048;
+  --ink:#2C2C2C;
+  --surface:#FFFFFF;
+  --muted:#F4F6F2;
+  --warning:#FFB020;
+  --danger:#E53935;
+  --slate:#4A5568;
+  --rule:#E2E6E0;
+  --r-btn:8px;
+  --r-card:12px;
+  --mono:"JetBrains Mono","IBM Plex Mono",ui-monospace,monospace;
+  --body:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--muted);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+/* ---- masthead ---- */
+.mast{background:var(--ink);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.lock{line-height:1}
+.lock .a{display:block;font-size:17px;font-weight:700;letter-spacing:.04em;color:var(--primary)}
+.lock .b{display:block;font-size:9.5px;font-weight:600;letter-spacing:.22em;color:rgba(255,255,255,.72);margin-top:2px}
+.mast .title{font-size:15px;font-weight:600;padding-left:24px;border-left:1px solid rgba(255,255,255,.24)}
+.mast .who{margin-left:auto;font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.68);display:flex;align-items:center;gap:14px}
+.mast .who a{color:var(--primary);text-decoration:none;border-bottom:1px solid rgba(0,200,90,.5)}
+
+/* ---- event bar ---- */
+.eventbar{background:var(--surface);border-bottom:1px solid var(--rule);padding:16px 24px;display:flex;align-items:baseline;gap:20px;flex-wrap:wrap}
+.eventbar h1{margin:0;font-size:22px;font-weight:600}
+.eventbar .when{font-size:14px;color:var(--slate)}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border-radius:999px;font-weight:500}
+.pill.open{background:rgba(0,200,90,.14);color:#00733A;border:1px solid rgba(0,200,90,.45)}
+.pill.shut{background:var(--muted);color:var(--slate);border:1px solid var(--rule)}
+.eventbar .closes{margin-left:auto;font-size:13px;color:var(--slate)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:24px 24px 64px}
+h2{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--slate);font-weight:500;margin:32px 0 12px}
+h2:first-child{margin-top:0}
+
+/* ---- attention ---- */
+.attention{background:var(--surface);border:2px solid var(--danger);border-radius:var(--r-card);padding:18px 20px;margin-bottom:24px}
+.attention .hd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.attention .badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;background:var(--danger);color:#fff;padding:3px 9px;border-radius:4px}
+.attention h3{margin:0;font-size:17px;font-weight:600}
+.attention p{margin:0 0 12px;font-size:14.5px;color:var(--slate);max-width:70ch}
+.attention .row{display:flex;align-items:center;gap:14px;padding:11px 14px;background:var(--muted);border-radius:var(--r-btn);font-size:14px;flex-wrap:wrap}
+.attention .row .id{font-family:var(--mono);font-size:12.5px;color:var(--slate)}
+
+/* ---- figures ---- */
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.fig{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-card);padding:18px 20px}
+.fig .lbl{font-size:12.5px;color:var(--slate);font-weight:500}
+.fig .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;font-weight:700;line-height:1.1;margin-top:8px;letter-spacing:-.02em}
+.fig .sub{font-size:12.5px;color:var(--slate);margin-top:5px}
+.fig.wide{grid-column:span 2}
+@media(max-width:640px){.fig.wide{grid-column:span 1}}
+.bar{height:10px;background:var(--muted);border-radius:999px;overflow:hidden;margin-top:12px;border:1px solid var(--rule)}
+.bar i{display:block;height:100%;background:var(--primary)}
+.bar.full i{background:var(--warning)}
+.legend{display:flex;gap:14px;margin-top:9px;font-size:12px;color:var(--slate);flex-wrap:wrap}
+.legend b{font-family:var(--mono);color:var(--ink);font-weight:700}
+
+/* ---- panels ---- */
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-card);overflow:hidden}
+.panel .ph{padding:16px 20px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.panel .ph h3{margin:0;font-size:16px;font-weight:600}
+.panel .ph .note{font-size:13px;color:var(--slate)}
+.panel .ph .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.panel .pb{padding:18px 20px}
+
+.btn{font-family:var(--body);font-size:14px;font-weight:600;padding:9px 16px;border-radius:var(--r-btn);border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;min-height:40px;line-height:1.5}
+.btn.go{background:var(--primary);border-color:var(--primary-deep);color:#14320F}
+.btn.care{border-color:var(--danger);color:var(--danger)}
+.btn.sm{font-size:13px;padding:7px 13px;min-height:34px}
+
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);font-weight:500;padding:10px 20px;border-bottom:1px solid var(--rule);background:var(--muted)}
+td{padding:11px 20px;border-bottom:1px solid var(--rule)}
+tr:last-child td{border-bottom:0}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.st{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;font-weight:500}
+.st.paid{background:rgba(0,200,90,.14);color:#00733A}
+.st.held{background:rgba(255,176,32,.18);color:#7A4E00}
+.st.gone{background:var(--muted);color:var(--slate)}
+.st.flag{background:rgba(229,57,53,.14);color:#A81410;font-weight:700}
+.ea{font-family:var(--mono);font-size:13px}
+.ea.none{color:var(--danger);font-weight:700}
+
+.warnbox{background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.5);border-radius:var(--r-btn);padding:13px 15px;font-size:13.5px;color:#5C3A00;margin-bottom:14px}
+.warnbox b{color:#3D2600}
+
+.audit{font-size:13.5px}
+.audit li{padding:9px 0;border-bottom:1px solid var(--rule);display:flex;gap:14px;flex-wrap:wrap}
+.audit li:last-child{border-bottom:0}
+.audit ul{list-style:none;margin:0;padding:0}
+.audit .t{font-family:var(--mono);font-size:12.5px;color:var(--slate);min-width:132px}
+.audit .h{font-family:var(--mono);font-size:12.5px;color:var(--ink);min-width:150px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+footer{max-width:1080px;margin:0 auto;padding:0 24px 48px;font-size:13px;color:var(--slate)}
+.mock{background:var(--warning);color:#3D2600;text-align:center;font-size:12.5px;font-weight:600;padding:7px;font-family:var(--mono);letter-spacing:.04em}
+</style>
+</head>
+<body>
+
+<div class="mock">MOCKUP · invented data · not a real page</div>
+
+<div class="mast">
+  <span class="lock"><span class="a">SOUTHVILLE</span><span class="b">RUNNING CLUB</span></span>
+  <span class="title">Race admin</span>
+  <span class="who">membership-secretary <a href="#">Sign out</a></span>
+</div>
+
+<div class="eventbar">
+  <h1>Nightingale Nightmare 2026</h1>
+  <span class="when">Sunday 1 November · 11:00</span>
+  <span class="pill open">Entries open</span>
+  <span class="closes">Closes Friday 23 October, 20:00</span>
+</div>
+
+<div class="wrap">
+
+  <div class="attention">
+    <div class="hd">
+      <span class="badge">NEEDS A HUMAN</span>
+      <h3>One payment arrived after its place had gone</h3>
+    </div>
+    <p>Their hold lapsed, then the payment came through anyway. They have paid and they are counted, so the field is one over. Somebody has to decide whether that stands or is refunded — and the runner should hear it from the club, not find out on the day.</p>
+    <div class="row">
+      <span class="st flag">Over capacity</span>
+      <span>Paid 21 Oct, 14:32 · £17.00 · unaffiliated</span>
+      <span class="id">entry 8f2c…41ab</span>
+      <a href="#" class="btn sm">Open this entry</a>
+    </div>
+  </div>
+
+  <h2>Where the race stands</h2>
+  <div class="figs">
+    <div class="fig wide">
+      <div class="lbl">Places taken</div>
+      <div class="v">251 <span style="font-size:18px;font-weight:500;color:var(--slate)">of 250</span></div>
+      <div class="bar full"><i style="width:100%"></i></div>
+      <div class="legend">
+        <span><b>250</b> paid</span>
+        <span><b>1</b> over capacity</span>
+        <span><b>2</b> held right now</span>
+        <span><b>34</b> holds expired and returned</span>
+      </div>
+    </div>
+    <div class="fig">
+      <div class="lbl">Taken in entry fees</div>
+      <div class="v">£3,950</div>
+      <div class="sub">Card fees are Stripe's own figure</div>
+    </div>
+    <div class="fig">
+      <div class="lbl">On the interest list</div>
+      <div class="v">96</div>
+      <div class="sub">Promised one email when entries opened</div>
+    </div>
+  </div>
+
+  <h2>Race morning</h2>
+  <div class="panel">
+    <div class="ph">
+      <h3>The registration desk</h3>
+      <span class="note">Paid entries only, sorted by surname</span>
+    </div>
+    <div class="pb">
+      <div class="warnbox">
+        <b>Print it the night before.</b> Race HQ has patchy signal and a phone in a cold hall at
+        quarter past nine is a worse tool than paper on a clipboard.
+      </div>
+      <p style="margin:0 0 14px;font-size:14px;color:var(--slate)">Surname, first name, club, category, emergency contact, and a column to tick. No dates of birth, no email addresses, no medical notes.</p>
+      <a href="#" class="btn go">Print the start list</a>
+      <a href="#" class="btn">Download as CSV</a>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel">
+      <div class="ph"><h3>Medical notes</h3></div>
+      <div class="pb">
+        <div class="warnbox" style="background:rgba(229,57,53,.07);border-color:rgba(229,57,53,.4);color:#7A1512">
+          <b>A separate sheet, for the first aiders only.</b> This is the easiest way for sensitive
+          information to end up in a car park. Taking it is recorded against your name.
+        </div>
+        <p style="margin:0 0 14px;font-size:14px;color:var(--slate)"><span class="num">7</span> entrants have written something. Deleted automatically on <span class="num">1 December 2026</span>, a month after the race, as the privacy notice says.</p>
+        <a href="#" class="btn care">Take the medical sheet</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h3>Affiliation check</h3></div>
+      <div class="pb">
+        <p style="margin:0 0 14px;font-size:14px;color:var(--slate)"><span class="num">150</span> entries claim the affiliated price, which is <span class="num">£2</span> less. Nothing checks the numbers automatically, so this is the list to work through against the club's England Athletics access.</p>
+        <p style="margin:0 0 14px;font-size:14px;color:var(--danger);font-weight:600"><span class="num">3</span> claimed affiliated without giving a number.</p>
+        <a href="#" class="btn">Download the check list</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Entries</h2>
+  <div class="panel">
+    <div class="ph">
+      <h3>All entries</h3>
+      <span class="note">251 records</span>
+      <span class="right">
+        <a href="#" class="btn sm">All</a>
+        <a href="#" class="btn sm">Paid</a>
+        <a href="#" class="btn sm">Held</a>
+        <a href="#" class="btn sm">Needs attention</a>
+      </span>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Runner</th><th>Club</th><th>Category</th><th>Entry</th><th>EA number</th><th>Status</th><th>Entered</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Abbott, Rosalind</td><td>Southville RC</td><td>Vet 50 F</td><td>Affiliated</td>
+          <td class="ea">2992001</td><td><span class="st paid">Paid</span></td><td class="n">02 Sep 07:14</td>
+        </tr>
+        <tr>
+          <td>Ashworth, Daniel</td><td>—</td><td>Senior M</td><td>Unaffiliated</td>
+          <td class="ea" style="color:var(--slate)">—</td><td><span class="st paid">Paid</span></td><td class="n">02 Sep 07:16</td>
+        </tr>
+        <tr>
+          <td>Bellingham, Priya</td><td>Bristol &amp; West</td><td>Vet 40 F</td><td>Affiliated</td>
+          <td class="ea none">not given</td><td><span class="st paid">Paid</span></td><td class="n">02 Sep 09:41</td>
+        </tr>
+        <tr>
+          <td>Cadwallader, Tomos</td><td>Southville RC</td><td>Vet 60 M</td><td>VI guide</td>
+          <td class="ea" style="color:var(--slate)">—</td><td><span class="st paid">Paid</span></td><td class="n">04 Sep 18:02</td>
+        </tr>
+        <tr>
+          <td>Delacroix, Margot</td><td>—</td><td>Senior F</td><td>Unaffiliated</td>
+          <td class="ea" style="color:var(--slate)">—</td><td><span class="st flag">Over capacity</span></td><td class="n">21 Oct 14:32</td>
+        </tr>
+        <tr>
+          <td>Eastwood, Callum</td><td>Nailsea Runners</td><td>Vet 40 M</td><td>Affiliated</td>
+          <td class="ea">4247020</td><td><span class="st held">Held · 22 min left</span></td><td class="n">22 Oct 20:48</td>
+        </tr>
+        <tr>
+          <td>Fairweather, Ingrid</td><td>—</td><td>Vet 50 F</td><td>Unaffiliated</td>
+          <td class="ea" style="color:var(--slate)">—</td><td><span class="st gone">Hold expired</span></td><td class="n">14 Oct 21:03</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The interest list</h2>
+  <div class="panel">
+    <div class="ph">
+      <h3>People waiting to hear</h3>
+      <span class="note">96 addresses · collected before entries opened</span>
+      <span class="right"><a href="#" class="btn sm">Download as CSV</a></span>
+    </div>
+    <div class="pb">
+      <p style="margin:0;font-size:14px;color:var(--slate)">Each of these people was told the club would email them once when entries opened, and nothing else. Using the list for anything more means asking them again.</p>
+    </div>
+  </div>
+
+  <h2>What has been taken, and by whom</h2>
+  <div class="panel audit">
+    <div class="ph"><h3>Recent admin actions</h3><span class="note">Written in the same breath as the read, so nothing happens unrecorded</span></div>
+    <div class="pb">
+      <ul>
+        <li><span class="t">17 Aug 21:04</span><span class="h">membership-secretary</span><span>Took the affiliation check list · 150 rows</span></li>
+        <li><span class="t">17 Aug 20:58</span><span class="h">membership-secretary</span><span>Viewed a medical note · entry 4c9d…77e1</span></li>
+        <li><span class="t">16 Aug 19:22</span><span class="h">race-director</span><span>Printed the start list · 250 rows</span></li>
+        <li><span class="t">16 Aug 19:20</span><span class="h">race-director</span><span>Signed in</span></li>
+        <li><span class="t">15 Aug 08:11</span><span class="h">membership-secretary</span><span>Downloaded the interest list · 96 rows</span></li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Mockup for the Nightingale Nightmare admin surface, 17 August 2026. Club brand rather than the
+  campaign theme, because this is a tool rather than a page a runner reads — and because it will
+  serve Pass the Buck too. Every name and number here is invented.</p>
+</footer>
+
+</body>
+</html>

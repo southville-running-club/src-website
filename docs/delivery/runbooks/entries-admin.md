@@ -21,6 +21,45 @@ answers 404 like an address nobody published — which is the correct state, not
 
 ---
 
+## What is on it
+
+**One page, and its order is the design.** `/nn/admin/` shows the running the database says is
+current — it asks `entries.current_entry_state('nn')`, exactly as `/nn/` does, so **no year appears
+in the route** and publishing 2027 needs no edit here.
+
+| | |
+| --- | --- |
+| **Anything needing a human** | Over-capacity payments and anything else flagged. **Renders only when there is something** — no empty state and no zero badge. First on the page, because it is the only thing on it with a deadline attached to a person |
+| **Where the race stands** | Places taken against capacity, the breakdown (paid, over capacity, held right now, holds expired and returned), fees taken, and the interest-list count |
+| **Race morning** | The start list, to print or to download. The thing somebody actually opens under pressure |
+| **Medical notes** and **the affiliation check** | Side by side. The medical panel is deliberately heavier than everything else on the page, and states the date the notes are deleted |
+| **The entries** | A real table, with filters that are links |
+| **The interest list** | A count and the promise. The addresses are on their own page |
+
+Seven addresses, and the ones that write an audit row are `POST` for that reason — a `GET` would let
+a prefetch, a scanner or a link pasted into a chat client file an export against somebody's handle:
+
+| | |
+| --- | --- |
+| `GET /nn/admin/` | The page, for the current running |
+| `GET /nn/admin/entries/<event-slug>/` | The same page, for a named running — how a past race is looked at |
+| `GET /nn/admin/interest/` | The interest sign-ups, with their addresses |
+| `POST /nn/admin/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
+| `POST /nn/admin/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
+| `POST /nn/admin/export/` | One of the three CSVs. Audited |
+| `POST /nn/admin/` | Signing in, and signing out |
+
+**Filters are links with query parameters, not a form and not a script.** Every filtered view is a
+URL somebody can send to the other volunteer, and **no filter carries personal data** — the values
+are enumerated words, which is asserted in both the Worker and the browser suites.
+
+**At 320px the table restructures rather than scrolling.** Below 48rem it drops to three columns and
+the five it drops reappear inside the runner cell; nothing on the surface scrolls sideways at any
+width. The first pass scrolled it inside a focusable region instead, and the note at the head of
+`packages/shared/styles/nn-admin.css` records why that was reversed.
+
+---
+
 ## Step 0 — before switching it on
 
 - [ ] **Read what the exports contain**, in [the section below](#what-the-three-exports-contain).
@@ -243,6 +282,28 @@ select at, actor, action, detail
 
 A list view is **not** recorded. A row per page load would grow on every refresh and bury the two
 entries that matter.
+
+### The trail is read here, and not on the page — on purpose
+
+The approved design for the admin surface put "what has been taken, and by whom" at the foot of the
+dashboard, and **it is deliberately not built.** The reason is one line of the access model rather
+than an omission:
+
+`entries.admin_audit` has row-level security on, no policy and no grant. The anon role may execute
+**thirteen** functions and **none of them reads it** — the trail is written by
+`entries.record_admin_action()`, which is granted to nobody and reachable only from the definer
+functions that call it. Putting the trail on the page therefore needs a fourteenth anon-callable
+function, and a fourteenth is
+[a stop-and-ask](../../../CLAUDE.md): *"granting the anon role anything on a table, or adding a
+function it may execute."* `packages/db/tests/entries.test.ts` asserts the exact set of thirteen so
+that the decision has to be taken in a diff somebody argues rather than absorbed by a layout.
+
+It is also the one panel on that design whose absence costs least: an access log is read when
+somebody asks a question about a disclosure, which is a moment that already involves a person with
+database access and this runbook open. **A rendered trail would be convenient; the fourteenth grant
+would be permanent.**
+
+So this query is the interface, until somebody argues for the other thing.
 
 **There is no retention rule on this table yet**, and that is an open question rather than an
 oversight — it holds handles and entrant ids rather than names, so it is not urgent, but "how

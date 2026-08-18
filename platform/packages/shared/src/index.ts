@@ -103,6 +103,7 @@ export {
   type AdminEntry,
   type AdminEntryEvent,
   type AdminEntryList,
+  type AdminEventFigures,
   type AdminExport,
   type AdminExportEvent,
   type AdminFailure,
