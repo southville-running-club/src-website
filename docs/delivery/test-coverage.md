@@ -170,13 +170,33 @@ unreachable.
 - **`/nn/privacy/` is served.** A legal publication, and the one page where serving a blank has
   a consequence outside the club.
 
-### Acceptance — the 404 page
+### Acceptance — the 404 page, and the defect it found
 
 `404.astro` was the only built page with no accessibility check; the suite asserted its status
 code and nothing else. It now gets what every other page gets — zero axe violations, no
 sideways scroll at 320px — plus an assertion that it renders the club's layout and the way
-back. It is not hypothetical: links to the Squarespace site have been in race listings and
-other clubs' pages for years, and every one of them outlives the cutover.
+back.
+
+**Those three tests went red on their first run, and they were right.**
+`platform/apps/main/wrangler.jsonc` set no `not_found_handling`, so the assets binding took its
+default of `"none"`: an address matching no asset got a bare 404 from the edge — no `<title>`,
+no `lang` on the `<html>`, no stylesheet, no way back to the club. **`404.astro` was built on
+every deploy and served never**, and axe counted 86 violations on what was actually being
+returned.
+
+That is not cosmetic here. Links to the Squarespace site have been in race listings, forum
+posts and other clubs' pages for years, and every one of them outlives the cutover — so a stale
+link is one of the commoner ways somebody arrives at this site, and a blank page is what they
+were getting.
+
+The fix is one line, `"not_found_handling": "404-page"`, and it is the only production change
+in this work. It stays a 404: `nn-admin-unconfigured.test.ts` depends on every address under
+`/nn/admin` being answered exactly as an address nobody published, and that is now this page,
+carrying nothing that says a door is there.
+
+**This is the argument for the whole exercise, in one example.** The page had been written,
+reviewed, merged and deployed. Nothing was broken in the code. What was missing was the
+assertion that it was reachable, and until somebody wrote it, nothing was.
 
 ---
 
