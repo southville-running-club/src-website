@@ -121,4 +121,19 @@ describe('the html template', () => {
 
     expect(html`<td>${hostile}</td>`.toString()).toBe('<td>&lt;script&gt;</td>');
   });
+
+  it('emits nothing rather than the word undefined when called as a plain function', () => {
+    // **`html` is an exported function, and a tag is only a calling convention.** Called
+    // directly with fewer strings than values — which a tagged template can never produce, but
+    // a refactor moving fragments about can — the two `?? ''` fallbacks are what stand between
+    // an admin page and the literal text `undefined` in a table cell.
+    //
+    // This is the whole of what those two branches are for. Asserting it here is cheaper than
+    // finding out from a screenshot on race week, and it is why they are not simply deleted as
+    // unreachable.
+    const strings = ['<td>'] as unknown as TemplateStringsArray;
+
+    expect(html(strings, 'Inés', "O'Rourke").toString()).toBe('<td>InésO&#39;Rourke');
+    expect(html([] as unknown as TemplateStringsArray).toString()).toBe('');
+  });
 });

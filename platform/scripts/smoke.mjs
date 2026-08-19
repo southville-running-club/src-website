@@ -133,6 +133,80 @@ const CHECKS = [
     },
   },
   {
+    // **The year page, which `/nn/` deliberately is not.** `/nn/` names no year and paints its
+    // links from `current_entry_state('nn')`; this is the page the entry form and the fees
+    // live on, and it reaches the Worker by a different route. A deploy that broke only this
+    // one passed every check here until it was added.
+    name: 'the 2026 running is served at /nn/2026/',
+    url: `${SITE}/nn/2026/`,
+    proves: 'the year layer resolves, so the page somebody enters from is reachable',
+    check: async (response) => {
+      if (response.status !== 200) return `expected 200, got ${response.status}`;
+      const body = await response.text();
+      if (!body.includes('Nightingale Nightmare 2026'))
+        return 'the page is not the 2026 running';
+      return null;
+    },
+  },
+  {
+    // A legal publication, and the one page here where serving a blank has a consequence
+    // outside the club. It renders four "To be confirmed by the club" markers out of
+    // `race.json` — `nn-privacy.spec.ts` counts them; this only proves the page is there.
+    name: 'the privacy notice is served',
+    url: `${SITE}/nn/privacy/`,
+    proves: 'the notice the entry form links to is published, not a 404',
+    check: async (response) => {
+      if (response.status !== 200) return `expected 200, got ${response.status}`;
+      const body = await response.text();
+      if (!body.includes('What the club does with your details'))
+        return 'the page is not the privacy notice';
+      return null;
+    },
+  },
+  {
+    /**
+     * **The admin surface is still switched off, and this is the only thing that checks it.**
+     *
+     * `/nn/admin` ships declining every address beneath it: with no `ENTRIES_ADMIN_KEY` bound
+     * the Worker does not answer, the request falls through to the assets binding, and it 404s
+     * exactly like an address nobody published. Switching it on is a manual step in the
+     * Cloudflare dashboard by design — see docs/delivery/runbooks/entries-admin.md.
+     *
+     * That is precisely what makes this worth a check: **binding the key by hand produces no
+     * diff, no CI run and no pull request.** Nothing in the repository would notice that the
+     * club's entry list — names, ages, emergency contacts, medical notes — had become reachable.
+     * This is not a test of the Worker's authorisation, which `nn-admin-unconfigured.test.ts`
+     * covers properly; it is a check that the deployed state is the one the club decided on.
+     *
+     * If the club switches the surface on deliberately, this check is what has to change with
+     * it, in the same pull request as the decision.
+     */
+    name: 'the admin surface is not reachable',
+    url: `${SITE}/nn/admin`,
+    proves:
+      'no ENTRIES_ADMIN_KEY is bound in production, so the entry list is not on the internet',
+    check: async (response) =>
+      response.status === 404
+        ? null
+        : `expected 404, got ${response.status} — the admin surface may be switched on`,
+  },
+  {
+    // **One character away from the check above, and it must not move with it.**
+    // `/nn/admin.css` is a real file in `dist/`, emitted by `src/pages/nn/admin.css.ts`, and it
+    // sits *beside* `/nn/admin/` rather than beneath it. If `isNnAdminPath` ever treated the
+    // prefix as a plain string prefix, the Worker would answer this request itself and every
+    // admin page would render unstyled with nothing failing to say why.
+    name: 'the admin stylesheet beside it still resolves',
+    url: `${SITE}/nn/admin.css`,
+    proves: 'the admin prefix matches a segment, not a string prefix',
+    check: async (response) => {
+      if (response.status !== 200) return `expected 200, got ${response.status}`;
+      const type = response.headers.get('content-type') ?? '';
+      if (!type.includes('css')) return `expected a stylesheet, got ${type}`;
+      return null;
+    },
+  },
+  {
     name: 'race timing is served at /timing',
     url: `${SITE}/timing`,
     proves:

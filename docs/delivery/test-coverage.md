@@ -1,10 +1,10 @@
-# Test coverage — where it stands, and what to do next
+# Test coverage — where it stands, and what is still open
 
 Measured on 19 August 2026, against `main` at `a8046f2`.
 
-This is an assessment, not a plan of record. It says what the four test layers reach today,
-where the holes are, and which holes are worth an evening. The one change that shipped with
-it is the coverage tooling itself — no test was added or altered to produce these numbers.
+This began as an assessment of the four test layers. The gaps it found are closed in the same
+change, so it now reads as both: what each layer reaches, what was added, and the three things
+deliberately left open with the argument for each.
 
 ---
 
@@ -18,10 +18,10 @@ drives a browser.
 
 So the number below is **the share of pure logic reached by pure tests**, and nothing wider. A
 file at 0% here is not necessarily untested — it may be thoroughly proven by 188 Miniflare
-tests. That is why `vitest.config.ts` names the included files one by one instead of pointing
-at `src/**`: a module deliberately proven at another layer would otherwise sit at zero and
-drag the figure down, and the only way to move it would be to write a worse test at the wrong
-layer.
+tests. That is why `platform/vitest.config.ts` names the included files one by one instead of
+pointing at `src/**`: a module deliberately proven at another layer would otherwise sit at zero
+and drag the figure down, and the only way to move it would be to write a worse test at the
+wrong layer.
 
 The exclusion list in that file is the honest part of this. Read it before quoting a number.
 
@@ -31,210 +31,204 @@ The exclusion list in that file is the honest part of this. Read it before quoti
 
 | Layer | Where | Declared | What it runs against |
 | --- | --- | --- | --- |
-| Unit | `*/tests/unit/**` | 240 (355 executed) | Node, TZ pinned UTC |
+| Unit | `*/tests/unit/**` | 338 (459 executed) | Node, TZ pinned UTC |
 | Database | `packages/db/tests/**` | 230 | A real local Postgres |
 | Functional | `apps/main/tests/worker/**` | 188 | `workerd` via Miniflare, on the real build |
-| Acceptance | `apps/main/tests/e2e/**` | 171 × 3 projects | Chromium, WebKit, and Chromium with no JavaScript |
-| Smoke | `platform/scripts/smoke.mjs` | 8 checks | The deployed platform, on the real hostname |
+| Acceptance | `apps/main/tests/e2e/**` | 174 × 3 projects | Chromium, WebKit, and Chromium with no JavaScript |
+| Smoke | `platform/scripts/smoke.mjs` | 12 checks | The deployed platform, on the real hostname |
 
-Declared counts are `test(`/`it(` declarations; the unit runner executes 355 of them because
-several are table-driven. The acceptance suite skips its 16 `@requires-js` axe tests in the
+Declared counts are `test(`/`it(` declarations; the unit runner executes 459 of them because
+several are table-driven. The acceptance suite skips its `@requires-js` axe tests in the
 no-JavaScript project.
 
-This is a well-tested repository. Nothing below should be read as saying otherwise — the
-findings are about a small number of specific holes in an estate that is mostly closed.
+---
+
+## Unit coverage
+
+`npm run test:coverage`. **88.3% statements, 84.1% branches, 91.9% functions, 88.4% lines** —
+up from 67.6 / 59.6 / 71.0 / 67.7 before this change.
+
+| File | Lines | Functions | Branches | |
+| --- | --- | --- | --- | --- |
+| `worker/routing.ts` | 100% | 100% | 100% | was 76 / 75 / 56 |
+| `worker/stripe-signature.ts` | 100% | 100% | 100% | |
+| `worker/html.ts` | 100% | 100% | 93.3% | was 80% branches |
+| `worker/admin-session.ts` | 97.7% | 100% | 91.7% | |
+| `worker/stripe.ts` | 75.0% | 75.0% | 55.6% | **left open — see below** |
+| `shared/contrast.ts` | 100% | 100% | 100% | was 61 / 57 / 33 |
+| `shared/entry-confirmation.ts` | 100% | 100% | 96.9% | was 20 / 0 / 0 |
+| `shared/health-report.ts` | 100% | 100% | 100% | was excluded, then 0% |
+| `shared/csv.ts` | 100% | 100% | 100% | |
+| `shared/nn-signup.ts` | 100% | 100% | 92.3% | |
+| `shared/medical-retention.ts` | 100% | 100% | 90.9% | |
+| `shared/nn-entry.ts` | 96.9% | 100% | 93.8% | |
+| `shared/london-time.ts` | 95.0% | 100% | 75.0% | |
+| `shared/admin.ts` | 94.7% | 100% | 80.6% | was 12.8 / 0 / 0 |
+| `shared/age-category.ts` | 94.1% | 90% | 93.9% | |
+| `shared/entry-state.ts` | 38.5% | 42.9% | 28.6% | **left open — see below** |
+| `shared/entry-purchase.ts` | 12.5% | 25.0% | 0% | **left open — see below** |
+
+`brand.ts` and `social.ts` are constant tables at 100%.
 
 ---
 
-## Unit coverage today
+## What was added, and why each earns its place
 
-`npm run test:coverage`. All files: **67.6% statements, 59.6% branches, 71.0% functions,
-67.7% lines**.
-
-| File | Lines | Functions | Branches |
-| --- | --- | --- | --- |
-| `worker/stripe-signature.ts` | 100% | 100% | 100% |
-| `shared/csv.ts` | 100% | 100% | 100% |
-| `shared/nn-signup.ts` | 100% | 100% | 92.3% |
-| `shared/medical-retention.ts` | 100% | 100% | 90.9% |
-| `worker/html.ts` | 100% | 100% | **80.0%** |
-| `worker/admin-session.ts` | 97.7% | 100% | 91.7% |
-| `shared/nn-entry.ts` | 96.9% | 100% | 93.8% |
-| `shared/london-time.ts` | 95.0% | 100% | 75.0% |
-| `shared/age-category.ts` | 94.1% | 90% | 93.9% |
-| `worker/routing.ts` | **76.0%** | **75.0%** | **55.6%** |
-| `worker/stripe.ts` | 75.0% | 75.0% | 55.6% |
-| `shared/contrast.ts` | **61.1%** | **57.1%** | **33.3%** |
-| `shared/entry-confirmation.ts` | **20.0%** | **0%** | **0%** |
-| `shared/entry-state.ts` | **19.2%** | **28.6%** | **14.3%** |
-| `shared/entry-purchase.ts` | 12.5% | 25.0% | 0% |
-| `shared/admin.ts` | **12.8%** | **0%** | **0%** |
-
-`brand.ts` and `social.ts` are constant tables at 100% and are omitted.
-
----
-
-## Findings, worst first
-
-### 1. `packages/shared/src/admin.ts` — 843 lines, 12.8%, and none of its 62 branches
+### `packages/shared/src/admin.ts` — 12.8% to 94.7%, and 0 to 100% of its functions
 
 The largest module in the workspace outside the Worker's route handlers, and no unit test
-imports it. Its happy path is genuinely well proven — `apps/main/tests/worker/admin/` drives
-it through the real runtime and `packages/db/tests/entries-admin.test.ts` proves the five RPCs
-underneath. **What is proven nowhere is its failure behaviour, and that is most of what the
+imported it. Its happy path was already well proven — `apps/main/tests/worker/admin/` drives it
+through the real runtime and `packages/db/tests/entries-admin.test.ts` proves the five RPCs
+underneath. **What was proven nowhere was its failure behaviour, and that is most of what the
 file is made of.**
 
-Three specific paths, each deliberate and each unreachable from a database that is working:
+Three paths in particular, each deliberate and each unreachable from a database that works:
 
 - **`readEnvelope()` classifies an RPC reply** into `unavailable`, `unauthorised` or
   `not-found`. A real database can produce `unauthorised`. It cannot produce
-  "`admin_sign_in` returned an unexpected shape", which is the branch that decides whether a
-  broken deploy shows a volunteer an error or a stack trace.
-- **`entryShape.status` is `z.enum(ENTRY_STATUSES).catch('pending')`**, and the comment above
-  it says why: nothing sequences a migration against the Cloudflare deploy, so a fifth status
-  added one day must degrade to a row that renders. Nothing tests that it does.
-- **`hold_expires_at` is `.nullable().optional()`** for the same reason — a database
-  predating the figures migration must not take the page down.
+  "`admin_sign_in` returned an unexpected shape", which is the branch deciding whether a broken
+  deploy shows a volunteer a message or a stack trace.
+- **`entryShape.status` is `z.enum(ENTRY_STATUSES).catch('pending')`** — a fifth status added by
+  a migration must degrade to a row that renders.
+- **`hold_expires_at` is `.nullable().optional()`** — a database predating the figures
+  migration must not take the page down.
 
-These three are the repository's expand-migrate-contract guarantee written as code, and
-[principles](../architecture/principles.md#expand-migrate-contract) calls that load-bearing
-rather than good practice. **Proving it needs a hand-made payload, which is a unit test and
-cannot be anything else.** This is the single highest-value gap in the repository.
+These are the [expand-migrate-contract](../architecture/principles.md#expand-migrate-contract)
+guarantee written as code. Proving it needs a hand-made payload, which is a unit test and
+cannot be anything else.
 
-### 2. `apps/main/worker/routing.ts` — 3 of 12 exported functions have no test
+The distinction the new tests are built around: **`unavailable` is not an empty list.** On a
+page an organiser uses to decide how many bibs to set out, "the club has no entries" and "the
+question could not be asked" must never render as the same thing. `readFigures` returning
+`null` rather than a block of zeroes is the same decision one level down, and is now pinned.
 
-Pure string logic, no I/O, and it decides which Worker answers what. Untested:
-`isHealthPath`, `isNnMastheadPath`, `isNnWebhookPath`.
+### `packages/shared/src/entry-confirmation.ts` — 0 to 100% of its functions
 
-`isHealthPath` is the one to look at first. The project's own trap notes record that
-`/health` and `/_health` are one character apart, that `trailingSlash` is `'always'`, and that
-getting it wrong produces two live addresses with no error and no failing test — a runner
-looking for training advice getting a database report. The unit layer is where that decision
-is cheapest to pin down, and it is not pinned down. `isNnWebhookPath` guards the only endpoint
-permitted to write `paid`.
+The classification behind `/nn/<year>/entry/complete/` and the webhook. The tests are organised
+around the distinction the module exists for, which is invisible from either side:
 
-Cheapest item in this document: pure functions, a table-driven test, an evening.
+- `recorded` with `ok: false` — the database answered. The question is settled.
+- `unavailable` — the question could **not** be asked. Nothing was written, and the caller owes
+  Stripe a retry.
 
-### 3. `packages/shared/src/entry-confirmation.ts` — 0 of 2 functions, 0 of 32 branches
+A parse that collapsed the second into the first would answer 200 to a payment nobody recorded.
+This is the one place in the repository where failure is inverted — by the time the code runs
+the money has gone — so it is the one place where a defensive 5xx is the *safe* answer.
 
-`recordCheckoutEvent()` and `fetchEntryCompletionState()`. The round trips are properly proven
-at the database layer. The 32 untested branches are the outcome classification that
-`/nn/<year>/entry/complete/` renders — and the rule that **no state may ever make a negative
-claim** (a lapsed hold must never say "nothing was charged", because the webhook may simply be
-late and somebody who believes it pays twice) is currently enforced by one acceptance test
-against a live page, with nothing at the layer where the mapping actually happens.
+**One finding came out of writing these**, and it is recorded as a test rather than changed:
+`completionShape`'s `.catch('unknown')` sits on the enum rather than on the object, so a reply
+that is an object but carries no `state` key parses *successfully* at `unknown` rather than
+failing. Only a reply that is not an object at all fails the shape. That is the right way round
+for this page — both readings claim nothing — but moving the `.catch()` up would silently
+change it, so there is now a test saying so.
 
-### 4. `packages/shared/src/contrast.ts` — the verdict functions are untested
+### `apps/main/worker/routing.ts` — 76% to 100%, all three branches included
 
-`contrastRatio` and `parseHex` are covered by `admin-contrast.test.ts`. `ratioLabel` and
-`contrastVerdict` are not — the two functions that turn a ratio into `AAA` / `AA` /
-`large only` / `fails`. Pure arithmetic against documented WCAG thresholds, which is to say
-four boundary values and exactly the place an off-by-one lives. Half an hour.
+`isHealthPath`, `isNnMastheadPath` and `isNnWebhookPath` had no unit test. The first is the
+decision the `/health` versus `/_health` trap note is about: `trailingSlash` is `'always'`, so
+an Astro page at `src/pages/health.astro` would serve at `/health/` while the Worker went on
+answering `/health` — two live addresses one character apart, nothing erroring and nothing
+failing CI. **This is a running club**, and `/health/` is a page somebody will want. The
+assertion that the Worker does *not* claim it is now in the file.
 
-### 5. `apps/main/worker/html.ts` — 100% of lines, 80% of branches
+### `packages/shared/src/health-report.ts` — excluded, then 0%, now 100%
 
-The auto-escaping template, and the only place in this repository that builds markup inside a
-Worker. There is deliberately no `setInnerContent(..., { html: true })` anywhere, which makes
-this file the escaping boundary for the whole admin surface. Three uncovered branches in an
-escaper are worth more than three uncovered branches anywhere else in the list.
+Excluded in the first pass and put back on reading it: `healthResponse()` decides **200 against
+503**, and that decision is pure. It is also the contract `scripts/smoke.mjs` parses, in both
+applications. A health endpoint answering 200 while its body says `"ok": false` is the shape
+that lets an outage sit behind a green tick, and nothing asserted otherwise.
 
-### 6. Smaller, and listed for completeness
+### `packages/shared/src/contrast.ts` — 61% to 100%
 
-- `entry-state.ts`: `formatPence` has no test. It puts money on the page.
-- `london-time.ts`: one uncovered line, in the module that ESLint bans every alternative to.
-- `age-category.ts`: two uncovered lines at 94%.
-- `stripe.ts`: `createCheckoutSession` is uncovered and **should be** — it is an HTTP call,
-  proven by the stub server and the acceptance suite. `describeStripeError` is covered.
-  No action.
-- `entry-purchase.ts` at 12.5% is likewise mostly round trips. `nnEntrantPayload()`, the one
-  pure function, is tested.
+`ratioLabel` and `contrastVerdict` were untested — the two functions `/brand/` renders beside
+every swatch. The tests pin the three WCAG boundaries (3, 4.5, 7) on the passing side, which is
+where the spec puts them and where a `>` written for a `>=` would be invisible: every real
+colour in the palette is comfortably clear of a boundary, so the page would go on looking right.
 
----
+### `apps/main/worker/html.ts` — 80% to 93.3% of branches
 
-## The other three layers
+The escaping template, and the only place in this repository that builds markup in a Worker.
+The remaining `??` fallbacks are only reachable by calling `html` as a plain function rather
+than as a tag, which a refactor moving fragments about can do — so there is a test saying they
+emit nothing rather than the literal text `undefined`, which is why they are not deleted as
+unreachable.
 
-### Acceptance — strong, one gap
+### Smoke — 8 checks to 12
 
-Ten pages get axe at zero violations and a 320px overflow check, across Chromium, WebKit and
-a genuine no-JavaScript project. The suite carries a named regression guard for every
-expensive defect the project has hit — the `@view-transition` overlay swallowing a click, the
-`focusout` message that made the entry type unselectable, the conditional field that moved the
-card somebody had just tapped, the three browser engines disagreeing about what an attachment
-is. That is the pattern working as intended.
+- **`/nn/admin` must return 404.** The admin surface ships switched off; switching it on is a
+  manual Cloudflare step by design, which means **binding `ENTRIES_ADMIN_KEY` by hand produces
+  no diff, no CI run and no pull request.** Nothing in this repository would have noticed the
+  club's entry list becoming reachable. This is not a test of the Worker's authorisation —
+  `nn-admin-unconfigured.test.ts` covers that properly — it is a check that the deployed state
+  is the one the club decided on. **If the surface is switched on deliberately, this check
+  changes in the same pull request as the decision.**
+- **`/nn/admin.css` must still return 200**, one character away from it. It is a real file in
+  `dist/` sitting *beside* `/nn/admin/`; if the prefix predicate ever matched a plain string
+  prefix, every admin page would render unstyled with nothing failing to say why.
+- **`/nn/2026/` is served.** `/nn/` deliberately names no year; the year page is where the entry
+  form and the fees live, and it reaches the Worker by a different route.
+- **`/nn/privacy/` is served.** A legal publication, and the one page where serving a blank has
+  a consequence outside the club.
 
-**The gap: `404.astro` is never asserted on beyond its status code.** The "what does not
-exist" test checks that `/membership/` returns `404` and stops there. The page itself is not
-in the axe list and nothing asserts it renders the club's layout — making it the only built
-page in the site with no accessibility check, and one a runner will actually meet, because
-stale links to the 2023 Squarespace site will outlive the cutover.
+### Acceptance — the 404 page
 
-**Worth revisiting, not a defect: `workers: 1`.** The cap is correctly argued in
-`playwright.config.ts` — `nn-entry.spec.ts` and `nn-signup.spec.ts` own the same
-`entries.events` row and Playwright parallelises across files. It buys determinism at the
-price of running roughly 500 browser tests serially, and CI already records that this
-repository is on course to spend its whole 2,000-minute monthly Actions allowance. The
-alternative the config names — a Postgres advisory lock shared by the two files — is still
-available if minutes become the binding constraint.
-
-### Functional — strong, with one structural cost
-
-188 tests inside the real runtime, over the entry path, the webhook, the admin surface, the
-admin surface with no key bound, routing, the panel, the health endpoint, escaping, and what
-may and may not reach a log. Little to add.
-
-The cost: `test:worker` runs **five vitest configs sequentially**, because each needs a
-different binding or a differently seeded event — key bound and unbound, entries open and
-shut, sold out, webhook. That is five Miniflare boots and five global setups in series, on
-every CI run, reported as one step. It is correct, since a binding cannot change mid-run, but
-it is the slowest non-Playwright thing in the pipeline and its cost is invisible in the log.
-
-### Smoke — the thinnest layer, and the clearest wins
-
-Eight checks against the deployed platform. It is the only thing that can catch a deploy that
-built cleanly and serves nothing, and it has already caught exactly that once. Three things it
-does not check:
-
-- **`/nn/admin` is not checked, and this is the highest-consequence gap in this document.**
-  The admin surface ships switched off: with no `ENTRIES_ADMIN_KEY` bound, every address under
-  the prefix falls through to the assets binding and 404s. Switching it on is a manual
-  Cloudflare step by design. So the club's entire entry list can be exposed by a dashboard
-  action that produces no diff, no CI run and no alarm — and nothing in this repository would
-  notice. A check asserting `/nn/admin` returns 404 in production is four lines.
-- **`/nn/2026/` is not checked.** `/nn/` is, and `/nn/` deliberately names no year. The year
-  page is where the entry form and the fees live, and it reaches the Worker by a different
-  route. A deploy that broke it would pass all eight checks.
-- **`/nn/privacy/` is not checked.** It is a legal publication, it renders four "To be
-  confirmed by the club" markers out of `race.json`, and it is the one page where serving a
-  blank has a consequence outside the club.
+`404.astro` was the only built page with no accessibility check; the suite asserted its status
+code and nothing else. It now gets what every other page gets — zero axe violations, no
+sideways scroll at 320px — plus an assertion that it renders the club's layout and the way
+back. It is not hypothetical: links to the Squarespace site have been in race listings and
+other clubs' pages for years, and every one of them outlives the cutover.
 
 ---
 
-## Proposed changes, in order
+## Deliberately left open
 
-One change per pull request, because the repository is squash-only.
+Three files hold the figure below 100%, and each is a decision rather than a gap.
 
-| # | Change | Effort | Why this order |
-| --- | --- | --- | --- |
-| 1 | **Coverage tooling and a ratchet** — shipped with this document | done | Nothing else can be measured until this exists |
-| 2 | Smoke: add `/nn/admin` → 404, `/nn/2026/`, `/nn/privacy/` | ~1 hour | Highest consequence, lowest effort, and it guards a live surface |
-| 3 | Unit: `routing.ts`, `contrast.ts`, `entry-state.formatPence`, `html.ts` branches | ~1 evening | Pure functions, no fixtures, immediate threshold rise |
-| 4 | Unit: `admin.ts` degradation paths | ~1 day | The big one; needs hand-made RPC payloads |
-| 5 | Unit: `entry-confirmation.ts` outcome classification | ~half a day | Follows the same fixture pattern as 4 |
-| 6 | Acceptance: put the 404 page in the axe and 320px lists | ~1 hour | Closes the last page with no accessibility check |
-| 7 | Playwright advisory lock, and lift `workers: 1` | ~half a day | Only if CI minutes become the constraint |
+**`apps/main/worker/stripe.ts` at 75%.** The uncovered lines are `createCheckoutSession`, which
+is an HTTP call. It is proven by the stub server in `playwright.config.ts` and by the
+acceptance suite, which asserts *where* the Worker redirects and never follows it — Stripe's
+hosted page belongs to a third party, and a test that types into it breaks when they redesign
+it. A unit test here would assert against a mock of Stripe's API, which is a test of the mock.
 
-Raise the thresholds in `vitest.config.ts` with each of 3, 4 and 5 — that is what makes the
-ratchet a ratchet rather than a number nobody looks at.
+**`packages/shared/src/entry-purchase.ts` at 12.5%** and **`entry-state.ts` at 38.5%.** What is
+uncovered in both is the round trips — `createNnPendingPurchase`, `attachCheckoutSession`,
+`expirePendingHolds`, `fetchEntryState`, `fetchCurrentEntryState`. Every one takes a
+per-event advisory lock, counts places against a capacity predicate, or reads a window computed
+from a row, and **what is worth proving about them is that they hold under concurrency** —
+`packages/db/tests/entries-capacity.test.ts` puts two people on the last place at once, which
+is a test no stub can imitate.
 
-**Nothing in this list is a stop-and-ask.** None of it touches a race fact, a schema, a grant,
-a credential, DNS or the timing platform. It is all test code and one CI step.
+They are the honest remaining candidates, though: both have the same parse-and-degrade
+structure as `admin.ts`, and the helper this change adds
+(`packages/shared/tests/unit/support/rpc-client.ts`) would fit them unchanged. The argument for
+doing it is weaker than it was for `admin.ts` — those two have far less shaping logic — so it is
+recorded here rather than done.
 
 ---
 
-## A note on the thresholds
+## Still open at the other layers
 
-They are set at today's floor rounded down by a point, which leaves between one and two points
-of headroom. That is deliberately tight: adding a new untested pure function *should* turn the
-pipeline red, because the alternative is a repository that accumulates untested pure logic
-quietly. If it proves annoying in practice, the fix is item 3 above rather than a lower
-number.
+**`workers: 1` in `playwright.config.ts`.** Correctly argued: `nn-entry.spec.ts` and
+`nn-signup.spec.ts` own the same `entries.events` row and Playwright parallelises across files.
+It buys determinism at the price of running roughly 500 browser tests serially, and CI already
+records that this repository is on course to spend its whole 2,000-minute monthly Actions
+allowance. The alternative the config names — a Postgres advisory lock shared by the two files
+— is still available if minutes become the binding constraint. Not done here: it is a change to
+test infrastructure with its own failure modes, and it belongs in its own pull request.
+
+**`test:worker` runs five vitest configs sequentially**, because each needs a different binding
+or a differently seeded event — key bound and unbound, entries open and shut, sold out,
+webhook. Five Miniflare boots and five global setups in series, on every CI run, reported as
+one step. It is correct, since a binding cannot change mid-run, but it is the slowest
+non-Playwright thing in the pipeline and its cost is invisible in the log.
+
+---
+
+## The thresholds
+
+`platform/vitest.config.ts` holds them at today's floor rounded down by a point: **87% lines
+and statements, 90% functions, 82% branches**. A ratchet, not a target — it goes red when a
+module loses its tests and stays quiet otherwise.
+
+Raise them when a module lands. **Never lower one to make a red run green**: a fall means
+coverage was lost, and noticing that is the entire job.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatEventDate, formatEventStartTime, parseIsoDate } from '../../src';
+import {
+  formatEventDate,
+  formatEventStartTime,
+  formatPence,
+  parseIsoDate,
+} from '../../src';
 
 /**
  * Rendering an event's date and start time — **through the one formatter this repository has**.
@@ -91,5 +96,41 @@ describe('a start time is civil, and is never put through a timezone', () => {
     expect(formatEventStartTime('11:00')).toBe('11:00');
     expect(formatEventStartTime('')).toBe('');
     expect(formatEventStartTime('not a time')).toBe('not a time');
+  });
+});
+
+describe('money, formatted once and in one place', () => {
+  it('renders pounds and pence with two places, always', () => {
+    // **Not `toLocaleString`.** ESLint bans the timezone-taking members of that family
+    // repository-wide, and the currency one has the same shape of problem: it takes the ambient
+    // locale, so a Worker in one region and a browser in another would render one price two
+    // ways. The club charges pounds sterling and always will.
+    expect(formatPence(1500)).toBe('£15.00');
+    expect(formatPence(1700)).toBe('£17.00');
+  });
+
+  it('pads a single-digit remainder, which is the classic way this goes wrong', () => {
+    // `£15.5` for 1505 is the bug, and it is one somebody notices on a receipt rather than in
+    // a test.
+    expect(formatPence(1505)).toBe('£15.05');
+    expect(formatPence(1550)).toBe('£15.50');
+    expect(formatPence(5)).toBe('£0.05');
+    expect(formatPence(99)).toBe('£0.99');
+  });
+
+  it('says Free rather than £0.00', () => {
+    // **A visually impaired runner's guide enters at nothing**, and a price of nothing set in
+    // the same figures as a price of something reads like a mistake — or worse, like a fee
+    // somebody still has to pay. It is also the one entry that cannot be completed, because
+    // Stripe refuses a zero-total Checkout session.
+    expect(formatPence(0)).toBe('Free');
+  });
+
+  it('renders the three fees the committee has actually confirmed', () => {
+    // Read from `entries.fees` in production and never typed into markup — this is only the
+    // rendering. The figures are the settled ones: £15 affiliated, £17 unaffiliated, £0 guide.
+    expect(formatPence(1500)).toBe('£15.00');
+    expect(formatPence(1700)).toBe('£17.00');
+    expect(formatPence(0)).toBe('Free');
   });
 });

@@ -91,21 +91,21 @@ export default defineConfig({
       ],
       reporter: ['text', 'html', 'lcov'],
       reportsDirectory: './coverage',
-      // **A ratchet, not an aspiration, and it is deliberately set low.** These are what
-      // the suite reaches today, rounded down by a point. A threshold above what is
-      // actually reached is a red pipeline on the day it lands, which teaches everybody to
-      // lower it; a threshold at today's floor fails only on a real regression, which is
-      // the one thing a number like this is good for.
+      // **A ratchet, not an aspiration.** These are what the suite reaches today, rounded
+      // down by a point. A threshold above what is actually reached is a red pipeline on
+      // the day it lands, which teaches everybody to lower it; a threshold at today's floor
+      // fails only on a real regression, which is the one thing a number like this is good
+      // for. Raise them as each module lands.
       //
-      // **It is low because `admin.ts` is at 12%**, and that is a finding rather than a
-      // baseline to be comfortable with — see docs/delivery/test-coverage.md. Raise these
-      // as each module lands. Never lower one to make a red run green: a fall means a
-      // module lost its tests, which is exactly what this is here to notice.
+      // **Never lower one to make a red run green.** A fall means a module lost its tests,
+      // and noticing that is the entire job here. The three files still holding the figure
+      // down — `stripe.ts`, `entry-state.ts` and `entry-purchase.ts` — are argued in
+      // docs/delivery/test-coverage.md, with the reason each is proven at another layer.
       thresholds: {
-        lines: 66,
-        functions: 70,
-        branches: 58,
-        statements: 66,
+        lines: 87,
+        functions: 90,
+        branches: 82,
+        statements: 87,
       },
     },
   },

@@ -1184,4 +1184,55 @@ test.describe('what does not exist', () => {
 
     expect(response?.status()).toBe(404);
   });
+
+  /**
+   * **The 404 page is a page a runner will actually meet**, and until now nothing asserted
+   * anything about it beyond the status code above.
+   *
+   * It is not a hypothetical: the club's Squarespace site has been linked from race listings,
+   * forum posts and other clubs' pages for years, and every one of those links outlives the
+   * cutover. Somebody following a 2023 link to a results page lands here — and if this page
+   * renders unstyled, or without the way back, that is the club's front door as far as they
+   * are concerned.
+   *
+   * So it gets what every other built page gets: zero axe violations and no sideways scroll at
+   * 320px. It sits here rather than in the `accessibility` loop above because that loop drives
+   * `page.goto(path)` on addresses that resolve; this one is reached by *failing* to resolve,
+   * which is the whole point of it.
+   */
+  test('the 404 page renders the club’s layout, not a bare server error', async ({
+    page,
+  }) => {
+    await page.goto('/membership/');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Page not found');
+    // The way back. A dead end with no route onward is the version of this page that loses
+    // somebody who was looking for the club.
+    await expect(
+      page.getByRole('link', { name: 'Go to Nightingale Nightmare' }),
+    ).toHaveAttribute('href', '/nn/');
+    // The global footer, which is what proves this is the club's 404 rather than the
+    // platform's own — and it carries the way back to the club website too.
+    await expect(page.getByRole('contentinfo')).toHaveCount(1);
+  });
+
+  test('the 404 page has zero axe violations @requires-js', async ({ page }) => {
+    await page.goto('/membership/');
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('the 404 page is operable at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/membership/');
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflows).toBe(false);
+  });
 });

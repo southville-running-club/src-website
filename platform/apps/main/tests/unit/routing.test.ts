@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isHealthPath,
   isNnAdminPath,
   isNnEntryCompletePath,
+  isNnMastheadPath,
   isNnRacePath,
+  isNnWebhookPath,
   isNnYearPath,
   isTimingPath,
   nnAdminSegments,
   nnEntryCompletePath,
   nnEventSlugForYearPath,
   nnYearPathForEventSlug,
+  HEALTH_PATH,
   NN_ADMIN_PREFIX,
   NN_PREFIX,
   NN_RACE_SLUG,
+  NN_WEBHOOK_PATH,
   TIMING_PREFIX,
 } from '../../worker/routing';
 
@@ -164,6 +169,127 @@ describe('where Stripe sends somebody back to', () => {
   it('builds the return path from the year page it belongs to', () => {
     expect(nnEntryCompletePath('/nn/2026/')).toBe('/nn/2026/entry/complete/');
     expect(isNnEntryCompletePath(nnEntryCompletePath('/nn/2026/'))).toBe(true);
+  });
+});
+
+describe('the health endpoint, and the one character that keeps it off a page', () => {
+  it('answers at the underscored spelling and nowhere else', () => {
+    expect(isHealthPath('/_health')).toBe(true);
+    expect(HEALTH_PATH).toBe('/_health');
+  });
+
+  it('leaves /health/ to a page the club will one day want', () => {
+    // **This is the trap, written down as an assertion.** `trailingSlash` is `'always'`, so an
+    // Astro page at `src/pages/health.astro` serves at `/health/` — while this Worker would go
+    // on answering `/health`, because it matches before the assets binding. Two live addresses
+    // one character apart, nothing erroring and nothing failing CI.
+    //
+    // **This is a running club.** Training, injury and wellbeing are exactly what somebody
+    // typing "health" is looking for, and what they would get is a database report. The
+    // underscore makes the collision impossible rather than unlikely, and these four lines are
+    // what stop somebody "tidying" it away.
+    expect(isHealthPath('/health')).toBe(false);
+    expect(isHealthPath('/health/')).toBe(false);
+    expect(isHealthPath('/nn/health/')).toBe(false);
+  });
+
+  it('takes one spelling only, unlike the predicates a human types into', () => {
+    // The webhook and the year paths accept a trailing slash because somebody typed those into
+    // a Stripe dashboard or a form action once. **Nothing types this** — `smoke.mjs` and the
+    // acceptance suite are the only callers — so `/_health/` 404s like any other address that
+    // is not a page.
+    expect(isHealthPath('/_health/')).toBe(false);
+  });
+
+  it('is not the spelling the timing app uses, and the difference is deliberate', () => {
+    // A leading underscore makes an App Router folder *private*: `app/_health/route.ts` builds,
+    // deploys and 404s with nothing saying why. So `apps/timing` answers at `/timing/health`
+    // instead, and this Worker never claims it.
+    expect(isHealthPath('/timing/health')).toBe(false);
+    expect(isTimingPath('/timing/health')).toBe(true);
+  });
+});
+
+describe('where Stripe posts a confirmed payment', () => {
+  it('takes both spellings, because a human typed this one into a dashboard', () => {
+    // **The cost of getting this wrong is not a 404 somebody sees.** The endpoint is configured
+    // once by hand against a URL typed into Stripe's dashboard; a mistyped trailing slash there
+    // would mean every payment confirmation posting into a 404, discovered only by a runner who
+    // paid and heard nothing. Accepting both costs one comparison.
+    expect(isNnWebhookPath('/nn/stripe-webhook')).toBe(true);
+    expect(isNnWebhookPath('/nn/stripe-webhook/')).toBe(true);
+    expect(NN_WEBHOOK_PATH).toBe('/nn/stripe-webhook');
+  });
+
+  it('claims nothing else, including the near-misses', () => {
+    expect(isNnWebhookPath('/nn/stripe-webhook/x')).toBe(false);
+    expect(isNnWebhookPath('/nn/stripe')).toBe(false);
+    expect(isNnWebhookPath('/stripe-webhook')).toBe(false);
+    expect(isNnWebhookPath('/nn/2026/stripe-webhook')).toBe(false);
+  });
+
+  it('lives under the race, so the cutover moves the hostname and not this', () => {
+    // A return URL and a webhook address that survive a domain change is the same property
+    // ADR-007 buys everywhere else here — except that this one is written down in a third
+    // party's dashboard, where changing it is a manual step somebody has to remember.
+    expect(NN_WEBHOOK_PATH.startsWith(NN_PREFIX)).toBe(true);
+  });
+});
+
+describe('which pages get the navigation bar', () => {
+  it.each([
+    '/nn/',
+    '/nn/course/',
+    '/nn/privacy/',
+    '/nn/2026/',
+    '/nn/2026/race-day/',
+    '/nn/2026/spectators/',
+  ])('paints %s', (pathname) => {
+    expect(isNnMastheadPath(pathname)).toBe(true);
+  });
+
+  it('paints a seventh page nobody has written yet', () => {
+    // **Deliberately a predicate rather than a list of the six pages that exist.** A new page
+    // under `/nn/` gets the bar because it renders the masthead; a list here would be the
+    // second place that fact was written down, and the two would drift.
+    expect(isNnMastheadPath('/nn/results/')).toBe(true);
+    expect(isNnMastheadPath('/nn/2027/')).toBe(true);
+  });
+
+  it('leaves the webhook alone, because it is not a page at all', () => {
+    expect(isNnMastheadPath('/nn/stripe-webhook')).toBe(false);
+    expect(isNnMastheadPath('/nn/stripe-webhook/')).toBe(false);
+  });
+
+  it('leaves the return page alone, and that is a decision rather than an oversight', () => {
+    // Somebody who has just paid should not be offered four ways to wander off before reading
+    // what the club has recorded. The page keeps the wordmark and drops the links.
+    expect(isNnMastheadPath('/nn/2026/entry/complete/')).toBe(false);
+    expect(isNnMastheadPath('/nn/2026/entry/complete')).toBe(false);
+  });
+
+  it('reads the two spellings of a page as the same page', () => {
+    // `trailingSlash` is `'always'`, so the bar must not depend on which one arrived.
+    expect(isNnMastheadPath('/nn')).toBe(true);
+    expect(isNnMastheadPath('/nn/course')).toBe(true);
+  });
+
+  it('paints nothing outside the race', () => {
+    expect(isNnMastheadPath('/')).toBe(false);
+    expect(isNnMastheadPath('/timing')).toBe(false);
+    expect(isNnMastheadPath('/brand/')).toBe(false);
+    expect(isNnMastheadPath('/_health')).toBe(false);
+    // The near-misses, for the same reason every other predicate here has them.
+    expect(isNnMastheadPath('/nnn/')).toBe(false);
+    expect(isNnMastheadPath('/nn-2026/')).toBe(false);
+  });
+
+  it('paints the admin surface too, which is why it carries its own stylesheet', () => {
+    // `/nn/admin` is under the prefix and is not one of the two exceptions, so this answers
+    // true. It never reaches the painter — the Worker answers those addresses itself, before
+    // the assets binding — and that is the reason `nn-theme.css` must never be on that page:
+    // nothing in this predicate is what keeps the two apart.
+    expect(isNnMastheadPath('/nn/admin/')).toBe(true);
   });
 });
 
