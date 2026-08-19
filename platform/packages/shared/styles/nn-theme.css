@@ -123,18 +123,22 @@
  *   danger on card           notice border        5.53:1    3.0 (1.4.11) ok — no new pair
  *   bone on card             `.lede` in a notice   1.06:1    4.5 (AA)     *** was failing ***
  *
- * Added by the masthead — the capsules, and the bar they sit on once it is made to stay:
+ * Added by the masthead — the links, and the bar they sit on now that it stays:
+ *
+ * **The `stuck` rows are the only ones that matter here, and they are the ones this table got
+ * wrong for a slice.** They were written against a bar of *capsules* — an outlined pill per
+ * link, inverting to a pus fill for the current one — which two slices ago became plain text
+ * with a 2px rule under the current one. The ratios were right and the descriptions were not,
+ * which is the failure mode of a table nobody has to re-derive. Corrected to what is drawn.
  *
  *   pair                                          ratio      needs        verdict
  *   ------------------------------------------------------------------------------------
- *   bone on blood            capsule edge, resting 8.43:1    3.0 (1.4.11) ok — no new pair
- *   bone on blood            capsule label         8.43:1    4.5 (AA)     ok — no new pair
- *   pus on blood             capsule fill, current 5.44:1    3.0 (1.4.11) ok — no new pair
- *   ink on pus               capsule label, current 10.93:1  4.5 (AA)     ok — no new pair
- *   pus on blood             capsule edge, hover   5.44:1    3.0 (1.4.11) ok — no new pair
- *   bone on blood-deep       capsule edge, stuck  12.69:1    3.0 (1.4.11) ok — new
- *   bone on blood-deep       capsule label, stuck 12.69:1    4.5 (AA)     ok — new
- *   pus on blood-deep        capsule fill, stuck   8.20:1    3.0 (1.4.11) ok — new
+ *   bone on blood            link label, resting   8.43:1    4.5 (AA)     ok — no new pair
+ *   pus on blood             rule under current    5.44:1    3.0 (1.4.11) ok — no new pair
+ *   ink on pus               the button's label   10.93:1    4.5 (AA)     ok — no new pair
+ *   bone on blood-deep       link label, stuck    12.69:1    4.5 (AA)     ok — corrected
+ *   pus on blood-deep        rule under, stuck     8.20:1    3.0 (1.4.11) ok — corrected
+ *   ink on pus               button label, stuck  10.93:1    4.5 (AA)     ok — unchanged
  *   blood-deep on blood      the stuck bar vs page 1.51:1    —            see below
  *
  * **This slice introduced no new colour pair, and that is the point of reusing the notice
@@ -191,16 +195,17 @@
  * each row. Making it a 3:1 rule would draw six dark lines across a white card to restate
  * something the markup already says. Flagged rather than silently kept.
  *
- * **The capsules cost nothing to measure, and that is why they are capsules.** A resting one
- * is `.nn-ghost` and the current one is `.nn-cta` — the hero's own two buttons at nav scale —
- * so those four pairs were already in this table before the header existed. The mockup's pill
- * bar, which is where the shape comes from, draws its resting edge at about 2:1 on a
- * near-black strip; that is fine there and fails here, so the edge is bone.
+ * **The links cost nothing to measure, and that is the argument for the treatment.** Bone text
+ * and a pus rule are two pairs this table already carried before the header existed, so a bar of
+ * six of them introduces no pair at all. The mockup's pill bar, which is where the shape
+ * originally came from, draws its resting edge at about 2:1 on a near-black strip; that is fine
+ * there and fails here, which is one of the reasons the capsules went.
  *
- * **Making the bar stay is what introduced a colour**, and it introduced exactly one. A
- * header that scrolls away can be transparent; a header that stays has to be opaque or the
- * words underneath scroll through it. `blood-deep` is the page's own darker end rather than
- * a fourth surface, so every pair on the stuck bar improves on the same pair over `blood`.
+ * **Making the bar stay is what introduced a colour**, and it introduced exactly one — the same
+ * one, twice, because this is the second time the bar has been made to stay. A header that
+ * scrolls away can be transparent; a header that stays has to be opaque or the words underneath
+ * scroll through it. `blood-deep` is the page's own darker end rather than a fourth surface, so
+ * every pair on the stuck bar improves on the same pair over `blood`.
  *
  * **The bar is 1.51:1 against the page and stays that way**, for the reason the
  * call-to-action panel's fill does: it groups, it identifies nothing, and everything inside
@@ -426,51 +431,152 @@ body.theme-nn {
 /* -------------------------------------------------------------------------------------
  * The masthead
  * -------------------------------------------------------------------------------------
- * The wordmark, five controls, and a `<header>` above everything else.
+ * The wordmark, six controls, and a `<header>` that stays on screen.
  *
- * ## It no longer stays put, and that is this slice's main correction
+ * ## It stays put again, and this is the third answer to that question
  *
- * Sticking it was asked for against this file's own advice, and the cost was written down at
- * the time: 64px of a laptop and 159px of a 320px phone, held for the whole page. **The real
- * number turned out to be 207px** once the route split gave the bar a second row on year
- * pages — 36% of a 568px screen, permanently, on pages people read and scroll.
+ * The history matters here, because this rule has now been written twice and deleted once.
+ * ADR-012 unstuck the bar and gave three defects as the reason; **ADR-014 sticks it back and
+ * pays for all three**, which is a different thing from disagreeing with them. What changed is
+ * that the bar being stuck is now the requirement rather than the flourish — the navigation is
+ * asked to be reachable from anywhere on a page people scroll a long way down.
  *
- * It cost three defects, and the height was the least of them:
+ *   the defect ADR-012 recorded              what pays for it now
+ *   ------------------------------------------------------------------------------------
+ *   1. It broke a measurement harness,       The harness measures the *document* — see
+ *      which read the bar's rectangle        `site.spec.ts`'s "operable at 320px", which
+ *      as the page's.                        reads `documentElement.scrollWidth`. Nothing
+ *                                            in the suite reads the bar as the page.
+ *   2. It hid arrow-keyed radios at 320px    `scroll-padding-top` on the **scrollport**,
+ *      in WebKit, and no `scroll-margin`     below. `scroll-margin` on `[id]` was the
+ *      could repair it.                      previous attempt and could only ever move a
+ *                                            fragment target; this moves every scroll the
+ *                                            browser performs, focus included.
+ *   3. It forced a background colour.        Still true, and still the price. `blood-deep`,
+ *                                            already in the contrast table.
  *
- *   1. It broke a measurement harness, which read the bar's own rectangle as the page's.
- *   2. It hid arrow-keyed radios at 320px in WebKit, and no `scroll-margin` could repair it —
- *      the note that used to live here measured 3 of 6 keyboard transitions landing clear.
- *   3. It forced a background colour, because a transparent bar that never leaves has the
- *      words of the page scrolling through it.
+ * **And the height, which was the loudest number and is now much the smallest.** The 207px
+ * ADR-012 measured belonged to a bar that no longer exists — two rows of *links*, one of them
+ * appearing only beneath a year. The bar that replaced it was one row of text at 62px on a
+ * laptop and two rows at 109px on a 320px phone. So the cost of sticking the current bar is
+ * **62.5px of 800px and 134.8px of 568px**, not 207px of 568px.
  *
- * **The first and the third go with `position: sticky`.** The background goes with it — a bar
- * that scrolls away can be transparent again, which is what the mockup's is — and so does the
- * `scroll-margin-top: 168px` that used to sit on every `[id]` in this theme, which existed
- * only to stop anchors landing underneath it. Anchor targets land at the top of the viewport
- * now, which is where they belong and needs no rule.
+ * **A sixth control pushes the phone number up, and the compaction below returns most of it
+ * rather than all of it.** The honest arithmetic, measured on the three engines CI runs:
  *
- * **The second is only half the bar's fault, and the measurement says so.** WebKit frequently
- * does not scroll at all when focus moves by keyboard; what the shorter, unstuck bar changes
- * is where the form starts, not whether WebKit scrolls to it. The before and after numbers
- * are in the pull request rather than guessed at here.
+ *                          four links, loose    five links, compact    stuck
+ *   ------------------------------------------------------------------------------
+ *   1280px                       62px                 62.5px           62.5px
+ *   480px                       ~108px                97.3px           97.3px
+ *   320px                       ~108px                134.8px         134.8px
+ *
+ * **At 480px the bar is 10px shorter than before with an extra link in it**, which is the
+ * compaction paying for itself outright. **At 320px it is 27px taller**, because that is the one
+ * width where five labels will not fit on one row — 24% of a 568px screen against ADR-012's
+ * 36%. `site.spec.ts` asserts a ceiling of a quarter of the viewport rather than trusting any
+ * of these numbers, and ADR-014 argues the trade.
  *
  * ## The shape, and the one place the DOM and the eye disagree
  *
- * Wide: the mark, then the four links, then the button hard right. Narrow: the mark and the
- * **button** share the first row and the four links take the second.
+ * Wide: the mark, then the five links, then the button hard right. Narrow: the mark and the
+ * **button** share the first row and the five links take the two below it.
  *
  * Getting the button up beside the mark at 320px is an `order` on one flex item, and it is
  * the only reordering in this stylesheet. Focus order stays the DOM's — mark, links, button —
- * so at 320px somebody tabbing reaches the four links before the button drawn above them.
+ * so at 320px somebody tabbing reaches the five links before the button drawn above them.
  * That is a real divergence and it is the smaller of the two available: the alternative puts
  * it at the width where the bar is one row and the button is the furthest thing right, which
  * is where jumping backwards would actually surprise somebody.
  *
- * **`flex-wrap` and one breakpoint.** The wrap is what puts the links on their own row; the
- * breakpoint is what lifts the button and shrinks the capsules so four fit across the 280px a
- * 320px screen leaves inside the column. One width, written once, and measured.
+ * **`flex-wrap` and one breakpoint for the layout, and a second number for the height.** The
+ * wrap is what puts the links on their own rows; the 480px breakpoint is what lifts the button
+ * and compacts the paddings so five labels fit over two rows inside the 280px a 320px screen
+ * leaves. **Between 480px and about 620px the links wrap with no breakpoint involved at all** —
+ * that band is why `--nn-masthead-height` has a third value the layout does not, and the note
+ * on the 768px media query below is the whole of that argument.
  * ------------------------------------------------------------------------------------- */
+/* **How tall the bar is, declared once and read by two rules that must not disagree.**
+
+   It is declared on `<html>` rather than on `body.theme-nn`, which is this file's one
+   exception to its own scoping convention and is forced by the property that needs it:
+   `scroll-padding-top` belongs to the **scrollport**, and the element that scrolls is
+   `<html>`. A custom property declared on `body` cannot be read by `body`'s own parent.
+
+   `:has()` is what keeps the promise at the head of this file — that nothing here reaches a
+   page which has not asked for the theme. It is the same mechanism the entry-type cards
+   already use, so it is not a new dependency. */
+html:has(body.theme-nn) {
+  /* **One row: the mark, the five links and the button across one line. Measured at 62.5px.**
+     The mark is the tallest thing in it at ~40px — 132px of a 876×267 lockup — and the bar's own
+     padding is the other 22px. 64px, so the inset clears it without tracking sub-pixels. */
+  --nn-masthead-height: 64px;
+
+  /* **Anchors and focus both land clear of the bar, and this is the rule ADR-012 could not
+     find.** The `scroll-margin-top: 168px` that used to sit on every `[id]` in this theme
+     only ever helped a *fragment target*: it did nothing for the arrow-keyed radio that was
+     defect 2, because nobody navigates to a radio by its id. `scroll-padding-top` is a
+     property of the scrollport instead, so it insets every scroll-into-view the browser
+     performs — following a link to an id, and following focus onto a control. One rule, at the
+     mechanism, rather than a list of selectors that could never be complete.
+
+     The 8px is the focus ring's 3px plus its 2px offset, rounded up: a control that lands
+     exactly against the bar has its ring clipped, which is the same defect one signal along. */
+  scroll-padding-top: calc(var(--nn-masthead-height) + 8px);
+}
+
+/* **The middle regime, and it is the one a single breakpoint would have missed.**
+ *
+ * The bar has three heights, not two. Below 480px the layout changes deliberately — the button
+ * lifts onto the mark's row and the links take rows of their own — and that boundary was
+ * measured for *four* links. Above it there is no layout change at all and the bar is
+ * nonetheless **two rows** for a long way, because the mark, five links and the button need
+ * more width to share a line than four did, and simply wrap when they cannot.
+ *
+ * A token that stepped straight from 64px to 136px at 480px would therefore be **too small
+ * across a band of tablet widths 160px wide** — measured at 110.9px there against an inset of
+ * 72px. That is the exact silent failure `scroll-padding-top` exists to prevent, and one a test
+ * at 1280px and 320px would have passed.
+ *
+ * **768px, and the slack above the real wrap point is deliberate.** The sweep in `site.spec.ts`
+ * brackets that wrap between 640px and 700px — the bar is 110.9px at 640 and 62.5px at 700 —
+ * and where exactly it falls is a consequence of five label widths in a variable font rather
+ * than a number this file sets. Putting the boundary *at* it would make the inset wrong on
+ * whichever side the fonts moved. Above the wrap this reserves about 58px more than the bar
+ * needs, which lands a tablet anchor slightly low; below it, being short would put the anchor
+ * underneath the header. Those are not the same size of wrong, so the boundary sits high.
+ *
+ * `site.spec.ts` sweeps nine widths and asserts the two properties separately for this reason:
+ * the inset clears the bar at *every* width, and tracks it closely at the five where the bar is
+ * as tall as its regime ever gets rather than in the slack. Its table carries the measurements.
+ * ------------------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  html:has(body.theme-nn) {
+    /* Two rows, measured at 110.9px. */
+    --nn-masthead-height: 112px;
+  }
+}
+
 .theme-nn .nn-masthead {
+  /* **The bar stays on screen. ADR-014.** */
+  position: sticky;
+  top: 0;
+  /* **Above the hero, and it has to be said out loud.** `.nn-hero` is `position: relative`
+     with `z-index: auto`, so it creates no stacking context and its children's `z-index: 1` —
+     which is there to lift them over the fog — resolves against the *root*. Two positioned
+     things at 1 and at auto paint in DOM order, and the hero comes second: without this the
+     hero's own title would paint over the bar it is scrolling under. 5 clears the hero's 1 and
+     the fog's 0 with room, and nothing else in this file is positioned above 1. */
+  z-index: 5;
+  /* **Defect 3 of ADR-012's three, and it is still the price rather than a fix.** A bar that
+     never leaves cannot be transparent, or the page's own words scroll through it. `blood-deep`
+     is the gradient's own darker end rather than a fourth surface, so every pair on the bar
+     *improves* on the same pair over `blood` — 12.69:1 for a link against 8.43:1. It is 1.51:1
+     against the page at the top, where the gradient is lightest; that is flagged in the
+     contrast table above rather than silently kept.
+
+     What it costs visually is the mockup's transparent header: the poster now opens with a
+     band of the gradient's darker end. That is the trade ADR-014 takes deliberately. */
+  background: var(--nn-blood-deep);
   padding-top: 12px;
   padding-bottom: 10px;
 }
@@ -616,22 +722,26 @@ body.theme-nn {
 /* -------------------------------------------------------------------------------------
  * The navigation
  * -------------------------------------------------------------------------------------
- * Four capsules, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
+ * Five links, wrapping. **No breakpoint, because `flex-wrap` already knows the answer** —
  * and it needs nobody to have predicted the width at which it would.
  *
+ * That is still true of the *layout* and is no longer quite true of the *height*: a bar that
+ * stays on screen has to tell the scrollport how tall it is, and `flex-wrap` will not say. See
+ * the masthead section above, where that costs one media query the layout does not need.
+ *
  * **The current page is marked three ways and colour is not one of them on its own** —
- * `aria-current="page"` for anything reading the markup, 700 weight, and the capsule
- * inverting from an outline to a solid fill. That last one is the reason this shape suits
- * the job: filled against outlined is a difference in *area*, which survives being
- * photocopied, being read on a phone in sunlight, and not being able to separate yellow
+ * `aria-current="page"` for anything reading the markup, 700 weight, and a 2px rule appearing
+ * under the label. That last one is a difference in *shape* rather than in hue, which survives
+ * being photocopied, being read on a phone in sunlight, and not being able to separate yellow
  * from cream. The colour is the least of the three signals rather than the only one.
  *
- * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart.
+ * Targets are ~37px tall against WCAG 2.2's 24px floor, and 8px apart — ~30px and 4px apart at
+ * ≤480px, where the bar is stuck and its height is spent rather than merely occupied.
  * ------------------------------------------------------------------------------------- */
-/* **One row of four, and a button that is not in it.** The bar is the same five controls on
+/* **The links, and a button that is not among them.** The bar is the same six controls on
    every page; only which one carries `aria-current` moves. The button sits outside the `<ul>`
-   because it is the one thing this site exists to do, and a list of five equals buries it in
-   four things that are not. */
+   because it is the one thing this site exists to do, and a list of six equals buries it in
+   five things that are not. */
 .theme-nn .nn-nav {
   display: flex;
   flex-wrap: wrap;
@@ -648,9 +758,9 @@ body.theme-nn {
   list-style: none;
 }
 
-/* **The four links are text with a rule under the current one**, not capsules.
+/* **The five links are text with a rule under the current one**, not capsules.
    Capsules were the old bar's device and they cost 2px of border and 28px of padding per
-   item — affordable for four, not for four beside a button that has to out-shout them. The
+   item — affordable for four, not for five beside a button that has to out-shout them. The
    button is the only filled thing up here now, which is the whole point of it.
 
    Target size: 14px text with 8px of vertical padding is ~34px tall against WCAG 2.2's 24px
@@ -733,17 +843,63 @@ body.theme-nn {
 /* -------------------------------------------------------------------------------------
  * The bar at 320px
  * -------------------------------------------------------------------------------------
- * Two rows: the mark and the button, then the four links.
+ * Three rows: the mark and the button, then the five links over two.
  *
- * **480px is measured rather than chosen.** At 14px the four labels and their gaps run to
- * about 300px; the mark is 132px and the button about 96px. Below roughly 480px the mark,
- * the button and the links cannot share a line, and above it they can — so that is where the
- * button is lifted onto the mark's row and the links are shrunk to fit 280px on their own.
+ * **480px was measured rather than chosen, and it was measured for four labels.** At 14px those
+ * four and their gaps ran to about 300px; the mark is 132px and the button about 96px. Below
+ * roughly 480px the mark, the button and the links could not share a line, and above it they
+ * could — so that is where the button is lifted onto the mark's row and the links are shrunk to
+ * fit 280px on their own.
+ *
+ * **A fifth label moved that width and this breakpoint deliberately did not follow it.** Five
+ * labels run to about 350px, so the three no longer share a line until roughly 620px. Lowering
+ * this boundary would change the *layout* — where the button sits — at widths where nothing was
+ * wrong with it, to no benefit; what actually needed to know about the new wrap point is the
+ * height token, and that is why `--nn-masthead-height` has a middle value with no layout rule
+ * beside it. The two numbers are answering different questions and are allowed to differ.
  *
  * `order: -1` on the button is the only reordering in this file. See the note at the head of
  * the masthead section for what it costs.
+ *
+ * ## Compact, because the bar is stuck and there are six controls now
+ *
+ * Every number below that got smaller got smaller for one reason: at this width the bar is held
+ * on screen for the whole page, so its height is spent rather than merely occupied. The paddings
+ * and the link rows' padding come down together, and what that buys is measured rather than
+ * assumed:
+ *
+ *   **At 400–480px it buys the whole thing and more.** Five compact labels still fit one row
+ *   there, so the bar is 97.3px against about 108px before — shorter than the four-link bar
+ *   was, with an extra link in it.
+ *
+ *   **At 320px it buys about two thirds of a row.** "Privacy" does not fit beside the other four
+ *   inside the 280px a 320px screen leaves, so the links take two rows and the bar is 134.8px.
+ *   Without the compaction it would have been ~145px.
+ *
+ * **Shrinking the type further was the other way to fit five labels on one row at 320px and was
+ * rejected.** They are already 13px, and the arithmetic says 12px would only just do it — so the
+ * navigation would become the smallest text anywhere on the site, to save one row at one width,
+ * on a bet about a font metric that this slice has already lost twice.
  * ------------------------------------------------------------------------------------- */
 @media (max-width: 480px) {
+  html:has(body.theme-nn) {
+    /* **This regime has two heights and the token is the taller of them.** Measured 97.3px at
+       400–480px, where five compact labels still fit one row, and 134.8px at 320px, where they
+       wrap onto two. So the inset is knowingly ~47px generous on the wider phones and tight on
+       the narrow ones — the same trade as the 768px boundary above, for the same reason: the
+       width at which five labels wrap is a font metric, not a number this file chooses.
+
+       Measured, not estimated. The first version of this value was 116px, from arithmetic on
+       label widths, and `site.spec.ts` failed it. */
+    --nn-masthead-height: 136px;
+  }
+
+  /* 4px off the top and bottom of a bar that is now on screen for the whole page. */
+  .theme-nn .nn-masthead {
+    padding-top: 8px;
+    padding-bottom: 6px;
+  }
+
   /* **The links take a row of their own and the button stays with the mark.** `order: 1` puts
      the nav last in flex order; with `width: 100%` it therefore wraps to a line by itself,
      leaving the mark and the button — both still `order: 0` — sharing the first. No negative
@@ -772,7 +928,12 @@ body.theme-nn {
     gap: 4px 14px;
   }
 
+  /* 13px, and the vertical padding down from 8px to 6px. That is 4px off each of the two link
+     rows this width now has — the target is still ~30px against WCAG 2.2's 24px floor, and it
+     is the only place in the bar where a row's height can be reduced without reducing type. */
   .theme-nn .nn-nav a {
+    padding-top: 6px;
+    padding-bottom: 6px;
     font-size: 13px;
   }
 }
@@ -809,10 +970,27 @@ body.theme-nn {
  *   blood on card            the panel links       9.01:1   4.5 (AA)     ok — no new pair
  *   field border on card     the rule              3.23:1   3.0 (1.4.11) ok — no new pair
  *   ink on pus               the action, open     10.93:1   4.5 (AA)     ok — no new pair
+ *   bone on card             the action, closed     1.06:1   3.0 (1.4.11) *** was failing ***
+ *   blood on card            the action, closed     9.01:1   4.5 (AA)     ok — corrected
+ *   blood on card            its 2px border         9.01:1   3.0 (1.4.11) ok — corrected
+ *   bone on blood            the action, hovered    8.43:1   4.5 (AA)     ok — no new pair
  *
- * **Not one new colour pair.** Every element here is drawn with a pairing this file already
- * measures, which is deliberate: a panel is a layout, and a layout that needs new colours to
- * work is usually a layout that is not working.
+ * **Not one new colour pair, and one row that was missing altogether.** Every element here is
+ * drawn with a pairing this file already measures, which is deliberate: a panel is a layout, and
+ * a layout that needs new colours to work is usually a layout that is not working.
+ *
+ * **The closed state's action was not in this list, and that is how it shipped invisible.** Only
+ * the `open` row was written down — `ink on pus`, the filled button — because that is the state
+ * somebody pictures when they picture this panel. The other state reuses `.nn-ghost`, a class
+ * written for the hero, and drew its 2px edge in bone **on white at 1.06:1**. The words were
+ * legible throughout (`.nn-card a` repaints them ink), so what was lost was not the label but
+ * every signal that the label was a button.
+ *
+ * Two lessons and both are worth the space. **A table with a state missing reads as a table with
+ * nothing wrong** — the fix is at `.nn-card .nn-ghost`, and the argument is there. And **axe
+ * cannot catch this**: `color-contrast` inspects text, the text was fine, and the accessibility
+ * sweep reported zero violations on this page for as long as the button was invisible. 1.4.11 is
+ * a pairing a person has to compute, which is what this table is for.
  * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-panel-year {
   margin-top: 26px;
@@ -1050,6 +1228,45 @@ body.theme-nn {
    site, because the next card to use a lede would have hit it again. */
 .theme-nn .nn-card .lede {
   color: var(--nn-ink);
+}
+
+/* **`.nn-ghost` on a white card was a button with an invisible edge, and this is the same fix
+   one element along.**
+
+   The class was written for the hero, where a 2px bone border on the blood gradient is 8.43:1.
+   The front door's year panel is `.nn-card nn-panel-year`, so while entries are shut its one
+   action was drawing that border at **1.06:1 against white** — the identical number `.lede`
+   was caught at, on the identical pairing, for the identical reason.
+
+   **The label was never the problem, which is what made this hard to see.** `.nn-card a` above
+   repaints it ink at 18.09:1, so the words were perfectly legible; what was missing was every
+   signal that they were a *button*. A ghost button has no fill, so its border is the whole of
+   what identifies the control — exactly the case WCAG 1.4.11 names, and exactly the argument
+   this file already accepted twice when `--nn-field-border` was darkened to 3.23:1 because a
+   text box's border is the only thing saying where to type.
+
+   **`blood`, at 9.01:1 for both the edge and the label.** Not `ink`: at 18.09:1 an ink outline
+   reads as heavy as the primary control and the panel's two states are meant to differ in
+   weight. Not `--nn-field-border` at 3.23:1 either — that clears 1.4.11 and would leave the
+   button looking like an empty text input, which is the floor rather than the answer. Blood is
+   the campaign's own red, it is already what the panel's links are set in, and it puts an
+   outlined red button against a filled yellow one: a difference in fill *and* hue, so the
+   hierarchy survives being read in sunlight or photocopied.
+
+   The hover fills it, which is the conventional outline-button affordance and adds no pair —
+   bone on blood is 8.43:1 and has been in the table since the hero.
+
+   **axe cannot catch this class of defect**, which is why the guard is a pinned assertion in
+   `site.spec.ts` rather than the accessibility sweep: `color-contrast` inspects text, and the
+   text here was fine. Zero violations was true and the button was still invisible. */
+.theme-nn .nn-card .nn-ghost {
+  border-color: var(--nn-blood);
+  color: var(--nn-blood);
+}
+
+.theme-nn .nn-card .nn-ghost:hover {
+  background: var(--nn-blood);
+  color: var(--nn-bone);
 }
 
 .theme-nn .nn-card code {
@@ -1839,6 +2056,11 @@ body.theme-nn {
   transform: translateY(-2px);
 }
 
+/* **Bone, because this is drawn on the gradient — and there is a second version of it for the
+   one place it is not.** On a white card a bone edge is 1.06:1 and the button loses the only
+   thing that says it is one; `.nn-card .nn-ghost` in the card section is the correction, and the
+   note there is the argument. Changing the colour here instead would make the hero's ghost
+   invisible, which is the same defect facing the other way. */
 .theme-nn .nn-ghost {
   border: 2px solid var(--nn-bone);
   background: transparent;

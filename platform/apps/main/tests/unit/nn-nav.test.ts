@@ -71,9 +71,31 @@ describe('no year is written into the navigation', () => {
   });
 });
 
-describe('the two evergreen destinations are the only hard-coded ones', () => {
+describe('the three evergreen destinations are the only hard-coded ones', () => {
   it('links Race and Course directly, because neither can move', () => {
     expect(NAV).toContain("href: '/nn/'");
     expect(NAV).toContain("href: '/nn/course/'");
+  });
+
+  it('links the privacy notice directly too, for the same reason', () => {
+    // **The notice is evergreen and belongs to the race rather than to a running**, so its
+    // address is a literal here exactly as `Course` is. If it ever acquires a year it stops
+    // being a candidate for this list and joins the painted pair — which is the distinction
+    // this file exists to keep, and the year assertion above is what would catch it.
+    expect(NAV).toContain("href: '/nn/privacy/'");
+    expect(NAV).toContain("label: 'Privacy'");
+  });
+
+  it('renders the notice after the pair the Worker paints, not among the race links', () => {
+    // **The order is the decision, so it is the thing asserted.** ADR-014 puts Privacy last:
+    // the four links before it read as a set about the race, and a legal notice dropped into
+    // the middle of that set breaks it. Nothing else in the component would notice if the
+    // three groups were rendered in another order, which is exactly why this is here.
+    const markup = NAV.slice(NAV.indexOf('<nav'));
+
+    expect(markup.indexOf('notice.map')).toBeGreaterThan(markup.indexOf('running.map'));
+    expect(markup.indexOf('running.map')).toBeGreaterThan(
+      markup.indexOf('evergreen.map'),
+    );
   });
 });

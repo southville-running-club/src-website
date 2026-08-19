@@ -163,8 +163,81 @@ export interface AdminEntry {
   hasMedical: boolean;
   createdAt: string;
   paidAt: string | null;
+  /**
+   * When this purchase's hold runs out, if it has one.
+   *
+   * **`status` alone cannot tell a live hold from a lapsed one** — a `pending` row stays `pending`
+   * until the five-minute sweep reaches it — and the difference is "somebody is paying right now"
+   * against "this place is about to come back". `null` when the database predates the figures
+   * migration, which reads the same as a purchase with no hold: the page says "Held" and stops
+   * short of claiming a time.
+   */
+  holdExpiresAt: string | null;
   /** The payment arrived after the hold had lapsed. */
   revived: boolean;
+}
+
+/**
+ * The figures the page **states**, as opposed to the rows it lists.
+ *
+ * ## Why these are one block rather than a dozen optional fields
+ *
+ * They arrive together, from one `create or replace` in
+ * `20260818120000_entries_admin_figures.sql`, so the only two states worth modelling are "the
+ * migration has landed" and "it has not". A dozen separately-optional numbers would let a caller
+ * render eleven figures and a hole, which is a panel that looks complete and is not.
+ *
+ * ## Why the absent case is `null` and never `0`
+ *
+ * **`0` and "this database cannot tell me yet" are opposite claims that look identical.** "No
+ * entrant has written a medical note" is a reason not to print the sheet; "the function predates
+ * this Worker" is a reason to go and look another way. Nothing sequences a migration against the
+ * Cloudflare deploy, so the Worker-first ordering is real and this is the field that survives it.
+ *
+ * ## Every count here is over **every** purchase, uncapped
+ *
+ * `AdminEntryList.entries` is capped at the most recent 2,000 — abandoned holds are unbounded
+ * because `create_pending_purchase()` is granted to anon. So these are asked of the database
+ * rather than counted off the array, and the two must never be mixed on one panel: a `paid`
+ * figure over all rows beside a `holds returned` figure over the newest 2,000 would disagree on a
+ * busy race, and somebody sets out bibs from them.
+ */
+export interface AdminEventFigures {
+  /** **Null for Nightingale Nightmare today** — the club has not decided. Never invented. */
+  entriesOpenAt: string | null;
+  entriesCloseAt: string | null;
+  paid: number;
+  /** Paid, flagged `over_capacity`, unresolved. A subset of `paid` — there is no fifth status. */
+  overCapacity: number;
+  /** Pending with a hold that has **not** run out. Not `count(status = 'pending')`. */
+  held: number;
+  /** Places that came back: marked `expired`, or pending with a lapsed hold the sweep has not
+   * reached. This is what explains a `taken` figure going *down*. */
+  holdsReturned: number;
+  refunded: number;
+  /** Paid only. Not net of Stripe's card fees, and the page says so. */
+  feesPence: number;
+  /** How many paid entrants wrote something. **A count, never a note.** */
+  medicalCount: number;
+  affiliated: number;
+  /**
+   * Claimed a fee requiring an England Athletics number, and gave none.
+   *
+   * **Reachable, and not by a legacy row.** `nn-entry.ts` requires the number, but that is the
+   * form's control — `create_pending_purchase()` writes `ea_number` through unchecked and is
+   * granted to anon. See the migration header.
+   */
+  affiliatedMissingEa: number;
+  /** The interval the deletion job enforces, as Postgres renders it (`1 mon`). */
+  medicalRetention: string;
+  /**
+   * `event_date + medical_retention`, as a civil date.
+   *
+   * **The mechanism, not the published sentence.** `race.json`'s `privacy.medicalRetention` is
+   * what `/nn/privacy/` promises; this is what actually deletes. A page that told a volunteer a
+   * date derived from the promise would be reading the wrong one of the two.
+   */
+  medicalDeleteAfter: string;
 }
 
 export interface AdminEntryEvent {
@@ -176,6 +249,8 @@ export interface AdminEntryEvent {
   taken: number;
   /** Purchases flagged for a human and not yet resolved. */
   attention: number;
+  /** `null` when the database predates the figures migration. **Never a block of zeroes.** */
+  figures: AdminEventFigures | null;
 }
 
 export interface AdminEntryList {
@@ -209,6 +284,9 @@ const entryShape = z.object({
   has_medical: z.boolean(),
   created_at: z.string(),
   paid_at: z.string().nullable(),
+  // Absent on a database that predates the figures migration, which must degrade to a row that
+  // renders rather than to a page that will not.
+  hold_expires_at: z.string().nullable().optional(),
   revived: z.boolean(),
 });
 
@@ -226,6 +304,58 @@ const entryListShape = z.object({
   returned: z.number().int().min(0),
   entries: z.array(entryShape),
 });
+
+/**
+ * The figures block, parsed **separately from the same raw event object**.
+ *
+ * Two passes over one object rather than a dozen `.optional()` keys on the shape above, because
+ * the two questions are genuinely different: the first pass decides whether this is an entry list
+ * at all — a failure there is a page that must not render — and the second decides whether this
+ * database can answer the figures yet, where a failure is one panel saying so.
+ *
+ * `z.object` strips keys it was not told about, which is why this cannot read them off
+ * `entryListShape`'s output and has to be handed the raw value.
+ */
+const figuresShape = z.object({
+  entries_open_at: z.string().nullable(),
+  entries_close_at: z.string().nullable(),
+  paid: z.number().int().min(0),
+  over_capacity: z.number().int().min(0),
+  held: z.number().int().min(0),
+  holds_returned: z.number().int().min(0),
+  refunded: z.number().int().min(0),
+  fees_pence: z.number().int().min(0),
+  medical_count: z.number().int().min(0),
+  affiliated: z.number().int().min(0),
+  affiliated_missing_ea: z.number().int().min(0),
+  medical_retention: z.string().min(1),
+  medical_delete_after: z.string().min(1),
+});
+
+/** The figures, or `null` if this database predates the migration that added them. */
+function readFigures(rawEvent: unknown): AdminEventFigures | null {
+  const parsed = figuresShape.safeParse(rawEvent);
+
+  if (!parsed.success) {
+    return null;
+  }
+
+  return {
+    entriesOpenAt: parsed.data.entries_open_at,
+    entriesCloseAt: parsed.data.entries_close_at,
+    paid: parsed.data.paid,
+    overCapacity: parsed.data.over_capacity,
+    held: parsed.data.held,
+    holdsReturned: parsed.data.holds_returned,
+    refunded: parsed.data.refunded,
+    feesPence: parsed.data.fees_pence,
+    medicalCount: parsed.data.medical_count,
+    affiliated: parsed.data.affiliated,
+    affiliatedMissingEa: parsed.data.affiliated_missing_ea,
+    medicalRetention: parsed.data.medical_retention,
+    medicalDeleteAfter: parsed.data.medical_delete_after,
+  };
+}
 
 export async function fetchAdminEntryList(
   client: AnonClient,
@@ -261,6 +391,7 @@ export async function fetchAdminEntryList(
         capacity: parsed.data.event.capacity,
         taken: parsed.data.event.taken,
         attention: parsed.data.event.attention,
+        figures: readFigures((envelope.value as { event?: unknown }).event),
       },
       total: parsed.data.total,
       returned: parsed.data.returned,
@@ -283,6 +414,7 @@ export async function fetchAdminEntryList(
         hasMedical: entry.has_medical,
         createdAt: entry.created_at,
         paidAt: entry.paid_at,
+        holdExpiresAt: entry.hold_expires_at ?? null,
         revived: entry.revived,
       })),
     };

@@ -29,33 +29,46 @@ import ClubLogo from './ClubLogo.astro';
 //
 // ## No JavaScript, and no hamburger
 //
-// Five controls fit. A menu behind a toggle would need a script to open, and every form on
+// Six controls fit. A menu behind a toggle would need a script to open, and every form on
 // this site is built to work without one — a navigation that fails with JavaScript off
 // while the entry form beneath it still works would be an odd place to draw the line.
 //
-// **Not sticky.** It was, for one slice, and it cost three defects and 207px of a 568px phone
-// — the full account is at the head of the masthead section in `nn-theme.css`. These are
-// read-and-scroll pages rather than an application, and a bar that never leaves spends
-// vertical space a phone does not have on something already read.
+// **Sticky, and this is the second time it has been.** It was stuck, then unstuck by ADR-012
+// for three recorded defects and 207px of a 568px phone, and ADR-014 sticks it back with each
+// of the three paid for — the full accounting is at the head of the masthead section in
+// `nn-theme.css`. The 207px is the number worth correcting rather than arguing with: it
+// belonged to a bar of *two rows of links*, one appearing only beneath a year, which ADR-012
+// itself replaced. What is stuck now is 62px on a laptop and about 110px of a 320px phone.
+//
+// **It sticks on `/nn/<year>/entry/complete/` too, where there are no links in it.** That is
+// one rule rather than an exception to remember, and what stays there is a single 62px row
+// carrying the wordmark. A page somebody reaches having just paid is short enough that the
+// alternative — a class, a conditional and a second selector — costs more than the row does.
 //
 // ## The button lives here rather than in the navigation, and why
 //
-// At 320px the bar is two rows: the wordmark and the button on the first, the four links on
-// the second. Getting the button onto the wordmark's row means it has to be the wordmark's
-// **sibling** — inside `<nav>` it could only ever be on the links' row. So it is a child of
-// this header, and `nn-theme.css` reorders it with one `order` at that width.
+// At 320px the bar is three rows: the wordmark and the button on the first, the five links
+// over the next two. Getting the button onto the wordmark's row means it has to be the
+// wordmark's **sibling** — inside `<nav>` it could only ever be on the links' rows. So it is a
+// child of this header, and `nn-theme.css` reorders it with one `order` at that width.
 //
 // The semantic cost is that it is not inside the navigation landmark. It is a call to action
 // rather than a place to go, it is still inside the banner, and it is announced immediately
-// after the four links — which is what somebody jumping by landmark would want anyway.
+// after the five links — which is what somebody jumping by landmark would want anyway.
 
 interface Props {
   /**
-   * Whether the four campaign links appear beside the wordmark.
+   * Whether the five campaign links appear beside the wordmark.
    *
-   * `false` on `/nn/<year>/entry/complete/`, which somebody reaches having just paid. Four ways to
+   * `false` on `/nn/<year>/entry/complete/`, which somebody reaches having just paid. Five ways to
    * wander off before reading what the club has recorded is not what that page is for, so it
    * keeps the wordmark for identity and drops the links. It is the only page that does.
+   *
+   * **Privacy goes with them, and that is the one entry worth a second thought.** Somebody who
+   * has just handed over a medical note is plausibly the person most likely to want the notice —
+   * but this page is the club's answer to "did that work", the notice is one tap away from every
+   * other page in the campaign, and it is linked from the entry form they filled in on the way
+   * here. A page with one job keeps one job.
    */
   nav?: boolean;
 }
@@ -63,7 +76,7 @@ interface Props {
 const { nav = true } = Astro.props;
 
 // **The button is a destination too, so it carries the marker on its own page.** Matched on
-// the *shape* of the path rather than on the painted href, exactly as the four links are:
+// the *shape* of the path rather than on the painted href, exactly as the five links are:
 // `/nn/2027/` is the running's own page whatever the year, and the marker is therefore right
 // before the Worker has painted anything.
 const path = Astro.url.pathname.endsWith('/')

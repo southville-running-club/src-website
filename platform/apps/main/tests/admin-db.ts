@@ -12,9 +12,23 @@ import {
   AWKWARD_CLUB,
   AWKWARD_FIRST_NAME,
   AWKWARD_LAST_NAME,
+  CLEAN_CAPACITY,
+  CLEAN_EVENT_DATE,
+  CLEAN_EVENT_NAME,
+  CLEAN_EVENT_SLUG,
+  CLEAN_HELD_ENTRANT_ID,
+  CLEAN_HELD_LAST_NAME,
+  CLEAN_HELD_PURCHASE_ID,
+  CLEAN_PAID_ENTRANT_ID,
+  CLEAN_PAID_LAST_NAME,
+  CLEAN_PAID_PURCHASE_ID,
+  CLEAN_RACE_SLUG,
   EXPIRED_ENTRANT_ID,
   EXPIRED_PURCHASE_ID,
   MEDICAL_NOTE,
+  MISSING_EA_ENTRANT_ID,
+  MISSING_EA_LAST_NAME,
+  MISSING_EA_PURCHASE_ID,
   OVER_ENTRANT_ID,
   OVER_PURCHASE_ID,
   PAID_EA_NUMBER,
@@ -28,6 +42,9 @@ import {
   REVOKED_HANDLE,
   REVOKED_PERSON_KEY,
 } from './admin-fixtures';
+
+/** The two fabricated runnings this file writes, and the only ones it ever deletes from. */
+const FIXTURE_EVENT_SLUGS = [ADMIN_EVENT_SLUG, CLEAN_EVENT_SLUG];
 
 /**
  * Setting up and tearing down the admin run's fixtures, from ordinary Node.
@@ -99,32 +116,50 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       REVOKED_HANDLE,
     ]);
 
-    await db.query(
-      `insert into entries.events (
-         slug, display_name, race_slug, event_date, start_time, capacity,
-         entries_open_at, from_address, consent_version, minimum_age
-       ) values ($1, $2, $3, $4::date, time '11:00', $5,
-                 '2026-01-01T00:00:00Z', 'fixture@example.com', 'zz-v1', 18)
-       on conflict (slug) do nothing`,
-      [
-        ADMIN_EVENT_SLUG,
-        ADMIN_EVENT_NAME,
-        ADMIN_RACE_SLUG,
-        ADMIN_EVENT_DATE,
-        ADMIN_CAPACITY,
-      ],
+    const seedEvent = async (
+      slug: string,
+      name: string,
+      raceSlug: string,
+      date: string,
+      capacity: number,
+    ): Promise<void> => {
+      await db.query(
+        `insert into entries.events (
+           slug, display_name, race_slug, event_date, start_time, capacity,
+           entries_open_at, from_address, consent_version, minimum_age
+         ) values ($1, $2, $3, $4::date, time '11:00', $5,
+                   '2026-01-01T00:00:00Z', 'fixture@example.com', 'zz-v1', 18)
+         on conflict (slug) do nothing`,
+        [slug, name, raceSlug, date, capacity],
+      );
+
+      await db.query(
+        `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
+         select e.id, f.code, f.label, f.price, f.ea
+           from entries.events e
+           cross join (values ('affiliated', 'Affiliated', 1500, true),
+                              ('unaffiliated', 'Unaffiliated', 1700, false))
+                      as f (code, label, price, ea)
+          where e.slug = $1
+         on conflict (event_id, code) do nothing`,
+        [slug],
+      );
+    };
+
+    await seedEvent(
+      ADMIN_EVENT_SLUG,
+      ADMIN_EVENT_NAME,
+      ADMIN_RACE_SLUG,
+      ADMIN_EVENT_DATE,
+      ADMIN_CAPACITY,
     );
 
-    await db.query(
-      `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-       select e.id, f.code, f.label, f.price, f.ea
-         from entries.events e
-         cross join (values ('affiliated', 'Affiliated', 1500, true),
-                            ('unaffiliated', 'Unaffiliated', 1700, false))
-                    as f (code, label, price, ea)
-        where e.slug = $1
-       on conflict (event_id, code) do nothing`,
-      [ADMIN_EVENT_SLUG],
+    await seedEvent(
+      CLEAN_EVENT_SLUG,
+      CLEAN_EVENT_NAME,
+      CLEAN_RACE_SLUG,
+      CLEAN_EVENT_DATE,
+      CLEAN_CAPACITY,
     );
 
     /**
@@ -148,7 +183,11 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       holdMinutes: number;
       attention?: string;
       notes?: string;
+      /** Which fabricated running this purchase belongs to. Defaults to the oversold one. */
+      eventSlug?: string;
     }): Promise<void> => {
+      const eventSlug = purchase.eventSlug ?? ADMIN_EVENT_SLUG;
+
       await db.query(
         `insert into entries.entry_purchases (
            id, event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
@@ -178,7 +217,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
           purchase.attention ?? null,
           ADMIN_CAPACITY,
           purchase.feeCode,
-          ADMIN_EVENT_SLUG,
+          eventSlug,
         ],
       );
 
@@ -296,6 +335,60 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       gender: 'male',
       holdMinutes: -90,
     });
+
+    // **Paid, affiliated, and no England Athletics number** — the state the affiliation panel
+    // exists to surface, and one `create_pending_purchase()` permits. See the note in
+    // `admin-fixtures.ts`.
+    await seed({
+      purchaseId: MISSING_EA_PURCHASE_ID,
+      entrantId: MISSING_EA_ENTRANT_ID,
+      status: 'paid',
+      feeCode: 'affiliated',
+      amountPence: 1500,
+      firstName: 'Nadia',
+      lastName: MISSING_EA_LAST_NAME,
+      club: 'Westbury Harriers',
+      eaNumber: null,
+      dateOfBirth: '1994-03-09',
+      gender: 'female',
+      holdMinutes: 31,
+    });
+
+    // --- the quiet event, with nothing flagged on it ------------------------------------------
+    // Two entries against ten places: not full, not over, nothing needing a human, no medical
+    // note and no missing number. It is what proves the attention panel *stays away*.
+    await seed({
+      eventSlug: CLEAN_EVENT_SLUG,
+      purchaseId: CLEAN_PAID_PURCHASE_ID,
+      entrantId: CLEAN_PAID_ENTRANT_ID,
+      status: 'paid',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Tomas',
+      lastName: CLEAN_PAID_LAST_NAME,
+      club: 'Chew Valley RC',
+      eaNumber: null,
+      dateOfBirth: '1991-05-02',
+      gender: 'male',
+      holdMinutes: 31,
+    });
+
+    await seed({
+      eventSlug: CLEAN_EVENT_SLUG,
+      purchaseId: CLEAN_HELD_PURCHASE_ID,
+      entrantId: CLEAN_HELD_ENTRANT_ID,
+      status: 'pending',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Bea',
+      lastName: CLEAN_HELD_LAST_NAME,
+      club: null,
+      eaNumber: null,
+      dateOfBirth: '1979-08-19',
+      gender: 'female',
+      // A live hold, so this event has one place held and one paid.
+      holdMinutes: 31,
+    });
   });
 }
 
@@ -309,12 +402,18 @@ export async function clearAdminFixtures(
   restoreGateKey: string | null = null,
 ): Promise<void> {
   await withClient(async (db) => {
+    // **Scoped to this file's own two runnings, by slug, and never wider.** A delete that took
+    // every purchase or every event would take `nn-2026`'s with it, and two specs sharing one
+    // database have already bitten this suite: `nn-entry.spec.ts` clears purchases against the
+    // real event, which is exactly why these fixtures are against fabricated ones.
     await db.query(
       `delete from entries.entry_purchases
-        where event_id in (select id from entries.events where slug = $1)`,
-      [ADMIN_EVENT_SLUG],
+        where event_id in (select id from entries.events where slug = any($1::text[]))`,
+      [FIXTURE_EVENT_SLUGS],
     );
-    await db.query('delete from entries.events where slug = $1', [ADMIN_EVENT_SLUG]);
+    await db.query('delete from entries.events where slug = any($1::text[])', [
+      FIXTURE_EVENT_SLUGS,
+    ]);
     await db.query('delete from entries.admin_audit where actor = any($1::text[])', [
       [ADMIN_HANDLE, REVOKED_HANDLE],
     ]);

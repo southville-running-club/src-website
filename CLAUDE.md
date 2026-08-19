@@ -336,11 +336,20 @@ So you do not go looking for it, or assume it is missing by mistake: there is **
 email and no timing application code**.
 
 **There is an admin surface, and it is switched off.** `/nn/admin` reads the entries for a
-running, the interest sign-ups, one medical note at a time, and three CSV exports — and with no
-`ENTRIES_ADMIN_KEY` bound it declines every address under that prefix, so the request falls
-through to the assets binding and 404s like one nobody published. **That is the deployed state.**
-Switching it on is two manual steps plus a key per volunteer:
-[the admin runbook](docs/delivery/runbooks/entries-admin.md).
+running, the interest sign-ups, one medical note at a time, three CSV exports and a printable
+start list — and with no `ENTRIES_ADMIN_KEY` bound it declines every address under that prefix, so
+the request falls through to the assets binding and 404s like one nobody published. **That is the
+deployed state.** Switching it on is two manual steps plus a key per volunteer:
+[the admin runbook](docs/delivery/runbooks/entries-admin.md), which lists the seven addresses and
+what is on the page.
+
+**It is one page, in the club brand, and `nn-theme.css` must never reach it.** A tool rather than a
+page a runner reads, and it will serve Pass the Buck — so every colour is a `--colour-*` name and
+there is not one hex value in `packages/shared/styles/nn-admin.css`, which
+`packages/shared/tests/unit/admin-contrast.test.ts` asserts along with the contrast of every wash
+the surface mixes. **The audit trail is deliberately not on it**: nothing may read
+`entries.admin_audit`, and rendering it would need a fourteenth anon-callable function, which is a
+stop-and-ask rather than a layout decision.
 
 **The medical notes are deleted a month after the race, and the promise and the enforcement are
 tied together by a test.** `entries.events.medical_retention` is what the five-minute cron
