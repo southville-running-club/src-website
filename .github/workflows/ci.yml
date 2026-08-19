@@ -167,6 +167,18 @@ jobs:
       - name: Unit and database tests
         run: npm test
 
+      - name: Unit coverage has not gone backwards
+        # The unit layer only — the other three run in a process this provider cannot
+        # instrument, so `vitest.config.ts` names exactly which files the number is allowed
+        # to be about, and why. Read the block there before changing a threshold.
+        #
+        # A ratchet rather than a target: the thresholds sit at today's floor, so this goes
+        # red when a module loses its tests and stays quiet otherwise. It re-runs the 355
+        # unit tests that `npm test` has just run, which costs seconds and keeps the number
+        # reproducible from one command rather than depending on whether the database
+        # happened to be up.
+        run: npm run test:coverage
+
       - name: Migrations apply from zero
         working-directory: platform/packages/db
         # The only thing that proves a new volunteer, or a restored backup, can actually

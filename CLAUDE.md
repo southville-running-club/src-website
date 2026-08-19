@@ -191,6 +191,14 @@ needs a build, which is why it waits for `test` rather than `check`. Between the
 commands run every layer CI does, which was not true until a green laptop sent a red pull
 request.
 
+**`npm run test:coverage` measures the unit layer, and only that layer.** The other three run
+in a process the provider cannot instrument, so `platform/vitest.config.ts` names the included
+files one by one and says why each exclusion is there — read that block before quoting a
+number or changing a threshold. The thresholds are a ratchet set at today's floor: raise one
+when a module lands, never lower one to make a red run green.
+[`docs/delivery/test-coverage.md`](docs/delivery/test-coverage.md) is the standing assessment
+of what each layer reaches and what is still open.
+
 **The negative case is usually the one that matters.** That an anonymous client *cannot*
 read `club` proves more than that a member can. Assert the specific error, not merely that
 something failed — a test that passes because the table does not exist yet is a test that
