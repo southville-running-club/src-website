@@ -51,6 +51,13 @@ export const PENDING_PURCHASE_REASONS = [
   'invalid_discount',
   'invalid_entrants',
   'under_minimum_age',
+  // **Both are drift if they ever reach the deployed form**, because `parseNnEntry` refuses
+  // each of them first — which is exactly why they are named rather than folded into
+  // `invalid_entrants`. A log line saying `consents_missing` says the form and the database
+  // disagree about what was agreed; one saying `invalid_entrants` says something, somewhere,
+  // in the entrant block. Only the first is actionable at four in the morning.
+  'ea_number_required',
+  'consents_missing',
   'unknown',
 ] as const;
 

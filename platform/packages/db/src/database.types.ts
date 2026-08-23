@@ -300,6 +300,7 @@ export type Database = {
           medical_retention: string
           minimum_age: number | null
           race_slug: string
+          required_consents: string[]
           requires_dob: boolean
           slug: string
           start_time: string
@@ -318,6 +319,7 @@ export type Database = {
           medical_retention?: string
           minimum_age?: number | null
           race_slug: string
+          required_consents?: string[]
           requires_dob?: boolean
           slug: string
           start_time: string
@@ -336,6 +338,7 @@ export type Database = {
           medical_retention?: string
           minimum_age?: number | null
           race_slug?: string
+          required_consents?: string[]
           requires_dob?: boolean
           slug?: string
           start_time?: string
