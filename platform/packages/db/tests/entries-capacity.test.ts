@@ -325,8 +325,8 @@ describe('two people going for the last place at the same moment', () => {
              event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
              consents, consent_version, hold_expires_at
            )
-           select $1, 'pending', 1700, f.id, $2, 'Control', '{}'::jsonb, 'fixture-v1',
-                  now() + interval '31 minutes'
+           select $1, 'pending', 1700, f.id, $2, 'Control', '{"entryTerms":true}'::jsonb,
+                  'fixture-v1', now() + interval '31 minutes'
              from entries.fees f
             where f.event_id = $1 and f.code = 'unaffiliated'
            returning id`,
@@ -705,11 +705,18 @@ describe('how many people one entry may cover', () => {
     // **The check constraints are the backstop, and tripping one must not leave a purchase
     // behind with no runner on it.** Every write happens inside one subtransaction, so it all
     // goes back together.
+    //
+    // **This used to use a malformed England Athletics number and no longer can.** Slice G made
+    // the number conditional on the fee, and this fixture's only fee is `unaffiliated` — so the
+    // number is now *dropped* at the boundary rather than passed down to the format constraint,
+    // which is the minimisation rule `parseNnEntry` has always applied one floor up. An
+    // over-long name is a value the tables still will not take, which is what this test is
+    // actually about. `entries-rules.test.ts` covers the number against its fee.
     const eventId = await seedEvent(`${FIXTURE_PREFIX}bad`, { capacity: 5 });
 
     expect(
       await enter(`${FIXTURE_PREFIX}bad`, {
-        entrants: [entrant({ ea_number: 'NOT-A-NUMBER' })],
+        entrants: [entrant({ first_name: 'x'.repeat(61) })],
       }),
     ).toEqual({ ok: false, reason: 'invalid_entrants' });
 

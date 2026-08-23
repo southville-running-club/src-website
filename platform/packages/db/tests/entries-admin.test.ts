@@ -511,20 +511,27 @@ describe('the figures on entries.admin_entry_list()', () => {
   });
 
   /**
-   * **The state the affiliation panel exists to catch, and the proof it is reachable.**
+   * **The state the affiliation panel exists to catch — and it is no longer reachable, which is
+   * what this test now says.**
    *
-   * `packages/shared/src/nn-entry.ts` requires an England Athletics number whenever the chosen fee
-   * does — but that is the *form's* control. Nothing in this schema enforces it:
-   * `entries.entrants.ea_number` validates the format of a non-null value and permits null
-   * outright, and `entries.create_pending_purchase()` writes whatever it was handed straight
-   * through with no reference to `fees.requires_ea_number`. That function is granted to `anon`.
+   * It used to read: *"this insert succeeding is the assertion… this test is what will fail if
+   * somebody later adds the check that makes it unreachable, which is the moment to take the
+   * panel off."* Slice G added that check. The row two ordinary PostgREST calls with the
+   * published anon key used to produce is now refused, in the function and again by
+   * `entrants_obey_their_event`.
    *
-   * So this insert is not a fabricated impossibility — it is the row two ordinary PostgREST calls
-   * with the published anon key produce. The count is on the page because of it, and this test is
-   * what will fail if somebody later adds the check that makes it unreachable, which is the moment
-   * to take the panel off.
+   * **The panel stays, and the reason is the one thing a trigger cannot do.** A trigger only ever
+   * sees a write, so it says nothing about the rows that were already there — and the four check
+   * constraints Slice G added shipped `NOT VALID` precisely because nobody could see production's.
+   * Until [the constraints runbook](../../../../docs/delivery/runbooks/entries-constraints.md) has
+   * been run, a pre-enforcement row is exactly the thing this count would find, and it is the only
+   * thing that would find it.
+   *
+   * So the test does both halves: the insert is refused the ordinary way, and then the row is
+   * written the *only* way it can still exist — as history, with triggers suppressed — to prove
+   * the panel still counts it.
    */
-  it('counts an affiliated entry that gave no number, which the schema permits', async () => {
+  it('refuses an affiliated entry with no number, where the schema once permitted it', async () => {
     const purchase = '0d0d0d0d-0000-4000-8000-0000000000a1';
     const entrant = '0d0d0d0d-0000-4000-8000-0000000000b1';
 
@@ -541,18 +548,31 @@ describe('the figures on entries.admin_entry_list()', () => {
       [EVENT, purchase],
     );
 
-    // **This insert succeeding is the assertion.** A schema that tied the number to the fee would
-    // refuse it here.
-    await query(
-      `insert into entries.entrants (
+    const insertEntrant = `insert into entries.entrants (
          id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
          emergency_contact_name, emergency_contact_phone
        ) values ($1::uuid, $2::uuid, 'No', 'Number', date '1990-01-01', 'female',
-                 null, null, 'Kin Three', '0117 496 0003')`,
-      [entrant, purchase],
-    );
+                 null, null, 'Kin Three', '0117 496 0003')`;
 
     try {
+      // **This insert being refused is the assertion now.** The trigger ties the number to the
+      // fee, so the state the panel counts can no longer be created.
+      await expect(query(insertEntrant, [entrant, purchase])).rejects.toMatchObject({
+        code: '23514',
+      });
+
+      // Then the same row as *history*. `session_replication_role = replica` suppresses user
+      // triggers for this connection only — it is how Postgres replays rows that were written
+      // under older rules, which is exactly what a pre-enforcement entry is. It cannot leak: it
+      // is a session setting, restored below, and it does not touch the check constraints.
+      await query('set session_replication_role = replica');
+      try {
+        await query(insertEntrant, [entrant, purchase]);
+      } finally {
+        await query('set session_replication_role = origin');
+      }
+
+      // **The panel still finds it**, which is why the panel is still on the page.
       expect(await figures()).toMatchObject({
         affiliated: 2,
         affiliated_missing_ea: 1,

@@ -254,6 +254,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'admin_interest_list',
       'admin_key_ok',
       'admin_sign_in',
+      // **The three trigger functions, and none of them is callable by anybody.** They enforce
+      // the rules that span more than one table — the England Athletics number against the
+      // fee, the medical note against its consent, the consents against the event — which a
+      // check constraint cannot see. `entries-rules.test.ts` covers what they do.
+      'assert_entrant_rules',
+      'assert_medical_consent',
+      'assert_purchase_consents',
       'attach_checkout_session',
       'create_pending_purchase',
       'current_entry_state',
@@ -267,7 +274,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     ]);
   });
 
-  it('lets anon execute exactly thirteen of the sixteen, and never PUBLIC', async () => {
+  it('lets anon execute exactly thirteen of the nineteen, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument
@@ -319,8 +326,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets nobody at all execute the three internal helpers', async () => {
-    // **The three granted to no role**, and each would be a hole on its own:
+  it('lets nobody at all execute the six internal helpers', async () => {
+    // **The six granted to no role.** The first three would each be a hole on its own; the
+    // last three are the rule enforcement Slice G added, and a grant on any of them would put
+    // a function that reads a purchase, an entrant and a medical consent behind a key that is
+    // published in page source.
     //
     //   `raise_attention`     writes the flag that says a human must look at a purchase. A
     //                         grant would let anybody clear or forge an alarm.
@@ -329,12 +339,19 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //   `record_admin_action` writes the audit trail. A grant would make it forgeable, which
     //                         is worse than not having one.
     //
-    // All three are reachable only from the definer functions that call them, which run as this
-    // schema's owner.
+    //   `assert_entrant_rules`      reads the fee and the event behind an entrant.
+    //   `assert_medical_consent`    reads the consent recorded against a medical note.
+    //   `assert_purchase_consents`  reads the consents an event requires.
+    //
+    // The first three are reachable only from the definer functions that call them; the last
+    // three only from their triggers. All six run as this schema's owner.
     const granted = await query(
       `select grantee from information_schema.routine_privileges
         where routine_schema = 'entries'
-          and routine_name in ('raise_attention', 'admin_key_ok', 'record_admin_action')
+          and routine_name in (
+            'raise_attention', 'admin_key_ok', 'record_admin_action',
+            'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents'
+          )
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );
 
@@ -404,6 +421,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       admin_interest_list: 's',
       admin_key_ok: 's',
       admin_sign_in: 'v',
+      // **The three trigger functions are volatile**, and for a trigger that is the only
+      // honest answer: it runs inside somebody else's write and must see that write's own
+      // statement, not the snapshot the calling statement started with.
+      assert_entrant_rules: 'v',
+      assert_medical_consent: 'v',
+      assert_purchase_consents: 'v',
       attach_checkout_session: 'v',
       create_pending_purchase: 'v',
       current_entry_state: 's',
@@ -994,7 +1017,8 @@ describe('what the tables refuse regardless of who is asking', () => {
          event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
          consents, consent_version
        )
-       select e.id, 'pending', 1500, f.id, 'zz-ea@example.com', 'Zed Ea', '{}'::jsonb, 'v1'
+       select e.id, 'pending', 1500, f.id, 'zz-ea@example.com', 'Zed Ea',
+              '{"entryTerms":true}'::jsonb, 'v1'
          from entries.events e
          join entries.fees f on f.event_id = e.id and f.code = 'affiliated'
         where e.slug = 'nn-2026'
