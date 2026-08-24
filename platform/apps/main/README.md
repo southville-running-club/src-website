@@ -925,6 +925,17 @@ is the argument for two credentials rather than one.
 > creating it before the secrets are set means every early delivery 5xxs. Nothing is *lost*
 > either way — Stripe retries for three days — but the dashboard fills with red for no reason.
 
+**Member accounts add two more, and they are a different kind of secret.** Steps 9 and 10 are
+**GitHub Actions repository secrets**, not Worker secrets — `env(...)` substitution in
+`packages/db/supabase/config.toml` is read wherever `supabase config push` runs, which is
+`deploy-db.yml`, not the Worker. [Decision 005 and ADR-015](../../../docs/decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth)
+record the choice. **Both are needed before their block is uncommented, not after** — the
+Supabase CLI validates an `env(...)` substitution at startup, and an unset one breaks
+`supabase start` outright. #49 turns on the parts of `[auth]` that need no secret —
+`enable_signup`, email confirmation, a twelve-character minimum password; `[auth.captcha]`
+and `[auth.external.google]` stay commented out until #53 and #56 need them and step 9 or
+10 has actually been done.
+
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
 | _1. Create the Worker and connect Workers Builds_ | Git integration needs no API token in CI, so there is no deploy credential to leak | _pending_ | See the settings below |
@@ -935,6 +946,8 @@ is the argument for two credentials rather than one.
 | _6. Set the admin key, and install its digest_ | **Independent of the five above, and it can be done at any time.** It switches `/nn/admin` on: until it is done that whole prefix 404s, which is the correct state rather than a broken one | _pending_ | The full procedure, including issuing a key to each volunteer, is [the admin runbook](../../../docs/delivery/runbooks/entries-admin.md). Two steps: `npx wrangler secret put ENTRIES_ADMIN_KEY --env production --config apps/main/wrangler.jsonc`, then `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'admin';` |
 | _7. Issue a key to each volunteer_ | The Worker's key authorises the *Worker*; a per-person key is what says which human is looking, so an export can record who took it and one person can be revoked without revoking both | _pending_ | [The admin runbook](../../../docs/delivery/runbooks/entries-admin.md#step-2--issue-a-key-to-each-volunteer). One `insert` into `entries.admin_keys` per person, holding the digest and a **role handle rather than their name** |
 | _8. Validate the four entries constraints_ | **Independent of every step above, and nothing is broken until it is done.** Slice G's check constraints shipped `NOT VALID`, so they enforce every new write but have never looked at the rows already there — because nobody here could see them, and a validated `ADD CONSTRAINT` fails the *migration* if one row disagrees, which fails the deploy for everything | _pending_ | [The constraints runbook](../../../docs/delivery/runbooks/entries-constraints.md). Step 1 is a read-only query that says whether step 2 will succeed; run it first and stop if any count is not zero, because a row that disagrees is evidence rather than a mess to tidy |
+| _9. Set `SUPABASE_AUTH_CAPTCHA_SECRET`, before #53 uncomments `[auth.captcha]`_ | **A GitHub Actions repository secret, not a Worker secret** — `deploy-db.yml` runs `supabase config push` in Actions, and that is where `env(...)` substitution reads from. It has to exist **before** `[auth.captcha]` is uncommented: the CLI validates the substitution at startup, and an unset one breaks `supabase start` outright rather than shipping captcha silently off — confirmed while building #49, which is why that block still ships commented out | _pending_ | Repository → Settings → Secrets and variables → Actions → New repository secret, name `SUPABASE_AUTH_CAPTCHA_SECRET`, value the Turnstile **secret** key (not the site key — that one is public and goes in `wrangler.jsonc` as a `var` when #53 renders the widget) |
+| _10. Set `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, before #56 uncomments `[auth.external.google]`_ | **Not consumed by anything until #56**, and the same startup-validation trap applies — set it before that block is uncommented, not after | _pending_ | Same place as step 9, name `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, value the OAuth client secret from the Google Cloud Console project #56 sets up |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the

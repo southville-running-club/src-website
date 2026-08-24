@@ -122,12 +122,62 @@ describe('the auth block that ships to production on every migration merge', () 
     );
   });
 
-  it('signup is closed until the platform decides it needs member-facing auth', () => {
+  it('signup is open, decided by decision 005 and ADR-015', () => {
     // The anon key is public, so an open signup endpoint is reachable by anyone who can
-    // see the client bundle — independent of RLS. Whether the platform needs
-    // member-facing authentication at all is still an open question; until it is
-    // answered, this stays closed rather than defaulting open.
+    // see the client bundle — independent of RLS. That used to be the reason this stayed
+    // closed; it is now safe because RLS, not this flag, is what stops a signed-up
+    // account doing anything.
     expect(authValue('enabled')).toBe('true');
-    expect(authValue('enable_signup')).toBe('false');
+    expect(authValue('enable_signup')).toBe('true');
+  });
+
+  it('a password has to be twelve characters, and no composition rule is imposed', () => {
+    // Length over composition rules — NCSC and NIST both advise against the latter, which
+    // pushes people towards `Password1!` and a sticky note rather than a stronger password.
+    expect(authValue('minimum_password_length')).toBe('12');
+    expect(authValue('password_requirements')).toBe('""');
+  });
+});
+
+describe('the auth.email block', () => {
+  function emailConfig(): { key: string; value: string }[] {
+    const lines = CONFIG.split('\n');
+    const start = lines.findIndex((line) => line.trim() === '[auth.email]');
+    if (start === -1) throw new Error('config.toml has no [auth.email] section');
+    const nextSection = lines.findIndex(
+      (line, i) => i > start && /^\[/.test(line.trim()),
+    );
+    const block = lines.slice(start, nextSection === -1 ? undefined : nextSection);
+
+    return block
+      .map((line) => /^(\w+)\s*=\s*(.+)$/.exec(line.trim()))
+      .filter((match): match is RegExpExecArray => match !== null)
+      .map((match) => ({ key: match[1]!, value: match[2]! }));
+  }
+
+  function emailValue(key: string): string {
+    const found = emailConfig().find((entry) => entry.key === key);
+    if (!found) throw new Error(`config.toml [auth.email] has no ${key}`);
+    return found.value;
+  }
+
+  it('requires a confirmed address before signing in', () => {
+    // Without this, an unverified address is a signed-in account, and anybody can
+    // register somebody else's email.
+    expect(emailValue('enable_confirmations')).toBe('true');
+  });
+
+  it('requires reauthentication before a password change', () => {
+    expect(emailValue('secure_password_change')).toBe('true');
+  });
+});
+
+describe('the auth.captcha block', () => {
+  it('stays commented out until #53 builds a form to carry the widget', () => {
+    // `env(...)` substitution is validated at startup, and SUPABASE_AUTH_CAPTCHA_SECRET
+    // is not set locally or in this repository's CI — enabling this block without it
+    // breaks `supabase start` outright, confirmed while building #49. Uncommenting it is
+    // #53's job, alongside installing the repository secret.
+    expect(CONFIG).not.toMatch(/^\[auth\.captcha\]/m);
   });
 });
