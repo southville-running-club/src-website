@@ -34,7 +34,11 @@ export interface SupabaseConfig {
  */
 export type AnonClient = SupabaseClient<Database, 'intake'>;
 
-export function createAnonClient(config: SupabaseConfig): AnonClient {
+/** The same client shape, but its RPCs and reads default to `identity` — what a signed-in
+ *  caller from #52 onward is overwhelmingly asking about. */
+export type UserClient = SupabaseClient<Database, 'identity'>;
+
+function assertUsableConfig(config: SupabaseConfig): { url: string; anonKey: string } {
   const url = config.url?.trim();
   const anonKey = config.anonKey?.trim();
 
@@ -51,12 +55,46 @@ export function createAnonClient(config: SupabaseConfig): AnonClient {
     );
   }
 
+  return { url, anonKey };
+}
+
+export function createAnonClient(config: SupabaseConfig): AnonClient {
+  const { url, anonKey } = assertUsableConfig(config);
+
   return createClient(url, anonKey, {
     auth: {
       // Nothing in the skeleton signs in, and a client that quietly persists a session is
-      // a surprise waiting for whoever adds auth later.
+      // a surprise waiting for whoever adds auth later. #52's worker/session.ts is what
+      // actually carries a session now — across a request, not inside this client.
       persistSession: false,
       autoRefreshToken: false,
+    },
+  });
+}
+
+/**
+ * A client that reads and writes as one signed-in person, via the access token
+ * `worker/session.ts` holds on their behalf.
+ *
+ * **Still the anon key.** The `Authorization: Bearer <access token>` header is what tells
+ * PostgREST which row `auth.uid()` resolves to; row-level security is what an authenticated
+ * caller may then do with that, exactly as it is for `anon`. This function accepts no
+ * service-role key for the same reason `createAnonClient` does not — if a route appears to
+ * need one, the RLS policy is wrong.
+ */
+export function createUserClient(
+  config: SupabaseConfig,
+  accessToken: string,
+): UserClient {
+  const { url, anonKey } = assertUsableConfig(config);
+
+  return createClient(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      headers: { Authorization: `Bearer ${accessToken}` },
     },
   });
 }

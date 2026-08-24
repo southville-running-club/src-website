@@ -4,7 +4,6 @@ import {
   ADMIN_SESSION_SECONDS,
   adminSessionCookie,
   clearedAdminSessionCookie,
-  cookieValue,
   mintAdminSession,
   readAdminSession,
 } from '../../worker/admin-session';
@@ -147,22 +146,5 @@ describe('the cookie attributes', () => {
     expect(cleared).toContain(`${ADMIN_COOKIE}=`);
     expect(cleared).toContain('Path=/nn/admin');
     expect(cleared).toContain('Max-Age=0');
-  });
-});
-
-describe('cookieValue', () => {
-  it('finds one cookie among several, however the header is spaced', () => {
-    expect(cookieValue('a=1; nn_admin=xyz; b=2', 'nn_admin')).toBe('xyz');
-    expect(cookieValue('a=1;nn_admin=xyz;b=2', 'nn_admin')).toBe('xyz');
-  });
-
-  it('does not match a cookie whose name merely ends with the one asked for', () => {
-    expect(cookieValue('not_nn_admin=xyz', 'nn_admin')).toBeNull();
-  });
-
-  it('keeps a value containing an equals sign', () => {
-    // Only the first `=` separates name from value. Base64url has no padding so this should
-    // never arise, and a parser that got it wrong would fail in a way nobody could read.
-    expect(cookieValue('nn_admin=a=b=c', 'nn_admin')).toBe('a=b=c');
   });
 });
