@@ -63,12 +63,19 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).toContain('entries');
   });
 
-  it('exposes nothing beyond public, graphql_public, intake and entries', () => {
+  it('exposes identity, for the account and role — never club', () => {
+    // ADR-015: a profile has to be readable by its owner through PostgREST, so its schema
+    // has to be exposed. `club` stays exactly as unexposed as ADR-002 left it.
+    expect(exposedSchemas()).toContain('identity');
+  });
+
+  it('exposes nothing beyond public, graphql_public, intake, entries and identity', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
     // silently is precisely the failure this file exists to prevent.
     expect(exposedSchemas().sort()).toEqual([
       'entries',
       'graphql_public',
+      'identity',
       'intake',
       'public',
     ]);

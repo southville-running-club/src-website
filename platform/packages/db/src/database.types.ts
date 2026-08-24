@@ -486,6 +486,179 @@ export type Database = {
       [_ in never]: never
     }
   }
+  identity: {
+    Tables: {
+      audit: {
+        Row: {
+          action: string
+          actor: string | null
+          at: string
+          detail: Json
+          id: string
+          subject: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          at?: string
+          detail?: Json
+          id?: string
+          subject: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          at?: string
+          detail?: Json
+          id?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      people: {
+        Row: {
+          address: string | null
+          created_at: string
+          date_of_birth: string | null
+          gender: string | null
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          gender?: string | null
+          id: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          gender?: string | null
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reserved_grants: {
+        Row: {
+          email: string
+          role: string
+        }
+        Insert: {
+          email: string
+          role: string
+        }
+        Update: {
+          email?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reserved_grants_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      role_grants: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          person_id: string
+          revoked_at: string | null
+          role: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          person_id: string
+          revoked_at?: string | null
+          role: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          person_id?: string
+          revoked_at?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_grants_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_grants_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          description: string
+          slug: string
+        }
+        Insert: {
+          description: string
+          slug: string
+        }
+        Update: {
+          description?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      grant_role: { Args: { p_person: string; p_role: string }; Returns: Json }
+      has_role: { Args: { p_role: string }; Returns: boolean }
+      list_people: { Args: never; Returns: Json }
+      my_roles: { Args: never; Returns: Json }
+      record_identity_audit: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_detail: Json
+          p_subject: string
+        }
+        Returns: undefined
+      }
+      revoke_role: { Args: { p_person: string; p_role: string }; Returns: Json }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   intake: {
     Tables: {
       nn_interest: {
@@ -651,6 +824,9 @@ export const Constants = {
     Enums: {},
   },
   entries: {
+    Enums: {},
+  },
+  identity: {
     Enums: {},
   },
   intake: {

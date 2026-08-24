@@ -26,11 +26,10 @@ port = 54321
 # `public` holds the timing platform's tables and is migrated from `src-race-timing`.
 # See docs/architecture/decisions/adr-002-schema-layout.md
 #
-# `identity` — ADR-015's schema for the account and role — is not here yet. It is added by
-# #51, in the same migration that creates it: exposing a schema PostgREST cannot find would
-# be an untested way to find out what that does in production, and #49 does not need it —
-# nothing reads or writes `identity` until #51 lands.
-schemas = ["public", "graphql_public", "intake", "entries"]
+# `identity` — ADR-015's schema for the account and role — is added in the same migration
+# that creates it (#51), not before: exposing a schema PostgREST cannot find is untested,
+# and #49 did not need it.
+schemas = ["public", "graphql_public", "intake", "entries", "identity"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
