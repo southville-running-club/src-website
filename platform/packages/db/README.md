@@ -429,6 +429,7 @@ and **removes what it wrote afterwards**, so the seed's own seven rows are what
 | --- | --- | --- | --- |
 | _Create the Supabase project_ | Cannot be code | Already done — project `ketipxpyjjglwpqazsft`, `eu-west-2` | — |
 | _Add the GitHub Actions secrets_ | Migrations need a credential; Cloudflare does not | _pending_ | Repository → Settings → Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` |
+| _Add `SUPABASE_AUTH_CAPTCHA_SECRET`_ | `deploy-db.yml`'s `supabase config push` sends `config.toml`'s `[auth.captcha]` block, which reads this via `env(...)` — #53 | **Done**, 24 Aug 2026 | Repository → Settings → Secrets and variables → Actions. The Turnstile **secret** key, never the site key — that one is public and lives in `apps/main/wrangler.jsonc` |
 | _Confirm `intake` is exposed on the remote_ | `config.toml` may not reach that setting | _pending_ | Dashboard → Settings → API → exposed schemas. **Record the answer here** — it is one of the open "which settings are dashboard-only" questions |
 
 ## One ordering fact worth knowing

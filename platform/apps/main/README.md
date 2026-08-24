@@ -667,6 +667,73 @@ consent version itself, and `packages/db/tests/entries.test.ts` asserts the refu
 table, for every verb, by error code. That file staying green is what says this slice granted
 nothing it should not have.
 
+## The account area
+
+`/account/` — register, sign in, sign out. `worker/account.ts`, and always on, unlike
+`/nn/admin`: there is no key that switches it off, because an account system nobody can
+reach is not a deployable state the way an admin surface with no key installed is.
+
+| | |
+| --- | --- |
+| `GET /account/` | Signed in: who you are and what you can reach. Signed out: a 303 to `/account/sign-in/` |
+| `GET`/`POST /account/sign-up/` | Name, email, password, Turnstile. `?done=ok` renders the acknowledgement |
+| `GET`/`POST /account/sign-in/` | Email, password, Turnstile |
+| `POST /account/sign-out/` | Never a `GET` — a prefetch or an `<img src>` must not be able to sign somebody out |
+| `GET /account/confirm/` | Where the confirmation email lands. `?error=...` from Supabase renders an honest failure instead |
+
+**Built the way `/nn/admin` is, and for the same reason.** The content is per-request — is
+anybody signed in, what did the last submission get wrong — so it is built with
+`worker/html.ts`'s auto-escaping template rather than shipped as static HTML. **No file
+exists under `src/pages/account/`** other than `account.css.ts`, the stylesheet endpoint on
+the exact pattern of `src/pages/nn/admin.css.ts`. `nn-theme.css` never reaches it — this is
+a tool for managing an account, not a page about the race.
+
+### The JavaScript exception, made real
+
+Every unauthenticated form here carries a Cloudflare Turnstile widget, and Turnstile has no
+no-script mode. [ADR-015](../../../docs/architecture/decisions/adr-015-member-accounts-on-supabase-auth.md)
+accepted that cost deliberately, reversing
+[progressive enhancement](../../../docs/architecture/principles.md#progressive-enhancement-not-javascript-dependence)
+for this one area of the site. With scripting off the widget never renders, and the page
+says so plainly — an honest dead end, not a button that silently does nothing.
+
+**GoTrue verifies the token itself**, via `options.captchaToken` on `signUp` and
+`signInWithPassword`. There is no verification code in this Worker, and so no way to forget
+to check it.
+
+### Two Turnstile keys, and neither is a secret you will find here
+
+| | Local / CI | Production |
+| --- | --- | --- |
+| Site key (public, in `wrangler.jsonc`) | `1x00000000000000000000AA` — Cloudflare's own published "always passes" testing key | `0x4AAAAAAEaeMm9jDSJB7Gqy` |
+| Secret key (GoTrue-only, `env(SUPABASE_AUTH_CAPTCHA_SECRET)`) | `1x0000000000000000000000000000000AA` — the matching public testing secret, exported by `./dev` and `ci.yml` | The club's real secret, a GitHub Actions repository secret |
+
+Both testing values are documented at
+[developers.cloudflare.com/turnstile/troubleshooting/testing](https://developers.cloudflare.com/turnstile/troubleshooting/testing)
+and are meant to be shared — using them locally and in CI means nobody needs the club's real
+Turnstile secret just to run the test suite, and `supabase start` cannot fail the way it did
+when this env var was simply unset (see #49's history on this file's captcha block).
+
+### Account enumeration
+
+Signing up with an address that already has a confirmed account does not disclose that it
+does. GoTrue itself answers success either way — no email is sent to an address that is
+already registered — so there is nothing extra to get right here: the same shape
+`intake.nn_interest`'s duplicate-address handling has, at the database rather than the auth
+layer.
+
+### Sessions and CSRF
+
+`worker/session.ts` (#52) is what a signed-in request carries; this is its first caller. A
+sign-in sets `src_at`/`src_rt`; a sign-out clears both **and** calls Supabase's own sign-out,
+so the refresh token is dead server-side rather than merely forgotten locally.
+
+**`SameSite=Lax`, not `Strict`** — a magic link (#55) and an OAuth callback (#56) are both
+cross-site top-level navigations, which `Strict` would drop the session cookie on. Every
+state-changing `POST` in this area therefore carries a CSRF token from `worker/csrf.ts`: a
+double-submit cookie-and-field pair, checked constant-time, unrelated to the session so a
+token refresh mid-form does not invalidate what somebody already typed.
+
 ## The health endpoints
 
 Two database round trips, answered as JSON at **`/_health`** here and **`/timing/health`** in
@@ -946,7 +1013,7 @@ and `[auth.external.google]` stay commented out until #53 and #56 need them and 
 | _6. Set the admin key, and install its digest_ | **Independent of the five above, and it can be done at any time.** It switches `/nn/admin` on: until it is done that whole prefix 404s, which is the correct state rather than a broken one | _pending_ | The full procedure, including issuing a key to each volunteer, is [the admin runbook](../../../docs/delivery/runbooks/entries-admin.md). Two steps: `npx wrangler secret put ENTRIES_ADMIN_KEY --env production --config apps/main/wrangler.jsonc`, then `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'admin';` |
 | _7. Issue a key to each volunteer_ | The Worker's key authorises the *Worker*; a per-person key is what says which human is looking, so an export can record who took it and one person can be revoked without revoking both | _pending_ | [The admin runbook](../../../docs/delivery/runbooks/entries-admin.md#step-2--issue-a-key-to-each-volunteer). One `insert` into `entries.admin_keys` per person, holding the digest and a **role handle rather than their name** |
 | _8. Validate the four entries constraints_ | **Independent of every step above, and nothing is broken until it is done.** Slice G's check constraints shipped `NOT VALID`, so they enforce every new write but have never looked at the rows already there — because nobody here could see them, and a validated `ADD CONSTRAINT` fails the *migration* if one row disagrees, which fails the deploy for everything | _pending_ | [The constraints runbook](../../../docs/delivery/runbooks/entries-constraints.md). Step 1 is a read-only query that says whether step 2 will succeed; run it first and stop if any count is not zero, because a row that disagrees is evidence rather than a mess to tidy |
-| _9. Set `SUPABASE_AUTH_CAPTCHA_SECRET`, before #53 uncomments `[auth.captcha]`_ | **A GitHub Actions repository secret, not a Worker secret** — `deploy-db.yml` runs `supabase config push` in Actions, and that is where `env(...)` substitution reads from. It has to exist **before** `[auth.captcha]` is uncommented: the CLI validates the substitution at startup, and an unset one breaks `supabase start` outright rather than shipping captcha silently off — confirmed while building #49, which is why that block still ships commented out | _pending_ | Repository → Settings → Secrets and variables → Actions → New repository secret, name `SUPABASE_AUTH_CAPTCHA_SECRET`, value the Turnstile **secret** key (not the site key — that one is public and goes in `wrangler.jsonc` as a `var` when #53 renders the widget) |
+| _9. Set `SUPABASE_AUTH_CAPTCHA_SECRET`, before #53 uncomments `[auth.captcha]`_ | **A GitHub Actions repository secret, not a Worker secret** — `deploy-db.yml` runs `supabase config push` in Actions, and that is where `env(...)` substitution reads from. It has to exist **before** `[auth.captcha]` is uncommented: the CLI validates the substitution at startup, and an unset one breaks `supabase start` outright rather than shipping captcha silently off — confirmed while building #49, which is why that block shipped commented out until #53 | **Done**, 24 Aug 2026 | Repository → Settings → Secrets and variables → Actions → New repository secret, name `SUPABASE_AUTH_CAPTCHA_SECRET`, value the Turnstile **secret** key. The site key (`0x4AAAAAAEaeMm9jDSJB7Gqy`) is public and lives in `wrangler.jsonc`'s `env.production.vars` as `TURNSTILE_SITE_KEY`, #53 |
 | _10. Set `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, before #56 uncomments `[auth.external.google]`_ | **Not consumed by anything until #56**, and the same startup-validation trap applies — set it before that block is uncommented, not after | _pending_ | Same place as step 9, name `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, value the OAuth client secret from the Google Cloud Console project #56 sets up |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between

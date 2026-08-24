@@ -40,6 +40,14 @@
     // reach this Worker. On a laptop there is no edge, so this Worker forwards them
     // itself — which is what lets one port serve the whole site locally.
     "TIMING_ORIGIN": "http://localhost:8788",
+
+    // **Cloudflare's own published testing key, not a real site key.** `1x00000000000000000000AA`
+    // always passes, on any domain including `localhost` — documented at
+    // developers.cloudflare.com/turnstile/troubleshooting/testing. Paired with the equally
+    // public dummy secret key on the GoTrue side locally and in CI (`ci.yml`'s "Start the
+    // local Supabase stack" step), so nobody needs the club's real Turnstile secret just to
+    // run the test suite. Production's real site key is in `env.production` below.
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
   },
 
   // ---------------------------------------------------------------------------------
@@ -113,6 +121,11 @@
       "vars": {
         "PUBLIC_SUPABASE_URL": "https://ketipxpyjjglwpqazsft.supabase.co",
         "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_reN3BxHbZfvKF75bee6n3w_8hfq1FXg",
+
+        // The club's real Turnstile site key. Public by design — it is what the widget
+        // script reads client-side — and its secret pair lives only as the
+        // `SUPABASE_AUTH_CAPTCHA_SECRET` GitHub Actions repository secret, read by GoTrue.
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAEaeMm9jDSJB7Gqy",
       },
 
       // Repeated rather than inherited — see the note at the top level. Wrangler does not

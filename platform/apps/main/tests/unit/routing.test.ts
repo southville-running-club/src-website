@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accountSegments,
+  isAccountPath,
   isNnAdminPath,
   isNnEntryCompletePath,
   isNnRacePath,
@@ -9,6 +11,7 @@ import {
   nnEntryCompletePath,
   nnEventSlugForYearPath,
   nnYearPathForEventSlug,
+  ACCOUNT_PREFIX,
   NN_ADMIN_PREFIX,
   NN_PREFIX,
   NN_RACE_SLUG,
@@ -230,5 +233,41 @@ describe('the admin surface, and the one character that decides where it starts'
     // not this — the same property ADR-007 buys for every other address here.
     expect(NN_ADMIN_PREFIX).toBe('/nn/admin');
     expect(NN_ADMIN_PREFIX.startsWith(NN_PREFIX)).toBe(true);
+  });
+});
+
+describe('the account area, and the same character that decides where it starts', () => {
+  it('matches the prefix itself and everything beneath it', () => {
+    expect(isAccountPath('/account')).toBe(true);
+    expect(isAccountPath('/account/')).toBe(true);
+    expect(isAccountPath('/account/sign-up/')).toBe(true);
+    expect(isAccountPath('/account/sign-in/')).toBe(true);
+    expect(isAccountPath('/account/sign-out/')).toBe(true);
+    expect(isAccountPath('/account/confirm/')).toBe(true);
+  });
+
+  it('does not match the stylesheet that sits beside it', () => {
+    // The same trap `isNnAdminPath` documents for `/nn/admin.css`: `/account.css` is a real
+    // file in `dist/`, emitted by `src/pages/account.css.ts`. Treating `/account` as a plain
+    // prefix would mean the Worker answers this request itself and every account page
+    // renders unstyled.
+    expect(isAccountPath('/account.css')).toBe(false);
+  });
+
+  it('does not match another page that happens to start with the same letters', () => {
+    expect(isAccountPath('/accounts/')).toBe(false);
+    expect(isAccountPath('/accountability/')).toBe(false);
+  });
+
+  it('does not match the pages a runner reads', () => {
+    expect(isAccountPath('/nn/')).toBe(false);
+    expect(isAccountPath('/nn/admin/')).toBe(false);
+    expect(isAccountPath('/')).toBe(false);
+  });
+
+  it('segments the same way nnAdminSegments does', () => {
+    expect(accountSegments(ACCOUNT_PREFIX)).toEqual([]);
+    expect(accountSegments(`${ACCOUNT_PREFIX}/`)).toEqual([]);
+    expect(accountSegments(`${ACCOUNT_PREFIX}/sign-up/`)).toEqual(['sign-up']);
   });
 });

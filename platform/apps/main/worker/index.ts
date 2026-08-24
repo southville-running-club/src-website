@@ -6,6 +6,7 @@ import {
   healthResponse,
 } from '@src/shared';
 import {
+  isAccountPath,
   isHealthPath,
   isNnAdminPath,
   isNnEntryCompletePath,
@@ -19,6 +20,7 @@ import {
   NN_PREFIX,
 } from './routing';
 import { handleNnAdmin } from './nn-admin';
+import { handleAccount } from './account';
 import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
 import { renderNnEntryComplete, resolveNnEntryCompleteView } from './nn-entry-complete';
@@ -148,6 +150,13 @@ interface Env {
    * state today.** See ADR-013 and `worker/nn-admin.ts`.
    */
   ENTRIES_ADMIN_KEY?: string;
+  /**
+   * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
+   * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*
+   * key, never appears in this repository: GoTrue holds it, via
+   * `SUPABASE_AUTH_CAPTCHA_SECRET`, and verifies the token itself.
+   */
+  TURNSTILE_SITE_KEY: string;
 }
 
 export default {
@@ -185,6 +194,15 @@ export default {
       if (admin !== null) {
         return admin;
       }
+    }
+
+    // **The account area — always on, unlike `/nn/admin`.** There is no key that switches
+    // this off: an account system with nowhere to register is not a deployable state the
+    // way an admin surface with no key installed is. Matched before the assets binding for
+    // the same reason as everything else here — some of these are POSTs, and the pages are
+    // built in the Worker rather than served from `dist/`. See `account.ts`.
+    if (isAccountPath(url.pathname)) {
+      return handleAccount(request, env, url);
     }
 
     // **Both forms post to the running they belong to**, and the hidden `form` field is what

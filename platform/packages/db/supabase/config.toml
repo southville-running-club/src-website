@@ -274,19 +274,23 @@ web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 #
-# **Not turned on by #49, on investigation.** GoTrue is meant to verify the Turnstile token
-# itself, so no verification code would land in the Worker — but the CLI validates every
-# `env(...)` substitution at startup, and `SUPABASE_AUTH_CAPTCHA_SECRET` is unset both on a
-# laptop and in this branch's CI run, since it is a GitHub Actions repository secret nobody
-# has added yet (see the manual-steps table in `apps/main/README.md`). Enabling this block
-# without it breaks `supabase start` outright — confirmed by running `./dev check` against
-# this change, which failed every database-backed test with PGRST002 the moment this block
-# was uncommented. Turning captcha on belongs with #53, once the account forms exist to
-# carry the widget and the repository secret is installed, not before either is true.
-# [auth.captcha]
-# enabled = true
-# provider = "turnstile"
-# secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
+# **On, as of #53.** #49 left this commented out: the CLI validates every `env(...)`
+# substitution at startup, and `SUPABASE_AUTH_CAPTCHA_SECRET` was unset everywhere that
+# mattered — enabling this block without it broke `supabase start` outright.
+#
+# It stays that way for anyone running the stack **without a real secret exported**, and
+# that is deliberate rather than a gap: `ci.yml`'s "Start the local Supabase stack" step and
+# `./dev`'s `export_supabase_env` both set this to Cloudflare's own published testing
+# secret, `1x0000000000000000000000000000000AA` — publicly documented at
+# developers.cloudflare.com/turnstile/troubleshooting/testing as "always passes", paired
+# with the equally public dummy site key `wrangler.jsonc`'s top-level `vars` carries. So the
+# local and CI stacks start and validate real submissions without anybody needing the
+# club's actual Turnstile secret, which lives only as a GitHub Actions repository secret
+# (`SUPABASE_AUTH_CAPTCHA_SECRET`) that `deploy-db.yml` passes to `supabase config push`.
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

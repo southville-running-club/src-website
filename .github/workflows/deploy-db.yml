@@ -80,6 +80,10 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      # The club's real Turnstile secret, read by `supabase config push` for
+      # `config.toml`'s `[auth.captcha]` block — #53. Never the value itself, only the
+      # reference; the digest-equivalent here is that this workflow never echoes it.
+      SUPABASE_AUTH_CAPTCHA_SECRET: ${{ secrets.SUPABASE_AUTH_CAPTCHA_SECRET }}
 
     steps:
       - name: Check the secrets exist
@@ -101,13 +105,14 @@ jobs:
           [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing+=("SUPABASE_ACCESS_TOKEN")
           [ -n "$SUPABASE_PROJECT_REF" ] || missing+=("SUPABASE_PROJECT_REF")
           [ -n "$SUPABASE_DB_PASSWORD" ] || missing+=("SUPABASE_DB_PASSWORD")
+          [ -n "$SUPABASE_AUTH_CAPTCHA_SECRET" ] || missing+=("SUPABASE_AUTH_CAPTCHA_SECRET")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "::error::Missing repository secrets: ${missing[*]}"
             echo "Add them under Settings → Secrets and variables → Actions."
             echo "See platform/packages/db/README.md for what each one is."
             exit 1
           fi
-          echo "All three secrets are set."
+          echo "All four secrets are set."
 
       - uses: actions/checkout@v5
 
