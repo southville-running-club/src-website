@@ -8,6 +8,7 @@ numbered steps and the [runbooks](runbooks/) for the procedures.
 | **[1](#phase-1--prove-the-hosting-path)** ✅ | ~~Prove the hosting path~~ | **Done 8 Aug 2026** |
 | **[2](#phase-2--move-the-nameservers)** ✅ | ~~Nameservers to Cloudflare~~ | **Done 8 Aug 2026** |
 | **[3](#phase-3--nightingale-nightmare-live)** | **Nightingale Nightmare live** — sign-ups and Stripe payment | **~22 August 2026** — two weeks |
+| **[3b](#phase-3b--member-accounts-before-entries-open)** | **Member accounts** — Supabase Auth, three roles, `/account/` and `/admin/` | Before entries open, **early September** |
 | **[4](#phase-4--the-timing-app-on-cloudflare)** | **The timing app on Cloudflare**, same database | **Race-ready by mid-October** |
 | **🏁** | **Nightingale Nightmare — race day** | **Sun 1 Nov 2026, 11:00** |
 | **[5](#phase-5--the-new-website)** | The new website at `new.<apex>` | From November |
@@ -205,6 +206,28 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
 - [ ] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero
 - [ ] **Club email still works**
 - [ ] **Both volunteers** can reach the repository, the Worker, Supabase and Stripe
+
+---
+
+## Phase 3b — member accounts, before entries open
+
+**Decided 24 August 2026** — [decision 005](../decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth)
+and [ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md). Not one
+of the original seven phases; it sits between Phase 3 and Phase 4 because the committee decided
+accounts come before entries open, and entries want to open in early September.
+
+**Supabase Auth, three roles, `/account/` and `/admin/`.** Roughly seventeen pull requests,
+tracked end to end — with the ordering, the break-glass, and the cost of each piece — in
+[issue #65](https://github.com/southville-running-club/src-website/issues/65). Nothing in that
+series may start before this phase's own first issue,
+[#48](https://github.com/southville-running-club/src-website/issues/48), is merged: it is
+documentation only, and every other issue inherits its reasoning.
+
+**The two-key admin scheme from Phase 3 is not replaced by this phase.** [#57](https://github.com/southville-running-club/src-website/issues/57)
+adds a role-gated path into `/nn/admin` beside it, and if this phase is not finished by early
+September, installing the two keys per
+[the admin runbook](runbooks/entries-admin.md) remains the way to read entries on race
+morning. #65 calls this out explicitly as the break-glass, costing nothing to keep available.
 
 ---
 

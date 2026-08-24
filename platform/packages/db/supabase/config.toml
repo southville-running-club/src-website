@@ -204,13 +204,15 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 #
-# **Off, deliberately.** The anon key is public, so with this on, anybody who can see the
-# client bundle can call the signup endpoint and create an authenticated account —
-# independent of RLS. Nothing in this skeleton has decided the platform needs member-facing
-# authentication at all; that question is still
-# [open](../../../../docs/architecture/decisions/README.md#what-is-waiting-to-be-recorded-here).
-# The timing app's marshal and admin accounts (Phase 4) are provisioned some other way, not
-# through public self-service, until a decision says otherwise.
+# **Off for now, but no longer an open question.** Whether the platform needs member-facing
+# authentication at all was undecided when this comment was first written; it is decided —
+# see decision 005 and ADR-015
+# (../../../../docs/decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth,
+# ../../../../docs/architecture/decisions/adr-015-member-accounts-on-supabase-auth.md). This
+# value stays `false` until issue #49 turns it on as its own reviewed change — turning it on
+# is still production config, pushed by `deploy-db.yml` on every merge touching a migration,
+# and remains a stop-and-ask (../../../../docs/architecture/principles.md#stop-and-ask) for
+# any edit beyond that one planned flip.
 enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false

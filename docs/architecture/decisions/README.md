@@ -18,6 +18,7 @@ Technical decisions the volunteers take themselves.
 | [**ADR-012**](adr-012-one-navigation-bar.md) | **One navigation bar, and the year is never in it** — five controls, painted, and no longer sticky. *Supersedes ADR-011's navigation section; its sticky and five-control sections are superseded by ADR-014* | 15 Aug 2026 |
 | [**ADR-013**](adr-013-the-admin-surface-and-who-may-read-it.md) | **Two credentials open the admin surface** — a Worker secret for authorisation, a key per person for identity. *Extends ADR-010's shared-key mechanism to the first read path that returns people* | 16 Aug 2026 |
 | [**ADR-014**](adr-014-the-bar-stays-and-the-notice-is-in-it.md) | **The bar stays on screen, and the privacy notice is the sixth control in it** — the three defects that unstuck it are paid for rather than disputed. *Supersedes ADR-012's sticky and five-control sections* | 17 Aug 2026 |
+| [**ADR-015**](adr-015-member-accounts-on-supabase-auth.md) | **Member accounts on Supabase Auth** — three roles, a new `identity` schema, and the JavaScript and `SameSite` costs that come with it. *Extends ADR-013's admin surface rather than replacing it* | 24 Aug 2026 |
 
 ---
 
@@ -101,5 +102,7 @@ be recorded until it is actually taken.
 | **Workers or Pages for the main website** | [deployment](../investigations/deployment.md#pages-or-workers) | The website build. Depends on the DNS move landing first, so not urgent — but it decides whether the main build starts on the supported path |
 | **Astro for the main website** | [platform options](../../solutions/platform-options.md#framework-which-is-a-separate-question-from-language) | Recommended everywhere, recorded nowhere. Already fixed for Nightingale Nightmare by the build brief |
 | **The backup runbook**, including a tested restore | [database](../investigations/database.md#backups) | Nothing yet. **The largest gap in the data architecture** |
-| **Does the website need member-facing authentication?** | — | Answering *no* removes a large amount of build **and** a large amount of personal data |
 | **Document naming and the stable-URL contract** | — | [Plan](../../delivery/plan.md) step 57, and ideally before step 12 downloads them |
+
+**Does the website need member-facing authentication?** Answered **yes**, 24 August 2026 —
+[ADR-015](adr-015-member-accounts-on-supabase-auth.md) and [decision 005](../../decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth).
