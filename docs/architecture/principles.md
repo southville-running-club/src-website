@@ -162,6 +162,13 @@ useful.
 *Where from:* [users](../foundations/requirements.md#users) — runners and marshals on
 phones, on poor mobile signal, *"sometimes in bright sunlight with cold hands."*
 
+**One named exception: the account area.** `/account/sign-up/`, `/account/sign-in/`, and the
+two password-reset addresses require JavaScript, because Cloudflare Turnstile — the bot
+defence every unauthenticated account form carries — has no no-script mode.
+[ADR-015](decisions/adr-015-member-accounts-on-supabase-auth.md#the-account-area-will-require-javascript)
+records the trade in full. Nowhere else on the platform gains this exception; the entry and
+interest forms keep working with scripting off exactly as before.
+
 ### WCAG 2.2 AA, and zero accessibility violations
 
 Semantic markup, real contrast, visible focus, labelled inputs, errors associated with
@@ -232,8 +239,14 @@ including by an agent.
 - **Changing `[auth]` in `packages/db/supabase/config.toml`** — `site_url`, any redirect
   URL, or `enable_signup`. This block ships to the shared production project on every
   merge that touches a migration, and it is what a Supabase Auth magic link is built from.
-  `enable_signup` in particular is currently **off** because whether the platform needs
-  member-facing authentication at all is still undecided — turning it on is that decision
+  Whether the platform needs member-facing authentication at all was this trigger's
+  question until 24 August 2026 — **it is answered, in
+  [ADR-015](decisions/adr-015-member-accounts-on-supabase-auth.md) and [decision
+  005](../decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth)**
+  — but the block itself stays a stop-and-ask: `enable_signup` still ships **off** until
+  [#49](https://github.com/southville-running-club/src-website/issues/49) turns it on as its
+  own reviewed change, and any further edit to `site_url` or a redirect URL is still a
+  production config push on the next migration, not a local setting
 
 *Where from:* the [build brief](../delivery/nn-build-brief.md#stop-and-ask), generalised
 beyond Nightingale Nightmare because none of these are specific to it.

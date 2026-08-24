@@ -63,6 +63,29 @@ whole of 2025 and 705 in the first seven months of 2026.
 points at. Marked consumed on first use, expires after a set period, then forwards the
 member into the WhatsApp group. Enforced by us, not by WhatsApp.
 
+## Accounts
+
+**Account** — a Supabase Auth identity: an email, a way to sign in, and a role. Created by
+somebody registering themselves at `/account/sign-up/`, never seeded by hand except the one
+migration that bootstraps the super-admin. Distinct from **membership** ([C12](requirements.md#c12--maintain-membership-records)) — an account is a person who can sign in; a member is
+someone the club has recorded as current, which is a later, separate thing.
+
+**Member** — in the accounts sense, the default role held by anyone with an account who is
+neither `super-admin` nor `nn-admin`. Not yet the same thing as a club member on the EA
+register — see **membership**, above, for why the two are kept apart.
+
+**Role** — one of exactly three: `super-admin`, `nn-admin`, `member`. Held in the `identity`
+schema and checked by RLS on every table it applies to. A fourth role is a migration and a
+decision, not a config change — [ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md).
+
+**Super-admin** — the role held by `admin@southvillerunningclub.co.uk`, bootstrapped by
+migration. Grants and revokes every other role; not a person's name, a role.
+
+**Session** — the signed-in state a browser holds after authenticating with Supabase Auth,
+carried as a cookie the Worker reads. Not to be confused with the twelve-hour handle cookie
+[ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)'s
+two-key scheme issues, which is a separate, older mechanism kept alive as a break-glass path.
+
 ## Platform and delivery
 
 **The platform** — one codebase and one database behind three front doors: the club
