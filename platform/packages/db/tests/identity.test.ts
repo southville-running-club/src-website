@@ -53,6 +53,14 @@ async function query<T = Record<string, unknown>>(
 }
 
 /**
+ * Cloudflare's own published dummy response token — every submission produces this exact
+ * string when the widget's dummy "always passes" site key is in play, and GoTrue accepts
+ * it because `[auth.captcha]`'s secret locally is the matching dummy secret (#53). See
+ * developers.cloudflare.com/turnstile/troubleshooting/testing.
+ */
+const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
+
+/**
  * Signs a fixture person up through the real endpoint, confirms the address the way a
  * mailbox click would, and returns a client already signed in as them plus their id.
  */
@@ -63,7 +71,11 @@ async function fixturePerson(
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const signUp = await client.auth.signUp({ email, password: PASSWORD });
+  const signUp = await client.auth.signUp({
+    email,
+    password: PASSWORD,
+    options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+  });
   if (signUp.error) throw signUp.error;
 
   const [row] = await query<{ id: string }>(
@@ -72,7 +84,11 @@ async function fixturePerson(
   );
   if (!row) throw new Error(`signUp did not create auth.users row for ${email}`);
 
-  const signIn = await client.auth.signInWithPassword({ email, password: PASSWORD });
+  const signIn = await client.auth.signInWithPassword({
+    email,
+    password: PASSWORD,
+    options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+  });
   if (signIn.error) throw signIn.error;
 
   return { id: row.id, client };
