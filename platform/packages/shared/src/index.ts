@@ -9,7 +9,13 @@ export {
   type Instant,
 } from './london-time';
 
-export { createAnonClient, type AnonClient, type SupabaseConfig } from './supabase';
+export {
+  createAnonClient,
+  createUserClient,
+  type AnonClient,
+  type UserClient,
+  type SupabaseConfig,
+} from './supabase';
 
 export { fetchHealth, type HealthResult } from './health';
 
