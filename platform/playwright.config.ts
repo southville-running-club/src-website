@@ -86,8 +86,14 @@ export default defineConfig({
       // test has somewhere to go — and so the server-rendered health timestamp is proven
       // to be server-rendered.
       //
-      // Tests tagged `@requires-js` are skipped here. Only axe carries that tag: it runs
-      // by injecting a script, so it cannot report on a page with scripting turned off.
+      // Tests tagged `@requires-js` are skipped here. Until #53 that always meant "an axe
+      // check" — axe works by injecting a script, so it cannot report on a page with
+      // scripting turned off. `account.spec.ts` broadens the meaning rather than adding a
+      // second tag: `/account/`'s forms carry a Cloudflare Turnstile widget, which has no
+      // no-script mode at all, so most of that file is tagged too. Conflating "needs a
+      // script to run the check" with "needs a script to work at all" is exactly how this
+      // exception gets forgotten, which is why it is written down here and in that file's
+      // own header rather than left to be inferred from the grep pattern below.
       name: 'no-javascript',
       use: { ...devices['Desktop Chrome'], javaScriptEnabled: false },
       grepInvert: /@requires-js/,

@@ -1,0 +1,23 @@
+/* -----------------------------------------------------------------------------------------
+ * The account area — `/account/`, painted by `worker/account.ts`
+ * -----------------------------------------------------------------------------------------
+ * Club brand, from `base.css` — **`nn-theme.css` must never reach here**, the same rule
+ * `nn-admin.css` states for the admin surface: this is a tool for managing an account, not
+ * a page about the race. `base.css` already carries everything a form needs — `.field`,
+ * `.field-input`, `.field-error`, `.notice`, `.button` — because the sign-up form on
+ * `/nn/2026/` was built against the same primitives first. What is here is only what that
+ * page did not need: a page-width cap so a sign-in form is not stretched edge to edge on a
+ * desktop, and the Turnstile widget's own spacing.
+ */
+
+.account-page {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: calc(var(--space) * 2) var(--space);
+}
+
+.account-captcha {
+  /* Cloudflare's widget renders its own box once the script runs; this only holds its
+     place before that, so a slow network does not visibly jump the layout. */
+  min-height: 65px;
+}

@@ -111,6 +111,13 @@ jobs:
       # or fails depending on the runner's timezone, and Nightingale Nightmare is raced
       # the weekend after the clocks change.
       TZ: UTC
+      # Cloudflare's own published testing secret — "always passes", documented at
+      # developers.cloudflare.com/turnstile/troubleshooting/testing — not the club's real
+      # one. `config.toml`'s `[auth.captcha]` reads `env(SUPABASE_AUTH_CAPTCHA_SECRET)`, and
+      # the Supabase CLI validates that substitution at startup: unset here, `supabase
+      # start` fails before a single test runs. This is job-level so every step that
+      # touches the Supabase CLI — start, reset, gen types — has it, not only the first.
+      SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
 
     steps:
       - uses: actions/checkout@v5

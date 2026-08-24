@@ -258,3 +258,28 @@ export function isNnAdminPath(pathname: string): boolean {
 export function nnAdminSegments(pathname: string): string[] {
   return pathname.slice(NN_ADMIN_PREFIX.length).split('/').filter(Boolean);
 }
+
+/**
+ * The account area — `/account/`, `/account/sign-up/`, `/account/sign-in/`,
+ * `/account/sign-out/` and `/account/confirm/`. Built in the Worker exactly as `/nn/admin`
+ * is, for the same reason: the pages are built from a variable, per-request answer
+ * (`is anybody signed in`) rather than shipped as static HTML.
+ *
+ * **`/account.css` is deliberately not beneath this**, the same trap `isNnAdminPath`
+ * documents for `/nn/admin.css`: it is a real file in `dist/`, emitted by
+ * `src/pages/account.css.ts`, and it must reach the assets binding. This matches
+ * `/account` exactly or `/account/` and below, never as a prefix of a longer segment — so
+ * `/account.css` and a hypothetical `/accounts/` both fall through untouched.
+ * `tests/unit/routing.test.ts` pins the boundary.
+ */
+export const ACCOUNT_PREFIX = '/account';
+
+export function isAccountPath(pathname: string): boolean {
+  return pathname === ACCOUNT_PREFIX || pathname.startsWith(`${ACCOUNT_PREFIX}/`);
+}
+
+/** The same segment split `nnAdminSegments` does, for the same reason. `/account/` and
+ *  `/account` are both `[]`; `/account/sign-up/` is `['sign-up']`. */
+export function accountSegments(pathname: string): string[] {
+  return pathname.slice(ACCOUNT_PREFIX.length).split('/').filter(Boolean);
+}

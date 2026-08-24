@@ -180,11 +180,34 @@ describe('the auth.email block', () => {
 });
 
 describe('the auth.captcha block', () => {
-  it('stays commented out until #53 builds a form to carry the widget', () => {
-    // `env(...)` substitution is validated at startup, and SUPABASE_AUTH_CAPTCHA_SECRET
-    // is not set locally or in this repository's CI — enabling this block without it
-    // breaks `supabase start` outright, confirmed while building #49. Uncommenting it is
-    // #53's job, alongside installing the repository secret.
-    expect(CONFIG).not.toMatch(/^\[auth\.captcha\]/m);
+  function captchaConfig(): { key: string; value: string }[] {
+    const lines = CONFIG.split('\n');
+    const start = lines.findIndex((line) => line.trim() === '[auth.captcha]');
+    if (start === -1) throw new Error('config.toml has no [auth.captcha] section');
+    const nextSection = lines.findIndex(
+      (line, i) => i > start && /^\[/.test(line.trim()),
+    );
+    const block = lines.slice(start, nextSection === -1 ? undefined : nextSection);
+
+    return block
+      .map((line) => /^(\w+)\s*=\s*(.+)$/.exec(line.trim()))
+      .filter((match): match is RegExpExecArray => match !== null)
+      .map((match) => ({ key: match[1]!, value: match[2]! }));
+  }
+
+  function captchaValue(key: string): string {
+    const found = captchaConfig().find((entry) => entry.key === key);
+    if (!found) throw new Error(`config.toml [auth.captcha] has no ${key}`);
+    return found.value;
+  }
+
+  it('is Turnstile, enabled, with the secret read from the environment', () => {
+    // Never a literal secret in the repository. `env(...)` substitution means the value
+    // comes from wherever `supabase config push`/`supabase start` runs, never from this
+    // file — the club's real secret in production, Cloudflare's own published testing
+    // secret locally and in CI (see `dev` and `ci.yml`).
+    expect(captchaValue('enabled')).toBe('true');
+    expect(captchaValue('provider')).toBe('"turnstile"');
+    expect(captchaValue('secret')).toBe('"env(SUPABASE_AUTH_CAPTCHA_SECRET)"');
   });
 });

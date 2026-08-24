@@ -117,6 +117,21 @@ export function clearedSessionCookies(secure: boolean): string[] {
   ];
 }
 
+/** The two cookies for a session Supabase just handed back — a fresh sign-in, in
+ *  `worker/account.ts`, or the refresh path below. One place builds a `Set-Cookie` pair for
+ *  this session shape, so the attributes cannot drift between the two callers. */
+export function newSessionCookies(
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number,
+  secure: boolean,
+): string[] {
+  return [
+    sessionCookie(ACCESS_COOKIE, accessToken, expiresIn, secure),
+    sessionCookie(REFRESH_COOKIE, refreshToken, REFRESH_COOKIE_MAX_AGE_SECONDS, secure),
+  ];
+}
+
 async function refresh(
   config: SupabaseConfig,
   refreshToken: string,
@@ -134,20 +149,12 @@ async function refresh(
 
   return {
     session: { userId: newSession.user.id, accessToken: newSession.access_token },
-    setCookies: [
-      sessionCookie(
-        ACCESS_COOKIE,
-        newSession.access_token,
-        newSession.expires_in,
-        secure,
-      ),
-      sessionCookie(
-        REFRESH_COOKIE,
-        newSession.refresh_token,
-        REFRESH_COOKIE_MAX_AGE_SECONDS,
-        secure,
-      ),
-    ],
+    setCookies: newSessionCookies(
+      newSession.access_token,
+      newSession.refresh_token,
+      newSession.expires_in,
+      secure,
+    ),
   };
 }
 
