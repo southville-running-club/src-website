@@ -1184,9 +1184,10 @@ function medicalAndAffiliationSection(
                             >${figures.affiliatedMissingEa}</strong
                           >
                           claimed the affiliated price
-                          <strong>without giving a number.</strong> The form requires one,
-                          so these did not come through it — see the note in the
-                          <span class="admin-mono">entries_admin_figures</span> migration.
+                          <strong>without giving a number.</strong> Neither the form nor
+                          the database will accept one like this any more, so these were
+                          recorded before that rule landed — which makes them exactly the
+                          rows this check is for.
                         </p>`
                   }`
           }

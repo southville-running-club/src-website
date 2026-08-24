@@ -58,17 +58,19 @@ export const MISSING_EA_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000016';
  * The state the affiliation panel exists to catch: **paid, on a fee that requires an England
  * Athletics number, with no number.**
  *
- * It is written directly here for the same reason every other row is, but it is worth saying that
- * this one is **not merely a fabricated state — it is reachable in production.**
- * `packages/shared/src/nn-entry.ts` requires the number whenever the chosen fee does, and drops
- * it whenever the fee does not; but that is the *form's* control.
- * `entries.create_pending_purchase()` takes its entrants as `jsonb`, writes `ea_number` straight
- * through with no check that a fee requiring one got one, and **is granted to `anon`** — so two
- * ordinary PostgREST calls with the published anon key produce exactly this row. `minimum_age` is
- * re-checked inside that function and is the control; the England Athletics rule is not.
+ * It is written directly here for the same reason every other row is. **It used to be reachable
+ * in production and no longer is.** `packages/shared/src/nn-entry.ts` required the number whenever
+ * the chosen fee did — but that was the *form's* control, and
+ * `entries.create_pending_purchase()` wrote `ea_number` straight through with no reference to
+ * `fees.requires_ea_number` while being granted to `anon`, so two ordinary PostgREST calls with
+ * the published anon key produced exactly this row. Slice G closed it, in the function and again
+ * in `entries.assert_entrant_rules()`.
  *
- * That is why the count is on the page rather than removed as unreachable: it is the £2-a-runner
- * affiliation discount being claimed without the number that justifies it.
+ * **So this row is now seeded as history**, with `preEnforcement: true` suppressing the trigger —
+ * and that is precisely why the count stays on the page. A trigger only ever sees a write, and
+ * Slice G's check constraints are `NOT VALID` because nobody could see production's existing rows.
+ * A pre-enforcement affiliated entry with no number is a state that can still *exist*, and this
+ * count is the only thing that would surface it.
  */
 export const MISSING_EA_LAST_NAME = 'Pemberton';
 

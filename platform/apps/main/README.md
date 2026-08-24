@@ -589,7 +589,22 @@ call anywhere in this repository to audit.
 ### Validation
 
 One Zod schema, `packages/shared/src/nn-entry.ts`, imported by the Worker **and by the
-browser**. Client-side is a convenience; the Worker is the control.
+browser**. Client-side is a convenience; the Worker runs the same schema whatever the browser
+did.
+
+**But the Worker is not the control either, and Slice E is why that sentence changed.** The
+entry form is one caller of `entries.create_pending_purchase()`, and that function is granted
+to `anon` — whose key is published in this page's own source. Slice E found it writing
+`ea_number` with no reference to `fees.requires_ea_number`, so two PostgREST calls bought an
+affiliated place with no England Athletics number, £2 under, without ever loading the form.
+Slice G audited every rule by *attempting the bypass* and found eight more, including that the
+entry terms were not enforced at all.
+
+**Every one of them now lives in the database** — a check constraint where the rule is static,
+a trigger where it spans tables, the function where a person needs words back. Zod is still
+here and still worth having: it reports every problem at once, in field order, in language
+written for somebody on a phone. What it is not is the only place any rule lives.
+See [`packages/db`](../../packages/db/README.md#where-a-rule-lives-and-why-zod-is-never-the-only-place).
 
 **The rules are not in that file.** The minimum age, which fees are on offer and whether a
 date of birth is wanted at all are `entries.events` and `entries.fees` columns, handed in at
@@ -919,6 +934,7 @@ is the argument for two credentials rather than one.
 | _5. Create the Stripe webhook endpoint_ | **Last, and only once the Worker is deployed.** Otherwise Stripe posts into a 404 | _pending_ | Stripe dashboard → Developers → Webhooks → Add endpoint. URL `https://new.southvillerunningclub.co.uk/nn/stripe-webhook`. Subscribe to **`checkout.session.completed` and `checkout.session.expired` and nothing else** — everything else is answered 200 and ignored, and subscribing to more is delivery volume for no benefit |
 | _6. Set the admin key, and install its digest_ | **Independent of the five above, and it can be done at any time.** It switches `/nn/admin` on: until it is done that whole prefix 404s, which is the correct state rather than a broken one | _pending_ | The full procedure, including issuing a key to each volunteer, is [the admin runbook](../../../docs/delivery/runbooks/entries-admin.md). Two steps: `npx wrangler secret put ENTRIES_ADMIN_KEY --env production --config apps/main/wrangler.jsonc`, then `update entries.webhook_secrets set key_sha256 = encode(sha256(convert_to('<the key>','UTF8')),'hex'), updated_at = now() where name = 'admin';` |
 | _7. Issue a key to each volunteer_ | The Worker's key authorises the *Worker*; a per-person key is what says which human is looking, so an export can record who took it and one person can be revoked without revoking both | _pending_ | [The admin runbook](../../../docs/delivery/runbooks/entries-admin.md#step-2--issue-a-key-to-each-volunteer). One `insert` into `entries.admin_keys` per person, holding the digest and a **role handle rather than their name** |
+| _8. Validate the four entries constraints_ | **Independent of every step above, and nothing is broken until it is done.** Slice G's check constraints shipped `NOT VALID`, so they enforce every new write but have never looked at the rows already there — because nobody here could see them, and a validated `ADD CONSTRAINT` fails the *migration* if one row disagrees, which fails the deploy for everything | _pending_ | [The constraints runbook](../../../docs/delivery/runbooks/entries-constraints.md). Step 1 is a read-only query that says whether step 2 will succeed; run it first and stop if any count is not zero, because a row that disagrees is evidence rather than a mess to tidy |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the

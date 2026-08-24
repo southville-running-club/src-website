@@ -185,6 +185,21 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       notes?: string;
       /** Which fabricated running this purchase belongs to. Defaults to the oversold one. */
       eventSlug?: string;
+      /**
+       * Write the entrant as a row that **predates Slice G's rules**, with user triggers
+       * suppressed for this connection.
+       *
+       * Only one fixture needs it, and it is the one modelling an affiliated entry with no
+       * England Athletics number. `entries.assert_entrant_rules()` refuses that now, so the
+       * state the affiliation panel exists to surface can no longer be created the ordinary
+       * way — but it can still *exist*, because the panel's whole remaining purpose is rows
+       * written before the rule landed and the check constraints are `NOT VALID` for exactly
+       * that reason.
+       *
+       * `session_replication_role` is a session setting, restored immediately, and it does
+       * not touch check constraints — so nothing else in the fixture is weakened by it.
+       */
+      preEnforcement?: boolean;
     }): Promise<void> => {
       const eventSlug = purchase.eventSlug ?? ADMIN_EVENT_SLUG;
 
@@ -221,24 +236,34 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
         ],
       );
 
-      await db.query(
-        `insert into entries.entrants (
-           id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
-           emergency_contact_name, emergency_contact_phone
-         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
-        [
-          purchase.entrantId,
-          purchase.purchaseId,
-          purchase.firstName,
-          purchase.lastName,
-          purchase.dateOfBirth,
-          purchase.gender,
-          purchase.club,
-          purchase.eaNumber,
-          `Kin ${purchase.lastName}`,
-          '0117 496 0000',
-        ],
-      );
+      if (purchase.preEnforcement === true) {
+        await db.query('set session_replication_role = replica');
+      }
+
+      try {
+        await db.query(
+          `insert into entries.entrants (
+             id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
+             emergency_contact_name, emergency_contact_phone
+           ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
+          [
+            purchase.entrantId,
+            purchase.purchaseId,
+            purchase.firstName,
+            purchase.lastName,
+            purchase.dateOfBirth,
+            purchase.gender,
+            purchase.club,
+            purchase.eaNumber,
+            `Kin ${purchase.lastName}`,
+            '0117 496 0000',
+          ],
+        );
+      } finally {
+        if (purchase.preEnforcement === true) {
+          await db.query('set session_replication_role = origin');
+        }
+      }
 
       if (purchase.notes !== undefined) {
         await db.query(
@@ -337,8 +362,9 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
     });
 
     // **Paid, affiliated, and no England Athletics number** — the state the affiliation panel
-    // exists to surface, and one `create_pending_purchase()` permits. See the note in
-    // `admin-fixtures.ts`.
+    // exists to surface. `create_pending_purchase()` used to permit it; since Slice G neither
+    // it nor the table will, so this is seeded as a row that predates the rule, which is the
+    // only way it can still exist and the only reason the panel is still on the page.
     await seed({
       purchaseId: MISSING_EA_PURCHASE_ID,
       entrantId: MISSING_EA_ENTRANT_ID,
@@ -352,6 +378,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       dateOfBirth: '1994-03-09',
       gender: 'female',
       holdMinutes: 31,
+      preEnforcement: true,
     });
 
     // --- the quiet event, with nothing flagged on it ------------------------------------------

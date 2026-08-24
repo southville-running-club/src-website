@@ -198,6 +198,8 @@ cannot do is the point of its shape:
 | **Choose a status, a paid timestamp, an id or a created_at** | None is a parameter |
 | **Write to a different event than the slug names** | Every insert is scoped to the resolved row |
 | **Store medical notes without the separate consent** | Whatever the form sent |
+| **Enter without agreeing what the event requires** | `events.required_consents` names the keys; each must be present and json `true`. Refused as `consents_missing` |
+| **Take an affiliated place with no England Athletics number** | The fee says whether one is wanted, and it is compared. Refused as `ea_number_required`. **This was the Slice E finding** — until Slice G nothing consulted `fees.requires_ea_number` at all |
 | **Escalate through an unpinned search_path** | `set search_path = ''` with every reference schema-qualified, as `entry_state()` already is. `citext` comparisons are done with `lower(...::text)` rather than by unpinning the path to reach the `extensions` operator |
 
 **It can hold places, though**, up to the whole field, for as long as a hold lasts — the same
@@ -209,6 +211,48 @@ COMMITTED a `stable` function's queries run against the *calling* statement's sn
 the capacity count would be taken from before the transaction it had just waited behind
 committed, and the advisory lock would protect nothing at all. `tests/entries-capacity.test.ts`
 asserts the volatility from the catalogue for exactly that reason.
+
+#### Where a rule lives, and why Zod is never the only place
+
+**Slice E found `create_pending_purchase` writing `ea_number` straight through without ever
+consulting `fees.requires_ea_number`.** The column permits null, the function is granted to
+anon, and the anon key is published in page source — so two PostgREST calls produced an
+affiliated entry with no England Athletics number, at £2 less, unverifiable. The Zod schema
+did require it. **Zod is the form's control, not the system's**, and it was found by accident
+while building a count for a dashboard.
+
+Slice G audited every rule the club has by *attempting the bypass* with an anonymous client
+rather than by reading the code, and found eight more like it — including that the entry terms
+were not enforced at all, and that a medical note could be written against a purchase that
+withheld the consent for it. All nine are closed, and each has a test in
+[`tests/entries-rules.test.ts`](tests/entries-rules.test.ts) that tries the bypass and asserts
+the **specific** refusal.
+
+Three places, and which one a rule goes in is decided by what it needs to see:
+
+| | For | Why not somewhere else |
+| --- | --- | --- |
+| **A check constraint** | A rule about one row: a birth year at or after 1900, an emergency number with seven digits in it, an address with a domain, a consent value that is a boolean | It cannot see another table, so it cannot express most of the interesting ones |
+| **A trigger** | A rule spanning tables: the England Athletics number against its fee, the medical note against its consent, the consents against the event, the date of birth against the race date, the leg against the event's size | It only ever sees a write, so it can say nothing about the rows already there |
+| **The function** | The two a person needs a sentence about — `ea_number_required` and `consents_missing` — so the form can render words rather than a generic failure | It is one write path. The trigger is what covers every other |
+
+**The triggers raise `check_violation` on purpose**, so `create_pending_purchase`'s existing
+handler turns them into the structured refusal the Worker has rendered since Slice B rather
+than a 500 carrying a Postgres string. Their messages name the rule and never the value — an
+exception travels into a log, and no personal data goes in a log here, error paths included.
+
+**The four check constraints are `NOT VALID`, and that is not a half-measure.** They are
+enforced on every insert and update from the moment they landed; what `NOT VALID` skips is the
+scan of the rows already there, because nobody could see the production rows and a validated
+`ADD CONSTRAINT` **fails the migration if one row disagrees**. Turning them into ordinary
+constraints is
+[one command each](../../../docs/delivery/runbooks/entries-constraints.md), after somebody has
+looked at the table.
+
+**`events.required_consents` is per event rather than per platform**, for the same reason
+`consents` is jsonb at all: the set of consents differs between races, and a table constraint
+naming `entryTerms` would write one race's checkbox list into the schema for every race after
+it. Nightingale Nightmare 2026 takes the default, `{entryTerms}`.
 
 #### Capacity, and the lock
 

@@ -385,6 +385,24 @@ per-event advisory lock: re-check the window, count the places gone, price it fr
 `entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
 exactly that amount and a 303 to it.
 
+**Every rule is enforced in the database, and Zod is never the only place one lives.** Slice E
+found `create_pending_purchase` writing `ea_number` without ever consulting
+`fees.requires_ea_number` — so two PostgREST calls with the published anon key bought an
+affiliated place with no England Athletics number, £2 under. Zod required it; **Zod is the
+form's control, not the system's**. Slice G audited every rule by *attempting the bypass* with
+an anonymous client and found eight more, the worst being that the entry terms were not
+enforced at all: `p_consents = {}` was accepted and stored as `{}`. All nine are closed — a
+check constraint where the rule is static, a trigger where it spans tables, and the function
+for the two a person needs words about (`ea_number_required`, `consents_missing`).
+`packages/db/tests/entries-rules.test.ts` re-attempts each bypass and asserts the **specific**
+refusal, because a Postgres error is not a refusal: a broken function refuses everything, which
+reads as every rule holding at once. **Which consents an event requires is
+`events.required_consents`**, not a constant — the set differs between races. **Four check
+constraints ship `NOT VALID`** and protect every new write; validating them against the rows
+already there is [a runbook](docs/delivery/runbooks/entries-constraints.md), because a
+validated `ADD CONSTRAINT` fails the migration if one existing row disagrees and nobody here
+can see production's.
+
 **`POST /nn/stripe-webhook` is the only thing that writes `paid`, and nothing else may.** The
 redirect back from Stripe is not proof of payment — a tab can be closed before it fires, and the
 return URL is one anybody can type. The webhook verifies Stripe's signature over the **raw
@@ -420,11 +438,13 @@ surface added:
 | **Payment** | `record_checkout_event()` — **takes a key** |
 | **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
 
-**Three are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
+**Six are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
 human, `admin_key_ok()` answers whether a string is the admin key, and `record_admin_action()`
 writes the audit trail. Each would be a hole on its own — an alarm anybody could forge, an oracle
 for the key, an audit trail anybody could fill — and all three are reachable only from the
-definer functions that call them.
+definer functions that call them. **The other three are Slice G's rule enforcement** —
+`assert_entrant_rules()`, `assert_medical_consent()` and `assert_purchase_consents()` — reachable
+only from their triggers, and each reads a purchase, an entrant or a medical consent.
 
 `packages/db/tests/entries.test.ts` asserts that exact set. If it fails, something granted a
 privilege to a key that is published in page source. **Adding to that list is a decision, and the
