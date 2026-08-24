@@ -42,7 +42,7 @@ describe('no year is written into the navigation', () => {
   });
 
   it('ships the year-bearing controls hidden, so an unpainted bar links nowhere wrong', () => {
-    // A "Race day" that quietly went to `/nn/` would be a link that lies. Hidden is a link
+    // A "Race info" that quietly went to `/nn/` would be a link that lies. Hidden is a link
     // that is missing, and missing is the honest failure when the database is unreachable.
     //
     // The two links are rendered from a map, so what is asserted is the shape of the element

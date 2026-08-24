@@ -48,8 +48,8 @@ describe('the same six controls, wherever you are standing', () => {
 
     expect(html).toContain('>Race<');
     expect(html).toContain('>Course<');
-    expect(html).toContain('>Race day<');
-    expect(html).toContain('>Spectators<');
+    expect(html).toContain('>Race info<');
+    expect(html).toContain('>Spooktators<');
     expect(html).toContain('>Privacy<');
     expect(html).toContain('data-nn-nav-cta');
   });
@@ -127,8 +127,8 @@ describe('no year reaches the bar except through the Worker', () => {
   it.each([
     ['/nn/', 'Race'],
     ['/nn/course/', 'Course'],
-    ['/nn/2026/race-day/', 'Race day'],
-    ['/nn/2026/spectators/', 'Spectators'],
+    ['/nn/2026/race-day/', 'Race info'],
+    ['/nn/2026/spectators/', 'Spooktators'],
     ['/nn/privacy/', 'Privacy'],
   ] as const)('marks %s as %s', async (path, label) => {
     // The marker is derived from the **shape** of the page's own path, not from the painted

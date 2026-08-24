@@ -141,7 +141,39 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       the prize categories rather than stated as a rule anywhere. It is not here, and it is not
       softened into "18+ probably" either. */
     }
+    {
+      /* **The race director's own words, and they open the card rather than replace it.**
+       *
+       * The brief these came from asked for them *instead of* this section. That section is
+       * `NnRaceSummary` — trail shoes, no headphones, the water station, and the start not
+       * being at race HQ — so taking it out would have stripped four safety-relevant lines off
+       * this page and left them on `/nn/2026/` alone. The headphone rule in particular is the
+       * club's own additional rule under ARC Rule 81 and is binding on competitors; it is not
+       * decoration and it does not come out of a page in a copy edit.
+       *
+       * **The heading stays too, and it is not redundant now there is prose above it.** These
+       * two paragraphs are an announcement — the race is back, here is roughly what it is.
+       * "Know what you are in for" introduces the four things that are true whether or not
+       * anybody is pleased about them. One is a welcome and the other is a warning, and
+       * collapsing them into each other would soften the half that should not be soft.
+       *
+       * Her spelling is hers: "10km off road" unhyphenated, "tricked & treated" with an
+       * ampersand, "spooktators" lower case here and capitalised as a page name in the bar.
+       * Not corrected — see the note in the pull request about the distance now appearing in
+       * two spellings on this page, which is hers to settle rather than this file's. */
+    }
     <div class="nn-card nn-prose">
+      <p class="lede">
+        Southville Running Club's 'Spooktacular' Nightingale Nightmare Halloween Run is
+        back!
+      </p>
+
+      <p>
+        A 10km off road run along the towpath, up Nightingale Valley and through Leigh
+        Woods. All runners and 'spooktators' will be tricked & treated, and Halloween
+        fancy dress is strongly encouraged!
+      </p>
+
       <h2>Know what you are in for</h2>
 
       <NnRaceSummary />
@@ -243,8 +275,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
         Both are painted. */
       }
       <ul class="nn-panel-links">
-        <li><a href="" data-nn-panel-link="race-day">Race day</a></li>
-        <li><a href="" data-nn-panel-link="spectators">Watching the race</a></li>
+        <li><a href="" data-nn-panel-link="race-day">Race instructions</a></li>
+        <li><a href="" data-nn-panel-link="spectators">Spooktators</a></li>
       </ul>
     </section>
 
@@ -273,15 +305,24 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
 
     <footer>
       {
-        /* **The "to be confirmed" sentence went with the facts list it was about.** There is
-        nothing above reading it any more — the rows that did are on the year page, which
-        carries the sentence. A footer explaining a marker the page does not use is the sort of
-        thing a reader trusts and then cannot find. */
+        /* **The wayfinding clause has gone, and nothing replaces it.**
+         *
+         * It read "This page is about the race itself; each year's running has its own, linked
+         * above", and the link it promised is the year panel — which ships `hidden` and is only
+         * revealed when the Worker can reach the database. So on the failure path the sentence
+         * pointed at nothing, in prose, on the front door. **The panel is the wayfinding**; a
+         * sentence describing a link that may not render is worse than no sentence, because a
+         * reader who cannot find it assumes the fault is theirs.
+         *
+         * That the panel is the *only* route from `/nn/` to the year page, and that a Worker
+         * which cannot reach Postgres therefore leaves this page with no route to it at all, is
+         * a real gap and a wider one than a copy change — issue #71. It is raised there rather
+         * than patched here with the sentence that was hiding it.
+         *
+         * **The club's name stays.** It is the attribution every footer on this site opens
+         * with, not wayfinding, and `/nn/` is not the page to become the exception. */
       }
-      <p>
-        Southville Running Club. This page is about the race itself; each year's running
-        has its own, linked above.
-      </p>
+      <p>Southville Running Club.</p>
       <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
       </p>

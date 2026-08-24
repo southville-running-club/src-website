@@ -216,6 +216,33 @@ const SUMMARY_LINKS = [
   </p>
 </div>
 
+{
+  /* **A guide learns the position before the fourteen fields, not after them** — issue #22,
+  and step 0.4 of `docs/delivery/runbooks/entries-open.md`.
+
+  The same fact was already on this page twice and neither copy arrived in time. The fee
+  card's description says a guide is free, which is true and is not the problem; the
+  `data-entry-free` notice below says a guide's place cannot be booked, and it ships `hidden`
+  because the Worker reveals it **after** a submission is refused. So the one person on this
+  page who cannot finish it was the one person told so last.
+
+  **This is the third copy and the only unconditional one.** It is not a `role="alert"` and it
+  is not hidden: nothing has gone wrong, and a guide reading it has simply been told what to do
+  before spending ten minutes not being able to do it. A plain `.notice` — no `-ok`, no `-bad` —
+  because colour carries none of the meaning here and there is nothing to warn about.
+
+  **The stop in `worker/nn-entry.ts` is untouched**, which step 0.4 requires: this is copy in
+  front of a backstop, not a replacement for one. It still has to refuse a discount code that
+  zeroes a fee that is not itself free. */
+}
+<div class="notice nn-card" data-entry-guide>
+  <p>
+    Runners who need a guide or support runner can bring one, and that person enters free.
+    Guide places cannot be booked through this form — please{' '}
+    <a href={`mailto:${race.contact}`}>contact us</a> to arrange one.
+  </p>
+</div>
+
 <p class="signup-privacy">
   One entry per runner. The club uses what you enter here to run the race and for nothing
   else. <a href="/nn/privacy/">What the club does with this</a>, including how to have it

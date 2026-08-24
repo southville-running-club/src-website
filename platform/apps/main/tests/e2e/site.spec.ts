@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
@@ -423,8 +423,15 @@ test.describe('the Nightingale Nightmare content pages', () => {
     ['/nn/', 'Race', 'Nightingale Nightmare'],
     ['/nn/course/', 'Course', 'Course and terrain'],
     ['/nn/2026/', null, 'Nightingale Nightmare 2026'],
-    ['/nn/2026/race-day/', 'Race day', 'Race day'],
-    ['/nn/2026/spectators/', 'Spectators', 'Watching the race'],
+    // **Three strings apiece, not one: a bar label, a heading and a slug.** The race director
+    // renamed both pages and neither address moved — moving one would cost a redirect this site
+    // has no mechanism for. `spectators` is "Spooktators" in both the bar and the heading.
+    // `race-day` is **"Race info" in the bar and "Race instructions" as the heading**, because
+    // the longer label adds a whole row to a sticky bar whose height is what `scroll-padding-top`
+    // has to clear — the fix that made the bar sticky at all. See the note in `NnNav.astro`.
+    // This pair is what stops the three drifting apart.
+    ['/nn/2026/race-day/', 'Race info', 'Race instructions'],
+    ['/nn/2026/spectators/', 'Spooktators', 'Spooktators'],
     // **The notice is a content page of the campaign now, and it is tested as one.** It was
     // absent from this list for as long as the bar did not link to it — so the one page whose
     // header could not say where you were was also the one page whose header nothing here
@@ -457,7 +464,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 
       // `exact` matters here: an accessible name is matched as a substring by default, so
-      // "Race" also selects "Race day" and the assertion fails on a strict-mode violation
+      // "Race" also selects "Race info" and the assertion fails on a strict-mode violation
       // rather than on anything being wrong with the page.
       await expect(
         nav.getByRole('link', { name: navLabel, exact: true }),
@@ -869,7 +876,15 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // the identical defect facing the other way, on the page that takes the money.
     await page.goto('/nn/2026/');
 
-    const ghost = page.getByRole('link', { name: 'Race-day plan' });
+    // **Scoped to the hero, and left scoped deliberately.** The button read "Race-day plan" and
+    // was unique on this page; it is "Race instructions" since the rename, which is also the
+    // race-day page's heading. It happens to be unique here again — the bar says "Race info" —
+    // but this test is about the gradient behind *this* button, and a locator that only works
+    // while two labels happen to differ is one an unrelated copy edit turns into a strict-mode
+    // failure that reads as a styling bug.
+    const ghost = page
+      .locator('.nn-herobtns')
+      .getByRole('link', { name: 'Race instructions' });
     await expect(ghost).toHaveCSS('border-top-color', 'rgb(255, 246, 236)');
     await expect(ghost).toHaveCSS('color', 'rgb(255, 246, 236)');
   });
@@ -998,6 +1013,83 @@ test.describe('the Nightingale Nightmare content pages', () => {
       expect(text).not.toMatch(/next sunday/i);
       expect(text).not.toMatch(/\bwitching hour\b/i);
     }
+  });
+
+  /**
+   * Whitespace, squashed, because these assertions match sentences rather than elements.
+   *
+   * Prettier wraps markup at the print width and `compressHTML` collapses what is left, so a
+   * sentence written across two source lines arrives with a newline in the middle of it. A
+   * `toContain` on the raw `textContent` then fails on copy that is perfectly correct — the same
+   * trap `admin-html.test.ts` squashes for, one framework along.
+   */
+  const squashed = async (page: Page, path: string): Promise<string> => {
+    await page.goto(path);
+    return ((await page.locator('body').textContent()) ?? '').replace(/\s+/g, ' ');
+  };
+
+  test('the safety summary survives the race director’s copy, and sits under it', async ({
+    page,
+  }) => {
+    // **This is the assertion the copy slice was written around.** The brief it came from asked
+    // for two paragraphs of the race director's prose *instead of* the "Know what you are in
+    // for" section — and that section is `NnRaceSummary`, which is where the headphone rule, the
+    // trail-shoe advice, the water station and "the start is not at race HQ" live on this page.
+    // Replacing it would have stripped four safety-relevant lines off `/nn/` silently and left
+    // them on `/nn/2026/` alone.
+    //
+    // **The headphone rule is not decoration.** ARC's rules carry no headphone provision, but
+    // Rule 81 lets an organiser make additional rules binding on competitors as though they were
+    // ARC's own — on a course Rule 83(3) shares with the public. It is the club's rule, it is
+    // enforceable, and it does not come off a page in a copy edit.
+    const body = await squashed(page, '/nn/');
+
+    // Her two paragraphs, in her spelling — "10km off road" unhyphenated, an ampersand, and
+    // "spooktators" lower case here and capitalised as a page name in the bar.
+    expect(body).toContain("'Spooktacular' Nightingale Nightmare Halloween Run is back!");
+    expect(body).toContain('tricked & treated');
+    expect(body).toContain('Halloween fancy dress is strongly encouraged!');
+
+    // And all four bullets, which the brief would have taken with the heading.
+    expect(body).toContain('Trail shoes recommended');
+    expect(body).toContain('No headphones of any type during the race.');
+    expect(body).toContain('One water station on the route at approximately halfway');
+    expect(body).toContain('The start and the finish are not at race HQ.');
+
+    // **A welcome first, then the four things that are true whether or not anybody is pleased
+    // about them.** Order is asserted because the argument for keeping both was that they do
+    // different jobs; landing the warning above the greeting would mean neither did.
+    expect(body.indexOf('is back!')).toBeLessThan(body.indexOf('No headphones'));
+  });
+
+  test('the water station says where it is, wherever it is mentioned', async ({
+    page,
+  }) => {
+    // **The fact somebody rations a bottle against.** It read "one water station on the route"
+    // with no location on both pages that state it; approximately halfway is the race director's
+    // confirmation. The sentence lives in two places — `NnRaceSummary`, which reaches `/nn/` and
+    // `/nn/2026/`, and the course page — so all three are asserted rather than one. That is what
+    // stops the pair drifting for as long as the course page still exists.
+    for (const path of ['/nn/', '/nn/2026/', '/nn/course/']) {
+      const body = await squashed(page, path);
+
+      expect(body, path).toContain('water station on the route at approximately halfway');
+    }
+  });
+
+  test('/nn/ no longer promises a link its panel may not render', async ({ page }) => {
+    // The footer read "each year's running has its own, linked above", and the link it meant is
+    // the year panel — which ships `hidden` and is revealed only when the Worker can reach the
+    // database. On the failure path the sentence pointed at nothing, in prose, on the front
+    // door. **The panel is the wayfinding**, and prose describing a link that may not be there
+    // is worse than no prose: a reader who cannot find it assumes the fault is theirs.
+    const body = await squashed(page, '/nn/');
+
+    expect(body).not.toContain('linked above');
+
+    // **The attribution stays.** It is what every footer on this site opens with, and `/nn/` is
+    // not the page to become the exception.
+    expect(body).toContain('Southville Running Club.');
   });
 
   test('the start is given as a place of its own, distinct from HQ', async ({ page }) => {
@@ -1145,8 +1237,8 @@ test.describe('accessibility', () => {
     ['the course page', '/nn/course/'],
     ['the privacy notice', '/nn/privacy/'],
     ['the 2026 race', '/nn/2026/'],
-    ['the race-day page', '/nn/2026/race-day/'],
-    ['the spectators page', '/nn/2026/spectators/'],
+    ['the race instructions', '/nn/2026/race-day/'],
+    ['the spooktators page', '/nn/2026/spectators/'],
     ['the return page', '/nn/2026/entry/complete/'],
     ['race timing', '/timing'],
     // **The brand page earns its place in this list more than any other page here.** It is

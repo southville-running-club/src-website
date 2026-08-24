@@ -12,7 +12,7 @@ import '@src/shared/styles/nn-theme.css';
 // later copy edit sends them to the wrong side of the gorge. They live in `race.json`
 // beside every other race fact.
 //
-// **The start and the finish now have a pin, and it lives on the race-day page rather than
+// **The start and the finish now have a pin, and it lives on the race instructions rather than
 // here.** It was resolved from the one map link the club's 2023 event profile carried — a
 // `goo.gl` shortlink — and it is stored in `race.json` as coordinates for the reason set out
 // at the head of `race-day.astro`. One page owns that fact and this one links to it, because
@@ -23,12 +23,24 @@ import '@src/shared/styles/nn-theme.css';
 // inventing a pin for somewhere to stand is exactly the plausible-looking guess that puts
 // somebody on the wrong side of the gorge. The postcodes are what the club has.
 //
+// **The page is called Spooktators and the slug is still `spectators`.** The race director's
+// word for the people who come to watch; the address they may already have linked to. Renaming
+// the slug would cost a redirect this site has no mechanism for — ADR-011 — and buys nothing a
+// reader sees. `NnNav.astro` carries the same divergence for the same reason.
+//
+// **The body does not yet use the word**, which is the one loose end. Her copy introducing it —
+// "all runners and 'spooktators' will be tricked & treated" — is on `/nn/`, and her rewrite of
+// *this* page is held back pending her answer on four things it would have dropped: the
+// no-on-street-parking request, fancy dress applying to spectators, the prizegiving, and the
+// lede. Until that lands, a reader meets the coinage here as a heading and is told what the
+// page is by everything under it.
+//
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/spectators/';
 ---
 
 <Base
-  title="Watching the race — Nightingale Nightmare"
+  title="Spooktators — Nightingale Nightmare"
   description="Where to stand to watch Nightingale Nightmare, where to park, and why spectators are expected in fancy dress too."
   canonical={canonical}
   theme="nn"
@@ -37,7 +49,7 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/spectators/';
 
   <header class="nn-hero nn-hero-compact">
     <div class="nn-wrap">
-      <h1>Watching the race</h1>
+      <h1>Spooktators</h1>
     </div>
   </header>
 
@@ -56,8 +68,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/spectators/';
           ' '
         }
         <strong>not at race HQ</strong> — <a href="/nn/2026/race-day/"
-          >the race-day page</a
-        > has the exact spot and a map.
+          >the race instructions</a
+        > have the exact spot and a map.
       </p>
 
       <p>
@@ -91,8 +103,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/spectators/';
 
       <p>
         Prizegiving is at race HQ, <strong>{race.location}</strong>, once the last
-        finisher is in. The full running order for the day is on <a
-          href="/nn/2026/race-day/">the race-day page</a
+        finisher is in. The full running order for the day is in <a
+          href="/nn/2026/race-day/">the race instructions</a
         >.
       </p>
     </div>

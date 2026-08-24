@@ -118,7 +118,9 @@ transaction on its own infrastructure.
 | **A Worker**, git-connected, `main` deploys production | Static Astro plus Worker routes |
 | **`new.<apex>/nn`** | A path, not a subdomain. `new.<apex>` is the Worker's custom domain and Cloudflare creates the record — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
 | **Sign-up** ✅ | **Built.** Name, email and consent into `intake.nn_interest`, through a column-scoped anonymous-insert grant. A real `<form method="post">` that works with JavaScript disabled, and a privacy notice at `/nn/privacy/` |
-| **The race pages** ✅ | **Built**, and now split between the race and one running of it — [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen at `/nn/` and `/nn/course/`; the confirmed date, the race facts and the entry form at `/nn/2026/`, with `/nn/2026/race-day/` and `/nn/2026/spectators/` beneath it. All of them read from `apps/main/src/content/race.json`. **The copy is a draft pending committee approval** |
+| **The race pages** ✅ | **Built**, and now split between the race and one running of it — [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen at `/nn/` and `/nn/course/`; the confirmed date, the race facts and the entry form at `/nn/2026/`, with `/nn/2026/race-day/` and `/nn/2026/spectators/` beneath it. All of them read from `apps/main/src/content/race.json`. **The first of the race director's confirmed copy landed 24 August 2026** — her opening two paragraphs on `/nn/`, the water station's location, and the guide-places wording in front of the entry form. **The rest of the prose is still a draft pending committee approval** |
+| **Two pages renamed, and their addresses did not move** | `/nn/<year>/race-day/` is headed **Race instructions** and `/nn/<year>/spectators/` is **Spooktators**, both the race director's words. The slugs are unchanged deliberately: moving them would cost a redirect [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md) records this site as having no mechanism for, and buys a reader nothing. The nav `key` is the slug segment, not the label |
+| **The bar says "Race info" where that page says "Race instructions"** | **Not a compromise about the words — the bar's height is load-bearing.** "Race instructions" in the navigation adds 48px, a whole second row, at every width from 768px up, and again at 560px. That overflows `scroll-padding-top`, which is the hand-written per-breakpoint token that pays for defect 2 of the three [ADR-012](../architecture/decisions/adr-012-one-navigation-bar.md) unstuck this bar over and [ADR-014](../architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md) stuck it back by answering. A label that wraps the bar re-opens that defect silently: every anchor and every keyboard focus on those screens lands behind the header. **"Race info" measured identical to the old "Race day" at all thirteen widths, and "Spooktators" identical to "Spectators".** The bar has always been allowed to be shorter than the heading — it read "Spectators" over "Watching the race". `site.spec.ts`'s nine-width sweep is the guard, and it is what caught this |
 | **Stripe payment — the handoff** ✅ | **Built.** A valid entry holds a place for 31 minutes under a per-event lock, is priced from `entries.fees`, and is handed to Stripe Checkout. Capacity is enforced under real concurrency, and the club never sees a card number |
 | **Stripe payment — the confirmation** ✅ | **Built.** `POST /nn/stripe-webhook` verifies Stripe's signature over the raw bytes and is the only thing that writes `paid`. Idempotent under retry and duplicate delivery; a payment arriving after the hold lapsed is taken rather than refused, and flagged when there was no room. `/nn/2026/entry/complete/` reports what the club has recorded. [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md) |
 | **Reading the entries, and forgetting on time** ✅ | **Built.** `/nn/admin` — the entries for a running with the category derived and an over-capacity payment impossible to miss, the interest list nobody could read until now, and three CSV exports with the medical one deliberately separate. Behind a Worker secret and a key per volunteer, with every medical read and every export recorded. And the five-minute cron now **deletes medical notes a month after the race**, which `/nn/privacy/` has been promising since it was published. [ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) |
@@ -187,9 +189,40 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       currently *required to submit*. The database is deliberately neutral on it, so
       reversing this needs no migration
 - [ ] **The 2026 ARC permit number.** Not yet issued. `race.permit` is `null` and the
-      2023 number is not a stand-in for it
-- [ ] **Approval of the page copy.** The prose on the four Nightingale Nightmare pages is a
-      **draft written to be edited**, not a decision taken on the committee's behalf
+      2023 number is not a stand-in for it. **ARC Rule 21(2)(a) makes this a required page
+      element rather than only a fact the pages happen to lack**: the words "Under ARC Rules"
+      and the permit number must appear on any printed matter or electronic communication
+      connected with the event, and the website is both. Scoped now so it is not discovered in
+      October; blocked on the number
+- [ ] **The group warm-up time.** The 2026 schedule is confirmed in four of its five rows —
+      registration 09:15, briefing **10:30**, walk to the start **10:40**, start 11:00, moved
+      later because the 2023 debrief found the race went off before the marshals were in
+      position. The fifth row, a group warm-up at 10:45, cannot stand once the field leaves HQ
+      at 10:40 and no replacement has been supplied. **One unresolved row blocks all four**, so
+      `race.json` still carries the old schedule rather than half the new one. Three
+      hardcoded `10:30`s in `race-day.astro`'s prose go with it when it lands
+- [ ] **The entry window.** The race director has proposed **open Tuesday 1 September 2026 at
+      07:00, close Friday 30 October 2026 at 17:00** — note the offsets differ, because BST ends
+      on 25 October. [The entries-open runbook](runbooks/entries-open.md) makes the window the
+      committee's rather than the race director's, and it has not been to them. Publishing the
+      close time is also a schema decision and not a copy one: `entry_state()` deliberately does
+      not return `entries_close_at`
+- [ ] **The 2026 race-day text exists as an email, not as page copy, and that was a decision.**
+      The race director's race-day wording — the "all the information you need for the big day"
+      opening, the two typos, the "more on that later" forward reference — is **not in this
+      repository at all**, and its absence is deliberate rather than an oversight:
+      `2026/race-day.astro`'s header note records that the 2023 instructions were a pre-race
+      email written to people who had already entered, and `site.spec.ts`'s "the content pages
+      state the facts they were given" asserts that "commiserations" never appears on any content
+      page. **Putting that text on the page would reverse both**, and is its own slice rather
+      than a copy fix. Outstanding with the race director
+- [ ] **Four things the spectators rewrite would have dropped** — the no-on-street-parking
+      request, fancy dress applying to spectators, the prizegiving, and the page's lede. Her new
+      wording is being treated as additive until she confirms whether the cuts were deliberate,
+      so the rewrite is held and only the rename has landed
+- [ ] **Approval of the rest of the page copy.** What the race director has confirmed is in;
+      the prose around it on the four Nightingale Nightmare pages is still a **draft written to
+      be edited**, not a decision taken on the committee's behalf
 - [ ] **Six questions the content pages could not answer** — map links for the start and
       the finish, which charity the donation tin is for, whether there is a cut-off time,
       dogs and buggies, whether the no-headphones rule has an exception for VI guides, and
