@@ -38,7 +38,7 @@ try {
       'typescript',
       '--local',
       '--schema',
-      'club,intake,entries',
+      'club,intake,entries,identity',
     ],
     { cwd: packageRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   );
