@@ -25,6 +25,11 @@ port = 54321
 #
 # `public` holds the timing platform's tables and is migrated from `src-race-timing`.
 # See docs/architecture/decisions/adr-002-schema-layout.md
+#
+# `identity` — ADR-015's schema for the account and role — is not here yet. It is added by
+# #51, in the same migration that creates it: exposing a schema PostgREST cannot find would
+# be an untested way to find out what that does in production, and #49 does not need it —
+# nothing reads or writes `identity` until #51 lands.
 schemas = ["public", "graphql_public", "intake", "entries"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
@@ -190,6 +195,11 @@ site_url = "https://new.southvillerunningclub.co.uk"
 # knowing, because the timing app's own callback path is not decided yet (Phase 4's
 # territory, not this skeleton's), so the production entry is deliberately broad rather than
 # a guessed exact path. Local entries stay so `supabase start` keeps working on a laptop.
+#
+# `/account/callback/` — where a magic link and a Google OAuth redirect land, #55 and #56 —
+# needs no entry of its own. It is a path under the club hostname, and the `/**` wildcard
+# on `https://new.southvillerunningclub.co.uk` already covers it, same for the two
+# localhost entries below.
 additional_redirect_urls = ["https://new.southvillerunningclub.co.uk/**", "http://127.0.0.1:3000/**", "http://localhost:8787/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -204,24 +214,30 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 #
-# **Off for now, but no longer an open question.** Whether the platform needs member-facing
-# authentication at all was undecided when this comment was first written; it is decided —
-# see decision 005 and ADR-015
+# **On, as of #49.** Decided in decision 005 and ADR-015
 # (../../../../docs/decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth,
-# ../../../../docs/architecture/decisions/adr-015-member-accounts-on-supabase-auth.md). This
-# value stays `false` until issue #49 turns it on as its own reviewed change — turning it on
-# is still production config, pushed by `deploy-db.yml` on every merge touching a migration,
-# and remains a stop-and-ask (../../../../docs/architecture/principles.md#stop-and-ask) for
-# any edit beyond that one planned flip.
-enable_signup = false
+# ../../../../docs/architecture/decisions/adr-015-member-accounts-on-supabase-auth.md), and
+# safe to turn on because RLS, not this flag, is what stops a signed-up account doing
+# anything — every table any of the three roles can reach still needs its own grant and
+# policy. This is still a stop-and-ask
+# (../../../../docs/architecture/principles.md#stop-and-ask): any further edit to this value,
+# to `site_url`, or to a redirect URL is production config the moment it merges.
+enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+#
+# Twelve, not the CLI default of six, which had never been exercised. **Length over
+# composition rules** — `password_requirements` stays empty deliberately, below.
+minimum_password_length = 12
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
+#
+# **Deliberately empty.** Both NCSC and NIST advise against composition rules — they push
+# people towards `Password1!` and a sticky note, not towards a stronger password. Length is
+# the control that actually works, and `minimum_password_length` above is it.
 password_requirements = ""
 
 # Configure passkey sign-ins.
@@ -234,6 +250,13 @@ password_requirements = ""
 # rp_id = "localhost"
 # rp_origins = ["http://127.0.0.1:3000"]
 
+# These are the CLI's own defaults, kept rather than replaced — reviewed here as part of
+# #49 rather than left as values nobody chose. `email_sent = 2` is Supabase's built-in cap
+# on the free tier regardless of this setting, which is the reason #50 wires up Resend for
+# every other outbound email; a larger number here would not raise it. The Cloudflare-level
+# rate limiting on the credential-checking endpoints themselves — sign-in, password reset —
+# is #64's, deliberately: a WAF rule per IP, not a per-project cap shared across every
+# signed-in person.
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
 email_sent = 2
@@ -251,24 +274,41 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
+#
+# **Not turned on by #49, on investigation.** GoTrue is meant to verify the Turnstile token
+# itself, so no verification code would land in the Worker — but the CLI validates every
+# `env(...)` substitution at startup, and `SUPABASE_AUTH_CAPTCHA_SECRET` is unset both on a
+# laptop and in this branch's CI run, since it is a GitHub Actions repository secret nobody
+# has added yet (see the manual-steps table in `apps/main/README.md`). Enabling this block
+# without it breaks `supabase start` outright — confirmed by running `./dev check` against
+# this change, which failed every database-backed test with PGRST002 the moment this block
+# was uncommented. Turning captcha on belongs with #53, once the account forms exist to
+# carry the widget and the repository secret is installed, not before either is true.
 # [auth.captcha]
 # enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# provider = "turnstile"
+# secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
 #
-# Off, matching the top-level `[auth] enable_signup` — belt and braces rather than relying
+# On, matching the top-level `[auth] enable_signup` — belt and braces rather than relying
 # on the master switch alone.
-enable_signup = false
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# **On, and the single most important line in this block.** Without it an unverified
+# address is a signed-in account, and anybody can register somebody else's email — an
+# account that reads as somebody's before they have proved it is theirs.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+#
+# On, so a stolen session cannot silently change the password it was stolen with — the
+# person has to re-authenticate first, which is also the moment a real owner notices.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
