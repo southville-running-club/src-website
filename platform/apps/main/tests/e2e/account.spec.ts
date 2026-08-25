@@ -38,7 +38,7 @@ function addressFor(project: string): string {
 async function verifyLinkFor(
   request: import('@playwright/test').APIRequestContext,
   email: string,
-  type: 'signup' | 'recovery',
+  type: 'signup' | 'recovery' | 'magiclink',
 ): Promise<string> {
   const linkPattern = new RegExp(
     `https?:\\/\\/\\S*\\/auth\\/v1\\/verify\\?\\S*type=${type}\\S*`,
@@ -74,6 +74,33 @@ async function confirmationLinkFor(
   email: string,
 ): Promise<string> {
   return verifyLinkFor(request, email, 'signup');
+}
+
+/**
+ * Waits for Cloudflare's dummy widget to put a response token in the form.
+ *
+ * The same wait the first test in this file spells out inline; extracted because #55 and #62
+ * added five more forms that need it and five more copies would be five more places to get
+ * the timeout wrong. **The `.first()` matters now** — `/account/sign-in/` carries two
+ * widgets, one per form.
+ *
+ * @param formSelector scopes the wait to one form's widget when a page has more than one.
+ */
+async function settleTurnstile(
+  page: import('@playwright/test').Page,
+  formSelector?: string,
+): Promise<void> {
+  await page.waitForSelector('.cf-turnstile iframe', { timeout: 15_000 }).catch(() => {
+    // Some renders never need an iframe for the dummy key — the response field below is
+    // what actually matters.
+  });
+
+  const field =
+    formSelector === undefined
+      ? page.locator('[name="cf-turnstile-response"]').first()
+      : page.locator(`${formSelector} [name="cf-turnstile-response"]`).first();
+
+  await expect.poll(async () => field.inputValue(), { timeout: 15_000 }).not.toBe('');
 }
 
 test.describe('the account area, with scripting off', () => {
@@ -587,5 +614,202 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
     expect(acknowledgement).toContain('confirmation link');
     expect(acknowledgement).toContain('current email address');
     expect(acknowledgement).toContain('your new one');
+  });
+});
+
+/**
+ * #55 — the magic link.
+ *
+ * **The two email fields on `/account/sign-in/` are labelled differently on purpose**, and it
+ * is a testability decision as much as a copy one: Playwright's `getByLabel` matches by
+ * substring, so a second field labelled "Your email address" would have been just as
+ * ambiguous as one labelled "Email address". "Where to send the link" is unambiguous to a
+ * locator and clearer to a person, which is the happy case.
+ */
+test.describe('signing in with a link @requires-js', () => {
+  test('sends one, signs in with it, and refuses it the second time', async ({
+    page,
+    request,
+  }, testInfo) => {
+    const email = addressFor(testInfo.project.name);
+    const password = 'a-perfectly-good-password';
+
+    // An account has to exist: a magic link never creates one.
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill('Ada Lovelace');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(page).toHaveURL(/\/account\/sign-up\/\?done=ok$/);
+
+    await page.goto(await confirmationLinkFor(request, email));
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Where to send the link').fill(email);
+    await settleTurnstile(page, 'form[action="/account/link/"]');
+    await page.getByRole('button', { name: 'Email me a link' }).click();
+
+    await expect(page).toHaveURL(/\/account\/sign-in\/\?sent=ok$/);
+    await expect(page.getByText(/we have sent it a link/i)).toBeVisible();
+
+    const link = await verifyLinkFor(request, email, 'magiclink');
+    await page.goto(link);
+
+    // Landed signed in, on the account page rather than back at the form.
+    await expect(page).toHaveURL(/\/account\/$/);
+    await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+
+    // **Once, and it says so.** A second use must not fail blankly — somebody tapping a dead
+    // link repeatedly with no explanation is the failure this guards.
+    await page.goto('/account/sign-out/').catch(() => {});
+    await page.goto(link);
+    await expect(page.getByRole('heading', { name: /did not work/i })).toBeVisible();
+  });
+
+  test('acknowledges an address with no account identically', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/account/sign-in/');
+    await page
+      .getByLabel('Where to send the link')
+      .fill(`nobody-${testInfo.project.name}@example.com`);
+    await settleTurnstile(page, 'form[action="/account/link/"]');
+    await page.getByRole('button', { name: 'Email me a link' }).click();
+
+    await expect(page).toHaveURL(/\/account\/sign-in\/\?sent=ok$/);
+    await expect(page.getByText(/we have sent it a link/i)).toBeVisible();
+  });
+});
+
+/**
+ * #62 — the data page. The deletion is destructive, so the account it deletes is created by
+ * the test and belongs to nobody.
+ */
+test.describe('downloading and deleting an account @requires-js', () => {
+  test('downloads everything held, then deletes the account', async ({
+    page,
+    request,
+  }, testInfo) => {
+    const email = addressFor(testInfo.project.name);
+    const password = 'a-perfectly-good-password';
+
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill("D'Arcy O'Malley");
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.goto(await confirmationLinkFor(request, email));
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/account\/$/);
+
+    await page.goto('/account/data/');
+
+    // The promise, before the button.
+    await expect(page.getByText(/race entry you have paid for/i)).toBeVisible();
+    await expect(page.getByText(/still be on the start list/i)).toBeVisible();
+
+    // **Assert the attachment on the response, never on a download event.** The three
+    // browser engines disagree about what an attachment is, and WebKit on a Linux runner
+    // renders one in the tab where macOS WebKit downloads it — so this uses `page.request`,
+    // which shares the context's cookies and hands back a readable body everywhere.
+    const csrf = await page
+      .locator('form[action="/account/data/export/"] input[name="csrf_token"]')
+      .inputValue();
+    const exported = await page.request.post('/account/data/export/', {
+      form: { csrf_token: csrf },
+    });
+
+    expect(exported.status()).toBe(200);
+    expect(exported.headers()['content-type']).toContain('application/json');
+    expect(exported.headers()['content-disposition']).toContain('attachment');
+
+    const payload = JSON.parse(await exported.text()) as {
+      ok: boolean;
+      account: { email: string };
+      profile: { name: string };
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.account.email).toBe(email);
+    expect(payload.profile.name).toBe("D'Arcy O'Malley");
+
+    // Deleting needs the word typed — not reachable by one keystroke.
+    await page.goto('/account/data/');
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+    await expect(page.getByText(/Type DELETE in the box/i)).toBeVisible();
+
+    await page.getByLabel(/Type .*DELETE.* to confirm/i).fill('DELETE');
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+
+    await expect(page).toHaveURL(/\/account\/sign-in\/\?deleted=ok$/);
+    await expect(page.getByText(/still on the start list/i)).toBeVisible();
+
+    // Signed out everywhere: the account page is no longer reachable.
+    await page.goto('/account/');
+    await expect(page).toHaveURL(/\/account\/sign-in\/$/);
+
+    // And the old password no longer signs anybody in.
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText(/was not recognised|confirm your email/i)).toBeVisible();
+  });
+});
+
+test.describe('accessibility of the new pages @requires-js', () => {
+  test('the sign-in page has zero violations with all three ways in on it', async ({
+    page,
+  }) => {
+    await page.goto('/account/sign-in/');
+
+    // Two email fields and two Turnstile widgets on one page: the thing most likely to go
+    // wrong here is a duplicate id, which is why `textField` grew an override.
+    const empty = await new AxeBuilder({ page }).analyze();
+    expect(empty.violations).toEqual([]);
+
+    await page.getByLabel('Where to send the link').fill('not-an-address');
+    await settleTurnstile(page, 'form[action="/account/link/"]');
+    await page.getByRole('button', { name: 'Email me a link' }).click();
+
+    const errored = await new AxeBuilder({ page }).analyze();
+    expect(errored.violations).toEqual([]);
+  });
+
+  test('the data page has zero violations, including its error state', async ({
+    page,
+    request,
+  }, testInfo) => {
+    const email = addressFor(testInfo.project.name);
+    const password = 'a-perfectly-good-password';
+
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill('Grace Hopper');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.goto(await confirmationLinkFor(request, email));
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await settleTurnstile(page);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await page.goto('/account/data/');
+    const empty = await new AxeBuilder({ page }).analyze();
+    expect(empty.violations).toEqual([]);
+
+    await page.getByRole('button', { name: 'Delete my account' }).click();
+    const errored = await new AxeBuilder({ page }).analyze();
+    expect(errored.violations).toEqual([]);
   });
 });

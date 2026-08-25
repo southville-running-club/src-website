@@ -755,7 +755,7 @@ function signInPage(
             No password to remember. The link signs you in on this device, and works once.
           </p>
           <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
-          ${textField('email', 'Email address', '', magicLinkErrors.email, {
+          ${textField('email', 'Where to send the link', '', magicLinkErrors.email, {
             type: 'email',
             autocomplete: 'email',
             id: 'account-link-email',
@@ -2106,7 +2106,12 @@ function dataPage(
         <a href="mailto:info@southvillerunningclub.co.uk"
           >info@southvillerunningclub.co.uk</a
         >
-        and a person will deal with it.
+        and a person will deal with it. A request that reaches beyond your own account is
+        a decision somebody takes with a legal test attached, not a button.
+      </p>
+      <p>
+        <a href="/privacy/">What the club does with your details</a> explains why each
+        thing is held, and for how long.
       </p>
       <form method="post" action="/account/data/delete/" class="signup" novalidate>
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />

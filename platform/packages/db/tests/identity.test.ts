@@ -495,3 +495,180 @@ describe('identity.revoke_role, and the last super-admin', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// #62 — identity.export_me() and identity.delete_me()
+// -----------------------------------------------------------------------------------------
+
+describe('what an anonymous client may not do with #62’s two functions', () => {
+  it('cannot call identity.export_me', async () => {
+    const { error } = await anon.schema('identity').rpc('export_me');
+    // 42501, not PGRST202: the function exists and anon is refused it. PGRST202 would mean
+    // the request never got as far as being denied, which is a different bug.
+    expect(error?.code).toBe('42501');
+  });
+
+  it('cannot call identity.delete_me', async () => {
+    const { error } = await anon.schema('identity').rpc('delete_me');
+    expect(error?.code).toBe('42501');
+  });
+});
+
+describe('identity.export_me()', () => {
+  it('hands somebody their own profile, name included', async () => {
+    const { data, error } = await personC.client.schema('identity').rpc('export_me');
+
+    expect(error).toBeNull();
+    const result = data as {
+      ok: boolean;
+      account: { id: string; email: string };
+      profile: Record<string, unknown>;
+    };
+
+    expect(result.ok).toBe(true);
+    expect(result.account.id).toBe(personC.id);
+    expect(result.account.email).toBe(PERSON_C_EMAIL);
+    // The apostrophe fixture, round-tripping through jsonb rather than through markup.
+    expect(result.profile.name).toBe("D'Arcy O'Malley");
+  });
+
+  /**
+   * **The assertion #62 actually asks for**, and it is written this way on purpose: the
+   * expected key list is read from the database rather than typed here, so a column added to
+   * `identity.people` later and *not* added to `export_me()` fails this test rather than
+   * quietly escaping the export. A literal list would stop testing the moment somebody added
+   * a column and updated the literal without touching the function.
+   */
+  it('lists every column of identity.people, so a new one cannot escape', async () => {
+    const columns = await query<{ column_name: string }>(
+      `select column_name
+         from information_schema.columns
+        where table_schema = 'identity' and table_name = 'people'
+        order by column_name`,
+    );
+
+    const { data } = await personC.client.schema('identity').rpc('export_me');
+    const profile = (data as { profile: Record<string, unknown> }).profile;
+
+    // `id` is reported under `account`, not repeated inside the profile.
+    const expected = columns
+      .map((row) => row.column_name)
+      .filter((name) => name !== 'id')
+      .sort();
+
+    expect(Object.keys(profile).sort()).toEqual(expected);
+  });
+
+  it('includes the roles somebody holds, which they cannot read any other way', async () => {
+    const { data } = await admin.client.schema('identity').rpc('export_me');
+    const roles = (data as { roles: { role: string }[] }).roles;
+
+    expect(roles.map((grant) => grant.role)).toContain('super-admin');
+  });
+
+  /** `granted_by` is another person's id. Who granted somebody a role is the club's record
+   *  rather than theirs, and an export is not a way to read it out. */
+  it('does not disclose who granted a role', async () => {
+    const { data } = await admin.client.schema('identity').rpc('export_me');
+    expect(JSON.stringify(data)).not.toContain('granted_by');
+  });
+});
+
+describe('identity.delete_me()', () => {
+  const PERSON_D_EMAIL = 'zz-identity-d@example.com';
+  const PERSON_E_EMAIL = 'zz-identity-e@example.com';
+
+  afterAll(async () => {
+    await db.query('delete from auth.users where email = any($1::text[])', [
+      [PERSON_D_EMAIL, PERSON_E_EMAIL],
+    ]);
+  });
+
+  it('deletes the caller, and the profile goes with them', async () => {
+    const personD = await fixturePerson(PERSON_D_EMAIL);
+
+    const { data, error } = await personD.client.schema('identity').rpc('delete_me');
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: true });
+
+    expect(await query('select id from auth.users where id = $1', [personD.id])).toEqual(
+      [],
+    );
+    expect(
+      await query('select id from identity.people where id = $1', [personD.id]),
+    ).toEqual([]);
+  }, 20_000);
+
+  /**
+   * The function takes no arguments, so there is nothing to pass that could name somebody
+   * else. This asserts the *result* of that rather than the intention: person E deleting
+   * themselves leaves person A entirely alone.
+   */
+  it('deletes only the caller', async () => {
+    const personE = await fixturePerson(PERSON_E_EMAIL);
+
+    await personE.client.schema('identity').rpc('delete_me');
+
+    const survivors = await query('select id from identity.people where id = $1', [
+      personA.id,
+    ]);
+    expect(survivors).toHaveLength(1);
+  }, 20_000);
+
+  /**
+   * The same hole `revoke_role()` already refuses through its own door — "no system is
+   * reachable by only one person", and an account deletion that empties the super-admin role
+   * leaves the club unable to administer its own site.
+   */
+  it('refuses the last super-admin, and says why', async () => {
+    const { data, error } = await admin.client.schema('identity').rpc('delete_me');
+
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: false, reason: 'last_super_admin' });
+
+    // And nothing happened.
+    expect(
+      await query('select id from auth.users where id = $1', [admin.id]),
+    ).toHaveLength(1);
+  });
+});
+
+/**
+ * **Not a test of `delete_me()` so much as of the shape that makes it safe.** #62 is explicit
+ * that a paid race entry survives a deletion because `entries.entrants` is not keyed on
+ * `identity.people` — and that this issue "must not make it so". Asserting the absence of the
+ * foreign key is what keeps that true a year from now: inserting an entrant and watching it
+ * survive would pass just as well on a schema where somebody had added a nullable reference,
+ * right up until the day it was made `on delete cascade`.
+ */
+describe('what a deletion cannot reach', () => {
+  it('no table in entries references identity.people', async () => {
+    const references = await query<{ table_name: string; constraint_name: string }>(
+      `select tc.table_name, tc.constraint_name
+         from information_schema.table_constraints as tc
+         join information_schema.constraint_column_usage as ccu
+           on ccu.constraint_name = tc.constraint_name
+          and ccu.constraint_schema = tc.constraint_schema
+        where tc.constraint_type = 'FOREIGN KEY'
+          and tc.table_schema = 'entries'
+          and ccu.table_schema = 'identity'`,
+    );
+
+    expect(references).toEqual([]);
+  });
+
+  it('identity.audit has no foreign key to people, so it outlives them', async () => {
+    const references = await query(
+      `select tc.constraint_name
+         from information_schema.table_constraints as tc
+         join information_schema.constraint_column_usage as ccu
+           on ccu.constraint_name = tc.constraint_name
+          and ccu.constraint_schema = tc.constraint_schema
+        where tc.constraint_type = 'FOREIGN KEY'
+          and tc.table_schema = 'identity'
+          and tc.table_name = 'audit'`,
+    );
+
+    expect(references).toEqual([]);
+  });
+});
