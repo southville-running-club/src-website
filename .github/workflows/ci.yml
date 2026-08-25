@@ -301,6 +301,13 @@ jobs:
           echo "::warning::acceptance tests failed, retrying the suite once" >&2
           npx playwright test
 
+      # `always()`, because the question this answers — what is the suite spending ten minutes
+      # on — is at its most useful when nothing is wrong. A summary that appears only on a red
+      # run is one nobody reads until they are already busy with something else.
+      - name: Where the suite spent its time
+        if: always()
+        run: python3 ../tools/suite-timing.py playwright-report/results.json >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload the Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

@@ -36,7 +36,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  // `github` annotates the diff; the JSON alongside it is what `tools/suite-timing.py` reads
+  // to say where the ten minutes went. It is written in CI only, and it is a file rather than
+  // a second console reporter because two reporters writing to the same stream interleave.
+  reporter: process.env.CI
+    ? [['github'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    : 'list',
 
   // **One worker everywhere, and the reason changed.** It was capped at two in CI because
   // two servers plus three engines is already a lot of processes; it is now capped at one
