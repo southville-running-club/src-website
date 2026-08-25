@@ -450,8 +450,36 @@ otp_expiry = 3600
 # reply to one of these goes to `accounts@send.…`, which has no mailbox behind it. #50's
 # *"replying to it reached `info@`"* is **not satisfied by this block alone** and is not
 # satisfiable from `config.toml` — see the runbook.
+# ⚠️ **`enabled = false`, and CI is what decided that — see #98.**
+#
+# The open question this block shipped with was whether GoTrue would really dial out, or
+# whether the earlier failure was port 465 being blocked. **It really dials out.** With
+# `enabled = true` and CI's placeholder password, every `signUp()` in the database tests
+# answered `AuthRetryableFetchError: Error sending confirmation email` — three suites down and
+# 116 tests skipped, in `identity.test.ts`, `identity-sessions.test.ts` and
+# `entries-admin.test.ts`. That is the experiment the hand-over asked for, run for real.
+#
+# **The block is correct; the problem is that one file serves two environments.** Production
+# has a real `SUPABASE_AUTH_SMTP_PASSWORD` and can reach Resend. A laptop and a CI runner have
+# a placeholder and cannot, and `[local_smtp]`'s catcher is only used while this is off — so
+# `enabled = true` here trades every local and CI account test for mail nobody can send.
+#
+# **Turning it on is a decision, not a fix, and it is one of three:**
+#
+#   1. `[remotes.production]` — the CLI mechanism built for exactly this: base stays off,
+#      production overrides it on. Untried here, and it is a new mechanism in the one file
+#      that has already cost four red deploys, so it wants its own change and its own review.
+#   2. Point `host`/`port`/`user`/`pass` at `[local_smtp]`'s catcher locally. `port` is an
+#      integer and `env()` substitution on it is unverified, which is what makes this less
+#      simple than it looks.
+#   3. Configure SMTP in the Supabase dashboard instead, and leave this off — the same
+#      accepted-manual-step shape as the Stripe webhook endpoint.
+#
+# Left off rather than picked, because `[auth]` is a stop-and-ask and this is not the pull
+# request to settle it in. **Production is no worse off than before**: this block has never
+# successfully deployed, so `false` is the state today, not a regression.
 [auth.email.smtp]
-enabled = true
+enabled = false
 host = "smtp.resend.com"
 port = 587
 user = "resend"

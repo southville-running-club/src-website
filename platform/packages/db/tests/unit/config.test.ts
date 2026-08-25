@@ -332,15 +332,23 @@ describe('email templates, and the provider that forbids them', () => {
       .map((section) => section.name);
   }
 
-  it('is on a custom email provider, which is what #50 changed', () => {
-    // **This assertion was `toBe(false)` until #50**, and it was written to go red on
-    // exactly this change rather than to be deleted by it: the guard below goes quiet the
-    // moment a custom provider exists — correctly, because the restriction lifts with it —
-    // and a guard that can go quiet needs something that fails loudly when its premise
-    // moves. It moved. So this now asserts the premise in the other direction, and it is
-    // still the thing that fails if somebody re-comments `[auth.email.smtp]` without
-    // reinstating the template guard alongside it.
-    expect(customSmtp()).toBe(true);
+  it('is still on the default email provider, so the template guard below is live', () => {
+    // **This has now been `false`, then `true`, then `false` again, and each move was the
+    // point rather than churn.** The guard below goes quiet the moment a custom provider
+    // exists — correctly, because the restriction lifts with it — and a guard that can go
+    // quiet needs something beside it that fails loudly whenever its premise moves. It has
+    // done that job twice: red when #50 enabled `[auth.email.smtp]`, and red again when #98
+    // turned it back off.
+    //
+    // **Why it went back off**: `enabled = true` made GoTrue really dial `smtp.resend.com`
+    // from a laptop and from CI, where the password is a placeholder — and every `signUp()`
+    // in the database tests answered `Error sending confirmation email`. Three suites, 116
+    // tests. `config.toml`'s own comment carries the three ways to turn it on properly; none
+    // of them is "set this back to `true` and hope".
+    //
+    // So the premise is asserted in this direction again, and the template guard below is
+    // live rather than dormant — which is the state that actually protects #79.
+    expect(customSmtp()).toBe(false);
   });
 
   it('declares no email template block at all while on the default provider', () => {
@@ -350,14 +358,12 @@ describe('email templates, and the provider that forbids them', () => {
     // with the same 400. Commenting the section out is the known-good state, because it is
     // the state the CLI shipped and the one every green deploy before #76 ran on.
     //
-    // ⚠️ **Dormant since #50, and deliberately kept rather than deleted.** The custom
-    // provider lifts the restriction, so this now short-circuits to `[]` and cannot fail —
-    // which is the one shape this repository treats as worse than a missing test, because
-    // the line still looks like coverage. It stays because it is the guard that comes back
-    // on its own the day somebody re-comments `[auth.email.smtp]`: a rollback of #50 that
-    // left a template block behind would otherwise ship the exact 400 that took production
-    // down for four deploys. The assertion above is what keeps this honest — it fails
-    // loudly whenever this one goes quiet for a reason nobody intended.
+    // ✅ **Live again as of #98.** It was dormant for exactly as long as
+    // `[auth.email.smtp]` was enabled — the custom provider lifts the restriction, so this
+    // short-circuited to `[]` and could not fail, which is the one shape this repository
+    // treats as worse than a missing test because the line still looks like coverage. The
+    // assertion above is what keeps it honest in both directions: it went red when this
+    // guard went quiet, and red again when it woke back up.
     expect(customSmtp() ? [] : templateModifications()).toEqual([]);
   });
 });

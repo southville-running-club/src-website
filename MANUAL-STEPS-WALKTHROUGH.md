@@ -135,7 +135,7 @@ Do not continue past a line that is true. Each ends the sitting; say what you fo
 | --- | --- |
 | **Resend's free tier no longer allows team members, or its sending cap has changed** | A free tier's terms differing from what is recorded is its own [stop-and-ask](docs/architecture/principles.md#stop-and-ask). The design doc already flags team membership as unverified |
 | **The SPF record would exceed ten DNS lookups** | It becomes permanently invalid, and under `p=none` **it fails silently**. Fix the record before adding anything — [1.4](#14--the-spf-ten-lookup-limit) |
-| **Cloudflare's free plan allows fewer rate-limiting rules than you need** | Same stop-and-ask. [The combined expression](docs/reference/cloudflare-waf-rules.md#if-the-plan-allows-only-one-rule) exists, and **read what it costs before creating it** |
+| **Cloudflare's free plan allows fewer rate-limiting rules than you need** | Same stop-and-ask. [The combined expression](docs/reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026) exists, and **read what it costs before creating it** |
 | **The Google OAuth client would live under a personal Google account** | [No system is reachable by only one person](docs/architecture/principles.md#no-system-is-reachable-by-only-one-person). Four already are; a fifth is a decision, not a shortcut |
 | **A `config.toml` edit is about to merge without a green `config.test.ts`** | That is [#79](https://github.com/southville-running-club/src-website/issues/79) happening again, and the test exists to make it a red pipeline instead of a red deploy |
 | **You are tempted to add `[auth.email.notification.password_changed]` alongside `[auth.email.smtp]`** | One change per pull request, and the repository is **squash-only** — two unrelated things become one commit that cannot be reverted apart. See [1.8](#18--what-not-to-put-in-the-same-pull-request) |
@@ -749,7 +749,7 @@ from what is recorded is its own [stop-and-ask](docs/architecture/principles.md#
       acceptable answer; not having asked is not
 
 **If exactly one rule is available**, [the combined
-expression](docs/reference/cloudflare-waf-rules.md#if-the-plan-allows-only-one-rule) is written
+expression](docs/reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026) is written
 out in the rules file — **and read what it costs before creating it.** One rule takes one
 threshold, and it has to be the loosest of the five (20, E1's), because a combined rule set to
 A2's three would block the entry form on the morning it matters most. **A3's mailbomb window
