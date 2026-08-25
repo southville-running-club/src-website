@@ -19,7 +19,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "vitest run --project unit --project db",
     "test:worker": "npm run test:worker --workspaces --if-present",
-    "test:e2e": "npm run build && npm run build:worker && playwright test",
+    "test:e2e": "npm run build && npm run build:worker && playwright test --config=playwright.config.serial.ts && playwright test",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "npm run typecheck --workspaces --if-present",

@@ -1,6 +1,12 @@
 import { Client } from 'pg';
 import { createHash } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import {
+  ADMIN_PASSWORD,
+  FIXTURE_PEOPLE_EMAILS,
+  MEMBER_EMAIL,
+  NN_ADMIN_EMAIL,
+  SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
   ADMIN_EVENT_DATE,
   ADMIN_EVENT_NAME,
@@ -115,6 +121,19 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
     await db.query(`update entries.admin_keys set revoked_at = now() where name = $1`, [
       REVOKED_HANDLE,
     ]);
+
+    // **One audit row from the key era, seeded as history.** Nothing in the Worker writes a
+    // handle any more — #58 moved the surface behind `identity`'s roles, so every new row
+    // names `auth.uid()`. The runbook's "who has read medical data" query has to keep
+    // returning both shapes regardless, because the rows written before the change do not
+    // move, and a query that quietly stopped finding them would answer an access review with
+    // half the truth. `medicalReadAudit()` is that query and this is the half of its answer
+    // that can no longer be produced by using the surface.
+    await db.query(
+      `insert into entries.admin_audit (actor, action, detail)
+       values ($1, 'medical_note', jsonb_build_object('entrant_id', $2::uuid, 'found', true, 'had_note', true))`,
+      [ADMIN_HANDLE, PAID_ENTRANT_ID],
+    );
 
     const seedEvent = async (
       slug: string,
@@ -417,6 +436,10 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       holdMinutes: 31,
     });
   });
+
+  // **After the entries, and outside the `withClient` above**, because this one talks to
+  // GoTrue over HTTP as well as to Postgres. Nothing above depends on a person existing.
+  await seedFixturePeople();
 }
 
 /**
@@ -425,6 +448,104 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
  * **The two digests go back to null and the handles are deleted**, so no laptop is left with a
  * working admin key for a test secret against a real database.
  */
+/**
+ * Cloudflare's own published dummy response token — accepted because `[auth.captcha]`'s secret
+ * locally is the matching dummy secret (#53). See
+ * developers.cloudflare.com/turnstile/troubleshooting/testing.
+ */
+const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
+
+const LOCAL_API = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
+
+/**
+ * The three fixture people, created the way a real person would be.
+ *
+ * **`signUp()` through the anon client, not an insert**, so `identity.handle_new_user()` fires
+ * and the `member` grant, the `identity.people` row and any reserved grant all come from the
+ * trigger that will do it in production. The confirmation is done with SQL because there is no
+ * mailbox to click in; everything else is the real path.
+ *
+ * The roles on top are inserted directly: `identity.grant_role()` refuses anybody who does not
+ * already hold `super-admin`, and bootstrapping one through the reserved-grant address would
+ * take the club's own, which `packages/db/tests/identity.test.ts` already uses.
+ */
+async function seedFixturePeople(): Promise<void> {
+  const anon = createClient(LOCAL_API, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const roleFor: Record<string, string | null> = {
+    [NN_ADMIN_EMAIL]: 'nn-admin',
+    [MEMBER_EMAIL]: null,
+    [SUPER_ADMIN_EMAIL]: 'super-admin',
+  };
+
+  // Sequential, not parallel — each round trip is cheap, and running them concurrently would
+  // race the confirmation update against whichever signUp it belongs to.
+  await FIXTURE_PEOPLE_EMAILS.reduce(
+    (queue, email) =>
+      queue.then(async () => {
+        const { error } = await anon.auth.signUp({
+          email,
+          password: ADMIN_PASSWORD,
+          options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+        });
+        if (error) throw error;
+
+        await withClient(async (db) => {
+          const { rows } = await db.query<{ id: string }>(
+            `update auth.users set email_confirmed_at = now() where email = $1 returning id`,
+            [email],
+          );
+          const id = rows[0]?.id;
+          if (id === undefined) {
+            throw new Error(`signUp created no auth.users row for ${email}`);
+          }
+
+          const role = roleFor[email];
+          if (role != null) {
+            await db.query(
+              `insert into identity.role_grants (person_id, role) values ($1::uuid, $2)
+               on conflict do nothing`,
+              [id, role],
+            );
+          }
+        });
+      }),
+    Promise.resolve(),
+  );
+}
+
+/**
+ * The three people, gone.
+ *
+ * Cascades through `identity.people` and `identity.role_grants` — `identity.people.id`
+ * references `auth.users(id) on delete cascade`. `identity.audit` deliberately does not
+ * cascade, so its rows are deleted by subject, and the `entries.admin_audit` rows the role path
+ * wrote name a uuid rather than a handle and are deleted the same way.
+ */
+async function clearFixturePeople(): Promise<void> {
+  await withClient(async (db) => {
+    const { rows } = await db.query<{ id: string }>(
+      'select id from auth.users where email = any($1::text[])',
+      [[...FIXTURE_PEOPLE_EMAILS]],
+    );
+    const ids = rows.map((row) => row.id);
+
+    if (ids.length > 0) {
+      await db.query('delete from identity.audit where subject = any($1::uuid[])', [ids]);
+      await db.query('delete from entries.admin_audit where actor = any($1::text[])', [
+        ids,
+      ]);
+    }
+
+    await db.query('delete from auth.users where email = any($1::text[])', [
+      [...FIXTURE_PEOPLE_EMAILS],
+    ]);
+  });
+}
+
 export async function clearAdminFixtures(
   restoreGateKey: string | null = null,
 ): Promise<void> {
@@ -465,9 +586,14 @@ export async function clearAdminFixtures(
       [restoreGateKey],
     );
   });
+
+  // **Last, and unconditional.** The super-admin among these is the reason: a fixture one left
+  // behind makes `identity.revoke_role()`'s last-super-admin refusal false, and
+  // `packages/db/tests/identity.test.ts` then fails two suites away from anything that changed.
+  await clearFixturePeople();
 }
 
-/** What the audit table records, for a test that cannot look through the API. */
+/** What the audit table records for the key era, for a test that cannot look through the API. */
 export async function adminAudit(): Promise<
   { actor: string; action: string; detail: Record<string, unknown> }[]
 > {
@@ -480,6 +606,46 @@ export async function adminAudit(): Promise<
       `select actor, action, detail from entries.admin_audit
         where actor = any($1::text[]) order by at`,
       [[ADMIN_HANDLE, REVOKED_HANDLE]],
+    );
+
+    return rows;
+  });
+}
+
+export interface MedicalReadAudit {
+  /** A handle for a row written under the key scheme, a uuid for one written under roles. */
+  actor: string;
+  action: string;
+  detail: Record<string, unknown>;
+  /**
+   * The address of the account that uuid belongs to, or `null` when the actor is a handle.
+   *
+   * **The join is the assertion.** A test in `workerd` cannot see this table and cannot see
+   * `auth.users` either, so "the actor is the person who was signed in" has to be resolved
+   * here, in Node, by matching the recorded string against a real account rather than against
+   * a uuid the test had already been told.
+   */
+  email: string | null;
+}
+
+/**
+ * **The runbook's question, run as the runbook asks it**: who has read medical data.
+ *
+ * `action in ('medical_note', 'medical_export')` is the whole of it — the two values exist
+ * separately so that a single note read and a download of every note are found by one
+ * predicate. The query has to keep answering across the change of identity scheme #58 made:
+ * a row written by the key path names a handle out of `entries.admin_keys`, a row written by
+ * the role path names `auth.uid()`, and an access review that returned only one of them would
+ * be quietly wrong. `tests/worker/admin/admin.test.ts` asserts it returns both.
+ */
+export async function medicalReadAudit(): Promise<MedicalReadAudit[]> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<MedicalReadAudit>(
+      `select audit.actor, audit.action, audit.detail, account.email
+         from entries.admin_audit as audit
+         left join auth.users as account on account.id::text = audit.actor
+        where audit.action in ('medical_note', 'medical_export')
+        order by audit.at`,
     );
 
     return rows;

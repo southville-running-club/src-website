@@ -45,7 +45,7 @@
  * a decoded assertion reports a mark that is on the wire as missing, and an assertion written
  * the other way round passes on a file that would open as mojibake on every Windows machine the
  * club owns. Read the bytes (`EF BB BF`), or decode with `ignoreBOM: true`.
- * `apps/main/tests/worker/admin/nn-admin.test.ts` does the first.
+ * `apps/main/tests/worker/admin/admin.test.ts` does the first.
  */
 export const BOM = '\uFEFF';
 

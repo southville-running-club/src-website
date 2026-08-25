@@ -17,14 +17,17 @@ export default defineConfig({
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
 
-      // **Bound to the empty string on purpose, and it is an assertion rather than a setting.**
-      // `nn-admin-unconfigured.test.ts` proves that with no admin key the whole surface declines
-      // and 404s like an address nobody published — which is the deployed state today, and the
-      // property that makes an uninstalled admin surface indistinguishable from an absent one.
+      // **Vestigial, and pinned rather than removed.** This bound the empty string as an
+      // assertion: `nn-admin-unconfigured.test.ts` proved that with no admin key the whole
+      // `/nn/admin` surface declined and 404'd like an address nobody published, and left
+      // unbound that test would have depended on `apps/main/.dev.vars`, **which the pool
+      // silently loads** — a laptop with a key in it would have failed the run while CI passed.
       //
-      // Left unbound, that test would depend on `apps/main/.dev.vars`, **which the pool silently
-      // loads**: a laptop with the key in it would fail the run while CI passed. Pinning the
-      // absence here is what makes the two agree.
+      // **#58 removed the key from the Worker.** Nothing reads `env.ENTRIES_ADMIN_KEY` any
+      // more; the way in is a Supabase session plus a staff role, and the successor test is
+      // `tests/worker/admin-signed-out.test.ts`, which asserts that every `/admin/*` address
+      // 404s for somebody who is not signed in. The binding stays only because
+      // `worker/index.ts` still declares the variable, and it goes with it in #63.
       miniflare: {
         bindings: {
           ENTRIES_ADMIN_KEY: '',

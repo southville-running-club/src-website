@@ -1,5 +1,21 @@
 /**
- * The signed cookie that carries who is signed in, and nothing else.
+ * The signed cookie that carried who was signed in.
+ *
+ * ## Nothing calls this any more, and that is deliberate rather than an oversight
+ *
+ * #58 moved the admin surface to `/admin/` and behind `identity`'s roles, so the two-credential
+ * scheme ADR-013 built has no caller left in the Worker: `worker/admin.ts` reads a Supabase
+ * session, and there is no key sign-in form to mint one of these.
+ *
+ * **It is left here on purpose.** #57 kept the four key-gated database functions for the same
+ * reason — expand, migrate, contract, and the contraction is
+ * [#63](https://github.com/southville-running-club/src-website/issues/63), which removes this
+ * file, `adminSignIn()` in `packages/shared/src/admin.ts`, `entries.admin_keys` and the four
+ * functions **in one diff somebody reviews**. Deleting half of a retired credential scheme
+ * across two changes is how the other half survives.
+ *
+ * Its tests still run and still pass, which is the point: whatever #63 removes, it removes
+ * something that demonstrably worked rather than something already quietly broken.
  *
  * ## What is in it, and what deliberately is not
  *

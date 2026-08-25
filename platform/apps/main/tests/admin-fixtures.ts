@@ -12,16 +12,58 @@
  * that `global-setup.ts` cleans up afterwards.
  */
 
-/** The Worker's shared key. Bound in `vitest.worker.admin.config.ts` under the same value. */
+/**
+ * The two credentials the surface used to be opened by.
+ *
+ * **Nothing in the Worker reads either of them any more.** #58 moved the surface to `/admin/`
+ * and behind `identity`'s roles; #57 left the four key-gated database functions in place and
+ * #63 removes them. They are still seeded because the audit trail is the thing that has to
+ * survive the change of identity scheme: a row written under the key scheme carries a handle
+ * and a row written under the role scheme carries a uuid, and the runbook's "who has read
+ * medical data" query must return both — `admin-db.ts`'s `medicalReadAudit()` is that
+ * query, and `tests/worker/admin/admin.test.ts` asserts that it returns both shapes.
+ */
 export const ADMIN_GATE_KEY = 'zz-admin-worker-gate-key-not-a-real-one';
-
-/** One person's key, and the handle it belongs to. */
 export const ADMIN_PERSON_KEY = 'zz-admin-worker-person-key-not-a-real-one';
 export const ADMIN_HANDLE = 'zz-worker';
-
-/** A second person, revoked, so the run can prove revocation shuts one door and not both. */
 export const REVOKED_PERSON_KEY = 'zz-admin-worker-revoked-key-not-a-real-one';
 export const REVOKED_HANDLE = 'zz-worker-gone';
+
+/**
+ * The three people the staff backend is tested through, one per role set the door has to tell
+ * apart.
+ *
+ * **Real accounts, created through `signUp()` and confirmed the way a mailbox click would**, so
+ * `identity.handle_new_user()` fires exactly as production will and the `member` grant every
+ * account gets is real rather than fabricated. The roles on top are inserted directly, because
+ * `identity.grant_role()` needs a caller who already holds `super-admin` and the only address
+ * the migration reserves that for is the club's own.
+ *
+ * **The super-admin is the reason teardown matters more here than anywhere else.**
+ * `identity.revoke_role()` refuses to remove *the last* active super-admin grant, so
+ * `packages/db/tests/identity.test.ts`'s assertion about that refusal is a claim about the
+ * whole table — the one property in this repository that cannot be scoped to an invented
+ * address. A super-admin left behind by a failed run makes it false. `seedAdminFixtures` clears
+ * before it seeds and `clearAdminFixtures` runs whatever happened, for that reason and not for
+ * tidiness.
+ */
+export const ADMIN_PASSWORD = 'zz-admin-worker-fixture-password';
+
+/** Holds `nn-admin`. The person the Nightingale Nightmare section is read as. */
+export const NN_ADMIN_EMAIL = 'zz-admin-worker-nn@example.com';
+
+/** Holds `member` and nothing else — everybody with an account. Gets the 404. */
+export const MEMBER_EMAIL = 'zz-admin-worker-member@example.com';
+
+/** Holds `super-admin` and **not** `nn-admin`, which is what makes #59's page testable and
+ *  what proves granting a role is not inheriting one. */
+export const SUPER_ADMIN_EMAIL = 'zz-admin-worker-super@example.com';
+
+export const FIXTURE_PEOPLE_EMAILS = [
+  NN_ADMIN_EMAIL,
+  MEMBER_EMAIL,
+  SUPER_ADMIN_EMAIL,
+] as const;
 
 /**
  * A fabricated running, and **never a running of `nn`**.

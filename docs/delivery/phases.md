@@ -125,7 +125,7 @@ transaction on its own infrastructure.
 | **Stripe payment — the confirmation** ✅ | **Built.** `POST /nn/stripe-webhook` verifies Stripe's signature over the raw bytes and is the only thing that writes `paid`. Idempotent under retry and duplicate delivery; a payment arriving after the hold lapsed is taken rather than refused, and flagged when there was no room. `/nn/2026/entry/complete/` reports what the club has recorded. [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md) |
 | **Reading the entries, and forgetting on time** ✅ | **Built.** `/nn/admin` — the entries for a running with the category derived and an over-capacity payment impossible to miss, the interest list nobody could read until now, and three CSV exports with the medical one deliberately separate. Behind a Worker secret and a key per volunteer, with every medical read and every export recorded. And the five-minute cron now **deletes medical notes a month after the race**, which `/nn/privacy/` has been promising since it was published. [ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) |
 | **Registering the Stripe endpoint** | **A human's job, and the last of `apps/main/README.md`'s manual steps.** It needs the production URL — created any earlier and Stripe posts into a 404. The three Worker secrets go on at the same time |
-| **Switching the admin surface on** | **A human's job too, and independent of everything above.** A fourth Worker secret and its digest, then one key per volunteer — [the admin runbook](runbooks/entries-admin.md). Until it is done `/nn/admin` 404s at every address, which is the correct state rather than a broken one |
+| **Switching the admin surface on** | **Superseded by Phase 3b.** It was a fourth Worker secret plus a key per volunteer; #58 retired both. What switches the back office on now is registering the club's admin address and granting a role — [the admin runbook](runbooks/entries-admin.md). No secret, no SQL and no deploy |
 | **A real payment end to end** | Nothing has been paid for yet, in test mode or otherwise. The first real payment is the first full test of the chain, and it should be a committee member's own card in test mode before entries open |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
@@ -301,11 +301,16 @@ irreversible act is the announcement rather than a deploy. Its step 0.1 is the r
 rules on the credential endpoints, and those rules live in
 [one file](../reference/cloudflare-waf-rules.md) beside the race forms' own.
 
-**The two-key admin scheme from Phase 3 is not replaced by this phase.** [#57](https://github.com/southville-running-club/src-website/issues/57)
-adds a role-gated path into `/nn/admin` beside it, and if this phase is not finished by early
-September, installing the two keys per
-[the admin runbook](runbooks/entries-admin.md) remains the way to read entries on race
-morning. #65 calls this out explicitly as the break-glass, costing nothing to keep available.
+**The two-key admin scheme from Phase 3 is replaced by this phase, and the break-glass changed
+with it.** [#57](https://github.com/southville-running-club/src-website/issues/57) added a
+role-gated path into the entries beside the key one — expand only — and
+[#58](https://github.com/southville-running-club/src-website/issues/58) then moved the surface to
+`/admin/nn/` and left `/nn/admin/*` as redirects. **So installing the two keys no longer opens
+anything.** #65 records the keys as the break-glass on the explicit condition that #58 has not
+landed; it has, so **the thing to keep available is a second person holding `nn-admin`** — a
+minute at `/admin/people/`, no deploy, and no credential in a password manager.
+[#63](https://github.com/southville-running-club/src-website/issues/63) removes the four
+key-gated database functions that #57 deliberately left in place.
 
 ---
 

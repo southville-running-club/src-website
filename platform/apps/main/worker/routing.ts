@@ -228,13 +228,12 @@ export function nnEntryCompletePath(yearPath: string): string {
 }
 
 /**
- * The admin surface — **not a page, and not in `dist/`**.
+ * Where the admin surface used to live — **now nothing but redirects**.
  *
- * Every address beneath this prefix is answered by the Worker before the assets binding, and
- * nothing beneath it exists as a file. When `ENTRIES_ADMIN_KEY` is not bound the Worker declines
- * to answer at all and the request falls through to the binding, which 404s exactly as it does
- * for an address nobody has ever published — so the surface is indistinguishable from absent
- * until a human installs the key.
+ * #58 moved the whole surface to `/admin/nn/`, because the club's back office had become one
+ * page about one race and there was nowhere to put anything else. Every address here is in a
+ * published runbook, and **a runbook that 404s is worse than one that is out of date**, so all
+ * of them keep resolving: `301` for a GET, `308` for a POST so the method and the body survive.
  *
  * **`/nn/admin.css` is deliberately not beneath this.** It is a real file in `dist/`, emitted by
  * `src/pages/nn/admin.css.ts` from the shared stylesheets, and it must reach the assets binding
@@ -246,6 +245,47 @@ export const NN_ADMIN_PREFIX = `${NN_PREFIX}/admin`;
 
 export function isNnAdminPath(pathname: string): boolean {
   return pathname === NN_ADMIN_PREFIX || pathname.startsWith(`${NN_ADMIN_PREFIX}/`);
+}
+
+/**
+ * The staff backend. `/admin/`, and everything the club runs from it.
+ *
+ * **A different surface from `/nn/admin` rather than a rename of it.** That prefix was one race's
+ * entries; this one is the club's back office, with Nightingale Nightmare as its first section
+ * rather than its whole extent — see #58.
+ *
+ * **`/admin.css` is deliberately not beneath this**, the same trap `isNnAdminPath` and
+ * `isAccountPath` both document: it is a real file in `dist/`, emitted by
+ * `src/pages/admin.css.ts`, and it must reach the assets binding. So this matches `/admin`
+ * exactly or `/admin/` and below, and never `/admin` as a prefix of a longer segment —
+ * `/admin.css` and a hypothetical `/administration/` both fall through untouched.
+ * `tests/unit/routing.test.ts` pins the boundary.
+ */
+export const ADMIN_PREFIX = '/admin';
+
+export function isAdminPath(pathname: string): boolean {
+  return pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`);
+}
+
+/** The same segment split `nnAdminSegments` does, for the same reason. `/admin/` and `/admin`
+ *  are both `[]`; `/admin/nn/entries/nn-2026/` is `['nn', 'entries', 'nn-2026']`. */
+export function adminSegments(pathname: string): string[] {
+  return pathname.slice(ADMIN_PREFIX.length).split('/').filter(Boolean);
+}
+
+/**
+ * Where a `/nn/admin/...` address moved to.
+ *
+ * **A prefix rewrite rather than a table of seven**, and that is the point: a table would have
+ * to be kept in step with the routes it names, and the one address nobody remembered to add is
+ * the one in the runbook somebody is reading at nine on race morning. Everything beneath the old
+ * prefix maps, including addresses that were never published.
+ *
+ * Inverse-ish of nothing — `/admin/nn/` is where the surface lives now, and this is a one-way
+ * door. `/nn/admin.css` is not beneath the prefix (see `isNnAdminPath`) and never reaches here.
+ */
+export function adminPathForNnAdminPath(pathname: string): string {
+  return `${ADMIN_PREFIX}${NN_PREFIX}${pathname.slice(NN_ADMIN_PREFIX.length)}`;
 }
 
 /**
