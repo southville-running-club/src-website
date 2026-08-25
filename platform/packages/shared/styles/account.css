@@ -21,3 +21,37 @@
      place before that, so a slow network does not visibly jump the layout. */
   min-height: 65px;
 }
+
+/* #61's date of birth — three number boxes, the same shape `nn-theme.css`'s `.nn-dob` is,
+   for the same reason (a picker is hostile on a phone forty years back). Written fresh
+   rather than reused: that class is scoped `.theme-nn` and this page must never reach for
+   it, the rule this file's own header states for the whole club brand. */
+.account-dob {
+  margin: 0 0 var(--space, 1rem);
+  padding: 0;
+  border: 0;
+}
+
+.account-dob > .field-hint {
+  margin-top: 4px;
+}
+
+.account-dob-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.account-dob-part {
+  display: block;
+}
+
+.account-dob-part .field-input {
+  width: 3.75rem;
+  text-align: center;
+}
+
+.account-dob-year .field-input {
+  width: 5rem;
+}

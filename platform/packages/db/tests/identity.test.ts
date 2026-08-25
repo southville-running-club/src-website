@@ -42,6 +42,9 @@ const PASSWORD = 'zz-identity-test-password';
 const ADMIN_EMAIL = 'admin@southvillerunningclub.co.uk';
 const PERSON_A_EMAIL = 'zz-identity-a@example.com';
 const PERSON_B_EMAIL = 'zz-identity-b@example.com';
+/** Signed up with a name, unlike A and B — kept separate so their own tests, most of which
+ *  predate #61, are not disturbed by a profile column suddenly being non-null. */
+const PERSON_C_EMAIL = 'zz-identity-c@example.com';
 
 async function query<T = Record<string, unknown>>(
   sql: string,
@@ -66,6 +69,7 @@ const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
  */
 async function fixturePerson(
   email: string,
+  name?: string,
 ): Promise<{ id: string; client: SupabaseClient }> {
   const client = createClient(LOCAL_API, ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -74,7 +78,12 @@ async function fixturePerson(
   const signUp = await client.auth.signUp({
     email,
     password: PASSWORD,
-    options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+    options: {
+      captchaToken: DUMMY_CAPTCHA_TOKEN,
+      // #61's migration copies this into `identity.people.name` on the same trigger that
+      // creates the row — the same field `worker/account.ts`'s real sign-up form sends.
+      ...(name !== undefined ? { data: { name } } : {}),
+    },
   });
   if (signUp.error) throw signUp.error;
 
@@ -97,6 +106,7 @@ async function fixturePerson(
 let admin: { id: string; client: SupabaseClient };
 let personA: { id: string; client: SupabaseClient };
 let personB: { id: string; client: SupabaseClient };
+let personC: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
@@ -106,6 +116,7 @@ beforeAll(async () => {
   admin = await fixturePerson(ADMIN_EMAIL);
   personA = await fixturePerson(PERSON_A_EMAIL);
   personB = await fixturePerson(PERSON_B_EMAIL);
+  personC = await fixturePerson(PERSON_C_EMAIL, "D'Arcy O'Malley");
 }, 30_000);
 
 afterAll(async () => {
@@ -113,7 +124,7 @@ afterAll(async () => {
   // Cascades through identity.people, identity.role_grants and identity.audit —
   // identity.people.id references auth.users(id) on delete cascade.
   await db.query('delete from auth.users where email = any($1::text[])', [
-    [ADMIN_EMAIL, PERSON_A_EMAIL, PERSON_B_EMAIL],
+    [ADMIN_EMAIL, PERSON_A_EMAIL, PERSON_B_EMAIL, PERSON_C_EMAIL],
   ]);
   await db.end();
 });
@@ -130,6 +141,16 @@ describe('what an anonymous client may not do', () => {
     // the request is refused before row-level security is even consulted.
     expect(error?.code).toBe('42501');
     expect(data).toBeNull();
+  });
+
+  it('cannot update identity.people either — #61 adds a write path, not a grant to anon', async () => {
+    const { error } = await anon
+      .schema('identity')
+      .from('people')
+      .update({ name: 'nobody' })
+      .eq('id', personA.id);
+
+    expect(error?.code).toBe('42501');
   });
 
   it('cannot select from identity.role_grants', async () => {
@@ -196,6 +217,26 @@ describe('what the signup trigger does', () => {
     );
     expect(rows).toHaveLength(1);
   });
+
+  // #61 — the name sign-up already collects reaching identity.people, from the same
+  // trigger, rather than sitting stranded in auth.users.raw_user_meta_data.
+  it('copies the metadata name onto identity.people, apostrophe and all', async () => {
+    const rows = await query<{ name: string | null }>(
+      'select name from identity.people where id = $1',
+      [personC.id],
+    );
+    expect(rows[0]?.name).toBe("D'Arcy O'Malley");
+  });
+
+  it('leaves the name null when signup carried none', async () => {
+    // personB, not personA — personA's own row is what the update tests below change, and
+    // this assertion would become order-dependent on personA instead of standing alone.
+    const rows = await query<{ name: string | null }>(
+      'select name from identity.people where id = $1',
+      [personB.id],
+    );
+    expect(rows[0]?.name).toBeNull();
+  });
 });
 
 // -----------------------------------------------------------------------------------------
@@ -225,6 +266,84 @@ describe('identity.people, read by its owner and nobody else', () => {
 
     expect(error).toBeNull();
     expect(data).toEqual([]);
+  });
+});
+
+// #61 — `/account/details/`'s write path. Asserted by result, on the `people_update_own_row`
+// policy #51 already shipped: this is the first thing in the repository to actually call
+// `update` on `identity.people`, so it is the first place these properties are observable.
+describe('identity.people, updated by its owner and nobody else', () => {
+  it('lets a person update every profile column on their own row, apostrophe included', async () => {
+    const { error } = await personA.client
+      .schema('identity')
+      .from('people')
+      .update({
+        name: "D'Arcy O'Malley",
+        gender: 'non-binary',
+        date_of_birth: '1990-06-15',
+        address: '1 Analytical Engine Way',
+      })
+      .eq('id', personA.id);
+
+    expect(error).toBeNull();
+
+    const rows = await query<{
+      name: string;
+      gender: string;
+      date_of_birth: Date;
+      address: string;
+    }>('select name, gender, date_of_birth, address from identity.people where id = $1', [
+      personA.id,
+    ]);
+    expect(rows[0]).toMatchObject({
+      name: "D'Arcy O'Malley",
+      gender: 'non-binary',
+      address: '1 Analytical Engine Way',
+    });
+    // `pg` parses a `date` column into a JS `Date` — `seed.test.ts`'s own convention for
+    // reading a timestamp back is `.toISOString()`, not `String()`, which gives a
+    // human-readable form instead. There is no time component to drift here regardless of
+    // session timezone, unlike the timestamptz columns london-time.ts exists for.
+    expect(rows[0]?.date_of_birth.toISOString().slice(0, 10)).toBe('1990-06-15');
+  });
+
+  it('does not hand the extra profile columns to identity.list_people, run right after they are set', async () => {
+    // #59's read, not #61's — this only confirms #61 did not widen it. `list_people()`
+    // itself joins nothing but `name`; a super-admin reading the roles page a moment after
+    // personA saved a full profile above should see that name and nothing else about them.
+    const { data, error } = await admin.client.schema('identity').rpc('list_people');
+    expect(error).toBeNull();
+
+    const result = data as { ok: boolean; people: Array<Record<string, unknown>> };
+    const entry = result.people.find((p) => p.id === personA.id);
+    expect(entry).toMatchObject({ name: "D'Arcy O'Malley" });
+    expect(entry).not.toHaveProperty('gender');
+    expect(entry).not.toHaveProperty('date_of_birth');
+    expect(entry).not.toHaveProperty('address');
+  });
+
+  it("changes nothing on another person's row, and does not error in a way that discloses it exists", async () => {
+    const before = await query<{ name: string | null }>(
+      'select name from identity.people where id = $1',
+      [personB.id],
+    );
+
+    const { error } = await personA.client
+      .schema('identity')
+      .from('people')
+      .update({ name: 'not personB' })
+      .eq('id', personB.id);
+
+    // RLS filters the target row out of the update entirely — zero rows touched, not a
+    // refusal. The same "empty rather than an error" shape the read test above documents,
+    // now for a write: an update statement whose `where` matches nothing is not a failure.
+    expect(error).toBeNull();
+
+    const after = await query<{ name: string | null }>(
+      'select name from identity.people where id = $1',
+      [personB.id],
+    );
+    expect(after).toEqual(before);
   });
 });
 

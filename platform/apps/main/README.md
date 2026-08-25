@@ -709,6 +709,7 @@ reach is not a deployable state the way an admin surface with no key installed i
 | `GET`/`POST /account/reset/` | Ask for a reset link. Email, Turnstile. `?done=ok` for the acknowledgement — the same one whether or not the address has an account |
 | `GET`/`POST /account/reset/confirm/` | Where the reset link lands, and where the new password is set — #54 |
 | `GET`/`POST /account/password/` | Changing a password from inside a signed-in account. Asks for the current one — #54 |
+| `GET`/`POST /account/details/` | Name, gender, date of birth, address — #61. Every field but name is optional and empty until filled in. `?done=ok` for the acknowledgement |
 
 **Built the way `/nn/admin` is, and for the same reason.** The content is per-request — is
 anybody signed in, what did the last submission get wrong — so it is built with
@@ -839,6 +840,52 @@ section is commented out, which is how the CLI shipped it and how every green de
 `packages/db/tests/unit/config.test.ts` fails if any email-template block is declared at all
 before then. Until that lands, a silent password change is only visible as the other sessions
 dying.
+
+### The profile: name, email, gender, date of birth, address — #61
+
+`/account/details/` is the one page in this area that collects new personal data, which is
+why it shipped last and blocked on #60's privacy notice rather than on code —
+`src/pages/privacy.astro` says what each column is for before this page is allowed to ask
+for it, and the two are meant to be read together.
+
+**No Turnstile.** Every other form in this area guards an endpoint anybody can reach signed
+out; this one sits behind a session, and a bot that already holds one has got past the
+widget once already — asking again here would guard nothing.
+
+**Changing the email address calls GoTrue's `updateUser()` rather than writing a column** —
+there is none to write; email lives in `auth.users`, not `identity.people`.
+`double_confirm_changes = true` means the change needs confirming from **both** the old
+address and the new one before it takes effect, and `/account/details/?done=ok&email=pending`
+says so. `updateUser()` needs a real session established with `setSession()`, not just a
+bearer token, so this is the one place on this page that reads the `src_rt` refresh-token
+cookie directly rather than going through `createUserClient()`. Resubmitting the form with
+the same address, compared case-insensitively, is a no-op — saving a changed date of birth
+must not re-mail a confirmation nobody asked for.
+
+**`emailRedirectTo` is set explicitly, the same reason `handleSignUp` sets it on its own
+`signUp()` call.** Left to GoTrue's default, the confirmation link would use `config.toml`'s
+`site_url` — production, always — so a laptop or CI run would mail a link that never lands
+back on the server that sent it.
+
+**Date of birth is three number boxes, day, month and year — not a native date picker or a
+single text field.** The same shape and the same reasoning `NnEntryForm.astro` gives for the
+race entry form: a picker opens on this month and asks somebody to page back forty years, one
+month at a time, on a phone. Unlike the entry form's version every part is optional
+*together* — leaving all three blank means "not given", the one way this field differs from
+an entrant's.
+
+**A deliberate, recorded reversal of `principles.md`'s minimisation rule**, for members
+rather than for entrants: that rule says a date of birth becomes a computed age and an
+address does not persist at all, written for somebody the club holds data about for one
+race. A member is a different relationship — England Athletics registration needs a date of
+birth and an address, and a club that cannot answer "where do we post their kit" has not
+built a membership system. `entries` is untouched by any of this and still stores neither.
+
+**The sign-up name reaches `identity.people` too, as of the same change.** Before it, the
+name sign-up collects sat only in `auth.users.raw_user_meta_data` — `identity.handle_new_user()`
+had only ever inserted the bare `id` — so every account created before this migration would
+otherwise have shown a blank name on this page. A migration copies it across for accounts
+that already exist; the trigger copies it going forward.
 
 ## The health endpoints
 

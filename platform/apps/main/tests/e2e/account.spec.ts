@@ -443,3 +443,149 @@ test.describe('changing a password from inside an account @requires-js', () => {
     await otherContext.close();
   });
 });
+
+test.describe('the profile — name, email, gender, date of birth, address @requires-js', () => {
+  test('saves every field, round-trips an apostrophe, and clears what is left blank', async ({
+    page,
+  }, testInfo) => {
+    const email = addressFor(`${testInfo.project.name}-details`);
+    const password = 'a-perfectly-good-password';
+
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill("D'Arcy O'Malley");
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.goto(await confirmationLinkFor(page.context().request, email));
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/account\/$/);
+
+    await page.goto('/account/details/');
+
+    // The name sign-up collected has already reached this page — #61's migration and
+    // trigger, made visible rather than merely asserted at the database.
+    await expect(page.getByLabel('Your name')).toHaveValue("D'Arcy O'Malley");
+    await expect(page.getByLabel('Email address')).toHaveValue(email);
+
+    const emptyAxe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(emptyAxe.violations).toEqual([]);
+
+    await page.getByLabel('Gender').fill('non-binary');
+    await page.getByLabel('Day').fill('15');
+    await page.getByLabel('Month').fill('6');
+    await page.getByLabel('Year').fill('1990');
+    await page.getByLabel('Address', { exact: true }).fill('1 Analytical Engine Way');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page).toHaveURL(/\/account\/details\/\?done=ok$/);
+    // No email change was submitted, so the acknowledgement says nothing about confirming
+    // two inboxes — the case-insensitive "unchanged" comparison working end to end.
+    await expect(page.getByText(/confirmation link/i)).toHaveCount(0);
+
+    await page.goto('/account/details/');
+    await expect(page.getByLabel('Gender')).toHaveValue('non-binary');
+    await expect(page.getByLabel('Day')).toHaveValue('15');
+    await expect(page.getByLabel('Month')).toHaveValue('6');
+    await expect(page.getByLabel('Year')).toHaveValue('1990');
+    await expect(page.getByLabel('Address', { exact: true })).toHaveValue(
+      '1 Analytical Engine Way',
+    );
+
+    // A date of birth that is not a real day — the cross-field error, and its own axe pass.
+    await page.getByLabel('Day').fill('31');
+    await page.getByLabel('Month').fill('2');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page.getByText(/enter a real date/i)).toBeVisible();
+
+    const errorAxe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(errorAxe.violations).toEqual([]);
+
+    // Clearing every optional field, date of birth included — the previous step left a
+    // real day (31 February is invalid) in place of last one; this proves a filled-in
+    // field can be taken back out again, boxes and all.
+    await page.getByLabel('Day').fill('');
+    await page.getByLabel('Month').fill('');
+    await page.getByLabel('Year').fill('');
+    await page.getByLabel('Gender').fill('');
+    await page.getByLabel('Address', { exact: true }).fill('');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect(page).toHaveURL(/\/account\/details\/\?done=ok$/);
+
+    await page.goto('/account/details/');
+    await expect(page.getByLabel('Gender')).toHaveValue('');
+    await expect(page.getByLabel('Address', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('Day')).toHaveValue('');
+    await expect(page.getByLabel('Month')).toHaveValue('');
+    await expect(page.getByLabel('Year')).toHaveValue('');
+  });
+
+  test('changing the email address asks for confirmation from both addresses', async ({
+    page,
+  }, testInfo) => {
+    const email = addressFor(`${testInfo.project.name}-email-change`);
+    const newEmail = addressFor(`${testInfo.project.name}-email-change-new`);
+    const password = 'a-perfectly-good-password';
+
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill('Grace Hopper');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.goto(await confirmationLinkFor(page.context().request, email));
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/account\/$/);
+
+    await page.goto('/account/details/');
+    await page.getByLabel('Email address').fill(newEmail);
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    await expect(page).toHaveURL(/\/account\/details\/\?done=ok&email=pending$/);
+    // `site.spec.ts`'s own pattern for matching a sentence rather than an element —
+    // whitespace squashed first, checked as plain substrings rather than through
+    // `getByText`, which this exact paragraph resolves inconsistently for reasons that did
+    // not reproduce under inspection even though the accessibility snapshot at the moment
+    // of an earlier failure showed the text was there all along.
+    const acknowledgement = ((await page.locator('body').textContent()) ?? '').replace(
+      /\s+/g,
+      ' ',
+    );
+    expect(acknowledgement).toContain('confirmation link');
+    expect(acknowledgement).toContain('current email address');
+    expect(acknowledgement).toContain('your new one');
+  });
+});
