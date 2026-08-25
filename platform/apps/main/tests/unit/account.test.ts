@@ -21,6 +21,13 @@ const resetPasswordForEmail = vi.fn();
 const updateUser = vi.fn();
 const rpc = vi.fn();
 
+/** `identity.people`, read and written by #61's `/account/details/`. Two functions rather
+ *  than a fully general fake postgrest-js builder — this file's `from()` only ever asks
+ *  for one table, and a builder generic enough for any query would be more code than the
+ *  two shapes it is standing in for. */
+const peopleSelect = vi.fn();
+const peopleUpdate = vi.fn();
+
 vi.mock('@src/shared', async () => {
   const actual = await vi.importActual<typeof import('@src/shared')>('@src/shared');
   return {
@@ -37,7 +44,18 @@ vi.mock('@src/shared', async () => {
         updateUser,
       },
     }),
-    createUserClient: () => ({ rpc }),
+    createUserClient: () => ({
+      rpc,
+      from: (table: string) => {
+        if (table !== 'people') {
+          throw new Error(`this fake only knows identity.people, not ${table}`);
+        }
+        return {
+          select: () => ({ eq: () => ({ single: () => peopleSelect() }) }),
+          update: (payload: unknown) => ({ eq: () => peopleUpdate(payload) }),
+        };
+      },
+    }),
   };
 });
 
@@ -578,5 +596,461 @@ describe('POST /account/password/', () => {
 
     expect(response.status).toBe(422);
     expect(signInWithPassword).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /account/details/, signed out', () => {
+  it('redirects to sign-in', async () => {
+    const response = await handleAccount(
+      get('/account/details/'),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/');
+  });
+});
+
+describe('GET /account/details/, signed in', () => {
+  it('splits a saved date of birth into its three boxes, and shows the current email', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'ada@example.com' } },
+      error: null,
+    });
+    peopleSelect.mockResolvedValue({
+      data: {
+        name: 'Ada Lovelace',
+        gender: 'woman',
+        date_of_birth: '1990-06-15',
+        address: '1 Analytical Engine Way',
+        updated_at: '2026-08-25T10:00:00.000Z',
+      },
+      error: null,
+    });
+
+    const response = await handleAccount(
+      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('value="Ada Lovelace"');
+    expect(body).toContain('value="ada@example.com"');
+    expect(body).toContain('value="woman"');
+    expect(body).toContain('value="15"');
+    expect(body).toContain('value="6"');
+    expect(body).toContain('value="1990"');
+    expect(body).toContain('value="1 Analytical Engine Way"');
+  });
+
+  it('renders every box blank when nothing has been saved yet, not an error', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'blank@example.com' } },
+      error: null,
+    });
+    peopleSelect.mockResolvedValue({
+      data: {
+        name: null,
+        gender: null,
+        date_of_birth: null,
+        address: null,
+        updated_at: '2026-08-25T10:00:00.000Z',
+      },
+      error: null,
+    });
+
+    const response = await handleAccount(
+      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('id="account-dob-day"');
+    expect(body).toContain('name="dob_day"');
+    expect(body).toContain('name="dob_month"');
+    expect(body).toContain('name="dob_year"');
+  });
+
+  it('redirects to sign-in rather than render if the email re-check fails', async () => {
+    // The first call is `handleAccount`'s own `readSession()`, which must succeed for
+    // routing to reach this handler at all; the second is this handler's own re-ask for
+    // the current email, which is the one this test means to fail.
+    getUser
+      .mockResolvedValueOnce({ data: { user: { id: 'zz-person' } }, error: null })
+      .mockResolvedValueOnce({ data: { user: null }, error: { message: 'expired' } });
+
+    const response = await handleAccount(
+      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/');
+  });
+});
+
+describe('POST /account/details/, signed out', () => {
+  it('redirects to sign-in', async () => {
+    const response = await handleAccount(
+      post('/account/details/', new URLSearchParams({ name: 'Ada Lovelace' })),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/');
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /account/details/', () => {
+  /** Every test below submits this unless it is deliberately testing the email field
+   *  itself — matches what `getUser` is mocked to say the account already holds, so a
+   *  test aimed at the name or the date of birth does not also, incidentally, exercise
+   *  the email-change path. */
+  const UNCHANGED_EMAIL = 'ada@example.com';
+
+  it('refuses without a valid CSRF token, and never calls the database', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+
+    const response = await handleAccount(
+      post(
+        '/account/details/',
+        new URLSearchParams({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL }),
+        `src_at=${HEALTHY_ACCESS_TOKEN}`,
+      ),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is 422 when the name is missing, the one required field', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    const { cookie, body } = withCsrf({ name: '', email: UNCHANGED_EMAIL });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is 422 when the email address is malformed', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: 'not-an-address' });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+    expect(setSession).not.toHaveBeenCalled();
+  });
+
+  it('is 422 for a date of birth with only two of the three boxes filled in', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    const { cookie, body } = withCsrf({
+      name: 'Ada Lovelace',
+      email: UNCHANGED_EMAIL,
+      dob_day: '15',
+      dob_month: '6',
+    });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is 422 for a date of birth that is not a real day, like 31 February', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    const { cookie, body } = withCsrf({
+      name: 'Ada Lovelace',
+      email: UNCHANGED_EMAIL,
+      dob_day: '31',
+      dob_month: '2',
+      dob_year: '1990',
+    });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is 422 for a date of birth in the future', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    const { cookie, body } = withCsrf({
+      name: 'Ada Lovelace',
+      email: UNCHANGED_EMAIL,
+      dob_day: '1',
+      dob_month: '1',
+      dob_year: String(new Date().getUTCFullYear() + 1),
+    });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(peopleUpdate).not.toHaveBeenCalled();
+  });
+
+  it('saves the name alone, clearing every optional column left blank, email unchanged', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    peopleUpdate.mockResolvedValue({ error: null });
+    const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(peopleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Ada Lovelace',
+        gender: null,
+        date_of_birth: null,
+        address: null,
+        updated_at: expect.any(String),
+      }),
+    );
+    expect(setSession).not.toHaveBeenCalled();
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/details/?done=ok');
+  });
+
+  it('treats a different-case resubmission of the same address as unchanged', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    peopleUpdate.mockResolvedValue({ error: null });
+    const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: 'ADA@EXAMPLE.COM' });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('/account/details/?done=ok');
+  });
+
+  it('saves a full profile, an apostrophe in the name included', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    peopleUpdate.mockResolvedValue({ error: null });
+    const { cookie, body } = withCsrf({
+      name: "D'Arcy O'Malley",
+      email: UNCHANGED_EMAIL,
+      gender: 'non-binary',
+      dob_day: '15',
+      dob_month: '6',
+      dob_year: '1990',
+      address: '1 Analytical Engine Way',
+    });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(peopleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "D'Arcy O'Malley",
+        gender: 'non-binary',
+        date_of_birth: '1990-06-15',
+        address: '1 Analytical Engine Way',
+      }),
+    );
+    expect(response.status).toBe(303);
+  });
+
+  it('is 422, not a silent save, when the database refuses the profile update', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+      error: null,
+    });
+    peopleUpdate.mockResolvedValue({ error: { message: 'refused' } });
+    const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL });
+
+    const response = await handleAccount(
+      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/details/'),
+    );
+
+    expect(response.status).toBe(422);
+  });
+
+  describe('changing the email address', () => {
+    it('sets a real session from the refresh-token cookie, then asks GoTrue to change it', async () => {
+      getUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+        error: null,
+      });
+      peopleUpdate.mockResolvedValue({ error: null });
+      setSession.mockResolvedValue({ data: { session: {} }, error: null });
+      updateUser.mockResolvedValue({ data: { user: {} }, error: null });
+      const { cookie, body } = withCsrf({
+        name: 'Ada Lovelace',
+        email: 'new-address@example.com',
+      });
+
+      const response = await handleAccount(
+        post(
+          '/account/details/',
+          body,
+          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
+        ),
+        ENV,
+        new URL('http://localhost:8787/account/details/'),
+      );
+
+      expect(setSession).toHaveBeenCalledWith({
+        access_token: HEALTHY_ACCESS_TOKEN,
+        refresh_token: 'zz-refresh-token',
+      });
+      expect(updateUser).toHaveBeenCalledWith(
+        { email: 'new-address@example.com' },
+        { emailRedirectTo: 'http://localhost:8787/account/confirm' },
+      );
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toBe(
+        '/account/details/?done=ok&email=pending',
+      );
+    });
+
+    it('still saves the rest of the profile even though the email also changed', async () => {
+      getUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+        error: null,
+      });
+      peopleUpdate.mockResolvedValue({ error: null });
+      setSession.mockResolvedValue({ data: { session: {} }, error: null });
+      updateUser.mockResolvedValue({ data: { user: {} }, error: null });
+      const { cookie, body } = withCsrf({
+        name: 'Ada Lovelace',
+        email: 'new-address@example.com',
+      });
+
+      await handleAccount(
+        post(
+          '/account/details/',
+          body,
+          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
+        ),
+        ENV,
+        new URL('http://localhost:8787/account/details/'),
+      );
+
+      expect(peopleUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Ada Lovelace' }),
+      );
+    });
+
+    it('redirects to sign-in rather than change the email with no refresh-token cookie', async () => {
+      getUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+        error: null,
+      });
+      peopleUpdate.mockResolvedValue({ error: null });
+      const { cookie, body } = withCsrf({
+        name: 'Ada Lovelace',
+        email: 'new-address@example.com',
+      });
+
+      const response = await handleAccount(
+        post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+        ENV,
+        new URL('http://localhost:8787/account/details/'),
+      );
+
+      expect(updateUser).not.toHaveBeenCalled();
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toBe('/account/sign-in/');
+    });
+
+    it('is 422, not a silent save, when GoTrue refuses the email change', async () => {
+      getUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: UNCHANGED_EMAIL } },
+        error: null,
+      });
+      peopleUpdate.mockResolvedValue({ error: null });
+      setSession.mockResolvedValue({ data: { session: {} }, error: null });
+      updateUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'email_exists' },
+      });
+      const { cookie, body } = withCsrf({
+        name: 'Ada Lovelace',
+        email: 'already-taken@example.com',
+      });
+
+      const response = await handleAccount(
+        post(
+          '/account/details/',
+          body,
+          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
+        ),
+        ENV,
+        new URL('http://localhost:8787/account/details/'),
+      );
+
+      expect(response.status).toBe(422);
+    });
   });
 });

@@ -1,12 +1,16 @@
 import {
   createAnonClient,
   createUserClient,
+  formatLondon,
   parseAccountChangePassword,
+  parseAccountDetails,
   parseAccountResetConfirm,
   parseAccountResetRequest,
   parseAccountSignIn,
   parseAccountSignUp,
+  parseIsoDate,
   type AccountChangePasswordErrors,
+  type AccountDetailsErrors,
   type AccountResetConfirmErrors,
   type AccountResetRequestErrors,
   type AccountSignInErrors,
@@ -99,6 +103,35 @@ import { accountSegments } from './routing';
  * #79). Turning it off was not enough — the CLI sends the section whenever it is present,
  * with an empty subject, which is a modification too. It was never this file's job and it
  * is not becoming one; **#50**, a custom SMTP provider, is what turns it back on.
+ *
+ * ## #61 — the profile: name, email, gender, date of birth, address
+ *
+ * `/account/details/` is the one page in this file that collects new personal data, which
+ * is why it shipped last and blocked on #60's privacy notice rather than on code. **No
+ * Turnstile** — #61's own issue body settles that: the page sits behind a session, and a
+ * bot that already holds one has got past the widget once already.
+ *
+ * **Date of birth is three number boxes**, the same shape and the same reasoning
+ * `NnEntryForm.astro`'s own comment gives for the entry form: a date picker opens on this
+ * month and asks somebody to page back forty years, one on a phone. Unlike the entry
+ * form's version every part is optional, together — leaving all three blank means "not
+ * given" rather than an error, because principles.md's minimisation rule is what this whole
+ * page is a recorded exception to (see #61 and #60's privacy notice), not a licence to
+ * demand more than a member chooses to give.
+ *
+ * **Changing the email address does not write it — it asks GoTrue to.** `identity.people`
+ * has no email column; `auth.users` does, and `double_confirm_changes = true` means
+ * `updateUser({ email })` does not take effect until both the old and the new address have
+ * confirmed it. That call needs a real session via `setSession()`, the same requirement
+ * `handleChangePassword` documents at its own call to `updateUser()` — which is why this
+ * handler reads the refresh-token cookie directly rather than trusting the bearer-only
+ * client `createUserClient()` builds. Submitting the address unchanged is a no-op, checked
+ * case-insensitively, so saving the rest of the profile never re-triggers a confirmation
+ * mail nobody asked for.
+ *
+ * **`identity.people`'s `updated_at` has no trigger anywhere in this schema** — nothing
+ * else in this repository has ever needed one, so this is the first `update` that sets it
+ * itself, in the same statement as the columns it is timestamping.
  */
 
 function config(env: {
@@ -206,6 +239,22 @@ export async function handleAccount(
     }
   }
 
+  if (segments.length === 1 && segments[0] === 'details') {
+    if (request.method === 'GET') {
+      if (url.searchParams.get('done') === 'ok') {
+        const emailPending = url.searchParams.get('email') === 'pending';
+        return page('Details saved', detailsAcknowledgement(emailPending), {
+          secure,
+          cookies: refreshedCookies,
+        });
+      }
+      return handleShowDetails(session, cfg, secure, refreshedCookies);
+    }
+    if (request.method === 'POST') {
+      return handleUpdateDetails(request, session, cfg, secure, refreshedCookies);
+    }
+  }
+
   return page('Not found', notFoundBody(), { status: 404, secure, cookies: [] });
 }
 
@@ -240,6 +289,7 @@ async function accountHome(
             : html`No roles beyond being signed in.`
         }
       </p>
+      <p><a href="/account/details/">Your details</a></p>
       <p><a href="/account/password/">Change your password</a></p>
       <form method="post" action="/account/sign-out/">
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
@@ -1124,6 +1174,399 @@ function changePasswordPage(
     secure,
     cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
   });
+}
+
+// -----------------------------------------------------------------------------------------
+// /account/details/ — #61
+// -----------------------------------------------------------------------------------------
+
+interface DetailsFormValues {
+  name: string;
+  email: string;
+  gender: string;
+  dobDay: string;
+  dobMonth: string;
+  dobYear: string;
+  address: string;
+}
+
+function blankDetailsForm(): DetailsFormValues {
+  return {
+    name: '',
+    email: '',
+    gender: '',
+    dobDay: '',
+    dobMonth: '',
+    dobYear: '',
+    address: '',
+  };
+}
+
+async function handleShowDetails(
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  try {
+    // The email address is `auth.users`', not `identity.people`'s — the same reason
+    // `handleChangePassword` re-asks Supabase Auth rather than trusting anything cached
+    // from `readSession()`, which never returns it.
+    const { data: userData, error: userError } = await createAnonClient(cfg).auth.getUser(
+      session.accessToken,
+    );
+
+    if (userError || !userData.user.email) {
+      return redirectTo('/account/sign-in/', secure, clearedSessionCookies(secure));
+    }
+
+    const client = createUserClient(cfg, session.accessToken);
+    const { data, error } = await client
+      .from('people')
+      .select('name, gender, date_of_birth, address, updated_at')
+      .eq('id', session.userId)
+      .single();
+
+    if (error || !data) {
+      return detailsPage(
+        secure,
+        'The club’s database could not be reached. Try again in a moment.',
+        {},
+        blankDetailsForm(),
+        null,
+        refreshedCookies,
+      );
+    }
+
+    const dob = data.date_of_birth === null ? null : parseIsoDate(data.date_of_birth);
+
+    return detailsPage(
+      secure,
+      null,
+      {},
+      {
+        name: data.name ?? '',
+        email: userData.user.email,
+        gender: data.gender ?? '',
+        dobDay: dob === null ? '' : String(dob.day),
+        dobMonth: dob === null ? '' : String(dob.month),
+        dobYear: dob === null ? '' : String(dob.year),
+        address: data.address ?? '',
+      },
+      data.updated_at,
+      refreshedCookies,
+    );
+  } catch {
+    return detailsPage(
+      secure,
+      'The club’s database could not be reached. Try again in a moment.',
+      {},
+      blankDetailsForm(),
+      null,
+      refreshedCookies,
+    );
+  }
+}
+
+async function handleUpdateDetails(
+  request: Request,
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  const submitted: DetailsFormValues = {
+    name: readString(form, 'name'),
+    email: readString(form, 'email'),
+    gender: readString(form, 'gender'),
+    dobDay: readString(form, 'dob_day'),
+    dobMonth: readString(form, 'dob_month'),
+    dobYear: readString(form, 'dob_year'),
+    address: readString(form, 'address'),
+  };
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return detailsPage(
+      secure,
+      'That form had expired. Please try again.',
+      {},
+      submitted,
+      null,
+      refreshedCookies,
+    );
+  }
+
+  const parsed = parseAccountDetails(
+    form === null
+      ? {}
+      : {
+          name: form.get('name'),
+          email: form.get('email'),
+          gender: form.get('gender'),
+          dobDay: form.get('dob_day'),
+          dobMonth: form.get('dob_month'),
+          dobYear: form.get('dob_year'),
+          address: form.get('address'),
+        },
+  );
+
+  if (!parsed.ok) {
+    return detailsPage(secure, null, parsed.errors, submitted, null, refreshedCookies);
+  }
+
+  try {
+    const { data: userData, error: userError } = await createAnonClient(cfg).auth.getUser(
+      session.accessToken,
+    );
+
+    if (userError || !userData.user.email) {
+      return redirectTo('/account/sign-in/', secure, clearedSessionCookies(secure));
+    }
+
+    const client = createUserClient(cfg, session.accessToken);
+    const { error: peopleError } = await client
+      .from('people')
+      .update({
+        name: parsed.value.name,
+        gender: parsed.value.gender ?? null,
+        date_of_birth: parsed.value.dateOfBirth ?? null,
+        address: parsed.value.address ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.userId);
+
+    if (peopleError) {
+      return detailsPage(
+        secure,
+        'That could not be saved. Check what you typed and try again.',
+        {},
+        submitted,
+        null,
+        refreshedCookies,
+      );
+    }
+
+    // **Case-insensitively, because email addresses are.** Resubmitting the form with the
+    // same address unchanged must not re-trigger GoTrue's double confirmation — that would
+    // mail somebody every time they only meant to update their address or date of birth.
+    if (parsed.value.email.toLowerCase() === userData.user.email.toLowerCase()) {
+      return redirectTo('/account/details/?done=ok', secure, refreshedCookies);
+    }
+
+    // **`updateUser()` needs a real session, via `setSession()`, not a bearer token
+    // alone** — the same requirement `handleChangePassword` documents at its own call to
+    // it. There is no current-password check here first: #61's issue body asks for none,
+    // and the person changing this is already sitting behind the session cookie that
+    // proves who they are.
+    const refreshToken = cookieValue(request.headers.get('cookie'), REFRESH_COOKIE);
+
+    if (refreshToken === null) {
+      return redirectTo('/account/sign-in/', secure, clearedSessionCookies(secure));
+    }
+
+    const emailClient = createAnonClient(cfg);
+    const { error: setError } = await emailClient.auth.setSession({
+      access_token: session.accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (setError) {
+      return redirectTo('/account/sign-in/', secure, clearedSessionCookies(secure));
+    }
+
+    // **`emailRedirectTo`, not `config.toml`'s `site_url` default** — the same reason
+    // `handleSignUp`'s own `signUp()` call sets it: a confirmation link that always points
+    // at production would never land back on a local or CI run, and Mailpit would catch a
+    // mail nobody could follow anywhere useful.
+    const url = new URL(request.url);
+    const { error: emailError } = await emailClient.auth.updateUser(
+      { email: parsed.value.email },
+      { emailRedirectTo: `${url.origin}/account/confirm` },
+    );
+
+    if (emailError) {
+      return detailsPage(
+        secure,
+        'That could not be saved. Check what you typed and try again.',
+        {},
+        submitted,
+        null,
+        refreshedCookies,
+      );
+    }
+
+    return redirectTo(
+      '/account/details/?done=ok&email=pending',
+      secure,
+      refreshedCookies,
+    );
+  } catch {
+    return detailsPage(
+      secure,
+      'The club’s database could not be reached. Try again in a moment.',
+      {},
+      submitted,
+      null,
+      refreshedCookies,
+    );
+  }
+}
+
+function detailsPage(
+  secure: boolean,
+  message: string | null,
+  errors: AccountDetailsErrors,
+  submitted: DetailsFormValues,
+  updatedAt: string | null,
+  extraCookies: string[],
+): Response {
+  const csrfToken = mintCsrfToken();
+
+  const body = html`
+    <main class="account-page">
+      <h1>Your details</h1>
+      <p>
+        What each of these is for, and how long the club keeps it, is at
+        <a href="/privacy/">the club’s privacy notice</a>.
+      </p>
+      ${
+        updatedAt !== null
+          ? html`<p class="field-hint">Last saved ${formatLondon(updatedAt)}.</p>`
+          : null
+      }
+      ${
+        message !== null
+          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
+              <p>${message}</p>
+            </div>`
+          : null
+      }
+      <form method="post" action="/account/details/" class="signup" novalidate>
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+        ${textField('name', 'Your name', submitted.name, errors.name, {
+          autocomplete: 'name',
+        })}
+        ${textField('email', 'Email address', submitted.email, errors.email, {
+          type: 'email',
+          autocomplete: 'email',
+        })}
+        <p class="field-hint">
+          Changing this sends a confirmation link to both your current address and the new
+          one — the change only takes effect once you have confirmed both.
+        </p>
+        ${textField('gender', 'Gender', submitted.gender, errors.gender, {
+          autocomplete: 'sex',
+        })}
+        <p class="field-hint">Optional — free text, not a fixed list.</p>
+        ${dobField(submitted, errors.dateOfBirth)}
+        ${textField('address', 'Address', submitted.address, errors.address, {
+          autocomplete: 'street-address',
+        })}
+        <p class="field-hint">Optional — so the club knows where to post club kit.</p>
+        <button class="button" type="submit">Save changes</button>
+      </form>
+    </main>
+  `;
+
+  return page('Your details', body, {
+    status: message !== null || Object.keys(errors).length > 0 ? 422 : 200,
+    secure,
+    cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
+  });
+}
+
+function dobField(submitted: DetailsFormValues, error: string | undefined): Html {
+  const describedBy =
+    error !== undefined ? 'account-dob-hint account-dob-error' : 'account-dob-hint';
+
+  return html`
+    <fieldset class="field account-dob">
+      <legend class="field-label">Date of birth</legend>
+      <p class="field-hint" id="account-dob-hint">
+        Optional — an England Athletics registration needs this.
+      </p>
+      ${
+        error !== undefined
+          ? html`<p class="field-error" id="account-dob-error">${error}</p>`
+          : null
+      }
+      <div class="account-dob-parts">
+        <span class="account-dob-part">
+          <label class="field-label" for="account-dob-day">Day</label>
+          <input
+            class="field-input"
+            id="account-dob-day"
+            name="dob_day"
+            type="text"
+            inputmode="numeric"
+            maxlength="2"
+            autocomplete="bday-day"
+            value="${submitted.dobDay}"
+            aria-describedby="${describedBy}"
+          />
+        </span>
+        <span class="account-dob-part">
+          <label class="field-label" for="account-dob-month">Month</label>
+          <input
+            class="field-input"
+            id="account-dob-month"
+            name="dob_month"
+            type="text"
+            inputmode="numeric"
+            maxlength="2"
+            autocomplete="bday-month"
+            value="${submitted.dobMonth}"
+            aria-describedby="${describedBy}"
+          />
+        </span>
+        <span class="account-dob-part account-dob-year">
+          <label class="field-label" for="account-dob-year">Year</label>
+          <input
+            class="field-input"
+            id="account-dob-year"
+            name="dob_year"
+            type="text"
+            inputmode="numeric"
+            maxlength="4"
+            autocomplete="bday-year"
+            value="${submitted.dobYear}"
+            aria-describedby="${describedBy}"
+          />
+        </span>
+      </div>
+    </fieldset>
+  `;
+}
+
+function detailsAcknowledgement(emailPending: boolean): Html {
+  return html`
+    <main class="account-page">
+      <h1>Details saved</h1>
+      ${
+        emailPending
+          ? html`<p>
+              We’ve sent a confirmation link to both your current email address and your
+              new one. The change only takes effect once you have confirmed both — until
+              then, sign in with your current address.
+            </p>`
+          : null
+      }
+      <p><a href="/account/">Back to your account</a></p>
+    </main>
+  `;
 }
 
 // -----------------------------------------------------------------------------------------

@@ -157,24 +157,20 @@ const club = race.privacy;
       <dd>So the club can address you as a person rather than as an email address.</dd>
 
       {
-        /* **Listed because the columns exist, and described as empty because they are.**
-        `identity.people` ships `gender`, `date_of_birth` and `address` — nullable, and
-        written by nothing — and a notice that omitted them would be under-listing what the
-        club's records hold the moment #61 builds the page that fills them in. The last
-        clause of this answer is what #61 removes, in the same change that adds the page.
-
-        **This is also the one place the platform's data-minimisation rule is knowingly
+        /* **This is the one place the platform's data-minimisation rule is knowingly
         reversed**, and it is reversed for members rather than for entrants: principles.md
         says a date of birth becomes an age and an address does not persist at all, which
         was written for somebody the club holds data about for one race. `entries` is
-        untouched by any of this and still stores neither. */
+        untouched by any of this and still stores neither. #61 is what built the page that
+        fills these in — `/account/details/` — and removed the clause that used to say
+        there was not yet one. */
       }
       <dt>Your gender, date of birth and address</dt>
       <dd>
         <strong>Optional, every one of them, and empty unless you fill them in.</strong> The
         club wants them for membership — an England Athletics registration needs a date of birth
-        and an address, and club kit has to be posted somewhere. Your account has room for them
-        and there is not yet a page that asks: until there is, they stay empty.
+        and an address, and club kit has to be posted somewhere. You can add or change any of
+        them at <a href="/account/details/">your account details</a>.
       </dd>
     </dl>
 
