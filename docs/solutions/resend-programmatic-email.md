@@ -11,11 +11,109 @@ The addresses themselves — the five mailboxes, the aliases onto them, and whic
 
 ---
 
-## Current status: backlogged, `info@` used directly in the meantime
+## Current status: account and DNS done, `info@` still used directly
 
-**This design — Resend, the sending subdomain, the outbox — is not being built yet.** It
-is recorded here so it exists as a concrete plan when it is picked up, not so it is acted
-on now.
+**The Resend account exists and `send.southvillerunningclub.co.uk` is verified**, as of
+25 August 2026 — DNS added via Resend's own Cloudflare auto-configure (a `send.send.`
+bounce subdomain plus a DKIM TXT record, both isolated from the mailboxes'
+`livemail1-4._domainkey` records and the zone's own SPF). `RESEND_API_KEY`, scoped to
+Sending access only, is set as a Worker secret on `apps/main`.
+
+**Nothing that sends mail is built yet.** There is still no live form or sign-up flow that
+would call step 8 below, so `info@` remains the programmatic sender in the meantime — see
+why that is still tolerable, below.
+
+### A second attempt, tried and reverted: routing GoTrue's own mail through Resend
+
+Separately from the programmatic-mail design below, an attempt was made the same day to
+point **GoTrue's** mailer — the confirmations, resets and (eventually) magic links #51–#55
+send, as opposed to the entry/sign-up confirmations this document is about — at Resend's
+SMTP relay, via `[auth.email.smtp]` in `packages/db/supabase/config.toml`. The
+motivation: the free tier's management API refuses *any* email-template modification while
+the project is on the default mailer (issue #79), and #55's magic link needs
+`[auth.email.template.magiclink]` to use GoTrue's `token_hash` flow. A working custom SMTP
+provider is documented as the only thing that lifts that restriction.
+
+**It broke CI, and was reverted the same day — [PR #87](https://github.com/southville-running-club/src-website/pull/87), closed rather than merged.**
+
+What was changed, precisely:
+
+```toml
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_SMTP_PASSWORD)"
+admin_email = "noreply@send.southvillerunningclub.co.uk"
+sender_name = "Southville Running Club"
+```
+
+with `RESEND_SMTP_PASSWORD` supplied locally and in CI as a non-secret placeholder string
+(the same pattern `SUPABASE_AUTH_CAPTCHA_SECRET` already uses), on the assumption —
+stated as fact elsewhere in this repository's own documentation and confirmed by outside
+sources at the time — that **`[local_smtp]` (Inbucket/Mailpit) intercepts every outgoing
+mail during `supabase start` regardless of what `[auth.email.smtp]` says**, so a fake
+local/CI password would never actually be dialled anywhere.
+
+**That assumption did not hold, at least in GitHub Actions.** With the block enabled,
+three database test files that call `auth.signUp()` —
+`packages/db/tests/entries-admin.test.ts`, `identity-sessions.test.ts`, and
+`identity.test.ts` — failed in CI, reproducibly across two separate runs, with:
+
+```
+AuthRetryableFetchError: Error sending confirmation email
+Serialized Error: { status: 500, code: undefined }
+```
+
+on every single call. **A local `./dev check` run against an already-running Supabase
+stack passed clean the same session**, on the same config — which is suspicious rather
+than reassuring: a stack already up before `config.toml` changed may simply not have
+picked up the new `[auth.email.smtp]` block without a full `supabase stop`/`start`, so that
+local pass is not good evidence the change is locally safe. **This was not confirmed
+either way** — nobody ran a fresh `supabase start` locally against the new config and
+watched a `signUp()` call fail or succeed. That is the single most useful next step, ahead
+of anything else in this section, because it would settle whether this is a CI-only
+condition (a blocked port, a network policy) or true everywhere.
+
+**What this does and does not rule out:**
+
+- **The `@supabase/auth-js` client hides the real cause.** It always reports a bare
+  `AuthRetryableFetchError` with `status: 500` and `code: undefined` for any server-side
+  mail failure — there is no SMTP-level detail (connection refused, TLS negotiation, auth
+  rejected, DNS failure) visible from the test output or the GitHub Actions log, only from
+  wherever this repository's own tooling looked (auth-js's `fetch.ts`, not GoTrue itself).
+- **GoTrue's own container logs were not consulted**, because nothing in `./dev` or
+  `ci.yml` currently captures them (`docker logs` on the GoTrue container is not part of
+  either). That is very likely where the real answer is — a live run with
+  `docker compose logs` (or the equivalent `supabase` CLI incantation for the auth
+  container) pointed at the moment a `signUp()` call fails would show GoTrue's own error
+  before it gets flattened to a 500.
+- **Two live hypotheses, neither tested:**
+  1. `[local_smtp]`'s override does not apply once `[auth.email.smtp]` is explicitly
+     `enabled = true` — i.e. the documentation this repository and outside sources both
+     stated is simply wrong for the Supabase CLI version pinned here, and GoTrue really
+     did try to dial `smtp.resend.com:465` with a fake password and got a real rejection.
+  2. Something more mundane and local — a missing `admin_email`/`sender_name` requirement,
+     a TLS assumption GoTrue's mailer makes for port 465 specifically that a proxied or
+     sandboxed runner cannot satisfy, or outbound port 465 being blocked on the GitHub
+     Actions runner network entirely (a number of CI providers block common SMTP ports by
+     default to fight spam — this was not checked, and would produce exactly this
+     symptom).
+- **Not tested, and worth trying first before anything more elaborate:** port 587 with
+  STARTTLS instead of 465 with implicit TLS — Resend supports both, and 587 is less
+  commonly firewalled.
+
+**What was reverted rather than fixed forward:** the `[auth.email.smtp]` block itself, the
+paired `RESEND_SMTP_PASSWORD` plumbing in `dev`, `ci.yml` and `deploy-db.yml`, the
+`packages/db/tests/unit/config.test.ts` guard that had been flipped to expect a custom
+provider, and the doc updates that assumed it was live. `git revert` was used, so the
+attempt survives in history rather than being silently dropped — `0a862a4` and `9ae4916`
+on this repository, reverted by `e1273ef` and `46881af`.
+
+**Before re-attempting this:** get GoTrue's own container log for a single failing
+`signUp()` call, locally, with the exact config above. That one piece of evidence turns
+this from four guesses into one fix.
 
 **In the meantime, `info@` is the programmatic sender.** This is a deliberate, temporary
 exception to
@@ -545,8 +643,8 @@ person reads it — that's `info@`'s job, not sending.
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
-| **Status** | **Backlogged.** `info@` sends programmatic mail directly in the meantime — see [current status](#current-status-backlogged-info-used-directly-in-the-meantime) |
-| **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`) and verifying the `send.` subdomain in Resend |
+| **Status** | **Account and DNS done; the send code is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-info-still-used-directly) |
+| **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`); the `send.` subdomain itself is already verified |
 | **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |
 | **Exit cost** | Low — no second provider to unwind. Upgrading capacity is a Resend plan change, not a migration |
