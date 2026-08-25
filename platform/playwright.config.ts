@@ -36,6 +36,26 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+
+  // **A dead web server should stop the run, not be re-discovered six hundred times.**
+  //
+  // `webServer` does not restart what it started, so when `wrangler dev` exits mid-suite —
+  // which it does, see the note in `ci.yml` — every remaining test fails on
+  // `Could not connect to localhost: Connection refused`, and `retries: 1` means each one
+  // fails twice. Run 32867934746 is the shape of it: the server died partway through
+  // `nn-entry.spec.ts` and the run kept going, spending the rest of its budget proving over
+  // and over that a process which had already exited was still not listening.
+  //
+  // That is worse than slow. It is what pushes the run into `globalTimeout`, and the retry
+  // that could actually have recovered it — a fresh `webServer` — starts only after all that
+  // has been paid for, if there is any budget left to start it in.
+  //
+  // Twenty is chosen to be past any plausible genuine cluster while still being a tiny
+  // fraction of 667. The trade is real and worth stating: a change that legitimately breaks
+  // more than twenty tests reports the first twenty and stops, so the first run after a broad
+  // regression under-reports. That costs one re-run of a suite that is already red, against
+  // an outcome where the *cause* is buried in six hundred identical connection errors.
+  maxFailures: process.env.CI ? 20 : 0,
   // `github` annotates the diff; the JSON alongside it is what `tools/suite-timing.py` reads
   // to say where the ten minutes went. It is written in CI only, and it is a file rather than
   // a second console reporter because two reporters writing to the same stream interleave.

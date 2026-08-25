@@ -308,6 +308,30 @@ jobs:
         if: always()
         run: python3 ../tools/suite-timing.py playwright-report/results.json >> "$GITHUB_STEP_SUMMARY"
 
+      # **The reason the web server exited is written to a file nobody has ever read.** When
+      # `wrangler dev` dies mid-suite it prints `✘ [ERROR]` with an empty message and then
+      # `Logs were written to ~/.config/.wrangler/logs/…`, and the run ends without that file
+      # going anywhere. That is the whole reason the note above this step can only say it
+      # exits "with no error message at all" — the message exists, it is just discarded.
+      #
+      # `tail` rather than the file, because these logs carry the `--var` values `preview`
+      # passes and there is no reason to publish an artefact full of them. The stub Stripe key
+      # is not a secret, but treating one as though it might be is the habit worth keeping.
+      - name: Say why the web server exited
+        if: failure()
+        run: |
+          shopt -s nullglob
+          logs=("$HOME/.config/.wrangler/logs/"*.log)
+          if [ ${#logs[@]} -eq 0 ]; then
+            echo "No wrangler logs — the web server did not write one."
+            exit 0
+          fi
+          for log in "${logs[@]}"; do
+            echo "::group::${log##*/}"
+            tail -n 60 "$log"
+            echo "::endgroup::"
+          done
+
       - name: Upload the Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
