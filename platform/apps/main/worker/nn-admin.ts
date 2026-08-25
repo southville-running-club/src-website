@@ -1,13 +1,13 @@
 import {
   ageCategoryFor,
-  adminSignIn,
   createAnonClient,
+  createUserClient,
   csvDocument,
-  fetchAdminEntryList,
-  fetchAdminExport,
-  fetchAdminInterestList,
-  fetchAdminMedicalNote,
   fetchCurrentEntryState,
+  fetchEntryList,
+  fetchExport,
+  fetchInterestList,
+  fetchMedicalNote,
   formatLondon,
   formatLondonDate,
   formatPence,
@@ -25,46 +25,38 @@ import {
   type Gender,
   type StartListExportRow,
 } from '@src/shared';
-// The subpath, as `ClubLogo.astro` and `SiteBanner.astro` use it — the wordmark's geometry is not
-// re-exported through the package index, and adding it there for one caller would be the wrong
-// direction of dependency for a Worker that needs one constant.
-import { CLUB_LOGO } from '@src/shared/brand';
+import type { SupabaseConfig } from '@src/shared';
 import { html, raw, type Html } from './html';
-import {
-  adminSessionCookie,
-  clearedAdminSessionCookie,
-  mintAdminSession,
-  readAdminSession,
-} from './admin-session';
-import { NN_ADMIN_PREFIX, NN_RACE_SLUG, nnAdminSegments } from './routing';
+import { masthead, notFound, page, type AdminViewer } from './admin-shell';
+import { ADMIN_PREFIX, NN_RACE_SLUG } from './routing';
+
+/** Where this section lives, now that it is a section rather than the whole surface. */
+const NN_SECTION = `${ADMIN_PREFIX}/nn`;
 
 /**
- * `/nn/admin` — the entries, the interest list, the exports, and nothing that changes a record.
+ * `/admin/nn/` — the entries, the interest list, the exports, and nothing that changes a record.
  *
  * ## Who may reach it
  *
- * Two credentials, and ADR-013 is the argument for both.
+ * **One role: `nn-admin`.** #58 moved this surface out from under `/nn/admin` and behind the
+ * session `/account/` mints, and `admin.ts` is what checks the role before any of this runs.
+ * The two-credential arrangement ADR-013 built — a Worker secret plus a key per volunteer — is
+ * gone from the Worker; #57 left its four database functions in place and #63 removes them.
  *
- *   1. **`ENTRIES_ADMIN_KEY`, a Worker secret.** It gates every route here and is what every
- *      database function behind them requires. **Unbound is not an error state — it is the
- *      shipped one**, and it makes this whole surface answer exactly as an address nobody has
- *      published: `handleNnAdmin` returns `null`, the request falls through to the assets
- *      binding, and the binding 404s. Production today is in that state.
- *   2. **A per-person key**, checked once by `entries.admin_sign_in()`. What comes back is a
- *      handle, which the Worker puts in a signed, twelve-hour, `HttpOnly` cookie. The person's
- *      key is never stored anywhere by anything.
+ * **The old addresses all still resolve.** Every `/nn/admin/*` address redirects here, because
+ * they are in a published runbook and a runbook that 404s is worse than one that is out of
+ * date. `routing.ts`'s `adminPathForNnAdminPath` is the whole of it.
  *
- * **A wrong or absent credential discloses nothing about what is behind it.** Every address
- * under this prefix answers with the same sign-in page and the same 401 when there is no valid
- * session — an event that exists and one that does not are the same page, and so are an entrant
- * id that names a row and one that does not.
+ * **A caller who may not be here discloses nothing about what is behind it.** `admin.ts`
+ * answers 404 for every address under the prefix, so an event that exists and one that does
+ * not are the same answer, and so are an entrant id that names a row and one that does not.
  *
  * ## One page, in one order, and the order is the design
  *
  * **The second pass replaced an index of links with a single page**, and the sequence is the
  * argument rather than a layout:
  *
- *   1. the masthead — where you are and, in the mono face, **which role you are signed in as**;
+ *   1. the shell — the masthead and the navigation, both `admin-shell.ts`'s since #58;
  *   2. the event bar — which running, when, and whether it is taking entries;
  *   3. **anything needing a human**, first, because it is the only thing here with a deadline
  *      attached to a person. It renders **only when there is something** — no empty state and no
@@ -118,178 +110,96 @@ import { NN_ADMIN_PREFIX, NN_RACE_SLUG, nnAdminSegments } from './routing';
  *   * **`noindex` regardless of the site-wide setting**, as a header and as a meta element.
  */
 
-export interface NnAdminEnv {
-  PUBLIC_SUPABASE_URL: string;
-  PUBLIC_SUPABASE_ANON_KEY: string;
-  /**
-   * **A Worker secret**, set with `wrangler secret put`. Never in `wrangler.jsonc`, never in a
-   * `vars` block, never in this repository. Optional, and its absence is the deployed state:
-   * with no key there is no admin surface at all, which is the correct thing for a surface
-   * whose digest nobody has installed yet.
-   */
-  ENTRIES_ADMIN_KEY?: string;
+/**
+ * Everything this section reads, bound to the caller who is reading it.
+ *
+ * **One object rather than an env and a credential threaded through nine functions**, and the
+ * reason is #57's: the club's entry list is reachable through two doors and there must be
+ * exactly one room behind them. The database made the four reads one function each with two
+ * wrappers; `packages/shared/src/admin.ts` gave each one parser and two callers; this is the
+ * same move at the last layer, so a renderer cannot accidentally read through a door its
+ * caller was not let in by.
+ */
+interface NnAdminReader {
+  entryList(slug: string): ReturnType<typeof fetchEntryList>;
+  interestList(): ReturnType<typeof fetchInterestList>;
+  medicalNote(entrantId: string): ReturnType<typeof fetchMedicalNote>;
+  takeExport(eventSlug: string, kind: ExportKind): ReturnType<typeof fetchExport>;
+  currentSlug(): ReturnType<typeof fetchCurrentEntryState>;
+}
+
+function readerFor(cfg: SupabaseConfig, accessToken: string): NnAdminReader {
+  const asPerson = createUserClient(cfg, accessToken);
+
+  return {
+    entryList: (slug) => fetchEntryList(asPerson, slug),
+    interestList: () => fetchInterestList(asPerson),
+    medicalNote: (entrantId) => fetchMedicalNote(asPerson, entrantId),
+    takeExport: (eventSlug, kind) => fetchExport(asPerson, eventSlug, kind),
+    // **The anon client, deliberately.** Which running is current is public configuration —
+    // `/nn/` asks the same question on every page load — and asking it as the signed-in person
+    // would imply it were privileged. `entry_state` is granted to `anon` and `authenticated`
+    // alike for exactly this reason.
+    currentSlug: () => fetchCurrentEntryState(createAnonClient(cfg), NN_RACE_SLUG),
+  };
 }
 
 /**
- * Handle one request under `/nn/admin`, or decline it.
+ * Handle one request under `/admin/nn/`.
  *
- * `null` means "this Worker has nothing to say about this address", which the caller turns into
- * the ordinary assets-binding 404. It is returned for exactly one reason — no key bound — and
- * that is what makes an uninstalled admin surface indistinguishable from an absent one.
+ * The caller has already established that somebody is signed in and holds `nn-admin`; there is
+ * no credential check here and no route that may be reached without one. `segments` is what
+ * followed `/admin/nn`, so `[]` is this section's own front page.
  */
-export async function handleNnAdmin(
+export async function handleNnSection(
   request: Request,
-  env: NnAdminEnv,
+  viewer: AdminViewer,
+  cfg: SupabaseConfig,
+  segments: string[],
   url: URL,
-): Promise<Response | null> {
-  const key = env.ENTRIES_ADMIN_KEY?.trim();
+): Promise<Response> {
+  const reader = readerFor(cfg, viewer.accessToken);
 
-  if (!key) {
-    return null;
-  }
-
-  const secure = url.protocol === 'https:';
-  const segments = nnAdminSegments(url.pathname);
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const handle = await readAdminSession(key, request.headers.get('cookie'), nowSeconds);
-
-  // The sign-in post is the one thing somebody without a session may do.
-  if (request.method === 'POST' && segments.length === 0) {
-    return handleSignIn(request, env, key, handle, secure, nowSeconds);
-  }
-
-  if (handle === null) {
-    // **The same answer at every address**, so that a wrong credential cannot be used to map
-    // what is here. 401 rather than 404: the surface is known to exist once the key is
-    // installed, and pretending otherwise to somebody who has simply timed out is a worse page.
-    return page('Sign in', signInPage(null), { status: 401 });
-  }
-
-  // **The dashboard, and the same renderer for a named running.** `/nn/admin/` asks the database
+  // **The dashboard, and the same renderer for a named running.** `/admin/nn/` asks the database
   // which running of `nn` is current — no year in the route, for the reason `/nn/` has none — and
-  // `/nn/admin/entries/<slug>/` is how a past running or a fixture is looked at. One page, two
+  // `/admin/nn/entries/<slug>/` is how a past running or a fixture is looked at. One page, two
   // ways in, so publishing 2027 is a row rather than an edit here.
   if (request.method === 'GET' && segments.length === 0) {
-    return dashboardResponse(env, key, handle, null, url);
+    return dashboardResponse(reader, viewer, null, url);
   }
 
   if (request.method === 'GET' && segments.length <= 2 && segments[0] === 'entries') {
-    return dashboardResponse(env, key, handle, segments[1] ?? null, url);
+    return dashboardResponse(reader, viewer, segments[1] ?? null, url);
   }
 
   if (request.method === 'GET' && segments.length === 1 && segments[0] === 'interest') {
-    return interestResponse(env, key, handle);
+    return interestResponse(reader, viewer);
   }
 
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'medical') {
-    return medicalResponse(request, env, key, handle);
+    return medicalResponse(request, reader, viewer);
   }
 
   // **The start list is a POST because rendering it writes an audit row.** Printing a sheet of
   // names and emergency contacts is taking a copy out of the platform, which is the same act the
-  // CSV is, so it goes through `entries.admin_export()` and is recorded the same way. A GET would
-  // let a prefetch, a scanner or a link in a chat client file an export against somebody's
-  // handle — the reason signing out is a POST too.
+  // CSV is, so it goes through `entries.export()` and is recorded the same way. A GET would let a
+  // prefetch, a scanner or a link in a chat client file an export against somebody's account.
   if (
     request.method === 'POST' &&
     segments.length === 1 &&
     segments[0] === 'start-list'
   ) {
-    return startListResponse(request, env, key, handle);
+    return startListResponse(request, reader, viewer);
   }
 
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'export') {
-    return exportResponse(request, env, key, handle);
+    return exportResponse(request, reader, viewer);
   }
 
-  // An address under the prefix that is not one of the seven. Answered by this Worker rather than
-  // fallen through, because falling through would hand it to the assets binding and the 404
-  // page would arrive without the `noindex` header this surface sets on everything.
-  return page('Not found', notFoundPage(), { status: 404 });
-}
-
-// -----------------------------------------------------------------------------------------
-// Signing in and out
-// -----------------------------------------------------------------------------------------
-
-async function handleSignIn(
-  request: Request,
-  env: NnAdminEnv,
-  key: string,
-  handle: string | null,
-  secure: boolean,
-  nowSeconds: number,
-): Promise<Response> {
-  const form = await readForm(request);
-
-  // Signing out is a POST too. A GET would mean a prefetch, a scanner or a link in a chat
-  // client could sign somebody out, which is a small thing that happens at the worst moment.
-  if (form?.get('action') === 'sign-out') {
-    return page('Signed out', signedOutPage(), {
-      status: 200,
-      cookie: clearedAdminSessionCookie(secure),
-    });
-  }
-
-  if (handle !== null) {
-    // Already in. Nothing to do and nothing to say about the key that was posted.
-    return redirectToDashboard();
-  }
-
-  const presented = form?.get('key');
-  const personKey = typeof presented === 'string' ? presented : '';
-
-  if (personKey === '') {
-    return page('Sign in', signInPage('Enter your admin key.'), { status: 401 });
-  }
-
-  const client = anonClient(env);
-  const outcome = await adminSignIn(client, key, personKey);
-
-  if (outcome.status === 'unavailable') {
-    console.error(`entries.admin_sign_in unavailable — ${outcome.error}`);
-    return page(
-      'Sign in',
-      signInPage('The club’s database could not be reached. Try again in a moment.'),
-      { status: 503 },
-    );
-  }
-
-  if (outcome.status !== 'ok') {
-    // **`unauthorised` and `not-found` are one answer here.** The first means this Worker's own
-    // key is wrong or uninstalled and the second means the person's key is; telling them apart
-    // on the page would say which half of the arrangement is missing.
-    if (outcome.status === 'unauthorised') {
-      console.error(
-        'entries.admin_sign_in refused the Worker key — check ENTRIES_ADMIN_KEY',
-      );
-    }
-
-    return page('Sign in', signInPage('That key was not recognised.'), { status: 401 });
-  }
-
-  // **A redirect rather than the page**, so the dashboard is reached by a GET and a refresh does
-  // not re-post a credential. The cookie rides on the 303.
-  return redirectToDashboard({
-    cookie: adminSessionCookie(
-      await mintAdminSession(key, outcome.name, nowSeconds),
-      secure,
-    ),
-  });
-}
-
-function redirectToDashboard(options: { cookie?: string } = {}): Response {
-  const headers = new Headers({
-    location: `${NN_ADMIN_PREFIX}/`,
-    'cache-control': 'no-store',
-    'x-robots-tag': 'noindex, nofollow',
-  });
-
-  if (options.cookie !== undefined) {
-    headers.append('set-cookie', options.cookie);
-  }
-
-  return new Response(null, { status: 303, headers });
+  // An address under the prefix that is not one of the six. Answered here rather than fallen
+  // through, because falling through would hand it to the assets binding and the 404 page would
+  // arrive without the `noindex` header this surface sets on everything.
+  return notFound();
 }
 
 // -----------------------------------------------------------------------------------------
@@ -378,37 +288,34 @@ export function viewEntries(entries: AdminEntry[], filters: EntryFilters): Admin
 }
 
 async function dashboardResponse(
-  env: NnAdminEnv,
-  key: string,
-  handle: string,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
   requestedSlug: string | null,
   url: URL,
 ): Promise<Response> {
-  const client = anonClient(env);
-
   let slug = requestedSlug;
 
   if (slug === null) {
-    const current = await fetchCurrentEntryState(client, NN_RACE_SLUG);
+    const current = await reader.currentSlug();
 
     if (!current.ok) {
       console.error(`entries.current_entry_state unavailable — ${current.error}`);
-      return page('Race admin', unavailablePage(handle), { status: 503 });
+      return page('Race admin', unavailablePage(viewer), { status: 503 });
     }
 
     slug = current.value.slug;
   }
 
-  const list = await fetchAdminEntryList(client, key, slug);
+  const list = await reader.entryList(slug);
 
   // **The interest count is a second read, and a failure of it is not a failure of the page.**
   // One panel out of eight depends on it; the seven that do not include the one an organiser
   // opens at nine in the morning. So it is asked for separately and its absence renders as "could
   // not be read" in its own panel rather than as a 503 over the start list.
-  const interest = await fetchAdminInterestList(client, key);
+  const interest = await reader.interestList();
 
-  return listResponse(list, handle, 'Race admin', (value) =>
-    dashboardPage(handle, value, interest, readFilters(url), url),
+  return listResponse(list, viewer, 'Race admin', (value) =>
+    dashboardPage(viewer, value, interest, readFilters(url), url),
   );
 }
 
@@ -417,13 +324,12 @@ async function dashboardResponse(
 // -----------------------------------------------------------------------------------------
 
 async function interestResponse(
-  env: NnAdminEnv,
-  key: string,
-  handle: string,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
 ): Promise<Response> {
-  const list = await fetchAdminInterestList(anonClient(env), key);
+  const list = await reader.interestList();
 
-  return listResponse(list, handle, 'Interest', (value) => interestPage(handle, value));
+  return listResponse(list, viewer, 'Interest', (value) => interestPage(viewer, value));
 }
 
 // -----------------------------------------------------------------------------------------
@@ -432,29 +338,28 @@ async function interestResponse(
 
 async function medicalResponse(
   request: Request,
-  env: NnAdminEnv,
-  key: string,
-  handle: string,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
 ): Promise<Response> {
   const form = await readForm(request);
   const entrantId = form?.get('entrantId');
 
   if (typeof entrantId !== 'string' || !isUuid(entrantId)) {
-    return page('Medical note', medicalNotFoundPage(handle), { status: 404 });
+    return page('Medical note', medicalNotFoundPage(viewer), { status: 404 });
   }
 
-  const note = await fetchAdminMedicalNote(anonClient(env), key, handle, entrantId);
+  const note = await reader.medicalNote(entrantId);
 
   if (note.status === 'unavailable') {
-    console.error(`entries.admin_entrant_medical unavailable — ${note.error}`);
-    return page('Medical note', unavailablePage(handle), { status: 503 });
+    console.error(`entries.entrant_medical unavailable — ${note.error}`);
+    return page('Medical note', unavailablePage(viewer), { status: 503 });
   }
 
   if (note.status !== 'ok') {
-    return page('Medical note', medicalNotFoundPage(handle), { status: 404 });
+    return page('Medical note', medicalNotFoundPage(viewer), { status: 404 });
   }
 
-  return page('Medical note', medicalPage(handle, note), {});
+  return page('Medical note', medicalPage(viewer, note), {});
 }
 
 // -----------------------------------------------------------------------------------------
@@ -463,27 +368,26 @@ async function medicalResponse(
 
 async function exportResponse(
   request: Request,
-  env: NnAdminEnv,
-  key: string,
-  handle: string,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
 ): Promise<Response> {
   const form = await readForm(request);
   const kind = form?.get('kind');
   const event = form?.get('event');
 
   if (typeof kind !== 'string' || !isExportKind(kind) || typeof event !== 'string') {
-    return page('Export', notFoundPage(), { status: 404 });
+    return notFound();
   }
 
-  const taken = await fetchAdminExport(anonClient(env), key, handle, event, kind);
+  const taken = await reader.takeExport(event, kind);
 
   if (taken.status === 'unavailable') {
-    console.error(`entries.admin_export unavailable — ${taken.error}`);
-    return page('Export', unavailablePage(handle), { status: 503 });
+    console.error(`entries.export unavailable — ${taken.error}`);
+    return page('Export', unavailablePage(viewer), { status: 503 });
   }
 
   if (taken.status !== 'ok') {
-    return page('Export', notFoundPage(), { status: 404 });
+    return notFound();
   }
 
   return csvResponse(taken.export);
@@ -498,29 +402,28 @@ async function exportResponse(
  */
 async function startListResponse(
   request: Request,
-  env: NnAdminEnv,
-  key: string,
-  handle: string,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
 ): Promise<Response> {
   const form = await readForm(request);
   const event = form?.get('event');
 
   if (typeof event !== 'string') {
-    return page('Start list', notFoundPage(), { status: 404 });
+    return notFound();
   }
 
-  const taken = await fetchAdminExport(anonClient(env), key, handle, event, 'start-list');
+  const taken = await reader.takeExport(event, 'start-list');
 
   if (taken.status === 'unavailable') {
-    console.error(`entries.admin_export unavailable — ${taken.error}`);
-    return page('Start list', unavailablePage(handle), { status: 503 });
+    console.error(`entries.export unavailable — ${taken.error}`);
+    return page('Start list', unavailablePage(viewer), { status: 503 });
   }
 
   if (taken.status !== 'ok' || taken.export.kind !== 'start-list') {
-    return page('Start list', notFoundPage(), { status: 404 });
+    return notFound();
   }
 
-  return page('Start list', startListPage(handle, taken.export), {});
+  return page('Start list', startListPage(viewer, taken.export), {});
 }
 
 /** The three files, and the columns each one carries. */
@@ -580,149 +483,8 @@ function csvResponse(taken: AdminExport): Response {
 // The shell
 // -----------------------------------------------------------------------------------------
 
-/**
- * The shell every admin response shares.
- *
- * **`noindex` twice, deliberately.** The header is what a crawler that never renders the page
- * obeys and what covers the CSV as well; the meta element is what survives somebody saving the
- * page. The site has no site-wide robots directive that could conflict, and this does not depend
- * on that staying true.
- */
-function page(
-  title: string,
-  body: Html,
-  options: { status?: number; cookie?: string },
-): Response {
-  const document = html`<!doctype html>
-    <html lang="en-GB">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="robots" content="noindex, nofollow" />
-        <title>${title} — Southville Running Club</title>
-        <link rel="stylesheet" href="/nn/admin.css" />
-      </head>
-      <body class="admin">
-        ${body}
-      </body>
-    </html>`;
-
-  const headers = new Headers({
-    'content-type': 'text/html; charset=utf-8',
-    // Every page here holds somebody's details. Nothing between the Worker and the person
-    // reading it may keep a copy.
-    'cache-control': 'no-store',
-    'x-robots-tag': 'noindex, nofollow',
-  });
-
-  if (options.cookie !== undefined) {
-    headers.append('set-cookie', options.cookie);
-  }
-
-  return new Response(document.toString(), {
-    status: options.status ?? 200,
-    headers,
-  });
-}
-
-/**
- * 1. The masthead — the club lockup, what this is, and which role is signed in.
- *
- * **The role rather than a name, and that is a data-protection decision.** `entries.admin_keys`
- * constrains a handle to a slug and the runbook holds the mapping to a human, because the handle
- * is what lands in every row of `entries.admin_audit`. Showing it here — in the mono face, where
- * it reads as an identifier rather than as a greeting — is what makes the audit trail legible to
- * the person generating it.
- *
- * The lockup is `CLUB_LOGO`, filled with `currentColor` like every other rendering of it, so one
- * piece of artwork serves the site banner, the campaign masthead and this.
- *
- * **`null` is the signed-out masthead**, and it is a real state rather than a tidy default: the
- * sign-in page and the signed-out page both carry this bar, and an earlier version handed it the
- * string `'nobody'`, which rendered "Signed in as nobody" above a form asking somebody to sign in.
- * There is no role to name and no session to end, so neither half is drawn.
- */
-function masthead(handle: string | null): Html {
-  return html`<header class="admin-mast">
-    <a class="admin-mast-mark" href="${NN_ADMIN_PREFIX}/">
-      <svg
-        viewBox="${CLUB_LOGO.viewBox}"
-        role="img"
-        aria-label="${CLUB_LOGO.title}"
-        focusable="false"
-      >
-        ${CLUB_LOGO.paths.map(
-          (path) =>
-            html`<path
-              d="${path.d}"
-              transform="${path.transform}"
-              fill="currentColor"
-            />`,
-        )}
-      </svg>
-    </a>
-    <p class="admin-mast-title">Race admin</p>
-    ${
-      handle === null
-        ? null
-        : html`<div class="admin-mast-who">
-            <span class="admin-mast-role">
-              <span class="admin-mast-role-label">Signed in as</span>
-              <span class="admin-mono">${handle}</span>
-            </span>
-            <form method="post" action="${NN_ADMIN_PREFIX}/">
-              <input type="hidden" name="action" value="sign-out" />
-              <button type="submit" class="admin-mast-out">Sign out</button>
-            </form>
-          </div>`
-    }
-  </header>`;
-}
-
-function signInPage(error: string | null): Html {
-  return html`${masthead(null)}
-    <main class="admin-page" id="main">
-      <h1>Sign in</h1>
-      ${
-        error === null
-          ? null
-          : html`<p class="admin-error" role="alert" id="key-error">${error}</p>`
-      }
-      <form method="post" action="${NN_ADMIN_PREFIX}/" class="admin-signin">
-        <div class="admin-field">
-          <label for="key">Your admin key</label>
-          <p class="admin-hint" id="key-hint">
-            The key issued to you, not a club password. If you have not got one, ask the
-            other volunteer.
-          </p>
-          <input
-            type="password"
-            id="key"
-            name="key"
-            autocomplete="current-password"
-            required
-            autocapitalize="off"
-            spellcheck="false"
-            aria-describedby="${error === null ? 'key-hint' : 'key-error key-hint'}"
-            ${error === null ? null : raw('aria-invalid="true"')}
-          />
-        </div>
-        <button type="submit" class="admin-button">Sign in</button>
-      </form>
-    </main>`;
-}
-
-function signedOutPage(): Html {
-  return html`${masthead(null)}
-    <main class="admin-page" id="main">
-      <h1>Signed out</h1>
-      <p>Your session has been forgotten on this device.</p>
-      <p><a href="${NN_ADMIN_PREFIX}/">Sign in again</a></p>
-    </main>`;
-}
-
-function unavailablePage(handle: string): Html {
-  return html`${masthead(handle)}
+function unavailablePage(viewer: AdminViewer): Html {
+  return html`${masthead(viewer)}
     <main class="admin-page" id="main">
       <h1>That could not be read</h1>
       <p>
@@ -732,20 +494,12 @@ function unavailablePage(handle: string): Html {
     </main>`;
 }
 
-function notFoundPage(): Html {
-  return html`<main class="admin-page" id="main">
-    <h1>Not found</h1>
-    <p>There is nothing at this address.</p>
-    <p><a href="${NN_ADMIN_PREFIX}/">Back to race admin</a></p>
-  </main>`;
-}
-
-function medicalNotFoundPage(handle: string): Html {
-  return html`${masthead(handle)}
+function medicalNotFoundPage(viewer: AdminViewer): Html {
+  return html`${masthead(viewer)}
     <main class="admin-page" id="main">
       <h1>No such entry</h1>
       <p>Nothing was found for that entry. It may have been removed.</p>
-      <p><a href="${NN_ADMIN_PREFIX}/">Back to race admin</a></p>
+      <p><a href="${NN_SECTION}/">Back to race admin</a></p>
     </main>`;
 }
 
@@ -754,7 +508,7 @@ function medicalNotFoundPage(handle: string): Html {
 // -----------------------------------------------------------------------------------------
 
 function dashboardPage(
-  handle: string,
+  viewer: AdminViewer,
   list: AdminEntryList,
   interest: AdminResult<AdminInterestList>,
   filters: EntryFilters,
@@ -763,7 +517,7 @@ function dashboardPage(
   const figures = list.event.figures;
   const flagged = list.entries.filter(needsAHuman);
 
-  return html`${masthead(handle)} ${eventBar(list, figures)}
+  return html`${masthead(viewer)} ${eventBar(list, figures)}
     <main class="admin-page" id="main">
       ${attentionSection(list, flagged)} ${raceStandsSection(list, figures, interest)}
       ${raceMorningSection(list)} ${medicalAndAffiliationSection(list, figures)}
@@ -1072,7 +826,7 @@ function raceMorningSection(list: AdminEntryList): Html {
         </p>
         <div class="admin-actions">
           ${postButton(
-            `${NN_ADMIN_PREFIX}/start-list/`,
+            `${NN_SECTION}/start-list/`,
             list.event.slug,
             'Print the start list',
             'admin-button',
@@ -1357,7 +1111,7 @@ function entryRow(entry: AdminEntry): Html {
     <td>
       ${
         entry.hasMedical
-          ? html`<form method="post" action="${NN_ADMIN_PREFIX}/medical/">
+          ? html`<form method="post" action="${NN_SECTION}/medical/">
               <input type="hidden" name="entrantId" value="${entry.entrantId}" />
               <button type="submit" class="admin-linkish">
                 Show note
@@ -1490,7 +1244,7 @@ function interestSection(interest: AdminResult<AdminInterestList>): Html {
                   of them said no and must not be written to.
                 </p>
                 <p>
-                  <a href="${NN_ADMIN_PREFIX}/interest/"> Open the interest list</a>
+                  <a href="${NN_SECTION}/interest/"> Open the interest list</a>
                   — the addresses are on their own page rather than on this one.
                 </p>`
             : html`<p class="admin-quiet">
@@ -1518,10 +1272,10 @@ function interestSection(interest: AdminResult<AdminInterestList>): Html {
  * regardless of the reader's scheme, and no row splits across a page break.
  */
 function startListPage(
-  handle: string,
+  viewer: AdminViewer,
   taken: Extract<AdminExport, { kind: 'start-list' }>,
 ): Html {
-  return html`${masthead(handle)}
+  return html`${masthead(viewer)}
     <main class="admin-page admin-print" id="main">
       <h1>Start list — ${taken.event.displayName}</h1>
       <p class="admin-quiet">
@@ -1563,7 +1317,7 @@ function startListPage(
         </tbody>
       </table>
       <p class="admin-noprint">
-        <a href="${NN_ADMIN_PREFIX}/">Back to race admin</a>
+        <a href="${NN_SECTION}/">Back to race admin</a>
       </p>
     </main>`;
 }
@@ -1622,8 +1376,8 @@ function startListRow(row: StartListExportRow): Html {
 // The interest list, on its own page
 // -----------------------------------------------------------------------------------------
 
-function interestPage(handle: string, list: AdminInterestList): Html {
-  return html`${masthead(handle)}
+function interestPage(viewer: AdminViewer, list: AdminInterestList): Html {
+  return html`${masthead(viewer)}
     <main class="admin-page" id="main">
       <h1>Register-your-interest sign-ups</h1>
       <p class="admin-quiet">
@@ -1689,7 +1443,7 @@ function interestPage(handle: string, list: AdminInterestList): Html {
           }
         </tbody>
       </table>
-      <p><a href="${NN_ADMIN_PREFIX}/">Back to race admin</a></p>
+      <p><a href="${NN_SECTION}/">Back to race admin</a></p>
     </main>`;
 }
 
@@ -1697,8 +1451,8 @@ function interestPage(handle: string, list: AdminInterestList): Html {
 // One medical note
 // -----------------------------------------------------------------------------------------
 
-function medicalPage(handle: string, note: AdminMedicalNote): Html {
-  return html`${masthead(handle)}
+function medicalPage(viewer: AdminViewer, note: AdminMedicalNote): Html {
+  return html`${masthead(viewer)}
     <main class="admin-page" id="main">
       <h1>Medical note</h1>
       <p class="admin-quiet">
@@ -1718,7 +1472,7 @@ function medicalPage(handle: string, note: AdminMedicalNote): Html {
         against your role.
       </p>
       <p>
-        <a href="${NN_ADMIN_PREFIX}/entries/${note.eventSlug}/">Back to the entries</a>
+        <a href="${NN_SECTION}/entries/${note.eventSlug}/">Back to the entries</a>
       </p>
     </main>`;
 }
@@ -1817,7 +1571,7 @@ function exportButton(
   label: string,
   className: string,
 ): Html {
-  return html`<form method="post" action="${NN_ADMIN_PREFIX}/export/">
+  return html`<form method="post" action="${NN_SECTION}/export/">
     <input type="hidden" name="event" value="${slug}" />
     <input type="hidden" name="kind" value="${kind}" />
     <button type="submit" class="admin-button ${className}">${label}</button>
@@ -1852,38 +1606,35 @@ function shortId(id: string): string {
   return `…${id.slice(-4)}`;
 }
 
-function anonClient(env: NnAdminEnv) {
-  return createAnonClient({
-    url: env.PUBLIC_SUPABASE_URL,
-    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
-  });
-}
-
 /**
  * The three failures a list can meet, mapped the same way for both lists.
  *
- * **`unauthorised` renders the sign-in page**, and not an error: it means the Worker's own key
- * has stopped matching the digest — a half-finished rotation — and the person reading the page
- * can do nothing about it but try again. The log line is where the cause goes.
+ * **`unauthorised` is a 404 now, and that is the change #58 makes here.** Under the key scheme
+ * it meant the Worker's own key had stopped matching the digest — a half-finished rotation —
+ * and the answer was the sign-in page. Under the role scheme the caller has already been
+ * checked for `nn-admin` by `admin.ts` before any of this runs, so a refusal from the database
+ * means the grant was revoked between that check and this read. The honest answer to somebody
+ * who no longer holds the role is the same one everybody without it gets: the address does not
+ * exist. The log line is where the cause goes.
  */
 function listResponse<T>(
   result: AdminResult<T>,
-  handle: string,
+  viewer: AdminViewer,
   title: string,
   render: (value: T) => Html,
 ): Response {
   if (result.status === 'unavailable') {
     console.error(`entries admin read unavailable — ${result.error}`);
-    return page(title, unavailablePage(handle), { status: 503 });
+    return page(title, unavailablePage(viewer), { status: 503 });
   }
 
   if (result.status === 'unauthorised') {
-    console.error('entries admin read refused the Worker key — check ENTRIES_ADMIN_KEY');
-    return page('Sign in', signInPage('That key was not recognised.'), { status: 401 });
+    console.error('entries admin read refused a caller admin.ts had let through');
+    return notFound();
   }
 
   if (result.status === 'not-found') {
-    return page(title, notFoundPage(), { status: 404 });
+    return notFound();
   }
 
   return page(title, render(result), {});

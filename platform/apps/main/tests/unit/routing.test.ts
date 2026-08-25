@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   accountSegments,
+  adminPathForNnAdminPath,
+  adminSegments,
   isAccountPath,
+  isAdminPath,
   isNnAdminPath,
   isNnEntryCompletePath,
   isNnRacePath,
@@ -269,5 +272,92 @@ describe('the account area, and the same character that decides where it starts'
     expect(accountSegments(ACCOUNT_PREFIX)).toEqual([]);
     expect(accountSegments(`${ACCOUNT_PREFIX}/`)).toEqual([]);
     expect(accountSegments(`${ACCOUNT_PREFIX}/sign-up/`)).toEqual(['sign-up']);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The staff backend, and the addresses that moved to it
+// -----------------------------------------------------------------------------------------
+
+describe('isAdminPath', () => {
+  it('matches the prefix itself and everything beneath it', () => {
+    expect(isAdminPath('/admin')).toBe(true);
+    expect(isAdminPath('/admin/')).toBe(true);
+    expect(isAdminPath('/admin/nn/')).toBe(true);
+    expect(isAdminPath('/admin/nn/entries/nn-2026/')).toBe(true);
+    expect(isAdminPath('/admin/people/')).toBe(true);
+  });
+
+  it('does not swallow /admin.css, which is a real file in dist/', () => {
+    // **One character between a stylesheet and a 404**, and the same trap `/nn/admin.css` and
+    // `/account.css` both carry. The Worker answers this whole prefix before the assets
+    // binding, so a predicate that matched `/admin` as a *prefix of a longer segment* would
+    // take the request away from the binding and the admin surface would render unstyled.
+    expect(isAdminPath('/admin.css')).toBe(false);
+    expect(isAdminPath('/administration/')).toBe(false);
+    expect(isAdminPath('/admins/')).toBe(false);
+  });
+
+  it('leaves the rest of the site alone', () => {
+    expect(isAdminPath('/')).toBe(false);
+    expect(isAdminPath('/nn/')).toBe(false);
+    expect(isAdminPath('/nn/admin/')).toBe(false);
+    expect(isAdminPath('/account/')).toBe(false);
+  });
+});
+
+describe('adminSegments', () => {
+  it('treats the prefix with and without its slash as the same address', () => {
+    expect(adminSegments('/admin')).toEqual([]);
+    expect(adminSegments('/admin/')).toEqual([]);
+  });
+
+  it('drops the empty segments, so a trailing slash never becomes one', () => {
+    expect(adminSegments('/admin/nn/')).toEqual(['nn']);
+    expect(adminSegments('/admin/nn/entries/nn-2026/')).toEqual([
+      'nn',
+      'entries',
+      'nn-2026',
+    ]);
+    expect(adminSegments('/admin/people/')).toEqual(['people']);
+  });
+});
+
+describe('adminPathForNnAdminPath', () => {
+  // **The addresses in the runbook**, which is the reason this function exists: they are
+  // published, and a runbook that 404s is worse than one that is out of date.
+  it.each([
+    ['/nn/admin/', '/admin/nn/'],
+    ['/nn/admin', '/admin/nn'],
+    ['/nn/admin/entries/nn-2026/', '/admin/nn/entries/nn-2026/'],
+    ['/nn/admin/interest/', '/admin/nn/interest/'],
+    ['/nn/admin/medical/', '/admin/nn/medical/'],
+    ['/nn/admin/start-list/', '/admin/nn/start-list/'],
+    ['/nn/admin/export/', '/admin/nn/export/'],
+  ])('moves %s to %s', (from, to) => {
+    expect(adminPathForNnAdminPath(from)).toBe(to);
+  });
+
+  it('moves an address nobody published, because it is a rewrite and not a table', () => {
+    // A table of seven would have to be kept in step with the routes it names, and the entry
+    // nobody remembered to add is the one somebody is reading at nine on race morning.
+    expect(adminPathForNnAdminPath('/nn/admin/something/nobody/built/')).toBe(
+      '/admin/nn/something/nobody/built/',
+    );
+  });
+
+  it('lands every one of them inside the new prefix', () => {
+    // The property rather than the examples: whatever went in, what comes out is an address
+    // the staff backend actually owns. A rewrite that produced something outside the prefix
+    // would redirect a runbook address into the assets binding.
+    const moved = [
+      '/nn/admin',
+      '/nn/admin/',
+      '/nn/admin/interest/',
+      '/nn/admin/entries/nn-2026/',
+    ].map(adminPathForNnAdminPath);
+
+    expect(moved.every((path) => isAdminPath(path))).toBe(true);
+    expect(moved.every((path) => adminSegments(path)[0] === 'nn')).toBe(true);
   });
 });

@@ -6,7 +6,9 @@ import {
   healthResponse,
 } from '@src/shared';
 import {
+  adminPathForNnAdminPath,
   isAccountPath,
+  isAdminPath,
   isHealthPath,
   isNnAdminPath,
   isNnEntryCompletePath,
@@ -19,7 +21,7 @@ import {
   nnYearPathForEventSlug,
   NN_PREFIX,
 } from './routing';
-import { handleNnAdmin } from './nn-admin';
+import { handleAdmin } from './admin';
 import { handleAccount } from './account';
 import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
@@ -180,20 +182,36 @@ export default {
       return handleStripeWebhook(request, env);
     }
 
-    // **The admin surface, and it answers `null` when it is not switched on.** Nothing under
-    // `/nn/admin` exists in `dist/`, so declining here means the request continues to the assets
-    // binding and gets the ordinary 404 — which is what makes an admin surface whose key nobody
-    // has installed indistinguishable from one that was never built. See `nn-admin.ts`.
+    // **Where the admin surface used to be, and now nothing but a redirect.** #58 moved it to
+    // `/admin/nn/`; these addresses are in a published runbook and a runbook that 404s is worse
+    // than one that is out of date, so every one of them keeps resolving.
     //
-    // Matched before the year path and before the assets binding, like the webhook, and for the
-    // same two reasons: some of these are POSTs, which the binding will not answer, and the
-    // pages are built here rather than served from a file.
+    // **301 for a GET and 308 for anything else**, because a 301 permits a client to turn a
+    // POST into a GET and three of these are POSTs carrying a body — an entrant id, an export
+    // kind. A 308 preserves both. Matched before the assets binding for the same reason as
+    // everything else here: some of these are POSTs, which the binding will not answer.
     if (isNnAdminPath(url.pathname)) {
-      const admin = await handleNnAdmin(request, env, url);
+      const moved = new URL(url);
+      moved.pathname = adminPathForNnAdminPath(url.pathname);
 
-      if (admin !== null) {
-        return admin;
-      }
+      return new Response(null, {
+        status: request.method === 'GET' || request.method === 'HEAD' ? 301 : 308,
+        headers: {
+          location: `${moved.pathname}${moved.search}`,
+          'cache-control': 'no-store',
+          'x-robots-tag': 'noindex, nofollow',
+        },
+      });
+    }
+
+    // **The staff backend.** Always answered here — every address under it, including ones
+    // nobody built, so a signed-out stranger cannot tell a page that exists from one that does
+    // not. `admin.ts` decides who may see what; this only decides who answers.
+    //
+    // Before the assets binding, like everything else in this block: several of these are
+    // POSTs, and every page is built in the Worker rather than served from `dist/`.
+    if (isAdminPath(url.pathname)) {
+      return handleAdmin(request, env, url);
     }
 
     // **The account area — always on, unlike `/nn/admin`.** There is no key that switches
