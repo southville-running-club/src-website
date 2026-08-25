@@ -377,6 +377,19 @@ com.docker.backend` before `open -a Docker` is what actually restarts it** — f
 against an hour of retrying `./dev check`. A laptop that sleeps mid-`./dev` is the reliable way
 into this state, because it kills the Supabase containers under a daemon that stays up.
 
+**A second `./dev test` on the same machine kills the first, and the symptom is a flaky suite
+rather than a collision.** `stop_workers` kills by command-line pattern, machine-wide, with no
+notion of which run owns what — `pkill -f "wrangler dev --port 8787"`, then a bare `pkill -f
+workerd` — and `cmd_test` calls it *early*, right after the build. Those patterns are exactly
+what Playwright's `webServer` block starts, so a run dispatched before the first has finished
+takes the live run's servers out from under it: a handful of tests pass and the rest die on
+SIGTERM, with nothing in the output naming the other run. The single `.dev/test.log` and the one
+Supabase volume go the same way, so the transcript read afterwards is a mixture of both runs.
+**The tell is `pgrep -fl 'dev test'` answering twice**, one of the two older than the failures
+on screen. **Wait for the run that was dispatched** — this is the sharp edge of running tests
+through a subagent, because a background run that looks slow is exactly what makes somebody
+start another.
+
 ---
 
 ## What is not built yet
