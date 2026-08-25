@@ -89,9 +89,15 @@ import { accountSegments } from './routing';
  * this file does not reimplement that; `packages/db/tests/identity-sessions.test.ts`
  * documents the property in terms a database test can actually assert (a stale refresh
  * token is rejected after the change), because a session revocation cannot be observed from
- * inside the Worker in any other testable way. A `password_changed` notification email is
- * `[auth.email.notification.password_changed]`'s job, not this file's — the only way
- * somebody finds out this happened without their own knowledge.
+ * inside the Worker in any other testable way.
+ *
+ * **And no notification email goes out — dying sessions are the only signal there is.**
+ * `[auth.email.notification.password_changed]` is the thing that would tell somebody this
+ * happened without their own knowledge, and it is `false` in `config.toml`: the free tier
+ * with the default email provider refuses every email-template modification, so leaving it
+ * on failed `supabase config push` and took the whole auth block with it (issue #79). It
+ * was never this file's job and it is not becoming one — **#50**, a custom SMTP provider,
+ * is what turns it back on.
  */
 
 function config(env: {

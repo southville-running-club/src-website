@@ -88,6 +88,35 @@ Guarded twice: `tests/unit/config.test.ts` asserts the list directly, and
 `tests/schemas.test.ts` catches the same mistake by its effect when `club` stops returning
 `PGRST106`. Adding `club` to the list fails both, immediately.
 
+### A half-done deploy looks exactly like a done one
+
+**`deploy-db.yml` runs `db push` first and `config push` second, and the second one can fail
+on its own.** When it does, the migrations are in production and the configuration is not —
+so the schema is current, `/_health` is green, the site behaves, and `site_url`, the
+redirect allowlist, `enable_signup` and the captcha secret are silently whatever the last
+green run left there. Nothing on the platform reports this. The only place it is visible is
+a red **Deploy database** run, and the failing step's name is what tells the two cases
+apart.
+
+This has happened once, for two merges, in [#79](https://github.com/southville-running-club/src-website/issues/79):
+the free tier refuses every email-template modification while the default email provider is
+in use, so one `enabled = true` rejected the whole `[auth]` block.
+
+- [ ] **After any merge that touches `config.toml` or a migration**, check the run finished
+      green — not just that the deploy happened:
+
+```bash
+gh run list --workflow="Deploy database" --limit 5
+gh run view <id> --log-failed        # which step, and what the API said
+```
+
+- [ ] **A failure in "Apply project configuration" is not a migration problem.** Read the
+      diff the CLI prints just above the error — it names the exact key the remote refused,
+      and it is the only record of what production is still running.
+- [ ] **Re-running the job fixes nothing** unless the file changed. Fix the file, merge it,
+      and let the merge push it; a `workflow_dispatch` re-run of the same commit will fail
+      the same way.
+
 **If you ever need it by hand** — bootstrapping before the secrets exist, or debugging:
 
 ```bash
