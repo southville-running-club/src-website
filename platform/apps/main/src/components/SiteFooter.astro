@@ -14,6 +14,13 @@
 //
 // Each path is filled with `currentColor` the same way `ClubLogo.astro` fills the wordmark
 // — one colour decision, made in CSS, rather than baked into borrowed artwork.
+//
+// **And one line of words: the club's privacy notice.** A notice is only a notice if it can
+// be found without already knowing it exists, which means every page rather than only the
+// pages that collect something — a person deciding whether to create an account is exactly
+// the person who has not filled anything in yet. `apps/timing/app/site-footer.tsx` carries
+// the same link for the same reason; the two files are the honest price of Astro on one side
+// of the hostname and Next on the other.
 import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
 ---
 
@@ -38,4 +45,5 @@ import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
       ))
     }
   </ul>
+  <p class="site-footer-legal"><a href="/privacy/">Privacy notice</a></p>
 </footer>

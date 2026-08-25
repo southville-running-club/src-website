@@ -51,6 +51,24 @@ describe('the club website', () => {
     expect(page).toContain('href="/nn/"');
     expect(page).toContain('href="/timing"');
   });
+
+  it('serves the privacy notice, and reaches it from the footer of an ordinary page', async () => {
+    // **The layer that proves the notice is actually reachable**, rather than that a
+    // component renders a link: `privacy.spec.ts` drives a browser, and this reads what the
+    // static-assets binding returns for the built page and for the footer that points at it.
+    // A notice nobody can find is not a notice.
+    const response = await SELF.fetch(`${SITE}/privacy/`);
+    const notice = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+
+    // It is the club's notice, so it says what it does not cover and points there.
+    expect(notice).toContain('href="/nn/privacy/"');
+
+    const home = await (await SELF.fetch(`${SITE}/`)).text();
+    expect(home).toContain('href="/privacy/"');
+  });
 });
 
 describe('Nightingale Nightmare', () => {

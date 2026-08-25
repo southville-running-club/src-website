@@ -1,0 +1,415 @@
+---
+import Base from '../layouts/Base.astro';
+import race from '../content/race.json';
+import privacy from '../content/privacy.json';
+import { orTbc } from '@src/shared/privacy';
+
+// The club's own privacy notice — the site-wide one, in the club's brand, with no event
+// theme anywhere near it.
+//
+// ## Why there are two notices rather than one
+//
+// [ADR-011](../../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md)
+// predicted this page in as many words — *"the right home is eventually `/privacy/`, once
+// the club has a second form to cover"* — and accounts are that second form. They are also a
+// different **kind** of processing: an entry is what the club holds about somebody for one
+// race that happens once, and an account is a standing record of a named person held for as
+// long as they have one.
+//
+// **`/nn/privacy/` stays, and keeps everything that is specific to the race** — the medical
+// note, the emergency contact, the payment, and the one-month retention that
+// `packages/db/tests/entries-retention.test.ts` ties to `entries.events.medical_retention`.
+// Folding that into a general document would not remove the coupling, only make it harder to
+// see; the test that stops the club publishing one period and enforcing another is worth more
+// than a single file. So the two link to each other, and this one says plainly what it does
+// not cover.
+//
+// ## This page is written from the schema, not from a form
+//
+// The same rule `/nn/privacy/` states and for the same reason: *under-listing what a
+// controller processes is a defect in a notice*. Section 3 below is what
+// `20260824090000_create_identity_schema.sql` and Supabase Auth's own tables actually hold —
+// which is a good deal more than the three boxes on the sign-up form, because the timestamps,
+// the sign-in records, the role grants and the audit trail are all recorded about a person
+// and none of them is typed by one.
+//
+// ## The values that are undecided
+//
+// Three of them render "To be confirmed by the club" through the shared `orTbc` — the contact
+// for data questions, which is `race.json`'s and is the same open decision on both notices;
+// how long an account is kept; and whether deleting an account also deletes a race entry by
+// the same person. `privacy.spec.ts` counts the marker — three, exactly — so filling one in
+// fails that test until it is updated in the same commit, and a settled fact quietly
+// reverting to the marker fails it too.
+//
+// **The settled facts come from `race.json`'s `privacy` key rather than being retyped here**,
+// so the two notices cannot disagree about who the controller is or where it is registered.
+//
+// **A wrong answer on this page is a legal claim, not a typo.** See
+// docs/architecture/principles.md#stop-and-ask
+
+const canonical = 'https://new.southvillerunningclub.co.uk/privacy/';
+
+const club = race.privacy;
+---
+
+<Base
+  title="Privacy notice — Southville Running Club"
+  description="What Southville Running Club collects when you have an account on this website, why, who else sees it, how long it is kept, and what you can ask for."
+  canonical={canonical}
+>
+  <h1>Privacy notice</h1>
+
+  {
+    /* **`{' '}` is a real space, and it is here because a line break is not.** A newline
+    either side of an expression is collapsed away rather than kept as a space, so a sentence
+    reads "…company numberending 7549" without it — and Prettier is what moves a bare
+    expression onto a line of its own, so a space typed in the source does not survive the
+    next format. `privacy.spec.ts` asserts the joined strings as whole strings. */
+  }
+  <p class="lede">
+    This is Southville Running Club's privacy notice. It covers your account on this
+    website, and everything else the club does with your details that is not about one
+    race.
+  </p>
+
+  <div class="privacy">
+    <h2>1. Who we are, and how to complain</h2>
+
+    <p>
+      {orTbc(club.controller)} is the data controller for the information you give us.
+    </p>
+
+    <ul>
+      <li>
+        <strong>Registered office:</strong>{' '}
+        {orTbc(club.registeredOffice)}
+      </li>
+      <li>
+        <strong>Registered in England and Wales</strong>, company number{' '}
+        {orTbc(club.companyNumber)}
+      </li>
+      <li>
+        <strong>Contact about your data:</strong>{' '}
+        {orTbc(club.contact)}
+      </li>
+    </ul>
+
+    <p>
+      If you are unhappy with how we have handled your information, please tell us first —
+      we would rather put it right. You also have the right to complain to the Information
+      Commissioner's Office at <a href="https://ico.org.uk/">ico.org.uk</a>, or on 0303
+      123 1113.
+    </p>
+
+    <h2>2. What this notice covers, and what it does not</h2>
+
+    <p>
+      It covers <strong>an account on this website</strong>: creating one, signing in, the
+      details your account holds, and what the club may let you do once you are signed in.
+    </p>
+
+    <p>
+      {
+        /* The link down. `/nn/privacy/` is the notice with the medical note, the emergency
+        contact, the payment and the retention period the database enforces — none of which
+        belongs in a general document. */
+      }
+      <strong>It does not cover entering a race.</strong> What the club collects when you enter{
+        ' '
+      }
+      {race.name}, or ask to hear when its entries open — including anything you tell us
+      in the medical box, your emergency contact and your payment — is set out in{' '}
+      <a href="/nn/privacy/">the {race.name} privacy notice</a>.
+    </p>
+
+    <p>
+      <strong>An account and a race entry are separate things.</strong> Entering a race does
+      not create an account, having an account does not enter you into anything, and the details
+      on one are not copied to the other.
+    </p>
+
+    <h2>3. What your account holds</h2>
+
+    <p>
+      This is what the club's records actually contain, rather than only what the sign-up
+      form asks for — the times, the sign-in records and the roles below are all held
+      about you, and none of them is something you type.
+    </p>
+
+    <h3>What you give us</h3>
+
+    <dl class="privacy-pairs">
+      <dt>Your email address</dt>
+      <dd>
+        It is how you sign in, and where we send the emails your account needs —
+        confirming your address, and resetting your password if you ask.
+      </dd>
+
+      <dt>Your password</dt>
+      <dd>
+        <strong>We never hold your password itself.</strong> It is stored scrambled, in a form
+        that cannot be turned back into what you typed, which is why nobody at the club can
+        tell you what your password is — only help you set a new one.
+      </dd>
+
+      <dt>Your name</dt>
+      <dd>So the club can address you as a person rather than as an email address.</dd>
+
+      {
+        /* **Listed because the columns exist, and described as empty because they are.**
+        `identity.people` ships `gender`, `date_of_birth` and `address` — nullable, and
+        written by nothing — and a notice that omitted them would be under-listing what the
+        club's records hold the moment #61 builds the page that fills them in. The last
+        clause of this answer is what #61 removes, in the same change that adds the page.
+
+        **This is also the one place the platform's data-minimisation rule is knowingly
+        reversed**, and it is reversed for members rather than for entrants: principles.md
+        says a date of birth becomes an age and an address does not persist at all, which
+        was written for somebody the club holds data about for one race. `entries` is
+        untouched by any of this and still stores neither. */
+      }
+      <dt>Your gender, date of birth and address</dt>
+      <dd>
+        <strong>Optional, every one of them, and empty unless you fill them in.</strong> The
+        club wants them for membership — an England Athletics registration needs a date of birth
+        and an address, and club kit has to be posted somewhere. Your account has room for them
+        and there is not yet a page that asks: until there is, they stay empty.
+      </dd>
+    </dl>
+
+    <h3>What your account records without you typing it</h3>
+
+    <dl class="privacy-pairs">
+      <dt>When your account was created, and when it was last changed</dt>
+      <dd>
+        So the club can answer questions about its own records, and see whether an account
+        is one somebody actually finished setting up.
+      </dd>
+
+      <dt>When you confirmed your email address, and when you last signed in</dt>
+      <dd>
+        A confirmation is what proves the address is yours. The last sign-in is how an
+        account nobody uses can be told from one somebody does.
+      </dd>
+
+      <dt>How you sign in</dt>
+      <dd>
+        There is one way in today — an email address and a password — and the way you used
+        is recorded with your account.
+      </dd>
+
+      <dt>Your sign-ins themselves</dt>
+      <dd>
+        Each time you sign in, a session is opened and our accounts provider records it,
+        including the browser it was opened from and the internet address (IP address) it
+        came from. It is what lets us — and you — see that somebody signed in, and end a
+        session that should not be open.
+      </dd>
+
+      <dt>A cookie, to keep you signed in</dt>
+      <dd>
+        It holds your session and nothing else, and there is one alongside it that
+        protects the forms against being submitted from another website. <strong
+          >There are no advertising cookies and no analytics cookies on this website.</strong
+        >
+      </dd>
+    </dl>
+
+    <h3>What the club records about what you may do</h3>
+
+    <dl class="privacy-pairs">
+      <dt>Which roles you hold</dt>
+      <dd>
+        Everybody with an account is a member of the website. Some people also hold a role
+        that lets them read the race entries, or grant roles to others. We record which
+        roles you hold, who gave you each one, when, and when it was taken away.
+      </dd>
+
+      <dt>A record of every role given or taken away</dt>
+      <dd>
+        Who did it, to whom, and when. It is how the club can say who was able to see
+        other people's details at any point in time, so <strong
+          >it is kept even if the account it is about is deleted</strong
+        >.
+      </dd>
+
+      <dt>An email address the club has set a role aside for</dt>
+      <dd>
+        The committee can decide that a volunteer should hold a role before that person
+        has signed up. Where it has, their email address is held until they do — and if
+        they never sign up, it is still held until somebody removes it.
+      </dd>
+    </dl>
+
+    <h2>4. What we are allowed to do with it, and why that is lawful</h2>
+
+    <dl class="privacy-pairs">
+      <dt>Give you an account, and sign you in</dt>
+      <dd>
+        <strong>Our legitimate interests.</strong> A club that cannot tell who somebody is cannot
+        let them see anything of their own, and the alternative — the club's volunteers handing
+        out shared passwords — is worse for everybody's information, including yours.
+      </dd>
+
+      <dt>Send you the emails your account needs</dt>
+      <dd>
+        <strong>Our legitimate interests.</strong> Confirming an address and resetting a password
+        are what stop somebody else opening an account in your name, or taking over yours.
+      </dd>
+
+      <dt>Check that a form was filled in by a person</dt>
+      <dd>
+        <strong>Our legitimate interests</strong> in keeping the club's systems working. Every
+        account form carries a check against automated sign-ups — see section 5.
+      </dd>
+
+      <dt>Hold the details you chose to add</dt>
+      <dd>
+        <strong>Your consent.</strong> Gender, date of birth and address are optional, you give
+        them or you do not, and you can remove them again.
+      </dd>
+
+      <dt>Record who holds which role, and who granted it</dt>
+      <dd>
+        <strong>Our legitimate interests</strong> in knowing who could see other people's details,
+        and when. A club that cannot answer that cannot look after anybody's information properly.
+      </dd>
+    </dl>
+
+    <p>
+      We do not use your account for marketing, we do not profile you, and nothing about
+      you is decided automatically in a way that affects you.
+    </p>
+
+    <h2>5. Who else sees it</h2>
+
+    <p>
+      We do not sell your information and we do not share it for marketing. Besides the
+      club's own volunteers, it is handled by two companies, and both are handling it on
+      the club's instructions rather than for themselves:
+    </p>
+
+    <ul>
+      <li>
+        <strong>Supabase</strong>, who host our database and run our accounts. Your email
+        address, your scrambled password, your sign-in records and everything in section 3
+        are stored there, in London (AWS <code>eu-west-2</code>). The emails your account
+        needs are sent by them too.
+      </li>
+      <li>
+        <strong>Cloudflare</strong>, who serve every page of this website, and whose
+        Turnstile check is what tells a person filling in an account form from an
+        automated one. Serving a page means seeing the internet address (IP address) it
+        was requested from; the Turnstile check sees that too, along with information
+        about your browser.
+      </li>
+    </ul>
+
+    {
+      /* **Two processors the club does not yet use are deliberately not named here.** The
+      confirmation-email service and signing in with Google are both designed and neither is
+      built, and naming a company that receives nothing today is a false statement about what
+      the club does — over-claiming rather than under-listing, but a false statement either
+      way. `privacy.spec.ts` asserts that neither appears, exactly as `nn-privacy.spec.ts`
+      already does for the entry notice, so the day one of them is wired up the test fails
+      and this page is updated in the same change. */
+    }
+    <p>
+      <strong>If the club starts using another company, this page changes with it</strong> —
+      in the same change that starts using it, rather than afterwards.
+    </p>
+
+    <p>
+      Your payment for a race is a separate matter, and it is Stripe's rather than ours:
+      see <a href="/nn/privacy/">the {race.name} privacy notice</a>.
+    </p>
+
+    <h2>6. How long we keep it</h2>
+
+    <dl class="privacy-pairs">
+      {
+        /* **The `id` is what the acceptance test holds this by**, rather than the text of
+        the term beside it: the marker and the term it answers are two elements, and
+        whether there is a space between them in the rendered output is Astro's whitespace
+        handling rather than anything this page decides. It is also a real anchor for
+        somebody sending the committee a link to the question they have to answer. */
+      }
+      <dt>Your account, and the details on it</dt>
+      <dd id="how-long-an-account-is-kept">{orTbc(privacy.accountRetention)}</dd>
+
+      <dt>Your sign-in records</dt>
+      <dd>
+        A session ends when you sign out, and expires on its own if you do not. The record
+        that a sign-in happened is kept with your account.
+      </dd>
+
+      <dt>The roles you have held</dt>
+      <dd>
+        Kept for as long as your account is. A role that has been taken away is recorded
+        as having been taken away rather than erased, so the club can still say who could
+        see what, and when.
+      </dd>
+
+      <dt>The record of roles given and taken away</dt>
+      <dd>
+        Kept even after an account is deleted — it is the club's record of who could reach
+        other people's details, and deleting it along with the account would empty that
+        record at the one moment it is most likely to be asked for.
+      </dd>
+    </dl>
+
+    <p>
+      When a retention period ends we delete the information, or strip out anything that
+      identifies you so that what is left is no longer about you.
+    </p>
+
+    <h2>7. Your rights</h2>
+
+    <p>You can ask us to:</p>
+
+    <ul>
+      <li>give you a copy of what we hold about you;</li>
+      <li>correct anything that is wrong;</li>
+      <li>delete what we hold, where we no longer need it;</li>
+      <li>stop or limit what we do with it;</li>
+      <li>send it to you, or to someone else, in a portable form.</li>
+    </ul>
+
+    <p>
+      <strong>Asking us to delete your account is how your details are removed.</strong> You
+      do not have to give a reason. Where we rely on your consent — the optional details in
+      section 3 — you can withdraw it at any time, and we will act on that.
+    </p>
+
+    <p id="deleting-an-account-and-a-race-entry">
+      <strong>If you have also entered a race:</strong>{' '}
+      {orTbc(privacy.accountDeletionAndEntries)}
+    </p>
+
+    <p>
+      Write to us using the contact in section 1. We may ask you to confirm who you are
+      before we hand over or delete personal information, which is a protection for you
+      rather than an obstacle.
+    </p>
+
+    <h2>8. Changes to this notice</h2>
+
+    <p>
+      If we change how we use your information we will update this page, and we will tell
+      you directly if the change is one you would want to know about.
+    </p>
+
+    <p>Last updated: {orTbc(privacy.lastUpdated)}</p>
+  </div>
+
+  <footer>
+    <p>
+      Southville Running Club. Anything above reading "to be confirmed by the club" is
+      with the committee, and this page is updated when it is settled.
+    </p>
+    <p>
+      <a href="/nn/privacy/">The {race.name} privacy notice</a>
+    </p>
+  </footer>
+</Base>

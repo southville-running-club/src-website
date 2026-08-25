@@ -37,6 +37,14 @@ export function SiteFooter() {
           </li>
         ))}
       </ul>
+      {/* The club's privacy notice, at `/privacy/` — the same origin, served by
+          `apps/main`. It is on every page of the site rather than only the ones that
+          collect something, because a person deciding whether to sign up is exactly the
+          person who has not filled anything in yet. `SiteFooter.astro` carries the same
+          line; `site.spec.ts` visits both. */}
+      <p className="site-footer-legal">
+        <a href="/privacy/">Privacy notice</a>
+      </p>
     </footer>
   );
 }
