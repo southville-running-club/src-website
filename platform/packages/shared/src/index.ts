@@ -23,10 +23,19 @@ export {
   ACCOUNT_NAME_MAX_LENGTH,
   parseAccountSignUp,
   parseAccountSignIn,
+  parseAccountResetRequest,
+  parseAccountResetConfirm,
+  parseAccountChangePassword,
   type AccountSignUp,
   type AccountSignIn,
+  type AccountResetRequest,
+  type AccountResetConfirm,
+  type AccountChangePassword,
   type AccountSignUpErrors,
   type AccountSignInErrors,
+  type AccountResetRequestErrors,
+  type AccountResetConfirmErrors,
+  type AccountChangePasswordErrors,
 } from './account';
 
 export { fetchHealth, type HealthResult } from './health';

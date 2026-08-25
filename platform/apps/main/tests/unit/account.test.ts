@@ -17,6 +17,8 @@ const signUp = vi.fn();
 const signInWithPassword = vi.fn();
 const setSession = vi.fn();
 const signOut = vi.fn();
+const resetPasswordForEmail = vi.fn();
+const updateUser = vi.fn();
 const rpc = vi.fn();
 
 vi.mock('@src/shared', async () => {
@@ -24,7 +26,16 @@ vi.mock('@src/shared', async () => {
   return {
     ...actual,
     createAnonClient: () => ({
-      auth: { getUser, refreshSession, signUp, signInWithPassword, setSession, signOut },
+      auth: {
+        getUser,
+        refreshSession,
+        signUp,
+        signInWithPassword,
+        setSession,
+        signOut,
+        resetPasswordForEmail,
+        updateUser,
+      },
     }),
     createUserClient: () => ({ rpc }),
   };
@@ -343,5 +354,229 @@ describe('GET /account/confirm/', () => {
 
     const text = await response.text();
     expect(text).toContain('did not work');
+  });
+});
+
+describe('POST /account/reset/, an unknown address and a real one', () => {
+  it('answers identically either way — the enumeration-safety assertion #54 asks for', async () => {
+    resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+
+    const known = withCsrf({ email: 'grace@example.com', 'cf-turnstile-response': 'zz' });
+    const unknown = withCsrf({
+      email: 'nobody@example.com',
+      'cf-turnstile-response': 'zz',
+    });
+
+    const responseKnown = await handleAccount(
+      post('/account/reset/', known.body, known.cookie),
+      ENV,
+      new URL('http://localhost:8787/account/reset/'),
+    );
+    const responseUnknown = await handleAccount(
+      post('/account/reset/', unknown.body, unknown.cookie),
+      ENV,
+      new URL('http://localhost:8787/account/reset/'),
+    );
+
+    // GoTrue's own resetPasswordForEmail answers success regardless of whether the address
+    // has an account — asserted here as "this Worker route produces the same response",
+    // which is the property that actually matters to somebody probing the form.
+    expect(responseKnown.status).toBe(responseUnknown.status);
+    expect(responseKnown.headers.get('location')).toBe(
+      responseUnknown.headers.get('location'),
+    );
+    expect(responseKnown.status).toBe(303);
+    expect(responseKnown.headers.get('location')).toBe('/account/reset/?done=ok');
+  });
+
+  it('refuses without a valid CSRF token', async () => {
+    const response = await handleAccount(
+      post('/account/reset/', new URLSearchParams({ email: 'grace@example.com' })),
+      ENV,
+      new URL('http://localhost:8787/account/reset/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /account/reset/confirm/', () => {
+  it('refuses a submission missing the fragment tokens, without calling Supabase', async () => {
+    const { cookie, body } = withCsrf({
+      password: 'a-perfectly-good-password',
+      'cf-turnstile-response': 'zz',
+    });
+
+    const response = await handleAccount(
+      post('/account/reset/confirm/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/reset/confirm/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(setSession).not.toHaveBeenCalled();
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('sets a session from the recovery tokens before calling updateUser', async () => {
+    setSession.mockResolvedValue({ error: null });
+    updateUser.mockResolvedValue({ data: {}, error: null });
+
+    const { cookie, body } = withCsrf({
+      access_token: 'zz-recovery-access',
+      refresh_token: 'zz-recovery-refresh',
+      password: 'a-perfectly-good-password',
+      'cf-turnstile-response': 'zz',
+    });
+
+    const response = await handleAccount(
+      post('/account/reset/confirm/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/reset/confirm/'),
+    );
+
+    expect(setSession).toHaveBeenCalledWith({
+      access_token: 'zz-recovery-access',
+      refresh_token: 'zz-recovery-refresh',
+    });
+    expect(updateUser).toHaveBeenCalledWith({ password: 'a-perfectly-good-password' });
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/');
+
+    const setCookies = response.headers.getSetCookie
+      ? response.headers.getSetCookie()
+      : [];
+    expect(setCookies.some((c) => c.includes('src_at=zz-recovery-access'))).toBe(true);
+  });
+
+  it('says a used or expired link says so, and offers a new one', async () => {
+    setSession.mockResolvedValue({ error: { message: 'invalid token' } });
+
+    const { cookie, body } = withCsrf({
+      access_token: 'zz-stale',
+      refresh_token: 'zz-stale-refresh',
+      password: 'a-perfectly-good-password',
+      'cf-turnstile-response': 'zz',
+    });
+
+    const response = await handleAccount(
+      post('/account/reset/confirm/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/reset/confirm/'),
+    );
+
+    const text = await response.text();
+    expect(text).toContain('expired or was already used');
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /account/password/, signed out', () => {
+  it('redirects to sign-in', async () => {
+    const response = await handleAccount(
+      get('/account/password/'),
+      ENV,
+      new URL('http://localhost:8787/account/password/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/');
+  });
+});
+
+describe('POST /account/password/', () => {
+  it('refuses when the current password is wrong, and never calls updateUser', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
+    signInWithPassword.mockResolvedValue({
+      data: { session: null },
+      error: { message: 'invalid' },
+    });
+
+    const { cookie, body } = withCsrf({
+      current_password: 'wrong-password',
+      new_password: 'a-perfectly-good-new-password',
+      'cf-turnstile-response': 'zz-captcha-token',
+    });
+
+    const response = await handleAccount(
+      post('/account/password/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/password/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(updateUser).not.toHaveBeenCalled();
+    const text = await response.text();
+    expect(text).toContain('current password was not right');
+  });
+
+  it('changes the password once the current one is verified, and signs the fresh session in', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
+    signInWithPassword.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: 'zz-person' },
+          access_token: 'zz-fresh-access',
+          refresh_token: 'zz-fresh-refresh',
+          expires_in: 3600,
+        },
+      },
+      error: null,
+    });
+    setSession.mockResolvedValue({ error: null });
+    updateUser.mockResolvedValue({ data: {}, error: null });
+
+    const { cookie, body } = withCsrf({
+      current_password: 'the-current-password',
+      new_password: 'a-perfectly-good-new-password',
+      'cf-turnstile-response': 'zz-captcha-token',
+    });
+
+    const response = await handleAccount(
+      post('/account/password/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/password/'),
+    );
+
+    expect(signInWithPassword).toHaveBeenCalledWith({
+      email: 'grace@example.com',
+      password: 'the-current-password',
+      options: { captchaToken: 'zz-captcha-token' },
+    });
+    expect(updateUser).toHaveBeenCalledWith({
+      password: 'a-perfectly-good-new-password',
+    });
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/');
+  });
+
+  it('refuses without a valid CSRF token', async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
+
+    const response = await handleAccount(
+      post(
+        '/account/password/',
+        new URLSearchParams({
+          current_password: 'x',
+          new_password: 'a-perfectly-good-new-password',
+        }),
+        `src_at=${HEALTHY_ACCESS_TOKEN}`,
+      ),
+      ENV,
+      new URL('http://localhost:8787/account/password/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(signInWithPassword).not.toHaveBeenCalled();
   });
 });

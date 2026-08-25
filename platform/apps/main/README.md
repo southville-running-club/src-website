@@ -680,6 +680,9 @@ reach is not a deployable state the way an admin surface with no key installed i
 | `GET`/`POST /account/sign-in/` | Email, password, Turnstile |
 | `POST /account/sign-out/` | Never a `GET` — a prefetch or an `<img src>` must not be able to sign somebody out |
 | `GET /account/confirm/` | Where the confirmation email lands. `?error=...` from Supabase renders an honest failure instead |
+| `GET`/`POST /account/reset/` | Ask for a reset link. Email, Turnstile. `?done=ok` for the acknowledgement — the same one whether or not the address has an account |
+| `GET`/`POST /account/reset/confirm/` | Where the reset link lands, and where the new password is set — #54 |
+| `GET`/`POST /account/password/` | Changing a password from inside a signed-in account. Asks for the current one — #54 |
 
 **Built the way `/nn/admin` is, and for the same reason.** The content is per-request — is
 anybody signed in, what did the last submission get wrong — so it is built with
@@ -700,6 +703,13 @@ says so plainly — an honest dead end, not a button that silently does nothing.
 **GoTrue verifies the token itself**, via `options.captchaToken` on `signUp` and
 `signInWithPassword`. There is no verification code in this Worker, and so no way to forget
 to check it.
+
+**One page carries it while signed in, and it is not a bot-defence exception.**
+`/account/password/` (#54) asks for the current password before changing it, and verifying
+that password calls `signInWithPassword` — the same endpoint GoTrue gates by captcha
+regardless of who calls it. Found by running the real flow against the real local stack: the
+first version had no widget there, and the internal check failed with `captcha_failed` even
+for the right password, reading to a real person as "your current password was not right."
 
 ### Two Turnstile keys, and neither is a secret you will find here
 
@@ -733,6 +743,34 @@ cross-site top-level navigations, which `Strict` would drop the session cookie o
 state-changing `POST` in this area therefore carries a CSRF token from `worker/csrf.ts`: a
 double-submit cookie-and-field pair, checked constant-time, unrelated to the session so a
 token refresh mid-form does not invalidate what somebody already typed.
+
+### Resetting a forgotten password, and changing one from inside an account — #54
+
+**A reset request never says whether the address has an account.** The same acknowledgement
+either way; the mail itself differs, exactly as sign-up's own enumeration safety works. Two
+addresses:
+
+| | |
+| --- | --- |
+| `/account/reset/` | Email, Turnstile. Calls `resetPasswordForEmail`, which redirects the link to `/account/reset/confirm/` |
+| `/account/reset/confirm/` | Where the link lands, with the new session's tokens in the URL **fragment** — a server never sees those. The page ships the set-password form hidden and a plain-language fallback visible; a small inline script reads `location.hash` and only then reveals the form, one more instance of the honest-dead-end pattern above |
+
+**A used or expired link says so.** GoTrue answers an invalid recovery token by redirecting
+back with `?error=...` in the query string, which this page renders as "that link did not
+work" with a link to request a new one — the same shape `/account/confirm/` already uses for
+a bad signup-confirmation link.
+
+**Changing a password requires the current one.** `/account/password/` asks for it and
+re-authenticates with `signInWithPassword` before calling `updateUser()` — that
+re-authentication is what actually makes the rule true, rather than trusting
+`secure_password_change`'s own recently-signed-in window to have been wide enough.
+
+**Neither route revokes other sessions itself.** GoTrue does that on its own whenever
+`updateUser()` changes a password — confirmed against the real local stack in
+`packages/db/tests/identity-sessions.test.ts`, since a session revocation cannot be observed
+any other testable way from inside the Worker. A `password_changed` notification email
+(`[auth.email.notification.password_changed]`) is the only way somebody finds out a change
+happened without their own knowledge.
 
 ## The health endpoints
 
