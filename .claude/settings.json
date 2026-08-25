@@ -51,7 +51,30 @@
       "Bash(grep -rnE '\\(sk_live|sk_test_[A-Za-z0-9]{20,}|whsec_|service_role|eyJ[A-Za-z0-9_-]{20,}\\)' platform/apps/main/worker/nn-admin.ts platform/packages/shared/src/admin.ts platform/packages/shared/styles/nn-admin.css platform/packages/db/supabase/migrations/20260818120000_entries_admin_figures.sql platform/packages/shared/tests/unit/admin-contrast.test.ts)",
       "Bash(awk '/vitest run --config.*admin/,/Test Files.*passed|passed \\\\\\(/' .dev/test.log)",
       "Bash(awk '/vitest run --config.*admin/,0' .dev/test.log)",
-      "Bash(tee /tmp/check-run1.log)"
+      "Bash(tee /tmp/check-run1.log)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(rg --files -g '*course*')",
+      "Bash(rg -n 'sitemap|noindex|robots' astro.config.*)",
+      "Bash(rg -n 'scroll-padding-top' platform/packages/shared/styles/*.css)",
+      "Bash(kill 65287 65289 65402)",
+      "Bash(pkill -f 'dev check')",
+      "Bash(pkill -f 'playwright/test/cli.js test-server')",
+      "Bash(kill 65856 65858)",
+      "Bash(pkill -f 'dev test')",
+      "Bash(pkill -f 'test-server')",
+      "Bash(git --no-pager diff platform/apps/main/tests/e2e/site.spec.ts platform/apps/main/src/pages/nn/index.astro)",
+      "Bash(docker rm *)",
+      "Bash(awk '/^====/,EOF {print}' /Users/bindalshah/Developer/southville-running-club/src-website/.dev/test.log)",
+      "Bash(kill 69992)",
+      "Bash(pkill -f \"playwright\")",
+      "Bash(pkill -f \"wrangler dev\")",
+      "Bash(pkill -f \"workerd\")",
+      "Bash(git --no-pager diff .claude/settings.json)",
+      "Bash(tee /tmp/test-output.log)",
+      "Bash(pkill -f \"playwright/test/cli.js test-server\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8787/nn/2026/)",
+      "Bash(node /private/tmp/claude-501/-Users-bindalshah-Developer-southville-running-club-src-website/43b2495b-ef95-41b9-9903-255735b53543/scratchpad/measure-bar.cjs)"
     ]
   }
 }
