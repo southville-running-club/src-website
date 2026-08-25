@@ -385,9 +385,30 @@ jobs:
             echo "No wrangler logs — the web server did not write one."
             exit 0
           fi
+          # **Grep before tail, because the tail is not where the answer is.** These are debug
+          # logs and the inspector is by far their chattiest subsystem: run 32872678156's last
+          # sixty lines were entirely `[InspectorProxyWorker]` protocol traffic at message id
+          # 100000034, which says the inspector is loud and nothing whatever about why the
+          # process ended. So pull the lines that could carry a cause first, and keep a short
+          # tail after it only to show what it was doing at the end.
           for log in "${logs[@]}"; do
-            echo "::group::${log##*/}"
-            tail -n 60 "$log"
+            echo "::group::${log##*/} — anything naming a cause"
+            # Assigned rather than piped straight out: the final `tail` succeeds on empty
+            # input, so `|| echo` would never fire and "no candidate lines" would be
+            # indistinguishable from the step having silently not run.
+            candidates=$(
+              grep -inE 'error|fatal|exception|signal|abort|panic|assert|refused|EADDR|ENOMEM|EPIPE|exit(ed|ing)? ' "$log" \
+                | grep -viE 'InspectorProxyWorker|consoleAPICalled|not found at|Continuing\.\.\.' \
+                | tail -n 40
+            )
+            if [ -n "$candidates" ]; then
+              echo "$candidates"
+            else
+              echo "(nothing in this log names a cause)"
+            fi
+            echo "::endgroup::"
+            echo "::group::${log##*/} — last 20 lines"
+            tail -n 20 "$log"
             echo "::endgroup::"
           done
 
