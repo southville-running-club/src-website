@@ -332,21 +332,32 @@ describe('email templates, and the provider that forbids them', () => {
       .map((section) => section.name);
   }
 
-  it('is still on the default email provider, which is what #50 changes', () => {
-    // This assertion is not decoration. The next one is written to go quiet the moment a
-    // custom provider exists — correctly, because the restriction lifts with it — and a
-    // guard that can go quiet needs something that fails loudly when its premise moves.
-    // This is that something. If it is red because #50 landed, that is the test asking
-    // for the pair below to be reconsidered rather than inherited.
-    expect(customSmtp()).toBe(false);
+  it('is on a custom email provider, which is what #50 changed', () => {
+    // **This assertion was `toBe(false)` until #50**, and it was written to go red on
+    // exactly this change rather than to be deleted by it: the guard below goes quiet the
+    // moment a custom provider exists — correctly, because the restriction lifts with it —
+    // and a guard that can go quiet needs something that fails loudly when its premise
+    // moves. It moved. So this now asserts the premise in the other direction, and it is
+    // still the thing that fails if somebody re-comments `[auth.email.smtp]` without
+    // reinstating the template guard alongside it.
+    expect(customSmtp()).toBe(true);
   });
 
-  it('declares no email template block at all while that is true', () => {
+  it('declares no email template block at all while on the default provider', () => {
     // **Uncommenting one of these is what fails here** — not enabling it. #79's first fix
     // set `[auth.email.notification.password_changed]` to `enabled = false` and left the
     // section in the file, this test passed, and the deploy failed twice more on `main`
     // with the same 400. Commenting the section out is the known-good state, because it is
     // the state the CLI shipped and the one every green deploy before #76 ran on.
+    //
+    // ⚠️ **Dormant since #50, and deliberately kept rather than deleted.** The custom
+    // provider lifts the restriction, so this now short-circuits to `[]` and cannot fail —
+    // which is the one shape this repository treats as worse than a missing test, because
+    // the line still looks like coverage. It stays because it is the guard that comes back
+    // on its own the day somebody re-comments `[auth.email.smtp]`: a rollback of #50 that
+    // left a template block behind would otherwise ship the exact 400 that took production
+    // down for four deploys. The assertion above is what keeps this honest — it fails
+    // loudly whenever this one goes quiet for a reason nobody intended.
     expect(customSmtp() ? [] : templateModifications()).toEqual([]);
   });
 });

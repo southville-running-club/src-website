@@ -48,6 +48,30 @@ PLATFORM="$REPO_ROOT/platform"
 # Turnstile flow end to end) is respected rather than overridden.
 : "${SUPABASE_AUTH_CAPTCHA_SECRET:=1x0000000000000000000000000000000AA}"
 export SUPABASE_AUTH_CAPTCHA_SECRET
+
+# `config.toml`'s `[auth.email.smtp]` block (#50) reads `env(SUPABASE_AUTH_SMTP_PASSWORD)`, and
+# the CLI validates that substitution at `supabase start` exactly as it does the captcha
+# secret above — unset, the whole stack fails before a single test does.
+#
+# ⚠️ **UNRESOLVED: whether a placeholder is safe here, and it is the one open question in
+# #50.** Resend publishes no "always passes" testing credential, so unlike Turnstile above
+# there is no correct value to default to — only a string that is obviously not a key.
+#
+# The premise is that `[local_smtp]` (Mailpit) intercepts every outgoing mail during
+# `supabase start` whatever `[auth.email.smtp]` says, so nothing is ever dialled and the value
+# is never used. **That premise is stated as fact in this repository's own documentation and
+# by outside sources, and it did not hold in CI**: with the block enabled on port 465, every
+# `auth.signUp()` in three database test files failed with `AuthRetryableFetchError … status:
+# 500`, reproducibly across two runs, and #50's first attempt was reverted the same day.
+#
+# **Two candidate causes and nobody has separated them** — the blocked port, or GoTrue really
+# dialling out with a fake password. `@supabase/auth-js` flattens both to the same bare 500,
+# and neither `dev` nor `ci.yml` captures the GoTrue container's own log, which is where the
+# answer is. **Settle that before this merges**: a full `supabase stop` and `start` against
+# this config, one `signUp()`, then read the container log. If GoTrue does dial out, this line
+# is wrong and the fix is a local mail catcher rather than a longer placeholder.
+: "${SUPABASE_AUTH_SMTP_PASSWORD:=local-development-only-not-a-real-key}"
+export SUPABASE_AUTH_SMTP_PASSWORD
 RUN_DIR="$REPO_ROOT/.dev"
 
 # The whole transcript of the last `test` or `check`, kept so a failure can be *read* rather

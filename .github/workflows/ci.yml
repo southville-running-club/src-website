@@ -135,6 +135,19 @@ jobs:
       # start` fails before a single test runs. This is job-level so every step that
       # touches the Supabase CLI — start, reset, gen types — has it, not only the first.
       SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
+      # `config.toml`'s `[auth.email.smtp]` (#50) reads `env(SUPABASE_AUTH_SMTP_PASSWORD)` and
+      # the CLI validates it at `supabase start`, same as the captcha secret above. **Never
+      # the club's real Resend key**: the fixtures sign up at `example.com` addresses, so a
+      # working credential here would have CI attempt real delivery to a domain that bounces
+      # by definition — spending the club's sending reputation on every pipeline run.
+      #
+      # ⚠️ **This exact shape is what failed once already.** On port 465 a placeholder here
+      # produced `AuthRetryableFetchError … status: 500` from every `auth.signUp()` in
+      # `entries-admin.test.ts`, `identity-sessions.test.ts` and `identity.test.ts`. The
+      # premise — that `[local_smtp]` intercepts everything so this is never dialled — is
+      # unproven, and the `dev` script carries the full note and the experiment that settles
+      # it. **If this job goes red on those three files, that is the answer, not a flake.**
+      SUPABASE_AUTH_SMTP_PASSWORD: 'local-development-only-not-a-real-key'
 
     steps:
       - uses: actions/checkout@v5

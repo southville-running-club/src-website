@@ -30,11 +30,12 @@ apart. The two layers answer different questions and neither substitutes for the
 
 | | Endpoint | Expression | Threshold | Period | Action | Mitigation | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **E1** | The race forms | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and starts_with(http.request.uri.path, "/nn/") and not http.request.uri.path eq "/nn/stripe-webhook" and not starts_with(http.request.uri.path, "/nn/admin")` | 20 | 60s | Block | 60s | **Not created** — [#19](https://github.com/southville-running-club/src-website/issues/19) |
-| **A1** | Sign in | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/sign-in/"` | 5 | 60s | Block | 600s | **Not created** — [#64](https://github.com/southville-running-club/src-website/issues/64) |
-| **A2** | Sign up | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/sign-up/"` | 3 | 60s | Block | 3600s | **Not created** — #64 |
-| **A3** | Password reset | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/reset/"` | 5 | 600s | Block | 3600s | **Not created** — #64 |
-| **A4** | The admin surfaces | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and (starts_with(http.request.uri.path, "/admin/") or starts_with(http.request.uri.path, "/nn/admin"))` | 10 | 60s | Block | 600s | **Not created** — #64 |
+| **E1** | The race forms | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and starts_with(http.request.uri.path, "/nn/") and not http.request.uri.path eq "/nn/stripe-webhook" and not starts_with(http.request.uri.path, "/nn/admin")` | 20 | 60s | Block | 60s | **Superseded by C1** — never created as its own rule; the free plan allows one. [#19](https://github.com/southville-running-club/src-website/issues/19) |
+| **A1** | Sign in | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/sign-in/"` | 5 | 60s | Block | 600s | **Superseded by C1** — never created as its own rule. [#64](https://github.com/southville-running-club/src-website/issues/64) |
+| **A2** | Sign up | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/sign-up/"` | 3 | 60s | Block | 3600s | **Superseded by C1** — never created as its own rule. #64 |
+| **A3** | Password reset | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and http.request.uri.path eq "/account/reset/"` | 5 | 600s | Block | 3600s | **Superseded by C1** — never created as its own rule. #64 |
+| **A4** | The admin surfaces | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and (starts_with(http.request.uri.path, "/admin/") or starts_with(http.request.uri.path, "/nn/admin"))` | 10 | 60s | Block | 600s | **Superseded by C1** — never created as its own rule. #64 |
+| **C1** | **The only rule that exists.** Every `POST` under `/account/`, `/admin/` and `/nn/` | `http.host eq "new.southvillerunningclub.co.uk" and http.request.method eq "POST" and (starts_with(http.request.uri.path, "/account/") or starts_with(http.request.uri.path, "/admin/") or starts_with(http.request.uri.path, "/nn/")) and not http.request.uri.path eq "/nn/stripe-webhook"` | **3** | **10s** | Block | **10s** | **The live rule**, created 25 August 2026 |
 
 **`http.host` is in every expression on purpose, and it is the one line here with an expiry
 date.** The zone also serves the Squarespace site at the apex, and none of these paths exists
@@ -136,16 +137,25 @@ who can read it.
 
 ---
 
-## If the plan allows only one rule
+## What the free plan actually allows — measured, 25 August 2026
 
-**The club is on Cloudflare's free plan**, and the free plan's rate-limiting allowance is
-smaller than five rules — how much smaller is the first thing to check in the dashboard,
-because it changes, and **finding that a free tier's terms differ from what is recorded here
-is its own [stop-and-ask](../architecture/principles.md#stop-and-ask)**. The period and
-mitigation options are shorter there too; take the longest the plan offers and **write down
-which**, rather than leaving this table describing a rule that does not exist.
+**This section used to be a contingency. It is now the description of what exists.** The
+numbers below were read off the dashboard rather than from Cloudflare's pricing page, which
+is the only reason they can be trusted.
 
-If exactly one rule is available, this is it:
+| | What the dashboard offered |
+| --- | --- |
+| **Rate limiting rules** | **1** — the panel reads `0/1 rules` |
+| **Custom rules** | 5 — `0/5 rules`. **They cannot substitute**: a custom rule matches and blocks, it does not *count*, so it has no notion of a rate |
+| **Managed rules** | None. The panel offers only *Upgrade to Pro* |
+| **Counting characteristics** | **IP only.** The selector is fixed and greyed out; no second characteristic can be added |
+| **Period** | **10 seconds.** The 60s and 600s this file specifies were not available |
+| **Mitigation duration** | **10 seconds.** The 600s and 3600s this file specifies were not available |
+
+**So the shape below is not a compromise the club chose. It is the only rule the plan can
+express**, and the two dropdowns are the binding constraint rather than the rule count.
+
+The expression that was created:
 
 ```
 http.host eq "new.southvillerunningclub.co.uk"
@@ -158,18 +168,50 @@ and (
 and not http.request.uri.path eq "/nn/stripe-webhook"
 ```
 
-**Threshold 20 per 60 seconds, Block, longest mitigation available.**
+**Three requests per 10 seconds, Block, 10-second mitigation.** Every one of those three
+values is the most the free plan offers, not a number anybody argued for.
 
-**Read what that costs before creating it.** One rule takes one threshold, and it has to be
-the loosest of the five — 20, E1's — because a combined rule set to A2's three would block
-the entry form on the morning it matters most. So the account endpoints end up protected at
-roughly four times the number this page argues for them, and **A3's mailbomb window collapses
-from ten minutes to one**, which is the one that hurts. It is better than nothing and it is
-not what is written above.
+### What this rule is, and what it is not
 
-**Record which of the two shapes was actually created**, in the status column. If the answer
-is the combined rule, the honest next question is whether the account endpoints are worth a
-paid plan — the first thing on this platform that would be.
+**It is a burst brake. It is not a cost.** The reasoning higher up this page for A1 turns on
+the *mitigation*, not the threshold — ten minutes is what cuts an address from thousands of
+password attempts an hour to thirty. **At 10 seconds it cuts it to roughly a thousand an
+hour**, which an attacker does not notice. The same collapse applies to A2's hour and A3's
+hour.
+
+**And A3's window is the one that hurts, exactly as this page predicted.** Its ten-minute
+counting window was chosen because a real person asks for a reset link, waits for the mail,
+does not find it, and asks again. A 10-second window cannot express that at all: five
+requests spread over ten minutes never trip it, so **the mailbomb door is effectively
+unguarded by this layer**. What stands in front of it is Turnstile, which raises the cost of
+a request without capping it, and GoTrue's own `max_frequency` — one second, which is not a
+limit.
+
+**Where it does work is the one place with no other recovery path.** E1's concern is a script
+draining a 250-runner field by holding places, and that is a *throughput* attack: 3 per 10
+seconds caps one address at 18 a minute whatever the mitigation is. A held place is
+indistinguishable from a real runner's and there is no query that cleans it up, so a brake
+that never fully stops still changes the arithmetic. **The rule earns its place on entries
+and barely moves the needle on credentials.**
+
+**Tighter than the five-rule shape in burst, weaker in every other respect.** Three in ten
+seconds is stricter than 20 in sixty, so **the first thing likely to be reported is a
+legitimate block** — a mobile carrier puts hundreds of subscribers behind one address, and
+the morning entries open is when a group of them submits at once. The 10-second mitigation is
+the saving grace: somebody blocked is through again before they have finished reading the
+page.
+
+### What this makes the honest next question
+
+**Whether the account endpoints are worth a paid plan.** This is the first thing on the
+platform that would be, and it is no longer hypothetical: the free plan cannot express the
+control [opening accounts](../delivery/runbooks/accounts-open.md) says must exist before the
+club announces accounts. That runbook's stop condition — *the rate-limiting rules are not
+live* — is now satisfiable only in the letter. **Somebody has to decide whether the letter is
+enough**, and it is a committee question about money rather than a build one.
+
+**Until it is decided, this is what is live and this table says so.** That is the point of
+the file.
 
 ---
 
@@ -194,6 +236,45 @@ paid plan — the first thing on this platform that would be.
 
 ## What actually happened
 
-**Nothing yet.** When a rule is created, add a row: the date, who created it, which rules,
-what the plan actually allowed, and what a block looked like when it was tested. Then change
-that rule's status above, so this table and the dashboard say the same thing.
+### 25 August 2026 — one rule, because one rule is all there is
+
+**Created by Mark**, in the zone's **Security → Security rules → Rate limiting rules** panel.
+The Cloudflare dashboard has moved since this file was written: there is no *WAF* item in the
+sidebar any more, and *Rules* — which is right there and looks correct — is Transform,
+Redirect and Page Rules, a different feature entirely.
+
+| | |
+| --- | --- |
+| **What was created** | **C1** only, the combined expression. Not E1, not A1–A4 |
+| **Name in the dashboard** | `Combined — account, admin and race forms` |
+| **Values** | 3 requests / 10 seconds / Block / 10-second mitigation, counted by IP |
+| **Execution order** | First |
+| **Status** | Active |
+| **Why not this file's numbers** | **They were not on offer.** 20 was typed into a free-text box; 60s and the longer mitigations simply are not in the free plan's dropdowns. See [what the free plan actually allows](#what-the-free-plan-actually-allows--measured-25-august-2026) |
+
+**The expression pasted clean at 283 of 4000 characters**, via *Edit expression* rather than
+the visual builder — which is what this page asks for, because a hand-built rule with one
+clause dropped looks identical to a correct one.
+
+**Two things this run corrected in this file**, rather than the file correcting the run:
+
+1. **The period and mitigation columns for A1–A4 and E1 describe values the club cannot buy.**
+   They are kept because they are the argument, and because they become reachable the day
+   somebody pays — but every one of those rows now says *superseded by C1*.
+2. **The rule-count was never the binding constraint.** This page assumed the fallback cost
+   was "one threshold instead of five". The real cost is the **10-second ceiling on both
+   dropdowns**, which is what guts A1's and A3's reasoning. A page written from the pricing
+   documentation would have got that wrong; reading the dashboard is what caught it.
+
+### Still outstanding from this sitting
+
+- [ ] **Nobody has watched it fire.** That is
+      [accounts-open step 0.3](../delivery/runbooks/accounts-open.md#03--somebody-has-actually-tried-it),
+      and it is a stop condition for announcing accounts — a rule that has never fired is a
+      belief, not a control
+- [ ] **What a blocked person sees** is unrecorded. It will be Cloudflare's own page rather
+      than the club's; that is an acceptable answer and only acceptable once somebody has
+      looked
+- [ ] **Whether that page can be customised on this plan** has no answer
+- [ ] **Whether the account endpoints justify a paid plan** — now a real question rather than
+      a rhetorical one, and it belongs to the committee
