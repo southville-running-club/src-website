@@ -773,10 +773,21 @@ describe('the Nightingale Nightmare 2026 event row', () => {
     });
   });
 
-  it('leaves the entry window null, because nobody has decided it', async () => {
-    // **The assertion that stops a plausible placeholder.** An opening time invented here
-    // would be a published claim about when a race opens. Null is the honest state and
-    // `entry_state()` reads it as `pre_open`, which is what the site shows today.
+  it('leaves the entry window null, because nobody has ratified it', async () => {
+    // **The assertion that stops a plausible placeholder**, and as of 24 August 2026 it is
+    // holding back a real proposal rather than a hypothetical one: the race director has
+    // proposed opening 1 September 2026 at 07:00 and closing 30 October at 17:00, and the
+    // committee has not ratified it.
+    //
+    // **It stays null because this column is not configuration, it is the switch.**
+    // `entry_state()` resolves `pre_open` until `now()` passes `entries_open_at` and `open`
+    // afterwards, so a date here is a dated instruction to start selling places — unattended,
+    // with no deploy and nobody present. The entries-open runbook makes that moment the
+    // committee's and lists stop conditions that are not met: no WAF rate-limiting rule, no
+    // payment ever completed end to end, and no entry terms. The runbook carries the exact
+    // `update` for the day they are.
+    //
+    // Null is also the honest state meanwhile, and it is what the site shows today.
     const rows = await query<{
       entries_open_at: Date | null;
       entries_close_at: Date | null;
@@ -814,6 +825,15 @@ describe('the Nightingale Nightmare 2026 event row', () => {
 });
 
 describe('the three fees', () => {
+  // **£18 and £20 since 24 August 2026**, confirmed by the race director and recorded as
+  // decision 006 — the schema seeded £15/£17 and `20260825090000_nn_2026_entry_fees.sql`
+  // repriced them.
+  //
+  // **The £2 gap is not a discount and not club income.** It is ARC's Unattached Runner Levy:
+  // Rule 21(2)(b) makes the promoter impose it, 21(2)(c) makes the club remit it to ARC within
+  // 30 days with the entry list. The club nets £18 whichever box a runner ticks. That is why
+  // the gap is asserted below as well as the two prices — it is an obligation, so a change to
+  // it is a change to what the club owes rather than to what it charges.
   it('are seeded at the confirmed prices, in pence', async () => {
     const rows = await query<{
       code: string;
@@ -832,17 +852,33 @@ describe('the three fees', () => {
       {
         code: 'affiliated',
         label: 'Affiliated',
-        price_pence: 1500,
+        price_pence: 1800,
         requires_ea_number: true,
       },
       {
         code: 'unaffiliated',
         label: 'Unaffiliated',
-        price_pence: 1700,
+        price_pence: 2000,
         requires_ea_number: false,
       },
       { code: 'vi_guide', label: 'VI guide', price_pence: 0, requires_ea_number: false },
     ]);
+  });
+
+  it('differ by exactly the levy the club has to remit to ARC', async () => {
+    // **Asserted as a difference, not as two numbers.** Rule 21(2)(b) sets what the promoter
+    // must impose on an unattached runner and 21(2)(c) says it goes to ARC; a repricing that
+    // moved one fee without the other would quietly change what the club owes ARC per entry,
+    // and the two-number assertion above would still read as "the prices were updated".
+    const [gap] = await query<{ levy_pence: number }>(
+      `select u.price_pence - a.price_pence as levy_pence
+         from entries.fees a
+         join entries.fees u on u.event_id = a.event_id and u.code = 'unaffiliated'
+         join entries.events e on e.id = a.event_id
+        where a.code = 'affiliated' and e.slug = 'nn-2026'`,
+    );
+
+    expect(gap?.levy_pence).toBe(200);
   });
 
   it('reach the browser through the function, dearest first', async () => {

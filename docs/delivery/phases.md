@@ -142,9 +142,14 @@ so they are prerequisites rather than build tasks — and they sit on the critic
 - [ ] **Treasurer-controlled payment arrangements** in place
 - [ ] **Stripe account** under the club identity, with both volunteers able to reach it
 - [ ] **Refund policy** written, since money is being taken from the public
-- [x] **Entry price confirmed** — **13 August 2026: £15 affiliated, £17 unaffiliated, £0 for a
-      visually impaired runner's guide.** Not the £8–£10 this line assumed. They live in
-      `entries.fees.price_pence` and nowhere else
+- [x] **Entry price confirmed** — **24 August 2026: £18 affiliated, £20 unaffiliated, £0 for a
+      visually impaired runner's guide**, revising the £15/£17 confirmed on 13 August. Not the
+      £8–£10 this line assumed. They live in `entries.fees.price_pence` and nowhere else, and
+      the revision is [decision 006](../decisions/decision-log.md). **The £2 gap is ARC's**:
+      the Unattached Runner Levy the promoter must impose under Rule 21(2)(b) and remit within
+      30 days with the entry list under 21(2)(c), so the club nets £18 either way and owes ARC
+      a return. The gap is asserted as 200p in its own test for that reason — it is an
+      obligation rather than a pricing lever
 
 Three things the payment half surfaced that are the committee's rather than the build's, and
 none of them blocks the rest:
@@ -201,12 +206,19 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       at 10:40 and no replacement has been supplied. **One unresolved row blocks all four**, so
       `race.json` still carries the old schedule rather than half the new one. Three
       hardcoded `10:30`s in `race-day.astro`'s prose go with it when it lands
-- [ ] **The entry window.** The race director has proposed **open Tuesday 1 September 2026 at
-      07:00, close Friday 30 October 2026 at 17:00** — note the offsets differ, because BST ends
-      on 25 October. [The entries-open runbook](runbooks/entries-open.md) makes the window the
-      committee's rather than the race director's, and it has not been to them. Publishing the
-      close time is also a schema decision and not a copy one: `entry_state()` deliberately does
-      not return `entries_close_at`
+- [ ] **The entry window.** The race director proposed **open Tuesday 1 September 2026 at 07:00,
+      close Friday 30 October at 17:00** on 24 August; the committee has not ratified it.
+      [The entries-open runbook](runbooks/entries-open.md) now carries both values, their UTC
+      conversions and the `update` that applies them, marked **proposed, not ratified** — and
+      `london-time.test.ts` asserts the conversions, because the window spans the clocks change
+      and the two ends therefore have **different offsets** (`07:00 → 06:00Z` in September,
+      `17:00 → 17:00Z` in late October). **The values are deliberately not in
+      `entries.events`**: that column is not configuration waiting to be switched on, it is the
+      switch — `entry_state()` flips to `open` the moment `now()` passes it, so a date there
+      starts selling places unattended, with no deploy and nobody present, while the runbook's
+      stop conditions are still unmet. `entries.test.ts` holds both columns null. Publishing the
+      close time on a page is a second, separate decision: `entry_state()` deliberately does not
+      return `entries_close_at`
 - [ ] **The 2026 race-day text exists as an email, not as page copy, and that was a decision.**
       The race director's race-day wording — the "all the information you need for the big day"
       opening, the two typos, the "more on that later" forward reference — is **not in this

@@ -110,7 +110,7 @@ describe('a valid entry for a race that has just filled up', () => {
     const html = await response.text();
 
     expect(html).not.toMatch(/data-nn-entry hidden/);
-    expect(html).toMatch(/data-entry-fee-price="unaffiliated">£17\.00/);
+    expect(html).toMatch(/data-entry-fee-price="unaffiliated">£20\.00/);
   });
 
   it('is not held by any cache, because the page now holds what somebody typed', async () => {

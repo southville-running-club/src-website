@@ -461,7 +461,7 @@ test.describe('once entries are open', () => {
     await expect(action).toHaveAttribute('href', '/nn/2026/#enter');
     await expect(action).toHaveText('Enter the race');
     await expect(panel.locator('[data-nn-panel-fees]')).toHaveText(
-      '£17.00 unaffiliated · £15.00 affiliated',
+      '£20.00 unaffiliated · £18.00 affiliated',
     );
     await expect(panel.locator('[data-nn-panel-shut]')).toBeHidden();
 
@@ -503,15 +503,17 @@ test.describe('once entries are open', () => {
   });
 
   test('takes its prices from the database, not from the markup', async ({ page }) => {
-    // £15, £17 and a free guide's place. The numbers live in `entries.fees.price_pence` and
-    // reach the page through the Worker; nothing in `dist/` knows them.
+    // £18, £20 and a free guide's place — repriced from £15/£17 on 24 August 2026, decision
+    // 006. The numbers live in `entries.fees.price_pence` and reach the page through the
+    // Worker; nothing in `dist/` knows them, which is what `serves.test.ts` asserts by refusing
+    // any `£` figure in the build at all.
     await page.goto(YEAR);
 
     await expect(page.locator('[data-entry-fee-price="affiliated"]')).toHaveText(
-      '£15.00',
+      '£18.00',
     );
     await expect(page.locator('[data-entry-fee-price="unaffiliated"]')).toHaveText(
-      '£17.00',
+      '£20.00',
     );
     await expect(page.locator('[data-entry-fee-price="vi_guide"]')).toHaveText('Free');
   });
@@ -592,7 +594,7 @@ test.describe('once entries are open', () => {
     // header itself is asserted by the test below, which does not follow it at all.
     await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
 
-    // **Exactly one place held, at the price the database says.** £17.00 lives in
+    // **Exactly one place held, at the price the database says.** £20.00 lives in
     // `entries.fees.price_pence` and nowhere else, and the anon key this page carries cannot
     // read this table at all — which is why the assertion needs a privileged connection.
     const held = await purchases();
@@ -600,7 +602,7 @@ test.describe('once entries are open', () => {
     expect(held).toHaveLength(1);
     expect(held[0]).toMatchObject({
       status: 'pending',
-      amountPence: 1700,
+      amountPence: 2000,
       feeCode: 'unaffiliated',
       purchaserEmail: 'e2e-stripe@example.com',
     });
@@ -646,7 +648,7 @@ test.describe('once entries are open', () => {
 
     const held = await purchases();
     expect(held).toHaveLength(1);
-    expect(held[0]).toMatchObject({ status: 'pending', amountPence: 1700 });
+    expect(held[0]).toMatchObject({ status: 'pending', amountPence: 2000 });
   });
 
   test('holds exactly one place per press, not one per attempt', async ({ page }) => {
@@ -671,9 +673,12 @@ test.describe('once entries are open', () => {
 
     const held = await purchases();
     expect(held).toHaveLength(1);
-    // The affiliated price, because England Athletics rebates the levy for a registered
-    // athlete. £2 less, from the fees table.
-    expect(held[0]?.amountPence).toBe(1500);
+    // **The affiliated price, and the £2 gap is ARC's rather than a discount.** Rule 21(2)(b)
+    // makes the promoter impose the Unattached Runner Levy on a runner who is not a member of
+    // an ARC- or UK Athletics-affiliated club, and 21(2)(c) makes the club remit it to ARC
+    // within 30 days with the entry list — so the club nets £18 either way. The number comes
+    // from the fees table; nothing here or in `dist/` knows it.
+    expect(held[0]?.amountPence).toBe(1800);
   });
 
   test('keeps medical notes only where the consent was given', async ({ page }) => {
@@ -1082,7 +1087,7 @@ test.describe('what JavaScript adds @requires-js', () => {
     await entry(page)
       .getByLabel(/^Affiliated/)
       .check();
-    await expect(total).toHaveText('Total to pay: £15.00');
+    await expect(total).toHaveText('Total to pay: £18.00');
 
     await entry(page)
       .getByLabel(/^VI guide/)

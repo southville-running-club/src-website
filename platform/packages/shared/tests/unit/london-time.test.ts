@@ -88,6 +88,41 @@ describe('race day — Nightingale Nightmare, the weekend after the change', () 
   });
 });
 
+describe('the proposed 2026 entry window — one instant either side of the change', () => {
+  // **The window is not in `entries.events` yet and these are still the right assertions.**
+  // The race director proposed opening 1 September 2026 at 07:00 and closing 30 October at
+  // 17:00, both Europe/London; the committee has not ratified it, so both columns are null and
+  // `packages/db/tests/entries.test.ts` holds them there. What is asserted here is the
+  // *conversion*, which is settled whoever ratifies it — so the day it is applied, the two
+  // literals pasted into the runbook's `update` are ones a test has already checked.
+  //
+  // **This is the pair that catches a hardcoded offset, and nothing else here would.** BST
+  // ends on Sunday 25 October 2026, so the open is UTC+1 and the close is UTC+0 — 07:00 London
+  // is 06:00Z in September and 17:00 London is 17:00Z in late October. Anything that applies a
+  // single offset to both gets **exactly one of them wrong, by an hour**, and the one it gets
+  // wrong is the close: a race that stops taking entries at 16:00 or 18:00 rather than 17:00.
+  const OPENS_AT = '2026-09-01T06:00:00Z';
+  const CLOSES_AT = '2026-10-30T17:00:00Z';
+
+  it('opens at 07:00 London, which is British Summer Time', () => {
+    expect(londonOffsetMinutes(OPENS_AT)).toBe(60);
+    expect(formatLondonTime(OPENS_AT)).toBe('07:00');
+    expect(formatLondon(OPENS_AT)).toBe('1 September 2026 at 07:00 BST');
+  });
+
+  it('closes at 17:00 London, which is Greenwich Mean Time five days later', () => {
+    expect(londonOffsetMinutes(CLOSES_AT)).toBe(0);
+    expect(formatLondonTime(CLOSES_AT)).toBe('17:00');
+    expect(formatLondon(CLOSES_AT)).toBe('30 October 2026 at 17:00 GMT');
+  });
+
+  it('does not share an offset between the two, which is the whole point', () => {
+    // Stated as a difference so it fails loudly if a future edit "tidies" the two literals
+    // into one offset. The window spans the change; the two ends are not interchangeable.
+    expect(londonOffsetMinutes(OPENS_AT)).not.toBe(londonOffsetMinutes(CLOSES_AT));
+  });
+});
+
 describe('input handling', () => {
   it('accepts a Date, an ISO string and epoch milliseconds alike', () => {
     const iso = '2026-11-01T09:00:00Z';

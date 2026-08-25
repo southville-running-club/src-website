@@ -144,7 +144,7 @@ export async function sellOut(): Promise<void> {
                 event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
                 consents, consent_version, paid_at
               )
-              select event.id, 'paid', 1700, fee.id, 'sold-out-fixture@example.com',
+              select event.id, 'paid', 2000, fee.id, 'sold-out-fixture@example.com',
                      'Sold Out Fixture', '{"entryTerms":true,"medical":false}'::jsonb,
                      'nn-2026-v1', now()
                 from event, fee
