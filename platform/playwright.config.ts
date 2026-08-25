@@ -53,7 +53,26 @@ export default defineConfig({
     '**/nn-signup.spec.ts',
   ],
 
-  fullyParallel: true,
+  // **`fullyParallel` was `true`, and it was never actually doing anything until this file's
+  // own `workers` went above one.** At `workers: 1` there was only ever one worker slot to
+  // hand a test to, so "each test may run on any worker" degenerated to "everything still
+  // runs one at a time" — the setting was live in name and inert in practice. The first CI
+  // run after `workers` went to two proved it is not inert now: `admin.spec.ts`'s
+  // `beforeAll` signs three fixed-email fixture people up through the real form, and with
+  // `fullyParallel: true` Playwright is free to split *that file's own tests* across both
+  // workers — two processes calling `signUp()` for the same address at once, which is the
+  // same shape of race `entries_open_at` was, just discovered a second time, inside one file
+  // rather than between two. `nn-entry-complete.spec.ts` seeds fixed-id purchases in its own
+  // `beforeAll` and has the identical exposure, undetected only because nothing had split it
+  // yet either.
+  //
+  // `fullyParallel: false` is Playwright's own default, and it is the right shape for a
+  // suite full of files like these: a file's tests still run in one worker, in order, so a
+  // `beforeAll` that seeds fixed state is safe by construction — while *different* files
+  // still land on different workers, which is the actual parallelism this config exists to
+  // get. Turning it off protects every file with this shape, present or future, rather than
+  // annotating each one that happens to be found.
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
