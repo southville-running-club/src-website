@@ -88,10 +88,22 @@
   color: var(--colour-accent);
 }
 
-/* #62's deletion. `--colour-danger` rather than a hex value, the rule `nn-admin.css` states
-   and this file inherits — and the same 2px border and 2.75rem minimum height every other
-   button has, because a destructive action that is visually smaller is one people mis-tap. */
+/* #62's deletion. Same 2px border and 2.75rem minimum height as every other button, because a
+   destructive action that is visually smaller is one people mis-tap.
+ *
+ * **`--colour-error`, not `--colour-danger`, and the difference is the whole point.**
+ * `tokens.css` says it in as many words: `--src-danger` is the guideline's `color.danger`
+ * undiluted, 4.15:1 on white, and **"non-text and large-scale use only (icons, borders, DNF
+ * fills)"**. `--src-error` is the derived variant — same hue and saturation, lightness moved
+ * to 7.04:1 — and it is the one that may carry text.
+ *
+ * This shipped as `--colour-danger` first and axe caught it at **4.22:1 against white, under
+ * the 4.5:1 AA threshold**, on the one button in this repository that deletes somebody's
+ * account. The name matched; the contrast did not. Picking a token by what it is called
+ * rather than by what `tokens.css` says it is for is the mistake to avoid here, and every
+ * `--colour-danger` use in `nn-admin.css` is a border or a `color-mix` fill for exactly this
+ * reason. */
 .button-danger {
-  background: var(--colour-danger);
+  background: var(--colour-error);
   color: var(--colour-on-accent);
 }

@@ -618,7 +618,23 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
 });
 
 /**
- * #55 — the magic link.
+ * #55 and #62 — the journeys, and the one thing they have in common.
+ *
+ * **Each of these costs a whole account before it can begin**: a sign-up, a Turnstile, a poll
+ * of Mailpit for the confirmation, a click through the confirm link, and a sign-in. The
+ * existing tests in this file pay that too, and fit inside the config's 30-second budget — but
+ * they stop where these start, and #55's link journey polls Mailpit a *second* time for the
+ * magic link itself.
+ *
+ * **They passed on a laptop and timed out on a CI runner**, which is the whole reason the
+ * budget is stated here rather than left to be discovered again: exactly these tests, on
+ * exactly the two projects that run `@requires-js`, with `settleTurnstile` reported as the
+ * failure because that is simply where the clock ran out. Nothing was flaky about them.
+ *
+ * **90 seconds, and the axe checks moved into the journeys that already own an account.** Both
+ * halves matter: a longer budget alone would still have paid for three sign-ups where one
+ * would do, and this file runs serially inside its own worker, so every one of them is wall
+ * clock the whole suite waits on.
  *
  * **The two email fields on `/account/sign-in/` are labelled differently on purpose**, and it
  * is a testability decision as much as a copy one: Playwright's `getByLabel` matches by
@@ -626,26 +642,55 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
  * ambiguous as one labelled "Email address". "Where to send the link" is unambiguous to a
  * locator and clearer to a person, which is the happy case.
  */
+
+/** A registered, confirmed, signed-in account — the preamble every journey below pays for. */
+async function registeredAndSignedIn(
+  page: import('@playwright/test').Page,
+  request: import('@playwright/test').APIRequestContext,
+  email: string,
+  password: string,
+  name: string,
+): Promise<void> {
+  await page.goto('/account/sign-up/');
+  await page.getByLabel('Your name').fill(name);
+  await page.getByLabel('Email address').fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await settleTurnstile(page);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page).toHaveURL(/\/account\/sign-up\/\?done=ok$/);
+
+  await page.goto(await confirmationLinkFor(request, email));
+
+  await page.goto('/account/sign-in/');
+  await page.getByLabel('Email address').fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await settleTurnstile(page, 'form[action="/account/sign-in/"]');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/account\/$/);
+}
+
 test.describe('signing in with a link @requires-js', () => {
   test('sends one, signs in with it, and refuses it the second time', async ({
     page,
     request,
   }, testInfo) => {
+    // Two Mailpit polls and a full registration before the thing under test — see the note
+    // above this describe for why the budget is stated rather than inherited.
+    test.setTimeout(90_000);
+
     const email = addressFor(testInfo.project.name);
-    const password = 'a-perfectly-good-password';
 
     // An account has to exist: a magic link never creates one.
-    await page.goto('/account/sign-up/');
-    await page.getByLabel('Your name').fill('Ada Lovelace');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/account\/sign-up\/\?done=ok$/);
+    await registeredAndSignedIn(
+      page,
+      request,
+      email,
+      'a-perfectly-good-password',
+      'Ada Lovelace',
+    );
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/\/account\/sign-in\/$/);
 
-    await page.goto(await confirmationLinkFor(request, email));
-
-    await page.goto('/account/sign-in/');
     await page.getByLabel('Where to send the link').fill(email);
     await settleTurnstile(page, 'form[action="/account/link/"]');
     await page.getByRole('button', { name: 'Email me a link' }).click();
@@ -662,11 +707,12 @@ test.describe('signing in with a link @requires-js', () => {
 
     // **Once, and it says so.** A second use must not fail blankly — somebody tapping a dead
     // link repeatedly with no explanation is the failure this guards.
-    await page.goto('/account/sign-out/').catch(() => {});
+    await page.getByRole('button', { name: 'Sign out' }).click();
     await page.goto(link);
     await expect(page.getByRole('heading', { name: /did not work/i })).toBeVisible();
   });
 
+  /** Cheap on purpose: no account, so no registration preamble and no raised budget. */
   test('acknowledges an address with no account identically', async ({
     page,
   }, testInfo) => {
@@ -680,34 +726,43 @@ test.describe('signing in with a link @requires-js', () => {
     await expect(page).toHaveURL(/\/account\/sign-in\/\?sent=ok$/);
     await expect(page.getByText(/we have sent it a link/i)).toBeVisible();
   });
+
+  test('the sign-in page has zero axe violations with all three ways in on it', async ({
+    page,
+  }) => {
+    await page.goto('/account/sign-in/');
+
+    // Two email fields and two Turnstile widgets on one page: the thing most likely to go
+    // wrong here is a duplicate id, which is why `textField` grew an override.
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    await page.getByLabel('Where to send the link').fill('not-an-address');
+    await settleTurnstile(page, 'form[action="/account/link/"]');
+    await page.getByRole('button', { name: 'Email me a link' }).click();
+
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
 });
 
 /**
- * #62 — the data page. The deletion is destructive, so the account it deletes is created by
- * the test and belongs to nobody.
+ * #62 — the data page.
+ *
+ * **One account, one journey, and the axe checks taken along the way.** The deletion is
+ * destructive, so the account belongs to this test and nobody else; and having paid for one,
+ * scanning the page while we are standing on it costs a second rather than another
+ * registration.
  */
 test.describe('downloading and deleting an account @requires-js', () => {
-  test('downloads everything held, then deletes the account', async ({
+  test('downloads everything held, scans clean, then deletes the account', async ({
     page,
     request,
   }, testInfo) => {
+    test.setTimeout(90_000);
+
     const email = addressFor(testInfo.project.name);
     const password = 'a-perfectly-good-password';
 
-    await page.goto('/account/sign-up/');
-    await page.getByLabel('Your name').fill("D'Arcy O'Malley");
-    await page.getByLabel('Email address').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await page.goto(await confirmationLinkFor(request, email));
-
-    await page.goto('/account/sign-in/');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page).toHaveURL(/\/account\/$/);
+    await registeredAndSignedIn(page, request, email, password, "D'Arcy O'Malley");
 
     await page.goto('/account/data/');
 
@@ -715,10 +770,12 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page.getByText(/race entry you have paid for/i)).toBeVisible();
     await expect(page.getByText(/still be on the start list/i)).toBeVisible();
 
-    // **Assert the attachment on the response, never on a download event.** The three
-    // browser engines disagree about what an attachment is, and WebKit on a Linux runner
-    // renders one in the tab where macOS WebKit downloads it — so this uses `page.request`,
-    // which shares the context's cookies and hands back a readable body everywhere.
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    // **Assert the attachment on the response, never on a download event.** The three browser
+    // engines disagree about what an attachment is, and WebKit on a Linux runner renders one
+    // in the tab where macOS WebKit downloads it — so this uses `page.request`, which shares
+    // the context's cookies and hands back a readable body everywhere.
     const csrf = await page
       .locator('form[action="/account/data/export/"] input[name="csrf_token"]')
       .inputValue();
@@ -739,10 +796,12 @@ test.describe('downloading and deleting an account @requires-js', () => {
     expect(payload.account.email).toBe(email);
     expect(payload.profile.name).toBe("D'Arcy O'Malley");
 
-    // Deleting needs the word typed — not reachable by one keystroke.
-    await page.goto('/account/data/');
+    // Deleting needs the word typed — not reachable by one keystroke. The refusal is also the
+    // page's error state, so it is scanned here rather than by a second account.
     await page.getByRole('button', { name: 'Delete my account' }).click();
     await expect(page.getByText(/Type DELETE in the box/i)).toBeVisible();
+
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     await page.getByLabel(/Type .*DELETE.* to confirm/i).fill('DELETE');
     await page.getByRole('button', { name: 'Delete my account' }).click();
@@ -755,61 +814,10 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page).toHaveURL(/\/account\/sign-in\/$/);
 
     // And the old password no longer signs anybody in.
-    await page.goto('/account/sign-in/');
     await page.getByLabel('Email address').fill(email);
     await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
+    await settleTurnstile(page, 'form[action="/account/sign-in/"]');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByText(/was not recognised|confirm your email/i)).toBeVisible();
-  });
-});
-
-test.describe('accessibility of the new pages @requires-js', () => {
-  test('the sign-in page has zero violations with all three ways in on it', async ({
-    page,
-  }) => {
-    await page.goto('/account/sign-in/');
-
-    // Two email fields and two Turnstile widgets on one page: the thing most likely to go
-    // wrong here is a duplicate id, which is why `textField` grew an override.
-    const empty = await new AxeBuilder({ page }).analyze();
-    expect(empty.violations).toEqual([]);
-
-    await page.getByLabel('Where to send the link').fill('not-an-address');
-    await settleTurnstile(page, 'form[action="/account/link/"]');
-    await page.getByRole('button', { name: 'Email me a link' }).click();
-
-    const errored = await new AxeBuilder({ page }).analyze();
-    expect(errored.violations).toEqual([]);
-  });
-
-  test('the data page has zero violations, including its error state', async ({
-    page,
-    request,
-  }, testInfo) => {
-    const email = addressFor(testInfo.project.name);
-    const password = 'a-perfectly-good-password';
-
-    await page.goto('/account/sign-up/');
-    await page.getByLabel('Your name').fill('Grace Hopper');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await page.goto(await confirmationLinkFor(request, email));
-
-    await page.goto('/account/sign-in/');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await settleTurnstile(page);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-
-    await page.goto('/account/data/');
-    const empty = await new AxeBuilder({ page }).analyze();
-    expect(empty.violations).toEqual([]);
-
-    await page.getByRole('button', { name: 'Delete my account' }).click();
-    const errored = await new AxeBuilder({ page }).analyze();
-    expect(errored.violations).toEqual([]);
   });
 });
