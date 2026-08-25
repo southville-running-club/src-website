@@ -131,19 +131,33 @@ test.afterAll(async () => {
 });
 
 /**
- * Sign somebody in through the real sign-in form, with no script in the page.
+ * One real sign-in per email, for the whole file — not one per test.
  *
- * **The cookies are the browser context's**, so everything after this is that person until
- * the next call — `page.request` and `page.goto` share one jar. The cookies are cleared first
- * so switching people mid-test cannot leave half of the previous session behind.
+ * **This file used to authenticate fresh in `beforeEach` and at nearly every call site**,
+ * which is 36 real round trips through `/account/sign-in/` for 44 tests, each one a genuine
+ * GoTrue password check — deliberately slow, because that is what resists a credential-
+ * stuffing attempt. `workers: 1` runs the whole 699-test suite through one browser and one
+ * `wrangler dev` process, so that cost does not parallelise away; it is sustained load on one
+ * long-lived server, on top of everything the rest of the suite already asks of it. Two CI
+ * runs, both on a fresh runner, both otherwise green through four full browser projects, died
+ * mid-`mobile-safari` with the Worker unreachable — consistent with load finally outrunning a
+ * resource ceiling `ci.yml`'s own comment already names as tight for this suite.
  *
- * The assertion is on **where the POST landed**, not on the status alone: a refused sign-in
- * answers 422 with the form again, and without this every test below would have gone on to
- * assert against a 404 and passed for the wrong reason.
+ * **A cookie jar is not the account; it is the proof that one exists.** Reusing a captured
+ * session across many tests is not the same shortcut a fabricated token would be — the sign-in
+ * still goes through the real form, the real CSRF token and the real Turnstile field, once per
+ * person, and every test after that is still exercising `/admin/`'s own session and role
+ * check on every request, exactly as before. What stops happening is proving the door works
+ * over and over on the way to testing something else entirely.
  */
-async function signInAs(page: Page, email: string): Promise<void> {
-  await page.context().clearCookies();
+/** `Cookie[]`, derived from `Page` rather than named — `playwright-core`'s own type is not
+ *  re-exported from `@playwright/test`. */
+type SessionCookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;
 
+const sessionCookies = new Map<string, Promise<SessionCookies>>();
+
+/** The real round trip, run exactly once per email — see `signInAs` above it. */
+async function realSignIn(page: Page, email: string): Promise<void> {
   // The GET is what mints the double-submit token and sets its cookie; the POST has to echo
   // the same value back, which is the whole of the CSRF control.
   const form = await page.request.get('/account/sign-in/');
@@ -168,6 +182,30 @@ async function signInAs(page: Page, email: string): Promise<void> {
   expect(new URL(signedIn.url()).pathname, `signing in as ${email} did not land`).toBe(
     '/account/',
   );
+}
+
+/**
+ * Sign somebody in — for real, the first time this email is asked for; from the cache after
+ * that.
+ *
+ * **The cookies are the browser context's**, so everything after this is that person until
+ * the next call. The jar is cleared first so switching people mid-test — the two-context
+ * grant test, and the "gives a role the same 404" test that signs in twice on one page —
+ * cannot leave half of a previous session behind, cached session or fresh one alike.
+ */
+async function signInAs(page: Page, email: string): Promise<void> {
+  await page.context().clearCookies();
+
+  const cached = sessionCookies.get(email);
+
+  if (cached === undefined) {
+    const captured = realSignIn(page, email).then(() => page.context().cookies());
+    sessionCookies.set(email, captured);
+    await captured;
+    return;
+  }
+
+  await page.context().addCookies(await cached);
 }
 
 /**
