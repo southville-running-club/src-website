@@ -27,7 +27,21 @@ it never changes *where*.
 2. **Prefer a scoped, no-Docker check first.** `npx vitest run --project unit <path/to/file>`
    from `platform/` runs a single test file in seconds, no Postgres, no Docker. Use this to
    iterate on a fix.
-3. **For Playwright, target the one spec file, on one engine.** Build once —
+3. **If the change touches a migration, reset the database before trusting anything that
+   hits Postgres — Playwright included.** A scoped `npx playwright test` (or
+   `vitest run --project db`) does not rebuild the database the way `./dev check`/`./dev
+   test` do; it runs against whatever schema the local Supabase container already has. And
+   **that container is shared across every worktree on the machine** — `CLAUDE.md`'s own
+   parallel-work note says so — so its state reflects whichever branch last reset it, not
+   necessarily yours. A migration that is correct on disk but never applied to the running
+   Postgres produces a failure that looks exactly like a real bug (a value never reaching a
+   table, a trigger not firing) and is not one. `npm run db:reset --workspace=packages/db`
+   from `platform/` (or `./dev up`) fixes it in under a minute. If a scoped run fails in a
+   way that doesn't make sense against the code, check the live schema before debugging the
+   code — `docker exec supabase_db_src-platform psql -U postgres -d postgres -c "..."`
+   against `pg_get_functiondef`/`information_schema` answers "is this actually applied?"
+   directly, faster than guessing.
+4. **For Playwright, target the one spec file, on one engine.** Build once —
    `npm run build && npm run build:worker` from `platform/` — then
    `npx playwright test <path/to/spec.ts> --project=chromium`. Skip `mobile-safari` and
    `no-javascript` locally:
@@ -39,25 +53,29 @@ it never changes *where*.
      been found (see `CLAUDE.md`'s "Traps that have already cost time") — it is real
      coverage, not redundant. Skip it locally for speed, but do not skip it forever: it runs
      in CI on the pull request, and a webkit-only failure there is not a false alarm.
-4. **Reserve the full `./dev check` / `./dev test` for a final pass** — before opening the
+5. **Reserve the full `./dev check` / `./dev test` for a final pass** — before opening the
    pull request, or when the change is broad enough that "which area" from step 1 is
    genuinely "several" (a schema migration, a shared module many routes import, a change to
    `config.toml`). Run it through the Haiku subagent this repository's `CLAUDE.md` already
    mandates for local tests and CI checks — that instruction and this one compose, they do
-   not duplicate each other.
-5. **When something fails, isolate the cause before re-running.** Redirect output to a file
+   not duplicate each other. It also settles step 3 for you: `./dev check`/`./dev test`
+   rebuild the database from scratch every time.
+6. **When something fails, isolate the cause before re-running.** Redirect output to a file
    and grep it for the actual failure rather than reading a truncated stream or re-running
    blind and hoping it clears up. A failure that repeats identically on a clean re-run is a
    real bug; a failure that changes shape between runs, or that is the same infrastructure
    error across many unrelated tests, is an environment problem — chase that instead of
-   patching code that was never broken.
-6. **Never run two `./dev`-family or Docker-touching commands at once.** `./dev check`,
+   patching code that was never broken. A failing assertion whose own captured
+   accessibility snapshot or DOM dump shows the thing it claims is missing is a matcher
+   problem, not a feature problem — read what the tool actually captured before rewriting
+   the code the test is supposedly checking.
+7. **Never run two `./dev`-family or Docker-touching commands at once.** `./dev check`,
    `./dev test` and `./dev up` all call `stop_workers`, which kills by command-line pattern
    machine-wide — documented in `CLAUDE.md` as "a second `./dev test` kills the first."
    Before starting one, check for anything already running against the same checkout
    (`ListAgents`, or `pgrep -fl 'dev test\|dev check\|dev up'`) rather than assuming a clear
    field.
-7. **Push once the targeted check is green.** Do not chase a full local green as a
+8. **Push once the targeted check is green.** Do not chase a full local green as a
    precondition for every push — that is CI's job, and it will do it more thoroughly than a
    pre-push run can afford to.
 
@@ -81,3 +99,20 @@ Both green is the actual signal to push. A `./dev check` had already run once, e
 across the whole repository, and found two real bugs in the new code (not in anything the
 scoped runs would have needed to re-discover) — that is what the full run is *for*, and it
 does not need repeating for every follow-up fix to the same two bugs.
+
+**Two more things turned up on the way, worth keeping in mind as their own shape of
+mistake:**
+
+- A scoped Playwright run against the new page failed with the signed-up name missing from
+  the profile — which read as a real bug in the new migration's trigger. It was step 3
+  above: the shared local Postgres container had last been reset by a different worktree's
+  branch, on a schema that predated this migration. `npm run db:reset` (30 seconds) and the
+  same run passed. The migration itself had already been proven correct by the earlier
+  `./dev check`, which rebuilds the database as a matter of course — the false alarm was
+  entirely a byproduct of skipping that step for speed, and step 3 exists so it is
+  recognised rather than chased into the code.
+- A different failure's own captured accessibility snapshot showed the exact text the
+  assertion claimed was missing, sitting right there in the DOM. That is a locator problem,
+  not a page problem — `getByText` on a specific compound sentence resolved inconsistently
+  for reasons that did not reproduce under inspection. The fix was the matcher
+  (`site.spec.ts`'s own whitespace-squashed substring pattern), not the markup.
