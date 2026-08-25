@@ -445,12 +445,26 @@ otp_expiry = 3600
 # captcha secret included. `db push` runs first and kept succeeding, which is why the
 # deploy looked half-done rather than broken. Issue #79.
 #
+# **The whole block is commented out, and that is the fix rather than `enabled = false`.**
+# Turning it off was not enough and the deploy went on failing: the CLI serialises this
+# section whenever it is *present* in the file, filling in the `subject` it was not given —
+# so `config push` kept sending `subject = ""` against production's
+# `subject = "Your password was changed"`, and an empty subject is still a template
+# modification. The remote-vs-local diff the CLI prints before the 400 is exactly that one
+# line, with `enabled = false` already agreeing on both sides.
+#
+# The CLI shipped this section commented out and every deploy succeeded for a fortnight;
+# #76 uncommented it. Commented is therefore the known-good state, not merely a tidy one.
+#
 # **#50 is what may turn it back on** — Resend over SMTP, in `[auth.email.smtp]` above.
 # That is the only half of the API's own sentence that is the club's plan; upgrading the
 # tier is not. `tests/unit/config.test.ts` fails if this, or any other email template,
-# comes back before the custom provider does.
-[auth.email.notification.password_changed]
-enabled = false
+# comes back before the custom provider does — including, now, a disabled one.
+#
+# [auth.email.notification.password_changed]
+# enabled = true
+# subject = "Your password has been changed"
+# content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

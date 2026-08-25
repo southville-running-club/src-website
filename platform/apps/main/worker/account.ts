@@ -93,11 +93,12 @@ import { accountSegments } from './routing';
  *
  * **And no notification email goes out — dying sessions are the only signal there is.**
  * `[auth.email.notification.password_changed]` is the thing that would tell somebody this
- * happened without their own knowledge, and it is `false` in `config.toml`: the free tier
- * with the default email provider refuses every email-template modification, so leaving it
- * on failed `supabase config push` and took the whole auth block with it (issue #79). It
- * was never this file's job and it is not becoming one — **#50**, a custom SMTP provider,
- * is what turns it back on.
+ * happened without their own knowledge, and it is **commented out** in `config.toml`: the
+ * free tier with the default email provider refuses every email-template modification, so
+ * leaving it on failed `supabase config push` and took the whole auth block with it (issue
+ * #79). Turning it off was not enough — the CLI sends the section whenever it is present,
+ * with an empty subject, which is a modification too. It was never this file's job and it
+ * is not becoming one; **#50**, a custom SMTP provider, is what turns it back on.
  */
 
 function config(env: {

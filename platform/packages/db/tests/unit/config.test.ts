@@ -313,17 +313,22 @@ describe('email templates, and the provider that forbids them', () => {
     return smtp !== undefined && enabled(smtp.body);
   }
 
-  /** Every block whose contents the API would read as modifying an email template. */
+  /**
+   * Every email-template block that is **present at all**, enabled or not.
+   *
+   * **It used to ask whether the block was enabled, and that was the bug.** `enabled =
+   * false` was the first attempt at #79 and the deploy went on failing: the CLI serialises
+   * one of these sections whenever it is *present*, filling in the `subject` it was not
+   * given, so `config push` sent `subject = ""` against production's real subject — and an
+   * empty subject is still a template modification. The block being there is the hazard;
+   * what it says inside is not the part the API objects to.
+   *
+   * So presence is what is asserted, which is also the state the CLI itself ships: every
+   * one of these arrived commented out.
+   */
   function templateModifications(): string[] {
     return sections()
       .filter((section) => /^auth\.email\.(template|notification)\./.test(section.name))
-      .filter((section) => {
-        const setsText = section.body.some((line) => {
-          const text = /^(?:subject|content_path)\s*=\s*"(.*)"$/.exec(line);
-          return text !== null && text[1] !== '';
-        });
-        return enabled(section.body) || setsText;
-      })
       .map((section) => section.name);
   }
 
@@ -336,11 +341,12 @@ describe('email templates, and the provider that forbids them', () => {
     expect(customSmtp()).toBe(false);
   });
 
-  it('modifies no email template while that is true', () => {
-    // Includes `[auth.email.notification.password_changed]`, which is `false` for exactly
-    // this reason and carries the whole story in a comment beside it. Re-enabling it — or
-    // uncommenting `[auth.email.template.invite]`, or adding any sibling — fails here
-    // rather than on `main` two merges later.
+  it('declares no email template block at all while that is true', () => {
+    // **Uncommenting one of these is what fails here** — not enabling it. #79's first fix
+    // set `[auth.email.notification.password_changed]` to `enabled = false` and left the
+    // section in the file, this test passed, and the deploy failed twice more on `main`
+    // with the same 400. Commenting the section out is the known-good state, because it is
+    // the state the CLI shipped and the one every green deploy before #76 ran on.
     expect(customSmtp() ? [] : templateModifications()).toEqual([]);
   });
 });
