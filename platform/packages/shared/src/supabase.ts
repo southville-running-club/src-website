@@ -124,3 +124,104 @@ export function createUserClient(
     },
   });
 }
+
+/**
+ * The suffix supabase-js appends to `storageKey` when it stores a PKCE code verifier. Matched
+ * by suffix rather than compared to one exact string, because the prefix is the library's to
+ * choose and a version that changes it should not silently stop the flow working.
+ */
+const CODE_VERIFIER_SUFFIX = '-code-verifier';
+
+/**
+ * Somewhere for one request to leave a code verifier and the next request to find it.
+ *
+ * `createPkceClient` hands one back rather than returning a bare client, because the verifier
+ * supabase-js mints is a value the Worker has to get hold of — it goes into an `HttpOnly`
+ * cookie so it survives the trip to the mail client and back, and there is no other way to
+ * read it out of the library.
+ */
+export interface PkceVerifierStore {
+  /** The verifier supabase-js minted during this request, or `null` if it minted none. */
+  minted(): string | null;
+}
+
+/**
+ * The client the magic link (#55) and Google (#56) both sign in through.
+ *
+ * **PKCE rather than the implicit flow, and the reason is not the usual one.** #55 asks that a
+ * prefetching mail scanner — and some corporate scanners follow every URL in a message before
+ * a human sees it — must not consume a single-use token. The issue proposes GoTrue's
+ * `token_hash` flow for that, which needs the email template to emit `{{ .TokenHash }}`; and
+ * declaring an email-template block is exactly what took production's auth configuration down
+ * for four deploys in #79, and what `tests/unit/config.test.ts` now fails on even when the
+ * block is disabled. That route is closed until a custom SMTP provider exists.
+ *
+ * PKCE reaches the same property by a different road and needs no template. The code arrives
+ * on the **query string**, where the Worker can read it directly, and redeeming it requires a
+ * `code_verifier` that never left this origin. **A scanner that follows the link holds a code
+ * and nothing to redeem it with**, so it cannot obtain a session — which is the property #55
+ * actually wanted. It is also the shape the OAuth return needs, so `/account/callback/` is
+ * genuinely built once and used twice.
+ *
+ * **In-memory storage, and that is not a compromise.** A Worker has no `localStorage`, and it
+ * must not have one here: the verifier is a per-person secret for the length of one sign-in,
+ * and anything shared between requests would hand one person's verifier to the next caller.
+ * The map below lives and dies inside a single request; the cookie is what carries the value
+ * across the gap, `HttpOnly` so no script can read it.
+ *
+ * **`SameSite=Lax` is load-bearing on that cookie**, for the same reason `session.ts` gives
+ * for the session pair: arriving from a mail client is a cross-site top-level navigation, and
+ * `Strict` would drop the cookie on the way in. The exchange would then fail with a valid
+ * code, which is the least debuggable outcome available.
+ *
+ * @param verifier the verifier read back from the cookie, when redeeming a code. `null` when
+ *   starting a sign-in, which is when supabase-js mints one and `store.minted()` returns it.
+ */
+export function createPkceClient(
+  config: SupabaseConfig,
+  verifier: string | null,
+): { client: AnonClient; store: PkceVerifierStore } {
+  const { url, anonKey } = assertUsableConfig(config);
+
+  const cells = new Map<string, string>();
+  let mintedVerifier: string | null = null;
+
+  // `storageKey` is pinned so the verifier's cell has a name this file chooses rather than one
+  // derived from the project reference. Nothing persists between requests either way; it makes
+  // the seeding below exact instead of a guess.
+  const storageKey = 'src-account';
+
+  if (verifier !== null) {
+    cells.set(`${storageKey}${CODE_VERIFIER_SUFFIX}`, verifier);
+  }
+
+  const client = createClient(url, anonKey, {
+    auth: {
+      flowType: 'pkce',
+      storageKey,
+      // `true` so supabase-js writes the verifier to the storage below at all — with
+      // `persistSession: false` it mints one and drops it, and the exchange then fails on a
+      // code that was perfectly good. The storage is a per-request map, so nothing is
+      // persisted in any sense that matters.
+      persistSession: true,
+      autoRefreshToken: false,
+      storage: {
+        getItem: (key: string) => cells.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          cells.set(key, value);
+          if (key.endsWith(CODE_VERIFIER_SUFFIX)) {
+            mintedVerifier = value;
+          }
+        },
+        removeItem: (key: string) => {
+          cells.delete(key);
+        },
+      },
+    },
+    db: {
+      schema: 'intake',
+    },
+  });
+
+  return { client, store: { minted: () => mintedVerifier } };
+}

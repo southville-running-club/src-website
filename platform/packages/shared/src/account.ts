@@ -100,6 +100,21 @@ export const accountResetRequestSchema = z.object({
   captchaToken,
 });
 
+/**
+ * #55 — asking for a magic link. The same two fields a reset request carries, and
+ * deliberately a separate schema rather than a reuse: they are two different intentions that
+ * happen to collect the same thing today, and `accountResetRequestSchema` gaining a field
+ * later must not silently add one to the sign-in page.
+ *
+ * **No password, and that is the point.** [C7](docs/foundations/requirements.md#c7--authenticate-and-authorise-staff)
+ * asks for authentication "without passwords to distribute or lose", and the audience is
+ * marshals on phones, on poor signal, with cold hands.
+ */
+export const accountMagicLinkSchema = z.object({
+  email,
+  captchaToken,
+});
+
 /** Both come from the URL fragment GoTrue's recovery link redirects to — never typed by a
  *  person, so their own messages are system ones rather than field prompts. See
  *  `worker/account.ts`'s reset-confirm handler for why both are required: `updateUser()`
@@ -233,6 +248,7 @@ export const accountDetailsSchema = accountDetailsObjectSchema.superRefine(
 export type AccountSignUp = z.infer<typeof accountSignUpSchema>;
 export type AccountSignIn = z.infer<typeof accountSignInSchema>;
 export type AccountResetRequest = z.infer<typeof accountResetRequestSchema>;
+export type AccountMagicLink = z.infer<typeof accountMagicLinkSchema>;
 export type AccountResetConfirm = z.infer<typeof accountResetConfirmSchema>;
 export type AccountChangePassword = z.infer<typeof accountChangePasswordSchema>;
 /** Hand-defined rather than `z.infer`, because the schema's raw shape carries
@@ -250,6 +266,7 @@ export interface AccountDetails {
 export type AccountSignUpField = keyof AccountSignUp;
 export type AccountSignInField = keyof AccountSignIn;
 export type AccountResetRequestField = keyof AccountResetRequest;
+export type AccountMagicLinkField = keyof AccountMagicLink;
 export type AccountResetConfirmField = keyof AccountResetConfirm;
 export type AccountChangePasswordField = keyof AccountChangePassword;
 export type AccountDetailsField = keyof AccountDetails;
@@ -257,6 +274,7 @@ export type AccountDetailsField = keyof AccountDetails;
 export type AccountSignUpErrors = Partial<Record<AccountSignUpField, string>>;
 export type AccountSignInErrors = Partial<Record<AccountSignInField, string>>;
 export type AccountResetRequestErrors = Partial<Record<AccountResetRequestField, string>>;
+export type AccountMagicLinkErrors = Partial<Record<AccountMagicLinkField, string>>;
 export type AccountResetConfirmErrors = Partial<Record<AccountResetConfirmField, string>>;
 export type AccountChangePasswordErrors = Partial<
   Record<AccountChangePasswordField, string>
@@ -272,6 +290,9 @@ export type AccountSignInResult =
 export type AccountResetRequestResult =
   | { ok: true; value: AccountResetRequest }
   | { ok: false; errors: AccountResetRequestErrors };
+
+export type AccountMagicLinkResult =
+  { ok: true; value: AccountMagicLink } | { ok: false; errors: AccountMagicLinkErrors };
 
 export type AccountResetConfirmResult =
   | { ok: true; value: AccountResetConfirm }
@@ -299,6 +320,7 @@ const RESET_REQUEST_FIELDS: readonly AccountResetRequestField[] = [
   'email',
   'captchaToken',
 ];
+const MAGIC_LINK_FIELDS: readonly AccountMagicLinkField[] = ['email', 'captchaToken'];
 const RESET_CONFIRM_FIELDS: readonly AccountResetConfirmField[] = [
   'accessToken',
   'refreshToken',
@@ -346,6 +368,16 @@ export function parseAccountResetRequest(input: unknown): AccountResetRequestRes
   }
 
   return { ok: false, errors: fieldErrors(parsed.error, RESET_REQUEST_FIELDS) };
+}
+
+export function parseAccountMagicLink(input: unknown): AccountMagicLinkResult {
+  const parsed = accountMagicLinkSchema.safeParse(input);
+
+  if (parsed.success) {
+    return { ok: true, value: parsed.data };
+  }
+
+  return { ok: false, errors: fieldErrors(parsed.error, MAGIC_LINK_FIELDS) };
 }
 
 export function parseAccountResetConfirm(input: unknown): AccountResetConfirmResult {

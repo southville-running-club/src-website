@@ -55,3 +55,55 @@
 .account-dob-year .field-input {
   width: 5rem;
 }
+
+/* #55 and #56 — the three ways into `/account/sign-in/`, one `fieldset` each.
+ *
+ * **The `fieldset` is for the screen reader, not for the border.** #55 asks for real
+ * `fieldset` and `legend` structure because two unlabelled email boxes on one page give
+ * somebody using a screen reader no way to tell which one sends a link; the browser's default
+ * border and inset padding are chrome nobody asked for, so they go, exactly as `.account-dob`
+ * already does it.
+ *
+ * **A class rather than `.signup fieldset`.** `.account-dob` is a fieldset inside the same
+ * form on `/account/details/`, and a descendant selector would out-specify its own rules and
+ * put the default padding back on the date of birth. */
+.account-way {
+  margin: 0 0 calc(var(--space, 1rem) * 1.5);
+  padding: 0;
+  border: 0;
+}
+
+.account-way > legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+/* Offered beside the primary action rather than instead of it — #56 is explicit that Google
+   is "a real alternative offered beside the others, not the primary action". Same size and
+   same hit area, so it is no harder to press; only the fill says which one the club leads
+   with. */
+.button-secondary {
+  border-color: var(--colour-accent);
+  background: transparent;
+  color: var(--colour-accent);
+}
+
+/* #62's deletion. Same 2px border and 2.75rem minimum height as every other button, because a
+   destructive action that is visually smaller is one people mis-tap.
+ *
+ * **`--colour-error`, not `--colour-danger`, and the difference is the whole point.**
+ * `tokens.css` says it in as many words: `--src-danger` is the guideline's `color.danger`
+ * undiluted, 4.15:1 on white, and **"non-text and large-scale use only (icons, borders, DNF
+ * fills)"**. `--src-error` is the derived variant — same hue and saturation, lightness moved
+ * to 7.04:1 — and it is the one that may carry text.
+ *
+ * This shipped as `--colour-danger` first and axe caught it at **4.22:1 against white, under
+ * the 4.5:1 AA threshold**, on the one button in this repository that deletes somebody's
+ * account. The name matched; the contrast did not. Picking a token by what it is called
+ * rather than by what `tokens.css` says it is for is the mistake to avoid here, and every
+ * `--colour-danger` use in `nn-admin.css` is a border or a `color-mix` fill for exactly this
+ * reason. */
+.button-danger {
+  background: var(--colour-error);
+  color: var(--colour-on-accent);
+}

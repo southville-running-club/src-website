@@ -11,8 +11,10 @@ export {
 
 export {
   createAnonClient,
+  createPkceClient,
   createUserClient,
   type AnonClient,
+  type PkceVerifierStore,
   type UserClient,
   type SupabaseConfig,
 } from './supabase';
@@ -29,18 +31,21 @@ export {
   parseAccountResetConfirm,
   parseAccountChangePassword,
   parseAccountDetails,
+  parseAccountMagicLink,
   type AccountSignUp,
   type AccountSignIn,
   type AccountResetRequest,
   type AccountResetConfirm,
   type AccountChangePassword,
   type AccountDetails,
+  type AccountMagicLink,
   type AccountSignUpErrors,
   type AccountSignInErrors,
   type AccountResetRequestErrors,
   type AccountResetConfirmErrors,
   type AccountChangePasswordErrors,
   type AccountDetailsErrors,
+  type AccountMagicLinkErrors,
 } from './account';
 
 export { fetchHealth, type HealthResult } from './health';

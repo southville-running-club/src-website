@@ -28,6 +28,16 @@ const rpc = vi.fn();
 const peopleSelect = vi.fn();
 const peopleUpdate = vi.fn();
 
+/** #55 and #56's PKCE client. `minted()` answers a verifier by default because the real
+ *  supabase-js mints one while *building* the request rather than after it succeeds — which
+ *  is what makes the magic-link response identical for a known and an unknown address, right
+ *  down to the `set-cookie`. A test that let the verifier depend on the outcome would be
+ *  asserting against a fake that leaks what the real one does not. */
+const signInWithOtp = vi.fn();
+const signInWithOAuth = vi.fn();
+const exchangeCodeForSession = vi.fn();
+const mintedVerifier = vi.fn(() => 'zz-code-verifier');
+
 vi.mock('@src/shared', async () => {
   const actual = await vi.importActual<typeof import('@src/shared')>('@src/shared');
   return {
@@ -43,6 +53,10 @@ vi.mock('@src/shared', async () => {
         resetPasswordForEmail,
         updateUser,
       },
+    }),
+    createPkceClient: () => ({
+      client: { auth: { signInWithOtp, signInWithOAuth, exchangeCodeForSession } },
+      store: { minted: mintedVerifier },
     }),
     createUserClient: () => ({
       rpc,
@@ -1052,5 +1066,535 @@ describe('POST /account/details/', () => {
 
       expect(response.status).toBe(422);
     });
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// #55 — the magic link
+// -----------------------------------------------------------------------------------------
+
+/** Both cookie values, so a test can assert on the one it means. */
+function setCookies(response: Response): string[] {
+  return response.headers.getSetCookie();
+}
+
+function cookieNamed(response: Response, name: string): string | undefined {
+  return setCookies(response).find((value) => value.startsWith(`${name}=`));
+}
+
+describe('POST /account/link/', () => {
+  beforeEach(() => {
+    signInWithOtp.mockResolvedValue({ data: {}, error: null });
+  });
+
+  it('sends a link and acknowledges without saying whether the address exists', async () => {
+    const { cookie, body } = withCsrf({
+      email: 'zz-someone@example.com',
+      'cf-turnstile-response': 'zz-token',
+    });
+
+    const response = await handleAccount(
+      post('/account/link/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/?sent=ok');
+  });
+
+  it('never creates an account — registering is /account/sign-up/', async () => {
+    const { cookie, body } = withCsrf({
+      email: 'zz-someone@example.com',
+      'cf-turnstile-response': 'zz-token',
+    });
+
+    await handleAccount(
+      post('/account/link/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    expect(signInWithOtp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({ shouldCreateUser: false }),
+      }),
+    );
+  });
+
+  it('carries the verifier out in an HttpOnly, Lax cookie', async () => {
+    const { cookie, body } = withCsrf({
+      email: 'zz-someone@example.com',
+      'cf-turnstile-response': 'zz-token',
+    });
+
+    const response = await handleAccount(
+      post('/account/link/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    const pkce = cookieNamed(response, 'src_pkce');
+    expect(pkce).toContain('zz-code-verifier');
+    expect(pkce).toContain('HttpOnly');
+    // `Strict` would drop this on the cross-site navigation from a mail client, and the
+    // exchange would then fail on a code that was perfectly good.
+    expect(pkce).toContain('SameSite=Lax');
+  });
+
+  /**
+   * **The one that matters.** This form is on the sign-in page, so an answer that differed
+   * for a real address would turn it into a membership oracle anybody could query — worse
+   * than the reset form, which at least sits on its own page.
+   */
+  it('answers identically for an address GoTrue does not know', async () => {
+    const known = withCsrf({
+      email: 'zz-known@example.com',
+      'cf-turnstile-response': 'zz-token',
+    });
+    const knownResponse = await handleAccount(
+      post('/account/link/', known.body, known.cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    signInWithOtp.mockResolvedValue({
+      data: {},
+      error: { code: 'otp_disabled', message: 'Signups not allowed for otp' },
+    });
+
+    const unknown = withCsrf({
+      email: 'zz-unknown@example.com',
+      'cf-turnstile-response': 'zz-token',
+    });
+    const unknownResponse = await handleAccount(
+      post('/account/link/', unknown.body, unknown.cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    expect(unknownResponse.status).toBe(knownResponse.status);
+    expect(unknownResponse.headers.get('location')).toBe(
+      knownResponse.headers.get('location'),
+    );
+    // Down to the cookie names set, because a `set-cookie` present in one case and absent in
+    // the other is an oracle just as usable as a different status code.
+    expect(setCookies(unknownResponse).map((value) => value.split('=')[0])).toEqual(
+      setCookies(knownResponse).map((value) => value.split('=')[0]),
+    );
+  });
+
+  it('refuses a stale form', async () => {
+    const body = new URLSearchParams({ email: 'zz-someone@example.com' });
+
+    const response = await handleAccount(
+      post('/account/link/', body, `${CSRF_COOKIE}=zz-a-different-token`),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(signInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it('reports a malformed address on the link form, not the password form', async () => {
+    const { cookie, body } = withCsrf({
+      email: 'not-an-address',
+      'cf-turnstile-response': 'zz-token',
+    });
+
+    const response = await handleAccount(
+      post('/account/link/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/link/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(signInWithOtp).not.toHaveBeenCalled();
+    // The two email inputs are told apart by id, not by name — see `textField`'s `id`
+    // override. This is what proves the error landed on the right one.
+    expect(await response.text()).toContain('account-link-email');
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// #55 and #56 — the callback both of them land on
+// -----------------------------------------------------------------------------------------
+
+const CALLBACK_SESSION = {
+  access_token: 'zz-new-access-token',
+  refresh_token: 'zz-new-refresh-token',
+  expires_in: 3600,
+};
+
+describe('GET /account/callback/', () => {
+  beforeEach(() => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { session: CALLBACK_SESSION },
+      error: null,
+    });
+  });
+
+  it('exchanges the code, signs the person in, and clears the verifier', async () => {
+    const response = await handleAccount(
+      get('/account/callback/?code=zz-code', 'src_pkce=zz-code-verifier'),
+      ENV,
+      new URL('http://localhost:8787/account/callback/?code=zz-code'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/');
+    expect(cookieNamed(response, 'src_at')).toContain('zz-new-access-token');
+    expect(cookieNamed(response, 'src_rt')).toContain('zz-new-refresh-token');
+    expect(cookieNamed(response, 'src_pkce')).toContain('Max-Age=0');
+  });
+
+  /**
+   * **A prefetching mail scanner is exactly this case**, and it is the property that replaces
+   * the `token_hash` flow #55 asked for: the scanner follows the link, so it holds a code —
+   * and it does not hold the `HttpOnly` cookie, so it cannot turn one into a session.
+   */
+  it('refuses a code with no verifier, and says which browser to use', async () => {
+    const response = await handleAccount(
+      get('/account/callback/?code=zz-code'),
+      ENV,
+      new URL('http://localhost:8787/account/callback/?code=zz-code'),
+    );
+
+    expect(response.status).toBe(400);
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(await response.text()).toContain('same browser');
+  });
+
+  it('says a used link is used, rather than failing blankly', async () => {
+    exchangeCodeForSession.mockResolvedValue({
+      data: { session: null },
+      error: { message: 'invalid flow state' },
+    });
+
+    const response = await handleAccount(
+      get('/account/callback/?code=zz-code', 'src_pkce=zz-code-verifier'),
+      ENV,
+      new URL('http://localhost:8787/account/callback/?code=zz-code'),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain('only be used once');
+  });
+
+  it('treats an error handed back by the provider as a dead link', async () => {
+    const response = await handleAccount(
+      get('/account/callback/?error=access_denied', 'src_pkce=zz-code-verifier'),
+      ENV,
+      new URL('http://localhost:8787/account/callback/?error=access_denied'),
+    );
+
+    expect(response.status).toBe(400);
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
+  /**
+   * `next` arrives from a link in an email, which is the single most credible place to put an
+   * open redirect. Each of these is a real technique rather than a theoretical one.
+   */
+  describe('the next parameter, which must be a path on this origin', () => {
+    const refused = [
+      ['an absolute URL', 'https://evil.example/'],
+      ['a protocol-relative URL', '//evil.example/'],
+      ['a backslash-smuggled host', '/\\evil.example/'],
+      ['a scheme with no host', 'javascript:alert(1)'],
+      ['a bare word', 'evil.example'],
+    ] as const;
+
+    for (const [description, value] of refused) {
+      it(`refuses ${description}`, async () => {
+        const path = `/account/callback/?code=zz-code&next=${encodeURIComponent(value)}`;
+        const response = await handleAccount(
+          get(path, 'src_pkce=zz-code-verifier'),
+          ENV,
+          new URL(`http://localhost:8787${path}`),
+        );
+
+        expect(response.headers.get('location')).toBe('/account/');
+      });
+    }
+
+    it('allows an ordinary path, including one with a hyphen in it', async () => {
+      const path = '/account/callback/?code=zz-code&next=%2Fadmin%2Fnn%2Fstart-list%2F';
+      const response = await handleAccount(
+        get(path, 'src_pkce=zz-code-verifier'),
+        ENV,
+        new URL(`http://localhost:8787${path}`),
+      );
+
+      expect(response.headers.get('location')).toBe('/admin/nn/start-list/');
+    });
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// #56 — Google
+// -----------------------------------------------------------------------------------------
+
+describe('POST /account/google/', () => {
+  const GOOGLE_ENV = { ...ENV, GOOGLE_SIGN_IN: 'on' };
+
+  beforeEach(() => {
+    signInWithOAuth.mockResolvedValue({
+      data: { url: 'https://accounts.google.com/o/oauth2/auth?zz' },
+      error: null,
+    });
+  });
+
+  it('hands off to Google and carries the verifier out', async () => {
+    const { cookie, body } = withCsrf({});
+
+    const response = await handleAccount(
+      post('/account/google/', body, cookie),
+      GOOGLE_ENV,
+      new URL('http://localhost:8787/account/google/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toContain('accounts.google.com');
+    expect(cookieNamed(response, 'src_pkce')).toContain('zz-code-verifier');
+  });
+
+  it('asks for an email address and a name, and nothing else', async () => {
+    const { cookie, body } = withCsrf({});
+
+    await handleAccount(
+      post('/account/google/', body, cookie),
+      GOOGLE_ENV,
+      new URL('http://localhost:8787/account/google/'),
+    );
+
+    expect(signInWithOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'google',
+        options: expect.objectContaining({ scopes: 'email profile' }),
+      }),
+    );
+  });
+
+  it('returns to /account/callback/ rather than an address of its own', async () => {
+    const { cookie, body } = withCsrf({});
+
+    await handleAccount(
+      post('/account/google/', body, cookie),
+      GOOGLE_ENV,
+      new URL('http://localhost:8787/account/google/'),
+    );
+
+    const call = signInWithOAuth.mock.calls[0][0] as {
+      options: { redirectTo: string };
+    };
+    expect(call.options.redirectTo).toContain('/account/callback/');
+  });
+
+  it('does nothing at all while the provider is not configured', async () => {
+    const { cookie, body } = withCsrf({});
+
+    const response = await handleAccount(
+      post('/account/google/', body, cookie),
+      ENV,
+      new URL('http://localhost:8787/account/google/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it('keeps the button off the sign-in page until then', async () => {
+    const off = await handleAccount(
+      get('/account/sign-in/'),
+      ENV,
+      new URL('http://localhost:8787/account/sign-in/'),
+    );
+    expect(await off.text()).not.toContain('/account/google/');
+
+    const on = await handleAccount(
+      get('/account/sign-in/'),
+      GOOGLE_ENV,
+      new URL('http://localhost:8787/account/sign-in/'),
+    );
+    expect(await on.text()).toContain('/account/google/');
+  });
+
+  it('refuses a stale form', async () => {
+    const response = await handleAccount(
+      post('/account/google/', new URLSearchParams({}), `${CSRF_COOKIE}=zz-other`),
+      GOOGLE_ENV,
+      new URL('http://localhost:8787/account/google/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(signInWithOAuth).not.toHaveBeenCalled();
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// #62 — /account/data/
+// -----------------------------------------------------------------------------------------
+
+const SIGNED_IN_COOKIE = `src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`;
+
+function signedIn(): void {
+  getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+}
+
+describe('GET /account/data/', () => {
+  it('is not reachable signed out', async () => {
+    const response = await handleAccount(
+      get('/account/data/'),
+      ENV,
+      new URL('http://localhost:8787/account/data/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/');
+  });
+
+  /**
+   * **The promise, not the feature.** Somebody who deletes an account believing their race
+   * entry goes with it finds out at the start line, on a morning that cannot be re-run — so
+   * the page has to say what survives, and it has to say it before the button.
+   */
+  it('says what deletion does not remove, before the button', async () => {
+    signedIn();
+
+    const response = await handleAccount(
+      get('/account/data/', SIGNED_IN_COOKIE),
+      ENV,
+      new URL('http://localhost:8787/account/data/'),
+    );
+
+    expect(response.status).toBe(200);
+
+    const markup = await response.text();
+    const squashed = markup.replace(/\s+/g, ' ');
+
+    expect(squashed).toContain('race entry you have paid for');
+    expect(squashed).toContain('still be on the start list');
+    expect(squashed).toContain('interest list');
+
+    expect(markup.indexOf('does not delete')).toBeLessThan(
+      markup.indexOf('Delete my account'),
+    );
+  });
+});
+
+describe('POST /account/data/export/', () => {
+  it('hands back an attachment, and the assertion is on the response', async () => {
+    signedIn();
+    rpc.mockResolvedValue({
+      data: { ok: true, account: { id: 'zz-person', email: 'zz@example.com' } },
+      error: null,
+    });
+
+    const { cookie, body } = withCsrf({});
+    const response = await handleAccount(
+      post('/account/data/export/', body, `${cookie}; ${SIGNED_IN_COOKIE}`),
+      ENV,
+      new URL('http://localhost:8787/account/data/export/'),
+    );
+
+    // Not on a download event: the three browser engines disagree about what an attachment
+    // is, and WebKit on a Linux runner renders one in the tab. The status, the content type
+    // and the filename are what every engine agrees on.
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(response.headers.get('content-disposition')).toContain('attachment');
+    expect(response.headers.get('content-disposition')).toContain(
+      'southville-running-club-account.json',
+    );
+    expect(JSON.parse(await response.text())).toMatchObject({ ok: true });
+  });
+
+  it('refuses a stale form without asking the database anything', async () => {
+    signedIn();
+
+    const response = await handleAccount(
+      post(
+        '/account/data/export/',
+        new URLSearchParams({}),
+        `${CSRF_COOKIE}=zz-other; ${SIGNED_IN_COOKIE}`,
+      ),
+      ENV,
+      new URL('http://localhost:8787/account/data/export/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /account/data/delete/', () => {
+  it('deletes, ends the session, and says the entry is unaffected', async () => {
+    signedIn();
+    rpc.mockResolvedValue({ data: { ok: true }, error: null });
+
+    const { cookie, body } = withCsrf({ confirm: 'DELETE' });
+    const response = await handleAccount(
+      post('/account/data/delete/', body, `${cookie}; ${SIGNED_IN_COOKIE}`),
+      ENV,
+      new URL('http://localhost:8787/account/data/delete/'),
+    );
+
+    expect(rpc).toHaveBeenCalledWith('delete_me');
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/?deleted=ok');
+    expect(cookieNamed(response, 'src_at')).toContain('Max-Age=0');
+    expect(cookieNamed(response, 'src_rt')).toContain('Max-Age=0');
+  });
+
+  it('is not reachable by one keystroke', async () => {
+    signedIn();
+
+    const { cookie, body } = withCsrf({ confirm: '' });
+    const response = await handleAccount(
+      post('/account/data/delete/', body, `${cookie}; ${SIGNED_IN_COOKIE}`),
+      ENV,
+      new URL('http://localhost:8787/account/data/delete/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  /** The same hole `revoke_role()` already refuses through its own door. */
+  it('tells the last super-admin to hand the role over first', async () => {
+    signedIn();
+    rpc.mockResolvedValue({
+      data: { ok: false, reason: 'last_super_admin' },
+      error: null,
+    });
+
+    const { cookie, body } = withCsrf({ confirm: 'DELETE' });
+    const response = await handleAccount(
+      post('/account/data/delete/', body, `${cookie}; ${SIGNED_IN_COOKIE}`),
+      ENV,
+      new URL('http://localhost:8787/account/data/delete/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect((await response.text()).replace(/\s+/g, ' ')).toContain('only super-admin');
+  });
+
+  it('refuses a stale form without asking the database anything', async () => {
+    signedIn();
+
+    const response = await handleAccount(
+      post(
+        '/account/data/delete/',
+        new URLSearchParams({ confirm: 'DELETE' }),
+        `${CSRF_COOKIE}=zz-other; ${SIGNED_IN_COOKIE}`,
+      ),
+      ENV,
+      new URL('http://localhost:8787/account/data/delete/'),
+    );
+
+    expect(response.status).toBe(422);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

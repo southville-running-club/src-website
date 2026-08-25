@@ -48,6 +48,18 @@
     // local Supabase stack" step), so nobody needs the club's real Turnstile secret just to
     // run the test suite. Production's real site key is in `env.production` below.
     "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+
+    // **Off, because there is no Google OAuth client yet** — #56, and
+    // [the runbook](../../../docs/delivery/runbooks/google-oauth.md) is what turns it on.
+    //
+    // It holds no credential: the secret half is GoTrue's
+    // `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, and this only says whether the button is
+    // offered. It exists because the provider and the button are switched on by two
+    // different people at two different times — `[auth.external.google]` in `config.toml`
+    // ships on the next merge touching a migration, while this is a Cloudflare deploy — and
+    // a button leading to a provider GoTrue does not know about is a dead end somebody has
+    // to debug. **Provider first, button second.**
+    "GOOGLE_SIGN_IN": "off",
   },
 
   // ---------------------------------------------------------------------------------
@@ -126,6 +138,11 @@
         // script reads client-side — and its secret pair lives only as the
         // `SUPABASE_AUTH_CAPTCHA_SECRET` GitHub Actions repository secret, read by GoTrue.
         "TURNSTILE_SITE_KEY": "0x4AAAAAAEaeMm9jDSJB7Gqy",
+
+        // Off until the OAuth client exists and `[auth.external.google]` has actually
+        // reached production — see the top-level note, and the runbook. Repeated rather
+        // than inherited, like every other var here.
+        "GOOGLE_SIGN_IN": "off",
       },
 
       // Repeated rather than inherited — see the note at the top level. Wrangler does not

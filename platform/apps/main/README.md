@@ -710,6 +710,12 @@ reach is not a deployable state the way an admin surface with no key installed i
 | `GET`/`POST /account/reset/confirm/` | Where the reset link lands, and where the new password is set — #54 |
 | `GET`/`POST /account/password/` | Changing a password from inside a signed-in account. Asks for the current one — #54 |
 | `GET`/`POST /account/details/` | Name, gender, date of birth, address — #61. Every field but name is optional and empty until filled in. `?done=ok` for the acknowledgement |
+| `POST /account/link/` | Ask for a magic link — #55. Email, Turnstile. **Its own address rather than a hidden field on the sign-in page**, because that is how this repository has told two forms apart since the entry pages stopped carrying one. `/account/sign-in/?sent=ok` for the acknowledgement, the same one whether or not the address has an account |
+| `POST /account/google/` | Hand off to Google — #56. A POST rather than a link: it mints a verifier, sets a cookie and carries a CSRF token. **Renders nothing and does nothing while `GOOGLE_SIGN_IN` is not `on`** |
+| `GET /account/callback/` | **The one address every non-password route lands on** — #55's magic link and #56's Google return both. Built once, used twice |
+| `GET /account/data/` | Download everything the club holds, or delete the account — #62. Behind a session, and no Turnstile: a bot with a valid session has already got in |
+| `POST /account/data/export/` | The download. `application/json`, `content-disposition: attachment` |
+| `POST /account/data/delete/` | The deletion. Needs `DELETE` typed into a box, so it is not reachable by one keystroke |
 
 **Built the way `/nn/admin` is, and for the same reason.** The content is per-request — is
 anybody signed in, what did the last submission get wrong — so it is built with
@@ -840,6 +846,86 @@ section is commented out, which is how the CLI shipped it and how every green de
 `packages/db/tests/unit/config.test.ts` fails if any email-template block is declared at all
 before then. Until that lands, a silent password change is only visible as the other sessions
 dying.
+
+### The magic link and Google — #55 and #56
+
+Two ways in that are not a password, landing on **one** address: `GET /account/callback/`.
+#56 adds a branch to it rather than an address of its own.
+
+**PKCE, not the implicit flow, and the reason is not the usual one.** #55 asks that a
+prefetching mail scanner — some corporate scanners follow every URL in a message before a
+human sees it — must not consume a single-use token. The issue proposes GoTrue's `token_hash`
+flow for that, which needs the email template to emit `{{ .TokenHash }}`. **That is the block
+the section above explains cannot be declared at all**, and `config.test.ts` fails on it. The
+route is closed until #50's custom SMTP exists.
+
+PKCE reaches the same property by another road and needs no template:
+
+| | |
+| --- | --- |
+| **The code is on the query string** | So the Worker reads it directly. None of `/account/reset/confirm/`'s hidden-form-and-inline-script gymnastics, because nothing arrives in the fragment |
+| **Redeeming it needs a `code_verifier`** | Minted here, kept in an `HttpOnly` cookie that never left this origin. **A scanner that follows the link holds a code and nothing to redeem it with**, so it cannot obtain a session — which is the property #55 actually wanted |
+| **It is what OAuth needs anyway** | So the callback is genuinely built once and used twice |
+
+**`SameSite=Lax` is load-bearing on that cookie**, for the reason `session.ts` already gives
+about the session pair: arriving from a mail client is a cross-site top-level navigation, and
+`Strict` would drop the cookie on the way in — the exchange would then fail on a code that was
+perfectly good, which is the least debuggable outcome available. Ten minutes' `Max-Age`: long
+enough to open an email on a phone that has gone to sleep, short enough that a shared machine
+does not keep a redeemable secret all day.
+
+**`next` must resolve to a path on this origin.** It arrives from a link in an email, which is
+the single most credible place to put an open redirect, so anything carrying a scheme, a host,
+a backslash or whitespace is refused outright and falls back to `/account/` rather than being
+sanitised. `safeNext()` is the whole of it, and `tests/unit/account.test.ts` asserts five
+separate techniques against it.
+
+**A magic link never creates an account.** `shouldCreateUser: false` — registering is
+`/account/sign-up/`, which collects a name and shows the terms, and a link that silently
+created a nameless account would put people in the members table who agreed to nothing.
+
+**The acknowledgement is the same whether or not the address has an account**, down to which
+cookies are set. This form is on the sign-in page, so an answer that differed would be a
+membership oracle anybody could query — a worse version of the leak `/account/reset/` was
+already careful about.
+
+**Google renders nothing until `GOOGLE_SIGN_IN` is `on`.** The provider and the button are
+switched on by two different people at two different times — `[auth.external.google]` ships on
+the next merge touching a migration, the var is a Cloudflare deploy — so the button waits for
+the far side to be ready. **Provider first, button second**;
+[the runbook](../../../docs/delivery/runbooks/google-oauth.md) is the order.
+
+### Downloading and deleting an account — #62
+
+`/account/data/`, behind a session, and the two things it offers have nothing in common except
+the page they are on.
+
+**The export is downloaded, never emailed.** Emailing a file of somebody's personal data to an
+address is a disclosure with no way back. It comes from `identity.export_me()` rather than
+four reads, because `role_grants` and `audit` have no policy and no grant to anybody — an
+export assembled client-side would silently omit somebody's roles and nobody would notice.
+
+**Deletion goes through `identity.delete_me()`, which takes no arguments at all.** There is
+nothing to pass that could be wrong and no way to name somebody else; `auth.uid()` is the only
+input and it comes from a verified JWT. It deletes the `auth.users` row and lets the foreign
+keys cascade, which takes the profile, the role grants and GoTrue's refresh tokens — that last
+one is what ends every session immediately. **No service role key**, which is the point:
+`createUserClient` still refuses one.
+
+**The page says what deletion does not remove, before the button.**
+
+| Survives | Why |
+| --- | --- |
+| A paid race entry | A financial record with its own retention, belonging to the transaction as much as to the person. `entries.entrants` is **not** keyed on `identity.people`, and `identity.test.ts` asserts no foreign key from `entries` reaches `identity` — inserting an entrant and watching it survive would pass just as well on a schema somebody had since made cascade |
+| Medical notes | Already deleted a month after the race by the cron. Nothing here changes when |
+| The interest list | Its own consent and its own record |
+| Both audit trails | Neither has a foreign key to `people`, deliberately. After a deletion they hold a uuid that resolves to nobody, which is the correct outcome — an audit trail somebody can erase by leaving is not an audit trail |
+
+**The last super-admin cannot delete themselves.** `identity.revoke_role()` already refuses to
+remove the last active super-admin grant, for the reason
+[principles](../../../docs/architecture/principles.md) gives — no system is reachable by only
+one person — and deleting the account is the same hole by a different door. Same
+`last_super_admin` reason, and the page says to hand the role over at `/admin/people/` first.
 
 ### The profile: name, email, gender, date of birth, address — #61
 
@@ -1155,16 +1241,25 @@ is the argument for two credentials rather than one.
 > creating it before the secrets are set means every early delivery 5xxs. Nothing is *lost*
 > either way — Stripe retries for three days — but the dashboard fills with red for no reason.
 
-**Member accounts add two more, and they are a different kind of secret.** Steps 9 and 10 are
-**GitHub Actions repository secrets**, not Worker secrets — `env(...)` substitution in
+**Member accounts add a different kind of secret**, and steps 9, 10 and 13 are all of it.
+They are **GitHub Actions repository secrets**, not Worker secrets — `env(...)` substitution in
 `packages/db/supabase/config.toml` is read wherever `supabase config push` runs, which is
 `deploy-db.yml`, not the Worker. [Decision 005 and ADR-015](../../../docs/decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth)
-record the choice. **Both are needed before their block is uncommented, not after** — the
+record the choice. **Each is needed before its own block is uncommented, not after** — the
 Supabase CLI validates an `env(...)` substitution at startup, and an unset one breaks
 `supabase start` outright. #49 turns on the parts of `[auth]` that need no secret —
 `enable_signup`, email confirmation, a twelve-character minimum password; `[auth.captcha]`
-and `[auth.external.google]` stay commented out until #53 and #56 need them and step 9 or
-10 has actually been done.
+stayed commented out until #53 needed it and step 9 had actually been done, and
+`[auth.email.smtp]` stayed commented out until #50 and step 13.
+
+**`[auth.external.google]` is the one that is present rather than commented, and the
+difference is worth knowing.** #56 ships it with `enabled = false`, shaped exactly like the
+`[auth.external.apple]` block the CLI has always carried — which also has an `env()` secret
+nobody has set, and which has pushed green on every deploy. **A disabled external provider is
+not what the free tier refuses; an email template is.** That is why the `password_changed`
+block is commented out and this one is not, and `tests/unit/config.test.ts` guards the
+distinction. Step 10 still has to be done **before** `enabled` is flipped to `true`, for the
+startup-validation reason above.
 
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
@@ -1176,9 +1271,10 @@ and `[auth.external.google]` stay commented out until #53 and #56 need them and 
 | _6. Register the club's admin address_ | **This is what switches the back office on**, and it replaced steps 6 and 7 as they stood — #58 retired the two-key scheme in the Worker, so there is no `ENTRIES_ADMIN_KEY` to install and no per-person key to issue. `admin@southvillerunningclub.co.uk` is written into `identity.reserved_grants` by the migration and becomes `super-admin` by registering like anybody else | _pending_ | Register at `/account/sign-up/`, confirm from that mailbox, then grant the other volunteer `nn-admin` at `/admin/people/`. [The admin runbook](../../../docs/delivery/runbooks/entries-admin.md#bootstrapping-the-first-super-admin). **No secret, no SQL, and no deploy** — which is the point of #59 |
 | _8. Validate the four entries constraints_ | **Independent of every step above, and nothing is broken until it is done.** Slice G's check constraints shipped `NOT VALID`, so they enforce every new write but have never looked at the rows already there — because nobody here could see them, and a validated `ADD CONSTRAINT` fails the *migration* if one row disagrees, which fails the deploy for everything | _pending_ | [The constraints runbook](../../../docs/delivery/runbooks/entries-constraints.md). Step 1 is a read-only query that says whether step 2 will succeed; run it first and stop if any count is not zero, because a row that disagrees is evidence rather than a mess to tidy |
 | _9. Set `SUPABASE_AUTH_CAPTCHA_SECRET`, before #53 uncomments `[auth.captcha]`_ | **A GitHub Actions repository secret, not a Worker secret** — `deploy-db.yml` runs `supabase config push` in Actions, and that is where `env(...)` substitution reads from. It has to exist **before** `[auth.captcha]` is uncommented: the CLI validates the substitution at startup, and an unset one breaks `supabase start` outright rather than shipping captcha silently off — confirmed while building #49, which is why that block shipped commented out until #53 | **Done**, 24 Aug 2026 | Repository → Settings → Secrets and variables → Actions → New repository secret, name `SUPABASE_AUTH_CAPTCHA_SECRET`, value the Turnstile **secret** key. The site key (`0x4AAAAAAEaeMm9jDSJB7Gqy`) is public and lives in `wrangler.jsonc`'s `env.production.vars` as `TURNSTILE_SITE_KEY`, #53 |
-| _10. Set `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, before #56 uncomments `[auth.external.google]`_ | **Not consumed by anything until #56**, and the same startup-validation trap applies — set it before that block is uncommented, not after | _pending_ | Same place as step 9, name `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, value the OAuth client secret from the Google Cloud Console project #56 sets up |
-| _11. Create the Cloudflare rate-limiting rules_ | **The platform has no rate limit of any kind today.** Sign-in is a credential check, `/account/reset/` mails an address the caller chooses, and `POST /nn/2026/` holds a place in a 250-runner field for 31 minutes — none of which is capped by anything deployed. A rule per IP at the edge is the only layer that sees the runner's real address, because every Supabase call this Worker makes is server-side | _pending_ | [The accounts-open runbook](../../../docs/delivery/runbooks/accounts-open.md), step 1, working from [the rules file](../../../docs/reference/cloudflare-waf-rules.md#the-rules). **Update that file's status column in a pull request afterwards** — a rule it does not know about is drift, exactly as a DNS record the zone file does not know about is drift |
+| _10. Create the Google OAuth client, and set `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`_ | **Three switches, thrown by two people at two different times, and the order matters.** #56 shipped the code, the button and `[auth.external.google] enabled = false`; none of it does anything until a Google Cloud project exists. The same startup-validation trap as step 9 applies — the secret must exist **before** `enabled` is flipped to `true`, not after. Then, and only then, `GOOGLE_SIGN_IN` goes to `"on"` in `wrangler.jsonc`: **provider first, button second**, because a button leading to a provider GoTrue does not know about is a dead end somebody has to debug | **Parked**, 25 Aug 2026 — no Cloud project exists, and it gates nothing: [opening accounts](../../../docs/delivery/runbooks/accounts-open.md#stop-conditions) has no Google stop condition. The code ships inert, so **nothing is broken by leaving this undone** | [The Google runbook](../../../docs/delivery/runbooks/google-oauth.md), end to end. It carries the one that catches everybody: **the redirect URI registered at Google is Supabase's** (`https://<project>.supabase.co/auth/v1/callback`), not the club's `/account/callback/`. The Cloud project must be **club-owned with both volunteers as owners** — an OAuth client on a personal account is a system reachable by one person |
+| _11. Create the Cloudflare rate-limiting rules_ | **Was: the platform has no rate limit of any kind.** Sign-in is a credential check, `/account/reset/` mails an address the caller chooses, and `POST /nn/2026/` holds a place in a 250-runner field for 31 minutes — none of which is capped by anything deployed. A rule per IP at the edge is the only layer that sees the runner's real address, because every Supabase call this Worker makes is server-side | **Partly done**, 25 Aug 2026 | **One rule exists — `C1`, the combined expression — because the free plan allows exactly one and caps both the period and the mitigation at 10 seconds.** Not the five this repository specifies. Security → Security rules → Rate limiting rules; there is no *WAF* item in the sidebar any more, and *Rules* is a different feature. Values, the measured plan limits and what the 10-second ceiling costs are in [the rules file](../../../docs/reference/cloudflare-waf-rules.md#what-actually-happened). **Still outstanding: nobody has watched it fire**, which is [accounts-open step 0.3](../../../docs/delivery/runbooks/accounts-open.md#03--somebody-has-actually-tried-it) and a stop condition for announcing accounts |
 | _12. Set `RESEND_API_KEY`, before #50's send code lands_ | **A Worker secret, same mechanism as Stripe's** — Resend authenticates over a plain HTTPS API, so this is the only credential the send path needs. Scope the key to **Sending access only** in Resend's dashboard, never full account access, so a leak can only send mail as the club rather than reconfigure the account or read logs | **Done**, 25 Aug 2026 | `send.southvillerunningclub.co.uk` verified in Resend (account, DNS records in Cloudflare, domain verification — see [the design doc](../../../docs/solutions/resend-programmatic-email.md#step-by-step-get-go-to-a-working-send)), then `npx wrangler secret put RESEND_API_KEY --env production --config apps/main/wrangler.jsonc`, from `platform/`. Local dev uses the same name in `apps/main/.dev.vars`, gitignored |
+| _13. Set `SUPABASE_AUTH_SMTP_PASSWORD`, before `[auth.email.smtp]` is uncommented_ | **A GitHub Actions repository secret, not a Worker secret** — the same distinction as steps 9 and 10, and for the same reason: `env(...)` substitution in `config.toml` is read wherever `supabase config push` runs, which is `deploy-db.yml`. **The value is the Resend API key** — GoTrue speaks SMTP, not Resend's REST API, so there is no separate mail-server password; `smtp.resend.com` authenticates with user `resend` and the key as the password. That is why the same credential now sits in two places, beside step 12's Worker secret. Until it exists, production GoTrue is on the free tier's default sender at **two emails an hour for the whole project**, and the failure is silent | **Done**, 25 Aug 2026 | Same place as step 9, name `SUPABASE_AUTH_SMTP_PASSWORD`, value a Resend key scoped to **Sending access only**. Prefer a key created for GoTrue rather than reusing step 12's, so rotating one path does not silently stop the other. Resend shows a key once; if it is lost, generate a new one rather than hunting for it |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the

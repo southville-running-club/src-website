@@ -411,15 +411,81 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# -----------------------------------------------------------------------------------------
+# Outbound mail — #50, and the block that lifts #79's restriction
+# -----------------------------------------------------------------------------------------
+# **This replaces the CLI's commented-out SendGrid sample.** Until it landed, production
+# GoTrue was on the free tier's default sender at **two emails an hour for the whole
+# project** — whatever `[auth.rate_limit] email_sent` said above. Every account flow is an
+# email, and the failure was silent: the third person to sign up in an hour never received
+# anything and saw no error.
+#
+# **Resend's SMTP interface, not its REST API.** `docs/solutions/resend-programmatic-email.md`
+# designs a Worker calling Resend over HTTPS with `RESEND_API_KEY`; GoTrue cannot do that, and
+# this block speaks SMTP and nothing else. Same account, same verified subdomain, same DNS,
+# same key — which is why the key now lives in **two** places: a Worker secret for the send
+# path that is still unbuilt, and `SUPABASE_AUTH_SMTP_PASSWORD` as a GitHub repository secret
+# for the `env()` below. `user` is the literal string `resend`; the password is the API key.
+#
+# **Port 587 with STARTTLS, and the port is not a detail.** The first attempt at this used
+# **465** with implicit TLS and broke CI — every `auth.signUp()` in `entries-admin.test.ts`,
+# `identity-sessions.test.ts` and `identity.test.ts` failed with a bare
+# `AuthRetryableFetchError … status: 500`, reproducibly, and the change was reverted the same
+# day. A number of CI providers block 465 by default to fight spam. 587 is the less commonly
+# firewalled of the two Resend offers, and trying it was the first untested thing on that
+# post-mortem's own list.
+#
+# **What this unblocks, and it is the reason this block is worth the risk it carries:** the
+# free tier's management API refuses *any* email-template modification while the project is on
+# the default mailer — that is #79, and it cost four red deploys. The API's own error names
+# two escapes, upgrading the plan and configuring custom SMTP, and only the second is the
+# club's plan. So `[auth.email.notification.password_changed]` a few dozen lines up becomes
+# pushable the moment this is `enabled = true`, which is #54's one unmet box. **It stays
+# commented out here regardless**: turning it on is a separate change, because a failed
+# template push would otherwise take this block down with it and the revert would take both.
+#
+# **`admin_email` is the sending subdomain, never a human mailbox** —
+# `docs/solutions/email.md` is explicit that mixing programmatic volume into a mailbox's
+# sending reputation risks the mailbox that holds it. ⚠️ **GoTrue has no `reply_to`**, so a
+# reply to one of these goes to `accounts@send.…`, which has no mailbox behind it. #50's
+# *"replying to it reached `info@`"* is **not satisfied by this block alone** and is not
+# satisfiable from `config.toml` — see the runbook.
+# ⚠️ **`enabled = false`, and CI is what decided that — see #98.**
+#
+# The open question this block shipped with was whether GoTrue would really dial out, or
+# whether the earlier failure was port 465 being blocked. **It really dials out.** With
+# `enabled = true` and CI's placeholder password, every `signUp()` in the database tests
+# answered `AuthRetryableFetchError: Error sending confirmation email` — three suites down and
+# 116 tests skipped, in `identity.test.ts`, `identity-sessions.test.ts` and
+# `entries-admin.test.ts`. That is the experiment the hand-over asked for, run for real.
+#
+# **The block is correct; the problem is that one file serves two environments.** Production
+# has a real `SUPABASE_AUTH_SMTP_PASSWORD` and can reach Resend. A laptop and a CI runner have
+# a placeholder and cannot, and `[local_smtp]`'s catcher is only used while this is off — so
+# `enabled = true` here trades every local and CI account test for mail nobody can send.
+#
+# **Turning it on is a decision, not a fix, and it is one of three:**
+#
+#   1. `[remotes.production]` — the CLI mechanism built for exactly this: base stays off,
+#      production overrides it on. Untried here, and it is a new mechanism in the one file
+#      that has already cost four red deploys, so it wants its own change and its own review.
+#   2. Point `host`/`port`/`user`/`pass` at `[local_smtp]`'s catcher locally. `port` is an
+#      integer and `env()` substitution on it is unverified, which is what makes this less
+#      simple than it looks.
+#   3. Configure SMTP in the Supabase dashboard instead, and leave this off — the same
+#      accepted-manual-step shape as the Stripe webhook endpoint.
+#
+# Left off rather than picked, because `[auth]` is a stop-and-ask and this is not the pull
+# request to settle it in. **Production is no worse off than before**: this block has never
+# successfully deployed, so `false` is the state today, not a regression.
+[auth.email.smtp]
+enabled = false
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(SUPABASE_AUTH_SMTP_PASSWORD)"
+admin_email = "accounts@send.southvillerunningclub.co.uk"
+sender_name = "Southville Running Club"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -544,6 +610,40 @@ url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
+email_optional = false
+
+# -----------------------------------------------------------------------------------------
+# Google — #56, and switched off until a human has made the client
+# -----------------------------------------------------------------------------------------
+# **Present but disabled, deliberately, and shaped exactly like `[auth.external.apple]`
+# above.** That block ships `enabled = false` with an `env()` secret that is not set either,
+# and it has pushed green on every deploy — so a disabled external provider is *not* what the
+# free tier refuses. What it refuses is an **email template**, which is a different thing
+# entirely and is why the `password_changed` block a few hundred lines up is commented out
+# rather than merely disabled. See #79, and `tests/unit/config.test.ts`.
+#
+# **Two edits turn this on, and they are the runbook's, not a build's:**
+# [`google-oauth.md`](../../../../docs/delivery/runbooks/google-oauth.md) — set `enabled` to
+# `true` and paste the `client_id` the Google Cloud console gives you, having first added
+# `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` as a GitHub repository secret so the `env()` below
+# resolves.
+#
+# **`skip_nonce_check` stays `false`.** The CLI's own comment says it is "required for local
+# sign in with Google auth", and that is about a browser-side flow this platform does not
+# use — the exchange happens in the Worker. Turning off a nonce check to make a local
+# convenience work is not a trade worth making on the thing that signs people in.
+#
+# **The redirect URI registered at Google is Supabase's**, not the club's — the runbook says
+# so twice because getting it backwards is the standard first failure. `redirect_uri` here
+# stays empty so GoTrue uses its own default.
+[auth.external.google]
+enabled = false
+client_id = ""
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
 email_optional = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.

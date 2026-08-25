@@ -150,6 +150,17 @@ interface Env {
    * `SUPABASE_AUTH_CAPTCHA_SECRET`, and verifies the token itself.
    */
   TURNSTILE_SITE_KEY: string;
+
+  /**
+   * `'on'` once the Google OAuth client exists and `[auth.external.google]` has reached
+   * production — #56, and `docs/delivery/runbooks/google-oauth.md` turns it on.
+   *
+   * A `var`, and it holds no credential: the secret half is GoTrue's
+   * `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`. This only decides whether the button is offered,
+   * because the provider and the button ship by two different routes at two different times.
+   * Optional, and absent means off — a new environment is safe rather than broken.
+   */
+  GOOGLE_SIGN_IN?: string;
 }
 
 export default {

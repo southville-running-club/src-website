@@ -1,9 +1,11 @@
 import {
   createAnonClient,
+  createPkceClient,
   createUserClient,
   formatLondon,
   parseAccountChangePassword,
   parseAccountDetails,
+  parseAccountMagicLink,
   parseAccountResetConfirm,
   parseAccountResetRequest,
   parseAccountSignIn,
@@ -11,6 +13,7 @@ import {
   parseIsoDate,
   type AccountChangePasswordErrors,
   type AccountDetailsErrors,
+  type AccountMagicLinkErrors,
   type AccountResetConfirmErrors,
   type AccountResetRequestErrors,
   type AccountSignInErrors,
@@ -146,6 +149,20 @@ interface Env {
   PUBLIC_SUPABASE_ANON_KEY: string;
   /** Public. The Cloudflare Turnstile widget key — a `var`, like the Supabase anon key. */
   TURNSTILE_SITE_KEY: string;
+  /**
+   * `'on'` when the Google OAuth client actually exists — #56.
+   *
+   * **A `var`, not a secret, and it holds no credential.** The secret half lives in GoTrue as
+   * `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`; this only says whether the button should be
+   * offered. It exists because the button and the provider are switched on by two different
+   * people at two different times: `[auth.external.google]` in `config.toml` ships on the next
+   * merge touching a migration, while this is a Cloudflare deploy. Offering a button that
+   * leads to a provider GoTrue does not know about is a dead end somebody has to debug, so
+   * the button renders only when this says the far side is ready.
+   *
+   * Optional, and absent means off — a new environment is safe by default rather than broken.
+   */
+  GOOGLE_SIGN_IN?: string;
 }
 
 export async function handleAccount(
@@ -188,11 +205,39 @@ export async function handleAccount(
 
   if (segments.length === 1 && segments[0] === 'sign-in') {
     if (request.method === 'GET') {
-      return signInPage(env, secure, null, {}, { email: '' }, refreshedCookies);
+      return signInPage(
+        env,
+        secure,
+        null,
+        {},
+        { email: '' },
+        refreshedCookies,
+        {},
+        url.searchParams.get('sent') === 'ok'
+          ? 'link-sent'
+          : url.searchParams.get('deleted') === 'ok'
+            ? 'deleted'
+            : null,
+      );
     }
     if (request.method === 'POST') {
       return handleSignIn(request, env, cfg, secure);
     }
+  }
+
+  // **A second address rather than a hidden field on `/account/sign-in/`.** The magic link's
+  // form is rendered on the sign-in page, as #55 asks, but it submits here — because "the
+  // address a submission arrives at is what tells them apart" is how this repository has
+  // separated two forms since the entry pages stopped carrying a hidden `form` field.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'link') {
+    return handleMagicLinkRequest(request, env, cfg, secure, url);
+  }
+
+  // Same reasoning, and a POST rather than a link because minting the PKCE verifier is a
+  // state-changing act that sets a cookie — and because a bare `<a>` to Google could be
+  // triggered from another origin, which is what the CSRF token here refuses.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'google') {
+    return handleGoogleStart(request, env, cfg, secure, url);
   }
 
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'sign-out') {
@@ -201,6 +246,13 @@ export async function handleAccount(
 
   if (request.method === 'GET' && segments.length === 1 && segments[0] === 'confirm') {
     return confirmPage(url, secure);
+  }
+
+  // **The one address every non-password route lands on** — the magic link from #55 and
+  // Google's return from #56. Built once, used twice, which is why #56 adds no address of its
+  // own.
+  if (request.method === 'GET' && segments.length === 1 && segments[0] === 'callback') {
+    return handleCallback(request, env, cfg, secure, url);
   }
 
   if (segments.length === 1 && segments[0] === 'reset') {
@@ -255,6 +307,36 @@ export async function handleAccount(
     }
   }
 
+  if (segments.length === 1 && segments[0] === 'data') {
+    if (request.method === 'GET') {
+      if (session === null) {
+        return redirectTo('/account/sign-in/', secure, refreshedCookies);
+      }
+      return dataPage(secure, null, refreshedCookies);
+    }
+  }
+
+  // Two addresses, not one with a hidden field, and not one button that does both. The export
+  // and the deletion have nothing in common except the page they are offered on: one hands
+  // back a file, the other is irreversible.
+  if (
+    request.method === 'POST' &&
+    segments.length === 2 &&
+    segments[0] === 'data' &&
+    segments[1] === 'export'
+  ) {
+    return handleExport(request, session, cfg, secure, refreshedCookies);
+  }
+
+  if (
+    request.method === 'POST' &&
+    segments.length === 2 &&
+    segments[0] === 'data' &&
+    segments[1] === 'delete'
+  ) {
+    return handleDeleteAccount(request, session, cfg, secure, refreshedCookies);
+  }
+
   return page('Not found', notFoundBody(), { status: 404, secure, cookies: [] });
 }
 
@@ -291,6 +373,7 @@ async function accountHome(
       </p>
       <p><a href="/account/details/">Your details</a></p>
       <p><a href="/account/password/">Change your password</a></p>
+      <p><a href="/account/data/">Your data — download or delete it</a></p>
       <form method="post" action="/account/sign-out/">
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         <button class="button" type="submit">Sign out</button>
@@ -440,6 +523,19 @@ function signUpPage(
         ${turnstile(env.TURNSTILE_SITE_KEY, errors.captchaToken)}
         <button class="button" type="submit">Create account</button>
       </form>
+      ${
+        env.GOOGLE_SIGN_IN === 'on'
+          ? html`<form method="post" action="/account/google/" class="signup" novalidate>
+              <fieldset class="account-way">
+                <legend>Or use your Google account</legend>
+                <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+                <button class="button button-secondary" type="submit">
+                  Continue with Google
+                </button>
+              </fieldset>
+            </form>`
+          : null
+      }
       <p class="signup-privacy">
         <a href="/privacy/">What the club does with your details</a>
       </p>
@@ -573,6 +669,23 @@ async function handleSignIn(
   }
 }
 
+/**
+ * Three ways in on one page, and the structure is what makes that usable rather than
+ * confusing.
+ *
+ * **Each way is its own `fieldset` with its own `legend`.** #55 is explicit that "two forms on
+ * one page needs real fieldset and legend structure, not two lonely inputs" — a screen reader
+ * announcing two unlabelled email boxes gives somebody no way to tell which one sends a link
+ * and which one wants a password. The legends are what separate them.
+ *
+ * **Two `<form>` elements, submitting to two addresses.** Nested forms are not a thing HTML
+ * has, and a single form with two submit buttons would have to be told apart by a hidden
+ * field — which is the pattern this repository moved away from when the entry pages stopped
+ * carrying one.
+ *
+ * @param magicLinkErrors kept separate from `errors` so a bad address in one form does not
+ *   light up the identically-named field in the other.
+ */
 function signInPage(
   env: Env,
   secure: boolean,
@@ -580,8 +693,15 @@ function signInPage(
   errors: AccountSignInErrors,
   submitted: { email: string },
   extraCookies: string[],
+  magicLinkErrors: AccountMagicLinkErrors = {},
+  notice: 'link-sent' | 'deleted' | null = null,
 ): Response {
   const csrfToken = mintCsrfToken();
+  const googleOn = env.GOOGLE_SIGN_IN === 'on';
+  const hasError =
+    message !== null ||
+    Object.keys(errors).length > 0 ||
+    Object.keys(magicLinkErrors).length > 0;
 
   const body = html`
     <main class="account-page">
@@ -593,23 +713,79 @@ function signInPage(
             </div>`
           : null
       }
+      ${
+        notice === 'link-sent'
+          ? html`<div class="notice" role="status" tabindex="-1" autofocus>
+              <p>
+                If there is an account for that address, we have sent it a link to sign
+                in. It can only be used once, and it has to be opened in this browser.
+              </p>
+            </div>`
+          : null
+      }
+      ${
+        notice === 'deleted'
+          ? html`<div class="notice" role="status" tabindex="-1" autofocus>
+              <p>
+                Your account has been deleted. Any race entry you paid for is unaffected
+                and you are still on the start list.
+              </p>
+            </div>`
+          : null
+      }
+
       <form method="post" action="/account/sign-in/" class="signup" novalidate>
-        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
-        ${textField('email', 'Email address', submitted.email, errors.email, {
-          type: 'email',
-          autocomplete: 'email',
-        })}
-        ${passwordField('password', 'Password', errors.password, 'current-password')}
-        ${turnstile(env.TURNSTILE_SITE_KEY, errors.captchaToken)}
-        <button class="button" type="submit">Sign in</button>
+        <fieldset class="account-way">
+          <legend>Sign in with a password</legend>
+          <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+          ${textField('email', 'Email address', submitted.email, errors.email, {
+            type: 'email',
+            autocomplete: 'email',
+          })}
+          ${passwordField('password', 'Password', errors.password, 'current-password')}
+          ${turnstile(env.TURNSTILE_SITE_KEY, errors.captchaToken)}
+          <button class="button" type="submit">Sign in</button>
+        </fieldset>
       </form>
+
+      <form method="post" action="/account/link/" class="signup" novalidate>
+        <fieldset class="account-way">
+          <legend>Or have a link emailed to you</legend>
+          <p class="field-hint">
+            No password to remember. The link signs you in on this device, and works once.
+          </p>
+          <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+          ${textField('email', 'Where to send the link', '', magicLinkErrors.email, {
+            type: 'email',
+            autocomplete: 'email',
+            id: 'account-link-email',
+          })}
+          ${turnstile(env.TURNSTILE_SITE_KEY, magicLinkErrors.captchaToken, false)}
+          <button class="button" type="submit">Email me a link</button>
+        </fieldset>
+      </form>
+
+      ${
+        googleOn
+          ? html`<form method="post" action="/account/google/" class="signup" novalidate>
+              <fieldset class="account-way">
+                <legend>Or use your Google account</legend>
+                <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+                <button class="button button-secondary" type="submit">
+                  Sign in with Google
+                </button>
+              </fieldset>
+            </form>`
+          : null
+      }
+
       <p><a href="/account/sign-up/">Create an account</a></p>
       <p><a href="/account/reset/">Forgotten your password?</a></p>
     </main>
   `;
 
   return page('Sign in', body, {
-    status: message !== null || Object.keys(errors).length > 0 ? 422 : 200,
+    status: hasError ? 422 : 200,
     secure,
     cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
   });
@@ -665,6 +841,373 @@ function confirmPage(url: URL, secure: boolean): Response {
   `;
 
   return page('Confirm your email', body, { secure, cookies: [] });
+}
+
+// -----------------------------------------------------------------------------------------
+// /account/link/, /account/google/ and /account/callback/ — #55 and #56
+// -----------------------------------------------------------------------------------------
+
+/**
+ * The PKCE code verifier, on its way to a mail client and back.
+ *
+ * **`HttpOnly`, and that is the whole security argument.** A prefetching mail scanner that
+ * follows the link holds a code and no verifier, so the exchange below refuses it — which is
+ * how #55's "a scanner must not consume the token" is met without the email template that
+ * finding 3 of `PLAN.md` explains is unavailable.
+ *
+ * **`SameSite=Lax`, for the reason `session.ts` gives about the session pair.** Arriving from
+ * a mail client is a cross-site top-level navigation; `Strict` would drop this cookie on the
+ * way in and the exchange would fail on a perfectly good code. Do not tighten it.
+ *
+ * **Ten minutes.** Long enough to open an email on a phone that has gone to sleep, short
+ * enough that a shared machine does not keep a redeemable secret all day.
+ */
+const PKCE_COOKIE = 'src_pkce';
+const PKCE_COOKIE_MAX_AGE_SECONDS = 60 * 10;
+
+function pkceCookie(verifier: string, secure: boolean): string {
+  return [
+    `${PKCE_COOKIE}=${verifier}`,
+    'Path=/account',
+    `Max-Age=${PKCE_COOKIE_MAX_AGE_SECONDS}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
+}
+
+function clearedPkceCookie(secure: boolean): string {
+  return [
+    `${PKCE_COOKIE}=`,
+    'Path=/account',
+    'Max-Age=0',
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
+}
+
+/**
+ * Where to send somebody once they are signed in.
+ *
+ * **An unchecked `next` is an open redirect**, and this one is reachable from a link in an
+ * email — the single most credible place to put one. The rule is that the value must resolve
+ * to a path on this origin, so anything carrying a scheme or a host is refused outright
+ * rather than sanitised: `//evil.example` is a protocol-relative URL that browsers treat as
+ * another origin, and a backslash is treated as a slash by enough parsers to be worth
+ * refusing too.
+ *
+ * Refusal is silent and falls back to `/account/`, because there is no useful thing to tell
+ * somebody who did not construct the URL themselves.
+ */
+function safeNext(raw: string | null): string {
+  if (raw === null || raw === '') {
+    return '/account/';
+  }
+
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
+    return '/account/';
+  }
+
+  // A backslash or whitespace anywhere is enough to refuse: no address in this
+  // application contains either, and both are known ways of talking a URL parser into
+  // reading a host where a path was meant.
+  if (/[\\\s]/.test(raw)) {
+    return '/account/';
+  }
+
+  // Control characters are refused by code point rather than by a character class,
+  // because ESLint's `no-control-regex` is right that a literal control character inside
+  // a pattern is nearly always a mistake — and a code-point test says the same thing more
+  // plainly than an escape somebody has to decode. `\s` above has already taken tab,
+  // newline and friends; this is the rest of C0, plus delete.
+  for (const character of raw) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) {
+      return '/account/';
+    }
+  }
+
+  return raw;
+}
+
+async function handleMagicLinkRequest(
+  request: Request,
+  env: Env,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  url: URL,
+): Promise<Response> {
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  const submitted = { email: readString(form, 'email') };
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return signInPage(
+      env,
+      secure,
+      'That form had expired. Please try again.',
+      {},
+      { email: '' },
+      [],
+    );
+  }
+
+  const parsed = parseAccountMagicLink(
+    form === null
+      ? {}
+      : {
+          email: form.get('email'),
+          captchaToken: form.get('cf-turnstile-response'),
+        },
+  );
+
+  if (!parsed.ok) {
+    return signInPage(env, secure, null, {}, submitted, [], parsed.errors);
+  }
+
+  const next = safeNext(url.searchParams.get('next'));
+  const { client, store } = createPkceClient(cfg, null);
+
+  try {
+    const { error } = await client.auth.signInWithOtp({
+      email: parsed.value.email,
+      options: {
+        captchaToken: parsed.value.captchaToken,
+        emailRedirectTo: `${url.origin}/account/callback/?next=${encodeURIComponent(next)}`,
+        // **Never create an account from a magic link.** Registering is `/account/sign-up/`,
+        // which collects a name and shows the terms; a link that silently created a nameless
+        // account would put people in the members table who never agreed to anything.
+        shouldCreateUser: false,
+      },
+    });
+
+    if (error !== null && isCaptchaError(error)) {
+      return signInPage(env, secure, null, {}, submitted, [], {
+        captchaToken: 'That verification check did not complete. Try again.',
+      });
+    }
+  } catch {
+    return signInPage(
+      env,
+      secure,
+      'The club’s database could not be reached. Try again in a moment.',
+      {},
+      submitted,
+      [],
+    );
+  }
+
+  const verifier = store.minted();
+
+  // **The acknowledgement is the same whether or not that address has an account**, which is
+  // the rule #54 established for reset and which matters more here: this form is on the sign-in
+  // page, so a different answer for a real address would turn it into a membership oracle
+  // anybody could query. `shouldCreateUser: false` means GoTrue quietly sends nothing to an
+  // address it does not know, and this response cannot tell the two apart either.
+  return redirectTo('/account/sign-in/?sent=ok', secure, [
+    ...(verifier === null ? [] : [pkceCookie(verifier, secure)]),
+  ]);
+}
+
+/**
+ * #56 — hand somebody off to Google, having first minted the verifier that will redeem their
+ * return.
+ *
+ * **A POST, not a link.** It sets a cookie and starts an authentication, so it carries a CSRF
+ * token like every other state-changing form here. `skipBrowserRedirect` is what makes
+ * supabase-js hand back the URL instead of trying to navigate a `window` a Worker does not
+ * have.
+ */
+async function handleGoogleStart(
+  request: Request,
+  env: Env,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  url: URL,
+): Promise<Response> {
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return signInPage(
+      env,
+      secure,
+      'That form had expired. Please try again.',
+      {},
+      { email: '' },
+      [],
+    );
+  }
+
+  if (env.GOOGLE_SIGN_IN !== 'on') {
+    return signInPage(
+      env,
+      secure,
+      'Signing in with Google is not switched on yet.',
+      {},
+      { email: '' },
+      [],
+    );
+  }
+
+  const next = safeNext(url.searchParams.get('next'));
+  const { client, store } = createPkceClient(cfg, null);
+
+  try {
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${url.origin}/account/callback/?next=${encodeURIComponent(next)}`,
+        skipBrowserRedirect: true,
+        // **Email and profile, and nothing else.** #56 is explicit: no Drive, no Calendar, no
+        // contacts. A consent screen asking for more than a name and an address is one people
+        // are right to refuse.
+        scopes: 'email profile',
+      },
+    });
+
+    if (error !== null || data?.url === undefined || data.url === null) {
+      return signInPage(
+        env,
+        secure,
+        'Google sign-in could not be started. Try again in a moment.',
+        {},
+        { email: '' },
+        [],
+      );
+    }
+
+    const verifier = store.minted();
+
+    return redirectTo(data.url, secure, [
+      ...(verifier === null ? [] : [pkceCookie(verifier, secure)]),
+    ]);
+  } catch {
+    return signInPage(
+      env,
+      secure,
+      'Google sign-in could not be started. Try again in a moment.',
+      {},
+      { email: '' },
+      [],
+    );
+  }
+}
+
+/**
+ * The one address every non-password route lands on — #55's magic link and #56's Google
+ * return both.
+ *
+ * **A query string, not a fragment.** `/account/reset/confirm/` has to ship a hidden form and
+ * an inline script because GoTrue's recovery link uses the implicit flow and puts its tokens
+ * in the URL fragment, which never reaches a server. PKCE puts a `code` on the query string
+ * instead, so this handler reads it directly — no script, and therefore nothing that breaks
+ * with scripting off.
+ */
+async function handleCallback(
+  request: Request,
+  env: Env,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  url: URL,
+): Promise<Response> {
+  const code = url.searchParams.get('code');
+  const verifier = cookieValue(request.headers.get('cookie'), PKCE_COOKIE);
+
+  // GoTrue reports its own refusals here rather than at the link — an expired or already-used
+  // link arrives as an error on the query string, not as a missing code.
+  const providerError =
+    url.searchParams.get('error_description') ?? url.searchParams.get('error');
+
+  if (providerError !== null) {
+    return callbackFailurePage(secure, 'expired');
+  }
+
+  if (code === null) {
+    return callbackFailurePage(secure, 'expired');
+  }
+
+  // **No verifier means this browser did not start this sign-in.** A mail scanner that
+  // followed the link is the common case and gets nothing; so is somebody who asked for a
+  // link on their laptop and opened it on their phone, which is why the message says so
+  // rather than blaming them.
+  if (verifier === null) {
+    return callbackFailurePage(secure, 'other-browser');
+  }
+
+  const { client } = createPkceClient(cfg, verifier);
+
+  try {
+    const { data, error } = await client.auth.exchangeCodeForSession(code);
+
+    if (error !== null || data.session === null) {
+      return callbackFailurePage(secure, 'expired');
+    }
+
+    return redirectTo(safeNext(url.searchParams.get('next')), secure, [
+      ...newSessionCookies(
+        data.session.access_token,
+        data.session.refresh_token,
+        data.session.expires_in,
+        secure,
+      ),
+      clearedPkceCookie(secure),
+    ]);
+  } catch {
+    return page(
+      'Sign in',
+      html`
+        <main class="account-page">
+          <h1>That did not work</h1>
+          <p>The club’s database could not be reached. Try again in a moment.</p>
+          <p><a href="/account/sign-in/">Back to sign in</a></p>
+        </main>
+      `,
+      { status: 503, secure, cookies: [clearedPkceCookie(secure)] },
+    );
+  }
+}
+
+/**
+ * **A used link says so.** #55 asks that a second use be distinguishable from a blank
+ * failure, because the alternative is somebody tapping a dead link repeatedly with no idea
+ * why. The two reasons are told apart because the fixes differ: one needs a fresh link, the
+ * other needs the same browser.
+ */
+function callbackFailurePage(
+  secure: boolean,
+  reason: 'expired' | 'other-browser',
+): Response {
+  const body = html`
+    <main class="account-page">
+      <h1>That link did not work</h1>
+      ${
+        reason === 'other-browser'
+          ? html`<p>
+              This link has to be opened in the same browser you asked for it from. If you
+              asked on a laptop and opened it on a phone, ask again from the device you
+              want to be signed in on.
+            </p>`
+          : html`<p>
+              Links can only be used once, and they expire. Ask for a new one and it will
+              work.
+            </p>`
+      }
+      <p><a href="/account/sign-in/">Back to sign in</a></p>
+    </main>
+  `;
+
+  return page('That link did not work', body, {
+    status: 400,
+    secure,
+    cookies: [clearedPkceCookie(secure)],
+  });
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1488,6 +2031,257 @@ function detailsPage(
   });
 }
 
+// -----------------------------------------------------------------------------------------
+// /account/data/ — #62
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Export and deletion, on one page and behind a session.
+ *
+ * **The page states what deletion does not remove, before the button rather than after it.**
+ * This is the part that is a promise rather than a feature, and getting it wrong is worse
+ * than not offering deletion at all: somebody who deletes their account believing their race
+ * entry disappears with it finds out at the start line, on a morning that cannot be re-run.
+ *
+ * **No Turnstile.** It is behind a session, and #53's rule holds — a bot with a valid session
+ * has already got in. CSRF is what matters here, and both forms carry it.
+ */
+function dataPage(
+  secure: boolean,
+  message: string | null,
+  extraCookies: string[],
+): Response {
+  const csrfToken = mintCsrfToken();
+
+  const body = html`
+    <main class="account-page">
+      <h1>Your data</h1>
+      ${
+        message !== null
+          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
+              <p>${message}</p>
+            </div>`
+          : null
+      }
+
+      <h2>Download what the club holds about you</h2>
+      <p>
+        Everything on your account, as a file. It downloads to this device — the club does
+        not email it, because emailing somebody’s personal data is a disclosure with no
+        way back.
+      </p>
+      <form method="post" action="/account/data/export/" class="signup" novalidate>
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+        <button class="button" type="submit">Download my data</button>
+      </form>
+
+      <h2>Delete your account</h2>
+      <p>This removes your account and your profile, and cannot be undone. It deletes:</p>
+      <ul>
+        <li>your sign-in, so you will be signed out everywhere immediately</li>
+        <li>your name, gender, date of birth and address</li>
+        <li>any club role you hold</li>
+      </ul>
+      <p><strong>It does not delete:</strong></p>
+      <ul>
+        <li>
+          <strong>a race entry you have paid for.</strong> That is a financial record with
+          its own retention, and it belongs to the transaction as much as to you. You will
+          still be on the start list
+        </li>
+        <li>
+          any medical note you gave with an entry — that is deleted automatically a month
+          after the race, and this does not change when
+        </li>
+        <li>
+          the interest list, if you asked to hear about a race. That has its own record
+        </li>
+        <li>
+          the club’s record of roles granted and revoked. It will no longer name you, but
+          the entries stay
+        </li>
+      </ul>
+      <p>
+        If you want something removed that is not on the first list, write to
+        <a href="mailto:info@southvillerunningclub.co.uk"
+          >info@southvillerunningclub.co.uk</a
+        >
+        and a person will deal with it. A request that reaches beyond your own account is
+        a decision somebody takes with a legal test attached, not a button.
+      </p>
+      <p>
+        <a href="/privacy/">What the club does with your details</a> explains why each
+        thing is held, and for how long.
+      </p>
+      <form method="post" action="/account/data/delete/" class="signup" novalidate>
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+        <div class="field">
+          <label class="field-label" for="account-delete-confirm">
+            Type <strong>DELETE</strong> to confirm
+          </label>
+          <input
+            class="field-input"
+            id="account-delete-confirm"
+            name="confirm"
+            type="text"
+            autocomplete="off"
+          />
+        </div>
+        <button class="button button-danger" type="submit">Delete my account</button>
+      </form>
+    </main>
+  `;
+
+  return page('Your data', body, {
+    status: message !== null ? 422 : 200,
+    secure,
+    cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
+  });
+}
+
+async function handleExport(
+  request: Request,
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return dataPage(secure, 'That form had expired. Please try again.', refreshedCookies);
+  }
+
+  try {
+    const client = createUserClient(cfg, session.accessToken);
+    const { data, error } = await client.rpc('export_me');
+
+    if (error !== null || data === null) {
+      return dataPage(
+        secure,
+        'The club’s database could not be reached. Try again in a moment.',
+        refreshedCookies,
+      );
+    }
+
+    const result = data as { ok?: boolean };
+
+    if (result.ok !== true) {
+      return dataPage(
+        secure,
+        'That export could not be produced. Try signing in again.',
+        refreshedCookies,
+      );
+    }
+
+    // **An attachment, asserted on the response rather than on a download event.** The three
+    // browser engines disagree about what an attachment is — and WebKit on a Linux runner
+    // renders one in the tab where macOS WebKit downloads it — so the status, the content
+    // type and the filename are what every engine agrees on. See CLAUDE.md's note on the
+    // admin CSV exports; the same rule applies here.
+    return new Response(`${JSON.stringify(data, null, 2)}\n`, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'content-disposition':
+          'attachment; filename="southville-running-club-account.json"',
+        'cache-control': 'no-store',
+        'x-robots-tag': 'noindex, nofollow',
+      },
+    });
+  } catch {
+    return dataPage(
+      secure,
+      'The club’s database could not be reached. Try again in a moment.',
+      refreshedCookies,
+    );
+  }
+}
+
+async function handleDeleteAccount(
+  request: Request,
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return dataPage(secure, 'That form had expired. Please try again.', refreshedCookies);
+  }
+
+  // **Deliberately not reachable by one keystroke.** #62 asks for that explicitly, and a
+  // typed word is the cheapest version that is not a modal nobody can use with a keyboard.
+  if (readString(form, 'confirm').trim().toUpperCase() !== 'DELETE') {
+    return dataPage(
+      secure,
+      'Type DELETE in the box to confirm you want the account removed.',
+      refreshedCookies,
+    );
+  }
+
+  try {
+    const client = createUserClient(cfg, session.accessToken);
+    const { data, error } = await client.rpc('delete_me');
+
+    if (error !== null || data === null) {
+      return dataPage(
+        secure,
+        'The club’s database could not be reached. Try again in a moment.',
+        refreshedCookies,
+      );
+    }
+
+    const result = data as { ok?: boolean; reason?: string };
+
+    if (result.ok !== true) {
+      if (result.reason === 'last_super_admin') {
+        return dataPage(
+          secure,
+          'You are the club’s only super-admin. Give somebody else that role at /admin/people/ first, or nobody will be able to administer the site.',
+          refreshedCookies,
+        );
+      }
+
+      return dataPage(
+        secure,
+        'That account could not be deleted. Try signing in again.',
+        refreshedCookies,
+      );
+    }
+
+    // The `auth.users` row is gone, and its refresh tokens with it, so the session is already
+    // dead server-side. Clearing the cookies is what stops the browser presenting a token
+    // that now resolves to nobody on every subsequent request.
+    return redirectTo(
+      '/account/sign-in/?deleted=ok',
+      secure,
+      clearedSessionCookies(secure),
+    );
+  } catch {
+    return dataPage(
+      secure,
+      'The club’s database could not be reached. Try again in a moment.',
+      refreshedCookies,
+    );
+  }
+}
+
 function dobField(submitted: DetailsFormValues, error: string | undefined): Html {
   const describedBy =
     error !== undefined ? 'account-dob-hint account-dob-error' : 'account-dob-hint';
@@ -1573,14 +2367,22 @@ function detailsAcknowledgement(emailPending: boolean): Html {
 // Shared markup
 // -----------------------------------------------------------------------------------------
 
+/**
+ * @param attrs.id overrides the id derived from `name`. Needed exactly once, and for a reason
+ *   worth stating: `/account/sign-in/` carries **two** fields called `email` — one on the
+ *   password form and one on the magic-link form — and a name is what the server reads while
+ *   an id is what the `<label>` points at. Left to derive, both would be `account-email`,
+ *   which is a duplicate id: axe fails it, and a click on the second label focuses the first
+ *   input. Two fields may share a name across two forms; they may not share an id.
+ */
 function textField(
   name: string,
   label: string,
   value: string,
   error: string | undefined,
-  attrs: { type?: string; autocomplete?: string },
+  attrs: { type?: string; autocomplete?: string; id?: string },
 ): Html {
-  const id = `account-${name}`;
+  const id = attrs.id ?? `account-${name}`;
   return html`
     <div class="field">
       <label class="field-label" for="${id}">${label}</label>
@@ -1636,7 +2438,18 @@ function passwordField(
  * stays an empty box, and `noscript` says plainly what to do instead — an honest dead end
  * rather than a form that silently fails.
  */
-function turnstile(siteKey: string, error: string | undefined): Html {
+/**
+ * @param includeScript `false` for the second and subsequent widgets on one page.
+ *   `/account/sign-in/` carries two — one per form — and Turnstile's `api.js` finds every
+ *   `.cf-turnstile` on the document by itself, so the loader belongs there once. Emitting it
+ *   twice is not fatal, but it is a second network entry and a second auto-render pass over
+ *   the same two divs, which is exactly the sort of thing that turns into a flaky test.
+ */
+function turnstile(
+  siteKey: string,
+  error: string | undefined,
+  includeScript = true,
+): Html {
   return html`
     <div class="field account-captcha">
       ${error !== undefined ? html`<p class="field-error">${error}</p>` : null}
@@ -1651,11 +2464,15 @@ function turnstile(siteKey: string, error: string | undefined): Html {
         </p>
       </noscript>
     </div>
-    <script
-      src="https://challenges.cloudflare.com/turnstile/v0/api.js"
-      async
-      defer
-    ></script>
+    ${
+      includeScript
+        ? html`<script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+            async
+            defer
+          ></script>`
+        : null
+    }
   `;
 }
 

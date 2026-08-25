@@ -23,7 +23,20 @@ Sending access only, is set as a Worker secret on `apps/main`.
 would call step 8 below, so `info@` remains the programmatic sender in the meantime — see
 why that is still tolerable, below.
 
-### A second attempt, tried and reverted: routing GoTrue's own mail through Resend
+### GoTrue's own mail: reverted once, re-attempted on port 587
+
+> **Status, 25 August 2026.** The block below is back in `config.toml`, on **587 with
+> STARTTLS** rather than the 465 that failed, with the key as
+> `env(SUPABASE_AUTH_SMTP_PASSWORD)` — a GitHub repository secret, distinct from the Worker's
+> `RESEND_API_KEY`. **The post-mortem below is unchanged and still governs it**: nobody has
+> separated the blocked-port hypothesis from the GoTrue-really-dials-out one, and the
+> experiment that does is still the next step. Read it before assuming the port was the whole
+> answer.
+>
+> **GoTrue has no `reply_to`.** So `Reply-To: info@` — which this document recommends and #50
+> requires — is **not delivered by the SMTP block**, and is not reachable from `config.toml`
+> at all. Account mail replies currently go to `accounts@send.…`, which has no mailbox behind
+> it. That is an open gap, not a decision.
 
 Separately from the programmatic-mail design below, an attempt was made the same day to
 point **GoTrue's** mailer — the confirmations, resets and (eventually) magic links #51–#55

@@ -41,11 +41,11 @@ Do not announce accounts if any of these is true.
 
 | | Why it stops the run |
 | --- | --- |
-| **The rate-limiting rules are not live** | [Step 0.1](#01--the-rate-limiting-rules-must-be-live). Sign-in is a credential check and reset is an email to an address the caller names. Nothing else in this repository is either of those |
+| **The rate-limiting rule is not live** | [Step 0.1](#01--the-rate-limiting-rules-must-be-live). Sign-in is a credential check and reset is an email to an address the caller names. Nothing else in this repository is either of those. **One rule now exists — `C1`, 25 August 2026 — and it is all the free plan can express.** Read [what that buys and what it does not](../../reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026) before treating this row as ticked |
 | **Nobody has watched a rule block anything** | [Step 0.3](#03--somebody-has-actually-tried-it). A rule that exists and does not fire is worse than no rule, because it is believed |
 | **Nobody has watched the captcha secret refuse a real registration** | [Step 0.4](#04--the-captcha-secret-substituted-to-something-non-empty). `SUPABASE_AUTH_CAPTCHA_SECRET` is masked in every deploy log; a green push proves the file was accepted, not that the value is non-empty |
 | **Outbound email is still Supabase's built-in sender** | [Step 0.2](#02--email-actually-leaves-the-building). Two an hour, project-wide. Every flow on this page is an email, and the failure is silent — the person simply never receives it |
-| **There is no site-wide privacy notice** | [#60](https://github.com/southville-running-club/src-website/issues/60). An account is a standing record of a named person and the club has not told anybody it keeps one. This is a legal precondition, not a nicety |
+| ~~**There is no site-wide privacy notice**~~ | **Met.** [#60](https://github.com/southville-running-club/src-website/issues/60) is closed and `/privacy/` is published. Kept as a row rather than deleted, because it is a legal precondition and the next person needs to see that somebody checked it rather than that nobody listed it |
 | **`admin@southvillerunningclub.co.uk` has not registered** | The super-admin is bootstrapped by registering like anybody else ([#51](https://github.com/southville-running-club/src-website/issues/51)). Announcing before that means the first person to claim the address is whoever asks for it |
 
 ---
@@ -74,23 +74,24 @@ causes an email to be sent to an address the caller chooses. **Turnstile is not 
 limiter** — it raises the cost of a request; it does not cap them, and it does nothing at all
 about a real person trying two hundred passwords.
 
-- [ ] **Check what the plan actually allows** before creating anything — how many
-      rate-limiting rules, which periods, which mitigation durations. It changes, and a free
-      tier's terms differing from what is recorded is its own
-      [stop-and-ask](../../architecture/principles.md#stop-and-ask)
-- [ ] Create **A1** (sign in), **A2** (sign up), **A3** (password reset) and **A4** (the
-      admin surfaces) exactly as
-      [the table](../../reference/cloudflare-waf-rules.md#the-rules) records them
-- [ ] If the plan allows only one rule, use
-      [the combined expression](../../reference/cloudflare-waf-rules.md#if-the-plan-allows-only-one-rule)
-      — and **read what it costs first**, because one rule takes one threshold and it has to
-      be the loosest one
-- [ ] **Update the status column** in that file, in a pull request, with what was actually
-      created. A rule the file does not know about is drift, in exactly the way a DNS record
-      the zone file does not know about is drift
-- [ ] Create **E1** too, while the dashboard is open — it is
-      [#19](https://github.com/southville-running-club/src-website/issues/19)'s and it is
-      still not created
+- [x] **Check what the plan actually allows** before creating anything — **done, and it
+      answered smaller than this page assumed.** One rate-limiting rule, IP-only counting, and
+      **10 seconds is the ceiling on both the period and the mitigation**. Measured off the
+      dashboard on 25 August 2026 and recorded in
+      [the rules file](../../reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026)
+- [x] ~~Create **A1**, **A2**, **A3** and **A4**~~ — **not possible.** The plan allows one
+      rule, so **C1**, the combined expression, is what exists. A1–A4 and E1 are marked
+      *superseded by C1* in that file and kept as the argument for a paid plan
+- [x] **Update the status column** in that file — done in this pull request. A rule the file
+      does not know about is drift, in exactly the way a DNS record the zone file does not
+      know about is drift
+- [x] ~~Create **E1** too~~ — covered by **C1**'s `/nn/` prefix, which is the half of that
+      rule the free plan protects best: draining the field is a throughput attack, and a
+      threshold caps it whatever the mitigation length
+- [ ] ⚠️ **Decide whether the account endpoints justify a paid plan.** This is no longer
+      rhetorical — the free plan **cannot express** A1's ten-minute mitigation or A3's
+      ten-minute window, which is where both of those rules got their value. A committee
+      question about money, and the first one this platform has raised
 
 ### 0.2 — email actually leaves the building
 
@@ -316,6 +317,33 @@ temporary block become the configuration.
 
 ## What actually happened
 
-**Nothing yet.** This section is filled in the first time this runbook is run: the date, who
-ran it, which rules were created, what the plan actually allowed, what a blocked person saw,
-and anything done differently from the page above.
+### 25 August 2026 — step 0.1, and only step 0.1
+
+**Run by Mark.** Step 0.1 was worked through in full and stopped where the plan stopped it;
+nothing below step 0 was attempted, and **accounts have not been announced.**
+
+| | |
+| --- | --- |
+| **Rules created** | **`C1` only** — the combined expression, because the free plan allows exactly one rate-limiting rule |
+| **What the plan allowed** | 1 rate-limiting rule, 5 custom rules (which cannot count, so cannot substitute), managed rules Pro-only, **IP-only** counting, and **10 seconds as the maximum** for both period and mitigation |
+| **Values** | 3 requests / 10 seconds / Block / 10-second mitigation |
+| **What a blocked person saw** | **Not yet known.** Step 0.3 has not been run |
+| **Whether the block page is customisable** | **Still unanswered** |
+
+**The correction this run makes to the page above**: it assumed the fallback cost was *one
+threshold instead of five*. It is not. It is the **10-second ceiling**, which removes the
+mitigation length that A1 and A3 were both argued from. The rule is a burst brake on the entry
+form and close to nothing against credential stuffing.
+
+### Still open, and each is a stop condition
+
+- **Step 0.3 — nobody has watched it fire.** With a 10-second mitigation this is now a quick
+  test rather than an afternoon: four POSTs in ten seconds, and you are unblocked before you
+  have finished reading the block page
+- **Step 0.4 — the captcha secret has still not been proved non-empty**
+- **Step 0.2 — outbound email.** #50's `[auth.email.smtp]` is drafted in this pull request and
+  **no confirmation email has yet arrived at a real inbox**, which is the only proof that
+  counts
+- **Google sign-in is parked**, deliberately — see [#56](https://github.com/southville-running-club/src-website/issues/56).
+  It gates nothing on this page: step 0.5's Google box is conditional on the button being on,
+  and it is not

@@ -651,6 +651,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_me: { Args: never; Returns: Json }
+      export_me: { Args: never; Returns: Json }
       grant_role: { Args: { p_person: string; p_role: string }; Returns: Json }
       has_role: { Args: { p_role: string }; Returns: boolean }
       list_people: { Args: never; Returns: Json }
