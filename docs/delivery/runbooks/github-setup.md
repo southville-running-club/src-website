@@ -226,47 +226,6 @@ Once the Cloudflare Workers exist, a third workflow appears on merges to `main`:
 
 ---
 
-## 7. Docker Hub — optional, but it is the cheapest red run you will ever remove
-
-**Not required for anything to work.** CI skips this entirely when the secret is absent,
-which is the state today. It exists because of a failure mode that has nothing to do with
-the code and cannot be fixed by re-running at the wrong moment.
-
-`supabase start` pulls about a dozen images on every CI run — Postgres, GoTrue, Kong,
-PostgREST, Storage, postgres-meta, Studio, Mailpit, Vector, Logflare. Pulled anonymously,
-Docker Hub counts those against **the runner's IP address**, and a GitHub-hosted runner
-shares its address with whoever else is on it. The allowance can therefore be gone before
-the job starts, spent by strangers, and the run dies at `Start the local Supabase stack`:
-
-```
-Error response from daemon: toomanyrequests: Rate exceeded
-```
-
-Twice so far: run `31787327668` on 14 August, and run `32868948264` on 25 August — the
-second one nineteen times in a single job. Both were branches with nothing wrong with them.
-The Acceptance step's retry cannot help, because this fails long before any test runs.
-
-Signing in moves the count from the address to **the account**, which is an allowance nobody
-else can spend.
-
-| Name | What it is |
-| --- | --- |
-| `DOCKERHUB_USERNAME` | The Docker Hub account name |
-| `DOCKERHUB_TOKEN` | A **read-only** access token — Docker Hub → Account settings → Personal access tokens |
-
-```bash
-gh secret set DOCKERHUB_TOKEN --repo southville-running-club/src-website
-```
-
-- [ ] Both set, or neither. The step tests `DOCKERHUB_TOKEN` only, so a token without a
-      username fails the login rather than skipping it.
-
-> **Read-only, and nothing else.** This token only ever pulls public images. A token that
-> can push is a token that can replace an image this pipeline trusts, which is a supply-chain
-> hole in exchange for nothing — the pull limit is identical either way.
-
-A free Docker Hub account is enough.
-
 ## What runs, and when
 
 | Workflow | Trigger | Does |

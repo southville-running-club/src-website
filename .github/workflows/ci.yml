@@ -135,9 +135,6 @@ jobs:
       # start` fails before a single test runs. This is job-level so every step that
       # touches the Supabase CLI — start, reset, gen types — has it, not only the first.
       SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
-      # Lifted to `env` so the step below can test it. The `secrets` context is not available
-      # in a step-level `if`; `env` is, and this is the usual way round that.
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v5
@@ -151,34 +148,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # **An anonymous Docker Hub pull is rate limited per IP address, and the IP is not
-      # ours.** `supabase start` pulls a dozen images — Postgres, GoTrue, Kong, PostgREST,
-      # Storage, postgres-meta, Studio, Mailpit, Vector, Logflare — and a GitHub-hosted runner
-      # shares its address with every other tenant that happens to be on it. So the limit can
-      # already be spent before this job begins, by somebody else, and the run dies at the
-      # first step that needs the network with `toomanyrequests: Rate exceeded`. It has
-      # happened at least twice: run 31787327668 on 14 August and run 32868948264 today, the
-      # latter nineteen times in one job. Nothing about the change under test is involved, and
-      # the retry in the Acceptance step is far too late to help — this fails before a single
-      # test runs.
-      #
-      # Signing in moves the limit from "this runner's address" to "this account", which is
-      # the difference between a shared allowance and one nobody else can spend.
-      #
-      # **Skipped when the secret is absent, and that is the deployed state today**, so this
-      # changes nothing until somebody adds it — section 7 of
-      # docs/delivery/runbooks/github-setup.md. A read-only access token, not a password: it
-      # only ever pulls public images, and one that can push could replace an image this
-      # pipeline trusts in exchange for no extra allowance at all.
-      - name: Sign in to Docker Hub, if a token is configured
-        if: env.DOCKERHUB_TOKEN != ''
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Start the local Supabase stack
         working-directory: platform/packages/db
+        env:
+          # **`public.ecr.aws` rate limits by IP address, and the address is not ours.**
+          #
+          # `supabase start` pulls a dozen images — Postgres, GoTrue, Kong, PostgREST,
+          # Storage, postgres-meta, Studio, Realtime, Mailpit, Vector, Logflare, edge-runtime
+          # — and by default from AWS's public registry, which counts them against the
+          # runner's address. A GitHub-hosted runner shares that address with whatever else is
+          # on the machine, so the allowance can be gone before this job starts, spent by
+          # strangers, and the run dies here with `toomanyrequests: Rate exceeded`. Twice so
+          # far: run 31787327668 on 14 August and run 32868948264 today, the latter nineteen
+          # times in one job with the CLI's own backoff exhausted. Nothing about the change
+          # under test is involved, and the Acceptance step's retry cannot help — this fails
+          # before a single test runs.
+          #
+          # **GitHub's own registry publishes the same images at the same tags and does not
+          # rate limit public pulls.** All twelve were checked by manifest before this was
+          # relied on. It needs no credential, which is the property worth having: a fix that
+          # depends on a secret is one that silently stops working the day the secret is
+          # rotated, and there is no secret here to rotate.
+          #
+          # Being an env var rather than a flag is the CLI's own interface for this, and it
+          # travels to every `supabase` invocation in this step without changing the command.
+          #
+          # If GHCR is ever missing a tag the CLI wants, `docker.io` is the other published
+          # value, and unsetting this restores the default.
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
         run: npx supabase start
 
       - name: Export the local Supabase credentials
