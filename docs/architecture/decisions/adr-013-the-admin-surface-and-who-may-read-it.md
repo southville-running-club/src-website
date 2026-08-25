@@ -192,3 +192,42 @@ a control, and both buttons on the page read rather than write.
 **A third Worker secret joins the manual steps.** `apps/main/README.md` records installing the
 digest and issuing a person key; both are things a human does once, and both are written down
 because that is what makes a manual exception legitimate rather than merely convenient.
+
+---
+
+## Amended, 25 August 2026 — a second door, and the actor becomes a uuid
+
+**The decision above is unchanged and the mechanism still works.** This note records what
+[#57](https://github.com/southville-running-club/src-website/issues/57) added beside it, because
+one paragraph of it bears directly on the reasoning above.
+
+`20260825120000_entries_reads_behind_nn_admin.sql` gives four of the five key-gated functions a
+role-checked counterpart, granted to `authenticated` and gated on
+`identity.has_role('nn-admin')`. It is the **expand** half of expand–migrate–contract; the key
+path is untouched, and retiring it is #63's, after race day.
+
+Two things this ADR argued are worth revisiting in the light of it.
+
+**"Supabase Auth accounts, with RLS keyed on role" loses the grant-free schema** — that objection
+was right, and it is the reason the role path is still definer functions rather than policies on
+the entry tables. `entries` has no grant and no policy on any table, exactly as before;
+`packages/db/tests/entries.test.ts` asserts both, and now also asserts the exact set of functions
+`authenticated` may execute. What changed since 16 August is not the objection but its premise:
+`enable_signup` was off and *"nothing else in this platform signs in"*. ADR-015 settled that, and
+[#51](https://github.com/southville-running-club/src-website/issues/51) built it.
+
+**The audit actor is a uuid on the role path**, and the rule this ADR set survives it intact:
+
+> The handle is a role, not a person's name … a name there would be personal data in a table
+> whose whole purpose is to be kept and read later.
+
+`auth.uid()::text` is 36 characters, inside `admin_audit.actor`'s existing 40-character
+constraint, so no column migrates. It is pseudonymous, and — unlike a handle — the mapping to a
+human lives in `identity.people`, behind row-level security, rather than in a table in
+[the runbook](../../delivery/runbooks/entries-admin.md) maintained by hand. It is also not
+asserted by the Worker from a cookie it signed itself: the database reads it from a token GoTrue
+issued, so there is no argument for a caller to choose.
+
+**Rows written under the key scheme keep their handles.** Mixed values in one column is what a
+migration between identity schemes looks like, and the runbook's "who has read medical data"
+query must return both kinds — `packages/db/tests/entries-admin.test.ts` asserts that it does.
