@@ -103,10 +103,9 @@ The distinction that matters, and the one that is easy to get backwards:
 exists to prevent: programmatic volume sharing a reputation, and a sending limit, with the
 inbox the committee depends on.
 
-> **Today that rule is knowingly broken.** Resend's account and DNS are
-> [now in place](../../solutions/resend-programmatic-email.md#current-status-account-and-dns-done-the-send-code-is-not),
-> but the Worker's own send call is not written yet, so `info@` still sends this
-> programmatic mail directly in the meantime — tolerable only because there is no
+> **Today that rule is knowingly broken.** Resend is
+> [backlogged](../../solutions/resend-programmatic-email.md#current-status-backlogged-info-used-directly-in-the-meantime)
+> and `info@` sends directly in the meantime, which is tolerable only because there is no
 > confirmation email yet and the volume is zero. **The first live entry is the trigger to
 > build the Resend piece**, not a later tidy-up.
 
