@@ -162,6 +162,13 @@ only a terse pass/fail summary — failing step/test names and error snippets, n
 so the expensive raw output never reaches the main session's context. Do this automatically,
 without asking first; it is a standing instruction, not a per-task choice.
 
+**Scope the check to what changed, not the whole repository.** The `local-verify` skill
+(`.claude/skills/local-verify/`) is the standing procedure for this: a scoped `vitest run`
+or a single Playwright spec on one engine while iterating, the full `./dev check`/`./dev
+test` reserved for a final pass before opening the pull request. It composes with the rule
+above rather than replacing it — the full run still goes through a Haiku subagent when it
+runs at all.
+
 **Every change by pull request.** Both volunteers review.
 
 **One change per pull request, and since 15 August 2026 that is mechanical rather than
