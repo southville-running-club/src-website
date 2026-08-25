@@ -345,6 +345,13 @@ async function handleSignUp(
   }
 }
 
+/**
+ * **The privacy line is at the point of collection, not only in the site footer.** This form
+ * is where the club starts holding a named person's details, and `/privacy/` is the notice
+ * that says what it then does with them — the same line the entry and interest forms have
+ * always carried to `/nn/privacy/`, on the form that creates the standing record rather than
+ * the one that enters a race. `.signup-privacy` is base.css's, already, for that reason.
+ */
 function signUpPage(
   env: Env,
   secure: boolean,
@@ -376,6 +383,9 @@ function signUpPage(
         ${turnstile(env.TURNSTILE_SITE_KEY, errors.captchaToken)}
         <button class="button" type="submit">Create account</button>
       </form>
+      <p class="signup-privacy">
+        <a href="/privacy/">What the club does with your details</a>
+      </p>
     </main>
   `;
 

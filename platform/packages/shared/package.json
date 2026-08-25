@@ -17,6 +17,7 @@
     "./contrast": "./src/contrast.ts",
     "./design-tokens.json": "./design-tokens.json",
     "./nn-entry": "./src/nn-entry.ts",
+    "./privacy": "./src/privacy.ts",
     "./age-category": "./src/age-category.ts"
   },
   "scripts": {

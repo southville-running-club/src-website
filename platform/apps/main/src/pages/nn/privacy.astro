@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
 import race from '../../content/race.json';
+import { orTbc } from '@src/shared/privacy';
 
 // The same event theme as the forms it belongs to — see packages/shared/styles/nn-theme.css.
 //
@@ -10,10 +11,18 @@ import race from '../../content/race.json';
 // white, Inter throughout, with nothing decorative anywhere near the legal text.
 import '@src/shared/styles/nn-theme.css';
 
-// The club's own privacy notice, replacing the one written when `/nn/` collected a name, an
-// email address and a consent box and nothing else. It now covers the entry form as well, so
+// The race's privacy notice, replacing the one written when `/nn/` collected a name, an
+// email address and a consent box and nothing else. It covers the entry form as well, so
 // it has to describe fourteen fields, a payment, a special category of data under its own
 // consent, and five retention periods.
+//
+// **It is no longer the club's only notice.** `/privacy/` is the site-wide one — the club,
+// the account, and everything that is not about a race — and this page is the race half:
+// the medical note, the emergency contact, the payment, and the retention period
+// `packages/db/tests/entries-retention.test.ts` ties to `entries.events.medical_retention`.
+// The two link to each other, and the split is argued at the head of `src/pages/privacy.astro`.
+// The four values below stay this file's, and `nn-privacy.spec.ts` still counts exactly four
+// of them.
 //
 // **This page is written from the schema, not from the form.** The list in section 2 is what
 // `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` actually hold —
@@ -38,16 +47,14 @@ import '@src/shared/styles/nn-theme.css';
 
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/privacy/';
 
-// **Never a blank, and never a plausible default.** A privacy notice with a gap where a
-// retention period should be reads as though somebody forgot; one with a number nobody chose
-// is worse, because it reads as a decision. This says which it is.
-//
-// **Every interpolated value goes through it, including the five that are settled.** Those
-// cannot be `null` today, and wrapping them is not defensiveness about the current file — it
-// is what makes emptying one by accident render a sentence somebody notices rather than a
-// sentence with a hole in it. The sentences around them are written to read correctly either
-// way, which is why section 4 no longer lower-cases what it is given.
-const orTbc = (fact: string | null): string => fact ?? 'To be confirmed by the club';
+// **`orTbc` moved to `@src/shared/privacy` when the second notice arrived**, and only because
+// there is a second notice: the marker is a sentence a reader is meant to recognise on both
+// pages as "nobody has answered this yet", and two copies of it is two chances for one to be
+// reworded on its own. Nothing about what it does here changed — every interpolated value
+// goes through it, including the five that are settled, so emptying one by accident renders a
+// sentence somebody notices rather than a sentence with a hole in it. The sentences around
+// them are written to read correctly either way, which is why section 4 no longer lower-cases
+// what it is given.
 
 const { privacy } = race;
 ---
@@ -80,9 +87,15 @@ const { privacy } = race;
         expression on one line with the words around it would fix it too — until the next
         reflow past 90 characters silently breaks it again. */
       }
+      {
+        /* The link up, and the lede is where it belongs: somebody who opened this page to
+        find out what the club does with their details has to be told in the first sentence
+        if the answer for the thing they are asking about is on a different page. */
+      }
       <p class="lede">
         This covers the entry form and the register-your-interest form for{' '}
-        {race.name}, and nothing else on the club's website.
+        {race.name}. Everything else the club does with your details — including an
+        account on this website — is in <a href="/privacy/">the club's privacy notice</a>.
       </p>
 
       <h2>1. Who we are</h2>
@@ -535,6 +548,9 @@ const { privacy } = race;
       </p>
       <p>
         <a href="/nn/">Back to {race.name}</a>
+      </p>
+      <p>
+        <a href="/privacy/">The club's privacy notice</a>
       </p>
     </footer>
   </div>

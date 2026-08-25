@@ -171,3 +171,5 @@ export {
   type NnEntryResult,
   type NnEntryRules,
 } from './nn-entry';
+
+export { TO_BE_CONFIRMED, orTbc } from './privacy';

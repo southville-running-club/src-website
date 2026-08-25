@@ -24,10 +24,13 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 
 ```
 src/content/race.json          Every race fact, as data. See below
+src/content/privacy.json       The club notice's own values. Three keys, two of them null
 src/components/NnNav.astro     The five Nightingale Nightmare links
 src/components/NnMasthead.astro   The header they sit in, and the button beside them
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
+src/pages/privacy.astro        The club's privacy notice — the account, and everything
+                               that is not about a race
 src/pages/404.astro
 src/pages/nn/index.astro       The race — evergreen, the year panel, no year in it
 src/pages/nn/course.astro      Course and terrain — evergreen
@@ -64,6 +67,7 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
+| `/privacy/` | **The club's notice, and not the race's** — the account, its columns, the lawful basis for each purpose, who else sees it and what can be asked for. In the club's brand, with no event theme anywhere near it. Written from `identity`'s columns and Supabase Auth's own, which is a good deal more than the sign-up form asks for. Linked from the footer of every page on both front doors, and from `/nn/privacy/`, which it links back down to |
 | `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
 
 **`/nn/<year>/` is the event `nn-<year>`**, and that convention is the whole of the coupling
@@ -131,8 +135,12 @@ knowing without reading either:
 **`/nn/privacy/` is the fifth link**, added by ADR-014. It was the one page in the campaign whose
 header linked everywhere except where you were standing; the notice describes fourteen fields, a
 payment and a special category of data, and the person most likely to want it is filling in the
-form that collects them. It stays at `/nn/privacy/` — ADR-011 flagged `/privacy/` as its eventual
-home once the club has a second form to cover, and putting it in the bar does not preempt that.
+form that collects them. It stays at `/nn/privacy/`, and now links up to `/privacy/` — the
+club's own notice, which arrived with member accounts. ADR-011 flagged `/privacy/` as this
+page's eventual home once the club had a second form to cover; what actually happened is a
+second notice rather than a move, because the race notice's retention promise is tied to
+`entries.events.medical_retention` by a test and folding it into a general document would have
+hidden that coupling rather than removed it.
 
 ### The year panel, on the front door
 
@@ -249,7 +257,7 @@ of it whichever year it is run.
 
 | | |
 | --- | --- |
-| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/` |
+| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/`. **`privacy.*` is read by `/privacy/` too**, which is not a race page at all: the controller, the registered office, the company number and the data contact are the club's facts that happen to live in this file, and both notices lifting them from one place is what stops the two disagreeing |
 | **One running's** | `date`, `startTime`, `location`, `price`, `entriesOpen`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
 
 **The file is not split in two, and that is deliberate rather than unfinished.** Separating it
@@ -274,6 +282,24 @@ as a blank or an invention. Three still are, and each for a different reason:
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
 | `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
 | `privacy.*` | Nine keys. **Five are settled and written in** — the controller, the registered office, the company number, the one-month medical retention, and the date the notice was last updated. **Four are `null` and render "To be confirmed by the club"**: `contact`, `entryRetention`, `emailRetention` and `photographs`. A wrong answer on that page is a legal claim rather than a typo, so filling one in is a one-line edit here and `nn-privacy.spec.ts` counts the markers to stop a fifth appearing or a fourth quietly vanishing |
+
+**`src/content/privacy.json` is the club notice's own file, and it holds only what is not
+already here.** `/privacy/` reads the controller, the registered office, the company number and
+the contact out of `race.json`'s `privacy` key — the same values `/nn/privacy/` prints — so the
+two notices cannot disagree about who the club is. What is genuinely the account's lives in the
+new file:
+
+| | |
+| --- | --- |
+| `lastUpdated` | Settled. The date that page was last changed, which is not the date the race notice was |
+| `accountRetention` | **`null`.** How long an account is kept, and what happens when somebody stops being a member. A committee decision; there is no plausible default that would be safe to print, because whatever is printed is a promise |
+| `accountDeletionAndEntries` | **`null`.** Whether deleting an account also deletes a race entry by the same person. Two schemas, `identity` and `entries`, and nothing yet joins them — so this is a decision about people rather than a lookup |
+
+`privacy.spec.ts` counts **three** markers on `/privacy/` — those two plus `race.json`'s
+`contact`, which is the same open decision on both notices — and `nn-privacy.spec.ts` still
+counts **four** on `/nn/privacy/`. **Two counts in two files, deliberately**: one assertion
+covering both pages would have to be "at least four", and that is the day the guard stops
+working in both directions at once.
 
 **Presentation is data too, where the committee should own it.** `prizes[].highlight` is
 which tile the campaign's one accent colour lands on — the fancy-dress prize, because that

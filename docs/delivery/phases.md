@@ -182,12 +182,27 @@ None of it blocks the site, which is built and tested. All of it is
 [stop-and-ask](../architecture/principles.md#stop-and-ask) territory rather than a build
 decision, and everything undecided renders as "to be confirmed" rather than as a guess:
 
-- [ ] **The privacy notice's four open decisions** — who somebody writes to about their
+- [ ] **The race notice's four open decisions** — who somebody writes to about their
       data, how long an entry record is kept, whether an email address is kept to tell
       people about next year's race, and what is true about photographs. All four are
       `null` under `race.json`'s `privacy` key and render "To be confirmed by the club".
       **The notice itself is written** and covers the entry as well as the interest form
-- [ ] **Four rows of the notice were derived from the schema, not approved.** The committee
+- [ ] **The site-wide notice's two further open decisions** — **how long an account is
+      kept**, including what happens when somebody stops being a member, and **whether
+      deleting an account also deletes a race entry** by the same person. They are `null` in
+      `apps/main/src/content/privacy.json` and render the same marker on `/privacy/`, which
+      is the club's notice rather than the race's. **The first is the one that blocks
+      nothing and matters most**: an account is a standing record of a named person, held
+      indefinitely until this is answered. The contact for data questions above is the same
+      open decision on both notices, which is why it is `race.json`'s on both. `/privacy/`
+      is written; `privacy.spec.ts` counts its three markers as `nn-privacy.spec.ts` counts
+      the four
+- [ ] **The wording of both notices, and of the lawful bases on `/privacy/` in particular.**
+      Neither page has been read by a lawyer or approved by the committee. The account
+      notice claims **legitimate interests** for the account itself and **consent** for the
+      optional profile details, and both are arguable the other way round — a wrong answer
+      there is a legal claim rather than a typo
+- [ ] **Four rows of the race notice were derived from the schema, not approved.** The committee
       approved a draft listing what somebody types; the tables also hold the fee and amount,
       Stripe's references, the consents with their version, and three timestamps. Those rows
       and one lawful basis were added because a notice that omits them under-lists what the
@@ -269,6 +284,16 @@ tracked end to end — with the ordering, the break-glass, and the cost of each 
 series may start before this phase's own first issue,
 [#48](https://github.com/southville-running-club/src-website/issues/48), is merged: it is
 documentation only, and every other issue inherits its reasoning.
+
+**The club has a site-wide privacy notice as of this phase**, at `/privacy/`, because an
+account is a standing record of a named person and collecting one without a notice and a
+lawful basis is not a convention being broken —
+[#60](https://github.com/southville-running-club/src-website/issues/60), which blocks
+[#61](https://github.com/southville-running-club/src-website/issues/61) for that reason.
+`/nn/privacy/` stays and keeps the race half. **The two decisions it needs from the committee
+are in [the list above](#what-the-race-pages-still-need-from-the-committee)**, alongside the
+race notice's four, because that is where the club's open privacy decisions have always been
+listed and splitting them across two lists is how one of them gets missed.
 
 **Opening accounts has a runbook of its own** — [accounts-open](runbooks/accounts-open.md) —
 because the switch that allows an account merged before anybody could sign in, so the
