@@ -1,11 +1,31 @@
 ---
-// **The four things somebody should know before they commit to this race**, in one place
-// because both pages that need them need exactly these four.
+// **The five things somebody should know before they commit to this race**, in one place
+// because both pages that need them need exactly these five.
 //
 // `/nn/` shows them as *what this race is*, above the interest form. `/nn/2026/` shows them as
-// *what you are about to enter*, above the entry form. Two copies of four safety-relevant
+// *what you are about to enter*, above the entry form. Two copies of five safety-relevant
 // bullets is two copies that drift, and the one that would drift is the one nobody re-read —
 // so there is one copy, here.
+//
+// **The climb is the new one, and it was reaching nobody who was about to enter.** It was on
+// `/nn/course/` and nowhere else, so `/nn/2026/` — the page with the entry form on it — told
+// somebody what the ground is like and what to put on their feet, and nothing about the shape
+// of the thing they were paying to run. Nightingale Valley is the part of this race people
+// remember; it belongs with the other four rather than one tap away.
+//
+// **It is second rather than last**, because the first bullet is what is underfoot and this is
+// the shape that ground is in. The two are one thought, and the order of the list is course
+// facts, then the rule, then what is on the route, then where it starts.
+//
+// **"It is Bristol, in November. Plan for wet." joined the first bullet for the same reason.**
+// It is the sentence that makes the trail-shoe line advice rather than trivia, and it was on
+// the course page alone.
+//
+// **Both arrived word for word, and that is what makes the guard assertable.** While
+// `course.astro` still exists the same sentences are on three pages, and `site.spec.ts`
+// asserts them on all three at once — the shape it already uses for the water station. A
+// tidier paraphrase here would have made that impossible and left three pages to drift
+// instead of one component to maintain.
 //
 // **The water station says where it is now**, confirmed by the race director: approximately
 // halfway. It was "one water station on the route" with no location, which is the fact somebody
@@ -29,6 +49,13 @@
 // coordinates and a guessed school entrance is exactly the plausible-looking number this
 // repository keeps out of markup. See the note in `2026/race-day.astro`.
 //
+// **Where the route goes**, and this one is a near miss worth writing down. It reaches
+// `/nn/2026/` in the same commit these bullets did, but as a paragraph on that page rather
+// than through here — because `/nn/` already says it in the race director's own words, and a
+// component that also said it would put two spellings of one route on that page. The climb
+// above is the exception that proves it: the *shape* of the course is what somebody decides
+// on, and it is stated once. See the note in `2026/index.astro`.
+//
 // Every line here is the club's own 2023 copy and is **draft pending committee approval**,
 // like the rest of these pages.
 ---
@@ -42,8 +69,14 @@
     same trap is documented at the head of `nn/privacy.astro` and in CLAUDE.md. */
   }
   <li>
-    A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet.{' '}
+    A tough, properly off-road course — uneven, rocky, rooty, and slippery when wet. It is
+    Bristol, in November. Plan for wet.{' '}
     <strong>Trail shoes recommended</strong>, road shoes acceptable.
+  </li>
+  <li>
+    <strong>Nightingale Valley is the climb.</strong> It is the part people remember, and the
+    part that decides how the rest of your race feels. There is no clever way to run it — go
+    up steadily, and enjoy how much better everything looks from the top.
   </li>
   <li><strong>No headphones of any type during the race.</strong></li>
   <li>

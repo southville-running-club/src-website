@@ -1034,9 +1034,9 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // **This is the assertion the copy slice was written around.** The brief it came from asked
     // for two paragraphs of the race director's prose *instead of* the "Know what you are in
     // for" section — and that section is `NnRaceSummary`, which is where the headphone rule, the
-    // trail-shoe advice, the water station and "the start is not at race HQ" live on this page.
-    // Replacing it would have stripped four safety-relevant lines off `/nn/` silently and left
-    // them on `/nn/2026/` alone.
+    // trail-shoe advice, the climb, the water station and "the start is not at race HQ" live on
+    // this page. Replacing it would have stripped five safety-relevant lines off `/nn/` silently
+    // and left them on `/nn/2026/` alone.
     //
     // **The headphone rule is not decoration.** ARC's rules carry no headphone provision, but
     // Rule 81 lets an organiser make additional rules binding on competitors as though they were
@@ -1050,16 +1050,68 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(body).toContain('tricked & treated');
     expect(body).toContain('Halloween fancy dress is strongly encouraged!');
 
-    // And all four bullets, which the brief would have taken with the heading.
+    // And all five bullets, four of which the brief would have taken with the heading.
     expect(body).toContain('Trail shoes recommended');
+    expect(body).toContain('Nightingale Valley is the climb.');
     expect(body).toContain('No headphones of any type during the race.');
     expect(body).toContain('One water station on the route at approximately halfway');
     expect(body).toContain('The start and the finish are not at race HQ.');
 
-    // **A welcome first, then the four things that are true whether or not anybody is pleased
+    // **A welcome first, then the five things that are true whether or not anybody is pleased
     // about them.** Order is asserted because the argument for keeping both was that they do
     // different jobs; landing the warning above the greeting would mean neither did.
     expect(body.indexOf('is back!')).toBeLessThan(body.indexOf('No headphones'));
+  });
+
+  test('the climb is stated to somebody about to enter, not one tap away', async ({
+    page,
+  }) => {
+    // **The shape of the course is what a runner decides on, and it was on one page.**
+    // `/nn/course/` said Nightingale Valley is the climb; `/nn/2026/`, which carries the entry
+    // form, said what the ground is like and what shoes to wear and nothing about the hill. So
+    // somebody could read every word in front of the form and not know the race climbs a valley.
+    //
+    // **Three paths, which is the shape the water station already uses.** The words are
+    // `NnRaceSummary`'s on the first two and `course.astro`'s on the third, and they are the
+    // same words deliberately — a paraphrase would have made this assertion impossible and left
+    // three pages to drift. It drops to two when the course page goes.
+    for (const path of ['/nn/', '/nn/2026/', '/nn/course/']) {
+      const body = await squashed(page, path);
+
+      expect(body, path).toContain('Nightingale Valley is the climb.');
+      expect(body, path).toContain('There is no clever way to run it — go up steadily');
+
+      // **The sentence that makes the trail-shoe line advice rather than trivia.** It was on
+      // the course page alone too, and it is the reason the shoe bullet exists at all.
+      expect(body, path).toContain('It is Bristol, in November. Plan for wet.');
+    }
+  });
+
+  test('the page somebody pays from says where the race goes', async ({ page }) => {
+    // **A gap in what was already published rather than fallout from anything.** `/nn/2026/`
+    // described the ground, the shoes, the water and the start, and never the route — that
+    // sentence lived on `/nn/` in the race director's words and on `/nn/course/` in the club's,
+    // and neither of those is the page with the entry form on it.
+    //
+    // **The club's wording, because hers carries the distance.** "A 10km off road run along the
+    // towpath…" would be a second spelling of a distance the `<dl>` on that page already states
+    // from `race.json`, and which spelling the site settles on is with the race director.
+    for (const path of ['/nn/2026/', '/nn/course/']) {
+      const body = await squashed(page, path);
+
+      expect(body, path).toContain(
+        'The route runs along the towpath, turns up Nightingale Valley, and carries on through Leigh Woods.',
+      );
+    }
+
+    // **And `/nn/` keeps hers rather than gaining a second copy**, which is why the sentence is
+    // page-local instead of in `NnRaceSummary`. One route, one spelling per page.
+    const race = await squashed(page, '/nn/');
+
+    expect(race).toContain(
+      'A 10km off road run along the towpath, up Nightingale Valley and through Leigh Woods.',
+    );
+    expect(race).not.toContain('The route runs along the towpath');
   });
 
   test('the water station says where it is, wherever it is mentioned', async ({
