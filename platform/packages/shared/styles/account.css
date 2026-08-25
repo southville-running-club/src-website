@@ -55,3 +55,43 @@
 .account-dob-year .field-input {
   width: 5rem;
 }
+
+/* #55 and #56 — the three ways into `/account/sign-in/`, one `fieldset` each.
+ *
+ * **The `fieldset` is for the screen reader, not for the border.** #55 asks for real
+ * `fieldset` and `legend` structure because two unlabelled email boxes on one page give
+ * somebody using a screen reader no way to tell which one sends a link; the browser's default
+ * border and inset padding are chrome nobody asked for, so they go, exactly as `.account-dob`
+ * already does it.
+ *
+ * **A class rather than `.signup fieldset`.** `.account-dob` is a fieldset inside the same
+ * form on `/account/details/`, and a descendant selector would out-specify its own rules and
+ * put the default padding back on the date of birth. */
+.account-way {
+  margin: 0 0 calc(var(--space, 1rem) * 1.5);
+  padding: 0;
+  border: 0;
+}
+
+.account-way > legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+/* Offered beside the primary action rather than instead of it — #56 is explicit that Google
+   is "a real alternative offered beside the others, not the primary action". Same size and
+   same hit area, so it is no harder to press; only the fill says which one the club leads
+   with. */
+.button-secondary {
+  border-color: var(--colour-accent);
+  background: transparent;
+  color: var(--colour-accent);
+}
+
+/* #62's deletion. `--colour-danger` rather than a hex value, the rule `nn-admin.css` states
+   and this file inherits — and the same 2px border and 2.75rem minimum height every other
+   button has, because a destructive action that is visually smaller is one people mis-tap. */
+.button-danger {
+  background: var(--colour-danger);
+  color: var(--colour-on-accent);
+}
