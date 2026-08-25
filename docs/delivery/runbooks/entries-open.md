@@ -164,16 +164,29 @@ not the build's, and they sit on the critical path.
 The two values come from the committee and from nowhere else. **Do not derive them, do not
 round them to something tidier, and do not put a placeholder in while you wait.**
 
-Write them here before you run anything, in `Europe/London`, and convert once:
+Write them here before you run anything, in `Europe/London`, and convert once.
 
-| | Local (`Europe/London`) | UTC to enter |
-| --- | --- | --- |
-| `entries_open_at` | | |
-| `entries_close_at` | | |
+**A proposal is on the table and it is not ratified.** The race director proposed these on
+24 August 2026. They are written in below **because the conversion is the error-prone part and
+it has been checked**, not because they are decided — the committee has not sat on them, and
+until it has, this page's [stop conditions](#stop-conditions) still forbid step 3.
+
+| | Local (`Europe/London`) | UTC to enter | Status |
+| --- | --- | --- | --- |
+| `entries_open_at` | Tue 1 Sep 2026, 07:00 BST | `2026-09-01T06:00:00Z` | **Proposed, not ratified** |
+| `entries_close_at` | Fri 30 Oct 2026, 17:00 GMT | `2026-10-30T17:00:00Z` | **Proposed, not ratified** |
 
 **The clocks go back on Sunday 25 October 2026** and the race is the weekend after, in GMT. If
 the window spans that date, one of these two conversions differs from the other by an hour. It
-is the single most likely mistake on this page.
+is the single most likely mistake on this page — and this proposed window **does** span it,
+which is why the two rows above carry different offsets: `07:00 → 06:00Z` in September, and
+`17:00 → 17:00Z` in late October.
+
+Both conversions are asserted in `packages/shared/tests/unit/london-time.test.ts` — one BST, one
+GMT, and a third case that fails if a later edit ever gives them a single shared offset. **If
+the committee ratifies different times, change that test with them**: it is what stops an hour
+of drift arriving alongside the ratification, and a test still pinning the old pair would pass
+while this page said something else.
 
 `entries_close_at` may be left null if the committee has not set a closing time — the window is
 then open until somebody closes it. It must be **after** `entries_open_at`; the table has a

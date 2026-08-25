@@ -128,7 +128,7 @@ describe('the race page, once the event row says entries are open', () => {
     // beside two prices reads as an offer anybody can take, and it is not.
     const html = await racePage();
 
-    expect(html).toContain('£17.00 unaffiliated · £15.00 affiliated');
+    expect(html).toContain('£20.00 unaffiliated · £18.00 affiliated');
     expect(html).not.toContain('>Free<');
   });
 
@@ -183,13 +183,13 @@ describe('the year page, once the event row says entries are open', () => {
   });
 
   it('takes its prices from entries.fees and none from the markup', async () => {
-    // £15 and £17 live in `entries.fees.price_pence` and nowhere else. Nothing in `dist/`
+    // £18 and £20 live in `entries.fees.price_pence` and nowhere else. Nothing in `dist/`
     // knows either number — `nn-entry.test.ts` asserts the same page carries no `£` at all
     // when the window is shut.
     const html = await page();
 
-    expect(html).toMatch(/data-entry-fee-price="affiliated">£15\.00/);
-    expect(html).toMatch(/data-entry-fee-price="unaffiliated">£17\.00/);
+    expect(html).toMatch(/data-entry-fee-price="affiliated">£18\.00/);
+    expect(html).toMatch(/data-entry-fee-price="unaffiliated">£20\.00/);
     // A guide's place is free, and reads "Free" rather than "£0.00" — a price of nothing set
     // in the same figures as a price of something reads like a mistake.
     expect(html).toMatch(/data-entry-fee-price="vi_guide">Free/);

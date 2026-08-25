@@ -25,12 +25,18 @@ re-run.
   location, start time. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
   2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
   the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
-  fees are confirmed too** — £15 affiliated, £17 unaffiliated, £0 for a visually impaired
-  runner's guide — and they live in `entries.fees`, never in markup. **So is the minimum age:
-  18 on race day**, in `entries.events.minimum_age`. **Still unconfirmed, and none of them may
-  appear anywhere:** the 2026 ARC permit number (the 2023 number is not a substitute), the
-  2026 race director's name, the entry open and close times, and the transfer deadline. Do not
-  invent a fact, do not infer one from a phase document, and do not put a plausible
+  fees are confirmed too** — **£18 affiliated, £20 unaffiliated** since 24 August 2026, £0 for
+  a visually impaired runner's guide — and they live in `entries.fees`, never in markup. **The
+  £2 gap is ARC's, not the club's**: it is the Unattached Runner Levy the promoter must impose
+  under Rule 21(2)(b) and remit to ARC within 30 days under 21(2)(c), so the club nets £18
+  either way — decision 006. **So is the minimum age: 18 on race day**, in
+  `entries.events.minimum_age`. **Still unconfirmed, and none of them may appear anywhere:**
+  the 2026 ARC permit number (the 2023 number is not a substitute), the 2026 race director's
+  name, and the transfer deadline. **The entry open and close times have been *proposed* — 1
+  September 07:00 and 30 October 17:00 — and not ratified**, so they may not appear either, and
+  in particular **they may not go into `entries.events`**: that column is not configuration
+  waiting to be switched on, it is the switch, and the entries-open runbook owns the moment.
+  Do not invent a fact, do not infer one from a phase document, and do not put a plausible
   placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
@@ -343,6 +349,33 @@ allowed to be shorter than the heading, and read "Spectators" over "Watching the
 day it was written. **"Spooktators" was free.** `site.spec.ts`'s nine-width sweep is the only
 reason any of this was seen, and a check at 1280px and 320px would have passed every broken
 version of it.
+
+**A leak assertion that matches a bare numeric string against rendered HTML is unreliable, and it
+fails towards passing.** Markup is full of arbitrary digits that belong to nobody: every inline
+SVG here carries `xmlns="http://www.w3.org/2000/svg"`, and the path data under it is thousands of
+coordinates. So `expect(html).not.toContain('2000')` can **never** pass on any page that renders
+the club wordmark — while `not.toContain('1700')` passed for months, not because the amount was
+absent but because that particular number happened not to collide. **The guard was testing
+whether the current value clashed with decoration, not whether it leaked.** Two rules, and both
+are needed: **strip decorative markup before matching** —
+`(await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '')`, because decoration cannot hold
+personal data — and **derive the expected value from the fixture rather than writing a literal**,
+because a literal stops testing silently the moment the value moves. Deriving without stripping
+fails loudly on the namespace; stripping without deriving goes quietly vacuous, which is the
+worse of the two because the line still looks like coverage.
+`nn-entry-complete.spec.ts`'s "a real session id reveals nothing about anybody either" is the
+shape to copy.
+
+**`osascript -e 'quit app "Docker"'` can return cleanly while `com.docker.backend` keeps
+running**, and `open -a Docker` then reattaches to the same wedged instance rather than starting
+a new one. The symptom is every `docker` command answering `500 Internal Server Error … check if
+the server supports the requested API version`, which reads as a CLI/daemon version mismatch and
+is not one — the backend is alive and the Linux VM behind it is dead. Two things give it away:
+asking for a different API version changes the version in the message and not the 500, and
+`pgrep -fl com.docker` shows backend processes older than the restart. **`pkill -f
+com.docker.backend` before `open -a Docker` is what actually restarts it** — fifteen seconds,
+against an hour of retrying `./dev check`. A laptop that sleeps mid-`./dev` is the reliable way
+into this state, because it kills the Supabase containers under a daemon that stays up.
 
 ---
 

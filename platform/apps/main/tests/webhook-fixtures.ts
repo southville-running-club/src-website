@@ -38,7 +38,7 @@ export const UNKNOWN_SESSION_ID = 'cs_test_worker_never_existed';
  * The amount every fixture purchase is for, in pence. The `unaffiliated` fee, which is what
  * `entries.fees` charges for the real race.
  */
-export const FIXTURE_AMOUNT_PENCE = 1700;
+export const FIXTURE_AMOUNT_PENCE = 2000;
 
 /**
  * The address on every fixture purchase.

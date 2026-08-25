@@ -146,7 +146,7 @@ test.describe('the page Stripe returns somebody to', () => {
   });
 
   // ---------------------------------------------------------------------------------------
-  // The sentence that would cost somebody £17
+  // The sentence that would cost somebody a second entry fee
   // ---------------------------------------------------------------------------------------
 
   test('never says nothing was charged, whatever state it is in', async ({ page }) => {
@@ -202,7 +202,14 @@ test.describe('the page Stripe returns somebody to', () => {
     // browser history, from a `Referer` header — learns one word and no more.
     await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
-    const html = await page.content();
+    // **The artwork comes out before anything is matched against the markup**, and it has to.
+    // Every inline SVG on this site carries `xmlns="http://www.w3.org/2000/svg"`, so a bare
+    // `not.toContain('2000')` can never pass on any page that renders the wordmark — and the
+    // path coordinates below it are pages of arbitrary digits besides, so which amount collides
+    // next is a matter of luck rather than of care. `'1700'` happened not to; `'2000'` always
+    // does. Decoration cannot hold personal data, so removing it narrows this to the part of
+    // the document that could.
+    const html = (await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '');
 
     expect(html).not.toContain(FIXTURE_EMAIL);
     expect(html).not.toContain(FIXTURE_FIRST_NAME);
@@ -210,8 +217,15 @@ test.describe('the page Stripe returns somebody to', () => {
     expect(html).not.toContain(PAID_PURCHASE_ID);
     // Not the amount either. Which of three published prices a named person paid says whether
     // they are affiliated, and minimisation applies to a confirmation page too.
-    expect(html).not.toContain('£17');
-    expect(html).not.toContain('1700');
+    //
+    // **Derived from the fixture rather than written out**, because a literal here stops
+    // testing silently the moment the fee moves — and it did: this read `'£17'` and `'1700'`
+    // while the fixture became £20, so it was asserting the page did not contain a number the
+    // page was never going to contain. A leak test that cannot fail is worse than no leak test,
+    // because the row above it still looks covered. See the note on the artwork above for why
+    // deriving it is not sufficient on its own.
+    expect(html).not.toContain(String(FIXTURE_AMOUNT_PENCE));
+    expect(html).not.toContain(`£${Math.floor(FIXTURE_AMOUNT_PENCE / 100)}`);
   });
 
   test('an injected session id comes back as characters rather than as markup', async ({

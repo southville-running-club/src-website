@@ -165,6 +165,20 @@ nothing here authorises payment work.
 
 ---
 
+## 006 — Price the 2026 entry at £18 and £20, and treat the £2 gap as ARC's money
+
+| | |
+| --- | --- |
+| **Requirement** | [C3](../foundations/requirements.md#c3--accept-race-sign-ups-and-entries), [C4](../foundations/requirements.md#c4--take-payments), [C11](../foundations/requirements.md#c11--verify-england-athletics-registration) |
+| **Context** | The schema seeded £15 affiliated and £17 unaffiliated with the entries tables on 13 August 2026, and `CLAUDE.md` has carried them as confirmed since. The race director confirmed **£18 and £20** on 24 August 2026. A guide's place stays £0. **This record exists rather than an ADR** because [the ADR folder's own rule](../architecture/decisions/README.md#two-decision-homes-and-which-one-a-choice-belongs-in) puts money, anything the committee ratifies, and anything whose reversal costs money on this side of the line — and its tiebreak is *"when in doubt, the decision log"* |
+| **Options** | **Leave £15/£17** — no longer what the race director has confirmed, and the number is published to the public the day entries open. **Add a windowed second price** — what `entries.fees`' own `valid_from`/`valid_to` comment describes, and it is unreachable: `unique (event_id, code)` allows one row per code per event and `code` is constrained to three literals, so a second `unaffiliated` row cannot exist. **Update the two rows**, which is what happened — nothing already sold moves, because `entry_purchases.amount_pence` is written at purchase time and never re-read from the fee |
+| **Decision** | **£18 affiliated, £20 unaffiliated, £0 for a visually impaired runner's guide**, as an `update` in `20260825090000_nn_2026_entry_fees.sql` against the two `nn-2026` rows. The migration refuses rather than passes if it repriced anything other than exactly two rows. The prices live in `entries.fees` and nowhere else — no page states one, and `serves.test.ts` asserts no `£` figure reaches `dist/` |
+| **Consequences** | **The £2 differential is not club income, and the schema said it was.** ARC **Rule 21(2)(b)** requires the promoter to impose the Unattached Runner Levy on runners who are not members of a club affiliated to ARC or UK Athletics, and **Rule 21(2)(c)** requires it remitted to ARC within 30 days along with the full race entry list. So **the club nets £18 whichever box a runner ticks**, holds £2 of ARC's money until it is sent on, and acquires a reporting obligation with a deadline attached. That changes what the fee rows mean rather than what they hold, and it makes the gap an obligation rather than a pricing lever — a repricing that moved one fee without the other would change what the club owes ARC per entry. A test now asserts the gap is exactly 200p as well as asserting the two prices. **Repricing also exposed a guard that had stopped guarding**, which matters to whoever reprices next: the confirmation page's leak assertion — the one keeping the amount paid off a page, because which of three published prices a named person paid says whether they are affiliated — matched the literals `£17` and `1700` while the fixture moved to `2000`, so it was asserting the absence of a number the page was never going to hold. It is derived from the fixture now **and** matched against markup with the SVG stripped, because `xmlns="http://www.w3.org/2000/svg"` means a bare `2000` can never be absent from any page carrying the wordmark. **Both halves are load-bearing**: re-deriving it from a literal breaks it silently again, and dropping the stripping breaks it loudly. See CLAUDE.md's traps. **It also names a live defect**: Rule 21(2)(b) exempts members of ARC-affiliated clubs, who hold no England Athletics number, and the form asks only for an EA number — so if Southville is itself ARC-affiliated its own members cannot claim £18 at their own race. That is [issue #72](https://github.com/southville-running-club/src-website/issues/72), it is a C11 gap rather than a pricing one, and it becomes live the day entries open |
+| **Exit cost** | **An afternoon and one `update` while nothing is sold.** After the first entry it is a refund or a top-up per runner, by hand, plus a correction to whatever has already been remitted to ARC — so the practical exit window closes on the day entries open rather than on race day |
+| **Revisit when** | The club's own ARC or UK Athletics affiliation is confirmed, which decides #72 and may change who qualifies for £18; ARC changes the levy amount or the remittance terms; a discount code is agreed, since `entries.discount_codes` exists and is deliberately empty; or the committee prices the 2027 running, which is a new event row rather than an edit to this one |
+
+---
+
 ## What these decisions cost together
 
 | | Per year |
@@ -196,6 +210,18 @@ cannot outlive Squarespace. It is not a decision taken here; see
 - **Five vendor facts** listed under
   [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for
+- **The 2026 entry window** — the race director has proposed **opening Tuesday 1 September
+  2026 at 07:00 and closing Friday 30 October at 17:00**, Europe/London, and **the committee
+  has not ratified it.** It stays out of `entries.events` until they do, and that is not
+  bookkeeping: `entries_open_at` is not configuration waiting to be switched on, it *is* the
+  switch, so a date in that column is a dated instruction to start selling places unattended.
+  [The entries-open runbook](../delivery/runbooks/entries-open.md) owns the moment and carries
+  the exact `update`; its stop conditions are not met today. The conversion either side of the
+  clocks change is already tested — `london-time.test.ts` asserts the open is BST and the close
+  is GMT, so an hour of drift cannot arrive with the ratification
+- **Whether Southville is affiliated to ARC or to UK Athletics**, which decides
+  [#72](https://github.com/southville-running-club/src-website/issues/72) and therefore whether
+  the club's own members can claim the £18 price at the club's own race. See decision 006
 
 ---
 
