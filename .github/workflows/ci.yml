@@ -104,7 +104,24 @@ jobs:
   verify:
     name: Lint, types, tests, build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # **40 rather than 25, because 25 does not fit what this job is now allowed to do.**
+    #
+    # Measured on run 32868682059, a green one: setup to the end of `Install browsers` is
+    # ~8 minutes, the serial config 2.7, the base config 5.7. Each is retried once
+    # independently, so the budget the step can legitimately ask for is
+    # 8 + (2.7 × 2) + (5.7 × 2) = **24.8** — under 25 by twelve seconds, on a shared runner,
+    # with both retries firing. That is not a ceiling, it is a coin toss: that same run used
+    # 21.4 minutes with only *one* retry.
+    #
+    # Losing the toss is worse than losing the time. The job is killed part-way through a
+    # retry and the run reports `The operation was canceled`, which reads as somebody pressing
+    # a button rather than as a suite worth looking at — which is exactly how run 32862836535
+    # was misread.
+    #
+    # This is a ceiling, not consumption: a green run is ~18 minutes and bills ~18. It is
+    # raised only as far as the paths that actually occur need, because a genuinely hung job
+    # now bills 40 against a 2,000-minute monthly allowance already close to spent.
+    timeout-minutes: 40
 
     env:
       # Pinned for the same reason the timing app pins it: without this the suite passes
@@ -133,6 +150,32 @@ jobs:
 
       - name: Start the local Supabase stack
         working-directory: platform/packages/db
+        env:
+          # **`public.ecr.aws` rate limits by IP address, and the address is not ours.**
+          #
+          # `supabase start` pulls a dozen images — Postgres, GoTrue, Kong, PostgREST,
+          # Storage, postgres-meta, Studio, Realtime, Mailpit, Vector, Logflare, edge-runtime
+          # — and by default from AWS's public registry, which counts them against the
+          # runner's address. A GitHub-hosted runner shares that address with whatever else is
+          # on the machine, so the allowance can be gone before this job starts, spent by
+          # strangers, and the run dies here with `toomanyrequests: Rate exceeded`. Twice so
+          # far: run 31787327668 on 14 August and run 32868948264 today, the latter nineteen
+          # times in one job with the CLI's own backoff exhausted. Nothing about the change
+          # under test is involved, and the Acceptance step's retry cannot help — this fails
+          # before a single test runs.
+          #
+          # **GitHub's own registry publishes the same images at the same tags and does not
+          # rate limit public pulls.** All twelve were checked by manifest before this was
+          # relied on. It needs no credential, which is the property worth having: a fix that
+          # depends on a secret is one that silently stops working the day the secret is
+          # rotated, and there is no secret here to rotate.
+          #
+          # Being an env var rather than a flag is the CLI's own interface for this, and it
+          # travels to every `supabase` invocation in this step without changing the command.
+          #
+          # If GHCR is ever missing a tag the CLI wants, `docker.io` is the other published
+          # value, and unsetting this restores the default.
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
         run: npx supabase start
 
       - name: Export the local Supabase credentials
@@ -212,8 +255,36 @@ jobs:
         # Inside the real Workers runtime via Miniflare, against the real build output.
         run: npm run test:worker
 
+      # The browser binaries are downloaded from scratch on every run — Chromium and a 102MB
+      # WebKit — to be used identically to last time. Keyed on the resolved Playwright version
+      # rather than on `package-lock.json`, which changes on any dependency bump and would
+      # discard them for a reason that has nothing to do with them. Read from the installed
+      # package, so the key follows what `^1.62.1` actually resolved to.
+      - name: Resolve the Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install browsers
-        run: npx playwright install --with-deps chromium webkit
+        # **The system libraries are installed on a cache hit too, and that is not
+        # belt-and-braces.** The cache holds `~/.cache/ms-playwright` — the browser binaries.
+        # It does not hold the apt packages WebKit links against, which are not on the runner
+        # image by default. Restoring the binaries alone gives a WebKit that fails to launch,
+        # surfacing as every `mobile-safari` test failing at once rather than as anything
+        # naming a missing library. `install-deps` is the cheap half of `--with-deps`; the
+        # download is the expensive half, and it is what the cache removes.
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            npx playwright install-deps chromium webkit
+          else
+            npx playwright install --with-deps chromium webkit
+          fi
 
       - name: Acceptance tests
         # Playwright, including axe at **zero** violations. Not "few" — any threshold
@@ -236,11 +307,37 @@ jobs:
         # repository. Every one of these failures has been unreproducible locally, so this is
         # runner pressure, not the site — a full-suite retry is the honest way to absorb that
         # without pretending a threshold of individual flaky tests is fine.
+        #
+        # **The retry is skipped when a config hit `globalTimeout`, and that exclusion is the
+        # point of this block rather than a detail of it.** The retry above answers "the
+        # servers did not come up", where nothing ran and running it again is the only way to
+        # learn anything. A global timeout is the opposite: the suite ran, it was passing, and
+        # it was cut off for being long. Re-running it cannot make a config that needs more
+        # than the ceiling finish inside it, so the second attempt is certain to fail the same
+        # way after paying for it twice — and on this job that second ten minutes is what
+        # turns a slow run into a killed one. Playwright exits 1 for both, so the message is
+        # the only thing separating them.
+        #
+        # `--last-failed` is deliberately not used for the ordinary retry: on the startup
+        # failure it exists for, no test has run and there is nothing to select.
         run: |
+          set -o pipefail
+
           run_suite() {
             local config="$1"
-            if npx playwright test --config="$config"; then
+            local label="${config%.ts}"
+            local log="playwright-${label}.log"
+
+            # One report per config, or the second run lands on the first's and the timing
+            # summary describes half the suite while looking like all of it.
+            export PLAYWRIGHT_JSON_OUTPUT_NAME="playwright-report/results-${label}.json"
+
+            if npx playwright test --config="$config" 2>&1 | tee "$log"; then
               return 0
+            fi
+            if grep -q 'Timed out waiting .* for the test suite to run' "$log"; then
+              echo "::error::$config exceeded its globalTimeout — not retrying, because a re-run cannot fit inside it either. Raise globalTimeout in platform/playwright.config.ts and timeout-minutes in ci.yml together." >&2
+              return 1
             fi
             echo "::warning::acceptance tests ($config) failed, retrying the suite once" >&2
             npx playwright test --config="$config"
@@ -250,6 +347,67 @@ jobs:
           run_suite playwright.config.serial.ts || status=1
           run_suite playwright.config.ts || status=1
           exit "$status"
+
+      # `always()`, because the question this answers — where the suite spends its time — is
+      # at its most useful when nothing is wrong. A summary that appears only on a red run is
+      # one nobody reads until they are already busy with something else. Both configs' reports
+      # are passed together, so the table covers the whole suite rather than the second half.
+      - name: Where the suite spent its time
+        if: always()
+        run: python3 ../tools/suite-timing.py playwright-report/results-*.json >> "$GITHUB_STEP_SUMMARY"
+
+      # **The reason the web server exited is written to a file nobody has ever read.** When
+      # `wrangler dev` dies it prints `✘ [ERROR]` with an empty message and then
+      # `Logs were written to ~/.config/.wrangler/logs/…`, and the run ends without that file
+      # going anywhere — which is precisely why the note above can only say it exits with no
+      # error message that points at a cause. The message exists; it is discarded.
+      - name: Say why the web server exited
+        if: failure()
+        run: |
+          # **Was it killed, or did it choose to exit?** The two are indistinguishable from
+          # the console — wrangler prints the same empty error either way — and they have
+          # nothing in common as problems. This is a 2-core, 7GB runner already holding a
+          # dozen Supabase containers, two `workerd` instances, a Node stub and up to two
+          # browsers, so the kernel running out of patience is not a remote possibility, and
+          # if that is what happened the ring buffer is the only place that says so.
+          # `|| true` throughout: a diagnostic step must not become the failure it diagnoses.
+          echo "::group::Memory, and whether anything was killed for it"
+          free -m || true
+          sudo dmesg 2>/dev/null | grep -iE 'killed process|out of memory|oom' | tail -20 || true
+          echo "::endgroup::"
+
+          shopt -s nullglob
+          logs=("$HOME/.config/.wrangler/logs/"*.log)
+          if [ ${#logs[@]} -eq 0 ]; then
+            echo "No wrangler logs — the web server did not write one."
+            exit 0
+          fi
+          # **Grep before tail, because the tail is not where the answer is.** These are debug
+          # logs and the inspector is by far their chattiest subsystem: run 32872678156's last
+          # sixty lines were entirely `[InspectorProxyWorker]` protocol traffic at message id
+          # 100000034, which says the inspector is loud and nothing whatever about why the
+          # process ended. So pull the lines that could carry a cause first, and keep a short
+          # tail after it only to show what it was doing at the end.
+          for log in "${logs[@]}"; do
+            echo "::group::${log##*/} — anything naming a cause"
+            # Assigned rather than piped straight out: the final `tail` succeeds on empty
+            # input, so `|| echo` would never fire and "no candidate lines" would be
+            # indistinguishable from the step having silently not run.
+            candidates=$(
+              grep -inE 'error|fatal|exception|signal|abort|panic|assert|refused|EADDR|ENOMEM|EPIPE|exit(ed|ing)? ' "$log" \
+                | grep -viE 'InspectorProxyWorker|consoleAPICalled|not found at|Continuing\.\.\.' \
+                | tail -n 40
+            )
+            if [ -n "$candidates" ]; then
+              echo "$candidates"
+            else
+              echo "(nothing in this log names a cause)"
+            fi
+            echo "::endgroup::"
+            echo "::group::${log##*/} — last 20 lines"
+            tail -n 20 "$log"
+            echo "::endgroup::"
+          done
 
       - name: Upload the Playwright report on failure
         if: failure()

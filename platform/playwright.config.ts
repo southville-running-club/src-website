@@ -75,7 +75,33 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+
+  // **A dead web server should stop the run, not be re-discovered six hundred times.**
+  //
+  // `webServer` does not restart what it started, so once `wrangler dev` exits — which it
+  // does, mid-run, see the note in `ci.yml` — every remaining test fails on
+  // `Could not connect to localhost: Connection refused`, and `retries: 1` means each fails
+  // twice. Run 32867934746 spent its whole budget that way: **578 connection failures**, none
+  // of them information, one dead process observed 578 times.
+  //
+  // That is not merely slow. The retry in `ci.yml` is a fresh `webServer` and the one thing
+  // that could actually recover the run, and it starts only once all of that is paid for — so
+  // the grind is what turns a recoverable crash into a red pull request.
+  //
+  // Twenty is past any plausible genuine cluster and a small fraction of either config. The
+  // trade is real and worth stating: a change that legitimately breaks more than twenty tests
+  // reports the first twenty and stops, so the first run after a broad regression
+  // under-reports. That costs one re-run of an already-red suite, against an outcome where the
+  // cause is buried in six hundred identical connection errors.
+  maxFailures: process.env.CI ? 20 : 0,
+  // `github` annotates the diff; the JSON alongside it is what `tools/suite-timing.py` reads
+  // to say where the time went, per file and per project. A file rather than a second console
+  // reporter, because two writing to one stream interleave — and `ci.yml` overrides the name
+  // per config through `PLAYWRIGHT_JSON_OUTPUT_NAME`, so the second run does not land on the
+  // first's report. `playwright.config.serial.ts` spreads this config and inherits it.
+  reporter: process.env.CI
+    ? [['github'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    : 'list',
 
   // **Two, not one, and not unbounded.** Two servers plus three browser engines is already a
   // lot of processes for a shared CI runner, which is the ceiling this number has always been
