@@ -68,12 +68,13 @@ import {
  *   3. **Take Stripe's confirmation.** A POST to `/nn/stripe-webhook`, also before the assets
  *      binding, and **the only thing in this platform that records a payment**. It is not a
  *      page: no HTML, no rewriting, no redirect. See `stripe-webhook.ts`.
- *   4. **Serve `/nn/admin`, when there is a key to serve it with.** The entries, the interest
- *      list, one medical note at a time and three exports — the only pages on this site the
- *      Worker *builds* rather than paints, because a list of entries is a variable number of
- *      rows and there is deliberately no html-mode rewriting anywhere here. With no
- *      `ENTRIES_ADMIN_KEY` bound it declines and the request 404s like any other unknown
- *      address. See `nn-admin.ts` and ADR-013.
+ *   4. **Serve `/admin/`, the club's back office.** The entries, the interest list, one
+ *      medical note at a time, three exports and the roles page — the only pages on this site
+ *      the Worker *builds* rather than paints, because a list of entries is a variable number
+ *      of rows and there is deliberately no html-mode rewriting anywhere here. Answered to
+ *      everybody, and every address under it answers 404 to a caller who is not signed in and
+ *      holding a staff role — see `admin.ts` and ADR-013's amendment. `/nn/admin/*` is
+ *      redirects only, to where #58 moved this.
  *   5. **Paint what only the database knows onto the pages that ship without it**, by
  *      rewriting the served HTML — which running is on, onto `/nn/`; which form applies, onto
  *      `/nn/<year>/`; and the recorded payment state, onto `/nn/<year>/entry/complete/`.
@@ -142,16 +143,6 @@ interface Env {
    * database holds only this key's SHA-256 digest. The full argument is in the migration.
    */
   ENTRIES_WEBHOOK_KEY?: string;
-  /**
-   * **A third Worker secret, and its absence is what makes `/nn/admin` not exist.**
-   *
-   * The admin surface is the first read path in this platform that returns real people. Every
-   * database function behind it requires this key, and every route under `/nn/admin` is declined
-   * without it — declined rather than refused, so the request falls through to the assets
-   * binding and 404s exactly as an address nobody has published does. **That is the deployed
-   * state today.** See ADR-013 and `worker/nn-admin.ts`.
-   */
-  ENTRIES_ADMIN_KEY?: string;
   /**
    * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
    * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*

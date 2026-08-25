@@ -79,9 +79,12 @@
  *     `<th scope="col">` and `<th scope="row">` at every size, so the semantics that make it
  *     navigable are not traded for the layout.
  *
- * Nothing horizontally scrolls at any width, so `.admin-scroll` and its `position: relative` are
- * both gone. `nn-admin.spec.ts`'s "is operable at 320px" is the guard and runs in all three
- * projects.
+ * **This table does not scroll**, and `.admin-scroll` was removed from it and from this file —
+ * `nn-admin.spec.ts`'s "is operable at 320px" is the guard for that, and runs in all three
+ * projects. **It is back below, for a different table**: #59's roles page has three columns
+ * that cannot fold — a person, their roles, and the controls — and one of them is a
+ * 33-character mono email address wider than a 320px viewport on its own. See the note beside
+ * `.admin-scroll` for what going back to a scroller costs and how this file pays for it.
  */
 
 /* ---------------------------------------------------------------------------------------
@@ -1041,16 +1044,45 @@ body.admin {
 }
 
 /* ---------------------------------------------------------------------------------------
+ * The scroller — back, for the one table on this surface narrow enough to need it rather
+ * than a responsive fold
+ * ---------------------------------------------------------------------------------------
+ * The entries table above folds to three columns instead of scrolling, because it carries eight
+ * and dropping five into the runner cell is still legible. The roles table is three columns —
+ * person, roles, change — and at 320px a 33-character mono email address alone is wider than
+ * the viewport; folding has nothing to drop. A horizontal scroller is the right shape here,
+ * which means the trap this file's header describes is live again.
+ *
+ * **`position: relative` is not optional.** `.admin-visually-hidden` below is `position:
+ * absolute`, used for the "for <email>" suffix on every grant and revoke button, and with no
+ * positioned ancestor its containing block is the *page* — exactly the bug that made the
+ * entries table stop scrolling in the first place. This rule is what keeps the containing
+ * block inside the box that actually scrolls.
+ */
+.admin-scroll {
+  overflow-x: auto;
+  position: relative;
+}
+
+.admin-inline-form {
+  display: inline-flex;
+}
+
+.admin-inline-form + .admin-inline-form {
+  margin-inline-start: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------------------
  * The standard clip
  * ---------------------------------------------------------------------------------------
  * For a `<caption>` and an in-context suffix on a button label, which reach a screen reader
  * without appearing on the page. Not `display: none`, which removes it from the accessibility
  * tree as well and would leave the tables unnamed.
  *
- * **Nothing that uses this sits inside a horizontal scroller any more**, which is what made it
- * dangerous in the first pass: `position: absolute` with no positioned ancestor took its
- * containing block from the page, escaped the scroller, and dragged the whole document sideways
- * at 320px. There is no scroller on this surface now, so there is nothing for it to escape.
+ * **Everything that uses this must sit inside `.admin-scroll`, or nothing that scrolls at
+ * all.** `position: absolute` with no positioned ancestor takes its containing block from the
+ * page, escapes any scroller, and drags the whole document sideways at 320px — measured on
+ * this exact surface twice, the second time on the roles page #59 added.
  */
 .admin-visually-hidden {
   position: absolute;

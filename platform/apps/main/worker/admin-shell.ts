@@ -213,3 +213,30 @@ export function notFound(): Response {
     { status: 404 },
   );
 }
+
+/**
+ * Carry a refreshed session onto whatever response the surface was already going to send.
+ *
+ * **Every response under `/admin/` passes through this, once, at the one place a session is
+ * read.** `worker/account.ts` threads `refreshedCookies` explicitly through every renderer it
+ * has; the sections here are three files deep by the time a response comes back, and adding
+ * the same parameter to every one of them would be a second way to carry the same value. A
+ * `Response` from `page()` or `notFound()` has ordinary, mutable headers — nothing in this
+ * tree constructs one any other way — so appending here is equivalent and touches one call
+ * site instead of a dozen.
+ *
+ * **Why this has to happen even on a 404.** `readSession()` rotates the refresh token the
+ * moment the access token is within a minute of expiry, and `refresh_token_reuse_interval` is
+ * ten seconds — so the *old* refresh cookie stops working almost immediately whether or not
+ * this request turns out to be for somebody who may see the page. Sending the response without
+ * the new cookies would leave the browser holding a token the database already treats as
+ * spent, and the next request — plausibly one that would otherwise have succeeded — fails
+ * exactly as it would after an idle timeout, with nothing on the page explaining why.
+ */
+export function withRefreshedCookies(response: Response, cookies: string[]): Response {
+  for (const cookie of cookies) {
+    response.headers.append('set-cookie', cookie);
+  }
+
+  return response;
+}

@@ -20,7 +20,8 @@
  * #63 removes them. They are still seeded because the audit trail is the thing that has to
  * survive the change of identity scheme: a row written under the key scheme carries a handle
  * and a row written under the role scheme carries a uuid, and the runbook's "who has read
- * medical data" query must return both. `nn-admin.test.ts` asserts that it does.
+ * medical data" query must return both — `admin-db.ts`'s `medicalReadAudit()` is that
+ * query, and `tests/worker/admin/admin.test.ts` asserts that it returns both shapes.
  */
 export const ADMIN_GATE_KEY = 'zz-admin-worker-gate-key-not-a-real-one';
 export const ADMIN_PERSON_KEY = 'zz-admin-worker-person-key-not-a-real-one';

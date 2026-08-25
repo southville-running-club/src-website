@@ -1,6 +1,13 @@
 import { createUserClient, type SupabaseConfig } from '@src/shared';
 import { html } from './html';
-import { isStaff, masthead, notFound, page, type AdminViewer } from './admin-shell';
+import {
+  isStaff,
+  masthead,
+  notFound,
+  page,
+  withRefreshedCookies,
+  type AdminViewer,
+} from './admin-shell';
 import { handleNnSection } from './nn-admin';
 import { handlePeopleSection } from './admin-people';
 import { readSession } from './session';
@@ -107,7 +114,16 @@ async function viewerFor(
   };
 }
 
-/** Handle one request under `/admin/`. */
+/**
+ * Handle one request under `/admin/`.
+ *
+ * **Every path out returns through one place**, so a refreshed session cannot be dropped by
+ * whichever branch happens to answer. `readSession()` rotates the refresh token the moment the
+ * access token is within a minute of expiry — the old cookie is spent whether or not this
+ * particular request turns out to be for somebody staff, so a signed-out response and a 404
+ * for a plain member need the new pair exactly as much as a real page does. See
+ * `withRefreshedCookies`'s own comment for what silently discarding it costs.
+ */
 export async function handleAdmin(
   request: Request,
   env: AdminEnv,
@@ -117,7 +133,7 @@ export async function handleAdmin(
   const nowSeconds = Math.floor(Date.now() / 1000);
   const cfg = config(env);
 
-  const { session } = await readSession(
+  const { session, setCookies: refreshedCookies } = await readSession(
     cfg,
     request.headers.get('cookie'),
     nowSeconds,
@@ -125,38 +141,37 @@ export async function handleAdmin(
   );
 
   if (session === null) {
-    return notFound();
+    return withRefreshedCookies(notFound(), refreshedCookies);
   }
 
   const viewer = await viewerFor(cfg, session);
 
   if (viewer === null) {
-    return notFound();
+    return withRefreshedCookies(notFound(), refreshedCookies);
   }
 
-  const segments = adminSegments(url.pathname);
+  const path = adminSegments(url.pathname);
+  let response: Response;
 
-  if (request.method === 'GET' && segments.length === 0) {
-    return dashboard(viewer);
-  }
-
-  // **The role is checked here, before the section runs.** Each section then trusts its
-  // viewer — `nn-admin.ts` has no credential check in it at all — which is the same ordering
-  // discipline `entries.admin_key_ok()` established and `identity.has_role()` continues: refuse
-  // before anything is resolved and before a row is read.
-  if (segments[0] === 'nn') {
-    return viewer.roles.includes('nn-admin')
-      ? handleNnSection(request, viewer, cfg, segments.slice(1), url)
+  if (request.method === 'GET' && path.length === 0) {
+    response = dashboard(viewer);
+  } else if (path[0] === 'nn') {
+    // **The role is checked here, before the section runs.** Each section then trusts its
+    // viewer — `nn-admin.ts` has no credential check in it at all — which is the same
+    // ordering discipline `entries.admin_key_ok()` established and `identity.has_role()`
+    // continues: refuse before anything is resolved and before a row is read.
+    response = viewer.roles.includes('nn-admin')
+      ? await handleNnSection(request, viewer, cfg, path.slice(1), url)
       : notFound();
-  }
-
-  if (segments[0] === 'people') {
-    return viewer.roles.includes('super-admin')
-      ? handlePeopleSection(request, viewer, cfg, segments.slice(1), secure)
+  } else if (path[0] === 'people') {
+    response = viewer.roles.includes('super-admin')
+      ? await handlePeopleSection(request, viewer, cfg, path.slice(1), secure)
       : notFound();
+  } else {
+    response = notFound();
   }
 
-  return notFound();
+  return withRefreshedCookies(response, refreshedCookies);
 }
 
 /**

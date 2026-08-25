@@ -269,13 +269,22 @@ function peopleBody(
     </main>`;
 }
 
+/**
+ * One row, one person.
+ *
+ * **`<th scope="row">` on the person cell, not `<td>`** — the entries table, the interest
+ * list and the start list all name their row this way, and a screen reader that can jump by
+ * row header on those three could not on this one. A person's own identity is what a row on
+ * this table is about, in the same sense a runner's name is what a row of the entries table
+ * is about.
+ */
 function personRow(person: Person, viewer: AdminViewer, token: string): Html {
   return html`<tr>
-    <td>
+    <th scope="row">
       ${person.name === null ? null : html`<span>${person.name}</span> `}
       <span class="admin-mono">${person.email}</span>
       ${person.id === viewer.id ? html`<span class="admin-chip">you</span>` : null}
-    </td>
+    </th>
     <td>${person.roles.length === 0 ? 'none' : person.roles.join(', ')}</td>
     <td>${GRANTABLE.map((role) => roleControl(person, role, token))}</td>
   </tr>`;

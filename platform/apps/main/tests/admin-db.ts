@@ -122,6 +122,19 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       REVOKED_HANDLE,
     ]);
 
+    // **One audit row from the key era, seeded as history.** Nothing in the Worker writes a
+    // handle any more — #58 moved the surface behind `identity`'s roles, so every new row
+    // names `auth.uid()`. The runbook's "who has read medical data" query has to keep
+    // returning both shapes regardless, because the rows written before the change do not
+    // move, and a query that quietly stopped finding them would answer an access review with
+    // half the truth. `medicalReadAudit()` is that query and this is the half of its answer
+    // that can no longer be produced by using the surface.
+    await db.query(
+      `insert into entries.admin_audit (actor, action, detail)
+       values ($1, 'medical_note', jsonb_build_object('entrant_id', $2::uuid, 'found', true, 'had_note', true))`,
+      [ADMIN_HANDLE, PAID_ENTRANT_ID],
+    );
+
     const seedEvent = async (
       slug: string,
       name: string,
@@ -580,7 +593,7 @@ export async function clearAdminFixtures(
   await clearFixturePeople();
 }
 
-/** What the audit table records, for a test that cannot look through the API. */
+/** What the audit table records for the key era, for a test that cannot look through the API. */
 export async function adminAudit(): Promise<
   { actor: string; action: string; detail: Record<string, unknown> }[]
 > {
@@ -593,6 +606,46 @@ export async function adminAudit(): Promise<
       `select actor, action, detail from entries.admin_audit
         where actor = any($1::text[]) order by at`,
       [[ADMIN_HANDLE, REVOKED_HANDLE]],
+    );
+
+    return rows;
+  });
+}
+
+export interface MedicalReadAudit {
+  /** A handle for a row written under the key scheme, a uuid for one written under roles. */
+  actor: string;
+  action: string;
+  detail: Record<string, unknown>;
+  /**
+   * The address of the account that uuid belongs to, or `null` when the actor is a handle.
+   *
+   * **The join is the assertion.** A test in `workerd` cannot see this table and cannot see
+   * `auth.users` either, so "the actor is the person who was signed in" has to be resolved
+   * here, in Node, by matching the recorded string against a real account rather than against
+   * a uuid the test had already been told.
+   */
+  email: string | null;
+}
+
+/**
+ * **The runbook's question, run as the runbook asks it**: who has read medical data.
+ *
+ * `action in ('medical_note', 'medical_export')` is the whole of it — the two values exist
+ * separately so that a single note read and a download of every note are found by one
+ * predicate. The query has to keep answering across the change of identity scheme #58 made:
+ * a row written by the key path names a handle out of `entries.admin_keys`, a row written by
+ * the role path names `auth.uid()`, and an access review that returned only one of them would
+ * be quietly wrong. `tests/worker/admin/admin.test.ts` asserts it returns both.
+ */
+export async function medicalReadAudit(): Promise<MedicalReadAudit[]> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<MedicalReadAudit>(
+      `select audit.actor, audit.action, audit.detail, account.email
+         from entries.admin_audit as audit
+         left join auth.users as account on account.id::text = audit.actor
+        where audit.action in ('medical_note', 'medical_export')
+        order by audit.at`,
     );
 
     return rows;
