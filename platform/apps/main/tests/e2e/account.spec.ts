@@ -28,44 +28,52 @@ function addressFor(project: string): string {
   return `e2e-account-${project}-${Date.now()}@example.com`;
 }
 
-async function confirmationLinkFor(
+/**
+ * Finds GoTrue's verify link in the mailbox for `email`, of the given `type`
+ * (`signup` or `recovery`) — checking every message rather than trusting search-result
+ * order, because a reset test's account already has one confirmation email sitting in the
+ * same mailbox by the time the recovery one arrives, and Mailpit's own ordering is not a
+ * contract this file should depend on.
+ */
+async function verifyLinkFor(
   request: import('@playwright/test').APIRequestContext,
   email: string,
+  type: 'signup' | 'recovery',
 ): Promise<string> {
-  // Mailpit indexes messages within a moment of SMTP delivery; a short poll is cheaper and
-  // less flaky than a fixed sleep, and the timeout is what actually fails a run that never
-  // gets its email at all rather than one that was merely a little slow.
-  const deadline = Date.now() + 15_000;
-  let messageId: string | undefined;
+  const linkPattern = new RegExp(
+    `https?:\\/\\/\\S*\\/auth\\/v1\\/verify\\?\\S*type=${type}\\S*`,
+  );
 
-  while (Date.now() < deadline && messageId === undefined) {
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
     const search = await request.get(
       `${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
     );
     const { messages } = (await search.json()) as { messages: { ID: string }[] };
-    messageId = messages[0]?.ID;
-    if (messageId === undefined) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+
+    for (const { ID } of messages) {
+      const response = await request.get(`${MAILPIT}/api/v1/message/${ID}`);
+      const { Text, HTML } = (await response.json()) as { Text: string; HTML: string };
+      const match = linkPattern.exec(`${Text}\n${HTML}`);
+      if (match !== null) {
+        // Mailpit's HTML body carries `&amp;` where the plain-text one carries `&`. Both
+        // parse to the same URL once normalised.
+        return match[0].replaceAll('&amp;', '&');
+      }
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  if (messageId === undefined) {
-    throw new Error(`No confirmation mail arrived for ${email} within 15s`);
-  }
+  throw new Error(`No ${type} mail with a verify link arrived for ${email} within 15s`);
+}
 
-  const message = await request.get(`${MAILPIT}/api/v1/message/${messageId}`);
-  const { Text, HTML } = (await message.json()) as { Text: string; HTML: string };
-
-  // GoTrue's confirmation link, wherever it appears in either body. `verify?` is specific
-  // enough not to match a footer link or an unsubscribe address.
-  const match = /https?:\/\/\S*\/auth\/v1\/verify\?\S+/.exec(`${Text}\n${HTML}`);
-  if (match === null) {
-    throw new Error('Confirmation mail arrived but carried no verify link');
-  }
-
-  // Mailpit's HTML body carries `&amp;` where the plain-text one carries `&`. Both parse to
-  // the same URL once normalised.
-  return match[0].replaceAll('&amp;', '&');
+async function confirmationLinkFor(
+  request: import('@playwright/test').APIRequestContext,
+  email: string,
+): Promise<string> {
+  return verifyLinkFor(request, email, 'signup');
 }
 
 test.describe('the account area, with scripting off', () => {
@@ -212,5 +220,226 @@ test.describe('accessibility @requires-js', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
     expect(errored.violations).toEqual([]);
+  });
+
+  test('the reset-request form has zero axe violations, empty and in its error state', async ({
+    page,
+  }) => {
+    await page.goto('/account/reset/');
+    const empty = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(empty.violations).toEqual([]);
+
+    await page.getByRole('button', { name: 'Send reset link' }).click();
+    await expect(page.locator('.notice-bad, .field-error').first()).toBeVisible();
+
+    const errored = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(errored.violations).toEqual([]);
+  });
+});
+
+test.describe('resetting a forgotten password @requires-js', () => {
+  test('goes all the way through, and the old password stops working', async ({
+    page,
+    request,
+  }, testInfo) => {
+    const email = addressFor(`${testInfo.project.name}-reset`);
+    const oldPassword = 'the-original-good-password';
+    const newPassword = 'a-different-good-password';
+
+    // Register and confirm first — resetting a password needs an account to reset.
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill('Katherine Johnson');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(oldPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(page).toHaveURL(/\?done=ok$/);
+    await page.goto(await confirmationLinkFor(request, email));
+
+    // Ask for a reset link.
+    await page.goto('/account/reset/');
+    await page.getByLabel('Email address').fill(email);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Send reset link' }).click();
+    await expect(page).toHaveURL(/\/account\/reset\/\?done=ok$/);
+    await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
+
+    // Follow the link, set a new password.
+    const link = await verifyLinkFor(request, email, 'recovery');
+    await page.goto(link);
+    await expect(
+      page.getByRole('heading', { name: 'Choose a new password' }),
+    ).toBeVisible();
+
+    await expect
+      .poll(async () => page.locator('[data-reset-form]').isHidden(), { timeout: 5_000 })
+      .toBe(false);
+
+    // The one state of this page a fixed axe test could never reach: revealed by the
+    // inline script only once a real recovery link is followed.
+    const resetConfirmAxe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(resetConfirmAxe.violations).toEqual([]);
+
+    await page.getByLabel('New password').fill(newPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Set new password' }).click();
+
+    // Signed in automatically — proving ownership of the mailbox is the whole point.
+    await expect(page).toHaveURL(/\/account\/$/);
+    await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Sign out' }).click();
+
+    // The old password no longer works; the new one does.
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(oldPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText(/not recognised/i)).toBeVisible();
+
+    await page.goto('/account/sign-in/');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(newPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/account\/$/);
+  });
+
+  test('a reset request for an unknown address shows the same acknowledgement', async ({
+    page,
+  }) => {
+    await page.goto('/account/reset/');
+    await page.getByLabel('Email address').fill('nobody-at-all@example.com');
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Send reset link' }).click();
+
+    await expect(page).toHaveURL(/\/account\/reset\/\?done=ok$/);
+    await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
+  });
+});
+
+test.describe('changing a password from inside an account @requires-js', () => {
+  test('requires the current password, and ends other sessions', async ({
+    page,
+    browser,
+  }, testInfo) => {
+    const email = addressFor(`${testInfo.project.name}-change`);
+    const oldPassword = 'the-original-good-password';
+    const newPassword = 'a-different-good-password';
+
+    // A second, independent browser context — a second device signed in as the same
+    // person, exactly what "ends other sessions" is claiming about.
+    const otherContext = await browser.newContext();
+    const otherPage = await otherContext.newPage();
+
+    async function signIn(target: import('@playwright/test').Page, password: string) {
+      await target.goto('/account/sign-in/');
+      await target.getByLabel('Email address').fill(email);
+      await target.getByLabel('Password', { exact: true }).fill(password);
+      await expect
+        .poll(
+          async () =>
+            target.locator('[name="cf-turnstile-response"]').first().inputValue(),
+          { timeout: 15_000 },
+        )
+        .not.toBe('');
+      await target.getByRole('button', { name: 'Sign in' }).click();
+    }
+
+    await page.goto('/account/sign-up/');
+    await page.getByLabel('Your name').fill('Dorothy Vaughan');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(oldPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.goto(await confirmationLinkFor(page.context().request, email));
+
+    await signIn(page, oldPassword);
+    await expect(page).toHaveURL(/\/account\/$/);
+
+    // A second device signs in too, before the change.
+    await signIn(otherPage, oldPassword);
+    await expect(otherPage).toHaveURL(/\/account\/$/);
+
+    await page.goto('/account/password/');
+    const changePasswordEmptyAxe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(changePasswordEmptyAxe.violations).toEqual([]);
+
+    await page.getByLabel('Current password').fill('the-wrong-password');
+    await page.getByLabel('New password').fill(newPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Change password' }).click();
+    await expect(page.getByText(/current password was not right/i)).toBeVisible();
+
+    const changePasswordErrorAxe = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(changePasswordErrorAxe.violations).toEqual([]);
+
+    await page.getByLabel('Current password').fill(oldPassword);
+    await page.getByLabel('New password').fill(newPassword);
+    await expect
+      .poll(
+        async () => page.locator('[name="cf-turnstile-response"]').first().inputValue(),
+        { timeout: 15_000 },
+      )
+      .not.toBe('');
+    await page.getByRole('button', { name: 'Change password' }).click();
+    await expect(page).toHaveURL(/\/account\/$/);
+
+    // The other device's session is dead — its next navigation bounces to sign-in.
+    await otherPage.goto('/account/');
+    await expect(otherPage).toHaveURL(/\/account\/sign-in\/$/);
+
+    await otherContext.close();
   });
 });
