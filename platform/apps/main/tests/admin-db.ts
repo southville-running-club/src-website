@@ -1,6 +1,12 @@
 import { Client } from 'pg';
 import { createHash } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import {
+  ADMIN_PASSWORD,
+  FIXTURE_PEOPLE_EMAILS,
+  MEMBER_EMAIL,
+  NN_ADMIN_EMAIL,
+  SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
   ADMIN_EVENT_DATE,
   ADMIN_EVENT_NAME,
@@ -417,6 +423,10 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       holdMinutes: 31,
     });
   });
+
+  // **After the entries, and outside the `withClient` above**, because this one talks to
+  // GoTrue over HTTP as well as to Postgres. Nothing above depends on a person existing.
+  await seedFixturePeople();
 }
 
 /**
@@ -425,6 +435,104 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
  * **The two digests go back to null and the handles are deleted**, so no laptop is left with a
  * working admin key for a test secret against a real database.
  */
+/**
+ * Cloudflare's own published dummy response token — accepted because `[auth.captcha]`'s secret
+ * locally is the matching dummy secret (#53). See
+ * developers.cloudflare.com/turnstile/troubleshooting/testing.
+ */
+const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
+
+const LOCAL_API = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
+
+/**
+ * The three fixture people, created the way a real person would be.
+ *
+ * **`signUp()` through the anon client, not an insert**, so `identity.handle_new_user()` fires
+ * and the `member` grant, the `identity.people` row and any reserved grant all come from the
+ * trigger that will do it in production. The confirmation is done with SQL because there is no
+ * mailbox to click in; everything else is the real path.
+ *
+ * The roles on top are inserted directly: `identity.grant_role()` refuses anybody who does not
+ * already hold `super-admin`, and bootstrapping one through the reserved-grant address would
+ * take the club's own, which `packages/db/tests/identity.test.ts` already uses.
+ */
+async function seedFixturePeople(): Promise<void> {
+  const anon = createClient(LOCAL_API, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const roleFor: Record<string, string | null> = {
+    [NN_ADMIN_EMAIL]: 'nn-admin',
+    [MEMBER_EMAIL]: null,
+    [SUPER_ADMIN_EMAIL]: 'super-admin',
+  };
+
+  // Sequential, not parallel — each round trip is cheap, and running them concurrently would
+  // race the confirmation update against whichever signUp it belongs to.
+  await FIXTURE_PEOPLE_EMAILS.reduce(
+    (queue, email) =>
+      queue.then(async () => {
+        const { error } = await anon.auth.signUp({
+          email,
+          password: ADMIN_PASSWORD,
+          options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+        });
+        if (error) throw error;
+
+        await withClient(async (db) => {
+          const { rows } = await db.query<{ id: string }>(
+            `update auth.users set email_confirmed_at = now() where email = $1 returning id`,
+            [email],
+          );
+          const id = rows[0]?.id;
+          if (id === undefined) {
+            throw new Error(`signUp created no auth.users row for ${email}`);
+          }
+
+          const role = roleFor[email];
+          if (role != null) {
+            await db.query(
+              `insert into identity.role_grants (person_id, role) values ($1::uuid, $2)
+               on conflict do nothing`,
+              [id, role],
+            );
+          }
+        });
+      }),
+    Promise.resolve(),
+  );
+}
+
+/**
+ * The three people, gone.
+ *
+ * Cascades through `identity.people` and `identity.role_grants` — `identity.people.id`
+ * references `auth.users(id) on delete cascade`. `identity.audit` deliberately does not
+ * cascade, so its rows are deleted by subject, and the `entries.admin_audit` rows the role path
+ * wrote name a uuid rather than a handle and are deleted the same way.
+ */
+async function clearFixturePeople(): Promise<void> {
+  await withClient(async (db) => {
+    const { rows } = await db.query<{ id: string }>(
+      'select id from auth.users where email = any($1::text[])',
+      [[...FIXTURE_PEOPLE_EMAILS]],
+    );
+    const ids = rows.map((row) => row.id);
+
+    if (ids.length > 0) {
+      await db.query('delete from identity.audit where subject = any($1::uuid[])', [ids]);
+      await db.query('delete from entries.admin_audit where actor = any($1::text[])', [
+        ids,
+      ]);
+    }
+
+    await db.query('delete from auth.users where email = any($1::text[])', [
+      [...FIXTURE_PEOPLE_EMAILS],
+    ]);
+  });
+}
+
 export async function clearAdminFixtures(
   restoreGateKey: string | null = null,
 ): Promise<void> {
@@ -465,6 +573,11 @@ export async function clearAdminFixtures(
       [restoreGateKey],
     );
   });
+
+  // **Last, and unconditional.** The super-admin among these is the reason: a fixture one left
+  // behind makes `identity.revoke_role()`'s last-super-admin refusal false, and
+  // `packages/db/tests/identity.test.ts` then fails two suites away from anything that changed.
+  await clearFixturePeople();
 }
 
 /** What the audit table records, for a test that cannot look through the API. */
