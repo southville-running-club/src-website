@@ -822,13 +822,23 @@ any other testable way from inside the Worker.
 
 **No notification email is sent when a password changes, and that is a gap rather than a
 design.** #54 turned `[auth.email.notification.password_changed]` on — it is the only way
-somebody finds out a change happened without their own knowledge — and it had to come back
-off: Supabase's management API refuses every email-template modification while the project
-is on the free tier with the **default email provider**, so that one line failed
-`supabase config push`, and with it the whole `config.toml`, on every merge from 25 August
-2026. Issue #79. **#50 — Resend over SMTP — is what makes it true**; nothing else does, and
-`packages/db/tests/unit/config.test.ts` fails if it is switched back on before then. Until
-that lands, a silent password change is only visible as the other sessions dying.
+somebody finds out a change happened without their own knowledge — and the whole block had to
+be commented out again: Supabase's management API refuses every email-template modification
+while the project is on the free tier with the **default email provider**, so that one line
+failed `supabase config push`, and with it the whole `config.toml`, on every merge from 25
+August 2026. Issue #79.
+
+**Setting it to `enabled = false` did not fix it**, which is worth knowing before somebody
+tries that again: the CLI serialises the section whenever it is *present* in the file,
+supplying the `subject` it was not given, so `config push` went on sending `subject = ""`
+against production's real subject — and an empty subject is a template modification too. The
+section is commented out, which is how the CLI shipped it and how every green deploy before
+#76 ran.
+
+**#50 — Resend over SMTP — is what makes it true**; nothing else does, and
+`packages/db/tests/unit/config.test.ts` fails if any email-template block is declared at all
+before then. Until that lands, a silent password change is only visible as the other sessions
+dying.
 
 ## The health endpoints
 

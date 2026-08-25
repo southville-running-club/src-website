@@ -98,9 +98,18 @@ green run left there. Nothing on the platform reports this. The only place it is
 a red **Deploy database** run, and the failing step's name is what tells the two cases
 apart.
 
-This has happened once, for two merges, in [#79](https://github.com/southville-running-club/src-website/issues/79):
+This has happened once, for **four** merges, in [#79](https://github.com/southville-running-club/src-website/issues/79):
 the free tier refuses every email-template modification while the default email provider is
 in use, so one `enabled = true` rejected the whole `[auth]` block.
+
+**Two of those four were after the first fix**, and the reason is the trap worth carrying out
+of this: the first fix set the offending block to `enabled = false` and left it in the file.
+The CLI serialises one of these sections **whenever it is present**, filling in the fields it
+was not given — so `config push` went on sending `subject = ""` against production's real
+subject, and an empty subject is a template modification as surely as a wrong one. The block
+had to be commented out. **Read the CLI's diff rather than reasoning about what the file
+says**: it showed `enabled = false` agreeing on both sides and `subject` disagreeing, which
+named the real cause immediately.
 
 - [ ] **After any merge that touches `config.toml` or a migration**, check the run finished
       green — not just that the deploy happened:
