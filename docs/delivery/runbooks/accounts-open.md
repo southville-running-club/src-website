@@ -43,6 +43,7 @@ Do not announce accounts if any of these is true.
 | --- | --- |
 | **The rate-limiting rules are not live** | [Step 0.1](#01--the-rate-limiting-rules-must-be-live). Sign-in is a credential check and reset is an email to an address the caller names. Nothing else in this repository is either of those |
 | **Nobody has watched a rule block anything** | [Step 0.3](#03--somebody-has-actually-tried-it). A rule that exists and does not fire is worse than no rule, because it is believed |
+| **Nobody has watched the captcha secret refuse a real registration** | [Step 0.4](#04--the-captcha-secret-substituted-to-something-non-empty). `SUPABASE_AUTH_CAPTCHA_SECRET` is masked in every deploy log; a green push proves the file was accepted, not that the value is non-empty |
 | **Outbound email is still Supabase's built-in sender** | [Step 0.2](#02--email-actually-leaves-the-building). Two an hour, project-wide. Every flow on this page is an email, and the failure is silent — the person simply never receives it |
 | **There is no site-wide privacy notice** | [#60](https://github.com/southville-running-club/src-website/issues/60). An account is a standing record of a named person and the club has not told anybody it keeps one. This is a legal precondition, not a nicety |
 | **`admin@southvillerunningclub.co.uk` has not registered** | The super-admin is bootstrapped by registering like anybody else ([#51](https://github.com/southville-running-club/src-website/issues/51)). Announcing before that means the first person to claim the address is whoever asks for it |
@@ -126,7 +127,31 @@ dashboard into evidence, and it is [step 2](#step-2--prove-a-rule-fires) in full
 - [ ] The block cleared on its own after the mitigation period, and **nobody had to go into
       the dashboard to release it**
 
-### 0.4 — the platform is wired up
+### 0.4 — the captcha secret substituted to something non-empty
+
+> **⚙️ Ops**
+
+**[#49](https://github.com/southville-running-club/src-website/issues/49)'s closing comment
+left this step here on purpose, rather than closing the issue on a green deploy log.**
+`SUPABASE_AUTH_CAPTCHA_SECRET` is masked as `***` in every GitHub Actions log, so a successful
+`supabase config push` proves only that `config.toml` was accepted — `[auth.captcha]` pushes
+with `enabled = true` whether the value behind `env(...)` substituted to a real secret or to an
+empty string. **An empty secret does not fail loudly, and it does not fail the same way twice**:
+depending on what GoTrue does with a blank `secret`, it can fail open (nobody is challenged and
+Turnstile is silently off) or fail closed (nobody can register at all). Either is a real outage,
+and a log that says `enabled = true` looks identical in both. The only proof is a real
+registration against production, watched rather than assumed.
+
+- [ ] **Register against production with no Turnstile token reaching the request** — disable
+      JavaScript so the widget never runs, or submit the form before it loads. **Confirm the
+      attempt is refused**, and record what the page said
+- [ ] **Register against production with a real Turnstile pass.** Confirm it succeeds
+- [ ] If either check goes the other way — a missing token is accepted, or a real pass is
+      refused — the secret did not substitute correctly. **Stop and fix the GitHub repository
+      secret before continuing**; a re-run of `deploy-db.yml` is not evidence on its own
+- [ ] Write both outcomes into [what actually happened](#what-actually-happened)
+
+### 0.5 — the platform is wired up
 
 > **⚙️ Ops**
 
@@ -141,7 +166,7 @@ dashboard into evidence, and it is [step 2](#step-2--prove-a-rule-fires) in full
       from them lands somewhere that exists
 - [ ] `npm run smoke` passes against production
 
-### 0.5 — the governance prerequisites
+### 0.6 — the governance prerequisites
 
 > **🏛️ Committee**
 
