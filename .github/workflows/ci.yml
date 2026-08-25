@@ -223,19 +223,33 @@ jobs:
         # `playwright test` directly rather than `npm run test:e2e`, because that script
         # builds first and the Build gate above has already done it.
         #
-        # Retried once: `webServer` starts two `workerd` instances alongside three browser
-        # engines, which is genuinely heavy for a shared runner (see the note atop
-        # playwright.config.ts) and `wrangler dev` has been seen exiting on startup with no
-        # error message at all. Every one of these failures has been unreproducible
-        # locally, including deliberately running both servers together, so this is runner
-        # pressure, not the site — a full-suite retry is the honest way to absorb that
+        # **Two runs, not one.** `playwright.config.serial.ts` is `nn-entry.spec.ts` and
+        # `nn-signup.spec.ts` alone, at `workers: 1` — the one pair of files that must never
+        # run on different workers at once, because they share `entries.events.entries_open_at`.
+        # `playwright.config.ts` is everything else, free to use more than one worker now that
+        # it has no race left to protect against. See either config's header.
+        #
+        # Each is retried once independently: `webServer` starts two `workerd` instances
+        # alongside three browser engines, which is genuinely heavy for a shared runner (see
+        # the note atop playwright.config.ts) and `wrangler dev` has been seen exiting on
+        # startup, and crashing mid-run, with no error message that points at a cause in this
+        # repository. Every one of these failures has been unreproducible locally, so this is
+        # runner pressure, not the site — a full-suite retry is the honest way to absorb that
         # without pretending a threshold of individual flaky tests is fine.
         run: |
-          if npx playwright test; then
-            exit 0
-          fi
-          echo "::warning::acceptance tests failed, retrying the suite once" >&2
-          npx playwright test
+          run_suite() {
+            local config="$1"
+            if npx playwright test --config="$config"; then
+              return 0
+            fi
+            echo "::warning::acceptance tests ($config) failed, retrying the suite once" >&2
+            npx playwright test --config="$config"
+          }
+
+          status=0
+          run_suite playwright.config.serial.ts || status=1
+          run_suite playwright.config.ts || status=1
+          exit "$status"
 
       - name: Upload the Playwright report on failure
         if: failure()

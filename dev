@@ -500,7 +500,7 @@ cmd_test() {
   #
   # **Before Playwright**, which is the order ci.yml uses and for its reason: cheapest first,
   # so a failure here does not wait on three browser engines. It is also safe in the
-  # direction that matters. Each of the four configs sets the `entries.events` state it needs
+  # direction that matters. Each of the five configs sets the `entries.events` state it needs
   # in `globalSetup` and puts it back in `teardown`, so the suite is robust to what preceded
   # it — while Playwright starts from the seed `cmd_reset_quiet` has just laid down and is
   # not. Running these second would mean a second reset to get that back.
@@ -534,6 +534,14 @@ cmd_test() {
   step "Acceptance tests"
   info "Playwright drives the servers itself — three browser projects, and a stubbed Stripe"
 
+  # **Two runs, not one.** `nn-entry.spec.ts` and `nn-signup.spec.ts` share
+  # `entries.events.entries_open_at` and must not run on different workers at once;
+  # `playwright.config.serial.ts` is those two files alone, at `workers: 1`. Everything else
+  # is `playwright.config.ts`'s own default config, which is free to use more than one worker
+  # now that it no longer has that race to protect against. See either file's header.
+  run_suite 'Acceptance tests (serial)' \
+    npx --no-install playwright test --config=playwright.config.serial.ts --reporter=list \
+    || status=$?
   run_suite 'Acceptance tests' npx --no-install playwright test --reporter=list || status=$?
 
   if [ "$keep_up" -eq 1 ]; then

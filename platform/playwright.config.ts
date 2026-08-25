@@ -18,6 +18,20 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * See also `apps/timing/next.config.ts`, where `initOpenNextCloudflareForDev()` is guarded
  * to `next dev` — unguarded it spawns a workerd instance per build worker.
+ *
+ * ## This is one of two configs, and this one runs second
+ *
+ * `nn-entry.spec.ts` and `nn-signup.spec.ts` share one row —
+ * `entries.events.entries_open_at` — and run on different workers they interleave and each
+ * occasionally sees the other's state. Every other file here shares nothing with them. Until
+ * #58 all of them paid for that race with one worker anyway; `playwright.config.serial.ts`
+ * carves the two racy files out into their own `workers: 1` run, and this config is
+ * everything else — free to use more than one, because nothing left in it needs the lock
+ * `entries_open_at` effectively is.
+ *
+ * `npm run test:e2e`, `./dev test` and `ci.yml`'s Acceptance tests step all run **both**
+ * configs. See `playwright.config.serial.ts`'s own header for why a second config rather
+ * than a lock or a `workers` setting scoped some other way.
  */
 export default defineConfig({
   testDir: './apps',
@@ -25,12 +39,18 @@ export default defineConfig({
 
   // Build output contains copies of application files. Without this, Playwright can
   // collect specs out of a bundle and run them twice.
+  //
+  // `nn-entry.spec.ts` and `nn-signup.spec.ts` are ignored here for a different reason —
+  // `playwright.config.serial.ts` runs them instead, on their own worker. See this file's
+  // header.
   testIgnore: [
     '**/node_modules/**',
     '**/dist/**',
     '**/.next/**',
     '**/.open-next/**',
     '**/.wrangler/**',
+    '**/nn-entry.spec.ts',
+    '**/nn-signup.spec.ts',
   ],
 
   fullyParallel: true,
@@ -38,20 +58,14 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
 
-  // **One worker everywhere, and the reason changed.** It was capped at two in CI because
-  // two servers plus three engines is already a lot of processes; it is now capped at one
-  // because two spec files own the same row.
-  //
-  // `/nn/` shows the entry form or the interest form according to
-  // `entries.events.entries_open_at` — the real switch, read by the Worker per request, with
-  // no preview flag that could reach production. `nn-entry.spec.ts` moves that row and
-  // `nn-signup.spec.ts` needs it left alone. Playwright parallelises across files, so with
-  // two workers those two interleave and each occasionally sees the other's state.
-  //
-  // The alternative was a Postgres advisory lock shared by both files. This costs a few
-  // seconds of CI and removes a class of intermittent instead of managing one, which is the
-  // trade this repository has already made twice — see the 320px note in nn-theme.css.
-  workers: 1,
+  // **Two, not one, and not unbounded.** Two servers plus three browser engines is already a
+  // lot of processes for a shared CI runner, which is the ceiling this number has always been
+  // choosing against — see the note at the top of this file. It went to one, unconditionally,
+  // when `nn-entry.spec.ts` and `nn-signup.spec.ts` turned out to race on
+  // `entries.events.entries_open_at`; #58 moved those two into `playwright.config.serial.ts`
+  // instead, so this file no longer has that race to protect against and two is the number
+  // this repository already validated for the constraint that remains.
+  workers: 2,
 
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.
