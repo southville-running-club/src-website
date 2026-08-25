@@ -454,13 +454,27 @@ export type Database = {
       }
       current_entry_state: { Args: { p_race_slug: string }; Returns: Json }
       delete_expired_medical_notes: { Args: never; Returns: Json }
+      entrant_medical: { Args: { p_entrant_id: string }; Returns: Json }
       entry_completion_state: { Args: { p_session_id: string }; Returns: Json }
+      entry_list: { Args: { p_event_slug: string }; Returns: Json }
       entry_state: { Args: { p_slug: string }; Returns: Json }
       expire_pending_holds: { Args: never; Returns: Json }
+      export: { Args: { p_event_slug: string; p_kind: string }; Returns: Json }
+      interest_list: { Args: never; Returns: Json }
       raise_attention: {
         Args: { p_detail: Json; p_purchase_id: string; p_reason: string }
         Returns: undefined
       }
+      read_entrant_medical: {
+        Args: { p_actor: string; p_entrant_id: string }
+        Returns: Json
+      }
+      read_entry_list: { Args: { p_event_slug: string }; Returns: Json }
+      read_export: {
+        Args: { p_actor: string; p_event_slug: string; p_kind: string }
+        Returns: Json
+      }
+      read_interest_list: { Args: never; Returns: Json }
       record_admin_action: {
         Args: { p_action: string; p_actor: string; p_detail: Json }
         Returns: undefined

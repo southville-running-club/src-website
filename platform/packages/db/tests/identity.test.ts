@@ -255,7 +255,16 @@ describe('identity.grant_role, refused for anybody who is not super-admin', () =
   });
 
   it('lets super-admin grant a role, and writes exactly one audit row for it', async () => {
-    const before = await query('select id from identity.audit');
+    // **Scoped to this subject, because `after` is.** It was a count of the whole table, which
+    // made the assertion below true only while `identity.audit` was otherwise empty — and this
+    // file's `afterAll` deliberately cannot empty it: `audit.actor` and `audit.subject` are not
+    // foreign keys, precisely so the history outlives a deleted person. So the second run
+    // against a database nobody had reset failed, two tests away from anything that had
+    // changed. `./dev check` rebuilds every time and never saw it.
+    const before = await query(
+      `select id from identity.audit where subject = $1 and action = 'grant_role'`,
+      [personB.id],
+    );
 
     const { data, error } = await admin.client
       .schema('identity')
@@ -282,6 +291,55 @@ describe('identity.grant_role, refused for anybody who is not super-admin', () =
       subject: personB.id,
       actor: admin.id,
     });
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Holding one role is not holding another
+// -----------------------------------------------------------------------------------------
+
+describe('a super-admin does not thereby hold nn-admin', () => {
+  /**
+   * **#57's four role-checked `entries` reads, asserted from here rather than from
+   * `entries-admin.test.ts`, and the reason is the fixture below this one.**
+   *
+   * `identity.revoke_role()` refuses to remove *the last* active super-admin grant, so the
+   * assertion in the next describe is a claim about the whole table — the one property in
+   * this directory that cannot be scoped to an invented address. A second super-admin
+   * anywhere in the suite makes it false, and Vitest runs these files at the same time. So
+   * exactly one file may hold a super-admin, and this is it; the case that needs one lives
+   * here beside it.
+   *
+   * What it proves is worth the awkwardness: **granting roles is not inheriting them.** A club
+   * officer who can hand somebody `nn-admin` has not thereby given it to themselves, and the
+   * refusal is as flat as the one a stranger gets — which is what makes a role grant an act
+   * with a date on it rather than a formality.
+   */
+  const ENTRIES_READS: [string, Record<string, unknown>][] = [
+    ['entry_list', { p_event_slug: 'nn-2026' }],
+    ['interest_list', {}],
+    ['entrant_medical', { p_entrant_id: '00000000-0000-4000-8000-000000000000' }],
+    ['export', { p_event_slug: 'nn-2026', p_kind: 'start-list' }],
+  ];
+
+  it('holds super-admin and does not hold nn-admin, which is the premise', async () => {
+    const roles = await query<{ role: string }>(
+      `select role from identity.role_grants
+        where person_id = $1 and revoked_at is null
+        order by role`,
+      [admin.id],
+    );
+
+    expect(roles.map((row) => row.role)).toEqual(['member', 'super-admin']);
+  });
+
+  it.each(ENTRIES_READS)('entries.%s refuses them', async (name, args) => {
+    const { data, error } = await admin.client.schema('entries').rpc(name, args);
+
+    expect(error).toBeNull();
+    // The whole answer, asserted as a whole — and identical to the one a plain member gets, so
+    // the refusal discloses nothing about what the caller nearly had.
+    expect(data).toEqual({ ok: false, reason: 'unauthorised' });
   });
 });
 

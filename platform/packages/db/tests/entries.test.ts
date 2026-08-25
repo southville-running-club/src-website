@@ -265,16 +265,30 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
+      // **The four role counterparts, granted to `authenticated`.** Same reads, different
+      // door: `identity.has_role('nn-admin')` rather than a key. There is deliberately no
+      // counterpart to `admin_sign_in` — signing in is `/account/`'s job now.
+      'entrant_medical',
       'entry_completion_state',
+      'entry_list',
       'entry_state',
       'expire_pending_holds',
+      'export',
+      'interest_list',
       'raise_attention',
+      // **The four reads, without either door, granted to nobody.** Each key-gated function
+      // and its role counterpart authorise and then call the same one of these, so the two
+      // doors cannot come to disagree about how many people are running.
+      'read_entrant_medical',
+      'read_entry_list',
+      'read_export',
+      'read_interest_list',
       'record_admin_action',
       'record_checkout_event',
     ]);
   });
 
-  it('lets anon execute exactly thirteen of the nineteen, and never PUBLIC', async () => {
+  it('lets anon execute exactly thirteen of the twenty-seven, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument
@@ -295,6 +309,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // The two that are **not** on this list are the ones that would each be a hole on their
     // own: `admin_key_ok` is an oracle for the key, and `record_admin_action` is a way to forge
     // an audit trail. Both are granted to nobody, like `raise_attention`.
+    //
+    // **#57 added eight functions and none of them is here.** Four are granted to
+    // `authenticated` and asserted separately below; four are granted to nobody. The count in
+    // this test's name moved and the list did not, which is the shape an expand-only change
+    // should have.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -326,11 +345,61 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets nobody at all execute the six internal helpers', async () => {
-    // **The six granted to no role.** The first three would each be a hole on its own; the
-    // last three are the rule enforcement Slice G added, and a grant on any of them would put
+  it('lets authenticated execute exactly six, four of them #57’s, and no table read', async () => {
+    // **The first assertion this file has ever made about `authenticated`**, and it is here for
+    // the reason the anon list above is: a slice that grants a role something should have to
+    // change a list in a diff somebody reviews.
+    //
+    // Two of the six predate #57 and disclose nothing — `entry_state` and `current_entry_state`
+    // answer whether entries are open, which is public configuration and is granted to `anon`
+    // as well. **The four that matter are the role counterparts**, and the argument for each
+    // belongs here rather than only in the migration:
+    //
+    //   * Each is the **same read** its key-gated counterpart performs — literally, through the
+    //     same `read_*` helper — behind `identity.has_role('nn-admin')` instead of a key.
+    //     `packages/db/tests/entries-admin.test.ts` asserts that an anonymous client, a plain
+    //     `member` and a `super-admin` without `nn-admin` are each refused by all four.
+    //
+    //   * **`authenticated` is a role anybody who registers holds.** That is exactly why the
+    //     grant is safe only in the company of the check inside the function: the grant says
+    //     "you may ask", `has_role` says "you may know". A grant here without the check would
+    //     hand the club's entry list to anybody with an account.
+    //
+    // There is deliberately no counterpart to `admin_sign_in` — signing in is `/account/`'s
+    // job now, and a second way to mint a session is what #63 exists to remove.
+    const rows = await query<{ routine_name: string }>(
+      `select distinct routine_name
+         from information_schema.routine_privileges
+        where routine_schema = 'entries' and grantee = 'authenticated'
+        order by routine_name`,
+    );
+
+    expect(rows.map((row) => row.routine_name)).toEqual([
+      'current_entry_state',
+      'entrant_medical',
+      'entry_list',
+      'entry_state',
+      'export',
+      'interest_list',
+    ]);
+
+    // **And still not one grant on a table.** Asserted again here rather than only above,
+    // because this is the test somebody reads when they add the fifth function — and the whole
+    // reason these are definer functions rather than row-level security on the entry tables.
+    const tables = await query(
+      `select table_name, privilege_type
+         from information_schema.table_privileges
+        where table_schema = 'entries' and grantee = 'authenticated'`,
+    );
+
+    expect(tables).toEqual([]);
+  });
+
+  it('lets nobody at all execute the ten internal helpers', async () => {
+    // **The ten granted to no role.** The first three would each be a hole on its own; the
+    // next three are the rule enforcement Slice G added, and a grant on any of them would put
     // a function that reads a purchase, an entrant and a medical consent behind a key that is
-    // published in page source.
+    // published in page source. The last four are #57's.
     //
     //   `raise_attention`     writes the flag that says a human must look at a purchase. A
     //                         grant would let anybody clear or forge an alarm.
@@ -343,14 +412,27 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //   `assert_medical_consent`    reads the consent recorded against a medical note.
     //   `assert_purchase_consents`  reads the consents an event requires.
     //
-    // The first three are reachable only from the definer functions that call them; the last
-    // three only from their triggers. All six run as this schema's owner.
+    //   `read_entry_list`       the entry list and every figure on the admin page.
+    //   `read_interest_list`    the interest sign-ups, with their email addresses.
+    //   `read_entrant_medical`  one entrant's medical note.
+    //   `read_export`           any of the three CSVs, medical notes included.
+    //
+    // **The last four are the reads with no door on them at all**, which is precisely what
+    // must not be callable: they take no key, check no role, and answer whatever they are
+    // asked. They exist so that the key path and the role path cannot come to disagree, and
+    // the price of that is that this assertion is now the thing standing between the club's
+    // entry list and the anon key published in page source.
+    //
+    // The first three are reachable only from the definer functions that call them; the next
+    // three only from their triggers; the last four only from their two wrappers each. All ten
+    // run as this schema's owner.
     const granted = await query(
       `select grantee from information_schema.routine_privileges
         where routine_schema = 'entries'
           and routine_name in (
             'raise_attention', 'admin_key_ok', 'record_admin_action',
-            'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents'
+            'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
+            'read_entry_list', 'read_interest_list', 'read_entrant_medical', 'read_export'
           )
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );
@@ -369,6 +451,17 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // request never got as far as being denied, which is a refusal nobody has tested — the
     // same argument the table walk above makes about `PGRST106`.
     expect(error?.code).toBe('42501');
+
+    // **And the doorless read, tried the way somebody would actually try it.** `read_entry_list`
+    // is the single most valuable function in this schema to an attacker — it answers with every
+    // entrant's name, club, age and England Athletics number, and it asks nothing in return. If
+    // this ever returns rows, the grant assertion above has been quietly undone.
+    const doorless = await anon
+      .schema('entries')
+      .rpc('read_entry_list', { p_event_slug: 'nn-2026' });
+
+    expect(doorless.error?.code).toBe('42501');
+    expect(doorless.data).toBeNull();
   });
 
   it('pins search_path on every one of them, without exception', async () => {
@@ -431,10 +524,24 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       create_pending_purchase: 'v',
       current_entry_state: 's',
       delete_expired_medical_notes: 'v',
+      // **#57's four role counterparts take their volatility from the read, not the door.**
+      // Each is a thin wrapper around a `read_*` helper, so an entry list stays `stable` behind
+      // a role exactly as it is behind a key, and a medical read stays `volatile` because it
+      // writes the audit row that says it happened.
+      entrant_medical: 'v',
       entry_completion_state: 's',
+      entry_list: 's',
       entry_state: 's',
       expire_pending_holds: 'v',
+      export: 'v',
+      interest_list: 's',
       raise_attention: 'v',
+      // The four reads themselves, granted to nobody. Same volatility as both their doors,
+      // which is what makes the doors thin.
+      read_entrant_medical: 'v',
+      read_entry_list: 's',
+      read_export: 'v',
+      read_interest_list: 's',
       record_admin_action: 'v',
       record_checkout_event: 'v',
     });

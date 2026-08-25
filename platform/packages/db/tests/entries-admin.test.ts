@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { Client } from 'pg';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * The admin surface, from **both sides** — the same arrangement the rest of this directory uses,
@@ -56,6 +56,39 @@ const PURCHASE_PENDING = '0a0a0a0a-0000-4000-8000-000000000002';
 const ENTRANT_PAID = '0a0a0a0a-0000-4000-8000-000000000011';
 const ENTRANT_PENDING = '0a0a0a0a-0000-4000-8000-000000000012';
 
+/**
+ * #57's second door — two signed-in people, for the two role sets this file can safely hold.
+ *
+ * **The roles are inserted through the privileged connection rather than granted through
+ * `identity.grant_role()`**, which needs a caller who already holds `super-admin` — and the
+ * only address the migration reserves that role for is `admin@southvillerunningclub.co.uk`,
+ * which `identity.test.ts` already signs up and deletes. Vitest runs these files at the same
+ * time, so competing for one address is how an intermittent gets written.
+ *
+ * **And there is no super-admin here at all, which is deliberate and cost a green run to
+ * learn.** `identity.revoke_role()` refuses to remove *the last* active super-admin grant, so
+ * `identity.test.ts`'s assertion about that refusal is a claim about the whole table rather
+ * than about its own fixtures — it is the one property in this directory that cannot be
+ * scoped to an invented event or an invented address. A second super-admin created here made
+ * it false while the two files overlapped, and the failure surfaced two files away from its
+ * cause. **Exactly one test file may hold a super-admin, and it is `identity.test.ts`** — so
+ * the "a super-admin does not thereby hold nn-admin" case for these four functions lives
+ * there, beside the fixture it needs.
+ */
+const NN_ADMIN_EMAIL = 'zz-entries-admin-nn@example.com';
+const MEMBER_EMAIL = 'zz-entries-admin-member@example.com';
+const PEOPLE_EMAILS = [NN_ADMIN_EMAIL, MEMBER_EMAIL];
+
+/** Long enough to clear the 12-character minimum #49 set. Not otherwise special. */
+const PERSON_PASSWORD = 'zz-entries-admin-test-password';
+
+/**
+ * Cloudflare's own published dummy response token — accepted because `[auth.captcha]`'s
+ * secret locally is the matching dummy secret (#53). See
+ * developers.cloudflare.com/turnstile/troubleshooting/testing.
+ */
+const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
+
 function digest(key: string): string {
   return createHash('sha256').update(key, 'utf8').digest('hex');
 }
@@ -75,6 +108,69 @@ async function rpc(name: string, args: Record<string, unknown>): Promise<unknown
   expect(error).toBeNull();
   return data;
 }
+
+/** The same, as one signed-in person. */
+async function rpcAs(
+  person: { client: SupabaseClient },
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<unknown> {
+  const { data, error } = await person.client.schema('entries').rpc(name, args);
+  expect(error).toBeNull();
+  return data;
+}
+
+/**
+ * Signs a fixture person up through the real endpoint, confirms the address the way a mailbox
+ * click would, applies the roles asked for, and returns a client already signed in as them.
+ *
+ * The signup itself is left to fire `identity.handle_new_user()` exactly as production will,
+ * so the `member` grant every account gets is real rather than fabricated.
+ */
+async function fixturePerson(
+  email: string,
+  roles: string[],
+): Promise<{ id: string; client: SupabaseClient }> {
+  const client = createClient(LOCAL_API, ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const signUp = await client.auth.signUp({
+    email,
+    password: PERSON_PASSWORD,
+    options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+  });
+  if (signUp.error) throw signUp.error;
+
+  const [row] = await query<{ id: string }>(
+    `update auth.users set email_confirmed_at = now() where email = $1 returning id`,
+    [email],
+  );
+  if (!row) throw new Error(`signUp did not create auth.users row for ${email}`);
+
+  if (roles.length > 0) {
+    await query(
+      `insert into identity.role_grants (person_id, role)
+       select $1::uuid, unnest($2::text[])`,
+      [row.id, roles],
+    );
+  }
+
+  // **After the grants, not before.** `has_role()` reads the table on every call rather than
+  // the JWT, so the ordering does not actually matter — and asserting that it does not is
+  // #59's job, where a role granted mid-session has to take effect on the next request.
+  const signIn = await client.auth.signInWithPassword({
+    email,
+    password: PERSON_PASSWORD,
+    options: { captchaToken: DUMMY_CAPTCHA_TOKEN },
+  });
+  if (signIn.error) throw signIn.error;
+
+  return { id: row.id, client };
+}
+
+let nnAdmin: { id: string; client: SupabaseClient };
+let member: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
@@ -171,7 +267,13 @@ beforeAll(async () => {
      on conflict (entrant_id) do nothing`,
     [ENTRANT_PAID],
   );
-});
+
+  // Sequential, not parallel — each signUp/confirm/signIn round trip is cheap, and running
+  // them concurrently would race the confirmation update against whichever signUp it belongs
+  // to. `identity.test.ts` makes the same note for the same reason.
+  nnAdmin = await fixturePerson(NN_ADMIN_EMAIL, ['nn-admin']);
+  member = await fixturePerson(MEMBER_EMAIL, []);
+}, 30_000);
 
 afterAll(async () => {
   await connected;
@@ -184,8 +286,11 @@ afterAll(async () => {
     [ACTOR, REVOKED_ACTOR],
   ]);
   await query('delete from entries.admin_audit where actor = any($1::text[])', [
-    [ACTOR, REVOKED_ACTOR],
+    [ACTOR, REVOKED_ACTOR, nnAdmin?.id, member?.id].filter(Boolean),
   ]);
+  // Cascades through identity.people and identity.role_grants — identity.people.id references
+  // auth.users(id) on delete cascade.
+  await query('delete from auth.users where email = any($1::text[])', [PEOPLE_EMAILS]);
   // **Back to null, which refuses everything.** Left running even if the suite failed.
   await query(
     `update entries.webhook_secrets set key_sha256 = null where name = 'admin'`,
@@ -989,5 +1094,271 @@ describe('the two new tables', () => {
         `insert into entries.admin_audit (actor, action) values ('zz-tester', 'deleted_everything')`,
       ),
     ).rejects.toThrow(/admin_audit_action_check/);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The second door: the nn-admin role
+// -----------------------------------------------------------------------------------------
+
+/**
+ * The four, once, so the refusal tests below walk the whole surface rather than whichever
+ * function somebody remembered.
+ */
+const ROLE_FUNCTIONS: [string, Record<string, unknown>][] = [
+  ['entry_list', { p_event_slug: EVENT }],
+  ['interest_list', {}],
+  ['entrant_medical', { p_entrant_id: ENTRANT_PAID }],
+  ['export', { p_event_slug: EVENT, p_kind: 'start-list' }],
+];
+
+describe('the nn-admin role is the second door, and it is the only other one', () => {
+  // **The refusals are the point, exactly as they are for the key.** These four are granted to
+  // `authenticated`, which is a role anybody who registers holds — so if one of these starts
+  // passing, every account on the platform can read the club's entry list.
+
+  it.each(ROLE_FUNCTIONS)(
+    'entries.%s refuses an anonymous client outright',
+    async (name, args) => {
+      const { data, error } = await anon.schema('entries').rpc(name, args);
+
+      // **`42501`, and not an envelope.** There is no grant to `anon` on any of the four, so
+      // Postgres refuses before the function runs and before `has_role` is consulted. A
+      // `{ ok: false }` here would mean the grant had been widened and only the check inside
+      // was holding the door — one lock where there should be two.
+      expect(error?.code).toBe('42501');
+      expect(data).toBeNull();
+    },
+  );
+
+  it.each(ROLE_FUNCTIONS)(
+    'entries.%s refuses a signed-in person holding only member',
+    async (name, args) => {
+      // The whole answer, asserted as a whole — `toMatchObject` would pass while the function
+      // also handed back an event name or a count, which is the disclosure this prevents.
+      expect(await rpcAs(member, name, args)).toEqual({
+        ok: false,
+        reason: 'unauthorised',
+      });
+    },
+  );
+
+  // **The super-admin case is in `identity.test.ts`**, which owns the one super-admin this
+  // suite may have — see the fixture note at the top of this file for why it cannot be here.
+
+  it.each(ROLE_FUNCTIONS)(
+    'entries.%s refuses before it resolves anything, so a refusal discloses nothing',
+    async (name, args) => {
+      // The same call against a slug and an entrant that do not exist. If the answer differed
+      // from the one above, a refusal would be an oracle for what the club is running.
+      const nonsense: Record<string, unknown> = { ...args };
+      if ('p_event_slug' in nonsense) nonsense.p_event_slug = 'zz-no-such-event-at-all';
+      if ('p_entrant_id' in nonsense) {
+        nonsense.p_entrant_id = '0a0a0a0a-0000-4000-8000-00000000ffff';
+      }
+
+      expect(await rpcAs(member, name, nonsense)).toEqual({
+        ok: false,
+        reason: 'unauthorised',
+      });
+    },
+  );
+
+  it('refuses a member even while the key path is wide open', async () => {
+    // The gate key is installed for the whole of this file. A role-checked function must not
+    // care: the two doors are independent, which is what lets one of them be taken away.
+    expect(await rpcAs(member, 'entry_list', { p_event_slug: EVENT })).toEqual({
+      ok: false,
+      reason: 'unauthorised',
+    });
+  });
+});
+
+describe('what nn-admin may then read, and that it is the same room', () => {
+  it('gives entry_list exactly what admin_entry_list gives', async () => {
+    // **The strongest assertion in this file, and the reason the read was extracted rather
+    // than copied.** Two doors, one room: if these ever diverge, two admin pages disagree
+    // about how many people are running, and somebody sets out bibs from the wrong one.
+    const throughTheKey = await rpc('admin_entry_list', {
+      p_key: GATE_KEY,
+      p_event_slug: EVENT,
+    });
+    const throughTheRole = await rpcAs(nnAdmin, 'entry_list', { p_event_slug: EVENT });
+
+    expect(throughTheRole).toEqual(throughTheKey);
+  });
+
+  it('gives interest_list exactly what admin_interest_list gives', async () => {
+    const throughTheKey = await rpc('admin_interest_list', { p_key: GATE_KEY });
+    const throughTheRole = await rpcAs(nnAdmin, 'interest_list');
+
+    expect(throughTheRole).toEqual(throughTheKey);
+  });
+
+  it('answers no_such_event for a slug that is not one, to a caller who may ask', async () => {
+    expect(
+      await rpcAs(nnAdmin, 'entry_list', { p_event_slug: 'zz-no-such-event-at-all' }),
+    ).toEqual({ ok: false, reason: 'no_such_event' });
+  });
+
+  it('gives an age and never a date of birth', async () => {
+    // Minimisation does not depend on which door was used to get in.
+    const answer = (await rpcAs(nnAdmin, 'entry_list', { p_event_slug: EVENT })) as {
+      entries: Record<string, unknown>[];
+    };
+
+    expect(JSON.stringify(answer)).not.toContain('date_of_birth');
+    expect(answer.entries.every((entry) => typeof entry.age === 'number')).toBe(true);
+  });
+
+  it('carries no email address at all', async () => {
+    expect(
+      JSON.stringify(await rpcAs(nnAdmin, 'entry_list', { p_event_slug: EVENT })),
+    ).not.toContain('@example.com');
+  });
+
+  it('refuses a kind it does not know, before it reads anything', async () => {
+    expect(
+      await rpcAs(nnAdmin, 'export', { p_event_slug: EVENT, p_kind: 'everything' }),
+    ).toEqual({ ok: false, reason: 'unknown_kind' });
+  });
+});
+
+describe('the audit trail names a uuid now, and keeps the handles it already had', () => {
+  it('writes exactly one audit row for a medical read, with the caller’s uuid', async () => {
+    await query('delete from entries.admin_audit where actor = $1', [nnAdmin.id]);
+
+    const note = (await rpcAs(nnAdmin, 'entrant_medical', {
+      p_entrant_id: ENTRANT_PAID,
+    })) as { ok: boolean; notes: string };
+
+    expect(note.ok).toBe(true);
+    expect(note.notes).toContain('nut allergy');
+
+    const audit = await query<{ action: string; detail: Record<string, unknown> }>(
+      'select action, detail from entries.admin_audit where actor = $1',
+      [nnAdmin.id],
+    );
+
+    // **Exactly one**, not "at least one" — the read and the record of it are the same
+    // statement, and a second row would mean the wrapper and the helper were both writing.
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.action).toBe('medical_note');
+    expect(audit[0]?.detail.entrant_id).toBe(ENTRANT_PAID);
+    // Never the note itself.
+    expect(JSON.stringify(audit[0]?.detail)).not.toContain('nut allergy');
+  });
+
+  it('writes the actor as a uuid the caller could not have chosen', async () => {
+    // `auth.uid()`, read inside the function, rather than a `p_actor` argument. There is no
+    // argument to pass — which is the property, not the omission.
+    const rows = await query<{ actor: string }>(
+      'select actor from entries.admin_audit where actor = $1',
+      [nnAdmin.id],
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]?.actor).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    // 36 characters, inside `length(trim(actor)) between 1 and 40`. No column migration needed.
+    expect(rows[0]?.actor).toHaveLength(36);
+  });
+
+  it('writes no audit row for a refused read', async () => {
+    await query('delete from entries.admin_audit where actor = $1', [member.id]);
+
+    await rpcAs(member, 'entrant_medical', { p_entrant_id: ENTRANT_PAID });
+    await rpcAs(member, 'export', { p_event_slug: EVENT, p_kind: 'medical' });
+
+    const audit = await query('select id from entries.admin_audit where actor = $1', [
+      member.id,
+    ]);
+
+    expect(audit).toEqual([]);
+  });
+
+  it('finds both identity schemes with the runbook’s one query', async () => {
+    // **Mixed values in one column is what a migration between identity schemes looks like.**
+    // The rows written under the key scheme keep their handles; the rows written under the role
+    // scheme carry a uuid. The runbook's "who has read medical data" query must return both, or
+    // six months of audit becomes unreadable the day the key scheme is retired.
+    await query('delete from entries.admin_audit where actor = any($1::text[])', [
+      [ACTOR, nnAdmin.id],
+    ]);
+
+    await rpc('admin_entrant_medical', {
+      p_key: GATE_KEY,
+      p_actor: ACTOR,
+      p_entrant_id: ENTRANT_PAID,
+    });
+    await rpcAs(nnAdmin, 'export', { p_event_slug: EVENT, p_kind: 'medical' });
+
+    const found = await query<{ actor: string; action: string }>(
+      `select actor, action from entries.admin_audit
+        where action in ('medical_note', 'medical_export')
+          and actor = any($1::text[])
+        order by action`,
+      [[ACTOR, nnAdmin.id]],
+    );
+
+    expect(found).toEqual([
+      { actor: nnAdmin.id, action: 'medical_export' },
+      { actor: ACTOR, action: 'medical_note' },
+    ]);
+  });
+});
+
+describe('the key path is untouched, which is what makes this expand-only', () => {
+  it('still answers a wrong key with the same whole answer', async () => {
+    expect(
+      await rpc('admin_entry_list', { p_key: 'wrong', p_event_slug: EVENT }),
+    ).toEqual({
+      ok: false,
+      reason: 'unauthorised',
+    });
+  });
+
+  it('is not reachable at all by a signed-in caller, even one holding nn-admin', async () => {
+    // **`42501`, and it is a stronger separation than the one this test was written to
+    // assert.** The key-gated four are granted to `anon` and to nothing else, and
+    // `authenticated` does not inherit `anon`'s grants — so a signed-in person cannot present
+    // a key to these functions at all, right or wrong. The two doors do not blend into one
+    // that opens on either, which is exactly what makes retiring the key scheme thinkable.
+    const { data, error } = await nnAdmin.client
+      .schema('entries')
+      .rpc('admin_entry_list', { p_key: GATE_KEY, p_event_slug: EVENT });
+
+    expect(error?.code).toBe('42501');
+    expect(data).toBeNull();
+  });
+
+  it('keeps every existing signature exactly as it was', async () => {
+    // **The assertion behind "the key path keeps working".** A renamed or reordered argument
+    // is the one change that would break the deployed Worker in the window between a migration
+    // and a Cloudflare deploy, and it is invisible to every behavioural test above.
+    const signatures = await query<{ proname: string; args: string }>(
+      `select p.proname, pg_get_function_arguments(p.oid) as args
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'entries'
+          and p.proname in (
+            'admin_entry_list', 'admin_interest_list', 'admin_entrant_medical', 'admin_export'
+          )
+        order by p.proname`,
+    );
+
+    expect(signatures).toEqual([
+      {
+        proname: 'admin_entrant_medical',
+        args: 'p_key text, p_actor text, p_entrant_id uuid',
+      },
+      { proname: 'admin_entry_list', args: 'p_key text, p_event_slug text' },
+      {
+        proname: 'admin_export',
+        args: 'p_key text, p_actor text, p_event_slug text, p_kind text',
+      },
+      { proname: 'admin_interest_list', args: 'p_key text' },
+    ]);
   });
 });

@@ -1,9 +1,19 @@
 import { z } from 'zod';
-import type { AnonClient } from './supabase';
+import type { AnonClient, UserClient } from './supabase';
 import { NN_ENTRY_GENDERS } from './nn-entry';
 
 /**
- * Reading the admin surface, through the six functions that are the whole of it.
+ * Reading the admin surface — through the key, and now through the `nn-admin` role as well.
+ *
+ * ## Two doors, one room
+ *
+ * #57 gave four of these reads a role-checked counterpart in the database: same read, behind
+ * `identity.has_role('nn-admin')` instead of a shared key. Each pair calls the same `read_*`
+ * helper down there, and each pair is parsed by the same `parse*` function up here, so the two
+ * doors cannot come to disagree about what is in the room. The key path is unchanged and stays
+ * until #63 retires it — deliberately, because nothing sequences a migration against a
+ * Cloudflare deploy and a surface that reads the club's entries is a poor place to find that
+ * out.
  *
  * ## Why these are RPCs, like everything else here
  *
@@ -21,8 +31,8 @@ import { NN_ENTRY_GENDERS } from './nn-entry';
  *
  * ## Every result is parsed rather than trusted
  *
- * `supabase gen types` types all six returns as `Json`, honestly — Postgres builds them with
- * `jsonb_build_object`. Parsing with Zod means a migration that renames a key fails here, in
+ * `supabase gen types` types every one of these returns as `Json`, honestly — Postgres builds
+ * them with `jsonb_build_object`. Parsing with Zod means a migration that renames a key fails in
  * one place with a message, rather than rendering an empty table that reads as "nobody has
  * entered yet". On a page an organiser uses to decide how many bibs to set out, that
  * distinction is the whole point.
@@ -81,6 +91,44 @@ function readEnvelope(
   }
 
   return { ok: true, value: data as Record<string, unknown> };
+}
+
+/**
+ * Make the call, turn a refusal into a failure, and hand the envelope to whoever knows its
+ * shape.
+ *
+ * **This exists because there are two doors into each of these four reads and only one room
+ * behind them** — the key path, and #57's `nn-admin` role path. The database extracted the
+ * read itself into a helper granted to nobody so that the two could not come to disagree; this
+ * is the same move one layer up. Whichever function answered, the shape it answered with is
+ * parsed by exactly one piece of code.
+ *
+ * `label` is the database function's own name, so an "unexpected shape" error names the
+ * function that actually returned it rather than whichever door was fashionable.
+ */
+async function callAndParse<T>(
+  label: string,
+  call: () => PromiseLike<{
+    data: unknown;
+    error: { code?: string | null; message: string } | null;
+  }>,
+  parse: (value: Record<string, unknown>, label: string) => AdminResult<T>,
+): Promise<AdminResult<T>> {
+  try {
+    const { data, error } = await call();
+
+    const envelope = readEnvelope(data, error, label);
+    if (!('ok' in envelope)) {
+      return envelope;
+    }
+
+    return parse(envelope.value, label);
+  } catch (cause) {
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
 }
 
 // -----------------------------------------------------------------------------------------
@@ -357,73 +405,79 @@ function readFigures(rawEvent: unknown): AdminEventFigures | null {
   };
 }
 
+function parseEntryList(
+  value: Record<string, unknown>,
+  label: string,
+): AdminResult<AdminEntryList> {
+  const parsed = entryListShape.safeParse(value);
+
+  if (!parsed.success) {
+    return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+  }
+
+  return {
+    status: 'ok',
+    event: {
+      slug: parsed.data.event.slug,
+      displayName: parsed.data.event.display_name,
+      eventDate: parsed.data.event.event_date,
+      capacity: parsed.data.event.capacity,
+      taken: parsed.data.event.taken,
+      attention: parsed.data.event.attention,
+      figures: readFigures((value as { event?: unknown }).event),
+    },
+    total: parsed.data.total,
+    returned: parsed.data.returned,
+    entries: parsed.data.entries.map((entry) => ({
+      entrantId: entry.entrant_id,
+      purchaseId: entry.purchase_id,
+      firstName: entry.first_name,
+      lastName: entry.last_name,
+      club: entry.club,
+      age: entry.age,
+      gender: entry.gender,
+      eaNumber: entry.ea_number,
+      feeCode: entry.fee_code,
+      feeLabel: entry.fee_label,
+      requiresEaNumber: entry.requires_ea_number,
+      amountPence: entry.amount_pence,
+      status: entry.status,
+      attention: entry.attention,
+      attentionResolved: entry.attention_resolved,
+      hasMedical: entry.has_medical,
+      createdAt: entry.created_at,
+      paidAt: entry.paid_at,
+      holdExpiresAt: entry.hold_expires_at ?? null,
+      revived: entry.revived,
+    })),
+  };
+}
+
 export async function fetchAdminEntryList(
   client: AnonClient,
   key: string,
   eventSlug: string,
 ): Promise<AdminResult<AdminEntryList>> {
-  try {
-    const { data, error } = await client.schema('entries').rpc('admin_entry_list', {
-      p_key: key,
-      p_event_slug: eventSlug,
-    });
+  return callAndParse(
+    'admin_entry_list',
+    () =>
+      client
+        .schema('entries')
+        .rpc('admin_entry_list', { p_key: key, p_event_slug: eventSlug }),
+    parseEntryList,
+  );
+}
 
-    const envelope = readEnvelope(data, error, 'admin_entry_list');
-    if (!('ok' in envelope)) {
-      return envelope;
-    }
-
-    const parsed = entryListShape.safeParse(envelope.value);
-
-    if (!parsed.success) {
-      return {
-        status: 'unavailable',
-        error: 'admin_entry_list returned an unexpected shape',
-      };
-    }
-
-    return {
-      status: 'ok',
-      event: {
-        slug: parsed.data.event.slug,
-        displayName: parsed.data.event.display_name,
-        eventDate: parsed.data.event.event_date,
-        capacity: parsed.data.event.capacity,
-        taken: parsed.data.event.taken,
-        attention: parsed.data.event.attention,
-        figures: readFigures((envelope.value as { event?: unknown }).event),
-      },
-      total: parsed.data.total,
-      returned: parsed.data.returned,
-      entries: parsed.data.entries.map((entry) => ({
-        entrantId: entry.entrant_id,
-        purchaseId: entry.purchase_id,
-        firstName: entry.first_name,
-        lastName: entry.last_name,
-        club: entry.club,
-        age: entry.age,
-        gender: entry.gender,
-        eaNumber: entry.ea_number,
-        feeCode: entry.fee_code,
-        feeLabel: entry.fee_label,
-        requiresEaNumber: entry.requires_ea_number,
-        amountPence: entry.amount_pence,
-        status: entry.status,
-        attention: entry.attention,
-        attentionResolved: entry.attention_resolved,
-        hasMedical: entry.has_medical,
-        createdAt: entry.created_at,
-        paidAt: entry.paid_at,
-        holdExpiresAt: entry.hold_expires_at ?? null,
-        revived: entry.revived,
-      })),
-    };
-  } catch (cause) {
-    return {
-      status: 'unavailable',
-      error: cause instanceof Error ? cause.name : 'unknown',
-    };
-  }
+/** The same list, for a signed-in caller holding `nn-admin`. No key, and no actor. */
+export async function fetchEntryList(
+  client: UserClient,
+  eventSlug: string,
+): Promise<AdminResult<AdminEntryList>> {
+  return callAndParse(
+    'entry_list',
+    () => client.schema('entries').rpc('entry_list', { p_event_slug: eventSlug }),
+    parseEntryList,
+  );
 }
 
 // -----------------------------------------------------------------------------------------
@@ -462,48 +516,51 @@ const interestListShape = z.object({
   ),
 });
 
+function parseInterestList(
+  value: Record<string, unknown>,
+  label: string,
+): AdminResult<AdminInterestList> {
+  const parsed = interestListShape.safeParse(value);
+
+  if (!parsed.success) {
+    return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+  }
+
+  return {
+    status: 'ok',
+    total: parsed.data.total,
+    returned: parsed.data.returned,
+    consented: parsed.data.consented,
+    interest: parsed.data.interest.map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      consent: row.consent,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
 export async function fetchAdminInterestList(
   client: AnonClient,
   key: string,
 ): Promise<AdminResult<AdminInterestList>> {
-  try {
-    const { data, error } = await client
-      .schema('entries')
-      .rpc('admin_interest_list', { p_key: key });
+  return callAndParse(
+    'admin_interest_list',
+    () => client.schema('entries').rpc('admin_interest_list', { p_key: key }),
+    parseInterestList,
+  );
+}
 
-    const envelope = readEnvelope(data, error, 'admin_interest_list');
-    if (!('ok' in envelope)) {
-      return envelope;
-    }
-
-    const parsed = interestListShape.safeParse(envelope.value);
-
-    if (!parsed.success) {
-      return {
-        status: 'unavailable',
-        error: 'admin_interest_list returned an unexpected shape',
-      };
-    }
-
-    return {
-      status: 'ok',
-      total: parsed.data.total,
-      returned: parsed.data.returned,
-      consented: parsed.data.consented,
-      interest: parsed.data.interest.map((row) => ({
-        id: row.id,
-        name: row.name,
-        email: row.email,
-        consent: row.consent,
-        createdAt: row.created_at,
-      })),
-    };
-  } catch (cause) {
-    return {
-      status: 'unavailable',
-      error: cause instanceof Error ? cause.name : 'unknown',
-    };
-  }
+/** The same list, for a signed-in caller holding `nn-admin`. */
+export async function fetchInterestList(
+  client: UserClient,
+): Promise<AdminResult<AdminInterestList>> {
+  return callAndParse(
+    'interest_list',
+    () => client.schema('entries').rpc('interest_list'),
+    parseInterestList,
+  );
 }
 
 // -----------------------------------------------------------------------------------------
@@ -540,48 +597,62 @@ const medicalShape = z.object({
  * ordering in which this returns a note and nothing records that it did. `actor` is the handle
  * out of the Worker's own signed cookie.
  */
+function parseMedicalNote(
+  value: Record<string, unknown>,
+  label: string,
+): AdminResult<AdminMedicalNote> {
+  const parsed = medicalShape.safeParse(value);
+
+  if (!parsed.success) {
+    return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+  }
+
+  return {
+    status: 'ok',
+    entrantId: parsed.data.entrant_id,
+    eventSlug: parsed.data.event_slug,
+    firstName: parsed.data.first_name,
+    lastName: parsed.data.last_name,
+    club: parsed.data.club,
+    notes: parsed.data.notes,
+  };
+}
+
 export async function fetchAdminMedicalNote(
   client: AnonClient,
   key: string,
   actor: string,
   entrantId: string,
 ): Promise<AdminResult<AdminMedicalNote>> {
-  try {
-    const { data, error } = await client.schema('entries').rpc('admin_entrant_medical', {
-      p_key: key,
-      p_actor: actor,
-      p_entrant_id: entrantId,
-    });
+  return callAndParse(
+    'admin_entrant_medical',
+    () =>
+      client.schema('entries').rpc('admin_entrant_medical', {
+        p_key: key,
+        p_actor: actor,
+        p_entrant_id: entrantId,
+      }),
+    parseMedicalNote,
+  );
+}
 
-    const envelope = readEnvelope(data, error, 'admin_entrant_medical');
-    if (!('ok' in envelope)) {
-      return envelope;
-    }
-
-    const parsed = medicalShape.safeParse(envelope.value);
-
-    if (!parsed.success) {
-      return {
-        status: 'unavailable',
-        error: 'admin_entrant_medical returned an unexpected shape',
-      };
-    }
-
-    return {
-      status: 'ok',
-      entrantId: parsed.data.entrant_id,
-      eventSlug: parsed.data.event_slug,
-      firstName: parsed.data.first_name,
-      lastName: parsed.data.last_name,
-      club: parsed.data.club,
-      notes: parsed.data.notes,
-    };
-  } catch (cause) {
-    return {
-      status: 'unavailable',
-      error: cause instanceof Error ? cause.name : 'unknown',
-    };
-  }
+/**
+ * The same note, for a signed-in caller holding `nn-admin`.
+ *
+ * **There is no `actor` to pass, and that is the improvement rather than the omission.** The
+ * database reads `auth.uid()` itself, so the audit row names the subject of a token GoTrue
+ * issued rather than a handle this Worker asserted from a cookie it signed. See ADR-013 on why
+ * that column is a pseudonym either way.
+ */
+export async function fetchMedicalNote(
+  client: UserClient,
+  entrantId: string,
+): Promise<AdminResult<AdminMedicalNote>> {
+  return callAndParse(
+    'entrant_medical',
+    () => client.schema('entries').rpc('entrant_medical', { p_entrant_id: entrantId }),
+    parseMedicalNote,
+  );
 }
 
 // -----------------------------------------------------------------------------------------
@@ -681,6 +752,94 @@ const medicalRowShape = z.object({
  * minimisation at the boundary applied to a read, and it is the reason `p_kind` is an argument
  * to the function rather than a filter in this file.
  */
+function parseExport(
+  value: Record<string, unknown>,
+  label: string,
+): AdminResult<{ export: AdminExport }> {
+  const outer = z
+    .object({
+      ok: z.literal(true),
+      kind: z.enum(EXPORT_KINDS),
+      event: exportEventShape,
+    })
+    .safeParse(value);
+
+  if (!outer.success) {
+    return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+  }
+
+  const event: AdminExportEvent = {
+    slug: outer.data.event.slug,
+    displayName: outer.data.event.display_name,
+    eventDate: outer.data.event.event_date,
+  };
+
+  const rows = (value as { rows?: unknown }).rows;
+
+  if (outer.data.kind === 'ea') {
+    const parsed = z.array(eaRowShape).safeParse(rows);
+    return parsed.success
+      ? {
+          status: 'ok',
+          export: {
+            kind: 'ea',
+            event,
+            rows: parsed.data.map((row) => ({
+              lastName: row.last_name,
+              firstName: row.first_name,
+              club: row.club,
+              eaNumber: row.ea_number,
+              feeLabel: row.fee_label,
+              amountPence: row.amount_pence,
+            })),
+          },
+        }
+      : { status: 'unavailable', error: `${label} returned an unexpected ea row` };
+  }
+
+  if (outer.data.kind === 'start-list') {
+    const parsed = z.array(startListRowShape).safeParse(rows);
+    return parsed.success
+      ? {
+          status: 'ok',
+          export: {
+            kind: 'start-list',
+            event,
+            rows: parsed.data.map((row) => ({
+              lastName: row.last_name,
+              firstName: row.first_name,
+              club: row.club,
+              age: row.age,
+              gender: row.gender,
+              emergencyContactName: row.emergency_contact_name,
+              emergencyContactPhone: row.emergency_contact_phone,
+            })),
+          },
+        }
+      : {
+          status: 'unavailable',
+          error: `${label} returned an unexpected start-list row`,
+        };
+  }
+
+  const parsed = z.array(medicalRowShape).safeParse(rows);
+  return parsed.success
+    ? {
+        status: 'ok',
+        export: {
+          kind: 'medical',
+          event,
+          rows: parsed.data.map((row) => ({
+            lastName: row.last_name,
+            firstName: row.first_name,
+            club: row.club,
+            notes: row.notes,
+          })),
+        },
+      }
+    : { status: 'unavailable', error: `${label} returned an unexpected medical row` };
+}
+
 export async function fetchAdminExport(
   client: AnonClient,
   key: string,
@@ -688,113 +847,37 @@ export async function fetchAdminExport(
   eventSlug: string,
   kind: ExportKind,
 ): Promise<AdminResult<{ export: AdminExport }>> {
-  try {
-    const { data, error } = await client.schema('entries').rpc('admin_export', {
-      p_key: key,
-      p_actor: actor,
-      p_event_slug: eventSlug,
-      p_kind: kind,
-    });
+  return callAndParse(
+    'admin_export',
+    () =>
+      client.schema('entries').rpc('admin_export', {
+        p_key: key,
+        p_actor: actor,
+        p_event_slug: eventSlug,
+        p_kind: kind,
+      }),
+    parseExport,
+  );
+}
 
-    const envelope = readEnvelope(data, error, 'admin_export');
-    if (!('ok' in envelope)) {
-      return envelope;
-    }
-
-    const outer = z
-      .object({
-        ok: z.literal(true),
-        kind: z.enum(EXPORT_KINDS),
-        event: exportEventShape,
-      })
-      .safeParse(envelope.value);
-
-    if (!outer.success) {
-      return {
-        status: 'unavailable',
-        error: 'admin_export returned an unexpected shape',
-      };
-    }
-
-    const event: AdminExportEvent = {
-      slug: outer.data.event.slug,
-      displayName: outer.data.event.display_name,
-      eventDate: outer.data.event.event_date,
-    };
-
-    const rows = (envelope.value as { rows?: unknown }).rows;
-
-    if (outer.data.kind === 'ea') {
-      const parsed = z.array(eaRowShape).safeParse(rows);
-      return parsed.success
-        ? {
-            status: 'ok',
-            export: {
-              kind: 'ea',
-              event,
-              rows: parsed.data.map((row) => ({
-                lastName: row.last_name,
-                firstName: row.first_name,
-                club: row.club,
-                eaNumber: row.ea_number,
-                feeLabel: row.fee_label,
-                amountPence: row.amount_pence,
-              })),
-            },
-          }
-        : { status: 'unavailable', error: 'admin_export returned an unexpected ea row' };
-    }
-
-    if (outer.data.kind === 'start-list') {
-      const parsed = z.array(startListRowShape).safeParse(rows);
-      return parsed.success
-        ? {
-            status: 'ok',
-            export: {
-              kind: 'start-list',
-              event,
-              rows: parsed.data.map((row) => ({
-                lastName: row.last_name,
-                firstName: row.first_name,
-                club: row.club,
-                age: row.age,
-                gender: row.gender,
-                emergencyContactName: row.emergency_contact_name,
-                emergencyContactPhone: row.emergency_contact_phone,
-              })),
-            },
-          }
-        : {
-            status: 'unavailable',
-            error: 'admin_export returned an unexpected start-list row',
-          };
-    }
-
-    const parsed = z.array(medicalRowShape).safeParse(rows);
-    return parsed.success
-      ? {
-          status: 'ok',
-          export: {
-            kind: 'medical',
-            event,
-            rows: parsed.data.map((row) => ({
-              lastName: row.last_name,
-              firstName: row.first_name,
-              club: row.club,
-              notes: row.notes,
-            })),
-          },
-        }
-      : {
-          status: 'unavailable',
-          error: 'admin_export returned an unexpected medical row',
-        };
-  } catch (cause) {
-    return {
-      status: 'unavailable',
-      error: cause instanceof Error ? cause.name : 'unknown',
-    };
-  }
+/**
+ * The same file, for a signed-in caller holding `nn-admin`.
+ *
+ * `p_kind` is still an argument to the database function rather than a filter here, for the
+ * reason the key path's docstring gives: an export that is not about medical notes must never
+ * carry one to this Worker in the first place.
+ */
+export async function fetchExport(
+  client: UserClient,
+  eventSlug: string,
+  kind: ExportKind,
+): Promise<AdminResult<{ export: AdminExport }>> {
+  return callAndParse(
+    'export',
+    () =>
+      client.schema('entries').rpc('export', { p_event_slug: eventSlug, p_kind: kind }),
+    parseExport,
+  );
 }
 
 // -----------------------------------------------------------------------------------------
