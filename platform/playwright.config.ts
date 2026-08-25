@@ -55,7 +55,28 @@ export default defineConfig({
 
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.
-  globalTimeout: 10 * 60_000,
+  //
+  // **Twenty minutes, because ten was the suite's own running time.** This was `10 * 60_000`
+  // and the suite grew into it exactly: CI run 32862836535 reported `645 passed (10.0m)`,
+  // `20 did not run` and `Timed out waiting 600s for the test suite to run`. Nothing was
+  // broken and no test failed — the run was cut off with a fifth of the projects' work still
+  // queued, and the whole 667 were then re-run by the retry in `ci.yml`, which the job's own
+  // budget could not fit. A green suite spending 100% of its ceiling is not a ceiling.
+  //
+  // It cannot be bought back with parallelism: `workers` is pinned at 1 above for a
+  // correctness reason, so the only thing standing between this number and a spurious red on
+  // every pull request is headroom. Two minutes of it would be eaten by one slow runner.
+  //
+  // **This number, `ci.yml`'s `timeout-minutes` and the retry there are one decision in three
+  // places, and the arithmetic is the reviewable part.** Setup to the end of `Install
+  // browsers` measures ~8 minutes and the suite ~10, so the job's 45 covers the two paths that
+  // actually occur: a timed-out run that is now not retried (8 + 20 = 28) and a failed run
+  // that is (8 + 10 + 10 = 28). It does **not** cover the pathological 8 + 20 + 20, where a
+  // run fails on its merits at the ceiling and is retried — deliberately, because buying that
+  // case means carrying a 50-minute ceiling on a job that normally takes 18, and a hung run
+  // then bills for all of it against a 2,000-minute monthly allowance this repository is
+  // already on course to spend. Change one of the three and redo this sum.
+  globalTimeout: 20 * 60_000,
 
   use: {
     // One origin for the whole site, exactly as in production. `/timing` is a different

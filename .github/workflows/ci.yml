@@ -104,7 +104,20 @@ jobs:
   verify:
     name: Lint, types, tests, build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # **45 rather than 25, and it is the third of three numbers that have to agree.** The other
+    # two are `globalTimeout` in `platform/playwright.config.ts` and the retry in the
+    # `Acceptance tests` step below; the sum that justifies all three is written out at the
+    # `globalTimeout` it belongs to, rather than a third time here.
+    #
+    # At 25 this was not a safety net but a second failure mode. Run 32862836535 finished its
+    # acceptance suite green-but-timed-out, started the retry the step then asked for, and was
+    # killed 7 minutes into it — so a passing branch reported `The operation was canceled`,
+    # which reads as somebody pressing a button rather than as a suite that needs looking at.
+    #
+    # This is a ceiling, not consumption: the normal green run is ~18 minutes and bills ~18.
+    # It is raised only so far as the paths that actually occur need, because a genuinely hung
+    # job now bills 45.
+    timeout-minutes: 45
 
     env:
       # Pinned for the same reason the timing app pins it: without this the suite passes
@@ -230,9 +243,30 @@ jobs:
         # locally, including deliberately running both servers together, so this is runner
         # pressure, not the site — a full-suite retry is the honest way to absorb that
         # without pretending a threshold of individual flaky tests is fine.
+        #
+        # **The retry is skipped when the run hit `globalTimeout`, and that exclusion is the
+        # point of this block rather than a detail of it.** The retry above answers "the
+        # servers did not come up", where nothing ran and running it again is the only way to
+        # learn anything. A global timeout is the opposite: the suite ran, it was passing, and
+        # it was cut off for being long. Re-running all 667 tests cannot make a suite that
+        # needs more than the ceiling finish inside it, so the second attempt is certain to
+        # fail the same way — after paying for it twice. CI run 32862836535 is what that costs:
+        # `645 passed (10.0m)`, a timeout, a full re-run, and `The operation was canceled` when
+        # the job's own budget ran out 7 minutes into it. Twenty-six minutes to report a
+        # problem the first ten had already identified, and it reported it as a cancellation,
+        # which reads like somebody pressed a button.
+        #
+        # Playwright exits 1 for both, so the message is the only thing that separates them.
+        # `--last-failed` is not the answer here: on the startup failure this retry exists for,
+        # no test has run and there is nothing for it to select.
         run: |
-          if npx playwright test; then
+          set -o pipefail
+          if npx playwright test 2>&1 | tee playwright-run.log; then
             exit 0
+          fi
+          if grep -q 'Timed out waiting .* for the test suite to run' playwright-run.log; then
+            echo "::error::acceptance suite exceeded its globalTimeout — not retrying, because a re-run cannot fit inside it either. Raise globalTimeout in platform/playwright.config.ts and timeout-minutes here together." >&2
+            exit 1
           fi
           echo "::warning::acceptance tests failed, retrying the suite once" >&2
           npx playwright test
@@ -242,7 +276,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: platform/playwright-report/
+          # The run log travels with the report because the two answer different questions.
+          # The report says which tests failed; on a `globalTimeout` the answer is "none of
+          # them did", and the only record of that is the summary line the log holds.
+          path: |
+            platform/playwright-report/
+            platform/playwright-run.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Stop the local Supabase stack
