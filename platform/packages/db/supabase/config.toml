@@ -221,6 +221,15 @@ refresh_token_reuse_interval = 10
 # policy. This is still a stop-and-ask
 # (../../../../docs/architecture/principles.md#stop-and-ask): any further edit to this value,
 # to `site_url`, or to a redirect URL is production config the moment it merges.
+#
+# **The gate this switch was supposed to wait for is #64's**, and it is written down in
+# `../../../../docs/delivery/runbooks/accounts-open.md`: the Cloudflare rate-limiting rules on
+# the credential endpoints must be live before anybody can sign in, because this flag is what
+# turns `POST /account/sign-up/` and `POST /account/sign-in/` into endpoints a stranger can
+# spend the club's compute and the club's sending reputation on. **This value merged before
+# those rules existed**, so that runbook's step 0 is a catch-up rather than a pre-condition —
+# which is exactly the thing it exists to stop happening a second time. Turning this back off
+# is the rollback, and it is one line.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
@@ -249,28 +258,111 @@ password_requirements = ""
 # rp_id = "localhost"
 # rp_origins = ["http://127.0.0.1:3000"]
 
-# These are the CLI's own defaults, kept rather than replaced — reviewed here as part of
-# #49 rather than left as values nobody chose. `email_sent = 2` is Supabase's built-in cap
-# on the free tier regardless of this setting, which is the reason #50 wires up Resend for
-# every other outbound email; a larger number here would not raise it. The Cloudflare-level
-# rate limiting on the credential-checking endpoints themselves — sign-in, password reset —
-# is #64's, deliberately: a WAF rule per IP, not a per-project cap shared across every
-# signed-in person.
+# **Every value in this block is chosen, and each comment says what the number is
+# protecting.** #64. Until now the whole block was the CLI's own defaults, kept and
+# annotated by #49 — reviewed, which is not the same as decided.
+#
+# **The trap that decides almost every number below: "per IP address" is not the runner's
+# IP address.** Every GoTrue call the account area makes is made *from the Worker* —
+# `worker/account.ts` and `worker/session.ts` build a server-side client and call `signUp`,
+# `signInWithPassword`, `resetPasswordForEmail` and `refreshSession` themselves — so the
+# address GoTrue counts against is a Cloudflare egress address shared by everybody at once.
+# **A per-IP limit behind a proxy is a project-wide limit**, and a number that reads as
+# generous for one person is a cap on the whole club. So the values that sit behind the
+# Worker are raised rather than lowered, and their job is to be a circuit breaker the club
+# cannot reach rather than a per-person control.
+#
+# **The per-person control is a layer earlier**, in the Cloudflare rate-limiting rules
+# recorded in `../../../../docs/reference/cloudflare-waf-rules.md` — those see the real
+# client address, and they are what actually answers credential stuffing and a reset form
+# pointed at somebody else's inbox. Neither layer is a substitute for the other, and the
+# runbook that gates them both is
+# `../../../../docs/delivery/runbooks/accounts-open.md`.
+#
+# `token_verifications` is the one value that goes the other way, and its comment says why.
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+#
+# **Sixty, and this one is per project rather than per IP** — Supabase documents it as a
+# project limit and GoTrue implements it as one, which the CLI's own comment above does not
+# say. Today it is shadowed by the built-in two-an-hour cap the free tier applies whatever
+# is written here; **#50's Resend SMTP is the day this number becomes the real ceiling on
+# every confirmation, reset and notification the club sends**, so it is chosen for that day
+# rather than for this one.
+#
+# Sixty is one a minute. The busiest legitimate hour this platform has is the club being
+# told its accounts exist, which is low hundreds of people of whom the ones who act inside
+# the first hour are dozens — and the failure mode of setting it too low is **silent**: the
+# person simply never receives the mail and sees no error at all. It is still far below what
+# a script pointed at `POST /account/reset/` produces in a minute; the WAF rule is what stops
+# that, not this.
+email_sent = 60
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
-sms_sent = 30
+#
+# **One, because nothing here can send an SMS.** `[auth.sms] enable_signup` is off, its
+# confirmations are off, `[auth.sms.twilio]` is disabled and `[auth.mfa.phone]` is off — so
+# this value is unreachable, and the reason to set a floor rather than leave 30 is that a
+# switch flipped by mistake then costs one message rather than thirty. Not zero: a zero in a
+# Go rate limiter is the value most likely to be read as "no limit", and this is not a place
+# to find that out. **If SMS is ever turned on, this number is part of that decision.**
+sms_sent = 1
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
-anonymous_users = 30
+#
+# **One, for the same reason as `sms_sent`.** `enable_anonymous_sign_ins` is false, and an
+# anonymous sign-in is a row in `auth.users` that nobody asked for — the free tier's own
+# ceiling is one of the two ways this platform runs out of database, so the floor is the
+# right default for a feature that is off.
+anonymous_users = 1
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
-token_refresh = 150
+#
+# **Six hundred, up from 150, and it is raised because of the proxy.** `worker/session.ts`
+# refreshes from the Worker, so every signed-in person on the site counts against one
+# address. `jwt_expiry` is an hour and the refresh happens inside the last minute of it,
+# which means **refreshes arrive synchronised**: everybody who signed in during the minute
+# entries opened comes back for a new token in the same minute an hour later. At 150 a
+# five-minute window that burst is refused, and being refused a refresh means being signed
+# out — plausibly in the middle of entering a race. A refresh also needs a valid refresh
+# token, so this is not an anonymous attack surface and the cost of being generous is small.
+token_refresh = 600
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
+#
+# **Three hundred, up from 30, and the increase is the point rather than a slip.** Behind
+# the Worker this is not "thirty attempts per attacker", it is **thirty sign-ins in five
+# minutes for the entire club** — about one every ten seconds, shared. The morning entries
+# open would reach that on legitimate traffic alone, and GoTrue's refusal reads to somebody
+# with the right password as the site being broken.
+#
+# So it stops being a credential-stuffing control the moment it sits behind a proxy, and
+# pretending otherwise is what makes a low number dangerous: it buys nothing an attacker
+# notices and it locks out a club. **Stuffing is answered by the WAF rule on
+# `POST /account/sign-in/`** — five a minute per real address, blocked for ten — and by
+# Turnstile on the form. Three hundred is what is left for this layer to do: a project-wide
+# ceiling of one a second, high enough that no plausible club morning reaches it and low
+# enough that a flood which got past Cloudflare cannot exhaust the auth service.
+sign_in_sign_ups = 300
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
-token_verifications = 30
+#
+# **Ten, down from 30, and the only value here that is genuinely per person.** A
+# confirmation, reset or magic link points at GoTrue's own `/auth/v1/verify`, which **the
+# browser follows directly** — the Worker is not in that path, so the address counted is
+# the person's own.
+#
+# That makes it the one place a per-IP number does what it says, and it is also the endpoint
+# an OTP guess attacks: `otp_length` is 6, so the space is a million, and 30 per five minutes
+# is 8,640 a day from a single address. Ten is 2,880 — still not an answer to a distributed
+# guess, which nothing per-IP is, but a third of the budget for no cost anybody meets. A
+# person clicks their link once; ten in five minutes already covers a household, a retry, and
+# a corporate mail scanner prefetching the link before the person sees it.
+#
+# **Revisit this the day a code exchange moves into the Worker** — #55's magic link or #56's
+# Google callback done as PKCE would put this value back behind the proxy, where ten would be
+# ten for everybody.
+token_verifications = 10
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
-web3 = 30
+#
+# **One.** `[auth.web3.solana]` is disabled and a running club does not sign people in with a
+# wallet. Same floor, same reason as `sms_sent`.
+web3 = 1
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
 #

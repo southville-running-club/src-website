@@ -71,14 +71,31 @@ not even need a script, because the form takes an ordinary cross-site `POST`.
 **A held place is indistinguishable from a real runner's**, so there is no query that cleans it
 up, and every remedy available on the day lands on real entrants too.
 
-- [ ] A Cloudflare WAF rate-limiting rule on `POST /nn/` is **live and tested**
-- [ ] Consider covering `POST /nn/stripe-webhook` and the anon-callable
-      `entries.expire_pending_holds()` with the same rule, along with any health endpoints the
-      platform exposes by then. None is abusable for correctness; all are free-tier compute
-      anybody can spend
+**The rule is written down, and it is not written down here.** Its expression, threshold,
+period, action and mitigation are [in the committed copy of the Cloudflare
+rules](../../reference/cloudflare-waf-rules.md), where it is **E1** — beside **A1**–**A4**,
+the account rules [#64](https://github.com/southville-running-club/src-website/issues/64)
+adds for sign-in, sign-up, password reset and the admin surfaces. One table, because they are
+the same kind of object in the same dashboard and the free plan may only allow one of them.
+
+**One correction that file makes to this step, and it matters:** #19 says `POST /nn/` because
+it was written before [ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md)
+split the pages. `POST /nn/` is now the *interest* form; **`POST /nn/2026/` is the entry form,
+and that is the one that holds places.** E1 matches the prefix for that reason — a rule
+written to the letter of the issue would cover the harmless half and miss the expensive one.
+
+- [ ] **E1** is **live and tested** — created from
+      [the table](../../reference/cloudflare-waf-rules.md#the-rules), then read back from the
+      dashboard and diffed against it
+- [ ] `POST /nn/stripe-webhook` is **excluded** from it, deliberately. Stripe's delivery
+      volume is not a person's, and a block there stops a payment being *recorded* rather
+      than stopping one being taken
+- [ ] Consider covering the anon-callable `entries.expire_pending_holds()` and any health
+      endpoints the platform exposes by then. Neither is abusable for correctness; both are
+      free-tier compute anybody can spend
 - [ ] The rule is recorded in [`apps/main/README.md`](../../../platform/apps/main/README.md)'s
       manual-steps table — that file already says a WAF rule *"is a manual step and belongs
-      here when it happens"*
+      here when it happens"* — and its status column in the rules file says it is live
 
 ### 0.2 — somebody is watching the attention alarm
 

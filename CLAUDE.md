@@ -384,6 +384,16 @@ into this state, because it kills the Supabase containers under a daemon that st
 So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
 email and no timing application code**.
 
+**There is no rate limiting live anywhere, and both layers of it are now written down.**
+`[auth.rate_limit]` in `packages/db/supabase/config.toml` is chosen rather than defaulted, with
+a comment per value and `tests/unit/config.test.ts` asserting each — **and the trap that decides
+those numbers is that "per IP address" is not the runner's address**: every GoTrue call the
+account area makes is server-side, so a per-IP limit behind the Worker is a project-wide limit
+and a tight number is a cap on the whole club. The per-person layer is Cloudflare's, recorded as
+a reviewable artefact in `docs/reference/cloudflare-waf-rules.md` — the race forms' rule and the
+four account rules in one table — and **not one of them has been created in the dashboard yet**.
+The runbooks that gate them are `entries-open.md` step 0.1 and `accounts-open.md`.
+
 **There is an admin surface, and it is switched off.** `/nn/admin` reads the entries for a
 running, the interest sign-ups, one medical note at a time, three CSV exports and a printable
 start list — and with no `ENTRIES_ADMIN_KEY` bound it declines every address under that prefix, so

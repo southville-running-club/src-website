@@ -744,6 +744,30 @@ state-changing `POST` in this area therefore carries a CSRF token from `worker/c
 double-submit cookie-and-field pair, checked constant-time, unrelated to the session so a
 token refresh mid-form does not invalidate what somebody already typed.
 
+### Two rate limits, and they are not the same limit — #64
+
+**Neither layer is a substitute for the other, and the reason is that one of them cannot see
+who is asking.**
+
+| | Sees | Does |
+| --- | --- | --- |
+| **Cloudflare rate-limiting rules** | The runner's real IP address | Caps sign-in, sign-up, reset and the admin surfaces per person, before a Worker invocation is spent. [The committed copy](../../../docs/reference/cloudflare-waf-rules.md) |
+| **`[auth.rate_limit]` in `config.toml`** | A Cloudflare egress address | A project-wide circuit breaker. It cannot tell two members apart |
+
+**Every GoTrue call in this Worker is server-side** — `account.ts` and `session.ts` build a
+client and call `signUp`, `signInWithPassword`, `resetPasswordForEmail` and `refreshSession`
+themselves. So GoTrue's own "per IP address" limits count the *Worker* against one address,
+shared by the whole club at once. That is why `sign_in_sign_ups` and `token_refresh` are
+**raised** rather than lowered in `config.toml`: a number that reads as tight for one
+attacker is a cap on everybody, and being refused a refresh means being signed out —
+plausibly mid-entry.
+
+**One value goes the other way.** A confirmation, reset or magic link points at GoTrue's own
+`/auth/v1/verify` and the browser follows it directly, so `token_verifications` is the one
+limit here that really is per person — and it is lowered.
+
+**None of these rules exists yet.** Manual step 11.
+
 ### Resetting a forgotten password, and changing one from inside an account — #54
 
 **A reset request never says whether the address has an account.** The same acknowledgement
@@ -1007,8 +1031,18 @@ is the [Cloudflare runbook](../../../docs/delivery/runbooks/cloudflare-setup.md)
 Cloudflare creates the DNS record and issues the certificate from it.
 
 **The sign-up form added nothing to this list either.** The grant and the policy ship as a
-migration, the route is code, and no variable was added — if a WAF rate-limiting rule is
-put on `POST /nn/` later, *that* is a manual step and belongs here when it happens.
+migration, the route is code, and no variable was added — a WAF rate-limiting rule on the
+race forms is a manual step, and it is now step 11 below.
+
+**Member accounts are what made that step urgent rather than advisable.** `/account/sign-in/`
+checks a credential and `/account/reset/` sends an email to an address the caller names —
+two classes of exposure this platform has never carried, and neither is answered by
+Turnstile, which raises the cost of a request without capping them. **The rules themselves
+are written down** in [the committed copy of the Cloudflare
+rules](../../../docs/reference/cloudflare-waf-rules.md) — expression, threshold, period,
+action, mitigation, and a status column that is the only record of which exist — and the
+runbook that gates them is
+[opening accounts](../../../docs/delivery/runbooks/accounts-open.md).
 
 **Nor did the entry form.** The schema, the seeded event and its fees all ship as one
 migration; the exposed-schema list is `config.toml`, which `deploy-db.yml` pushes.
@@ -1053,6 +1087,7 @@ and `[auth.external.google]` stay commented out until #53 and #56 need them and 
 | _8. Validate the four entries constraints_ | **Independent of every step above, and nothing is broken until it is done.** Slice G's check constraints shipped `NOT VALID`, so they enforce every new write but have never looked at the rows already there — because nobody here could see them, and a validated `ADD CONSTRAINT` fails the *migration* if one row disagrees, which fails the deploy for everything | _pending_ | [The constraints runbook](../../../docs/delivery/runbooks/entries-constraints.md). Step 1 is a read-only query that says whether step 2 will succeed; run it first and stop if any count is not zero, because a row that disagrees is evidence rather than a mess to tidy |
 | _9. Set `SUPABASE_AUTH_CAPTCHA_SECRET`, before #53 uncomments `[auth.captcha]`_ | **A GitHub Actions repository secret, not a Worker secret** — `deploy-db.yml` runs `supabase config push` in Actions, and that is where `env(...)` substitution reads from. It has to exist **before** `[auth.captcha]` is uncommented: the CLI validates the substitution at startup, and an unset one breaks `supabase start` outright rather than shipping captcha silently off — confirmed while building #49, which is why that block shipped commented out until #53 | **Done**, 24 Aug 2026 | Repository → Settings → Secrets and variables → Actions → New repository secret, name `SUPABASE_AUTH_CAPTCHA_SECRET`, value the Turnstile **secret** key. The site key (`0x4AAAAAAEaeMm9jDSJB7Gqy`) is public and lives in `wrangler.jsonc`'s `env.production.vars` as `TURNSTILE_SITE_KEY`, #53 |
 | _10. Set `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, before #56 uncomments `[auth.external.google]`_ | **Not consumed by anything until #56**, and the same startup-validation trap applies — set it before that block is uncommented, not after | _pending_ | Same place as step 9, name `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`, value the OAuth client secret from the Google Cloud Console project #56 sets up |
+| _11. Create the Cloudflare rate-limiting rules_ | **The platform has no rate limit of any kind today.** Sign-in is a credential check, `/account/reset/` mails an address the caller chooses, and `POST /nn/2026/` holds a place in a 250-runner field for 31 minutes — none of which is capped by anything deployed. A rule per IP at the edge is the only layer that sees the runner's real address, because every Supabase call this Worker makes is server-side | _pending_ | [The accounts-open runbook](../../../docs/delivery/runbooks/accounts-open.md), step 1, working from [the rules file](../../../docs/reference/cloudflare-waf-rules.md#the-rules). **Update that file's status column in a pull request afterwards** — a rule it does not know about is drift, exactly as a DNS record the zone file does not know about is drift |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the
