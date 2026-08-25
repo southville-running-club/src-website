@@ -225,8 +225,38 @@ jobs:
         # Inside the real Workers runtime via Miniflare, against the real build output.
         run: npm run test:worker
 
+      # The browser binaries are ~130s of every run, and none of it is work: Chromium and a
+      # 102MB WebKit are downloaded from scratch each time to be used identically. They are
+      # keyed on the resolved Playwright version rather than on `package-lock.json`, because
+      # the lockfile changes on any dependency bump and would throw the browsers away for a
+      # reason that has nothing to do with them. Reading it from the installed package rather
+      # than from `package.json` means the key follows what `^1.62.1` actually resolved to.
+      - name: Resolve the Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Install browsers
-        run: npx playwright install --with-deps chromium webkit
+        # **The system libraries are installed on a cache hit too, and that is not
+        # belt-and-braces.** The cache holds `~/.cache/ms-playwright` — the browser binaries.
+        # It does not hold the apt packages WebKit links against, which live under `/usr` and
+        # are not on the runner image by default. Restoring the binaries alone gives a WebKit
+        # that fails to launch, which surfaces as every `mobile-safari` test failing at once
+        # rather than as anything naming a missing library. `install-deps` is the cheap half
+        # of `--with-deps`; the download is the expensive half, and it is what the cache
+        # removes.
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            npx playwright install-deps chromium webkit
+          else
+            npx playwright install --with-deps chromium webkit
+          fi
 
       - name: Acceptance tests
         # Playwright, including axe at **zero** violations. Not "few" — any threshold

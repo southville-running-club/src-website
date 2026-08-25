@@ -40,7 +40,7 @@ export default defineConfig({
 
   // **One worker everywhere, and the reason changed.** It was capped at two in CI because
   // two servers plus three engines is already a lot of processes; it is now capped at one
-  // because two spec files own the same row.
+  // because spec files own the same row.
   //
   // `/nn/` shows the entry form or the interest form according to
   // `entries.events.entries_open_at` — the real switch, read by the Worker per request, with
@@ -51,6 +51,38 @@ export default defineConfig({
   // The alternative was a Postgres advisory lock shared by both files. This costs a few
   // seconds of CI and removes a class of intermittent instead of managing one, which is the
   // trade this repository has already made twice — see the 320px note in nn-theme.css.
+  //
+  // ---
+  //
+  // **The paragraph above named two files, and the real set is four. Read this before
+  // raising the number.** It is the sentence "`nn-entry.spec.ts` moves that row and
+  // `nn-signup.spec.ts` needs it left alone" that is load-bearing, and it was an
+  // under-count — enough of one that `workers: 2` looks safe from here and is not:
+  //
+  //   * **`site.spec.ts`** reads the same switch and is the larger of the two readers, not
+  //     the smaller. It asserts the closed-window rendering — the nav call to action, and
+  //     `#register` visible on `/nn/2026/` — across its nine-width sweep. `nn-entry.spec.ts`
+  //     opening the window mid-sweep is the same defect as the `nn-signup.spec.ts` one, in
+  //     roughly five times as many tests.
+  //   * **`nn-entry-complete.spec.ts`** collides on a different table. Both it and
+  //     `nn-entry.spec.ts` own `entries.entry_purchases` for `nn-2026`, and each one's
+  //     `beforeAll` clears what the other is relying on.
+  //   * **`nn-entry.spec.ts` asserts global counts**, not its own rows: `purchases()` selects
+  //     every purchase against `nn-2026` with no filter, and four assertions expect exactly
+  //     one. A concurrent insert from any other file fails them. Its sold-out block also sets
+  //     `capacity = 1` on the shared row, which changes the capacity predicate for everybody.
+  //
+  // `nn-admin.spec.ts` is the counter-example worth copying: it fabricates its own
+  // `zz-admin-worker` / `zz-admin-clean` events and scopes every write to them, so it
+  // conflicts with nothing. `account.spec.ts`, `privacy.spec.ts` and `nn-privacy.spec.ts` are
+  // clean too — `account.spec.ts` generates unique addresses and writes only to `auth`.
+  //
+  // So the partition is `{nn-entry, nn-entry-complete, nn-signup, site}` serialised against
+  // each other — about two thirds of the suite — with the other four free to overlap. A bare
+  // `workers: 2` does not express that and would interleave the four. Getting the number up
+  // needs the advisory lock the paragraph above already proposed, held across all four rather
+  // than two; the ceiling that buys is roughly a third off the suite, because the contended
+  // group is most of it.
   workers: 1,
 
   timeout: 30_000,
