@@ -288,9 +288,8 @@ describe('the auth.rate_limit block, chosen rather than defaulted', () => {
  * succeeding. Nothing else in the pipeline reports that half of a deploy is missing, so
  * this is the guard: milliseconds, no Docker, on every branch.
  *
- * #50 (Resend over SMTP) is what lifts the restriction, and it has: `[auth.email.smtp]`
- * is enabled below. Nothing else lifts it — upgrading the plan is the other half of the
- * API's own sentence and is not the club's plan.
+ * #50 (Resend over SMTP) is what lifts the restriction. Nothing else does — upgrading the
+ * plan is the other half of the API's own sentence and is not the club's plan.
  */
 describe('email templates, and the provider that forbids them', () => {
   /** Every uncommented `[section]` in the file, with the uncommented lines under it. */
@@ -333,26 +332,21 @@ describe('email templates, and the provider that forbids them', () => {
       .map((section) => section.name);
   }
 
-  it('is on Resend over SMTP, since #50', () => {
-    // This flipped from `false` the moment #50 landed — deliberately: the docstring above
-    // asks for exactly this test to be reconsidered when it does, rather than left
-    // asserting a premise that has moved. A custom provider is what lifts the free tier's
-    // restriction on email templates, so this is the fact the pair below now depends on.
-    expect(customSmtp()).toBe(true);
+  it('is still on the default email provider, which is what #50 changes', () => {
+    // This assertion is not decoration. The next one is written to go quiet the moment a
+    // custom provider exists — correctly, because the restriction lifts with it — and a
+    // guard that can go quiet needs something that fails loudly when its premise moves.
+    // This is that something. If it is red because #50 landed, that is the test asking
+    // for the pair below to be reconsidered rather than inherited.
+    expect(customSmtp()).toBe(false);
   });
 
-  it('declares no email template block while none has been decided yet', () => {
-    // **Uncommenting one of these is what fails here** — not enabling it, and only while
-    // `customSmtp()` is false. #79's first fix set
-    // `[auth.email.notification.password_changed]` to `enabled = false` and left the
+  it('declares no email template block at all while that is true', () => {
+    // **Uncommenting one of these is what fails here** — not enabling it. #79's first fix
+    // set `[auth.email.notification.password_changed]` to `enabled = false` and left the
     // section in the file, this test passed, and the deploy failed twice more on `main`
-    // with the same 400 — presence, not the `enabled` line, is what the API objects to.
-    //
-    // **This test goes quiet now that `customSmtp()` is true, and that is correct rather
-    // than a gap.** #50 lifted the restriction; which templates the club actually wants
-    // customised (#55's magic link, #54's password-changed notification) is a separate
-    // decision each of those issues makes for itself; this file is no longer where a
-    // template block would fail regardless of what it says.
+    // with the same 400. Commenting the section out is the known-good state, because it is
+    // the state the CLI shipped and the one every green deploy before #76 ran on.
     expect(customSmtp() ? [] : templateModifications()).toEqual([]);
   });
 });

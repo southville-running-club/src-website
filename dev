@@ -48,13 +48,6 @@ PLATFORM="$REPO_ROOT/platform"
 # Turnstile flow end to end) is respected rather than overridden.
 : "${SUPABASE_AUTH_CAPTCHA_SECRET:=1x0000000000000000000000000000000AA}"
 export SUPABASE_AUTH_CAPTCHA_SECRET
-
-# The same trap, for `[auth.email.smtp]` (#50): `env(RESEND_SMTP_PASSWORD)` is validated at
-# `supabase start` too, unset or not. Unlike the Turnstile secret this one never has to be
-# real locally — `[local_smtp]` intercepts every send regardless of what `[auth.email.smtp]`
-# says, so the placeholder only has to be non-empty, never a working credential.
-: "${RESEND_SMTP_PASSWORD:=local-dev-placeholder}"
-export RESEND_SMTP_PASSWORD
 RUN_DIR="$REPO_ROOT/.dev"
 
 # The whole transcript of the last `test` or `check`, kept so a failure can be *read* rather

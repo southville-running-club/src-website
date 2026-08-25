@@ -835,11 +835,10 @@ against production's real subject — and an empty subject is a template modific
 section is commented out, which is how the CLI shipped it and how every green deploy before
 #76 ran.
 
-**#50 — Resend over SMTP — has since lifted the restriction**, and
-`packages/db/tests/unit/config.test.ts` no longer fails on a declared email-template block
-now that it has. **Turning the notification back on is still a decision #54 makes for
-itself, not a side effect of #50 landing** — until it is made, a silent password change is
-only visible as the other sessions dying.
+**#50 — Resend over SMTP — is what makes it true**; nothing else does, and
+`packages/db/tests/unit/config.test.ts` fails if any email-template block is declared at all
+before then. Until that lands, a silent password change is only visible as the other sessions
+dying.
 
 ## The health endpoints
 

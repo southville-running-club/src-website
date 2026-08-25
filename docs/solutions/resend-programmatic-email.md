@@ -11,24 +11,11 @@ The addresses themselves — the five mailboxes, the aliases onto them, and whic
 
 ---
 
-## Current status: account and DNS done, the send code is not
+## Current status: backlogged, `info@` used directly in the meantime
 
-**Steps 1–7 below are done, as of 25 August 2026:** the Resend account exists,
-`send.southvillerunningclub.co.uk` is verified (DNS added via Resend's Cloudflare
-auto-configure — a separate `send.` bounce subdomain under the sending domain, which is
-Resend's own arrangement rather than a deviation from this document), and `RESEND_API_KEY`
-is set as a Worker secret on `apps/main`. **A second credential from the same account,
-`RESEND_SMTP_PASSWORD`, is also now a GitHub Actions repository secret** — GoTrue's own
-mailer talks SMTP, not this document's REST API, so `config.toml`'s `[auth.email.smtp]`
-uses it to send every account confirmation, reset and (once built) magic link, which is
-also what lifted the free tier's ban on email-template modifications — see
-[the config file itself](../../platform/packages/db/supabase/config.toml) and
-[`packages/db/README.md`](../../platform/packages/db/README.md#manual-steps).
-
-**Step 8 — the send call this document is actually about, a Worker function that calls
-Resend's REST API for entry confirmations and the like — is not written yet.** There is
-still no live form or sign-up flow that would call it, so `info@` remains the programmatic
-sender in the meantime, exactly as below.
+**This design — Resend, the sending subdomain, the outbox — is not being built yet.** It
+is recorded here so it exists as a concrete plan when it is picked up, not so it is acted
+on now.
 
 **In the meantime, `info@` is the programmatic sender.** This is a deliberate, temporary
 exception to

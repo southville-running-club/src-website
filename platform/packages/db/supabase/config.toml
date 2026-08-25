@@ -412,27 +412,14 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
-#
-# **#50, live from the day RESEND_SMTP_PASSWORD is set.** Resend's SMTP relay, not its REST
-# API — GoTrue only ever speaks SMTP, and `send.southvillerunningclub.co.uk` is already
-# verified in Resend for the Worker's own programmatic sends, so every confirmation, reset
-# and notification GoTrue sends now goes out under the same verified subdomain rather than
-# the two-an-hour default mailer. `user = "resend"` is fixed — Resend's SMTP relay takes the
-# literal string `resend` as the username and the API key as the password, whichever key is
-# in play. **This is a GitHub Actions repository secret, not a Worker secret** — `env(...)`
-# substitution here is read by `supabase config push` in `deploy-db.yml`, the same mechanism
-# `SUPABASE_AUTH_CAPTCHA_SECRET` already uses, and it is a *different* secret from the
-# `RESEND_API_KEY` Worker secret the Worker's own send calls will use — same account, two
-# credentials, because a leaked Worker secret should not also be able to send GoTrue's mail
-# and a leaked deploy secret should not also be usable from client-reachable code.
-[auth.email.smtp]
-enabled = true
-host = "smtp.resend.com"
-port = 465
-user = "resend"
-pass = "env(RESEND_SMTP_PASSWORD)"
-admin_email = "noreply@send.southvillerunningclub.co.uk"
-sender_name = "Southville Running Club"
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.sendgrid.net"
+# port = 587
+# user = "apikey"
+# pass = "env(SENDGRID_API_KEY)"
+# admin_email = "admin@email.com"
+# sender_name = "Admin"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -469,12 +456,10 @@ sender_name = "Southville Running Club"
 # The CLI shipped this section commented out and every deploy succeeded for a fortnight;
 # #76 uncommented it. Commented is therefore the known-good state, not merely a tidy one.
 #
-# **#50 has now turned on the half of the API's own sentence that is the club's plan** —
-# Resend over SMTP, in `[auth.email.smtp]` above; upgrading the tier still is not. A
-# template block is safe to uncomment again from here, and `tests/unit/config.test.ts`
-# stops refusing one the moment `[auth.email.smtp] enabled = true` is true, which it now
-# is — this one stays commented because turning the notification back on is #54's decision
-# to make, not a side effect of #50 landing.
+# **#50 is what may turn it back on** — Resend over SMTP, in `[auth.email.smtp]` above.
+# That is the only half of the API's own sentence that is the club's plan; upgrading the
+# tier is not. `tests/unit/config.test.ts` fails if this, or any other email template,
+# comes back before the custom provider does — including, now, a disabled one.
 #
 # [auth.email.notification.password_changed]
 # enabled = true
