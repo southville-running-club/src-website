@@ -33,6 +33,22 @@ import '@src/shared/styles/nn-theme.css';
 // morning" — written to people who had already entered, days out. This page is read by
 // somebody deciding whether to enter, months out, so nothing here assumes either.
 //
+// **The page is called Race instructions and the slug is still `race-day`.** The race
+// director's word for it; the address the Worker builds and anybody may have linked to.
+// Renaming the slug would cost a redirect this site has no mechanism for — ADR-011. The same
+// divergence, for the same reason, as `spectators.astro`.
+//
+// **The times below are still `race.json`'s and are still the committed ones.** A revised
+// schedule is confirmed for 2026 — the briefing moves to 10:30 and the walk to the start to
+// 10:40, because the 2023 debrief found the race went off before the marshals were in position
+// — but the 10:45 group warm-up cannot stand once the field leaves HQ at 10:40, and no
+// replacement has been supplied. **One unresolved row blocks all four**, so none of them is
+// applied here: a schedule that is half-updated is worse than one that is wholly out of date,
+// because nothing on the page says which half.
+//
+// When it lands, the three hardcoded `10:30`s in the prose below go with it. They are the
+// walk-to-the-start time written out in sentences, and `race.json` cannot correct them.
+//
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/race-day/';
 
@@ -58,7 +74,7 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
 ---
 
 <Base
-  title="Race day — Nightingale Nightmare"
+  title="Race instructions — Nightingale Nightmare"
   description="Where Nightingale Nightmare starts from, when everything happens on the day, and what is at race HQ."
   canonical={canonical}
   theme="nn"
@@ -67,7 +83,7 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
 
   <header class="nn-hero nn-hero-compact">
     <div class="nn-wrap">
-      <h1>Race day</h1>
+      <h1>Race instructions</h1>
     </div>
   </header>
 

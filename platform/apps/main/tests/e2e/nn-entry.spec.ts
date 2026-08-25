@@ -408,6 +408,46 @@ test.describe('once entries are open', () => {
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
   });
 
+  test('a guide is told before the fourteen fields, not after them', async ({ page }) => {
+    // **Issue #22, and step 0.4 of `docs/delivery/runbooks/entries-open.md`.** Stripe refuses a
+    // zero-total Checkout session, so a visually impaired runner's guide cannot finish this
+    // form — and the notice saying so ships `hidden`, revealed by the Worker only once a
+    // submission has already been refused. The one person on the page who could not complete it
+    // was the last to be told.
+    //
+    // **This copy is unconditional and it is above the form.** Asserted visible on a page where
+    // nothing has gone wrong, asserted to carry a real way out, and asserted to come before the
+    // form element — which is the whole of what 0.4 asks for. The `data-entry-free` stop in
+    // `worker/nn-entry.ts` is deliberately untouched: this is copy in front of a backstop, not a
+    // replacement for one.
+    await page.goto(YEAR);
+
+    const guide = entry(page).locator('[data-entry-guide]');
+
+    await expect(guide).toBeVisible();
+    await expect(guide).toContainText('that person enters free');
+    await expect(guide).toContainText('cannot be booked through this form');
+
+    // A literal rather than `race.json`'s value, for the reason `YEAR` is a literal: an
+    // expectation that reads the page's own source asserts nothing.
+    await expect(guide.getByRole('link', { name: 'contact us' })).toHaveAttribute(
+      'href',
+      'mailto:nightingalenightmare@southvillerunningclub.co.uk',
+    );
+
+    // **Before the form, not merely on the page.** Landing it anywhere below the first input
+    // would be the same defect in a new place.
+    const beforeTheForm = await page.evaluate(() => {
+      const note = document.querySelector('[data-entry-guide]');
+      const form = document.querySelector('[data-entry-form]');
+      if (!note || !form) return null;
+      return Boolean(
+        note.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+    expect(beforeTheForm).toBe(true);
+  });
+
   test('the panel changes weight, and the page adds no banner', async ({ page }) => {
     // **The difference in prominence is the message.** The action goes from a quiet outline to
     // the filled button every other primary control on this site uses, and the fee line
@@ -440,8 +480,8 @@ test.describe('once entries are open', () => {
     const panel = page.locator('[data-nn-panel]');
     await expect(panel.locator('[data-nn-panel-date]')).toHaveText('1 November 2026');
     await expect(panel.locator('[data-nn-panel-time]')).toHaveText('11:00');
-    await expect(panel.getByRole('link', { name: 'Race day' })).toBeVisible();
-    await expect(panel.getByRole('link', { name: 'Watching the race' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Race instructions' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Spooktators' })).toBeVisible();
   });
 
   test('the panel’s action leads to the form, on the other page', async ({ page }) => {

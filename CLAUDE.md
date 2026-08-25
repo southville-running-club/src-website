@@ -328,6 +328,22 @@ than the stability it costs, and the field's own hint can say what the nesting w
 `nn-entry.spec.ts`'s "keeps the entry type that was chosen in view when the fee changes" is the
 guard, and it runs in all three projects.
 
+**A navigation label is not free text, because the bar's height is what pays for a defect.** The
+Nightingale Nightmare bar was unstuck by [ADR-012](docs/architecture/decisions/adr-012-one-navigation-bar.md)
+over three defects and stuck again by [ADR-014](docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md),
+which answers defect 2 — arrow-keyed radios landing behind the bar in WebKit at 320px — with
+`scroll-padding-top`: a hand-written token per breakpoint that has to clear the bar's height at
+**every** width. So a longer label is a layout change rather than a copy one. Renaming "Race day"
+to **"Race instructions"** added **48px** — a whole second row — at every width from 768px to
+1440px and again at 560px, putting the bar over its inset, which lands every anchor and every
+keyboard focus behind the header. Nothing looks wrong; the page just stops scrolling to the thing
+it was asked to scroll to. The page is still *headed* "Race instructions" and the bar says **"Race
+info"**, which measured identical to "Race day" at all thirteen widths — the bar has always been
+allowed to be shorter than the heading, and read "Spectators" over "Watching the race" from the
+day it was written. **"Spooktators" was free.** `site.spec.ts`'s nine-width sweep is the only
+reason any of this was seen, and a check at 1280px and 320px would have passed every broken
+version of it.
+
 ---
 
 ## What is not built yet

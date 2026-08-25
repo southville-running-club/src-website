@@ -7,12 +7,51 @@
 // runner does not care that race day lives inside a year directory — they care where race day
 // is — so the bar is one row of the same six things wherever they are standing.
 //
-//   Race        /nn/                     the race in general
-//   Course      /nn/course/              evergreen
-//   Race day    the current running's    painted
-//   Spectators  the current running's    painted
-//   Privacy     /nn/privacy/             evergreen, and last — see below
-//   [button]    the current running      painted, and its label depends on the entry window
+//   Race         /nn/                     the race in general
+//   Course       /nn/course/              evergreen
+//   Race info    the current running's    painted
+//   Spooktators  the current running's    painted
+//   Privacy      /nn/privacy/             evergreen, and last — see below
+//   [button]     the current running      painted, and its label depends on the entry window
+//
+// ## A label, a heading and a slug are three different strings here
+//
+// The race director renamed two pages: `/nn/<year>/race-day/` is headed **Race instructions**
+// and `/nn/<year>/spectators/` is **Spooktators**.
+//
+// **The slugs did not move.** They are what the Worker builds and what anybody has linked to,
+// and a rename that moved them would cost redirects this site deliberately has no mechanism
+// for — ADR-011 records that as an accepted consequence. **`key` is the slug segment, not the
+// label**: `worker/nn-entry.ts` builds `` `${yearPath}race-day/` `` from it, so changing a
+// label here reaches the bar and nothing else, while renaming a `key` would silently repoint a
+// link at a page that does not exist.
+//
+// **And the bar says "Race info" where the page says "Race instructions".** Not a compromise
+// about the words — a consequence of the next section. The bar has always been allowed to say
+// something shorter than the heading: it read "Spectators" over "Watching the race" from the
+// day it was written.
+//
+// ## The bar's height is load-bearing, so a label here is not free text
+//
+// **This cost an afternoon and it is the reason the bar and the heading differ.** "Race
+// instructions" in this list adds **48px** — a whole second row — at *every* width from 768px
+// upwards, measured on the painted bar:
+//
+//   1440–800px   62.5px → 110.9px, against a scroll inset of 72px
+//   560px        110.9px → 159.3px, against an inset of 120px
+//
+// That inset is `scroll-padding-top`, and it is **the fix that made this bar sticky at all**.
+// ADR-012 unstuck the bar over three defects; ADR-014 stuck it again by paying for each, and
+// defect 2 — arrow-keyed radios landing behind the bar in WebKit at 320px — is paid for by a
+// hand-written token per breakpoint that has to clear the bar's height at every width. A label
+// long enough to wrap the bar re-opens that defect silently: nothing looks wrong, and every
+// anchor and every keyboard focus on those screens lands underneath the header.
+//
+// **So label length is a constrained resource on this component, not a copy decision.**
+// "Spooktators" is free — it measured identical to "Spectators" at all thirteen widths. "Race
+// info" is identical to the old "Race day" at all thirteen. `site.spec.ts`'s nine-width sweep
+// is what refuses a label that is not, and it is why that test sweeps rather than checking two
+// widths.
 //
 // ## Privacy is in the bar, and it is last on purpose
 //
@@ -92,8 +131,8 @@ const evergreen = [
  * right on `/nn/2027/race-day/` the day that page exists.
  */
 const running = [
-  { key: 'race-day', label: 'Race day', match: /^\/nn\/\d{4}\/race-day\/$/ },
-  { key: 'spectators', label: 'Spectators', match: /^\/nn\/\d{4}\/spectators\/$/ },
+  { key: 'race-day', label: 'Race info', match: /^\/nn\/\d{4}\/race-day\/$/ },
+  { key: 'spectators', label: 'Spooktators', match: /^\/nn\/\d{4}\/spectators\/$/ },
 ] as const;
 
 /**
