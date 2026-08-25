@@ -118,6 +118,10 @@ jobs:
       # start` fails before a single test runs. This is job-level so every step that
       # touches the Supabase CLI — start, reset, gen types — has it, not only the first.
       SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
+      # The same trap, for `[auth.email.smtp]` (#50): `env(RESEND_SMTP_PASSWORD)` is
+      # validated at `supabase start` too. `[local_smtp]` intercepts every send in CI
+      # regardless of what this says, so it only has to be non-empty, never real.
+      RESEND_SMTP_PASSWORD: 'ci-placeholder'
 
     steps:
       - uses: actions/checkout@v5
