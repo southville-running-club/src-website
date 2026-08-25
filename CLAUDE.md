@@ -75,8 +75,11 @@ re-run.
   `private` schemas.
 - **Anything that would put a credential in the repository.**
 - **Changing `[auth]` in `packages/db/supabase/config.toml`.** It ships to production on
-  every merge that touches a migration, and `enable_signup` is off because member-facing
-  authentication is not yet a decided requirement.
+  every merge that touches a migration, and there is **no partial apply** — a rejected value
+  takes `site_url`, the redirect allowlist, `enable_signup` and the captcha secret down with it
+  while `db push`, which runs first, goes on succeeding. That is issue #79, and it cost four
+  red deploys. `enable_signup` is **on**, as of #49 and decision 005; **no email-template block
+  may be declared at all** while the project is on the free tier's default mail provider.
 - Discovering that a **free tier's terms differ** from what is recorded.
 
 ---
