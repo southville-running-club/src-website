@@ -179,6 +179,95 @@ describe('the auth.email block', () => {
   });
 });
 
+/**
+ * The `[auth.rate_limit]` block — #64.
+ *
+ * These used to be the CLI's defaults, and the reason to assert them now is that **a
+ * default and a decision look identical in a TOML file**. Each value below is argued in a
+ * comment beside it in `config.toml`; this is what stops a later `supabase init`, a revert,
+ * or a "tidy up the config" pass putting the defaults back without anybody noticing that a
+ * deliberate number has gone.
+ *
+ * The argument they mostly share: **"per IP address" is not the runner's IP address.**
+ * Every GoTrue call the account area makes is made from the Worker, so a per-IP limit is a
+ * project-wide limit, and a number that reads as tight for one attacker is a cap on the
+ * whole club. The per-person limiting is Cloudflare's, recorded in
+ * [the WAF rules](../../../../../docs/reference/cloudflare-waf-rules.md).
+ *
+ * A generic section reader, rather than a fourth copy of the closure each block above
+ * carries. Those are left alone deliberately — this file is one change at a time too.
+ */
+function sectionValue(section: string, key: string): string {
+  const lines = CONFIG.split('\n');
+  const start = lines.findIndex((line) => line.trim() === section);
+  if (start === -1) throw new Error(`config.toml has no ${section} section`);
+  const nextSection = lines.findIndex((line, i) => i > start && /^\[/.test(line.trim()));
+  const found = lines
+    .slice(start, nextSection === -1 ? undefined : nextSection)
+    .map((line) => /^(\w+)\s*=\s*(.+)$/.exec(line.trim()))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .find((match) => match[1] === key);
+
+  if (!found) throw new Error(`config.toml ${section} has no ${key}`);
+  return found[2]!;
+}
+
+describe('the auth.rate_limit block, chosen rather than defaulted', () => {
+  function rateLimit(key: string): string {
+    return sectionValue('[auth.rate_limit]', key);
+  }
+
+  it('allows sixty account emails an hour, for the day Resend makes this the real cap', () => {
+    // Per project, not per IP — Supabase documents it as a project limit whatever the CLI's
+    // own comment beside it says. Two is the free tier's built-in cap and shadows this
+    // today; #50 is the day it stops being shadowed. The failure mode of a number set too
+    // low is silent: the person never receives the mail and sees no error at all.
+    expect(rateLimit('email_sent')).toBe('60');
+  });
+
+  it('floors the three limits whose features are switched off', () => {
+    // SMS, anonymous sign-ins and Web3 are off at every switch that could reach them, so
+    // none of these is reachable. The floor is what makes a switch flipped by mistake cost
+    // one request rather than thirty. Not zero, which a Go rate limiter is liable to read
+    // as "no limit".
+    expect(rateLimit('sms_sent')).toBe('1');
+    expect(rateLimit('anonymous_users')).toBe('1');
+    expect(rateLimit('web3')).toBe('1');
+  });
+
+  it('raises token_refresh well above the synchronised hourly burst', () => {
+    // `worker/session.ts` refreshes from the Worker, so every signed-in person counts
+    // against one address — and `jwt_expiry` being an hour means the refreshes arrive
+    // together: everybody who signed in as entries opened comes back in the same minute an
+    // hour later. Being refused a refresh means being signed out, plausibly mid-entry.
+    expect(rateLimit('token_refresh')).toBe('600');
+  });
+
+  it('raises sign_in_sign_ups, because behind the Worker it is a club-wide cap', () => {
+    // The value most likely to be "corrected" downwards by somebody reading it as a
+    // credential-stuffing control. It is not one: thirty in five minutes is thirty for the
+    // *whole club*, about one sign-in every ten seconds shared between everybody, which the
+    // morning entries open would reach on legitimate traffic alone — and GoTrue's refusal
+    // reads to somebody with the right password as the site being broken.
+    //
+    // Stuffing is answered by the WAF rule on `POST /account/sign-in/`, and by Turnstile on
+    // the form. What is left for this layer is a project-wide ceiling of one a second.
+    expect(rateLimit('sign_in_sign_ups')).toBe('300');
+  });
+
+  it('lowers token_verifications, the one value that is genuinely per person', () => {
+    // A confirmation, reset or magic link points at GoTrue's own `/auth/v1/verify` and the
+    // browser follows it directly — the Worker is not in that path, so the address counted
+    // is the person's own. It is also what an OTP guess attacks: `otp_length` is 6, so
+    // thirty per five minutes is 8,640 attempts a day from one address, and ten is 2,880.
+    //
+    // **Revisit if a PKCE code exchange ever moves into the Worker** (#55, #56): this value
+    // would go back behind the proxy, where ten would be ten for everybody.
+    expect(rateLimit('token_verifications')).toBe('10');
+    expect(sectionValue('[auth.email]', 'otp_length')).toBe('6');
+  });
+});
+
 describe('the auth.captcha block', () => {
   function captchaConfig(): { key: string; value: string }[] {
     const lines = CONFIG.split('\n');

@@ -68,11 +68,16 @@ width. The first pass scrolled it inside a focusable region instead, and the not
       [the mapping](#the-handles-and-who-holds-them). The handle goes into the audit trail, and
       a first name there would be personal data in a table kept precisely so it can be read
       later.
-- [ ] **Consider a WAF rate-limiting rule on `POST /nn/admin/`**, alongside the one
+- [ ] **The WAF rate-limiting rule on `POST /nn/admin`** is rule **A4** in
+      [the committed copy of the Cloudflare rules](../../reference/cloudflare-waf-rules.md),
+      alongside the one
       [entries-open step 0.1](entries-open.md#01--the-waf-rate-limiting-rule-must-be-live)
-      requires on `POST /nn/`. Sign-in is a database round trip per attempt; the keys themselves
-      are 32 random bytes and are not guessable, so this is about free-tier compute rather than
-      about anybody getting in.
+      requires on the race forms. It covers `/admin/` as well, because
+      [#58](https://github.com/southville-running-club/src-website/issues/58)'s shell and this
+      surface overlap in time and a rule covering one of them has a gap for as long as both
+      exist. Sign-in is a database round trip per attempt; the keys themselves are 32 random
+      bytes and are not guessable, so this is about free-tier compute rather than about anybody
+      getting in.
 
 ---
 

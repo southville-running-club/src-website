@@ -159,10 +159,12 @@ none of them blocks the rest:
 - [ ] **How a free place is taken.** Stripe refuses a zero-total Checkout session outright, so
       a guide's place cannot be completed online. The form says so and gives the race address;
       completing it any other way means deciding that an unpaid entry counts as paid
-- [ ] **A rate-limiting rule on `POST /nn/`.** An anonymous caller can hold places, up to the
-      whole field, for as long as a hold lasts. A Cloudflare WAF rule is the recommendation
+- [ ] **A rate-limiting rule on the race forms.** An anonymous caller can hold places, up to
+      the whole field, for as long as a hold lasts. A Cloudflare WAF rule is the recommendation
       and it costs no code — a cap in the database would block a legitimate person retrying on
-      bad signal, which is a policy decision
+      bad signal, which is a policy decision. **It is written down**, as rule **E1** in
+      [the committed copy of the Cloudflare rules](../reference/cloudflare-waf-rules.md);
+      creating it is [entries-open step 0.1](runbooks/entries-open.md#01--the-waf-rate-limiting-rule-must-be-live)
 
 **Card data never touches club systems.** Stripe Checkout, hosted by Stripe, with a webhook
 recording the result. That is what keeps this inside
@@ -267,6 +269,12 @@ tracked end to end — with the ordering, the break-glass, and the cost of each 
 series may start before this phase's own first issue,
 [#48](https://github.com/southville-running-club/src-website/issues/48), is merged: it is
 documentation only, and every other issue inherits its reasoning.
+
+**Opening accounts has a runbook of its own** — [accounts-open](runbooks/accounts-open.md) —
+because the switch that allows an account merged before anybody could sign in, so the
+irreversible act is the announcement rather than a deploy. Its step 0.1 is the rate-limiting
+rules on the credential endpoints, and those rules live in
+[one file](../reference/cloudflare-waf-rules.md) beside the race forms' own.
 
 **The two-key admin scheme from Phase 3 is not replaced by this phase.** [#57](https://github.com/southville-running-club/src-website/issues/57)
 adds a role-gated path into `/nn/admin` beside it, and if this phase is not finished by early
