@@ -426,11 +426,31 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# **On, as of #54.** The only way somebody finds out their password changed without their
-# own knowledge — a stolen session, or a reset they did not request. GoTrue's default
-# template is used; a club-branded one is a later, separate change.
+# **Off, and not because the club does not want it.** #54 turned this on for the right
+# reason: it is the only way somebody finds out their password changed without their own
+# knowledge — a stolen session, or a reset they did not request. The platform cannot keep
+# that promise yet, and a promise it cannot keep is worse than an absence it admits to.
+#
+# **The free tier refuses it outright.** With the default email provider in use, the
+# management API rejects *any* email-template modification, and `enabled = true` here is
+# one — the CLI sends it with an empty `subject` alongside:
+#
+#     unexpected status 400: {"message":"Email template modification is not available for
+#     free tier projects using the default email provider. Please upgrade your plan or
+#     configure a custom SMTP provider."}
+#
+# There is no partial apply, so this one line failed `supabase config push` **and with it
+# the whole of this file** on every merge from 25 August 2026 until it was turned off —
+# `[api]`'s schema list, `site_url`, the redirect allowlist, `enable_signup` and the
+# captcha secret included. `db push` runs first and kept succeeding, which is why the
+# deploy looked half-done rather than broken. Issue #79.
+#
+# **#50 is what may turn it back on** — Resend over SMTP, in `[auth.email.smtp]` above.
+# That is the only half of the API's own sentence that is the club's plan; upgrading the
+# tier is not. `tests/unit/config.test.ts` fails if this, or any other email template,
+# comes back before the custom provider does.
 [auth.email.notification.password_changed]
-enabled = true
+enabled = false
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

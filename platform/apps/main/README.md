@@ -792,9 +792,17 @@ re-authentication is what actually makes the rule true, rather than trusting
 **Neither route revokes other sessions itself.** GoTrue does that on its own whenever
 `updateUser()` changes a password — confirmed against the real local stack in
 `packages/db/tests/identity-sessions.test.ts`, since a session revocation cannot be observed
-any other testable way from inside the Worker. A `password_changed` notification email
-(`[auth.email.notification.password_changed]`) is the only way somebody finds out a change
-happened without their own knowledge.
+any other testable way from inside the Worker.
+
+**No notification email is sent when a password changes, and that is a gap rather than a
+design.** #54 turned `[auth.email.notification.password_changed]` on — it is the only way
+somebody finds out a change happened without their own knowledge — and it had to come back
+off: Supabase's management API refuses every email-template modification while the project
+is on the free tier with the **default email provider**, so that one line failed
+`supabase config push`, and with it the whole `config.toml`, on every merge from 25 August
+2026. Issue #79. **#50 — Resend over SMTP — is what makes it true**; nothing else does, and
+`packages/db/tests/unit/config.test.ts` fails if it is switched back on before then. Until
+that lands, a silent password change is only visible as the other sessions dying.
 
 ## The health endpoints
 

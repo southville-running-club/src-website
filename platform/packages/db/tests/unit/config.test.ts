@@ -268,6 +268,83 @@ describe('the auth.rate_limit block, chosen rather than defaulted', () => {
   });
 });
 
+/**
+ * **What the free tier will not accept, asserted before a merge finds out.**
+ *
+ * With the default email provider in use, Supabase's management API refuses *every*
+ * email-template modification:
+ *
+ *     unexpected status 400: {"message":"Email template modification is not available for
+ *     free tier projects using the default email provider. Please upgrade your plan or
+ *     configure a custom SMTP provider."}
+ *
+ * A `[auth.email.template.*]` subject or body is one. So is a
+ * `[auth.email.notification.*]` switch, which the CLI sends with a `subject` of its own —
+ * that is how #54's password-changed notification broke the deploy, in issue #79.
+ *
+ * **And it fails the whole file, not the line.** `config push` sends one request per
+ * service; a rejected `[auth]` takes `site_url`, the redirect allowlist, `enable_signup`
+ * and the captcha secret down with it, while `db push` — which runs first — goes on
+ * succeeding. Nothing else in the pipeline reports that half of a deploy is missing, so
+ * this is the guard: milliseconds, no Docker, on every branch.
+ *
+ * #50 (Resend over SMTP) is what lifts the restriction. Nothing else does — upgrading the
+ * plan is the other half of the API's own sentence and is not the club's plan.
+ */
+describe('email templates, and the provider that forbids them', () => {
+  /** Every uncommented `[section]` in the file, with the uncommented lines under it. */
+  function sections(): { name: string; body: string[] }[] {
+    const found: { name: string; body: string[] }[] = [];
+    for (const line of CONFIG.split('\n')) {
+      const header = /^\[([^\]]+)\]$/.exec(line.trim());
+      if (header?.[1]) found.push({ name: header[1], body: [] });
+      else if (!line.trim().startsWith('#')) found.at(-1)?.body.push(line.trim());
+    }
+    return found;
+  }
+
+  function enabled(body: string[]): boolean {
+    return body.some((line) => /^enabled\s*=\s*true$/.test(line));
+  }
+
+  /** `[auth.email.smtp] enabled = true` — the thing that makes a template pushable. */
+  function customSmtp(): boolean {
+    const smtp = sections().find((section) => section.name === 'auth.email.smtp');
+    return smtp !== undefined && enabled(smtp.body);
+  }
+
+  /** Every block whose contents the API would read as modifying an email template. */
+  function templateModifications(): string[] {
+    return sections()
+      .filter((section) => /^auth\.email\.(template|notification)\./.test(section.name))
+      .filter((section) => {
+        const setsText = section.body.some((line) => {
+          const text = /^(?:subject|content_path)\s*=\s*"(.*)"$/.exec(line);
+          return text !== null && text[1] !== '';
+        });
+        return enabled(section.body) || setsText;
+      })
+      .map((section) => section.name);
+  }
+
+  it('is still on the default email provider, which is what #50 changes', () => {
+    // This assertion is not decoration. The next one is written to go quiet the moment a
+    // custom provider exists — correctly, because the restriction lifts with it — and a
+    // guard that can go quiet needs something that fails loudly when its premise moves.
+    // This is that something. If it is red because #50 landed, that is the test asking
+    // for the pair below to be reconsidered rather than inherited.
+    expect(customSmtp()).toBe(false);
+  });
+
+  it('modifies no email template while that is true', () => {
+    // Includes `[auth.email.notification.password_changed]`, which is `false` for exactly
+    // this reason and carries the whole story in a comment beside it. Re-enabling it — or
+    // uncommenting `[auth.email.template.invite]`, or adding any sibling — fails here
+    // rather than on `main` two merges later.
+    expect(customSmtp() ? [] : templateModifications()).toEqual([]);
+  });
+});
+
 describe('the auth.captcha block', () => {
   function captchaConfig(): { key: string; value: string }[] {
     const lines = CONFIG.split('\n');
