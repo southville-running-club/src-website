@@ -126,11 +126,13 @@ builds, and [#63](https://github.com/southville-running-club/src-website/issues/
 the first one afterwards. A rule covering only one of them has a gap for as long as both
 exist.
 
-The keys are 32 random bytes and are not guessable, so this is **not** primarily about
-somebody getting in. It is what
-[the admin runbook's step 0](../delivery/runbooks/entries-admin.md#step-0--before-switching-it-on)
-already asks for: a sign-in attempt is a database round trip, and free-tier compute is
-spendable by anybody who can find the address.
+**#58 replaced the keys with a role**, so there is no longer a credential to guess at this
+address at all — `/admin/*` answers 404 to everybody who is not already signed in, and signing
+in happens at `POST /account/sign-in/`, which rule A1 covers. What remains here is the cheaper
+half of the same concern, and it is the half that was always the real one:
+[the admin runbook](../delivery/runbooks/entries-admin.md) is a published list of addresses, a
+request to any of them is a database round trip, and free-tier compute is spendable by anybody
+who can read it.
 
 ---
 

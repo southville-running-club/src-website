@@ -62,10 +62,12 @@ re-run.
   thirteen it may call are named in `packages/db/tests/entries.test.ts`, and that list is there
   to make a fourteenth a decision somebody takes in a diff rather than a side effect. **Reading
   people is settled** — the admin surface is
-  [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md): a
-  Worker secret authorises, a key per person identifies, and `entries.admin_key_ok()` is checked
-  before anything is read. **Editing them is not.** No refunds, transfers, corrections, manual
-  entries or resends — each is a decision about changing a record somebody paid for.
+  [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) and its
+  amendment: originally a Worker secret plus a key per person, and **since #57 and #58 the
+  `nn-admin` role**, checked by `identity.has_role()` before anything is read. Four functions are
+  granted to `authenticated` for that, and `entries.test.ts` names them. **Editing people is
+  still not settled.** No refunds, transfers, corrections, manual entries or resends — each is a
+  decision about changing a record somebody paid for.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -109,7 +111,8 @@ One hostname, three paths — the same locally and in production:
 | --- | --- |
 | `/` | The club website — `apps/main` |
 | `/nn` | Nightingale Nightmare — `apps/main` |
-| `/nn/admin` | The entries, the interest list and the exports — `apps/main`, behind two credentials, and **404 at every address until `ENTRIES_ADMIN_KEY` is bound** |
+| `/account` | Sign up, sign in, sign out and the password pages — `apps/main` |
+| `/admin` | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here |
 | `/timing` | Race timing — `apps/timing`, a different Worker |
 
 ---
@@ -394,15 +397,23 @@ a reviewable artefact in `docs/reference/cloudflare-waf-rules.md` — the race f
 four account rules in one table — and **not one of them has been created in the dashboard yet**.
 The runbooks that gate them are `entries-open.md` step 0.1 and `accounts-open.md`.
 
-**There is an admin surface, and it is switched off.** `/nn/admin` reads the entries for a
-running, the interest sign-ups, one medical note at a time, three CSV exports and a printable
-start list — and with no `ENTRIES_ADMIN_KEY` bound it declines every address under that prefix, so
-the request falls through to the assets binding and 404s like one nobody published. **That is the
-deployed state.** Switching it on is two manual steps plus a key per volunteer:
-[the admin runbook](docs/delivery/runbooks/entries-admin.md), which lists the seven addresses and
-what is on the page.
+**There is a staff backend at `/admin/`, and everything under it answers 404 to anybody who may
+not be there.** Signed out, a plain `member`, the wrong role, an address nobody built — all the
+same ordinary not-found page, because a 403 discloses that the address exists. `/admin/nn/` reads
+the entries for a running, the interest sign-ups, one medical note at a time, three CSV exports
+and a printable start list; `/admin/people/` is where a role is granted. The way in is an account
+holding `nn-admin` or `super-admin`, checked per request through `identity.my_roles()` —
+[the admin runbook](docs/delivery/runbooks/entries-admin.md) has the addresses and the bootstrap.
 
-**It is one page, in the club brand, and `nn-theme.css` must never reach it.** A tool rather than a
+**The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
+the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308
+for a POST, because they were in a published runbook. Installing `ENTRIES_ADMIN_KEY` and a key
+per volunteer opens nothing any more. **The thing to keep available is a second person holding
+`nn-admin`**, which takes a minute at `/admin/people/` and no deploy. #57 left the four key-gated
+database functions in place and #63 removes them; `worker/admin-session.ts` and `adminSignIn()`
+are unreferenced and go with them.
+
+**It is in the club brand, and `nn-theme.css` must never reach it.** A tool rather than a
 page a runner reads, and it will serve Pass the Buck — so every colour is a `--colour-*` name and
 there is not one hex value in `packages/shared/styles/nn-admin.css`, which
 `packages/shared/tests/unit/admin-contrast.test.ts` asserts along with the contrast of every wash

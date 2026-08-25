@@ -1,29 +1,98 @@
-# Runbook — the admin surface: switching it on, issuing keys, and what the exports contain
+# Runbook — the club's back office: who may open it, granting a role, and what the exports contain
 
-`/nn/admin` is where the club can see who has entered, who asked to be told when entries open,
-and where the three exports are. **It does not exist until somebody installs a key**, and today
-nobody has.
+`/admin/` is the club's staff backend. Nightingale Nightmare is its first section — who has
+entered, who asked to be told when entries open, and the three exports — and `/admin/people/`
+is where somebody is given access to it.
 
-**Prerequisites:** the club's Supabase project (SQL editor), and — for step 1 only — the
-Cloudflare dashboard or `wrangler` on a machine that can reach the club's account.
+**Prerequisites:** an account on the club's site, held by somebody who already has the
+`super-admin` role. Nothing else — no Cloudflare dashboard, no `wrangler`, and **no database
+credentials**, which is the whole point of #59.
 
-**About twenty minutes** for the whole of step 1 and 2, once. A minute to revoke somebody.
-
----
-
-## What it is, in one paragraph
-
-Two credentials open it, and [ADR-013](../../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)
-is the argument for both. **`ENTRIES_ADMIN_KEY` is a Worker secret** and is what authorises the
-Worker to read entries at all; **a per-person key** is what says which volunteer is looking. The
-database holds only SHA-256 digests of each. Until the first is installed the whole surface
-answers 404 like an address nobody published — which is the correct state, not a broken one.
+**About a minute** to grant somebody a role. The one-off bootstrap is below.
 
 ---
 
-## What is on it
+## What replaced the two keys, and what that costs
 
-**One page, and its order is the design.** `/nn/admin/` shows the running the database says is
+**Until #58 this surface was opened by `ENTRIES_ADMIN_KEY` plus a key issued per volunteer**,
+and [ADR-013](../../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) is
+the argument for that arrangement. It is retired. The way in is an account holding a role:
+
+| | |
+| --- | --- |
+| `nn-admin` | May read Nightingale Nightmare's entries, notes and exports |
+| `super-admin` | May grant and revoke every role. **Does not inherit `nn-admin`** — granting a role is not holding it |
+| `member` | Everybody with an account. Opens nothing here |
+
+**The break-glass in [#65](https://github.com/southville-running-club/src-website/issues/65)
+is no longer the keys, and this is the paragraph that says so.** That tracker records
+"if early September arrives and #58 has not landed, install the keys" — #58 has landed, so
+installing them opens nothing: every `/nn/admin/*` address now redirects to `/admin/nn/*`, and
+that surface asks for a session and a role. #57 left the four key-gated database functions in
+place and [#63](https://github.com/southville-running-club/src-website/issues/63) removes them;
+nothing in the Worker calls them any more.
+
+**So the thing to keep available is a second person holding `nn-admin`**, not a key in a
+password manager. Granting one takes a minute (below) and needs no deploy. If the club is ever
+locked out of every super-admin account, see [If nobody can get in](#if-nobody-can-get-in).
+
+### Everything under `/admin/` answers 404, to everybody who may not be there
+
+Signed out, a plain member, the wrong role, an address nobody built — all the same ordinary
+not-found page. **A 403 would disclose that the address exists**, which tells anybody who can
+register exactly where the club's entry list lives and that it is worth attacking.
+
+It costs one thing and it is worth knowing before it happens: **a volunteer who has been
+granted `nn-admin` and mistypes the address gets the same blank as an attacker.** If somebody
+says "it 404s for me", the first question is whether they are signed in, and the second is
+whether they hold the role — `/admin/people/` shows both.
+
+---
+
+## Bootstrapping the first super-admin
+
+**No seeded password and no manual SQL.** `admin@southvillerunningclub.co.uk` is written into
+`identity.reserved_grants` by the migration that created the schema; the address becomes
+super-admin by **registering at `/account/sign-up/` like anybody else** and confirming the email
+at a mailbox the club already controls. The signup trigger applies the reserved grant.
+
+- [ ] Register `admin@southvillerunningclub.co.uk` at `/account/sign-up/`
+- [ ] Confirm the address from that mailbox
+- [ ] Sign in, open `/admin/people/`, and check the account is listed as holding `super-admin`
+
+That table is a general mechanism rather than a special case: it is also how the committee
+pre-assigns a role to a new volunteer's address before they have registered.
+
+---
+
+## Granting somebody a role
+
+- [ ] Sign in as a `super-admin` and open `/admin/people/`
+- [ ] Find them by email address. **They must have registered first** — this page grants roles,
+      it does not create accounts
+- [ ] Press **Grant nn-admin** on their row
+- [ ] Tell them to open `/admin/`. **It takes effect on their next request** — there is no
+      session to end and nothing for them to do
+
+Revoking is the same button, reading **Revoke**. It sets `revoked_at` rather than deleting the
+row, so the audit trail goes on pointing at something.
+
+**Every grant and revoke is written to `identity.audit` in the same transaction as the change**,
+so one cannot happen without the other. A refused one writes nothing.
+
+### What the page will not let you do
+
+| | |
+| --- | --- |
+| **Revoke the last super-admin** | Refused by `identity.revoke_role()`, not by the page. A club with no super-admin has no service-role key to get back in with. Grant the role to somebody else first |
+| **Grant a role to yourself that you do not have** | Only a `super-admin` may grant anything, and the check is in the database |
+| **Edit somebody's profile, or delete an account** | Deliberately absent. A change to a record somebody controls needs its own thinking about notification and consent |
+
+---
+
+## What is on the Nightingale Nightmare section
+
+**One page, and its order is the design.** `/admin/nn/` shows the running the database says is
 current — it asks `entries.current_entry_state('nn')`, exactly as `/nn/` does, so **no year appears
 in the route** and publishing 2027 needs no edit here.
 
@@ -36,18 +105,23 @@ in the route** and publishing 2027 needs no edit here.
 | **The entries** | A real table, with filters that are links |
 | **The interest list** | A count and the promise. The addresses are on their own page |
 
-Seven addresses, and the ones that write an audit row are `POST` for that reason — a `GET` would let
-a prefetch, a scanner or a link pasted into a chat client file an export against somebody's handle:
+The addresses, and the ones that write an audit row are `POST` for that reason — a `GET` would let
+a prefetch, a scanner or a link pasted into a chat client file an export against somebody's account:
 
 | | |
 | --- | --- |
-| `GET /nn/admin/` | The page, for the current running |
-| `GET /nn/admin/entries/<event-slug>/` | The same page, for a named running — how a past race is looked at |
-| `GET /nn/admin/interest/` | The interest sign-ups, with their addresses |
-| `POST /nn/admin/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
-| `POST /nn/admin/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
-| `POST /nn/admin/export/` | One of the three CSVs. Audited |
-| `POST /nn/admin/` | Signing in, and signing out |
+| `GET /admin/` | The dashboard, and what this account may open |
+| `GET /admin/nn/` | The page, for the current running |
+| `GET /admin/nn/entries/<event-slug>/` | The same page, for a named running — how a past race is looked at |
+| `GET /admin/nn/interest/` | The interest sign-ups, with their addresses |
+| `POST /admin/nn/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
+| `POST /admin/nn/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
+| `POST /admin/nn/export/` | One of the three CSVs. Audited |
+| `GET`/`POST` `/admin/people/` | Who holds what, and the two acts that change it |
+
+**Every old `/nn/admin/*` address still resolves** — `301` for a GET, `308` for a POST so the
+method and the body survive. They were published in this runbook and a runbook that 404s is
+worse than one that is out of date.
 
 **Filters are links with query parameters, not a form and not a script.** Every filtered view is a
 URL somebody can send to the other volunteer, and **no filter carries personal data** — the values
@@ -60,135 +134,6 @@ width. The first pass scrolled it inside a focusable region instead, and the not
 
 ---
 
-## Step 0 — before switching it on
-
-- [ ] **Read what the exports contain**, in [the section below](#what-the-three-exports-contain).
-      One of them is special category data.
-- [ ] **Decide the handles.** They are role names, never people's names — see
-      [the mapping](#the-handles-and-who-holds-them). The handle goes into the audit trail, and
-      a first name there would be personal data in a table kept precisely so it can be read
-      later.
-- [ ] **The WAF rate-limiting rule on `POST /nn/admin`** is rule **A4** in
-      [the committed copy of the Cloudflare rules](../../reference/cloudflare-waf-rules.md),
-      alongside the one
-      [entries-open step 0.1](entries-open.md#01--the-waf-rate-limiting-rule-must-be-live)
-      requires on the race forms. It covers `/admin/` as well, because
-      [#58](https://github.com/southville-running-club/src-website/issues/58)'s shell and this
-      surface overlap in time and a rule covering one of them has a gap for as long as both
-      exist. Sign-in is a database round trip per attempt; the keys themselves are 32 random
-      bytes and are not guessable, so this is about free-tier compute rather than about anybody
-      getting in.
-
----
-
-## Step 1 — install the Worker's key
-
-> **⚙️ Ops**
-
-**Generate it. Do not invent it, and do not reuse another secret.**
-
-```bash
-openssl rand -base64 32
-```
-
-Put it on the Worker:
-
-```bash
-cd platform/apps/main
-npx wrangler secret put ENTRIES_ADMIN_KEY --env production
-# paste the value
-```
-
-Then put its **digest** — never the key — into the database, in the Supabase SQL editor:
-
-```sql
-update entries.webhook_secrets
-   set key_sha256 = encode(sha256(convert_to('<the key you just pasted>', 'utf8')), 'hex'),
-       updated_at = now()
- where name = 'admin'
-returning name, left(key_sha256, 12) || '…' as digest, updated_at;
-```
-
-**Check the returned row.** One row, `name = 'admin'`, and a digest that is not null.
-
-> **The key is in your clipboard and in your shell history at this point.** Clear the history
-> line, and do not paste it into a chat client. Everything after this step uses the digest.
-
-Visit `https://new.southvillerunningclub.co.uk/nn/admin/`. You should get a sign-in form. Before
-this step it was a 404, and if it still is, the secret has not bound — check the Cloudflare
-dashboard's variables and secrets panel for the production environment.
-
----
-
-## Step 2 — issue a key to each volunteer
-
-> **⚙️ Ops**, with the person present or on a call
-
-One key each. **Generate it in front of them, give it to them, and never keep a copy** — the
-database holds the digest, so a lost key is replaced rather than looked up.
-
-```bash
-openssl rand -base64 32
-```
-
-```sql
-insert into entries.admin_keys (name, key_sha256)
-values ('membership-secretary',
-        encode(sha256(convert_to('<their key>', 'utf8')), 'hex'))
-returning name, issued_at;
-```
-
-- [ ] They have put it in a password manager, not in a note on a phone
-- [ ] Their handle is added to [the table below](#the-handles-and-who-holds-them), in a pull
-      request
-- [ ] They have signed in once, so you know it works
-
-### Replacing a key somebody has lost
-
-Same statement, with an update. It is not a recovery — the old key is gone and unknowable.
-
-```sql
-update entries.admin_keys
-   set key_sha256 = encode(sha256(convert_to('<the new key>', 'utf8')), 'hex'),
-       revoked_at = null,
-       issued_at = now()
- where name = 'membership-secretary'
-returning name, issued_at;
-```
-
-### Revoking one person
-
-**One statement, no deploy, and it does not affect anybody else.**
-
-```sql
-update entries.admin_keys set revoked_at = now() where name = 'membership-secretary'
-returning name, revoked_at;
-```
-
-Any session they already have **remains valid for up to twelve hours**, because the cookie is
-signed rather than looked up. If that matters — a lost laptop rather than somebody standing
-down — rotate the Worker's key as well, which invalidates every session immediately:
-
-```bash
-npx wrangler secret put ENTRIES_ADMIN_KEY --env production
-```
-
-…and re-run the `update` in step 1 with the new value. **Everybody signs in again**; nobody's
-own key changes.
-
----
-
-## The handles, and who holds them
-
-**This table is the only place the mapping exists**, deliberately: `entries.admin_keys.name` is
-constrained to a slug and lands in every audit row, so a person's name is never in the database.
-
-| Handle | Who | Issued | Notes |
-| --- | --- | --- | --- |
-| *(none yet)* | | | The surface has not been switched on |
-
----
-
 ## What the three exports contain
 
 Each is a CSV of **paid entries only** — a pending hold is somebody halfway through a payment
@@ -196,7 +141,7 @@ page and an expired one is a place that came back, and a start list with either 
 bibs for people who are not coming. **Over-capacity payments are included**: they are paid, they
 consume a place, and that person is running unless somebody has refunded them.
 
-**Taking one is recorded** — the handle, the time, which file and how many rows. Never the
+**Taking one is recorded** — who took it, the time, which file and how many rows. Never the
 contents.
 
 | | Columns | For | Deliberately absent |
@@ -261,9 +206,30 @@ Neither ever carries the note itself.
 > gets wrong, and this one did. `entries-admin.test.ts` runs the predicate above against both
 > kinds of read, so the runbook and the schema cannot drift apart again.
 
-An `(unattributed)` actor should never appear. If one does, a read happened that the Worker could
-not put a handle to — which should be impossible, since the handle comes from a cookie it signed
-itself. Treat it as worth understanding rather than as noise.
+### The `actor` column holds two kinds of value, and both are meant to be there
+
+**Rows written before #58 carry a handle** — a slug out of `entries.admin_keys`, whose mapping to
+a human lived in a table on this page. **Rows written since carry a uuid**, which is
+`auth.uid()`: the account that did the reading, mapped to a person by `identity.people` behind
+row-level security rather than by a table maintained by hand.
+
+That is what a migration between identity schemes looks like, and it is strictly better than
+what it replaced — but it means **the query above must not be narrowed to one shape**. To put a
+name to a uuid:
+
+```sql
+select account.email
+  from auth.users as account
+ where account.id = '<the actor uuid>';
+```
+
+ADR-013's rule survives either way: the column is a pseudonym, never a name.
+`entries-admin.test.ts` runs the medical-read query against one row of each kind and asserts
+both come back.
+
+An `(unattributed)` actor should never appear. If one does, a read happened the Worker could not
+attribute — which should be impossible, since the uuid comes from a token GoTrue issued. Treat it
+as worth understanding rather than as noise.
 
 ---
 
@@ -273,7 +239,7 @@ Four things are recorded, and nothing else:
 
 | | |
 | --- | --- |
-| `sign_in` | Somebody opened the door |
+| `sign_in` | Somebody opened the door. **Written only by the retired key scheme** — signing in is `/account/`'s job now, and it is audited by Supabase Auth rather than here |
 | `medical_note` | Somebody read one entrant's special category data, on screen |
 | `medical_export` | Somebody took **a copy of every medical note** out of the platform |
 | `export` | Somebody took a copy of the other data out |
@@ -311,9 +277,9 @@ would be permanent.**
 So this query is the interface, until somebody argues for the other thing.
 
 **There is no retention rule on this table yet**, and that is an open question rather than an
-oversight — it holds handles and entrant ids rather than names, so it is not urgent, but "how
+oversight — it holds pseudonyms and entrant ids rather than names, so it is not urgent, but "how
 long is an access log kept" is a question the club should answer. It belongs with the privacy
-notice's four other open decisions.
+notice's other open decisions.
 
 ---
 
@@ -336,31 +302,66 @@ Until then:
 
 ## If nobody can get in
 
+**Everything under `/admin/` answers 404 to anybody who may not be there**, so "it 404s" is the
+symptom of almost everything. Work down this table in order.
+
 | Symptom | Means | Fix |
 | --- | --- | --- |
-| **`/nn/admin/` 404s** | `ENTRIES_ADMIN_KEY` is not bound on the Worker | Step 1. This is also the correct state before step 1 |
-| **Every key is "not recognised", for everybody** | The Worker's key and the digest disagree — usually a half-finished rotation | Re-run step 1's `update` with the key that is actually on the Worker |
-| **One person's key is not recognised** | Theirs is revoked, or mistyped | Check `select name, revoked_at, last_used_at from entries.admin_keys` |
+| **`/admin/` 404s and you are not signed in** | The ordinary case | Sign in at `/account/sign-in/` |
+| **`/admin/` 404s and you are signed in** | The account holds no staff role | A super-admin grants one at `/admin/people/` |
+| **`/admin/` opens but `/admin/nn/` 404s** | The account holds `super-admin` and not `nn-admin`. **Granting a role is not holding it** | Grant yourself `nn-admin` too |
 | **A page says the database could not be reached** | Supabase is down or the migration has not landed | Check the deploy. The page deliberately does **not** say the list is empty |
 
-**`last_used_at` is the only signal a key is in use.** A key that has never been used is either a
-spare or a mistake, and both are worth knowing about:
+### If the club is locked out of every super-admin account
+
+There is no service-role key to get back in with, deliberately — and
+`identity.revoke_role()` refuses to remove the last active super-admin grant precisely so this
+cannot happen by accident. If it happens anyway, it is a SQL-editor recovery and one of the two
+volunteers has to do it:
 
 ```sql
-select name, issued_at, last_used_at, revoked_at from entries.admin_keys order by name;
+-- Who holds it now, and whether any of them is still reachable
+select account.email, grant_row.granted_at, grant_row.revoked_at
+  from identity.role_grants as grant_row
+  join auth.users as account on account.id = grant_row.person_id
+ where grant_row.role = 'super-admin'
+ order by grant_row.granted_at;
+
+-- Give it to an address that can sign in. `granted_by` is null: nobody granted it, a human
+-- with database access did, and the audit trail should not claim otherwise.
+insert into identity.role_grants (person_id, role, granted_by)
+select account.id, 'super-admin', null
+  from auth.users as account
+ where account.email = '<the address>'
+on conflict do nothing;
 ```
+
+**Write down that you did it**, here, with the date and who — that is what makes a manual
+exception legitimate rather than merely convenient. Better still, add the address to
+`identity.reserved_grants` in a migration so the next bootstrap needs no SQL at all.
 
 ---
 
 ## Local development
 
-`./dev up` gives you a working admin surface with invented data, and both keys are in
-`packages/db/supabase/seed.sql` in plain sight — that file never runs against production.
+`./dev up` gives you a working admin surface with invented data. **Register an account at
+`http://localhost:8787/account/sign-up/`** — Inbucket at `http://127.0.0.1:54324` is where the
+confirmation email lands — then grant yourself the roles:
+
+```sql
+insert into identity.role_grants (person_id, role)
+select account.id, unnest(array['nn-admin', 'super-admin'])
+  from auth.users as account
+ where account.email = '<the address you registered>'
+on conflict do nothing;
+```
+
+Or register as `admin@southvillerunningclub.co.uk`, which the migration reserves `super-admin`
+for, and grant yourself `nn-admin` from `/admin/people/` like a real volunteer would.
 
 | | |
 | --- | --- |
-| Address | `http://localhost:8787/nn/admin/` |
-| Your key | `local-development-only-person-key` |
+| Address | `http://localhost:8787/admin/` |
 | Fixtures | A fabricated running, `zz-admin-demo`, deliberately **one place over its field** so the loudest state on the page is the one you see first |
 
 Nothing is seeded against the real `nn-2026` row, because the entry tests clear it.
