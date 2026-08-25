@@ -69,6 +69,13 @@ export function createAnonClient(config: SupabaseConfig): AnonClient {
       persistSession: false,
       autoRefreshToken: false,
     },
+    // `AnonClient`'s comment claims `intake` by default; `db.schema` is what actually makes
+    // that true rather than only the type parameter. Every current caller chains
+    // `.schema('entries')` or `.schema('intake')` explicitly and is unaffected — see
+    // `createUserClient`'s comment for the class of bug leaving this unset invites.
+    db: {
+      schema: 'intake',
+    },
   });
 }
 
@@ -81,6 +88,22 @@ export function createAnonClient(config: SupabaseConfig): AnonClient {
  * caller may then do with that, exactly as it is for `anon`. This function accepts no
  * service-role key for the same reason `createAnonClient` does not — if a route appears to
  * need one, the RLS policy is wrong.
+ *
+ * **`db.schema` is set to `identity`, not left to the type alone.** `UserClient`'s own
+ * comment has said "its RPCs and reads default to `identity`" since #52, and until #58 that
+ * was true of the type parameter and nothing else — `SupabaseClient<Database, 'identity'>`
+ * tells TypeScript what a bare `.rpc()` call resolves to, but postgrest-js reads the schema
+ * to actually request from `db.schema` at the client, not from the generic. Every bare call
+ * — `client.rpc('my_roles')` in `worker/account.ts`, written for #53 — was quietly asking
+ * `public.my_roles`, which does not exist, and reading the refusal as "no roles" rather than
+ * as a failure: `/account/` has told every signed-in person, super-admins included, that
+ * they held nothing beyond being signed in. #59's `identity.list_people()` and
+ * `identity.grant_role()` calls in `worker/admin-people.ts` were written the same way and
+ * would have failed identically. `packages/db/tests/identity.test.ts` proves the functions
+ * work; nothing proved a caller here could reach them until this.
+ *
+ * A call that still needs `entries` chains `.schema('entries')` explicitly, as it always
+ * has — that escape hatch is unaffected by what the client's own default is.
  */
 export function createUserClient(
   config: SupabaseConfig,
@@ -95,6 +118,9 @@ export function createUserClient(
     },
     global: {
       headers: { Authorization: `Bearer ${accessToken}` },
+    },
+    db: {
+      schema: 'identity',
     },
   });
 }

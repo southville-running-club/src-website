@@ -1249,6 +1249,25 @@ describe('the exports', () => {
 type RoleForm = Record<string, string>;
 
 /**
+ * The person rows, and only those — the masthead, the nav and the table header are excluded.
+ *
+ * **A naive `markup.split('<tr>')` is not safe here, and this file found out why.** The
+ * masthead renders "Signed in as {viewer.label}" — #58's own improvement over a handle — so
+ * whenever the signed-in person's row is the one being looked for, their address is *also* on
+ * the page before the first `<tr>` at all. `split('<tr>')`'s first element is everything up to
+ * that point, it contains the address, and a filter or a `.find()` over the raw split treats
+ * it as a row: no `admin-chip`, no `<form>`, and every assertion about "their own row" or "the
+ * super-admin's own control" fails on a segment that is not a row at all. Splitting on
+ * `<tbody>` first discards the masthead and the header row before `<tr>` is ever considered.
+ */
+function tableRows(markup: string): string[] {
+  const body = markup.split('<tbody>')[1];
+  expect(body, 'the roles page rendered no table body').toBeDefined();
+
+  return body!.split('<tr>').slice(1);
+}
+
+/**
  * The form the roles page offers for one person and one role.
  *
  * **Read off the rendered page rather than constructed**, which is the difference between
@@ -1256,7 +1275,7 @@ type RoleForm = Record<string, string>;
  * control says Grant or Revoke all come from what a volunteer would actually click.
  */
 function roleFormFor(markup: string, email: string, role: string): RoleForm {
-  const row = markup.split('<tr>').find((chunk) => chunk.includes(email));
+  const row = tableRows(markup).find((chunk) => chunk.includes(email));
   expect(row, `no row for ${email} on the roles page`).toBeDefined();
 
   const forms = row!
@@ -1329,7 +1348,7 @@ describe('the roles page', () => {
     // revoking their own way in. Which row is theirs is the one thing on this page that is
     // not the same for everybody reading it.
     const { markup } = await peoplePage();
-    const rows = markup.split('<tr>').filter((row) => row.includes('@example.com'));
+    const rows = tableRows(markup).filter((row) => row.includes('@example.com'));
 
     expect(rows.length).toBeGreaterThanOrEqual(3);
 
@@ -1357,7 +1376,7 @@ describe('the roles page', () => {
     // Without it a screen reader meets four buttons all called "Grant" and has to infer from
     // the table which row it is standing in.
     const { markup } = await peoplePage();
-    const row = markup.split('<tr>').find((chunk) => chunk.includes(MEMBER_EMAIL))!;
+    const row = tableRows(markup).find((chunk) => chunk.includes(MEMBER_EMAIL))!;
 
     // **The accessible name of each button, whole.** The visible half is two words and the
     // half that names the person is a visually hidden span, so the assertion is on the
@@ -1425,7 +1444,7 @@ describe('granting and revoking a role', () => {
 
   it('shows the new role on the page, and offers to take it away again', async () => {
     const { markup } = await peoplePage();
-    const row = markup.split('<tr>').find((chunk) => chunk.includes(MEMBER_EMAIL))!;
+    const row = tableRows(markup).find((chunk) => chunk.includes(MEMBER_EMAIL))!;
 
     expect(row).toContain('member, nn-admin');
     expect(roleFormFor(markup, MEMBER_EMAIL, 'nn-admin')['action']).toBe('revoke');

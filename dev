@@ -507,9 +507,20 @@ cmd_test() {
   #
   # It is self-contained otherwise: it starts and stops its own fake Stripe, and needs no
   # Worker of ours running.
+  #
+  # **`export_supabase_env` is called here too, and it did not used to need to be.** Every
+  # `globalSetup` before #58 spoke to Postgres directly with `pg`, which only ever needed
+  # `SUPABASE_DB_URL` — hardcoded as a fallback in `admin-db.ts`, since the local connection
+  # string never changes. The admin config's setup now also signs three fixture people up
+  # through the real `/account/sign-up/` path, which is a Supabase client and genuinely needs
+  # `SUPABASE_URL` and `SUPABASE_ANON_KEY`, and those have no safe default to fall back to.
+  # `ci.yml` writes the same three to `$GITHUB_ENV` once, early, so every later step —
+  # including this one — already inherits them; this mirrors that rather than introducing
+  # something CI does not already do.
   step "Worker tests"
-  info "96 tests, four Miniflare configs, the real Workers runtime — about 15s"
+  info "five Miniflare configs, the real Workers runtime — about 15s"
 
+  export_supabase_env
   local status=0
   run_suite 'Worker tests' npm run test:worker || status=$?
 
