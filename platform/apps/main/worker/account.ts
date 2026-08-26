@@ -22,6 +22,7 @@ import {
 } from '@src/shared';
 import { html, raw, type Html } from './html';
 import { cookieValue } from './cookies';
+import { faviconLink, siteBanner, siteFooter } from './site-chrome';
 import {
   REFRESH_COOKIE,
   clearedSessionCookies,
@@ -2562,10 +2563,11 @@ function page(
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="noindex, nofollow" />
         <title>${title} — Southville Running Club</title>
+        ${faviconLink()}
         <link rel="stylesheet" href="/account.css" />
       </head>
       <body>
-        ${body}
+        ${siteBanner()} ${body} ${siteFooter()}
       </body>
     </html>`;
 

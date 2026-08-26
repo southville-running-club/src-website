@@ -1,6 +1,7 @@
 import { CLUB_LOGO } from '@src/shared/brand';
 import { html, type Html } from './html';
 import { ADMIN_PREFIX } from './routing';
+import { faviconLink } from './site-chrome';
 
 /**
  * The frame every page of the staff backend is drawn in — the document, the masthead, and
@@ -167,6 +168,7 @@ export function page(
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="robots" content="noindex, nofollow" />
         <title>${title} — Southville Running Club</title>
+        ${faviconLink()}
         <link rel="stylesheet" href="/admin.css" />
       </head>
       <body class="admin">

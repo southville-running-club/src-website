@@ -129,6 +129,64 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * The club's chrome on the pages the **Worker** renders.
+ *
+ * **`base.css` has carried these styles all along and `account.css` already concatenates it**,
+ * so this was never a branding decision that went the other way — it was markup that no layout
+ * put there, because `Base.astro` is an Astro layout and a Worker cannot reach it. Three
+ * rendering paths, two layouts, and this is the third one catching up.
+ */
+describe('the club chrome, on every account page', () => {
+  async function accountPage(): Promise<string> {
+    const response = await handleAccount(
+      get('/account/sign-in/'),
+      ENV,
+      new URL('http://localhost:8787/account/sign-in/'),
+    );
+    return response.text();
+  }
+
+  it('links the favicon, so the tab is not a blank glyph', async () => {
+    // `apps/timing/app/layout.tsx` carries this exact link with a comment saying that without
+    // it "`/timing` showed a browser's blank page glyph beside every other tab". The same
+    // reasoning was never applied here, so `/account/` showed that glyph from the day it was
+    // built. One file, three front doors.
+    expect(await accountPage()).toContain('<link rel="icon" href="/favicon.svg"');
+  });
+
+  it('offers a way back to the club site', async () => {
+    // **The part a member actually notices.** Before this there was no route from the account
+    // area back to the website at all — no logo, no link, no breadcrumb. Somebody who signed
+    // in and then wanted the race page had to edit the address bar.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('class="site-banner"');
+    expect(markup).toContain('href="/" aria-label="Southville Running Club, home"');
+  });
+
+  it('carries the footer, and with it the privacy notice', async () => {
+    // #60 published a site-wide privacy notice and every other page foots with a link to it.
+    // The account area is where somebody's standing record actually lives, so it was the one
+    // place the link was missing and the one place it matters most.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('class="site-footer"');
+    expect(markup).toContain('href="/privacy/"');
+  });
+
+  it('names the club once, not twice, for a screen reader', async () => {
+    // The wordmark is `aria-hidden` because the link around it is already labelled. Rendering
+    // it with `role="img"` and its own `aria-label` as well would announce "Southville Running
+    // Club" twice in a row — the exact thing `ClubLogo.astro`'s `labelled` prop exists to
+    // avoid, and easy to lose when copying markup between frameworks.
+    const markup = await accountPage();
+
+    expect(markup).toContain('class="site-logo"');
+    expect(markup).not.toContain('aria-label="Southville Running Club"');
+  });
+});
+
 describe('GET /account/, signed out', () => {
   it('redirects to sign-in', async () => {
     const response = await handleAccount(
