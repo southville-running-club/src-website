@@ -14,7 +14,7 @@ evening. This is that evening.
 >
 > | Step | State |
 > | --- | --- |
-> | **1 — Resend SMTP** | **1.1–1.6 done.** `SUPABASE_AUTH_SMTP_PASSWORD` is a repository secret. **1.7 is drafted in this pull request** and unverified — no confirmation email has reached a real inbox, which is the only proof that counts |
+> | **1 — Resend SMTP** | **1.1–1.7 done, and 1.7 landed differently from how this page describes it** — the base block stays `enabled = false` and `[remotes.production]` turns it on for production alone, because CI and laptops hold a placeholder key and GoTrue really dials out. **Still unverified where it counts: no confirmation email has reached a real inbox**, and no local check can prove the override applied. Read the `deploy-db` run, then send one |
 > | **2 — Google OAuth** | **Parked, deliberately.** No Cloud project exists. It gates nothing — see [below](#step-2--the-google-cloud-oauth-client) |
 > | **3 — the WAF rules** | **`C1` is live**, and it is the *only* rule the free plan can express. **Step 3.1's answer was worse than this page assumed** — 10 seconds is the ceiling on both the period and the mitigation, which guts A1's and A3's reasoning. [The rules file](docs/reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026) is the record. **Nobody has watched it fire** |
 > | **4 — the rest** | Untouched. 4.1 and 4.2 are both still stop conditions |
@@ -356,18 +356,43 @@ a window where no mail sends at all.
 > is the part that can take production down.** Re-read [the one
 > rule](#the-one-rule-that-governs-half-of-this-page).
 
-The block replacing `config.toml`'s commented-out SendGrid sample at lines 414–422:
+> ### ✅ Done, 26 August 2026 — but read what changed about *how*
+>
+> **The block is `enabled = false`, and that is not a retreat.** The experiment this section
+> called for was run and it answered the open question: GoTrue really does dial out, and the
+> port was never the whole story. So the block is turned on for **production only**, through
+> `[remotes.production]`. The paragraphs below are kept as the record of how that was reached.
+
+The block replacing `config.toml`'s commented-out SendGrid sample, and the override at the foot
+of the same file:
 
 ```toml
 [auth.email.smtp]
-enabled = true
+enabled = false                                        # CI and laptops: no real key, keep Inbucket
 host = "smtp.resend.com"
 port = 587
 user = "resend"
 pass = "env(SUPABASE_AUTH_SMTP_PASSWORD)"
-admin_email = "accounts@send.southvillerunningclub.co.uk"
+admin_email = "noreply@send.southvillerunningclub.co.uk"
 sender_name = "Southville Running Club"
+
+# …at the foot of the file
+[remotes.production]
+project_id = "ketipxpyjjglwpqazsft"
+
+[remotes.production.auth.email.smtp]
+enabled = true                                         # production only, and only via config push
 ```
+
+**Two things about that shape, both learned the hard way:**
+
+- **`admin_email` is `noreply@`, not `accounts@`.** GoTrue has no `reply_to` field, so the
+  `From` is where a reply goes — a sending subdomain with no MX, where it bounces. `accounts@`
+  reads as a monitored mailbox and is not one; `noreply@` promises nothing it cannot keep. A
+  working Reply button is [#99](https://github.com/southville-running-club/src-website/issues/99).
+- **The override is one key long, and `config.test.ts` asserts that.** Everything else about
+  production is stated once, in the base block, where the rest of that file's assertions can
+  see it.
 
 **Three things travel with it, and the pull request is wrong without them:**
 
@@ -396,28 +421,48 @@ Actions.
 providers block 465 by default to fight spam, and Resend supports 587 with STARTTLS as well.
 **That is the untested first thing to try**, and it is why the block above says 587.
 
-**The single most useful next step, and nobody has done it:** run a fresh `supabase start`
-locally against the new config — a full stop and start, not a stack that was already up — and
-capture **GoTrue's own container log** for one failing `signUp()`. `@supabase/auth-js` flattens
+> **✅ Answered, 26 August 2026. It was not the port.** #98 shipped the block on **587 with
+> STARTTLS** and it failed in exactly the same way — every `signUp()` in `identity.test.ts`,
+> `identity-sessions.test.ts` and `entries-admin.test.ts` answering
+> `AuthRetryableFetchError: Error sending confirmation email`, three suites and 116 tests, in
+> run [32899420661](https://github.com/southville-running-club/src-website/actions/runs/32899420661).
+>
+> **So the assumption that `[local_smtp]` intercepts everything is simply false, on any port.**
+> GoTrue dials whatever `[auth.email.smtp]` names, and CI and laptops hold a *placeholder*
+> password. That is not a bug to fix — it is the reason the base block stays `enabled = false`
+> and the production override exists.
+
+**What is left unknown, and it is a smaller thing than this section assumed:** nobody has
+captured **GoTrue's own container log** for a failing `signUp()`. `@supabase/auth-js` flattens
 every server-side mail failure to a bare 500 with no SMTP-level detail, and neither `./dev` nor
-`ci.yml` captures the auth container's logs today. That one piece of evidence turns four guesses
-into one fix. **Do it before opening the pull request, not after CI goes red a third time.**
+`ci.yml` captures the auth container's logs. It would still be the fastest way to diagnose the
+*next* mail problem, so it is worth doing one day — but it is no longer blocking anything.
 
 ### What step 1 unlocks, and the test that flips with it
 
 `packages/db/tests/unit/config.test.ts` holds two assertions **written to invert on this exact
 change**:
 
-| Test | Today | After |
+| Test | Expected | What actually happened |
 | --- | --- | --- |
-| *is still on the default email provider, which is what #50 changes* | asserts `customSmtp()` is `false` | **Goes red — correctly.** Change it in the same commit |
-| *declares no email template block at all while that is true* | asserts `templateModifications()` is empty | Already written as `customSmtp() ? [] : templateModifications()`, so it **stops forbidding templates on its own** |
+| *is still on the default email provider…* | **Goes red.** Change it in the same commit | **Stayed green, correctly.** `customSmtp()` reads the *base* block, and the base stays `false`. Nothing local dials Resend, so the premise it asserts is still true of the two environments this file describes |
+| *declares no email template block at all…* | **Stops forbidding templates on its own** | **Stayed live**, for the same reason — and deliberately so. See below |
 
-**The second row is the whole point of this page's ordering.** The moment `customSmtp()` is
-true, `[auth.email.notification.password_changed]` becomes pushable, and
-[#54](https://github.com/southville-running-club/src-website/issues/54)'s one unmet box — *a
-password-changed notification arrives* — can finally be ticked. That notification is the only
-way somebody finds out their password changed without their knowledge.
+**This page predicted a flip that did not happen, and the reason matters more than the
+prediction.** `customSmtp()` is a question about *this file*, and the override lives somewhere
+no local command reads. Keeping the template guard live is also the conservative call:
+`config push` sends `smtp_enabled` and any template fields in the **same request**, and nobody
+has established whether the management API judges that request against the config arriving or
+the config already there. Finding out belongs to a change that is *about* the template.
+
+⚠️ **And [#54](https://github.com/southville-running-club/src-website/issues/54) is not
+unlocked by this, which is the correction this page most needs.** #99's spike measured that
+`password_changed_notification` is generated only when
+`mailer.notifications.password_changed.enabled` is true — default `false` — which is set from
+`[auth.email.notification.password_changed]`, the very section #79 got a 400 for. The mailer
+decides *who delivers*; that flag decides *whether there is anything to deliver*. So the
+password-changed notification is still gated on `config.toml`, and the Send Email Hook does not
+rescue it either.
 
 ---
 

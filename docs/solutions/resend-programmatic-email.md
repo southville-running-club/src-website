@@ -11,7 +11,7 @@ The addresses themselves — the five mailboxes, the aliases onto them, and whic
 
 ---
 
-## Current status: account and DNS done, `info@` still used directly
+## Current status: account and DNS done, GoTrue sending, `info@` still used directly
 
 **The Resend account exists and `send.southvillerunningclub.co.uk` is verified**, as of
 25 August 2026 — DNS added via Resend's own Cloudflare auto-configure (a `send.send.`
@@ -23,20 +23,45 @@ Sending access only, is set as a Worker secret on `apps/main`.
 would call step 8 below, so `info@` remains the programmatic sender in the meantime — see
 why that is still tolerable, below.
 
-### GoTrue's own mail: reverted once, re-attempted on port 587
+### GoTrue's own mail: reverted once, re-attempted on 587, now on for production only
 
-> **Status, 25 August 2026.** The block below is back in `config.toml`, on **587 with
-> STARTTLS** rather than the 465 that failed, with the key as
-> `env(SUPABASE_AUTH_SMTP_PASSWORD)` — a GitHub repository secret, distinct from the Worker's
-> `RESEND_API_KEY`. **The post-mortem below is unchanged and still governs it**: nobody has
-> separated the blocked-port hypothesis from the GoTrue-really-dials-out one, and the
-> experiment that does is still the next step. Read it before assuming the port was the whole
-> answer.
+> **Status, 26 August 2026 — the experiment below has been run, and it settles two things.**
 >
-> **GoTrue has no `reply_to`.** So `Reply-To: info@` — which this document recommends and #50
-> requires — is **not delivered by the SMTP block**, and is not reachable from `config.toml`
-> at all. Account mail replies currently go to `accounts@send.…`, which has no mailbox behind
-> it. That is an open gap, not a decision.
+> **1. GoTrue really does dial out; the port was never the whole answer.** The post-mortem
+> below left the blocked-465 hypothesis and the really-dials-out hypothesis unseparated and
+> called the experiment the next step. It was run: with `enabled = true` on **587 with
+> STARTTLS** and CI's *placeholder* password, every `signUp()` in the database tests answered
+> `AuthRetryableFetchError: Error sending confirmation email` — three suites down, 116 tests
+> skipped, CI run
+> [32899420661](https://github.com/southville-running-club/src-website/actions/runs/32899420661).
+> Nothing to do with the port. **The block is correct; the problem was that one file serves
+> two environments**, and production is the only one holding a real key.
+>
+> **2. So the block is on for production only.** `[remotes.production]` at the foot of
+> `config.toml` overrides `enabled` to `true` for the linked project; the base stays `false`
+> so a laptop and a runner keep using `[local_smtp]`'s catcher. `supabase config push` is the
+> only command here that resolves a remote block. ⚠️ **No local check can prove it applied** —
+> `supabase status` does not run the validation `config push` does — so the deploy log and a
+> real email are the proof, and both are steps in
+> [opening accounts](../delivery/runbooks/accounts-open.md#02--email-actually-leaves-the-building).
+>
+> **GoTrue speaks SMTP, not this document's REST API.** Everything below designs a Worker
+> calling `https://api.resend.com` with `RESEND_API_KEY`; **GoTrue cannot do that**, so its
+> mail goes over `smtp.resend.com:587` with user `resend` and the API key as the password.
+> Same account, same verified subdomain, same DNS, same key — which is why the key sits in
+> **two** places: a Worker secret for the send path below, and
+> `SUPABASE_AUTH_SMTP_PASSWORD` as a GitHub repository secret for the `env()` substitution.
+> A footnote rather than a redesign, but the one that decides which interface you reach for.
+>
+> **`Reply-To: info@` is still not delivered, and it is now deferred rather than open.**
+> GoTrue has no `reply_to` field — there is no such setting, and templates set body content,
+> not headers — so the recommendation at
+> [the header pair below](#what-resend-actually-sends-as) is unreachable from `config.toml` **ever**.
+> That is a property of the mailer, not a configuration gap. The sender was renamed
+> `accounts@` → **`noreply@send.…`** so the message stops promising a reply path it does not
+> have, and the real one is
+> [#99](https://github.com/southville-running-club/src-website/issues/99) — the Send Email
+> Hook, where `reply_to` is simply a field.
 
 Separately from the programmatic-mail design below, an attempt was made the same day to
 point **GoTrue's** mailer — the confirmations, resets and (eventually) magic links #51–#55
@@ -656,7 +681,7 @@ person reads it — that's `info@`'s job, not sending.
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
-| **Status** | **Account and DNS done; the send code is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-info-still-used-directly) |
+| **Status** | **Account, DNS and GoTrue's own mail done; the send code below is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-gotrue-sending-info-still-used-directly) |
 | **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`); the `send.` subdomain itself is already verified |
 | **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |

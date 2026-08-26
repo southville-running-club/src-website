@@ -440,17 +440,42 @@ otp_expiry = 3600
 # the default mailer — that is #79, and it cost four red deploys. The API's own error names
 # two escapes, upgrading the plan and configuring custom SMTP, and only the second is the
 # club's plan. So `[auth.email.notification.password_changed]` a few dozen lines up becomes
-# pushable the moment this is `enabled = true`, which is #54's one unmet box. **It stays
-# commented out here regardless**: turning it on is a separate change, because a failed
-# template push would otherwise take this block down with it and the revert would take both.
+# pushable **in production** once the override below is live, which is #54's one unmet box.
+# **It stays commented out here regardless, and `config.test.ts`'s guard deliberately reads
+# only the base block rather than the override.** Three reasons, and the third is the one that
+# decides it: turning it on is a separate change; a failed template push would otherwise take
+# this block down with it and the revert would take both; and **nobody knows whether the
+# management API evaluates that restriction against the config being pushed or the config
+# already there** — `config push` sends `smtp_enabled` and the template fields in the *same*
+# request, so "custom SMTP is on now" may not be true yet from the API's point of view. That is
+# a thing to find out in a change that is *about* the template, not as a side effect of this one.
+#
+# ⚠️ **And the hook does not rescue it either.** #99's spike measured that
+# `password_changed_notification` is a hooked action type but that the hook only decides *who
+# delivers*: whether GoTrue generates the message at all is `mailer.notifications.
+# password_changed.enabled`, default `false`, set from the very section this restriction
+# refuses. So #54 is gated on this file whichever mailer wins.
 #
 # **`admin_email` is the sending subdomain, never a human mailbox** —
 # `docs/solutions/email.md` is explicit that mixing programmatic volume into a mailbox's
-# sending reputation risks the mailbox that holds it. ⚠️ **GoTrue has no `reply_to`**, so a
-# reply to one of these goes to `accounts@send.…`, which has no mailbox behind it. #50's
-# *"replying to it reached `info@`"* is **not satisfied by this block alone** and is not
-# satisfiable from `config.toml` — see the runbook.
-# ⚠️ **`enabled = false`, and CI is what decided that — see #98.**
+# sending reputation risks the mailbox that holds it.
+#
+# **The local part is `noreply@`, and that is a decision rather than a convention.** It was
+# `accounts@`, which **reads as a monitored mailbox and is not one**: ⚠️ **GoTrue has no
+# `reply_to` field** — there is no such setting, and templates set body content, not headers —
+# so a reply to one of these goes to the `From`, which is a Resend *sending* subdomain with no
+# MX behind it. It bounces. `accounts@` promises a person somebody is reading, and nobody is;
+# `noreply@` promises nothing it cannot keep. GoTrue gives exactly two levers over the headers,
+# `admin_email` and `sender_name`, so **the local part is the only place that truth can live**.
+#
+# ⚠️ **Two domains, one character apart, and the distinction is the whole point.** A **Reply**
+# goes to `noreply@send.southvillerunningclub.co.uk` — the *sending subdomain*. The Fasthosts
+# alias is `noreply@southvillerunningclub.co.uk` — the *main domain* — and it catches somebody
+# who re-types or hand-addresses the local part, **not** the Reply button. Same hedge `nn@`
+# already carries at `../../../../docs/architecture/investigations/email-addressing.md`.
+#
+# **A working Reply button is #99**, the Send Email Hook, where `reply_to` is simply a field.
+# Not this block, and not reachable from this file at all.
 #
 # The open question this block shipped with was whether GoTrue would really dial out, or
 # whether the earlier failure was port 465 being blocked. **It really dials out.** With
@@ -464,27 +489,37 @@ otp_expiry = 3600
 # a placeholder and cannot, and `[local_smtp]`'s catcher is only used while this is off — so
 # `enabled = true` here trades every local and CI account test for mail nobody can send.
 #
-# **Turning it on is a decision, not a fix, and it is one of three:**
+# **The decision is taken, and it is option 1: `[remotes.production]`, at the foot of this
+# file.** Base stays `false` so a laptop and a runner go on using `[local_smtp]`'s catcher;
+# production alone gets `true`. The other two are closed rather than merely unchosen:
 #
-#   1. `[remotes.production]` — the CLI mechanism built for exactly this: base stays off,
-#      production overrides it on. Untried here, and it is a new mechanism in the one file
-#      that has already cost four red deploys, so it wants its own change and its own review.
-#   2. Point `host`/`port`/`user`/`pass` at `[local_smtp]`'s catcher locally. `port` is an
-#      integer and `env()` substitution on it is unverified, which is what makes this less
-#      simple than it looks.
-#   3. Configure SMTP in the Supabase dashboard instead, and leave this off — the same
-#      accepted-manual-step shape as the Stripe webhook endpoint.
+#   2. ~~Point `host`/`port`/`user`/`pass` at `[local_smtp]`'s catcher locally.~~ Viable —
+#      **`env()` substitution into a non-string field does work**, which this issue had been
+#      carrying as unverified because `port` is an integer. Measured against the pinned CLI:
+#      `enabled = "env(X)"` resolves to a real boolean, `X=true` and `X=false` both behave.
+#      Rejected anyway, because it inverts the failure: **an unset variable is a hard
+#      `ProjectConfigParseError`, not a default**, so every fresh clone would need a fourth
+#      thing exported before `./dev` would start, and the file would stop saying what
+#      production does.
+#   3. ~~Configure SMTP in the Supabase dashboard and leave this off.~~ **Closed by #98's own
+#      green deploy.** That run pushed `smtp_host`, `smtp_user`, `smtp_pass`,
+#      `smtp_admin_email` and `smtp_sender_name` alongside `enabled = false` — the section is
+#      *present*, so every deploy now overwrites whatever the dashboard holds. Taking this
+#      route would mean re-commenting the block, not disabling it.
 #
-# Left off rather than picked, because `[auth]` is a stop-and-ask and this is not the pull
-# request to settle it in. **Production is no worse off than before**: this block has never
-# successfully deployed, so `false` is the state today, not a regression.
+# ⚠️ **The override is the one thing here that no local check can prove.** `supabase status`
+# does not run the validation `config push` does — a base block with `enabled = true` and an
+# empty password passes `status` in silence — so **the deploy log is the proof**, and reading
+# it is a step in `accounts-open.md` rather than an optional courtesy. The failure mode if the
+# merge does not apply is the safe one: production stays on the built-in sender, exactly as
+# today.
 [auth.email.smtp]
 enabled = false
 host = "smtp.resend.com"
 port = 587
 user = "resend"
 pass = "env(SUPABASE_AUTH_SMTP_PASSWORD)"
-admin_email = "accounts@send.southvillerunningclub.co.uk"
+admin_email = "noreply@send.southvillerunningclub.co.uk"
 sender_name = "Southville Running Club"
 
 # Uncomment to customize email template
@@ -724,3 +759,46 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ===========================================================================================
+# Production-only overrides — #50
+# ===========================================================================================
+# **Everything above this line is what a laptop and a CI runner get. This is the only part
+# production sees differently, and keeping that list at one entry is the point.**
+#
+# `supabase config push` resolves a `[remotes.<name>]` block whose `project_id` matches the
+# **linked** project — `deploy-db.yml` runs `supabase link --project-ref` immediately before
+# the push, which writes `supabase/.temp/project-ref`, and that is what the match is against.
+# No other command in this repository passes a project ref, so **nothing local ever reads
+# this**: `./dev up`, `./dev check`, `./dev test` and `supabase start` all resolve to the base
+# document with no remote applied.
+#
+# **The project id is not a secret and is already in the repository** — it is the host part of
+# `PUBLIC_SUPABASE_URL` in `apps/main/wrangler.jsonc`, which ships to every browser, and it is
+# written out twice in the runbooks. It is a repository secret in Actions for convenience of
+# rotation, not for confidentiality. The CLI requires the literal value here: it validates
+# `project_id` against `^[a-z]{20}$`, and it refuses two remotes that name the same project.
+#
+# ⚠️ **This is the mechanism that has never run here, and `[auth]` is where an untested
+# mechanism is expensive** — #79 cost four red deploys because this file has **no partial
+# apply**. Two things make that risk acceptable rather than merely accepted:
+#
+#   - **The failure is one-directional.** If the merge does not apply, production keeps
+#     `enabled = false` and stays on the built-in sender — today's behaviour exactly. There is
+#     no state in which this makes production worse than it is now.
+#   - **It is one key.** A remote block deep-merges over the base, so `host`, `port`, `user`,
+#     `pass`, `admin_email` and `sender_name` are inherited from `[auth.email.smtp]` above and
+#     stated once. If the merge misbehaves, it misbehaves about a single boolean.
+#
+# **Read the `deploy-db` run.** A green `config push` is what proves the override resolved;
+# a real confirmation email arriving at a real inbox is what proves it did anything. Both are
+# steps in `../../../../docs/delivery/runbooks/accounts-open.md`, step 0.2.
+[remotes.production]
+project_id = "ketipxpyjjglwpqazsft"
+
+# **The one line this whole block exists for.** Base is `false` because CI and every laptop
+# have a placeholder password and cannot reach Resend — with `enabled = true` there, every
+# `signUp()` in the database tests answers `Error sending confirmation email`, which is three
+# suites and 116 tests, measured in #98. Production has the real key and can.
+[remotes.production.auth.email.smtp]
+enabled = true

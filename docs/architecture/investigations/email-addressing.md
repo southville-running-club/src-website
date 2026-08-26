@@ -104,7 +104,7 @@ exists to prevent: programmatic volume sharing a reputation, and a sending limit
 inbox the committee depends on.
 
 > **Today that rule is knowingly broken.** Resend's account and DNS are
-> [now in place](../../solutions/resend-programmatic-email.md#current-status-account-and-dns-done-info-still-used-directly),
+> [now in place](../../solutions/resend-programmatic-email.md#current-status-account-and-dns-done-gotrue-sending-info-still-used-directly),
 > but the Worker's own send call is not written yet, so `info@` still sends this
 > programmatic mail directly in the meantime — tolerable only because there is no
 > confirmation email yet and the volume is zero. **The first live entry is the trigger to
