@@ -681,7 +681,7 @@ person reads it — that's `info@`'s job, not sending.
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
-| **Status** | **Account and DNS done; the send code is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-info-still-used-directly) |
+| **Status** | **Account, DNS and GoTrue's own mail done; the send code below is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-gotrue-sending-info-still-used-directly) |
 | **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`); the `send.` subdomain itself is already verified |
 | **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |
