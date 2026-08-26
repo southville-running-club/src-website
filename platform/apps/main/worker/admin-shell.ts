@@ -54,14 +54,29 @@ import { faviconLink } from './site-chrome';
 export interface AdminSection {
   href: string;
   label: string;
-  /** Which role opens it. `null` for the entries every staff role sees. */
-  role: string | null;
+  /**
+   * Which **permission** opens it. `null` for the entries every staff role sees.
+   *
+   * **A permission, not a role, since ADR-017.** The link and the door behind it have to
+   * agree, and the door asks `identity.has_permission()`. Naming a role here and a permission
+   * there is two answers to one question, and the day they disagree is the day a volunteer
+   * clicks a link into a 404.
+   */
+  permission: string | null;
 }
 
 export const ADMIN_SECTIONS: AdminSection[] = [
-  { href: `${ADMIN_PREFIX}/`, label: 'Dashboard', role: null },
-  { href: `${ADMIN_PREFIX}/nn/`, label: 'Nightingale Nightmare', role: 'nn-admin' },
-  { href: `${ADMIN_PREFIX}/people/`, label: 'People and roles', role: 'super-admin' },
+  { href: `${ADMIN_PREFIX}/`, label: 'Dashboard', permission: null },
+  {
+    href: `${ADMIN_PREFIX}/nn/`,
+    label: 'Nightingale Nightmare',
+    permission: 'nn.entry.read',
+  },
+  {
+    href: `${ADMIN_PREFIX}/people/`,
+    label: 'People and roles',
+    permission: 'identity.role.grant',
+  },
 ];
 
 /**
@@ -72,8 +87,25 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  */
 export const STAFF_ROLES = ['nn-admin', 'super-admin'] as const;
 
+/**
+ * Whether somebody may be in the backend at all.
+ *
+ * **Still a role list rather than a permission**, and deliberately. Every other check on this
+ * surface moved to a permission in ADR-017, because those answer "may this person do this
+ * particular thing". This one answers "is this person staff", which is a question about the
+ * shape of the door rather than about what is behind it: `nn-tester` holds a permission and is
+ * emphatically not staff, and a `some(permissions.length > 0)` test would let it in.
+ *
+ * A fourth staff role is a line here and a row in `identity.role_permissions`, which is the
+ * same two-place change granting any capability already is.
+ */
 export function isStaff(roles: string[]): boolean {
   return STAFF_ROLES.some((role) => roles.includes(role));
+}
+
+/** Whether the viewer holds one permission. The one thing every gate on this surface asks. */
+export function can(viewer: AdminViewer, permission: string): boolean {
+  return viewer.permissions.includes(permission);
 }
 
 /** Who is signed in, and what they may do. Threaded through every renderer here. */
@@ -85,6 +117,16 @@ export interface AdminViewer {
    *  recognisable to somebody granting a role. */
   label: string;
   roles: string[];
+  /**
+   * Every permission those roles carry, read per request from `identity.my_permissions()`.
+   *
+   * **Per request rather than baked into the token**, for #59's requirement: a role granted or
+   * revoked at `/admin/people/` takes effect on the next request, with no session to
+   * invalidate. That is why `identity.has_permission()` reads `role_grants` rather than a JWT
+   * claim, and doing the same here keeps the navigation, the buttons and the database in
+   * agreement.
+   */
+  permissions: string[];
   /**
    * The access token every read here is made with.
    *
@@ -109,7 +151,7 @@ export interface AdminViewer {
  */
 export function masthead(viewer: AdminViewer): Html {
   const open = ADMIN_SECTIONS.filter(
-    (section) => section.role === null || viewer.roles.includes(section.role),
+    (section) => section.permission === null || can(viewer, section.permission),
   );
 
   return html`<header class="admin-mast">

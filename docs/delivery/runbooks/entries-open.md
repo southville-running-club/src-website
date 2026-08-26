@@ -211,32 +211,69 @@ check constraint that will refuse the reverse, which is the one mistake here tha
 
 ---
 
-## Step 2 — rehearse a real payment
+## Step 2 — rehearse a real payment, without opening the window
 
 > **👥 Both**
 
 **Nothing has ever been paid for, in test mode or otherwise.** The first payment through this
 chain should be a committee member's own card, not a stranger's.
 
+**This step used to open the window on production for a few minutes and close it again.** It no
+longer does, and the reason is worth stating: that made the rehearsal indistinguishable from the
+real thing to anybody who happened to load the page during it, and it wrote a real
+`entries_open_at` before the committee had ratified one — the exact value CLAUDE.md forbids
+guessing. Issue #107 replaced it with a role.
+
+### 2a — grant `nn-tester` to whoever is rehearsing
+
+At `/admin/people/`, as a `super-admin`. It takes a minute and no deploy, and the page says what
+the role carries: `nn.entry.before_open`, and nothing else. A tester cannot read the entry list.
+
+### 2b — test mode first
+
 1. In Stripe, confirm the account is in **test mode** and the endpoint is registered against
-   the production URL.
-2. Open the window on production for the rehearsal — the same `update` as
-   [step 3](#step-3--the-row-edit), with times a few minutes either side of now.
-3. Enter the race properly: real name, real details, all the way to Stripe.
+   the production URL, and that `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the Worker
+   are the **test** pair. They must match each other — a live key with a test webhook secret
+   fails signature verification on every delivery and the failure looks like an outage.
+2. Signed in as the tester, open `/nn/2026/`. The entry form is there, above a notice saying
+   entries are not open to the public. **Open it in a private window too**: signed out, the same
+   address must say entries are not open. If it does not, stop.
+3. Enter the race properly: real name, real details, the ordinary entry fee, all the way to
+   Stripe.
 4. Pay with a Stripe test card.
 5. **Verify all four**, and stop if any is wrong:
-   - `/nn/entry/complete/` says the payment is confirmed and the place is booked
+   - `/nn/2026/entry/complete/` says the payment is confirmed and the place is booked
    - the purchase row is `paid`, with `attention` null
    - Stripe shows the payment, for the amount `entries.fees` says
    - the treasurer can see it
-6. Close the window again (`entries_open_at = null`) and **delete the rehearsal rows**:
+6. Check `/account/entries/` as the tester. The entry is listed, confirmed, with no medical note
+   on it.
+7. **Cancel it** from `/admin/nn/`, as a `super-admin`. Confirm the refund appears in Stripe,
+   the row is `refunded`, and the place is back in the count on `/admin/nn/`.
 
-   ```sql
-   -- The entrant and medical rows go with it; the foreign keys cascade.
-   delete from entries.entry_purchases where id = '<the rehearsal purchase id>';
-   ```
+### 2c — then live mode, for a penny
 
-7. Refund the test payment in Stripe if it was a live-mode card.
+Test mode proves the integration. It does **not** prove the club's live account, its payout
+settings, or that the live webhook endpoint is registered and reachable. That is what this
+sub-step is for, and finding out on 1 September is finding out too late.
+
+1. Swap `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to the **live** pair
+   (`wrangler secret put`, both, in that order — the endpoint's signing secret comes from the
+   live-mode endpoint in the Stripe dashboard, which is a different endpoint from the test one
+   and has to be registered separately).
+2. Repeat 2b, choosing the **Tester (do not use)** entry type, which costs 1p. It is visible
+   only to somebody holding `nn.entry.before_open`.
+3. Pay with a real card.
+4. Verify the same four things, plus: the money appears in the club's real Stripe balance and
+   the payout schedule is what the treasurer expects.
+5. **Cancel it**, and confirm the penny comes back.
+
+### 2d — revoke the role
+
+At `/admin/people/`. It takes effect on the tester's next request, with no session to end.
+
+Leave the live keys installed — [step 3](#step-3--the-row-edit) is the next thing that happens,
+and swapping them back to test keys before opening entries would take real money nowhere.
 
 ---
 

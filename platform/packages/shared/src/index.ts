@@ -14,6 +14,7 @@ export {
   createPkceClient,
   createUserClient,
   type AnonClient,
+  type DbClient,
   type PkceVerifierStore,
   type UserClient,
   type SupabaseConfig,
@@ -131,8 +132,10 @@ export {
   ENTRY_STATUSES,
   EXPORT_KINDS,
   adminSignIn,
+  cancelEntry,
   deleteExpiredMedicalNotes,
   fetchAdminEntryList,
+  fetchCancellablePurchase,
   fetchAdminExport,
   fetchAdminInterestList,
   fetchAdminMedicalNote,
@@ -152,6 +155,9 @@ export {
   type AdminInterestList,
   type AdminMedicalNote,
   type AdminResult,
+  type CancelResult,
+  type CancellablePurchase,
+  type CancelledEntry,
   type EaExportRow,
   type EntryStatus,
   type ExportKind,
@@ -159,6 +165,14 @@ export {
   type MedicalRetentionSweep,
   type StartListExportRow,
 } from './admin';
+
+export {
+  entryStatusWording,
+  fetchMyEntries,
+  type MyEntrant,
+  type MyEntriesResult,
+  type MyEntry,
+} from './my-entries';
 
 export { BOM, csvDocument, csvField, csvRow } from './csv';
 

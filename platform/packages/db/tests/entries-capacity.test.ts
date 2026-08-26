@@ -1167,7 +1167,7 @@ describe('the security shape of the three new functions', () => {
     },
   );
 
-  it.each(FUNCTIONS)('%s may be executed by anon and never by PUBLIC', async (name) => {
+  it.each(FUNCTIONS)('%s may be executed by anon, and never by PUBLIC', async (name) => {
     const granted = await query<{ grantee: string }>(
       `select grantee from information_schema.routine_privileges
         where routine_schema = 'entries' and routine_name = $1
@@ -1179,9 +1179,29 @@ describe('the security shape of the three new functions', () => {
 
     expect(grantees).not.toContain('PUBLIC');
     expect(grantees).toContain('anon');
-    // `entry_state()` is granted to `authenticated` as well because it is public
-    // configuration. These write, and nothing in this platform signs in.
-    expect(grantees).not.toContain('authenticated');
+
+    // **Two of these three are also granted to `authenticated`, and the third must not be.**
+    // The sentence this replaced said "nothing in this platform signs in", which stopped
+    // being true at #52 and stopped being irrelevant at #107: the pre-open bypass resolves
+    // through `auth.uid()`, so the Worker makes the two entry-path calls with the person's
+    // own token — and a signed-in caller reaches PostgREST as `authenticated`, not as `anon`.
+    // Without the grant a tester is refused with `42501` before the function is entered.
+    //
+    // **`expire_pending_holds` stays `anon`-only**, and asserting that here rather than
+    // waving at "the new grants" is the point: it is the five-minute cron's, it takes no
+    // arguments, it sweeps the whole table, and no signed-in person has any business running
+    // it. A blanket expectation across all three would have granted it by accident and this
+    // test would have applauded.
+    //
+    // **The grant decides nothing either way.** `create_pending_purchase()` still computes
+    // the window from the event row and admits `pre_open` only for `nn.entry.before_open`;
+    // `packages/db/tests/entries-tester.test.ts` re-attempts that bypass as an anonymous
+    // caller and as a signed-in one holding nothing, and asserts `closed` for both.
+    if (name === 'expire_pending_holds') {
+      expect(grantees).not.toContain('authenticated');
+    } else {
+      expect(grantees).toContain('authenticated');
+    }
   });
 });
 

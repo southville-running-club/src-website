@@ -1095,3 +1095,36 @@ body.admin {
   white-space: nowrap;
   border: 0;
 }
+
+/* The role legend on /admin/people/ — what each role actually allows, collapsed by default.
+ *
+ * **A `<details>` rather than a paragraph**, because the page's subject is who holds what and
+ * this is reference material somebody consults once and then knows. Native disclosure, so it
+ * works with scripting off and carries its own keyboard behaviour and accessible name — there
+ * is no JavaScript anywhere on this surface to give it any.
+ *
+ * No hex value here, as nowhere in this file: `admin-contrast.test.ts` asserts the contrast of
+ * every wash this surface mixes, and a colour written literally would be one it cannot see. */
+.admin-details {
+  margin: 0 0 var(--space);
+  padding: calc(var(--space) * 0.75);
+  border: 1px solid var(--colour-rule);
+  border-radius: 6px;
+}
+
+.admin-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-details dl {
+  margin: var(--space) 0 0;
+}
+
+.admin-details dt {
+  margin-top: calc(var(--space) * 0.5);
+}
+
+.admin-details dd {
+  margin: 0;
+}

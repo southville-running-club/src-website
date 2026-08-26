@@ -274,3 +274,84 @@ export function describeStripeError(body: unknown): string {
 
   return parts.length > 0 ? parts.join(' ') : 'unclassified';
 }
+
+// -----------------------------------------------------------------------------------------
+// Refunding
+// -----------------------------------------------------------------------------------------
+
+export type RefundOutcome = { ok: true; refundId: string } | { ok: false; error: string };
+
+/**
+ * Refund one payment in full.
+ *
+ * **The second Stripe call this platform makes, and it moves money the other way**, so it is
+ * worth being explicit about the three properties it depends on:
+ *
+ *   * **Idempotent on the purchase id**, exactly as `createCheckoutSession` is. This is not
+ *     decoration: the cancel path is *Stripe first, database second*, so the recovery from a
+ *     half-finished cancellation is to run the whole thing again. Without the key, that
+ *     recovery would refund a second time. Stripe holds a key for 24 hours, which is far
+ *     longer than any retry a volunteer will make by hand.
+ *   * **No amount is sent.** Omitting `amount` refunds the full charge, and the full charge is
+ *     the only refund this platform offers — a partial one is a different decision with
+ *     different accounting, and ADR-018 keeps it out of scope. Sending an amount computed here
+ *     would also be a second opinion about what was paid, and the club's copy of that number
+ *     could disagree with Stripe's after a currency conversion or a dispute.
+ *   * **`payment_intent`, never a charge id.** It is what `entries.entry_purchases` stores,
+ *     put there by the webhook from Stripe's own event, so there is no lookup in between to
+ *     get wrong.
+ *
+ * Never throws. A caller that gets `ok: false` **must not** go on to mark the purchase
+ * refunded: that is the ordering the whole design rests on, and it is enforced at the call
+ * site in `worker/nn-admin.ts` rather than here.
+ */
+export async function refundPayment(
+  config: StripeConfig,
+  input: { purchaseId: string; paymentIntentId: string },
+): Promise<RefundOutcome> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${config.apiBase}/v1/refunds`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.secretKey}`,
+        'content-type': 'application/x-www-form-urlencoded',
+        'idempotency-key': `refund:${input.purchaseId}`,
+      },
+      body: new URLSearchParams({
+        payment_intent: input.paymentIntentId,
+        // Stripe's own vocabulary. `requested_by_customer` would be a claim about who asked,
+        // and the club cancelling a test entry is not that; there is no reason code for
+        // "the club changed its mind", so none is sent rather than a wrong one.
+      }).toString(),
+      // Longer than Checkout's ten seconds. A volunteer pressing Cancel is not staring at a
+      // form they might abandon, and a refund that times out has to be chased by hand.
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (cause) {
+    return { ok: false, error: cause instanceof Error ? cause.name : 'unknown' };
+  }
+
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    return { ok: false, error: `${response.status} ${describeStripeError(body)}` };
+  }
+
+  const refund = body as { id?: unknown; status?: unknown } | null;
+
+  if (typeof refund?.id !== 'string') {
+    return { ok: false, error: 'refund had no id' };
+  }
+
+  // **`failed` and `canceled` are refusals; `pending` is not.** A refund to a card is
+  // routinely `pending` for a few days and still certain to arrive, so treating it as a
+  // failure would leave the entry uncancelled and the money on its way back — the worst of
+  // both. Only a terminal failure stops the cancellation.
+  if (refund.status === 'failed' || refund.status === 'canceled') {
+    return { ok: false, error: `refund ${refund.status}` };
+  }
+
+  return { ok: true, refundId: refund.id };
+}

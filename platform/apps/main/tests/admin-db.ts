@@ -6,6 +6,7 @@ import {
   FIXTURE_PEOPLE_EMAILS,
   REGISTERED_EMAIL,
   NN_ADMIN_EMAIL,
+  NN_TESTER_EMAIL,
   SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
   ADMIN_EVENT_DATE,
@@ -479,6 +480,7 @@ async function seedFixturePeople(): Promise<void> {
     [NN_ADMIN_EMAIL]: 'nn-admin',
     [REGISTERED_EMAIL]: null,
     [SUPER_ADMIN_EMAIL]: 'super-admin',
+    [NN_TESTER_EMAIL]: 'nn-tester',
   };
 
   // Sequential, not parallel — each round trip is cheap, and running them concurrently would

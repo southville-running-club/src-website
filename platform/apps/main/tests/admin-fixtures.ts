@@ -59,10 +59,21 @@ export const REGISTERED_EMAIL = 'zz-admin-worker-member@example.com';
  *  what proves granting a role is not inheriting one. */
 export const SUPER_ADMIN_EMAIL = 'zz-admin-worker-super@example.com';
 
+/**
+ * Holds `nn-tester`, and that is the whole of it.
+ *
+ * **Not staff**, which is the property worth having a fixture for: `nn-tester` carries a
+ * permission, so an `isStaff()` written as "holds any permission" would let this person into
+ * `/admin/`. They get the same 404 as `REGISTERED_EMAIL`, and what they *can* do is see the entry
+ * form on `/nn/2026/` while entries are shut to everybody else.
+ */
+export const NN_TESTER_EMAIL = 'zz-admin-worker-tester@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
   SUPER_ADMIN_EMAIL,
+  NN_TESTER_EMAIL,
 ] as const;
 
 /**

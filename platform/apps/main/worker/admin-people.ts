@@ -59,22 +59,47 @@ import { cookieValue } from './cookies';
  *     `identity.list_people()` does not return them.
  */
 
-/** The three, as `identity.roles`' own check constraint spells them. */
-const ROLES = ['super-admin', 'nn-admin', 'registered'] as const;
+/**
+ * The roles come from the database now, not from a list here.
+ *
+ * There used to be a constant at this point — `ROLES`, described as "the three, as
+ * `identity.roles`' own check constraint spells them" — and a `GRANTABLE` beside it. ADR-017
+ * removed that constraint and made a role a bundle of permissions, at which point a
+ * hand-maintained copy of the role list in the Worker is exactly what the change was for:
+ * **adding a role should be a migration, not a migration and a deploy.**
+ *
+ * `identity.grantable_roles()` answers with each role's description and the permissions it
+ * carries, which is also what makes a new role legible on this page — granting somebody
+ * `nn-tester` from a dropdown of bare slugs is granting a capability nobody at the keyboard
+ * can see.
+ *
+ * **The role a POST names is validated by the database rather than against a list here.**
+ * `identity.grant_role()` refuses an unknown slug through the foreign key to `identity.roles`
+ * and answers `unknown_role`, which `REFUSALS` already has words for. A second copy of that
+ * check here could only ever be the one that goes out of date.
+ */
+interface GrantableRole {
+  slug: string;
+  description: string;
+  permissions: string[];
+}
 
 /**
- * The two a human may hand out here.
+ * Roles it would be pointless to offer a button for.
  *
  * **`registered` is not one of them.** Every account gets it from the signup trigger and it
  * grants nothing on its own, so a control for it would be a button that does nothing on a page
  * whose whole subject is access.
  *
- * **And `member` is not in the list above at all** — ADR-016. It used to be the role every
- * account got, which meant the club's word for somebody who has joined and paid was spent on
- * "has signed up". A grantable `member` that nothing verifies would let a super-admin record a
- * claim the system cannot back, so it is gone until membership brings its own record.
+ * **And `member` is not here at all** — ADR-016. It used to be the role every account got,
+ * which meant the club's word for somebody who has joined and paid was spent on "has signed
+ * up". A grantable `member` that nothing verifies would let a super-admin record a claim the
+ * system cannot back, so it is gone until membership brings its own record.
+ *
+ * **Everything else the club adds is offered automatically**, which is the property ADR-017
+ * gave this page: the list below is what to *withhold*, not what to show.
  */
-const GRANTABLE = ['nn-admin', 'super-admin'] as const;
+const NOT_WORTH_A_BUTTON = ['registered'];
 
 interface Person {
   id: string;
@@ -148,8 +173,7 @@ async function handleChange(
     (action !== 'grant' && action !== 'revoke') ||
     person === null ||
     !isUuid(person) ||
-    role === null ||
-    !(ROLES as readonly string[]).includes(role)
+    role === null
   ) {
     return notFound();
   }
@@ -198,11 +222,18 @@ async function listPage(
   error: string | null,
 ): Promise<Response> {
   const asPerson = createUserClient(cfg, viewer.accessToken);
-  const { data, error: readError } = await asPerson.rpc('list_people');
 
-  if (readError) {
+  // **Both reads together.** They answer two halves of one page — who exists, and what may be
+  // handed to them — and a page that rendered the people while the role list was unreadable
+  // would show a table with no controls, which reads as "you may not change anything" rather
+  // than as a failure.
+  const [{ data, error: readError }, { data: roleData, error: roleError }] =
+    await Promise.all([asPerson.rpc('list_people'), asPerson.rpc('grantable_roles')]);
+
+  if (readError || roleError) {
+    const failure = readError ?? roleError;
     console.error(
-      `identity.list_people unavailable — ${readError.code}: ${readError.message}`,
+      `identity people/roles read unavailable — ${failure?.code}: ${failure?.message}`,
     );
     return page(
       'People and roles',
@@ -226,10 +257,19 @@ async function listPage(
     return notFound();
   }
 
+  const roleAnswer = roleData as { ok?: boolean; roles?: GrantableRole[] } | null;
+
+  if (roleAnswer?.ok !== true) {
+    return notFound();
+  }
+
   const people = answer.people ?? [];
+  const grantable = (roleAnswer.roles ?? []).filter(
+    (role) => !NOT_WORTH_A_BUTTON.includes(role.slug),
+  );
   const token = mintCsrfToken();
 
-  return page('People and roles', peopleBody(viewer, people, token, error), {
+  return page('People and roles', peopleBody(viewer, people, grantable, token, error), {
     cookies: [csrfCookie(token, secure)],
   });
 }
@@ -237,6 +277,7 @@ async function listPage(
 function peopleBody(
   viewer: AdminViewer,
   people: Person[],
+  grantable: GrantableRole[],
   token: string,
   error: string | null,
 ): Html {
@@ -249,6 +290,7 @@ function peopleBody(
         to end and nothing for them to do.
       </p>
       ${error === null ? null : html`<p class="admin-error" role="alert">${error}</p>`}
+      ${roleLegend(grantable)}
       ${
         people.length === 0
           ? html`<p>Nobody has registered yet.</p>`
@@ -266,7 +308,7 @@ function peopleBody(
                   </tr>
                 </thead>
                 <tbody>
-                  ${people.map((person) => personRow(person, viewer, token))}
+                  ${people.map((person) => personRow(person, viewer, grantable, token))}
                 </tbody>
               </table>
             </div>`
@@ -283,7 +325,12 @@ function peopleBody(
  * this table is about, in the same sense a runner's name is what a row of the entries table
  * is about.
  */
-function personRow(person: Person, viewer: AdminViewer, token: string): Html {
+function personRow(
+  person: Person,
+  viewer: AdminViewer,
+  grantable: GrantableRole[],
+  token: string,
+): Html {
   return html`<tr>
     <th scope="row">
       ${person.name === null ? null : html`<span>${person.name}</span> `}
@@ -291,7 +338,7 @@ function personRow(person: Person, viewer: AdminViewer, token: string): Html {
       ${person.id === viewer.id ? html`<span class="admin-chip">you</span>` : null}
     </th>
     <td>${person.roles.length === 0 ? 'none' : person.roles.join(', ')}</td>
-    <td>${GRANTABLE.map((role) => roleControl(person, role, token))}</td>
+    <td>${grantable.map((role) => roleControl(person, role, token))}</td>
   </tr>`;
 }
 
@@ -305,20 +352,50 @@ function personRow(person: Person, viewer: AdminViewer, token: string): Html {
  * `position: relative` scroller, per the trap in `CLAUDE.md` about an absolutely positioned
  * element in a horizontally scrolling table dragging the whole page sideways.
  */
-function roleControl(person: Person, role: string, token: string): Html {
-  const held = person.roles.includes(role);
+function roleControl(person: Person, role: GrantableRole, token: string): Html {
+  const held = person.roles.includes(role.slug);
   const action = held ? 'revoke' : 'grant';
 
   return html`<form method="post" action="/admin/people/" class="admin-inline-form">
     <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
     <input type="hidden" name="action" value="${action}" />
     <input type="hidden" name="person" value="${person.id}" />
-    <input type="hidden" name="role" value="${role}" />
+    <input type="hidden" name="role" value="${role.slug}" />
     <button type="submit" class="admin-button">
-      ${held ? 'Revoke' : 'Grant'} ${role}
-      <span class="admin-visually-hidden">for ${person.email}</span>
+      ${held ? 'Revoke' : 'Grant'} ${role.slug}
+      <span class="admin-visually-hidden">
+        for ${person.email}. ${role.description}
+      </span>
     </button>
   </form>`;
+}
+
+/**
+ * What each role actually lets somebody do, once, above the table.
+ *
+ * **Not in every row.** Repeating it per person would be the same paragraph two hundred times
+ * in a column that is already narrow at 320px. Once, before the table, is where somebody reads
+ * it — and it is read from `identity.role_permissions` rather than written here, so a role
+ * whose meaning changes cannot leave a stale description behind on this page.
+ */
+function roleLegend(grantable: GrantableRole[]): Html {
+  return html`<details class="admin-details">
+    <summary>What these roles allow</summary>
+    <dl>
+      ${grantable.map(
+        (role) =>
+          html`<dt class="admin-mono">${role.slug}</dt>
+            <dd>
+              ${role.description}
+              ${
+                role.permissions.length === 0
+                  ? html`<em>Grants nothing on its own.</em>`
+                  : html`<span class="admin-mono">${role.permissions.join(', ')}</span>`
+              }
+            </dd>`,
+      )}
+    </dl>
+  </details>`;
 }
 
 function asText(form: FormData, field: string): string | null {

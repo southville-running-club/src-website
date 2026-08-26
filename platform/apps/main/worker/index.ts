@@ -47,7 +47,9 @@ import {
   resolveNnEntryView,
   resolveNnRaceView,
   type NnEntryOutcome,
+  type NnEntryViewer,
 } from './nn-entry';
+import { readSession } from './session';
 
 /**
  * The club's main Worker — the website, and Nightingale Nightmare under `/nn`.
@@ -234,9 +236,18 @@ export default {
     if (request.method === 'POST' && isNnYearPath(url.pathname)) {
       const form = await readForm(request);
 
-      return nnFormKind(form) === 'entry'
-        ? handleNnEntry(form, env, url)
-        : handleNnSignup(form, env, url);
+      if (nnFormKind(form) !== 'entry') {
+        // The interest form takes no money and asks the database nothing about who is
+        // asking, so it is left exactly as it was — no session read, no cookies to carry.
+        return handleNnSignup(form, env, url);
+      }
+
+      // **The same viewer the GET used**, so a form revealed to a tester is a form they can
+      // actually submit. `create_pending_purchase()` re-checks the window itself and would
+      // answer `closed` to an anonymous client whatever the page had shown.
+      const { viewer, setCookies } = await nnViewerFor(request, env, url);
+
+      return withSessionCookies(await handleNnEntry(form, env, url, viewer), setCookies);
     }
 
     // Also before the assets binding, for the plainer reason that there is nothing at this
@@ -287,12 +298,22 @@ export default {
 
     const yearSlug = nnEventSlugForYearPath(url.pathname);
 
+    // Carried out of the year-page branch so the final response can pick them up. Empty on
+    // every request that did not refresh a session, which is nearly all of them.
+    let refreshedCookies: string[] = [];
+
     if (yearSlug !== null) {
       // **Which of the year page's two forms somebody gets, decided per request.** The event
       // row says whether entries are open; nothing here is baked into the build. Every failure
       // resolves to the interest form, so a database this Worker cannot reach produces the
       // page that takes no money rather than an offer to take an entry it cannot record.
-      renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug));
+      // **Who is asking decides which form this is**, now that a permission can open it
+      // early. Everything else about this branch is unchanged, including that every failure
+      // — an unreadable session included — resolves to the page that takes no money.
+      const { viewer, setCookies } = await nnViewerFor(request, env, url);
+      refreshedCookies = setCookies;
+
+      renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug, viewer));
 
       // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET, and
       // `?signup=ok` is what tells this pass to reveal the acknowledgement.
@@ -309,7 +330,7 @@ export default {
       renderNnEntryComplete(rewriter, await resolveNnEntryCompleteView(env, url));
     }
 
-    return rewriter.transform(response);
+    return withSessionCookies(rewriter.transform(response), refreshedCookies);
   },
 
   /**
@@ -503,6 +524,65 @@ async function handleNnSignup(
 }
 
 /**
+ * Who is asking, on the two Nightingale Nightmare paths where the database now cares.
+ *
+ * **This costs the signed-out visitor nothing.** `readSession` returns `null` without a
+ * network call when neither session cookie is present, and that is everybody who has not
+ * registered — which is the whole population of this page until 1 September and the large
+ * majority of it afterwards. A signed-in visitor pays one `auth.getUser()` round trip, which
+ * is the same one `/account/` and `/admin/` already make on every request.
+ *
+ * **The refreshed cookies come back and must be attached.** `readSession` rotates the refresh
+ * token the moment the access token is within a minute of expiring, and the old one is spent
+ * ten seconds later whether or not this particular request was for a page that needed it.
+ * Dropping them here would sign somebody out of the *account* area by visiting a race page —
+ * see `withRefreshedCookies`'s note in `admin-shell.ts` for the full shape of that bug.
+ */
+async function nnViewerFor(
+  request: Request,
+  env: Env,
+  url: URL,
+): Promise<{ viewer: NnEntryViewer | null; setCookies: string[] }> {
+  const { session, setCookies } = await readSession(
+    { url: env.PUBLIC_SUPABASE_URL, anonKey: env.PUBLIC_SUPABASE_ANON_KEY },
+    request.headers.get('cookie'),
+    Math.floor(Date.now() / 1000),
+    url.protocol === 'https:',
+  );
+
+  return {
+    viewer: session === null ? null : { accessToken: session.accessToken },
+    setCookies,
+  };
+}
+
+/**
+ * Append `Set-Cookie` headers to a response whose own headers may be immutable.
+ *
+ * `withRefreshedCookies` in `admin-shell.ts` appends in place, which is correct there because
+ * every response under `/admin/` is constructed by that tree. The responses here come from
+ * `env.ASSETS.fetch` and from `HTMLRewriter.transform`, and an asset response's headers are
+ * not guaranteed to be mutable — so this rebuilds rather than mutates.
+ */
+function withSessionCookies(response: Response, cookies: string[]): Response {
+  if (cookies.length === 0) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+
+  for (const cookie of cookies) {
+    headers.append('set-cookie', cookie);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/**
  * The entry form: validate, hold a place, and send somebody to Stripe.
  *
  * **The only success is a 303 to `checkout.stripe.com`**, and it is a success only in the
@@ -517,8 +597,9 @@ async function handleNnEntry(
   form: FormData | null,
   env: Env,
   url: URL,
+  viewer: NnEntryViewer | null = null,
 ): Promise<Response> {
-  const outcome: NnEntryOutcome = await processNnEntry(form, env, url);
+  const outcome: NnEntryOutcome = await processNnEntry(form, env, url, viewer);
 
   if (outcome.status === 'redirect') {
     // POST/Redirect/GET, as everywhere else here — and this one leaves the site, so the
@@ -552,7 +633,7 @@ async function handleNnEntry(
   // `processNnEntry` has already established that the window is open, so this second read is
   // answering "with what fees", not "should this be here". `yearSlug` is non-null on every
   // path that reaches here, because `worker/index.ts` only routes a year path to this handler.
-  renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug ?? ''));
+  renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug ?? '', viewer));
 
   if (outcome.status === 'invalid') {
     renderNnEntryErrors(rewriter, outcome);

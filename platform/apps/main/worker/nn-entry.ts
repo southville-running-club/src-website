@@ -1,6 +1,7 @@
 import {
   attachCheckoutSession,
   createAnonClient,
+  createUserClient,
   createNnPendingPurchase,
   entryRulesFrom,
   fetchCurrentEntryState,
@@ -11,7 +12,7 @@ import {
   parseNnEntry,
   toIsoDate,
   NN_ENTRY_FIELDS,
-  type AnonClient,
+  type DbClient,
   type EntryFee,
   type EntryState,
   type EntryStateResult,
@@ -110,7 +111,98 @@ export interface NnEntryEnv extends StripeEnv {
  * fact, and collapsing them here is what makes the failure direction a property of the type
  * rather than of whoever reads it next.
  */
-export type NnEntryView = { show: 'closed' } | { show: 'entry'; state: EntryState };
+export type NnEntryView =
+  | { show: 'closed' }
+  | {
+      show: 'entry';
+      state: EntryState;
+      /**
+       * True when this form is on offer only because the person asking holds
+       * `nn.entry.before_open`. The window is `pre_open` and the public sees "entries are not
+       * open yet" at the same address.
+       *
+       * **The page has to say so.** Somebody shown an entry form nobody else can see will
+       * otherwise conclude that entries have opened — and tell people, which is the one thing
+       * an unratified opening date must not have happen to it.
+       */
+      early: boolean;
+    };
+
+/**
+ * Who is asking, as far as `entries` is concerned.
+ *
+ * `null` for the signed-out majority, which is everybody until 1 September. When it is not
+ * null the reads go through `createUserClient` and the database can resolve `auth.uid()` —
+ * which is what makes a permission-gated fee visible and a pre-open window enterable.
+ */
+export interface NnEntryViewer {
+  accessToken: string;
+}
+
+/** The permission that opens the entry form before entries open. Named once. */
+export const ENTER_BEFORE_OPEN = 'nn.entry.before_open';
+
+/**
+ * The client the `entries` reads go through, and the reason there are two.
+ *
+ * `entries.entry_state()` and `entries.create_pending_purchase()` both changed from
+ * caller-blind to caller-aware, and both resolve the caller through `auth.uid()`. An anon
+ * client has none, so a tester reading the page through one would be told the window is shut —
+ * correctly, from the database's point of view, because it could not see who was asking.
+ */
+function entriesClientFor(env: NnEntryEnv, viewer: NnEntryViewer | null): DbClient {
+  const config = {
+    url: env.PUBLIC_SUPABASE_URL,
+    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+  };
+
+  return viewer === null
+    ? createAnonClient(config)
+    : createUserClient(config, viewer.accessToken);
+}
+
+/**
+ * Whether this person may enter before entries open.
+ *
+ * **One RPC, and only for somebody who is signed in.** `readSession` in `worker/index.ts`
+ * returns null without a network call when neither cookie is present, so the signed-out
+ * visitor — the whole population today — pays nothing for any of this. A signed-in one pays
+ * one extra round trip on the year page, which is the price of the form being a fact about
+ * them rather than about the deploy.
+ *
+ * **False on every failure.** A permission list that cannot be read is not a permission, and
+ * the failure direction on this whole path is towards taking no entries.
+ */
+async function mayEnterEarly(
+  env: NnEntryEnv,
+  viewer: NnEntryViewer | null,
+): Promise<boolean> {
+  if (viewer === null) {
+    return false;
+  }
+
+  try {
+    const { data, error } = await createUserClient(
+      { url: env.PUBLIC_SUPABASE_URL, anonKey: env.PUBLIC_SUPABASE_ANON_KEY },
+      viewer.accessToken,
+    ).rpc('my_permissions');
+
+    if (error) {
+      // A code and a message, never a row — `my_permissions()` reads no personal data.
+      console.error(
+        `identity.my_permissions unavailable — ${error.code}: ${error.message}`,
+      );
+      return false;
+    }
+
+    return Array.isArray(data) && (data as unknown[]).includes(ENTER_BEFORE_OPEN);
+  } catch (cause) {
+    console.error(
+      `identity.my_permissions threw — ${cause instanceof Error ? cause.name : 'unknown'}`,
+    );
+    return false;
+  }
+}
 
 /**
  * Ask the database whether entries are open for the running this page is about.
@@ -122,8 +214,30 @@ export type NnEntryView = { show: 'closed' } | { show: 'entry'; state: EntryStat
 export async function resolveNnEntryView(
   env: NnEntryEnv,
   eventSlug: string,
+  viewer: NnEntryViewer | null = null,
 ): Promise<NnEntryView> {
-  return resolveView(env, (client) => fetchEntryState(client, eventSlug));
+  const view = await resolveView(
+    env,
+    (client) => fetchEntryState(client, eventSlug),
+    viewer,
+  );
+
+  if (view.show === 'entry') {
+    return { show: 'entry', state: view.state, early: false };
+  }
+
+  // **The bypass, and it is the only place the window is second-guessed.** A `pre_open`
+  // window plus the permission is a form; everything else — closed, no such event, a
+  // database that could not be reached — is the same shut door it was, because
+  // `resolveView` collapses all of them into `state: undefined` or a non-`pre_open` state.
+  //
+  // Note the ordering: the permission is asked for *only* when the state is `pre_open`. A
+  // tester on an open form costs no extra round trip, and neither does one on a closed race.
+  if (view.state?.state === 'pre_open' && (await mayEnterEarly(env, viewer))) {
+    return { show: 'entry', state: view.state, early: true };
+  }
+
+  return { show: 'closed' };
 }
 
 /**
@@ -219,15 +333,11 @@ type ResolvedView =
 
 async function resolveView(
   env: NnEntryEnv,
-  read: (client: AnonClient) => Promise<EntryStateResult>,
+  read: (client: DbClient) => Promise<EntryStateResult>,
+  viewer: NnEntryViewer | null = null,
 ): Promise<ResolvedView> {
   try {
-    const client = createAnonClient({
-      url: env.PUBLIC_SUPABASE_URL,
-      anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
-    });
-
-    const result = await read(client);
+    const result = await read(entriesClientFor(env, viewer));
 
     if (!result.ok) {
       console.error(`entries.entry_state unavailable — ${result.error}`);
@@ -347,6 +457,7 @@ export async function processNnEntry(
   form: FormData | null,
   env: NnEntryEnv,
   url: URL,
+  viewer: NnEntryViewer | null = null,
 ): Promise<NnEntryOutcome> {
   // **The running is the address it was posted to**, and nothing else says which one it is.
   // There is no hidden event field on the form, deliberately: a slug in a body is a slug
@@ -362,7 +473,7 @@ export async function processNnEntry(
     return { status: 'closed' };
   }
 
-  const view = await resolveNnEntryView(env, eventSlug);
+  const view = await resolveNnEntryView(env, eventSlug, viewer);
 
   if (view.show !== 'entry') {
     // Nothing to preserve and nothing to say about fields: the form is not on offer. That
@@ -424,10 +535,11 @@ export async function processNnEntry(
     return { status: 'not-taken', submitted };
   }
 
-  const client = createAnonClient({
-    url: env.PUBLIC_SUPABASE_URL,
-    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
-  });
+  // **The same client the view was resolved with.** A tester whose form was revealed by
+  // `my_permissions()` and whose purchase then went through an anon client would be refused
+  // by `create_pending_purchase()` with `closed` — the form on screen and the control behind
+  // it disagreeing about who was asking, which is the worst shape this could take.
+  const client = entriesClientFor(env, viewer);
 
   const outcome = await createNnPendingPurchase(client, {
     slug: eventSlug,
@@ -879,6 +991,14 @@ export function renderNnEntryView(
     .on('[data-nn-interest]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
     .on('[data-nn-cta]', new CtaHandler('#enter', 'Enter the race'));
+
+  // **Only when the form is on offer *because of who is asking*.** `early` is false the
+  // moment entries genuinely open, for a tester as much as for anybody, so this notice
+  // cannot outlive the situation it describes — there is no second place to remember to
+  // turn it off.
+  if (view.early) {
+    rewriter.on('[data-nn-entry-early]', new RevealHandler());
+  }
 
   // The two rules the browser-side enhancement cannot read off the DOM. Neither is personal
   // data and neither is a secret — the race date is on this page already, and an empty

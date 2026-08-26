@@ -1,6 +1,7 @@
 import { createUserClient, type SupabaseConfig } from '@src/shared';
 import { html } from './html';
 import {
+  can,
   isStaff,
   masthead,
   notFound,
@@ -12,6 +13,7 @@ import { handleNnSection } from './nn-admin';
 import { handlePeopleSection } from './admin-people';
 import { readSession } from './session';
 import { adminSegments } from './routing';
+import type { StripeEnv } from './stripe';
 
 /**
  * `/admin/` — the club's back office.
@@ -58,7 +60,13 @@ import { adminSegments } from './routing';
  *     email address or id.
  */
 
-export interface AdminEnv {
+/**
+ * **`StripeEnv` because one thing under this prefix moves money.** Cancelling an entry
+ * refunds it, and a refund is a Stripe call, so the secret has to reach `nn-admin.ts`. It is
+ * optional on `StripeEnv` and unset in production today, which is the state that makes the
+ * cancel button say so plainly rather than half-cancel an entry.
+ */
+export interface AdminEnv extends StripeEnv {
   PUBLIC_SUPABASE_URL: string;
   PUBLIC_SUPABASE_ANON_KEY: string;
 }
@@ -85,20 +93,32 @@ async function viewerFor(
 ): Promise<AdminViewer | null> {
   const asPerson = createUserClient(cfg, session.accessToken);
 
-  const [{ data: roleData, error: roleError }, { data: user }] = await Promise.all([
+  const [
+    { data: roleData, error: roleError },
+    { data: permissionData, error: permissionError },
+    { data: user },
+  ] = await Promise.all([
     asPerson.rpc('my_roles'),
+    asPerson.rpc('my_permissions'),
     asPerson.auth.getUser(),
   ]);
 
-  if (roleError) {
+  if (roleError || permissionError) {
     // A code and a message, never a row — the property the whole surface depends on.
+    const failure = roleError ?? permissionError;
     console.error(
-      `identity.my_roles unavailable — ${roleError.code}: ${roleError.message}`,
+      `identity role/permission read unavailable — ${failure?.code}: ${failure?.message}`,
     );
     return null;
   }
 
   const roles = Array.isArray(roleData) ? (roleData as string[]) : [];
+
+  // **Both reads, and both must succeed.** `isStaff` still asks about roles — see its own
+  // comment for why that one question stayed a role question — while everything past this
+  // door asks about permissions. A viewer built with one and not the other would be a viewer
+  // whose navigation and whose gates disagreed.
+  const permissions = Array.isArray(permissionData) ? (permissionData as string[]) : [];
 
   if (!isStaff(roles)) {
     return null;
@@ -110,6 +130,7 @@ async function viewerFor(
     // confirmed address actually lives — `identity.people` deliberately does not hold one.
     label: user?.user?.email ?? 'your account',
     roles,
+    permissions,
     accessToken: session.accessToken,
   };
 }
@@ -160,11 +181,11 @@ export async function handleAdmin(
     // viewer — `nn-admin.ts` has no credential check in it at all — which is the same
     // ordering discipline `entries.admin_key_ok()` established and `identity.has_role()`
     // continues: refuse before anything is resolved and before a row is read.
-    response = viewer.roles.includes('nn-admin')
-      ? await handleNnSection(request, viewer, cfg, path.slice(1), url)
+    response = can(viewer, 'nn.entry.read')
+      ? await handleNnSection(request, viewer, cfg, env, path.slice(1), url, secure)
       : notFound();
   } else if (path[0] === 'people') {
-    response = viewer.roles.includes('super-admin')
+    response = can(viewer, 'identity.role.grant')
       ? await handlePeopleSection(request, viewer, cfg, path.slice(1), secure)
       : notFound();
   } else {
@@ -188,7 +209,7 @@ function dashboard(viewer: AdminViewer): Response {
       <h1>Club admin</h1>
       <p>
         ${
-          viewer.roles.includes('nn-admin')
+          can(viewer, 'nn.entry.read')
             ? html`<a href="/admin/nn/">Nightingale Nightmare</a> — the entries, the
                 interest list, the medical notes and the exports.`
             : null
@@ -196,7 +217,7 @@ function dashboard(viewer: AdminViewer): Response {
       </p>
       <p>
         ${
-          viewer.roles.includes('super-admin')
+          can(viewer, 'identity.role.grant')
             ? html`<a href="/admin/people/">People and roles</a> — who may open what.`
             : null
         }

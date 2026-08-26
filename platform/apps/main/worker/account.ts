@@ -2,7 +2,12 @@ import {
   createAnonClient,
   createPkceClient,
   createUserClient,
+  entryStatusWording,
+  fetchMyEntries,
+  formatEventDate,
+  formatEventStartTime,
   formatLondon,
+  formatPence,
   parseAccountChangePassword,
   parseAccountDetails,
   parseAccountMagicLink,
@@ -18,6 +23,7 @@ import {
   type AccountResetRequestErrors,
   type AccountSignInErrors,
   type AccountSignUpErrors,
+  type MyEntry,
   type SupabaseConfig,
 } from '@src/shared';
 import { html, raw, type Html } from './html';
@@ -308,6 +314,10 @@ export async function handleAccount(
     }
   }
 
+  if (request.method === 'GET' && segments.length === 1 && segments[0] === 'entries') {
+    return entriesPage(session, cfg, secure, refreshedCookies);
+  }
+
   if (segments.length === 1 && segments[0] === 'data') {
     if (request.method === 'GET') {
       if (session === null) {
@@ -372,6 +382,7 @@ async function accountHome(
             : html`No roles beyond being signed in.`
         }
       </p>
+      <p><a href="/account/entries/">Your race entries</a></p>
       <p><a href="/account/details/">Your details</a></p>
       <p><a href="/account/password/">Change your password</a></p>
       <p><a href="/account/data/">Your data — download or delete it</a></p>
@@ -2627,4 +2638,163 @@ function isCaptchaError(error: unknown): boolean {
     code === 'captcha_failed' ||
     (typeof message === 'string' && message.toLowerCase().includes('captcha'))
   );
+}
+
+// -----------------------------------------------------------------------------------------
+// /account/entries/
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Every race entry this person has, and what the club has recorded about each.
+ *
+ * ## Why this page exists
+ *
+ * Until it did, somebody who paid £18 had a web page they could close and a Stripe receipt for
+ * a charge from an entity they may not recognise. The confirmation email is #73 and is not
+ * this; **this is the durable record that does not depend on mail being delivered at all**,
+ * which matters on a free tier with a hundred-a-day account-wide cap and a rush of entries on
+ * the day the window opens.
+ *
+ * ## An account is not required to enter, and is never created by entering
+ *
+ * So most entries have no account attached when they are made. `entries.my_entries()` matches
+ * two ways — `person_id`, set when the buyer happened to be signed in, and a `purchaser_email`
+ * equal to the caller's **confirmed** address. The second is the one that does the work: a
+ * runner who entered signed-out and registers afterwards with the same address finds their
+ * entry here without anybody linking anything by hand.
+ *
+ * The consequence worth stating is that this page can be empty for somebody who *has* entered:
+ * they used a different address. So the empty state says that rather than "you have no
+ * entries", and gives the club's address.
+ *
+ * ## What is not here
+ *
+ * No medical note, no emergency contact, no date of birth, no England Athletics number, no
+ * Stripe reference. `entries.my_entries()` does not return them — they are dropped in the
+ * database rather than filtered here, which is the same rule the entry form applies to
+ * sensitive fields at the boundary. A read that fetched them and trimmed them in TypeScript
+ * would be one refactor away from not trimming them.
+ *
+ * ## What it may say about money
+ *
+ * **No state makes a negative claim.** `entryStatusWording` in `packages/shared` owns the four
+ * sentences and is unit-tested on its own, because the wording is where the risk is: telling
+ * somebody nothing was charged when the webhook is merely late is how a person pays twice.
+ */
+async function entriesPage(
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  const result = await fetchMyEntries(createUserClient(cfg, session.accessToken));
+
+  if (!result.ok) {
+    // A code and a message, never a row. **And the page does not guess**: an unreadable answer
+    // is said to be unreadable rather than rendered as an empty list, because an empty list is
+    // a claim — "you have no entries" — and this is not in a position to make it.
+    console.error(`entries.my_entries unavailable — ${result.error}`);
+
+    return page(
+      'Your entries',
+      html`
+        <main class="account-page">
+          <h1>Your entries</h1>
+          <p class="notice">
+            The club cannot reach its entry records at the moment, so this page cannot
+            show them. Nothing has changed about any entry you hold. Please try again
+            shortly.
+          </p>
+          <p><a href="/account/">Back to your account</a></p>
+        </main>
+      `,
+      { status: 503, secure, cookies: refreshedCookies },
+    );
+  }
+
+  const body = html`
+    <main class="account-page">
+      <h1>Your entries</h1>
+      ${
+        result.entries.length === 0
+          ? html`<p>
+                Nothing is showing here yet. An entry appears once it is matched to this
+                account — either because you were signed in when you entered, or because
+                you entered with this email address and have confirmed it.
+              </p>
+              <p>
+                If you have entered a race with a different address and want it moved onto
+                this account, get in touch and the club will sort it out.
+              </p>`
+          : result.entries.map((entry) => entryCard(entry))
+      }
+      <p><a href="/account/">Back to your account</a></p>
+    </main>
+  `;
+
+  return page('Your entries', body, { secure, cookies: refreshedCookies });
+}
+
+/**
+ * One entry.
+ *
+ * **The runner's name is shown and the purchaser's is not**, unless they differ — one person
+ * entering themselves sees their name once, and somebody who entered on behalf of another sees
+ * both, which is the only case where the distinction carries information.
+ */
+function entryCard(entry: MyEntry): Html {
+  const runners = entry.entrants
+    .map((runner) => `${runner.firstName} ${runner.lastName}`)
+    .join(', ');
+
+  const differentPurchaser =
+    runners !== '' && runners.toLowerCase() !== entry.purchaserName.toLowerCase();
+
+  return html`<section class="account-card">
+    <h2>${entry.eventName}</h2>
+    <dl>
+      <dt>Date</dt>
+      <dd>
+        ${formatEventDate(entry.eventDate)}, ${formatEventStartTime(entry.startTime)}
+      </dd>
+
+      <dt>${entry.entrants.length > 1 ? 'Runners' : 'Runner'}</dt>
+      <dd>
+        ${
+          runners === ''
+            ? // **An entry with no entrant rows is a cancelled one**, because cancelling
+              // deletes them. Saying "the entry was cancelled" here would duplicate the
+              // status line below and could contradict it, so it says only what it knows.
+              'No runner is recorded against this entry.'
+            : runners
+        }
+      </dd>
+
+      ${
+        differentPurchaser
+          ? html`<dt>Entered by</dt>
+              <dd>${entry.purchaserName}</dd>`
+          : null
+      }
+
+      <dt>Entry type</dt>
+      <dd>${entry.feeLabel}, ${formatPence(entry.amountPence)}</dd>
+
+      <dt>Status</dt>
+      <dd>
+        ${entryStatusWording(entry.status)}
+        ${
+          entry.paidAt === null
+            ? null
+            : // **`formatLondon`, never a bare toLocale call.** ESLint bans those repository
+              // wide, and this race is run the weekend after the clocks change.
+              html`<br />Paid ${formatLondon(entry.paidAt)}.`
+        }
+      </dd>
+    </dl>
+  </section>`;
 }

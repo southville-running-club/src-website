@@ -207,6 +207,7 @@ export type Database = {
           hold_expires_at: string | null
           id: string
           paid_at: string | null
+          person_id: string | null
           purchaser_email: string
           purchaser_name: string
           revived_at: string | null
@@ -230,6 +231,7 @@ export type Database = {
           hold_expires_at?: string | null
           id?: string
           paid_at?: string | null
+          person_id?: string | null
           purchaser_email: string
           purchaser_name: string
           revived_at?: string | null
@@ -253,6 +255,7 @@ export type Database = {
           hold_expires_at?: string | null
           id?: string
           paid_at?: string | null
+          person_id?: string | null
           purchaser_email?: string
           purchaser_name?: string
           revived_at?: string | null
@@ -354,6 +357,7 @@ export type Database = {
           label: string
           price_pence: number
           requires_ea_number: boolean
+          requires_permission: string | null
           valid_from: string | null
           valid_to: string | null
         }
@@ -365,6 +369,7 @@ export type Database = {
           label: string
           price_pence: number
           requires_ea_number?: boolean
+          requires_permission?: string | null
           valid_from?: string | null
           valid_to?: string | null
         }
@@ -376,6 +381,7 @@ export type Database = {
           label?: string
           price_pence?: number
           requires_ea_number?: boolean
+          requires_permission?: string | null
           valid_from?: string | null
           valid_to?: string | null
         }
@@ -439,6 +445,11 @@ export type Database = {
         Args: { p_purchase_id: string; p_session_id: string }
         Returns: boolean
       }
+      cancel_entry: {
+        Args: { p_purchase_id: string; p_refund_reference?: string }
+        Returns: Json
+      }
+      cancellable_purchase: { Args: { p_purchase_id: string }; Returns: Json }
       create_pending_purchase: {
         Args: {
           p_consents: Json
@@ -461,6 +472,7 @@ export type Database = {
       expire_pending_holds: { Args: never; Returns: Json }
       export: { Args: { p_event_slug: string; p_kind: string }; Returns: Json }
       interest_list: { Args: never; Returns: Json }
+      my_entries: { Args: never; Returns: Json }
       raise_attention: {
         Args: { p_detail: Json; p_purchase_id: string; p_reason: string }
         Returns: undefined
@@ -559,6 +571,21 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          description: string
+          slug: string
+        }
+        Insert: {
+          description: string
+          slug: string
+        }
+        Update: {
+          description?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       reserved_grants: {
         Row: {
           email: string
@@ -631,6 +658,36 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          permission: string
+          role: string
+        }
+        Insert: {
+          permission: string
+          role: string
+        }
+        Update: {
+          permission?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_fkey"
+            columns: ["permission"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       roles: {
         Row: {
           description: string
@@ -654,8 +711,11 @@ export type Database = {
       delete_me: { Args: never; Returns: Json }
       export_me: { Args: never; Returns: Json }
       grant_role: { Args: { p_person: string; p_role: string }; Returns: Json }
+      grantable_roles: { Args: never; Returns: Json }
+      has_permission: { Args: { p_permission: string }; Returns: boolean }
       has_role: { Args: { p_role: string }; Returns: boolean }
       list_people: { Args: never; Returns: Json }
+      my_permissions: { Args: never; Returns: Json }
       my_roles: { Args: never; Returns: Json }
       record_identity_audit: {
         Args: {
