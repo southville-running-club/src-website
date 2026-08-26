@@ -170,7 +170,7 @@ describe('what an anonymous client may not do', () => {
 
   it('cannot call identity.has_role', async () => {
     const { error } = await anon.schema('identity').rpc('has_role', {
-      p_role: 'member',
+      p_role: 'registered',
     });
     // No grant to anon on the function: PostgREST finds it and Postgres denies it with 42501.
     // PGRST202 would mean the request never got as far as being denied.
@@ -196,7 +196,7 @@ describe('what the signup trigger does', () => {
         where person_id = $1 and revoked_at is null`,
       [personA.id],
     );
-    expect(rows.map((r) => r.role)).toEqual(['member']);
+    expect(rows.map((r) => r.role)).toEqual(['registered']);
   });
 
   it('grants the reserved address super-admin, in addition to member', async () => {
@@ -206,7 +206,7 @@ describe('what the signup trigger does', () => {
         order by role`,
       [admin.id],
     );
-    expect(rows.map((r) => r.role)).toEqual(['member', 'super-admin']);
+    expect(rows.map((r) => r.role)).toEqual(['registered', 'super-admin']);
   });
 
   it('applies the reserved grant exactly once, not once per row in the table', async () => {
@@ -449,7 +449,7 @@ describe('a super-admin does not thereby hold nn-admin', () => {
       [admin.id],
     );
 
-    expect(roles.map((row) => row.role)).toEqual(['member', 'super-admin']);
+    expect(roles.map((row) => row.role)).toEqual(['registered', 'super-admin']);
   });
 
   it.each(ENTRIES_READS)('entries.%s refuses them', async (name, args) => {

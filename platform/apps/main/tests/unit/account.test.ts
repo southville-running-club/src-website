@@ -259,7 +259,7 @@ describe('GET /account/, signed out', () => {
 describe('GET /account/, signed in', () => {
   it('renders the account page', async () => {
     getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
-    rpc.mockResolvedValue({ data: ['member'], error: null });
+    rpc.mockResolvedValue({ data: ['registered'], error: null });
 
     const response = await handleAccount(
       get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
@@ -270,7 +270,7 @@ describe('GET /account/, signed in', () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain('Your account');
-    expect(body).toContain('member');
+    expect(body).toContain('registered');
   });
 });
 

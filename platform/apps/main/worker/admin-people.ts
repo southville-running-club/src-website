@@ -60,14 +60,19 @@ import { cookieValue } from './cookies';
  */
 
 /** The three, as `identity.roles`' own check constraint spells them. */
-const ROLES = ['super-admin', 'nn-admin', 'member'] as const;
+const ROLES = ['super-admin', 'nn-admin', 'registered'] as const;
 
 /**
  * The two a human may hand out here.
  *
- * **`member` is not one of them.** Every account gets it from the signup trigger and it grants
- * nothing on its own, so a control for it would be a button that does nothing on a page whose
- * whole subject is access.
+ * **`registered` is not one of them.** Every account gets it from the signup trigger and it
+ * grants nothing on its own, so a control for it would be a button that does nothing on a page
+ * whose whole subject is access.
+ *
+ * **And `member` is not in the list above at all** — ADR-016. It used to be the role every
+ * account got, which meant the club's word for somebody who has joined and paid was spent on
+ * "has signed up". A grantable `member` that nothing verifies would let a super-admin record a
+ * claim the system cannot back, so it is gone until membership brings its own record.
  */
 const GRANTABLE = ['nn-admin', 'super-admin'] as const;
 

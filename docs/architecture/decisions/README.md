@@ -18,7 +18,8 @@ Technical decisions the volunteers take themselves.
 | [**ADR-012**](adr-012-one-navigation-bar.md) | **One navigation bar, and the year is never in it** — five controls, painted, and no longer sticky. *Supersedes ADR-011's navigation section; its sticky and five-control sections are superseded by ADR-014* | 15 Aug 2026 |
 | [**ADR-013**](adr-013-the-admin-surface-and-who-may-read-it.md) | **Two credentials open the admin surface** — a Worker secret for authorisation, a key per person for identity. *Extends ADR-010's shared-key mechanism to the first read path that returns people* | 16 Aug 2026 |
 | [**ADR-014**](adr-014-the-bar-stays-and-the-notice-is-in-it.md) | **The bar stays on screen, and the privacy notice is the sixth control in it** — the three defects that unstuck it are paid for rather than disputed. *Supersedes ADR-012's sticky and five-control sections* | 17 Aug 2026 |
-| [**ADR-015**](adr-015-member-accounts-on-supabase-auth.md) | **Member accounts on Supabase Auth** — three roles, a new `identity` schema, and the JavaScript and `SameSite` costs that come with it. *Extends ADR-013's admin surface rather than replacing it* | 24 Aug 2026 |
+| [**ADR-015**](adr-015-member-accounts-on-supabase-auth.md) | **Member accounts on Supabase Auth** — three roles, a new `identity` schema, and the JavaScript and `SameSite` costs that come with it. *Extends ADR-013's admin surface rather than replacing it. Its Roles row is superseded by [ADR-016](adr-016-registered-is-not-a-member.md).* | 24 Aug 2026 |
+| [**ADR-016**](adr-016-registered-is-not-a-member.md) | **`registered` is the role an account gets, and `member` means membership** — the word the club needs for somebody who has joined and paid was being spent on "has signed up". *Supersedes ADR-015's Roles row; everything else it decided stands.* | 26 Aug 2026 |
 
 ---
 

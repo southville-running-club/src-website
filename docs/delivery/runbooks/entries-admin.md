@@ -22,7 +22,7 @@ the argument for that arrangement. It is retired. The way in is an account holdi
 | --- | --- |
 | `nn-admin` | May read Nightingale Nightmare's entries, notes and exports |
 | `super-admin` | May grant and revoke every role. **Does not inherit `nn-admin`** — granting a role is not holding it |
-| `member` | Everybody with an account. Opens nothing here |
+| `registered` | Everybody with an account. Opens nothing here. **Renamed from `member`** — ADR-016, because the club needs that word for somebody who has actually joined |
 
 **The break-glass in [#65](https://github.com/southville-running-club/src-website/issues/65)
 is no longer the keys, and this is the paragraph that says so.** That tracker records

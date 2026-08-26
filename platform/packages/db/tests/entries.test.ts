@@ -358,7 +358,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //   * Each is the **same read** its key-gated counterpart performs — literally, through the
     //     same `read_*` helper — behind `identity.has_role('nn-admin')` instead of a key.
     //     `packages/db/tests/entries-admin.test.ts` asserts that an anonymous client, a plain
-    //     `member` and a `super-admin` without `nn-admin` are each refused by all four.
+    //     `registered` and a `super-admin` without `nn-admin` are each refused by all four.
     //
     //   * **`authenticated` is a role anybody who registers holds.** That is exactly why the
     //     grant is safe only in the company of the check inside the function: the grant says

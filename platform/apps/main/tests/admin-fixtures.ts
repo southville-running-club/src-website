@@ -34,7 +34,7 @@ export const REVOKED_HANDLE = 'zz-worker-gone';
  * apart.
  *
  * **Real accounts, created through `signUp()` and confirmed the way a mailbox click would**, so
- * `identity.handle_new_user()` fires exactly as production will and the `member` grant every
+ * `identity.handle_new_user()` fires exactly as production will and the `registered` grant every
  * account gets is real rather than fabricated. The roles on top are inserted directly, because
  * `identity.grant_role()` needs a caller who already holds `super-admin` and the only address
  * the migration reserves that for is the club's own.
@@ -52,8 +52,8 @@ export const ADMIN_PASSWORD = 'zz-admin-worker-fixture-password';
 /** Holds `nn-admin`. The person the Nightingale Nightmare section is read as. */
 export const NN_ADMIN_EMAIL = 'zz-admin-worker-nn@example.com';
 
-/** Holds `member` and nothing else — everybody with an account. Gets the 404. */
-export const MEMBER_EMAIL = 'zz-admin-worker-member@example.com';
+/** Holds `registered` and nothing else — everybody with an account. Gets the 404. */
+export const REGISTERED_EMAIL = 'zz-admin-worker-member@example.com';
 
 /** Holds `super-admin` and **not** `nn-admin`, which is what makes #59's page testable and
  *  what proves granting a role is not inheriting one. */
@@ -61,7 +61,7 @@ export const SUPER_ADMIN_EMAIL = 'zz-admin-worker-super@example.com';
 
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
-  MEMBER_EMAIL,
+  REGISTERED_EMAIL,
   SUPER_ADMIN_EMAIL,
 ] as const;
 
