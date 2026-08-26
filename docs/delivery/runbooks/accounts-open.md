@@ -44,7 +44,7 @@ Do not announce accounts if any of these is true.
 | **The rate-limiting rule is not live** | [Step 0.1](#01--the-rate-limiting-rules-must-be-live). Sign-in is a credential check and reset is an email to an address the caller names. Nothing else in this repository is either of those. **One rule now exists — `C1`, 25 August 2026 — and it is all the free plan can express.** Read [what that buys and what it does not](../../reference/cloudflare-waf-rules.md#what-the-free-plan-actually-allows--measured-25-august-2026) before treating this row as ticked |
 | **Nobody has watched a rule block anything** | [Step 0.3](#03--somebody-has-actually-tried-it). A rule that exists and does not fire is worse than no rule, because it is believed |
 | **Nobody has watched the captcha secret refuse a real registration** | [Step 0.4](#04--the-captcha-secret-substituted-to-something-non-empty). `SUPABASE_AUTH_CAPTCHA_SECRET` is masked in every deploy log; a green push proves the file was accepted, not that the value is non-empty |
-| **Outbound email is still Supabase's built-in sender** | [Step 0.2](#02--email-actually-leaves-the-building). Two an hour, project-wide. Every flow on this page is an email, and the failure is silent — the person simply never receives it |
+| **Outbound email is still Supabase's built-in sender** | [Step 0.2](#02--email-actually-leaves-the-building). Two an hour, project-wide. Every flow on this page is an email, and the failure is silent — the person simply never receives it. **#50 wired Resend up and turned it on for production only, via `[remotes.production]`** — but that override has never run, and **no local check can prove it applied**. So this row is ticked by a real email arriving at a real inbox, never by reading the config file |
 | ~~**There is no site-wide privacy notice**~~ | **Met.** [#60](https://github.com/southville-running-club/src-website/issues/60) is closed and `/privacy/` is published. Kept as a row rather than deleted, because it is a legal precondition and the next person needs to see that somebody checked it rather than that nobody listed it |
 | **`admin@southvillerunningclub.co.uk` has not registered** | The super-admin is bootstrapped by registering like anybody else ([#51](https://github.com/southville-running-club/src-website/issues/51)). Announcing before that means the first person to claim the address is whoever asks for it |
 
@@ -103,11 +103,26 @@ built-in sender is capped at **two emails an hour for the whole project**, whate
 address, reset your password, your password was changed — and **the failure is silent**: the
 third person to sign up in an hour never receives anything and sees no error.
 
-- [ ] Resend is wired up as `[auth.email.smtp]`, and its DNS records are in the committed
-      zone file
+- [x] Resend is wired up as `[auth.email.smtp]`, and its DNS records are recorded in
+      [the zone](../../foundations/current-state.md#added-since-the-resend-sending-subdomain--50)
+      — done, and the apex SPF was not touched because Resend's envelope sender carries its
+      own on the bounce subdomain
+- [ ] ⚠️ **The `deploy-db` run was read, not assumed.** The block is `enabled = false` in the
+      base document and `true` only under `[remotes.production]`, and **that override has
+      never run here.** `supabase status` does not run the validation `config push` does, so
+      no local check can prove it applied — a green `config push` in the run log is the first
+      evidence, and the email below is the only real one. **If it silently did not apply,
+      production is on the built-in sender and nothing on this page will work**, which is
+      exactly the failure this step exists to catch
 - [ ] **A confirmation email has arrived at a real address outside the club's own domain** —
       a personal Gmail is the test that matters, because that is where deliverability
       problems show up
+- [ ] It arrived from **`Southville Running Club <noreply@send.southvillerunningclub.co.uk>`**,
+      and "show original" says **SPF, DKIM and DMARC all pass**
+- [ ] **Replying to it bounced, and that is the accepted state** — not a defect to raise.
+      GoTrue has no `reply_to` field, so the `From` is where a reply goes, and `noreply@`
+      is the honest name for an address that cannot answer. A working Reply button is
+      [#99](https://github.com/southville-running-club/src-website/issues/99)
 - [ ] `email_sent = 60` in `config.toml` is still the number the club wants once it is the
       real ceiling rather than a shadowed one. It is one email a minute, project-wide
 

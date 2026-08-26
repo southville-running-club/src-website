@@ -1252,6 +1252,21 @@ Supabase CLI validates an `env(...)` substitution at startup, and an unset one b
 stayed commented out until #53 needed it and step 9 had actually been done, and
 `[auth.email.smtp]` stayed commented out until #50 and step 13.
 
+**#50 turns that last block on for production only, and the mechanism is worth knowing before
+you read the file.** `[remotes.production]` at the foot of `config.toml` overrides
+`[auth.email.smtp] enabled` to `true` for the linked project; the base stays `false`. That is
+not tidiness — CI and every laptop hold a *placeholder* for step 13's secret, and with the base
+enabled GoTrue really dials `smtp.resend.com` and every `signUp()` in the database tests fails
+with `Error sending confirmation email`. Three suites, 116 tests, measured. **`supabase config
+push` is the only command in this repository that resolves a remote block**, because it is the
+only one given a project ref, so nothing local changes behaviour.
+
+⚠️ **No local check can prove that override applied** — `supabase status` does not run the
+validation `config push` does. **Read the `deploy-db` run**, and then send a real email; both
+are steps in [opening accounts](../../../docs/delivery/runbooks/accounts-open.md#02--email-actually-leaves-the-building).
+The failure mode if it silently does not apply is the safe one: production keeps the built-in
+sender, exactly as before.
+
 **`[auth.external.google]` is the one that is present rather than commented, and the
 difference is worth knowing.** #56 ships it with `enabled = false`, shaped exactly like the
 `[auth.external.apple]` block the CLI has always carried — which also has an `env()` secret
@@ -1275,6 +1290,7 @@ startup-validation reason above.
 | _11. Create the Cloudflare rate-limiting rules_ | **Was: the platform has no rate limit of any kind.** Sign-in is a credential check, `/account/reset/` mails an address the caller chooses, and `POST /nn/2026/` holds a place in a 250-runner field for 31 minutes — none of which is capped by anything deployed. A rule per IP at the edge is the only layer that sees the runner's real address, because every Supabase call this Worker makes is server-side | **Partly done**, 25 Aug 2026 | **One rule exists — `C1`, the combined expression — because the free plan allows exactly one and caps both the period and the mitigation at 10 seconds.** Not the five this repository specifies. Security → Security rules → Rate limiting rules; there is no *WAF* item in the sidebar any more, and *Rules* is a different feature. Values, the measured plan limits and what the 10-second ceiling costs are in [the rules file](../../../docs/reference/cloudflare-waf-rules.md#what-actually-happened). **Still outstanding: nobody has watched it fire**, which is [accounts-open step 0.3](../../../docs/delivery/runbooks/accounts-open.md#03--somebody-has-actually-tried-it) and a stop condition for announcing accounts |
 | _12. Set `RESEND_API_KEY`, before #50's send code lands_ | **A Worker secret, same mechanism as Stripe's** — Resend authenticates over a plain HTTPS API, so this is the only credential the send path needs. Scope the key to **Sending access only** in Resend's dashboard, never full account access, so a leak can only send mail as the club rather than reconfigure the account or read logs | **Done**, 25 Aug 2026 | `send.southvillerunningclub.co.uk` verified in Resend (account, DNS records in Cloudflare, domain verification — see [the design doc](../../../docs/solutions/resend-programmatic-email.md#step-by-step-get-go-to-a-working-send)), then `npx wrangler secret put RESEND_API_KEY --env production --config apps/main/wrangler.jsonc`, from `platform/`. Local dev uses the same name in `apps/main/.dev.vars`, gitignored |
 | _13. Set `SUPABASE_AUTH_SMTP_PASSWORD`, before `[auth.email.smtp]` is uncommented_ | **A GitHub Actions repository secret, not a Worker secret** — the same distinction as steps 9 and 10, and for the same reason: `env(...)` substitution in `config.toml` is read wherever `supabase config push` runs, which is `deploy-db.yml`. **The value is the Resend API key** — GoTrue speaks SMTP, not Resend's REST API, so there is no separate mail-server password; `smtp.resend.com` authenticates with user `resend` and the key as the password. That is why the same credential now sits in two places, beside step 12's Worker secret. Until it exists, production GoTrue is on the free tier's default sender at **two emails an hour for the whole project**, and the failure is silent | **Done**, 25 Aug 2026 | Same place as step 9, name `SUPABASE_AUTH_SMTP_PASSWORD`, value a Resend key scoped to **Sending access only**. Prefer a key created for GoTrue rather than reusing step 12's, so rotating one path does not silently stop the other. Resend shows a key once; if it is lost, generate a new one rather than hunting for it |
+| _14. Alias `noreply@southvillerunningclub.co.uk` onto `info@`_ | **A hedge, not the reply path — and the difference is a domain, which reads like a mailbox.** Account mail sends as `noreply@send.southvillerunningclub.co.uk`, the *sending subdomain*. GoTrue has no `reply_to` field, so pressing **Reply** goes there, to a Resend subdomain with no MX, and bounces. This alias is on the **main domain** and catches only somebody who re-types or hand-addresses the local part — exactly the hedge `nn@` already carries. **A working Reply button is #99**, the Send Email Hook | **Done**, 26 Aug 2026 | Fasthosts control panel → mailbox aliases, same place as `nn@`. **A mailbox setting, not a DNS change** — this adds no record to the zone at all, which matters because Cloudflare Email Routing is declined in six places in `docs/` for replacing the apex MX that carries all club mail |
 
 **Rotating either secret has a window, and it is worth knowing about.** Between
 `wrangler secret put ENTRIES_WEBHOOK_KEY` and updating the digest — or between rotating the

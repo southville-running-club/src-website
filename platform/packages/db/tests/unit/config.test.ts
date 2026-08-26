@@ -15,6 +15,18 @@ import { join } from 'node:path';
  * everywhere. That alignment is the whole argument for keeping it in the repository rather
  * than a dashboard.
  *
+ * **As of #50 there is exactly one deliberate exception, and it is worth stating here rather
+ * than leaving somebody to find it at the foot of a 900-line file.** `[remotes.production]`
+ * overrides `[auth.email.smtp] enabled` to `true` for the linked project only — because
+ * production has a real Resend key and a laptop and a runner have a placeholder. Nothing
+ * local resolves a remote block: `supabase start` is given no project ref, so `./dev` and CI
+ * read the base document exactly as before.
+ *
+ * **The exception earns its keep by staying one key long.** Every assertion below reads the
+ * base document, which is what those two environments actually run; `the production-only
+ * override` block at the end is what asserts the difference, and it asserts the *whole* of
+ * it. If that list ever grows past one, this comment is wrong and the tests should say so.
+ *
  * The database tests already catch a mistake here *by its effect* — an exposed `club` would
  * stop returning `PGRST106`. This one catches it at the source, in milliseconds, with no
  * Docker running, and says plainly what the rule is.
@@ -176,6 +188,50 @@ describe('the auth.email block', () => {
 
   it('requires reauthentication before a password change', () => {
     expect(emailValue('secure_password_change')).toBe('true');
+  });
+});
+
+/**
+ * `[auth.email.smtp]` — the base block, which is what a laptop and a runner run.
+ *
+ * The `enabled` half is asserted twice over, here and under the production override at the
+ * end of this file, because the two say different things for different reasons and a reader
+ * who finds only one of them would draw the wrong conclusion from it.
+ */
+describe('the sender, and the reply path it does not have', () => {
+  it('sends as noreply@ on the sending subdomain, never a human mailbox', () => {
+    // **Two separate rules, and the second is the one that gets undone by a tidy-up.**
+    //
+    // The *domain* is `send.southvillerunningclub.co.uk` because `docs/solutions/email.md`
+    // exists to stop programmatic volume touching the reputation of the mailbox the
+    // committee reads. Verifying the apex in Resend so mail could go out as `info@` is
+    // possible and is exactly the failure that document is about.
+    //
+    // The *local part* is `noreply@` because **GoTrue has no `reply_to` field at all**, so
+    // the `From` is where a reply goes — and it goes to a sending subdomain with no MX,
+    // where it bounces. `accounts@`, which this was until #50, reads as a monitored mailbox
+    // and is not one: the member has every reason to think somebody will read it, nobody
+    // will, and the club is never told it happened. `noreply@` promises nothing it cannot
+    // keep, and with only `admin_email` and `sender_name` to work with, the local part is
+    // the one place that truth can be told.
+    //
+    // A working Reply button is #99 — the Send Email Hook, where `reply_to` is a field.
+    expect(sectionValue('[auth.email.smtp]', 'admin_email')).toBe(
+      '"noreply@send.southvillerunningclub.co.uk"',
+    );
+  });
+
+  it('never carries the key itself, only a reference to it', () => {
+    // Same rule as the captcha secret: the value comes from wherever `config push` runs.
+    expect(sectionValue('[auth.email.smtp]', 'pass')).toBe(
+      '"env(SUPABASE_AUTH_SMTP_PASSWORD)"',
+    );
+  });
+
+  it('uses 587 with STARTTLS, because 465 broke CI', () => {
+    // Not a preference. The first attempt used 465 with implicit TLS and every `signUp()`
+    // in the database tests failed — a number of CI providers block 465 to fight spam.
+    expect(sectionValue('[auth.email.smtp]', 'port')).toBe('587');
   });
 });
 
@@ -343,11 +399,18 @@ describe('email templates, and the provider that forbids them', () => {
     // **Why it went back off**: `enabled = true` made GoTrue really dial `smtp.resend.com`
     // from a laptop and from CI, where the password is a placeholder — and every `signUp()`
     // in the database tests answered `Error sending confirmation email`. Three suites, 116
-    // tests. `config.toml`'s own comment carries the three ways to turn it on properly; none
-    // of them is "set this back to `true` and hope".
+    // tests. `config.toml`'s own comment carries the ways to turn it on properly; none of
+    // them is "set this back to `true` and hope".
     //
-    // So the premise is asserted in this direction again, and the template guard below is
-    // live rather than dormant — which is the state that actually protects #79.
+    // ⚠️ **#50 turned it on in production, and this still reads `false` — deliberately.**
+    // The override lives in `[remotes.production]` and no local command resolves it, so
+    // `false` remains the literal truth for the two environments this file's other
+    // assertions describe. It is also the conservative reading for the guard below: the
+    // restriction may well have lifted in production, but `config push` sends `smtp_enabled`
+    // and any template fields in the *same* request, and **nobody has established whether
+    // the API judges that request against the config arriving or the config already there**.
+    // Finding out belongs to a change that is about the template. Until then this guard
+    // stays live, which is the state that actually protects #79.
     expect(customSmtp()).toBe(false);
   });
 
@@ -398,5 +461,99 @@ describe('the auth.captcha block', () => {
     expect(captchaValue('enabled')).toBe('true');
     expect(captchaValue('provider')).toBe('"turnstile"');
     expect(captchaValue('secret')).toBe('"env(SUPABASE_AUTH_CAPTCHA_SECRET)"');
+  });
+});
+
+/**
+ * **The production-only override — #50, and the one place this file stops describing what a
+ * laptop runs.**
+ *
+ * `supabase config push` applies a `[remotes.<name>]` block whose `project_id` matches the
+ * linked project. `deploy-db.yml` links immediately before pushing, so the merge happens
+ * there and only there — no local command passes a project ref, which is why `./dev up`,
+ * `./dev check` and `./dev test` all go on reading the base document.
+ *
+ * **This is the one mechanism in this file that no local check can prove**, and that is the
+ * reason for asserting its shape so precisely. `supabase status` does not run the validation
+ * `config push` does — a base `[auth.email.smtp]` with `enabled = true` and an empty password
+ * passes `status` in silence, measured — so nothing here can tell you the override *worked*.
+ * What these assertions can do is fail the moment its shape drifts: a renamed remote, a
+ * mistyped project id, a second key quietly added to the override, or the base block flipped
+ * on so that CI starts dialling Resend again.
+ *
+ * The proof that it worked is a green `deploy-db` run followed by a real confirmation email
+ * arriving at a real inbox, and both are steps in `accounts-open.md`.
+ */
+describe('the production-only override', () => {
+  /** Every uncommented `[section]` header in the file, in order. */
+  function sectionNames(): string[] {
+    return CONFIG.split('\n')
+      .map((line) => /^\[([^\]]+)\]$/.exec(line.trim())?.[1])
+      .filter((name): name is string => name !== undefined);
+  }
+
+  /** The keys declared under one section, in order. */
+  function sectionKeys(section: string): string[] {
+    const lines = CONFIG.split('\n');
+    const start = lines.findIndex((line) => line.trim() === section);
+    if (start === -1) throw new Error(`config.toml has no ${section} section`);
+    const nextSection = lines.findIndex(
+      (line, i) => i > start && /^\[/.test(line.trim()),
+    );
+
+    return lines
+      .slice(start + 1, nextSection === -1 ? undefined : nextSection)
+      .map((line) => /^(\w+)\s*=/.exec(line.trim()))
+      .filter((match): match is RegExpExecArray => match !== null)
+      .map((match) => match[1]!);
+  }
+
+  it('names the club project, in the form the CLI will accept', () => {
+    // The CLI validates `project_id` against a twenty-lowercase-letter pattern, and refuses
+    // two remotes naming the same project. A ref that is merely *wrong* rather than
+    // malformed is the failure this assertion exists for: it passes the CLI's own check and
+    // then silently matches nothing, so the push succeeds and production quietly keeps the
+    // built-in sender — the exact silence #50 exists to remove.
+    //
+    // Not a secret, and not treated as one anywhere else: it is the host part of
+    // `PUBLIC_SUPABASE_URL` in `apps/main/wrangler.jsonc`, which ships to every browser.
+    const projectId = sectionValue('[remotes.production]', 'project_id').replace(
+      /"/g,
+      '',
+    );
+    expect(projectId).toBe('ketipxpyjjglwpqazsft');
+    expect(projectId).toMatch(/^[a-z]{20}$/u);
+  });
+
+  it('turns on the custom mail provider that CI and a laptop cannot use', () => {
+    // The single line the whole block exists for. Base is `false` because CI and every
+    // laptop have a placeholder password and cannot reach Resend — with `true` there, every
+    // `signUp()` in the database tests answers `Error sending confirmation email`, which is
+    // three suites and 116 tests. Measured in #98, not predicted.
+    expect(sectionValue('[remotes.production.auth.email.smtp]', 'enabled')).toBe('true');
+  });
+
+  it('overrides exactly one key, and nothing else about production differs', () => {
+    // **The assertion that actually protects this.** A remote block deep-merges over the
+    // base, so every key left out of it is stated once, in the base, where the rest of this
+    // file's tests can see it. The moment a second key appears here, production runs
+    // something no assertion above describes — and the divergence a reader has to hold in
+    // their head goes from one boolean to a list nobody is keeping.
+    //
+    // Growing it is a decision rather than a convenience, and this test is what makes it
+    // one — the same job `entries.test.ts` does for a fourteenth anon-callable function.
+    expect(sectionNames().filter((name) => name.startsWith('remotes.'))).toEqual([
+      'remotes.production',
+      'remotes.production.auth.email.smtp',
+    ]);
+    expect(sectionKeys('[remotes.production]')).toEqual(['project_id']);
+    expect(sectionKeys('[remotes.production.auth.email.smtp]')).toEqual(['enabled']);
+  });
+
+  it('leaves the base block off, so nothing local dials out', () => {
+    // The other half of the same guarantee, asserted from this end too. If somebody
+    // "helpfully" turns the base on to match production, CI goes red here — rather than in
+    // three database suites, with an error about confirmation email that names no cause.
+    expect(sectionValue('[auth.email.smtp]', 'enabled')).toBe('false');
   });
 });

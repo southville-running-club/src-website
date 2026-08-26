@@ -241,6 +241,50 @@ The zone holds **18 records**, captured 6 August 2026:
 
 No CAA records. No AAAA records. No ALIAS or SRV records.
 
+### Added since: the Resend sending subdomain — #50
+
+**`send.southvillerunningclub.co.uk` is a sending subdomain, and it is deliberately not a mail
+domain.** It exists so that application mail — confirmations, magic links, password resets —
+can never touch the sending reputation of the mailbox the committee reads. That separation is
+the whole argument of [`email.md`](../solutions/email.md), and it is why the apex is *not*
+verified in Resend.
+
+Verified by direct query, 26 August 2026:
+
+| Type | Host | Value | Purpose |
+| --- | --- | --- | --- |
+| TXT | `resend._domainkey.send` | `p=MIGfMA0GCSqGSIb3DQEB…` (1024-bit RSA) | Resend DKIM |
+| MX | `send.send` | `feedback-smtp.eu-west-1.amazonses.com` pri 10 | Bounce and complaint feedback |
+| TXT | `send.send` | `v=spf1 include:amazonses.com ~all` | SPF for the bounce domain |
+
+**Three things about that table are load-bearing, and two of them are easy to misread.**
+
+- **The apex SPF was never touched, and never needed to be.** It is still
+  `v=spf1 mx a include:_spf.livemail.co.uk ~all`, re-verified on the date above. Resend's
+  envelope sender is `send.send.…`, which carries its own SPF record, so **the club's one SPF
+  record stays a record about the club's own mail** and the ten-lookup limit that
+  [`email.md`](../solutions/email.md) flags is not approached. This is the "extend, do not
+  replace" requirement met by not having to extend anything.
+- **Both SPF and DKIM align, so DMARC passes on either.** The envelope domain `send.send.…`
+  and the `From` domain `send.…` share the organisational domain, which is relaxed alignment;
+  DKIM signs as `d=send.southvillerunningclub.co.uk`, which aligns the same way. DMARC is
+  `p=none` — monitoring only — so nothing is being enforced yet, but the records are in a state
+  where tightening it later is a policy change rather than a rebuild.
+- ⚠️ **There is an MX on `send.send.`, and it does not give account mail a reply path.** It
+  accepts *bounces and complaints* from Amazon SES on Resend's behalf. A **reply** goes to the
+  `From` — `noreply@send.southvillerunningclub.co.uk` — and **that** host has no MX, so it
+  bounces. That is accepted rather than overlooked: GoTrue has no `reply_to` field, so no
+  arrangement of DNS fixes it. Adding an MX to `send.` to catch replies would be a change to
+  the mail zone — the highest-risk surface the club has — to buy a reply path for one category
+  of automated mail. [#99](https://github.com/southville-running-club/src-website/issues/99)
+  buys it properly instead, from the Worker, where `reply_to` is simply a field.
+
+**One alias, and it is not the reply path.** `noreply@southvillerunningclub.co.uk` — the **main
+domain**, not `send.` — is a Fasthosts alias onto `info@`, added 26 August 2026. It is a
+mailbox setting rather than a DNS record, which is why it appears in no table above, and it
+catches only somebody who re-types or hand-addresses the local part. It does **not** catch the
+Reply button, because that goes to the other domain. Same hedge `nn@` already carries.
+
 **Verified by direct query against the authoritative nameservers, 7 August 2026:**
 
 | | |
