@@ -759,7 +759,7 @@ describe('the entries list', () => {
     expect(await pageText(response)).toContain('Nwosu, Harriet');
   });
 
-  it('offers no way to change anything', async () => {
+  it('offers exactly one way to change anything, and it is the cancel button', async () => {
     /**
      * **Nothing on this surface writes to an entry, and the page is built so that is visible
      * rather than hidden.**
@@ -787,6 +787,11 @@ describe('the entries list', () => {
         '/admin/nn/export/',
         // The printable start list, audited.
         '/admin/nn/start-list/',
+        // **The fourth, and the first endpoint on this surface that changes a record.**
+        // #107 and ADR-018. The three above take a copy of something out; this one refunds a
+        // payment and deletes an entrant, which is why it posts to a confirmation page rather
+        // than doing it — the POST that arrives here changes nothing on its own.
+        '/admin/nn/cancel/',
       ]),
     );
 

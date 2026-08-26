@@ -363,9 +363,14 @@ function roleControl(person: Person, role: GrantableRole, token: string): Html {
     <input type="hidden" name="role" value="${role.slug}" />
     <button type="submit" class="admin-button">
       ${held ? 'Revoke' : 'Grant'} ${role.slug}
-      <span class="admin-visually-hidden">
-        for ${person.email}. ${role.description}
-      </span>
+      ${
+        /* **The person and the role, and deliberately not the description.** #59's requirement
+           is that the accessible name distinguishes one button from another, and it already
+           does. Appending what the role allows would put a sentence into every one of them —
+           two hundred people times four roles — read out in full each time somebody tabs past.
+           The description belongs in `roleLegend`, once, where it is read once. */ null
+      }
+      <span class="admin-visually-hidden">for ${person.email}</span>
     </button>
   </form>`;
 }

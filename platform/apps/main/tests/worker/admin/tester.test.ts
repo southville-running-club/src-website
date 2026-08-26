@@ -177,15 +177,28 @@ describe('the year page before entries open', () => {
   });
 
   it('leaves the race page alone — the front door still says entries are shut', async () => {
-    // `/nn/` is about the race rather than the running, it is read anonymously on purpose, and
-    // a tester must not turn the club's front door into an advert for a window that is shut.
+    // **`/nn/` has no entry form to reveal at all**, which is why this asserts absence rather
+    // than calling `entryFormRevealed`. The race page is evergreen: both forms live on the
+    // year page, and this one is prose, facts and links. `resolveNnRaceView` reads the
+    // database anonymously on purpose, and this is the test that says so — a tester must not
+    // turn the club's front door into an advert for a window that is shut for everybody else.
     const response = await SELF.fetch(`${SITE}/nn/`, {
       headers: { cookie: await signIn(NN_TESTER_EMAIL) },
       redirect: 'manual',
     });
 
     expect(response.status).toBe(200);
-    expect(entryFormRevealed(await response.text())).toBe(false);
+
+    const markup = await response.text();
+
+    expect(markup).not.toContain('data-nn-entry');
+    expect(markup).not.toContain('data-nn-entry-early');
+
+    // **And no form of any kind**, which is what `/nn/` is now: the interest form moved to the
+    // year page with the entry form, so the race page is prose and links. Asserted because a
+    // tester-only form appearing on the evergreen page is precisely the accident this route
+    // split exists to make impossible.
+    expect(markup).not.toContain('<form');
   });
 });
 
