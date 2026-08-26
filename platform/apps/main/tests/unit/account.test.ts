@@ -165,6 +165,31 @@ describe('the club chrome, on every account page', () => {
     expect(markup).toContain('href="/" aria-label="Southville Running Club, home"');
   });
 
+  it('offers the way to every other part of the site', async () => {
+    // **The half a signed-in member notices.** Before this, `/account/` was somewhere you
+    // arrived and could not leave except by editing the address bar: no link to the race, none
+    // to timing, none home.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain(
+      '<nav class="site-nav" aria-label="Southville Running Club">',
+    );
+    for (const href of ['/', '/nn/', '/timing', '/account/']) {
+      expect(markup, `the bar must link ${href}`).toContain(`href="${href}"`);
+    }
+  });
+
+  it('marks the account section as the one being read', async () => {
+    // `aria-current="page"` and not merely a class. A visual marker tells a sighted reader
+    // where they are; without the attribute nobody else is told at all.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('<a href="/account/" aria-current="page">');
+    // And exactly one section is current — a marker on two is worse than none, because it is
+    // confidently wrong rather than absent.
+    expect(markup.match(/aria-current="page"/g) ?? []).toHaveLength(1);
+  });
+
   it('carries the footer, and with it the privacy notice', async () => {
     // #60 published a site-wide privacy notice and every other page foots with a link to it.
     // The account area is where somebody's standing record actually lives, so it was the one
@@ -175,15 +200,29 @@ describe('the club chrome, on every account page', () => {
     expect(markup).toContain('href="/privacy/"');
   });
 
-  it('names the club once, not twice, for a screen reader', async () => {
-    // The wordmark is `aria-hidden` because the link around it is already labelled. Rendering
-    // it with `role="img"` and its own `aria-label` as well would announce "Southville Running
-    // Club" twice in a row — the exact thing `ClubLogo.astro`'s `labelled` prop exists to
-    // avoid, and easy to lose when copying markup between frameworks.
-    const markup = await accountPage();
+  it('does not announce the wordmark on top of the link that already names it', async () => {
+    // The wordmark is `aria-hidden` because the link around it is already labelled
+    // "Southville Running Club, home". Giving the artwork `role="img"` and its own
+    // `aria-label` as well announces the club twice in a row — the exact thing
+    // `ClubLogo.astro`'s `labelled` prop exists to avoid, and the easiest thing to lose when
+    // copying markup between frameworks.
+    //
+    // **Asserted on the `<svg>` rather than on the page.** The first version of this test
+    // forbade the string `aria-label="Southville Running Club"` anywhere in the document, and
+    // it went red the moment the navigation landmark arrived carrying that label legitimately
+    // — naming the *navigation*, which is what `NnNav` does with "Nightingale Nightmare". A
+    // blunt assertion that fails on a correct change is one somebody eventually deletes.
+    // Squashed before matching, for the Prettier-and-`html`-tag reason `CLAUDE.md` gives:
+    // formatting `site-chrome.ts` reflows the markup inside the template, so `<svg` and its
+    // own class attribute arrive on separate lines. This assertion failed on exactly that
+    // before the squash went in, on markup that was perfectly correct.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+    const svg = /<svg class="site-logo"[^>]*>/.exec(markup)?.[0] ?? '';
 
-    expect(markup).toContain('class="site-logo"');
-    expect(markup).not.toContain('aria-label="Southville Running Club"');
+    expect(svg).not.toBe('');
+    expect(svg).toContain('aria-hidden="true"');
+    expect(svg).not.toContain('role="img"');
+    expect(svg).not.toContain('aria-label');
   });
 });
 

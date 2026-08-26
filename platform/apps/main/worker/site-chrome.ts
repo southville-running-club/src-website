@@ -1,6 +1,6 @@
-import { CLUB_LOGO, SITE_BANNER } from '@src/shared/brand';
+import { CLUB_LOGO, SITE_BANNER, SITE_NAV } from '@src/shared/brand';
 import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
-import { html, type Html } from './html';
+import { html, raw, type Html } from './html';
 
 /**
  * The club's banner and footer, for the pages the **Worker** renders.
@@ -137,6 +137,37 @@ export function siteFooter(): Html {
     </ul>
     <p class="site-footer-legal"><a href="/privacy/">Privacy notice</a></p>
   </footer>`;
+}
+
+/**
+ * The bar that gets you between the parts of this site.
+ *
+ * **`src/components/SiteNav.astro` is this function's opposite number**, and the split is the
+ * same one the banner has: one is Astro, one is a template literal in a Worker, so they share
+ * `SITE_NAV` rather than a component. The tags are duplicated; the links and the labels cannot
+ * drift.
+ *
+ * **On `/account/*` and nowhere else the Worker renders.** `/admin/` has its own bar, painted
+ * per request from `identity.my_roles()` so nobody is offered a section that would 404 at them
+ * — putting the club's bar beside it would be two navigations on one page, and the club's one
+ * would be the one that does not know who is signed in.
+ *
+ * `aria-current="page"` on the section being read, so somebody using a screen reader is told
+ * where they are rather than only shown.
+ */
+export function siteNav(pathname: string): Html {
+  return html`<nav class="site-nav" aria-label="Southville Running Club">
+    <ul>
+      ${SITE_NAV.map(
+        ({ href, label, match }) =>
+          html`<li>
+            <a href="${href}" ${match.test(pathname) ? raw('aria-current="page"') : ''}>
+              ${label}
+            </a>
+          </li>`,
+      )}
+    </ul>
+  </nav>`;
 }
 
 /**

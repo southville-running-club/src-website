@@ -128,3 +128,41 @@ export const SITE_BANNER = {
   /** The full stop that closes the sentence after the link. */
   scopeEnd: '.',
 } as const;
+
+/**
+ * The bar that gets you between the parts of this site.
+ *
+ * **They had no route between them at all until this existed.** `/` linked on to `/nn/` and
+ * `/timing` in a sentence of prose; nothing linked back, and `/account/` was reachable only by
+ * typing it. Somebody who signed in and then wanted the race page had to edit the address bar.
+ *
+ * ## Where this bar appears, and where it must not
+ *
+ * **Club pages and the account area. Never on a Nightingale Nightmare page** — a layout
+ * decision rather than a taste one. Those pages carry their own bar, stuck to the top, whose
+ * height is paid for by a hand-written `scroll-padding-top` token per breakpoint
+ * ([ADR-014](../../../../docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md)).
+ * A second bar above it moves every anchor and every keyboard focus behind the header, at every
+ * width, with nothing visibly wrong. `Base.astro` keys off `theme === 'nn'`, which those pages
+ * already carry.
+ *
+ * **They are not stranded by that.** `NnMasthead` has linked the club wordmark to `/` since it
+ * was written, so the route home exists there already — as the mark rather than a tab, which
+ * costs no height in a bar where height is the constrained resource.
+ *
+ * ## Labels
+ *
+ * `Account`, not `My account` or `Sign in`. **The club pages are static**, so nothing rendering
+ * this bar on `/` knows whether anybody is signed in, and a label promising one state while
+ * delivering the other is worse than a neutral one. `/account/` redirects to sign-in when there
+ * is no session, so the destination is right either way.
+ *
+ * `match` is a shape rather than an href — the same convention `NnNav` uses — so a section
+ * marks itself current from any page inside it.
+ */
+export const SITE_NAV = [
+  { href: '/', label: 'Home', match: /^\/$/u },
+  { href: '/nn/', label: 'Nightingale Nightmare', match: /^\/nn(\/|$)/u },
+  { href: '/timing', label: 'Race timing', match: /^\/timing(\/|$)/u },
+  { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
+] as const;

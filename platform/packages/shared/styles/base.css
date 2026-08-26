@@ -305,6 +305,78 @@ a[href^='mailto:'] {
   outline-color: var(--colour-banner-link);
 }
 
+/* ---------------------------------------------------------------------------------------
+ * The site navigation — the bar between the parts of this site
+ * ---------------------------------------------------------------------------------------
+ *
+ * Rendered by `SiteNav.astro` on the club's pages and by `worker/site-chrome.ts` on
+ * `/account/`. **Never on a Nightingale Nightmare page**: those carry their own bar, stuck to
+ * the top, and a second one above it moves every anchor behind the header — ADR-014, and the
+ * reason `Base.astro` keys this off `theme`.
+ *
+ * **Not sticky, and that is the whole reason it costs nothing to add.** ADR-014 sticks the
+ * campaign bar because a runner scrolls a long page of prose and needs the way out in reach.
+ * These pages are short, and not sticking this means there is no inset to keep in step with
+ * its height — so a label here is free text, where one in the campaign bar is a layout change.
+ *
+ * Every colour is a semantic token, so the dark scheme at the head of this file applies with
+ * no second block here.
+ */
+.site-nav {
+  border-bottom: 1px solid var(--colour-rule);
+  background: var(--colour-background);
+}
+
+.site-nav ul {
+  display: flex;
+  /* **Wrapping rather than scrolling**, because a horizontally scrolling bar hides links with
+     no affordance saying so. Four labels, one of which is two words, fit one row from about
+     560px and take two below it — which is fine when nothing is measuring this bar's height. */
+  flex-wrap: wrap;
+  gap: 0 calc(var(--space) * 1.25);
+  margin: 0 auto;
+  padding: 0.5rem var(--space);
+  /* The same expression the banner and `main` use, so the bar's links line up with the
+     wordmark above them and the prose below rather than nearly doing. */
+  max-width: calc(var(--measure) + var(--space) * 2);
+  list-style: none;
+}
+
+.site-nav a {
+  display: inline-block;
+  /* The row is 44px tall at this padding, which is the smallest comfortable touch target and
+     the reason the padding is on the link rather than the `li`. */
+  padding: 0.6rem 0;
+  color: var(--colour-text);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  color: var(--colour-accent);
+  text-decoration: underline;
+}
+
+/* **The current section, marked twice over.** `aria-current` is what a screen reader is told;
+   the underline is what everybody else sees. Neither alone is enough — a colour change on its
+   own also fails against a reader who cannot distinguish it. */
+.site-nav a[aria-current='page'] {
+  color: var(--colour-accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* Matching the ring the banner's links carry, and for the same reason: the default outline is
+   the one thing a theme most often loses. */
+.site-nav a:focus-visible {
+  outline: 3px solid var(--colour-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .lede {
   color: var(--colour-muted);
 }

@@ -22,7 +22,7 @@ import {
 } from '@src/shared';
 import { html, raw, type Html } from './html';
 import { cookieValue } from './cookies';
-import { faviconLink, siteBanner, siteFooter } from './site-chrome';
+import { faviconLink, siteBanner, siteFooter, siteNav } from './site-chrome';
 import {
   REFRESH_COOKIE,
   clearedSessionCookies,
@@ -32,7 +32,7 @@ import {
   type Session,
 } from './session';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
-import { accountSegments } from './routing';
+import { ACCOUNT_PREFIX, accountSegments } from './routing';
 
 /**
  * `/account/` — register, sign in, sign out. #51 gave the database a person; #52 gave the
@@ -2567,7 +2567,11 @@ function page(
         <link rel="stylesheet" href="/account.css" />
       </head>
       <body>
-        ${siteBanner()} ${body} ${siteFooter()}
+        ${siteBanner()}
+        <!-- Every page this shell renders is under ACCOUNT_PREFIX, so the current-section
+             marker is constant. Threading a pathname through thirty call sites to compute a
+             value that cannot vary would be a parameter nobody could get right. -->
+        ${siteNav(ACCOUNT_PREFIX)} ${body} ${siteFooter()}
       </body>
     </html>`;
 

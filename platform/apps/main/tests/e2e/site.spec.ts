@@ -250,6 +250,78 @@ test.describe('the browser-tab icon', () => {
   });
 });
 
+/**
+ * The bar between the parts of this site.
+ *
+ * **The rule worth guarding is where it is *not*.** Nightingale Nightmare's pages carry their
+ * own bar, stuck to the top, whose height is paid for by a hand-written `scroll-padding-top`
+ * token per breakpoint — [ADR-014]. A second bar above it moves every anchor and every keyboard
+ * focus behind the header at every width, with nothing visibly wrong, which is the defect that
+ * record exists to answer. `Base.astro` keys the club bar off `theme`, and the test below is
+ * what says so out loud.
+ *
+ * The bar-height sweep further down this file is the other half: it measures the campaign bar
+ * against its token at nine widths, and would go red if anything here reached those pages.
+ */
+test.describe('the bar between the parts of this site', () => {
+  const SECTIONS = [
+    ['Home', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+    ['Race timing', '/timing'],
+    ['Account', '/account/'],
+  ] as const;
+
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['the privacy notice', '/privacy/'],
+  ] as const) {
+    test(`${name} offers every part of the site`, async ({ page }) => {
+      await page.goto(path);
+
+      const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+      await expect(nav).toBeVisible();
+
+      for (const [label, href] of SECTIONS) {
+        await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+          'href',
+          href,
+        );
+      }
+    });
+  }
+
+  test('marks the section being read, and only that one', async ({ page }) => {
+    await page.goto('/privacy/');
+
+    const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+
+    // `aria-current` rather than a class alone: the underline tells a sighted reader where
+    // they are, and without the attribute nobody else is told at all.
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
+
+    await page.goto('/');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Home');
+  });
+
+  test('**stays off the campaign pages**, which have their own bar', async ({ page }) => {
+    // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
+    // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
+    // hand-written constant, so every anchor on the page lands behind it.
+    for (const path of ['/nn/', '/nn/course/', '/nn/2026/']) {
+      await page.goto(path);
+
+      await expect(page.locator('.site-nav')).toHaveCount(0);
+      await expect(
+        page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+      ).toBeVisible();
+
+      // And they are not stranded by that: the wordmark has been the route home since the
+      // masthead was written, which is why no tab is needed and no height is spent.
+      await expect(page.locator('.nn-masthead-mark')).toHaveAttribute('href', '/');
+    }
+  });
+});
+
 test.describe('the footer the whole site carries', () => {
   // **Added to `/timing` here.** The club's front door grew a social row and this app did
   // not, so somebody who landed on the timing page from a search had the club's colours, the
