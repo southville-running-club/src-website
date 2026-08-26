@@ -1,11 +1,23 @@
 import { createUserClient, type SupabaseConfig } from '@src/shared';
 import { html, raw, type Html } from './html';
-import { masthead, notFound, page, type AdminViewer } from './admin-shell';
+import { can, masthead, notFound, page, type AdminViewer } from './admin-shell';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
 import { cookieValue } from './cookies';
 
 /**
  * `/admin/people/` — who holds which role, and the two acts that change it.
+ *
+ * ## Two readings of one page, and the permission that decides which
+ *
+ * **`identity.person.read` opens the page; `identity.role.grant` opens the controls on it.**
+ * `people-admin` holds the first and not the second, and gets the same table with no third
+ * column — which is the whole of that role. `super-admin` holds both. Nobody holds the second
+ * without the first, because granting a role to somebody means finding them in this list.
+ *
+ * The split is deliberate and it is the same one the door itself makes: `admin.ts` gates
+ * *reaching* this file on the read, and the POST below is gated separately on the grant. A
+ * single permission for both would have meant either hiding the list from the role that
+ * exists to read it, or handing a reader the ability to make themselves `nn-admin`.
  *
  * ## Why this page exists at all
  *
@@ -101,6 +113,30 @@ interface GrantableRole {
  */
 const NOT_WORTH_A_BUTTON = ['registered'];
 
+/**
+ * The caption's id, so the scroller around the table can borrow it as its accessible name.
+ *
+ * **A scrollable region has to be reachable by keyboard, and until this page had a reading
+ * with no buttons on it, it was reachable by accident.** `.admin-scroll` scrolls horizontally
+ * at narrow widths; axe's `scrollable-region-focusable` is satisfied either by the region
+ * being focusable itself or by it *containing* something focusable, and every version of this
+ * table so far contained a Grant button on every row. Take the controls away for a
+ * `people-admin` and the region has nothing focusable in it at all — so somebody navigating by
+ * keyboard at 375px cannot scroll it, and the Roles column is simply unreachable to them.
+ *
+ * **Only mobile-safari saw it**, because the table does not overflow at desktop width and a
+ * region that does not scroll is not a scrollable region. That is the same shape as the
+ * radio-focus and CSV-download traps in `CLAUDE.md`: a defect one engine at one width reports
+ * and the others are quiet about.
+ *
+ * `tabindex="0"` alone is the fix axe asks for; `role="region"` and this name are what stop it
+ * being an unlabelled tab stop that announces nothing. **Both readings get it**, rather than
+ * only the one that needs it — a keyboard user scrolling a wide table should not have to tab
+ * through two hundred rows of buttons to do it, and one markup shape cannot drift out of step
+ * with the other.
+ */
+const CAPTION_ID = 'people-table-caption';
+
 interface Person {
   id: string;
   email: string;
@@ -134,6 +170,19 @@ export async function handlePeopleSection(
   }
 
   if (request.method === 'POST') {
+    // **The act is gated here, separately from the page.** `admin.ts` lets anybody holding
+    // `identity.person.read` through to this file, which is what `people-admin` is for — and
+    // a read-only viewer who is served a table with no forms on it can still hand-craft this
+    // POST. The 404 is the same one the rest of the prefix gives, for the same reason: a
+    // forged request learns nothing from it.
+    //
+    // `identity.grant_role()` refuses them too, and that is the enforcement rather than this.
+    // This is the door being shut in the right order — refuse before the form is read and
+    // before a row is touched, the discipline `entries.admin_key_ok()` established.
+    if (!can(viewer, 'identity.role.grant')) {
+      return notFound();
+    }
+
     return handleChange(request, viewer, cfg, secure);
   }
 
@@ -264,21 +313,40 @@ async function listPage(
   }
 
   const people = answer.people ?? [];
-  const grantable = (roleAnswer.roles ?? []).filter(
-    (role) => !NOT_WORTH_A_BUTTON.includes(role.slug),
-  );
-  const token = mintCsrfToken();
 
-  return page('People and roles', peopleBody(viewer, people, grantable, token, error), {
-    cookies: [csrfCookie(token, secure)],
+  // **The whole catalogue, and the filtering happens where the buttons are.** It used to be
+  // filtered here, which meant the legend and the controls were the same list — fine while
+  // the only reader was somebody granting. `registered` appears in every single row of the
+  // roles column and is the one role `NOT_WORTH_A_BUTTON` withholds, so a page that hides it
+  // from the legend leaves a word on screen that nothing on the page defines. That was always
+  // slightly wrong; for a `people-admin`, whose legend is the only explanation they get, it is
+  // the difference between a readable table and a column of slugs.
+  const roles = roleAnswer.roles ?? [];
+
+  // **No token for somebody who cannot act, and no cookie either.** A CSRF token exists to
+  // bind a form to this browser; a page with no forms on it has nothing to bind, and minting
+  // one anyway would set a cookie on every read a `people-admin` makes for the rest of the
+  // season without a single POST ever being able to spend it.
+  const token = can(viewer, 'identity.role.grant') ? mintCsrfToken() : null;
+
+  return page('People and roles', peopleBody(viewer, people, roles, token, error), {
+    cookies: token === null ? [] : [csrfCookie(token, secure)],
   });
 }
 
+/**
+ * The page, in one of its two readings.
+ *
+ * **`token === null` is what says "read only", and it is not a flag beside the data.** The
+ * token is the thing every control on this page needs and the thing a reader has none of, so
+ * carrying the permission separately would be two values that must agree — and the day they
+ * disagree is a page that renders a form it cannot submit, or withholds one it could.
+ */
 function peopleBody(
   viewer: AdminViewer,
   people: Person[],
   grantable: GrantableRole[],
-  token: string,
+  token: string | null,
   error: string | null,
 ): Html {
   return html`${masthead(viewer)}
@@ -286,25 +354,46 @@ function peopleBody(
       <h1>People and roles</h1>
       <p>
         Everybody with an account.
-        <strong>A role takes effect on their next request</strong> — there is no session
-        to end and nothing for them to do.
+        ${
+          token === null
+            ? /* **Said, rather than left as an absence.** A table whose third column is
+                 simply missing reads as a page that has failed to load, and somebody who
+                 thinks that goes looking for a second way to do the thing. */ html`<strong
+                  >You can see who holds what, and not change it</strong
+                >
+                — ask a super-admin to grant or revoke a role.`
+            : html`<strong>A role takes effect on their next request</strong> — there is
+                no session to end and nothing for them to do.`
+        }
       </p>
       ${error === null ? null : html`<p class="admin-error" role="alert">${error}</p>`}
       ${roleLegend(grantable)}
       ${
         people.length === 0
           ? html`<p>Nobody has registered yet.</p>`
-          : html`<div class="admin-scroll">
+          : html`<div
+              class="admin-scroll"
+              tabindex="0"
+              role="region"
+              aria-labelledby="${raw(CAPTION_ID)}"
+            >
               <table class="admin-table">
-                <caption class="admin-visually-hidden">
-                  Everybody with an account, the roles they hold, and the controls that
-                  change them
+                <caption class="admin-visually-hidden" id="${raw(CAPTION_ID)}">
+                  ${
+                    /* One line each, deliberately. A caption is read out whole, and a template
+                       literal broken across source lines carries its indentation into the
+                       string — harmless once HTML collapses it, and not something to rely on
+                       when the string is what a screen reader announces. */
+                    token === null
+                      ? 'Everybody with an account and the roles they hold'
+                      : 'Everybody with an account, the roles they hold, and the controls that change them'
+                  }
                 </caption>
                 <thead>
                   <tr>
                     <th scope="col">Person</th>
                     <th scope="col">Roles</th>
-                    <th scope="col">Change</th>
+                    ${token === null ? null : html`<th scope="col">Change</th>`}
                   </tr>
                 </thead>
                 <tbody>
@@ -329,7 +418,7 @@ function personRow(
   person: Person,
   viewer: AdminViewer,
   grantable: GrantableRole[],
-  token: string,
+  token: string | null,
 ): Html {
   return html`<tr>
     <th scope="row">
@@ -338,7 +427,15 @@ function personRow(
       ${person.id === viewer.id ? html`<span class="admin-chip">you</span>` : null}
     </th>
     <td>${person.roles.length === 0 ? 'none' : person.roles.join(', ')}</td>
-    <td>${grantable.map((role) => roleControl(person, role, token))}</td>
+    ${
+      token === null
+        ? null
+        : html`<td>
+            ${grantable
+              .filter((role) => !NOT_WORTH_A_BUTTON.includes(role.slug))
+              .map((role) => roleControl(person, role, token))}
+          </td>`
+    }
   </tr>`;
 }
 

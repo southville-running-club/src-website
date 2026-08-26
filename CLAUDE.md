@@ -73,14 +73,18 @@ re-run.
   [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Transfers,
   corrections, manual entries, resends and partial refunds are each still a stop-and-ask**, and
   each is a decision about changing a record somebody paid for.
-- **A fifth role, or a seventh permission.** Since #107 a role is a bundle of permissions and
+- **A sixth role, or an eighth permission.** Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
-  [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). The four
-  roles and the six permissions are asserted exactly in
+  [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). The five
+  roles and the seven permissions are asserted exactly in
   `packages/db/tests/identity-permissions.test.ts`, which is what replaced `identity.roles`'
   check constraint and does the same job: it makes an addition a decision somebody takes in a
   diff. Adding a role is a migration and no deploy — `/admin/people/` reads
-  `identity.grantable_roles()`.
+  `identity.grantable_roles()`. **`people-admin` is the fifth and it is what the mechanism was
+  built for** — one permission, `identity.person.read`, which opens `/admin/people/` to be read
+  and nothing else on the surface. Reading the club's people and changing what they may do are
+  two permissions, and `super-admin` holds both because granting a role means finding somebody
+  in that list first.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -437,12 +441,15 @@ The runbooks that gate them are `entries-open.md` step 0.1 and `accounts-open.md
 not be there.** Signed out, a plain `registered`, the wrong role, an address nobody built — all the
 same ordinary not-found page, because a 403 discloses that the address exists. `/admin/nn/` reads
 the entries for a running, the interest sign-ups, one medical note at a time, three CSV exports
-and a printable start list; `/admin/people/` is where a role is granted. The way in is an account
-holding `nn-admin` or `super-admin`, checked per request through `identity.my_roles()` and
-`identity.my_permissions()` — [the admin runbook](docs/delivery/runbooks/entries-admin.md) has the
-addresses and the bootstrap. **The sections are gated on permissions and the door is gated on
-roles**, and the split is deliberate: `isStaff()` answers "is this person staff", which
-`nn-tester` must fail even though it holds a permission.
+and a printable start list; `/admin/people/` is who holds what, and where a role is granted. The
+way in is an account holding `nn-admin`, `people-admin` or `super-admin`, checked per request
+through `identity.my_roles()` and `identity.my_permissions()` —
+[the admin runbook](docs/delivery/runbooks/entries-admin.md) has the addresses and the bootstrap.
+**The sections are gated on permissions and the door is gated on roles**, and the split is
+deliberate: `isStaff()` answers "is this person staff", which `nn-tester` must fail even though
+it holds a permission. **`/admin/people/` has two readings and it is one page**: reading it is
+`identity.person.read` and the controls on it are `identity.role.grant`, so a `people-admin` gets
+the same table with no third column and a POST refused with the same 404.
 
 **The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
 the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308

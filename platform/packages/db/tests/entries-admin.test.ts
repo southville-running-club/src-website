@@ -62,8 +62,8 @@ const ENTRANT_PENDING = '0a0a0a0a-0000-4000-8000-000000000012';
  * **The roles are inserted through the privileged connection rather than granted through
  * `identity.grant_role()`**, which needs a caller who already holds `super-admin` — and the
  * only address the migration reserves that role for is `admin@southvillerunningclub.co.uk`,
- * which `identity.test.ts` already signs up and deletes. Vitest runs these files at the same
- * time, so competing for one address is how an intermittent gets written.
+ * which `identity.test.ts` already signs up and deletes. Competing for one address is how an
+ * intermittent gets written.
  *
  * **And there is no super-admin here at all, which is deliberate and cost a green run to
  * learn.** `identity.revoke_role()` refuses to remove *the last* active super-admin grant, so
@@ -71,9 +71,17 @@ const ENTRANT_PENDING = '0a0a0a0a-0000-4000-8000-000000000012';
  * than about its own fixtures — it is the one property in this directory that cannot be
  * scoped to an invented event or an invented address. A second super-admin created here made
  * it false while the two files overlapped, and the failure surfaced two files away from its
- * cause. **Exactly one test file may hold a super-admin, and it is `identity.test.ts`** — so
- * the "a super-admin does not thereby hold nn-admin" case for these four functions lives
- * there, beside the fixture it needs.
+ * cause.
+ *
+ * **The rule that followed — "exactly one test file may hold a super-admin" — is now enforced
+ * by the runner rather than by remembering it.** `vitest.config.ts` sets
+ * `fileParallelism: false` on the `db` project, so no other file is alive while
+ * `identity.test.ts` makes that claim. The rule had already been broken for a while without
+ * anything going red: `identity-permissions.test.ts` has held two super-admins since #107, and
+ * only the order the two files happened to finish in kept it green. Keeping no super-admin
+ * here is still the right shape — the "a super-admin does not thereby hold nn-admin" case for
+ * these four functions belongs in `identity.test.ts`, beside the fixture it needs — but it is
+ * no longer the only thing standing between this directory and an intermittent.
  */
 const NN_ADMIN_EMAIL = 'zz-entries-admin-nn@example.com';
 const REGISTERED_EMAIL = 'zz-entries-admin-member@example.com';

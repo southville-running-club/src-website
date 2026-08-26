@@ -14,6 +14,7 @@ import {
   REGISTERED_EMAIL,
   NN_ADMIN_EMAIL,
   OVER_ENTRANT_ID,
+  PEOPLE_ADMIN_EMAIL,
   PAID_EA_NUMBER,
   PAID_ENTRANT_ID,
   PAID_NON_ASCII_LAST_NAME,
@@ -56,6 +57,10 @@ const SITE = 'https://example.com';
 const ADMIN = '/admin/';
 const NN = '/admin/nn/';
 const PEOPLE = '/admin/people/';
+
+/** `worker/admin-people.ts`'s caption id, written out rather than imported — this file asserts
+ *  markup, and an expectation read from the module that produced it asserts nothing. */
+const CAPTION_ID = 'people-table-caption';
 
 /**
  * Cloudflare's own published dummy response token, which `[auth.captcha]`'s matching dummy
@@ -245,13 +250,15 @@ async function medicalReadAudit(): Promise<AuditRow[]> {
 let nnAdmin = '';
 let member = '';
 let superAdmin = '';
+let peopleAdmin = '';
 
 beforeAll(async () => {
-  // Sequential rather than concurrent: three sign-ins is three rows in GoTrue's rate-limit
+  // Sequential rather than concurrent: four sign-ins is four rows in GoTrue's rate-limit
   // bucket either way, and a failure in one should say which one.
   nnAdmin = await signIn(NN_ADMIN_EMAIL);
   member = await signIn(REGISTERED_EMAIL);
   superAdmin = await signIn(SUPER_ADMIN_EMAIL);
+  peopleAdmin = await signIn(PEOPLE_ADMIN_EMAIL);
 });
 
 // -----------------------------------------------------------------------------------------
@@ -474,6 +481,38 @@ describe('the door', () => {
     expect(await pageText(response)).not.toContain(SUPER_ADMIN_EMAIL);
   });
 
+  it('refuses a people-admin at the race section, and at every address under it', async () => {
+    // **The third corner of "a grant is not an inheritance".** `people-admin` reads the club's
+    // whole address book, which is the largest disclosure on this surface after the entry
+    // list — and it is emphatically not the entry list. Reading who has an account and reading
+    // two hundred entrants' emergency contacts are different decisions, and holding one must
+    // never be a way to reach the other.
+    for (const address of [NN, `${NN}entries/${ADMIN_EVENT_SLUG}/`]) {
+      const response = await get(address, peopleAdmin);
+
+      expect(response.status, address).toBe(404);
+      expect(await pageText(response), address).not.toContain(AWKWARD_LAST_NAME);
+    }
+  });
+
+  it('refuses a people-admin the two POST actions that read special category data', async () => {
+    const medical = await post(
+      `${NN}medical/`,
+      { entrantId: PAID_ENTRANT_ID },
+      peopleAdmin,
+    );
+    const exported = await post(
+      `${NN}export/`,
+      { event: ADMIN_EVENT_SLUG, kind: 'medical' },
+      peopleAdmin,
+    );
+
+    expect(medical.status).toBe(404);
+    expect(exported.status).toBe(404);
+    expect(await pageText(medical)).not.toContain(MEDICAL_NOTE);
+    expect(await pageText(exported)).not.toContain(MEDICAL_NOTE);
+  });
+
   it('answers 404 for an address under the prefix that nobody built', async () => {
     const response = await get('/admin/nowhere/', nnAdmin);
 
@@ -541,6 +580,17 @@ describe('the navigation', () => {
     expect(body).not.toContain('href="/admin/nn/"');
   });
 
+  it('offers a people-admin the roles page and not the race section', async () => {
+    // Painted from `identity.my_permissions()`, so the link and the door behind it cannot
+    // disagree — and `/admin/people/`'s section names `identity.person.read` rather than
+    // `identity.role.grant` for exactly this person: naming the grant would hide the page from
+    // the only role that exists to look at it.
+    const body = await pageText(await get(ADMIN, peopleAdmin));
+
+    expect(body).toContain('href="/admin/people/"');
+    expect(body).not.toContain('href="/admin/nn/"');
+  });
+
   it('offers a plain registered account nothing, because there is no page to offer it on', async () => {
     const response = await get(ADMIN, member);
     const body = await pageText(response);
@@ -555,6 +605,7 @@ describe('the navigation', () => {
     for (const [who, cookie] of [
       ['nn-admin', nnAdmin],
       ['super-admin', superAdmin],
+      ['people-admin', peopleAdmin],
     ] as const) {
       const body = await pageText(await get(ADMIN, cookie));
 
@@ -626,6 +677,16 @@ describe('the dashboard', () => {
     const body = await pageText(await get(ADMIN, superAdmin));
 
     expect(body).toContain('who may open what');
+    expect(body).not.toContain('the interest list, the medical notes');
+  });
+
+  it('tells a people-admin the roles page is a read, before they follow the link', async () => {
+    // **Said here rather than discovered there.** Somebody who follows this link expecting to
+    // grant a role and meets a table with no buttons reads it as a page that has failed to
+    // load, and somebody who thinks that goes looking for a second way to do it.
+    const body = await pageText(await get(ADMIN, peopleAdmin));
+
+    expect(body).toContain('who may open what — to read');
     expect(body).not.toContain('the interest list, the medical notes');
   });
 
@@ -1403,6 +1464,133 @@ describe('the roles page', () => {
     expect(markup).not.toContain('type="checkbox"');
     expect(markup.toLowerCase()).not.toContain('<select');
     expect(markup).not.toContain('Save');
+  });
+});
+
+/**
+ * The same page read by somebody who may not change it.
+ *
+ * **`identity.person.read` opens the page and `identity.role.grant` opens the controls on
+ * it**, which is the whole of `people-admin`. The assertions worth having are the negative
+ * ones: a role that reads the club's entire address book must not be one control away from
+ * handing itself the entry list.
+ */
+describe('the roles page, read by a people-admin', () => {
+  async function readOnlyPage(): Promise<Response> {
+    const response = await get(PEOPLE, peopleAdmin);
+    expect(response.status, 'the roles page, as a people-admin').toBe(200);
+    return response;
+  }
+
+  it('shows the same people and the same roles', async () => {
+    const markup = await pageText(await readOnlyPage());
+
+    expect(markup).toContain('People and roles');
+    expect(markup).toContain(NN_ADMIN_EMAIL);
+    expect(markup).toContain(REGISTERED_EMAIL);
+    expect(markup).toContain(SUPER_ADMIN_EMAIL);
+  });
+
+  it('offers no control at all, and says so rather than leaving a gap', async () => {
+    const markup = await pageText(await readOnlyPage());
+
+    // The column is gone, not disabled — a disabled button is a thing somebody keeps trying.
+    expect(markup).not.toContain('<th scope="col">Change</th>');
+    expect(markup).not.toContain('admin-inline-form');
+    expect(markup).not.toContain('<button');
+    expect(markup).not.toContain('csrf_token');
+    expect(markup).not.toContain('A role takes effect on their next request');
+
+    // And the page says which of its two readings this is, in words.
+    expect(markup).toContain('You can see who holds what, and not change it');
+  });
+
+  it('still explains what each role means, because the column is otherwise slugs', async () => {
+    // `identity.grantable_roles()` answers a reader for exactly this: the legend is the only
+    // thing on the page that resolves `nn-tester`, and it discloses what a word means rather
+    // than who holds it.
+    const markup = await pageText(await readOnlyPage());
+
+    expect(markup).toContain('What these roles allow');
+    expect(markup).toContain('nn.entry.before_open');
+  });
+
+  it('leaves the scrolling table reachable by keyboard with no buttons in it', async () => {
+    /**
+     * **The defect this page had for exactly one commit, and only mobile-safari reported it.**
+     * `.admin-scroll` scrolls sideways at narrow widths, and axe's
+     * `scrollable-region-focusable` is satisfied either by the region being focusable or by it
+     * containing something focusable. Every previous version of this table contained a Grant
+     * button on every row, so it passed by accident. Take the controls away and there is
+     * nothing focusable inside it at all — somebody navigating by keyboard at 375px cannot
+     * scroll it, and the Roles column is unreachable to them.
+     *
+     * Chromium was quiet because the table does not overflow at desktop width, and a region
+     * that does not scroll is not a scrollable region. Asserted here as markup as well as in
+     * `admin.spec.ts`'s axe pass, because the axe pass runs on one engine at one width and
+     * this is the property, not the symptom.
+     */
+    const markup = await pageText(await readOnlyPage());
+
+    expect(markup).toContain('class="admin-scroll" tabindex="0" role="region"');
+    expect(markup).toContain(`aria-labelledby="${CAPTION_ID}"`);
+    expect(markup).toContain(`id="${CAPTION_ID}"`);
+  });
+
+  it('sets no CSRF cookie, because there is no form to bind one to', async () => {
+    // Minting one anyway would set a cookie on every read this role makes for the rest of the
+    // season, with no POST that could ever spend it. Asserted through `setCookiePairs` rather
+    // than `csrfCookieFrom`, which exists to fail when the cookie is *missing*.
+    const pairs = setCookiePairs(await readOnlyPage());
+
+    expect(pairs.some((pair) => pair.startsWith('src_csrf='))).toBe(false);
+  });
+
+  it('refuses a hand-crafted grant with a 404, and changes nothing', async () => {
+    // **A page with no forms on it is not a gate.** The viewer can still write this request by
+    // hand, so the act is refused in `handlePeopleSection` before the form is read — and
+    // `identity.grant_role()` refuses them again underneath, which is the enforcement.
+    const { markup, csrfCookie } = await peoplePage();
+    const form = roleFormFor(markup, PEOPLE_ADMIN_EMAIL, 'nn-admin');
+
+    const forged = await post(
+      PEOPLE,
+      {
+        csrf_token: form['csrf_token']!,
+        action: 'grant',
+        person: form['person']!,
+        role: 'nn-admin',
+      },
+      jar(peopleAdmin, csrfCookie),
+    );
+
+    expect(forged.status).toBe(404);
+
+    // They did not give themselves the entry list.
+    expect((await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, peopleAdmin)).status).toBe(
+      404,
+    );
+  });
+
+  it('refuses a hand-crafted revoke the same way', async () => {
+    const { markup, csrfCookie } = await peoplePage();
+    const form = roleFormFor(markup, NN_ADMIN_EMAIL, 'nn-admin');
+
+    const forged = await post(
+      PEOPLE,
+      {
+        csrf_token: form['csrf_token']!,
+        action: 'revoke',
+        person: form['person']!,
+        role: 'nn-admin',
+      },
+      jar(peopleAdmin, csrfCookie),
+    );
+
+    expect(forged.status).toBe(404);
+
+    // And the nn-admin still holds it.
+    expect((await get(NN, nnAdmin)).status).toBe(200);
   });
 });
 

@@ -366,8 +366,26 @@ async function accountHome(
   }
 
   const client = createUserClient(cfg, session.accessToken);
-  const { data, error } = await client.rpc('my_roles');
-  const roles = !error && Array.isArray(data) ? (data as string[]) : [];
+
+  // **Which account, not what it may do.** This used to list the person's roles, and that was
+  // the wrong answer to the question somebody actually arrives at this page with. A role slug
+  // is the club's internal vocabulary — `nn-tester`, `registered` — and printing it to the
+  // person who holds it either means nothing to them or invites the question "what is that and
+  // why do I have it", which this page has no room to answer. It also stated a fact about
+  // access in a second place: `/admin/`'s navigation is painted from `identity.my_permissions()`
+  // per request, and two renderings of the same thing are two things that can disagree.
+  //
+  // What is useful here is the address. Somebody with a club account and a personal one — which
+  // is the ordinary case for a volunteer — needs to know which of the two they are looking at
+  // before they change a password or delete anything, and the rest of this page is exactly
+  // those acts. It is the same reason `/admin/`'s masthead names the address rather than the
+  // role, from the same read.
+  //
+  // **`getUser()` rather than a claim decoded out of the token.** It asks Supabase Auth, which
+  // is where the confirmed address lives — `identity.people` deliberately does not hold one —
+  // and it is the read `worker/admin.ts` already makes for the same purpose.
+  const { data: user } = await client.auth.getUser();
+  const email = user?.user?.email ?? null;
 
   const csrfToken = mintCsrfToken();
 
@@ -375,11 +393,20 @@ async function accountHome(
     <main class="account-page">
       <h1>Your account</h1>
       <p>
-        You are signed in.
         ${
-          roles.length > 0
-            ? html`Roles: ${roles.join(', ')}.`
-            : html`No roles beyond being signed in.`
+          email === null
+            ? /* The session is good — it got this far — but Supabase Auth did not answer.
+                 Saying "signed in" alone is true and says less, which is the right direction
+                 when the alternative is naming the wrong account.
+
+                 **A plain string rather than an `html` template, and that is the trap in
+                 `CLAUDE.md` rather than a preference.** Prettier reformats the contents of a
+                 template tagged `html` and is not configurable, so this sentence arrived with
+                 a newline between "signed" and "in" — perfectly correct markup that no
+                 `toContain('You are signed in')` can match. A string literal is not reflowed.
+                 There is no markup in it to lose. */
+              'You are signed in.'
+            : html`Signed in as <strong>${email}</strong>.`
         }
       </p>
       <p><a href="/account/entries/">Your race entries</a></p>
@@ -1465,9 +1492,11 @@ async function handleResetConfirm(
   try {
     // **`setSession()` before `updateUser()`, not a bearer header alone.** `updateUser()`
     // goes through GoTrue's own session tracking rather than a plain authenticated request
-    // — `createUserClient()`'s header is enough for a PostgREST call like `my_roles()`
-    // above, but `auth.*` methods ask the client's *internal* session, which is empty
-    // until something sets it. The same shape `session.ts`'s `signOut()` already uses.
+    // — `createUserClient()`'s header is enough for a PostgREST call, and enough for the
+    // `getUser()` in `accountHome()` above, which supabase-js answers straight from that
+    // header. `updateUser()` is the one that does not: it has to hand back a *new* session,
+    // so it asks the client's internal one, which is empty until something sets it. The same
+    // shape `session.ts`'s `signOut()` already uses.
     const client = createAnonClient(cfg);
     const set = await client.auth.setSession({
       access_token: parsed.value.accessToken,

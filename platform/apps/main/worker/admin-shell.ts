@@ -73,9 +73,17 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     permission: 'nn.entry.read',
   },
   {
+    /**
+     * **The read, not the grant.** The page is a list of people that some of its readers may
+     * also change, and `people-admin` may only read it — so the permission that opens the
+     * link has to be the one that opens the table. Naming `identity.role.grant` here would
+     * hide the page from the role that exists to look at it, which is the same disagreement
+     * between a link and the door behind it that this field's own comment is about, pointing
+     * the other way.
+     */
     href: `${ADMIN_PREFIX}/people/`,
     label: 'People and roles',
-    permission: 'identity.role.grant',
+    permission: 'identity.person.read',
   },
 ];
 
@@ -85,7 +93,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  * **`registered` is not one of them, and that is the whole of the 404 rule.** Everybody with an
  * account holds `registered`; holding it means being signed in and nothing else.
  */
-export const STAFF_ROLES = ['nn-admin', 'super-admin'] as const;
+export const STAFF_ROLES = ['nn-admin', 'people-admin', 'super-admin'] as const;
 
 /**
  * Whether somebody may be in the backend at all.
@@ -97,7 +105,9 @@ export const STAFF_ROLES = ['nn-admin', 'super-admin'] as const;
  * emphatically not staff, and a `some(permissions.length > 0)` test would let it in.
  *
  * A fourth staff role is a line here and a row in `identity.role_permissions`, which is the
- * same two-place change granting any capability already is.
+ * same two-place change granting any capability already is — and `people-admin` is the first
+ * one to arrive that way. It reads `/admin/people/` and nothing else, which is why it is here
+ * and `nn-tester`, which reads nothing at all, still is not.
  */
 export function isStaff(roles: string[]): boolean {
   return STAFF_ROLES.some((role) => roles.includes(role));

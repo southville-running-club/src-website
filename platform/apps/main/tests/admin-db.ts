@@ -7,6 +7,7 @@ import {
   REGISTERED_EMAIL,
   NN_ADMIN_EMAIL,
   NN_TESTER_EMAIL,
+  PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
   ADMIN_EVENT_DATE,
@@ -460,7 +461,7 @@ const LOCAL_API = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
 
 /**
- * The three fixture people, created the way a real person would be.
+ * The fixture people, created the way a real person would be.
  *
  * **`signUp()` through the anon client, not an insert**, so `identity.handle_new_user()` fires
  * and the `registered` grant, the `identity.people` row and any reserved grant all come from the
@@ -481,6 +482,7 @@ async function seedFixturePeople(): Promise<void> {
     [REGISTERED_EMAIL]: null,
     [SUPER_ADMIN_EMAIL]: 'super-admin',
     [NN_TESTER_EMAIL]: 'nn-tester',
+    [PEOPLE_ADMIN_EMAIL]: 'people-admin',
   };
 
   // Sequential, not parallel — each round trip is cheap, and running them concurrently would
@@ -520,7 +522,7 @@ async function seedFixturePeople(): Promise<void> {
 }
 
 /**
- * The three people, gone.
+ * The fixture people, gone.
  *
  * Cascades through `identity.people` and `identity.role_grants` — `identity.people.id`
  * references `auth.users(id) on delete cascade`. `identity.audit` deliberately does not

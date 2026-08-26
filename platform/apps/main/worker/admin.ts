@@ -185,7 +185,11 @@ export async function handleAdmin(
       ? await handleNnSection(request, viewer, cfg, env, path.slice(1), url, secure)
       : notFound();
   } else if (path[0] === 'people') {
-    response = can(viewer, 'identity.role.grant')
+    // **The read opens the section; the grant opens the buttons inside it.** `people-admin`
+    // reaches this page and gets a table with no controls on it, and `handlePeopleSection`
+    // refuses a POST from anybody without `identity.role.grant` with the same 404 — so the
+    // gate on the act is not this one, and is not the rendering either.
+    response = can(viewer, 'identity.person.read')
       ? await handlePeopleSection(request, viewer, cfg, path.slice(1), secure)
       : notFound();
   } else {
@@ -217,8 +221,16 @@ function dashboard(viewer: AdminViewer): Response {
       </p>
       <p>
         ${
-          can(viewer, 'identity.role.grant')
-            ? html`<a href="/admin/people/">People and roles</a> — who may open what.`
+          can(viewer, 'identity.person.read')
+            ? html`<a href="/admin/people/">People and roles</a> —
+                ${
+                  can(viewer, 'identity.role.grant')
+                    ? 'who may open what.'
+                    : /* **Said plainly rather than left to be discovered.** Somebody who
+                         follows this link expecting to grant a role and finds no buttons
+                         reads it as the page being broken; the sentence is where the club
+                         tells them it is not. */ 'who may open what — to read.'
+                }`
             : null
         }
       </p>

@@ -14,6 +14,7 @@ import {
   NN_ADMIN_EMAIL,
   PAID_EA_NUMBER,
   PAID_NON_ASCII_LAST_NAME,
+  PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
 } from '../admin-fixtures';
 
@@ -68,9 +69,10 @@ import {
  * present.** The flag is a column on a purchase, so there is no view of the oversold event in
  * which it is not set; the quiet event is the only way to see the page without it.
  *
- * **Three people, one per role set the door has to tell apart** — `admin-fixtures.ts` explains
- * why they are created through a real `signUp()`. The super-admin deliberately does *not* hold
- * `nn-admin`, which is what makes "granting a role is not inheriting one" testable.
+ * **One person per role set the door has to tell apart** — `admin-fixtures.ts` explains why
+ * they are created through a real `signUp()`. The super-admin deliberately does *not* hold
+ * `nn-admin` and the `people-admin` holds neither, which is what makes "granting a role is not
+ * inheriting one" testable from both directions.
  *
  * ## Nothing here imports `race.json`, and the two rules about literals are different rules
  *
@@ -927,6 +929,51 @@ test.describe('people and roles', () => {
     ).toBeVisible();
   });
 
+  test('is the same page with no controls to somebody who may only read it', async ({
+    page,
+  }) => {
+    // **Two columns rather than three**, which is the whole of `people-admin`. The column is
+    // removed rather than filled with disabled buttons: a disabled control is a thing somebody
+    // keeps trying, and it would still name a person and a role in its accessible name.
+    await signInAs(page, PEOPLE_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+
+    await expect(page.getByRole('columnheader')).toHaveText(['Person', 'Roles']);
+
+    // **`locator` rather than `getByRole('button')`**, and that is not a style choice: the
+    // three engines do not agree on what a `<summary>` is in the accessibility tree — the
+    // roles legend above the table is one — so a role query here would assert something about
+    // the browser rather than about the page. The claim is that there is no control, and no
+    // `<button>` and no `<form>` is exactly that claim.
+    await expect(page.locator('button')).toHaveCount(0);
+    await expect(page.locator('form')).toHaveCount(0);
+
+    // They can still see everybody and what everybody holds — that is what they are for.
+    await expect(
+      page.getByRole('row').filter({ hasText: REGISTERED_EMAIL }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('row').filter({ hasText: SUPER_ADMIN_EMAIL }),
+    ).toBeVisible();
+
+    // And the page says which of its two readings this is, rather than leaving a gap that
+    // reads as a table which failed to load. **`toContainText` on `main` rather than
+    // `getByText`**, because the sentence is inside a `<strong>` inside a `<p>` and both
+    // contain it — two matches, and strict mode fails on a page that is exactly right.
+    await expect(page.getByRole('main')).toContainText(
+      'You can see who holds what, and not change it',
+    );
+  });
+
+  test('refuses that reader the race section entirely', async ({ page }) => {
+    // The third corner of *a grant is not an inheritance*: reading who has an account and
+    // reading two hundred entrants' emergency contacts are different decisions, and holding
+    // one must never be a way to reach the other.
+    await signInAs(page, PEOPLE_ADMIN_EMAIL);
+
+    expect((await page.goto(NN))?.status(), 'people-admin at the race section').toBe(404);
+  });
+
   test('grants a role that takes effect on the next request, and takes it back', async ({
     page,
     browser,
@@ -999,6 +1046,20 @@ test.describe('accessibility and small screens', () => {
     page,
   }) => {
     await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    for (const path of [ADMIN, PEOPLE]) {
+      await page.goto(path);
+      expect((await axe(page)).violations, path).toEqual([]);
+    }
+  });
+
+  test('has no axe violations on the roles page read by a people-admin @requires-js', async ({
+    page,
+  }) => {
+    // **Its own pass, because it is a different table.** Two columns instead of three, no
+    // forms, and a different sentence above it — a page whose markup differs is a page axe has
+    // not seen, however close it looks to one that passed.
+    await signInAs(page, PEOPLE_ADMIN_EMAIL);
 
     for (const path of [ADMIN, PEOPLE]) {
       await page.goto(path);

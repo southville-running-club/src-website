@@ -22,6 +22,17 @@ const updateUser = vi.fn();
 const verifyOtp = vi.fn();
 const rpc = vi.fn();
 
+/**
+ * `auth.getUser()` on the *user* client, which is a different call from the `getUser` above.
+ *
+ * `readSession()` asks the anon client, passing the access token, to find out who the session
+ * belongs to. `/account/` then asks the user client — whose `Authorization` header supabase-js
+ * answers straight from — for the confirmed address to name the account with. Two mocks rather
+ * than one, so a test can make the session good and the address unavailable, which is exactly
+ * the case the page has a second sentence for.
+ */
+const userGetUser = vi.fn();
+
 /** `identity.people`, read and written by #61's `/account/details/`. Two functions rather
  *  than a fully general fake postgrest-js builder — this file's `from()` only ever asks
  *  for one table, and a builder generic enough for any query would be more code than the
@@ -62,6 +73,7 @@ vi.mock('@src/shared', async () => {
     }),
     createUserClient: () => ({
       rpc,
+      auth: { getUser: userGetUser },
       from: (table: string) => {
         if (table !== 'people') {
           throw new Error(`this fake only knows identity.people, not ${table}`);
@@ -123,6 +135,10 @@ const HEALTHY_ACCESS_TOKEN = `${toBase64Url('{"alg":"none"}')}.${toBase64Url(
 
 beforeEach(() => {
   getUser.mockResolvedValue({ data: { user: null }, error: { message: 'no session' } });
+  // A default, because a bare `vi.fn()` resolves to `undefined` and `/account/` destructures
+  // what this answers — every test that renders that page would fail on the fake rather than
+  // on the code. The shape is the one supabase-js gives when it has no user to report.
+  userGetUser.mockResolvedValue({ data: { user: null }, error: null });
 });
 
 afterEach(() => {
@@ -257,9 +273,18 @@ describe('GET /account/, signed out', () => {
 });
 
 describe('GET /account/, signed in', () => {
-  it('renders the account page', async () => {
+  it('names the account somebody is signed in as', async () => {
+    // **Which account, not what it may do.** This page used to list the person's roles, and a
+    // role slug is the club's internal vocabulary — printing `nn-tester` to the person holding
+    // it either means nothing to them or asks a question the page has no room to answer. The
+    // address is the useful fact: somebody with a club account and a personal one needs to know
+    // which they are looking at before they change a password or delete anything, and the rest
+    // of this page is exactly those acts.
     getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
-    rpc.mockResolvedValue({ data: ['registered'], error: null });
+    userGetUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
 
     const response = await handleAccount(
       get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
@@ -270,7 +295,51 @@ describe('GET /account/, signed in', () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain('Your account');
-    expect(body).toContain('registered');
+    expect(body).toContain('Signed in as');
+    expect(body).toContain('grace@example.com');
+  });
+
+  it('says nothing about which roles that account holds', async () => {
+    // **Two renderings of one fact are two things that can disagree**, and `/admin/`'s
+    // navigation is already painted from `identity.my_permissions()` per request. This is the
+    // guard against the roles coming back onto a page that has no way to explain them.
+    getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+    userGetUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
+    // Answered anyway, so the assertion is about the page and not about the read being absent.
+    rpc.mockResolvedValue({ data: ['nn-admin', 'registered'], error: null });
+
+    const response = await handleAccount(
+      get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/'),
+    );
+
+    const body = await response.text();
+    expect(body).not.toContain('nn-admin');
+    expect(body).not.toContain('Roles:');
+    expect(body).not.toContain('No roles beyond');
+  });
+
+  it('still says somebody is signed in when Supabase Auth does not answer', async () => {
+    // The session got this far, so it is good — `readSession()`'s own `getUser` answered.
+    // Saying "signed in" alone is true and says less, which is the right direction when the
+    // alternative is naming the wrong account.
+    getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+    userGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+    const response = await handleAccount(
+      get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      ENV,
+      new URL('http://localhost:8787/account/'),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('You are signed in');
+    expect(body).toContain('Sign out');
   });
 });
 

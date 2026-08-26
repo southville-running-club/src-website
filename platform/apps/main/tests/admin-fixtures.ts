@@ -30,8 +30,7 @@ export const REVOKED_PERSON_KEY = 'zz-admin-worker-revoked-key-not-a-real-one';
 export const REVOKED_HANDLE = 'zz-worker-gone';
 
 /**
- * The three people the staff backend is tested through, one per role set the door has to tell
- * apart.
+ * The people the staff backend is tested through, one per role set the door has to tell apart.
  *
  * **Real accounts, created through `signUp()` and confirmed the way a mailbox click would**, so
  * `identity.handle_new_user()` fires exactly as production will and the `registered` grant every
@@ -69,11 +68,25 @@ export const SUPER_ADMIN_EMAIL = 'zz-admin-worker-super@example.com';
  */
 export const NN_TESTER_EMAIL = 'zz-admin-worker-tester@example.com';
 
+/**
+ * Holds `people-admin`, and that is the whole of it.
+ *
+ * **Staff, unlike `NN_TESTER_EMAIL`, and that is the pair worth having.** Both hold exactly one
+ * permission and neither may grant a role, so the two of them are what tells `isStaff()`'s
+ * question — "is this person staff" — apart from `can()`'s — "may they do this particular
+ * thing". This person is let through the door at `/admin/` and gets `/admin/people/` with no
+ * controls on it; the tester gets the same 404 as `REGISTERED_EMAIL`.
+ *
+ * They are also the reason the roles page has two readings to assert rather than one.
+ */
+export const PEOPLE_ADMIN_EMAIL = 'zz-admin-worker-people@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
   SUPER_ADMIN_EMAIL,
   NN_TESTER_EMAIL,
+  PEOPLE_ADMIN_EMAIL,
 ] as const;
 
 /**
