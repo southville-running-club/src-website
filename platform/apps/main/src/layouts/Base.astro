@@ -8,6 +8,7 @@
 import '@src/shared/styles/base.css';
 import SiteBanner from '../components/SiteBanner.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import SiteNav from '../components/SiteNav.astro';
 
 interface Props {
   title: string;
@@ -79,6 +80,20 @@ const { title, description, canonical, theme } = Astro.props;
         the note at the head of `SiteBanner.astro`. */
     }
     <SiteBanner />
+
+    {
+      /* **Not on a campaign page, and that is a layout rule rather than a taste one.** The
+        Nightingale Nightmare pages carry their own bar, stuck to the top, whose height is paid
+        for by a hand-written `scroll-padding-top` token per breakpoint — ADR-014. A second bar
+        above it moves every anchor and every keyboard focus behind the header at every width,
+        with nothing visibly wrong; that is the defect ADR-014 exists to answer, and renaming a
+        single label once was enough to cause it.
+
+        `theme` is the discriminator because those pages already carry it, so this cannot be
+        forgotten on a new one the way an opt-out prop could be. They keep their route home:
+        `NnMasthead`'s club wordmark has linked to `/` since it was written. */
+    }
+    {theme !== 'nn' && <SiteNav />}
 
     <slot name="masthead" />
     <main id="main">

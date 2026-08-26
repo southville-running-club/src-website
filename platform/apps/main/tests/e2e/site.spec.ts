@@ -31,10 +31,16 @@ test.describe('the club website', () => {
   test('links to both things that already exist', async ({ page }) => {
     await page.goto('/');
 
+    // **Scoped to `main`, since the navigation arrived.** These two links are also in the
+    // bar now, so an unscoped `getByRole` matches twice and Playwright refuses in strict
+    // mode. Narrowing to the page's own content is the right answer rather than picking a
+    // `.first()`: this test is about what the home page *says*, and the bar has its own.
+    const content = page.locator('main');
+
     await expect(
-      page.getByRole('link', { name: /Nightingale Nightmare/ }),
+      content.getByRole('link', { name: /Nightingale Nightmare/ }),
     ).toHaveAttribute('href', '/nn/');
-    await expect(page.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
+    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
       'href',
       '/timing',
     );
@@ -247,6 +253,78 @@ test.describe('the browser-tab icon', () => {
     // The standalone wordmark is the other file, and it is not this one.
     const logo = await (await request.get('/logo.svg')).text();
     expect(logo).toContain('viewBox="0 0 876 267"');
+  });
+});
+
+/**
+ * The bar between the parts of this site.
+ *
+ * **The rule worth guarding is where it is *not*.** Nightingale Nightmare's pages carry their
+ * own bar, stuck to the top, whose height is paid for by a hand-written `scroll-padding-top`
+ * token per breakpoint — [ADR-014]. A second bar above it moves every anchor and every keyboard
+ * focus behind the header at every width, with nothing visibly wrong, which is the defect that
+ * record exists to answer. `Base.astro` keys the club bar off `theme`, and the test below is
+ * what says so out loud.
+ *
+ * The bar-height sweep further down this file is the other half: it measures the campaign bar
+ * against its token at nine widths, and would go red if anything here reached those pages.
+ */
+test.describe('the bar between the parts of this site', () => {
+  const SECTIONS = [
+    ['Home', '/'],
+    ['Nightingale Nightmare', '/nn/'],
+    ['Race timing', '/timing'],
+    ['Account', '/account/'],
+  ] as const;
+
+  for (const [name, path] of [
+    ['the home page', '/'],
+    ['the privacy notice', '/privacy/'],
+  ] as const) {
+    test(`${name} offers every part of the site`, async ({ page }) => {
+      await page.goto(path);
+
+      const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+      await expect(nav).toBeVisible();
+
+      for (const [label, href] of SECTIONS) {
+        await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+          'href',
+          href,
+        );
+      }
+    });
+  }
+
+  test('marks the section being read, and only that one', async ({ page }) => {
+    await page.goto('/privacy/');
+
+    const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+
+    // `aria-current` rather than a class alone: the underline tells a sighted reader where
+    // they are, and without the attribute nobody else is told at all.
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
+
+    await page.goto('/');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Home');
+  });
+
+  test('**stays off the campaign pages**, which have their own bar', async ({ page }) => {
+    // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
+    // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
+    // hand-written constant, so every anchor on the page lands behind it.
+    for (const path of ['/nn/', '/nn/course/', '/nn/2026/']) {
+      await page.goto(path);
+
+      await expect(page.locator('.site-nav')).toHaveCount(0);
+      await expect(
+        page.getByRole('navigation', { name: 'Nightingale Nightmare' }),
+      ).toBeVisible();
+
+      // And they are not stranded by that: the wordmark has been the route home since the
+      // masthead was written, which is why no tab is needed and no height is spent.
+      await expect(page.locator('.nn-masthead-mark')).toHaveAttribute('href', '/');
+    }
   });
 });
 
@@ -1222,7 +1300,14 @@ test.describe('race timing, at /timing', () => {
     await page.goto('/');
     const websiteOrigin = new URL(page.url()).origin;
 
-    await page.getByRole('link', { name: /Race timing/ }).click();
+    // Scoped to `main` since the navigation arrived — the bar carries this link too, and an
+    // unscoped match is two elements. The bar's own link is covered by its own test; this one
+    // is about the hop between two Workers on one origin, so either would do and the page's
+    // own content is the one that was always meant.
+    await page
+      .locator('main')
+      .getByRole('link', { name: /Race timing/ })
+      .click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
     expect(new URL(page.url()).origin).toBe(websiteOrigin);

@@ -129,6 +129,120 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * The club's chrome on the pages the **Worker** renders.
+ *
+ * **`base.css` has carried these styles all along and `account.css` already concatenates it**,
+ * so this was never a branding decision that went the other way — it was markup that no layout
+ * put there, because `Base.astro` is an Astro layout and a Worker cannot reach it. Three
+ * rendering paths, two layouts, and this is the third one catching up.
+ */
+describe('the club chrome, on every account page', () => {
+  async function accountPage(): Promise<string> {
+    const response = await handleAccount(
+      get('/account/sign-in/'),
+      ENV,
+      new URL('http://localhost:8787/account/sign-in/'),
+    );
+    return response.text();
+  }
+
+  it('links the favicon, so the tab is not a blank glyph', async () => {
+    // `apps/timing/app/layout.tsx` carries this exact link with a comment saying that without
+    // it "`/timing` showed a browser's blank page glyph beside every other tab". The same
+    // reasoning was never applied here, so `/account/` showed that glyph from the day it was
+    // built. One file, three front doors.
+    expect(await accountPage()).toContain('<link rel="icon" href="/favicon.svg"');
+  });
+
+  it('makes the banner a real landmark, unlike the Astro one', async () => {
+    // **The one place the Worker's markup diverges from the Astro component, and CI is what
+    // forced it.** `SiteBanner.astro` is a `div` because five campaign pages already carry
+    // `NnMasthead` as their `<header>`, and two `banner` landmarks is
+    // `landmark-no-duplicate-banner`. These pages have no masthead, so copying the `div`
+    // bought nothing and cost something: axe's `region` rule flagged the welcome sentence and
+    // the link to the old site as content outside every landmark — 39 violations, the first
+    // time this change reached CI.
+    //
+    // Asserted here so the divergence is a decision somebody reads rather than an
+    // inconsistency somebody tidies away.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('<header class="site-banner">');
+    // And exactly one, because the moment this surface grows a masthead the div is right again.
+    expect(markup.match(/<header/g) ?? []).toHaveLength(1);
+  });
+
+  it('offers a way back to the club site', async () => {
+    // **The part a member actually notices.** Before this there was no route from the account
+    // area back to the website at all — no logo, no link, no breadcrumb. Somebody who signed
+    // in and then wanted the race page had to edit the address bar.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('href="/" aria-label="Southville Running Club, home"');
+  });
+
+  it('offers the way to every other part of the site', async () => {
+    // **The half a signed-in member notices.** Before this, `/account/` was somewhere you
+    // arrived and could not leave except by editing the address bar: no link to the race, none
+    // to timing, none home.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain(
+      '<nav class="site-nav" aria-label="Southville Running Club">',
+    );
+    for (const href of ['/', '/nn/', '/timing', '/account/']) {
+      expect(markup, `the bar must link ${href}`).toContain(`href="${href}"`);
+    }
+  });
+
+  it('marks the account section as the one being read', async () => {
+    // `aria-current="page"` and not merely a class. A visual marker tells a sighted reader
+    // where they are; without the attribute nobody else is told at all.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('<a href="/account/" aria-current="page">');
+    // And exactly one section is current — a marker on two is worse than none, because it is
+    // confidently wrong rather than absent.
+    expect(markup.match(/aria-current="page"/g) ?? []).toHaveLength(1);
+  });
+
+  it('carries the footer, and with it the privacy notice', async () => {
+    // #60 published a site-wide privacy notice and every other page foots with a link to it.
+    // The account area is where somebody's standing record actually lives, so it was the one
+    // place the link was missing and the one place it matters most.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('class="site-footer"');
+    expect(markup).toContain('href="/privacy/"');
+  });
+
+  it('does not announce the wordmark on top of the link that already names it', async () => {
+    // The wordmark is `aria-hidden` because the link around it is already labelled
+    // "Southville Running Club, home". Giving the artwork `role="img"` and its own
+    // `aria-label` as well announces the club twice in a row — the exact thing
+    // `ClubLogo.astro`'s `labelled` prop exists to avoid, and the easiest thing to lose when
+    // copying markup between frameworks.
+    //
+    // **Asserted on the `<svg>` rather than on the page.** The first version of this test
+    // forbade the string `aria-label="Southville Running Club"` anywhere in the document, and
+    // it went red the moment the navigation landmark arrived carrying that label legitimately
+    // — naming the *navigation*, which is what `NnNav` does with "Nightingale Nightmare". A
+    // blunt assertion that fails on a correct change is one somebody eventually deletes.
+    // Squashed before matching, for the Prettier-and-`html`-tag reason `CLAUDE.md` gives:
+    // formatting `site-chrome.ts` reflows the markup inside the template, so `<svg` and its
+    // own class attribute arrive on separate lines. This assertion failed on exactly that
+    // before the squash went in, on markup that was perfectly correct.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+    const svg = /<svg class="site-logo"[^>]*>/.exec(markup)?.[0] ?? '';
+
+    expect(svg).not.toBe('');
+    expect(svg).toContain('aria-hidden="true"');
+    expect(svg).not.toContain('role="img"');
+    expect(svg).not.toContain('aria-label');
+  });
+});
+
 describe('GET /account/, signed out', () => {
   it('redirects to sign-in', async () => {
     const response = await handleAccount(

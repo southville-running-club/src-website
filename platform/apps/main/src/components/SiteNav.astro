@@ -1,0 +1,34 @@
+---
+import { SITE_NAV } from '@src/shared/brand';
+
+// The bar that gets you between the parts of this site.
+//
+// **A `<nav>` with an `aria-label`, because a page can have more than one.** The label is what
+// a screen reader offers in a landmark list, so it has to say *which* navigation this is —
+// `NnNav` next door is labelled "Nightingale Nightmare" for the same reason, and the two never
+// appear together.
+//
+// **`aria-current="page"` rather than a class alone**, matching `NnNav`. A visual marker tells
+// a sighted reader where they are; without the attribute nobody else is told at all.
+//
+// **`worker/site-chrome.ts` is this file's opposite number**, for the pages the Worker renders.
+// The two cannot share a component — one is Astro, one is a template literal in a Worker — so
+// they share `SITE_NAV` instead. The tags are duplicated; the links and the labels cannot
+// drift, and `site.spec.ts` asserts both front doors offer the same ones.
+
+const pathname = Astro.url.pathname;
+---
+
+<nav class="site-nav" aria-label="Southville Running Club">
+  <ul>
+    {
+      SITE_NAV.map(({ href, label, match }) => (
+        <li>
+          <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
+            {label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
