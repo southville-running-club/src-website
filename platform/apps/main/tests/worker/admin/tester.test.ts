@@ -202,6 +202,101 @@ describe('the year page before entries open', () => {
   });
 });
 
+describe('a tester whose submission comes back to them', () => {
+  /**
+   * **The gap the three hardcoded fee codes left, and the one a screenshot found.**
+   *
+   * `renderNnEntryStopped` used to restore the chosen radio by looping over
+   * `['affiliated', 'unaffiliated', 'vi_guide']`. `tester` was not in it, so a tester who
+   * submitted and got the page back — no Stripe key configured, which is the deployed state —
+   * lost their entry type, on a page that says *"Nothing you typed has been lost"*.
+   *
+   * `nn-entry-open.test.ts` covers this echo already and could not have caught it: that suite
+   * submits anonymously, so the only fee codes it can choose are the three that were in the
+   * list. **The bug needed a signed-in caller to be visible at all**, which is why the test
+   * lives here.
+   */
+  it('gets the tester entry type back still chosen', async () => {
+    const cookie = await signIn(NN_TESTER_EMAIL);
+
+    const response = await SELF.fetch(YEAR_PAGE, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie,
+      },
+      body: new URLSearchParams({
+        form: 'entry',
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        email: 'worker-tester@example.com',
+        emailConfirm: 'worker-tester@example.com',
+        dobDay: '9',
+        dobMonth: '12',
+        dobYear: '1986',
+        gender: 'female',
+        feeCode: 'tester',
+        emergencyName: 'Margaret Hamilton',
+        emergencyPhone: '0117 496 0000',
+        entryTerms: 'on',
+      }),
+      redirect: 'manual',
+    });
+
+    // 503 — the submission was good and there is no Stripe secret in this run, so nothing was
+    // stored and nothing was charged. That is the branch the screenshot showed.
+    expect(response.status).toBe(503);
+
+    const markup = await response.text();
+
+    // **The assertion the old loop failed.** Not merely that the card is present — it always
+    // is — but that this particular radio comes back `checked`.
+    expect(markup).toMatch(/data-entry-checked="feeCode:tester"[^>]*checked/);
+
+    // And the rest of it is still there, which is what the page claims.
+    expect(markup).toContain('data-entry-value="firstName" value="Grace"');
+  });
+
+  it('does not check a fee the person did not choose', async () => {
+    // The other half. Without it, a handler that checked every radio would pass the test
+    // above and produce a form with four entry types selected at once.
+    const cookie = await signIn(NN_TESTER_EMAIL);
+
+    const response = await SELF.fetch(YEAR_PAGE, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded',
+        cookie,
+      },
+      body: new URLSearchParams({
+        form: 'entry',
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        email: 'worker-tester@example.com',
+        emailConfirm: 'a-different-address@example.com',
+        dobDay: '9',
+        dobMonth: '12',
+        dobYear: '1986',
+        gender: 'female',
+        feeCode: 'unaffiliated',
+        emergencyName: 'Margaret Hamilton',
+        emergencyPhone: '0117 496 0000',
+        entryTerms: 'on',
+      }),
+      redirect: 'manual',
+    });
+
+    // 422 — refused on the mismatched confirmation box, which is the least intrusive way to
+    // get the page back with a body to read.
+    expect(response.status).toBe(422);
+
+    const markup = await response.text();
+
+    expect(markup).toMatch(/data-entry-checked="feeCode:unaffiliated"[^>]*checked/);
+    expect(markup).not.toMatch(/data-entry-checked="feeCode:tester"[^>]*checked/);
+  });
+});
+
 describe('what a tester still may not reach', () => {
   it('gets the ordinary 404 at /admin/, because a permission is not a staff role', async () => {
     // `isStaff()` deliberately still asks about roles. Written as "holds any permission" it

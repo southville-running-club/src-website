@@ -731,6 +731,42 @@ class CheckedHandler {
   }
 }
 
+/**
+ * The one fee radio that was chosen, whichever code it is.
+ *
+ * **This replaced a loop over `['affiliated', 'unaffiliated', 'vi_guide']`, and that literal
+ * was a real defect rather than an untidiness.** #107 added a fourth code, `tester`, and it was
+ * not in the list — so a tester whose submission came back to them re-rendered (invalid,
+ * sold-out, no Stripe key, any of them) lost the entry type they had chosen, on a page that
+ * says in as many words *"Nothing you typed has been lost"*.
+ *
+ * Reading the code off the element's own attribute means the fee list is the database's, here
+ * as everywhere else on this form: `entries.fees` decides which cards exist, which are revealed
+ * and what they cost, and now which one comes back checked. **A fifth fee code needs no edit to
+ * this file at all**, which is the property the hardcoded version quietly did not have.
+ */
+class FeeCheckedHandler {
+  constructor(
+    private readonly chosen: string,
+    private readonly invalid: boolean,
+  ) {}
+
+  element(element: Element): void {
+    // `feeCode:unaffiliated` — the half after the colon is the code. Read rather than
+    // matched against a list, so this cannot go stale.
+    const marker = element.getAttribute('data-entry-checked') ?? '';
+    const code = marker.startsWith('feeCode:') ? marker.slice('feeCode:'.length) : '';
+
+    if (code !== '' && code === this.chosen) {
+      element.setAttribute('checked', '');
+    }
+
+    if (this.invalid) {
+      element.setAttribute('aria-invalid', 'true');
+    }
+  }
+}
+
 /** The one `<option>` that was chosen. */
 class SelectedHandler {
   constructor(private readonly selected: boolean) {}
@@ -1177,12 +1213,12 @@ function restoreSubmission(
     );
   }
 
-  for (const code of ['affiliated', 'unaffiliated', 'vi_guide']) {
-    rewriter.on(
-      `[data-entry-checked="feeCode:${code}"]`,
-      new CheckedHandler(code === submitted.feeCode, invalid('feeCode')),
-    );
-  }
+  // **Every fee radio, matched by prefix rather than by a list of codes.** See
+  // `FeeCheckedHandler` for what the list used to cost.
+  rewriter.on(
+    '[data-entry-checked^="feeCode:"]',
+    new FeeCheckedHandler(submitted.feeCode, invalid('feeCode')),
+  );
 
   rewriter
     .on(
