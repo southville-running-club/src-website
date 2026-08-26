@@ -44,8 +44,16 @@ const PLAIN_EMAIL = 'zzperm-plain@example.com';
 const ADMIN_EMAIL = 'zzperm-admin@example.com';
 /** Holds both staff roles, which is what makes the deduplication in `my_permissions` testable. */
 const CANCELLER_EMAIL = 'zzperm-canceller@example.com';
+/** Holds `people-admin`: reads the list of people, may change nothing about anybody. */
+const READER_EMAIL = 'zzperm-reader@example.com';
 
-const FIXTURE_EMAILS = [TESTER_EMAIL, PLAIN_EMAIL, ADMIN_EMAIL, CANCELLER_EMAIL] as const;
+const FIXTURE_EMAILS = [
+  TESTER_EMAIL,
+  PLAIN_EMAIL,
+  ADMIN_EMAIL,
+  CANCELLER_EMAIL,
+  READER_EMAIL,
+] as const;
 
 const PASSWORD = 'correct-horse-battery-staple-107';
 const DUMMY_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
@@ -101,6 +109,7 @@ let tester: { id: string; client: SupabaseClient };
 let plain: { id: string; client: SupabaseClient };
 let admin: { id: string; client: SupabaseClient };
 let canceller: { id: string; client: SupabaseClient };
+let reader: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
@@ -112,11 +121,13 @@ beforeAll(async () => {
   plain = await fixturePerson(PLAIN_EMAIL);
   admin = await fixturePerson(ADMIN_EMAIL);
   canceller = await fixturePerson(CANCELLER_EMAIL);
+  reader = await fixturePerson(READER_EMAIL);
 
   await grant(tester.id, 'nn-tester');
   await grant(admin.id, 'super-admin');
   await grant(canceller.id, 'super-admin');
   await grant(canceller.id, 'nn-admin');
+  await grant(reader.id, 'people-admin');
 }, 40_000);
 
 afterAll(async () => {
@@ -149,6 +160,7 @@ describe('the shape of the model', () => {
     expect(rows.map((row) => row.slug)).toEqual([
       'nn-admin',
       'nn-tester',
+      'people-admin',
       'registered',
       'super-admin',
     ]);
@@ -160,6 +172,7 @@ describe('the shape of the model', () => {
     );
 
     expect(rows.map((row) => row.slug)).toEqual([
+      'identity.person.read',
       'identity.role.grant',
       'nn.entry.before_open',
       'nn.entry.cancel',
@@ -180,16 +193,26 @@ describe('the shape of the model', () => {
     // cheap enough to hand out — and it is the line to look at if somebody ever reports that a
     // tester can see the entry list.
     //
-    // **`super-admin` holds exactly one permission too, and it is the one about roles.** This
-    // is the line that keeps *"a grant is not an inheritance"* true — the property
-    // `tests/worker/admin/admin.test.ts` has asserted since #58. A super-admin who needs the
-    // entry list grants themselves `nn-admin`, and that writes a row in `identity.audit`.
+    // **`super-admin` holds two permissions and both are about this club's people.** It is
+    // still the line that keeps *"a grant is not an inheritance"* true — the property
+    // `tests/worker/admin/admin.test.ts` has asserted since #58 — because neither of them is
+    // `nn.entry.read`. A super-admin who needs the entry list still grants themselves
+    // `nn-admin`, and that still writes a row in `identity.audit`.
+    //
+    // `identity.person.read` is a **precondition** of `identity.role.grant` rather than an
+    // extension of it: `/admin/people/` is a list of people with a button beside each, so a
+    // super-admin who could not read the list would have nobody to grant anything to.
+    //
+    // **`people-admin` holds the first without the second**, which is the whole of that role
+    // and the line to look at if somebody ever reports that a reader can hand out `nn-admin`.
     expect(held).toEqual([
       'nn-admin → nn.entry.cancel',
       'nn-admin → nn.entry.export',
       'nn-admin → nn.entry.read',
       'nn-admin → nn.entry.read_medical',
       'nn-tester → nn.entry.before_open',
+      'people-admin → identity.person.read',
+      'super-admin → identity.person.read',
       'super-admin → identity.role.grant',
     ]);
   });
@@ -360,6 +383,7 @@ describe('my_permissions', () => {
     const { data } = await canceller.client.schema('identity').rpc('my_permissions');
 
     expect(data).toEqual([
+      'identity.person.read',
       'identity.role.grant',
       'nn.entry.cancel',
       'nn.entry.export',
@@ -370,11 +394,21 @@ describe('my_permissions', () => {
 });
 
 describe('grantable_roles', () => {
-  it('refuses somebody who may not grant roles', async () => {
+  it('refuses somebody who may neither grant roles nor read people', async () => {
     const { data, error } = await plain.client.schema('identity').rpc('grantable_roles');
 
     expect(error).toBeNull();
     expect(data).toMatchObject({ ok: false, reason: 'not_authorised' });
+  });
+
+  it('answers somebody who may only read people', async () => {
+    // **The catalogue is what makes the roles column legible**, and a `people-admin` has
+    // nothing else to resolve `nn-tester` against. It discloses what a word means and nothing
+    // about who holds it — `identity.roles` is readable by anybody signed in already, and this
+    // adds `role_permissions` on top.
+    const { data } = await reader.client.schema('identity').rpc('grantable_roles');
+
+    expect(data).toMatchObject({ ok: true });
   });
 
   it('answers a super-admin with every role and what it carries', async () => {
@@ -389,6 +423,7 @@ describe('grantable_roles', () => {
     expect(answer.roles.map((role) => role.slug)).toEqual([
       'nn-admin',
       'nn-tester',
+      'people-admin',
       'registered',
       'super-admin',
     ]);
@@ -400,5 +435,87 @@ describe('grantable_roles', () => {
 
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// people-admin — reading who has an account, and being able to change nothing
+// -----------------------------------------------------------------------------------------
+// **The negative cases are the point.** This is the first role the club has that reads
+// personal data without being able to act on any of it, so what it *cannot* do is the whole
+// specification. Every assertion below is attempted as `reader`, holding exactly
+// `people-admin` and nothing else.
+
+describe('people-admin', () => {
+  it('reads the list of people and the roles they hold', async () => {
+    const { data, error } = await reader.client.schema('identity').rpc('list_people');
+
+    const answer = data as { ok: boolean; people: { email: string; roles: string[] }[] };
+
+    expect(error).toBeNull();
+    expect(answer.ok).toBe(true);
+
+    // The same list a super-admin gets, which is the decision this role was granted on: two
+    // people share a name and nothing else in a row tells them apart, so a narrower answer
+    // would have made the list unusable for the one job the role exists to do.
+    const themselves = answer.people.find((person) => person.email === READER_EMAIL);
+    expect(themselves?.roles).toEqual(['people-admin', 'registered']);
+
+    const superAdmin = answer.people.find((person) => person.email === ADMIN_EMAIL);
+    expect(superAdmin?.roles).toContain('super-admin');
+  });
+
+  it('cannot grant a role to anybody, including themselves', async () => {
+    const { data, error } = await reader.client
+      .schema('identity')
+      .rpc('grant_role', { p_person: reader.id, p_role: 'nn-admin' });
+
+    // **The specific refusal, not merely a failure** — a broken function refuses everything,
+    // which reads as every rule holding at once.
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: false, reason: 'not_authorised' });
+
+    const [row] = await query<{ count: string }>(
+      `select count(*)::text as count from identity.role_grants
+        where person_id = $1 and role = 'nn-admin' and revoked_at is null`,
+      [reader.id],
+    );
+    expect(row?.count).toBe('0');
+  });
+
+  it('cannot revoke one either', async () => {
+    const { data } = await reader.client
+      .schema('identity')
+      .rpc('revoke_role', { p_person: admin.id, p_role: 'super-admin' });
+
+    expect(data).toMatchObject({ ok: false, reason: 'not_authorised' });
+  });
+
+  it('holds nothing that opens a race', async () => {
+    // The line to look at if somebody ever reports that a `people-admin` can see two hundred
+    // entrants' emergency contacts. Reading the club's people and reading a race's entrants
+    // are different disclosures and this role has exactly one of them.
+    const { data } = await reader.client.schema('identity').rpc('my_permissions');
+
+    expect(data).toEqual(['identity.person.read']);
+  });
+
+  it('is what somebody signed in holding nothing still cannot do', async () => {
+    // The gate moved from `has_role('super-admin')` to `has_permission('identity.person.read')`
+    // in the same migration that added the role. This is the assertion that the move did not
+    // widen it — the failure a permissive `has_permission()` would produce is every gate at
+    // once, and this is the one that reads the club's whole address book.
+    const { data, error } = await plain.client.schema('identity').rpc('list_people');
+
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: false, reason: 'not_authorised' });
+  });
+
+  it('is what a tester cannot do either', async () => {
+    // `nn-tester` holds a grant and a permission, and neither is this one — the case a check
+    // asking "does this person hold any role" would pass.
+    const { data } = await tester.client.schema('identity').rpc('list_people');
+
+    expect(data).toMatchObject({ ok: false, reason: 'not_authorised' });
   });
 });

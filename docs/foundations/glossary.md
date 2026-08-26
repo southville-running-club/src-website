@@ -70,8 +70,8 @@ somebody registering themselves at `/account/sign-up/`, never seeded by hand exc
 migration that bootstraps the super-admin. Distinct from **membership** ([C12](requirements.md#c12--maintain-membership-records)) — an account is a person who can sign in; a member is
 someone the club has recorded as current, which is a later, separate thing.
 
-**Registered** — the default role held by anyone with an account who is neither `super-admin`
-nor `nn-admin`. It says what happened — somebody registered — and grants nothing on its own.
+**Registered** — the role every account gets on sign-up, whatever else it later holds. It says
+what happened — somebody registered — and grants nothing on its own.
 **It used to be called `member`, and that was the wrong word**: see
 [ADR-016](../architecture/decisions/adr-016-registered-is-not-a-member.md). The entry that stood
 here needed a qualifier — "in the accounts sense" — every time it was used, which is how you can
@@ -82,12 +82,27 @@ register. **Not a role**, and deliberately not one — see **membership**, above
 [C12](requirements.md#c12--maintain-membership-records). Nothing in the platform answers this
 question yet; the word is kept free for the thing that will.
 
-**Role** — one of exactly three: `super-admin`, `nn-admin`, `registered`. Held in the `identity`
-schema and checked by RLS on every table it applies to. A fourth role is a migration and a
-decision, not a config change — [ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md).
+**Role** — a **bundle of permissions**, and nothing else —
+[ADR-017](../architecture/decisions/adr-017-permissions-are-what-code-checks.md). Held in the
+`identity` schema. **Code never checks a role**; it checks a permission, so granting a capability
+to a new role is a row rather than a search for every string literal that named the old one. The
+roles today are `super-admin`, `nn-admin`, `people-admin`, `nn-tester` and `registered`; adding
+one is still a migration and a decision, made in a diff that changes
+`packages/db/tests/identity-permissions.test.ts`, which asserts the exact set.
+
+**Permission** — what may actually be done, named `area.subject.verb` and the vocabulary every
+authorisation check is written in: `nn.entry.read`, `identity.person.read`,
+`identity.role.grant`. The format is a check constraint, because a set that drifts into
+`nnEntryRead` and `entries:read` is one nobody can grep.
 
 **Super-admin** — the role held by `admin@southvillerunningclub.co.uk`, bootstrapped by
-migration. Grants and revokes every other role; not a person's name, a role.
+migration. Grants and revokes every other role, and reads the list of people to do it with.
+**It inherits nothing else** — a super-admin who needs the entry list grants themselves
+`nn-admin`, which leaves an audit row. Not a person's name, a role.
+
+**People-admin** — the role that reads `/admin/people/` and changes nothing on it: who has an
+account, their address, and which roles they hold. Staff, so it opens `/admin/`; it opens
+nothing about a race.
 
 **Session** — the signed-in state a browser holds after authenticating with Supabase Auth,
 carried as a cookie the Worker reads. Not to be confused with the twelve-hour handle cookie

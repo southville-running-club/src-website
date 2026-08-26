@@ -20,9 +20,16 @@ the argument for that arrangement. It is retired. The way in is an account holdi
 
 | | |
 | --- | --- |
-| `nn-admin` | May read Nightingale Nightmare's entries, notes and exports |
-| `super-admin` | May grant and revoke every role. **Does not inherit `nn-admin`** — granting a role is not holding it |
+| `nn-admin` | May read Nightingale Nightmare's entries, notes and exports, and cancel one entry |
+| `people-admin` | May read `/admin/people/` — who has an account and which roles they hold — and **change none of it**. Opens nothing about a race |
+| `super-admin` | May grant and revoke every role, and reads the list of people in order to. **Does not inherit `nn-admin`** — granting a role is not holding it |
+| `nn-tester` | May enter the race before entries open. **Not staff**: `/admin/` 404s for it exactly as for anybody else |
 | `registered` | Everybody with an account. Opens nothing here. **Renamed from `member`** — ADR-016, because the club needs that word for somebody who has actually joined |
+
+**A role is a bundle of permissions and code checks the permission** —
+[ADR-017](../../architecture/decisions/adr-017-permissions-are-what-code-checks.md). That is why
+the table above can grow without a deploy: `/admin/people/` reads the role list, its
+descriptions and what each one carries out of the database on every request.
 
 **The break-glass in [#65](https://github.com/southville-running-club/src-website/issues/65)
 is no longer the keys, and this is the paragraph that says so.** That tracker records
@@ -88,7 +95,18 @@ so one cannot happen without the other. A refused one writes nothing.
 | --- | --- |
 | **Revoke the last super-admin** | Refused by `identity.revoke_role()`, not by the page. A club with no super-admin has no service-role key to get back in with. Grant the role to somebody else first |
 | **Grant a role to yourself that you do not have** | Only a `super-admin` may grant anything, and the check is in the database |
+| **Grant anything at all, holding `people-admin`** | That role reads this page and changes nothing on it. The page shows no controls, and a request made without them is refused twice — by the Worker and again by `identity.grant_role()` |
 | **Edit somebody's profile, or delete an account** | Deliberately absent. A change to a record somebody controls needs its own thinking about notification and consent |
+
+### The same page, read by a `people-admin`
+
+They see every account, every address and every role, and no **Grant** or **Revoke** button
+anywhere. The page says so in a sentence rather than leaving a gap, because a table whose third
+column is simply missing reads as one that failed to load.
+
+**Hand this out instead of `super-admin` for anybody who needs to answer "has so-and-so
+registered yet".** A `super-admin` granted for that reason can give themselves the entry list
+without leaving a role behind; a `people-admin` cannot give themselves anything.
 
 ---
 
@@ -348,7 +366,8 @@ symptom of almost everything. Work down this table in order.
 | --- | --- | --- |
 | **`/admin/` 404s and you are not signed in** | The ordinary case | Sign in at `/account/sign-in/` |
 | **`/admin/` 404s and you are signed in** | The account holds no staff role | A super-admin grants one at `/admin/people/` |
-| **`/admin/` opens but `/admin/nn/` 404s** | The account holds `super-admin` and not `nn-admin`. **Granting a role is not holding it** | Grant yourself `nn-admin` too |
+| **`/admin/` opens but `/admin/nn/` 404s** | The account holds `super-admin` or `people-admin` and not `nn-admin`. **Granting a role is not holding it** | Grant them `nn-admin` too |
+| **`/admin/people/` opens but has no buttons** | The account holds `people-admin`, which reads that page and changes nothing on it. Working as intended | If they need to grant roles, grant them `super-admin` |
 | **A page says the database could not be reached** | Supabase is down or the migration has not landed | Check the deploy. The page deliberately does **not** say the list is empty |
 
 ### If the club is locked out of every super-admin account
