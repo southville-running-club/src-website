@@ -45,7 +45,7 @@ that cannot be undone by closing entries again afterwards.
 | --- | --- |
 | **The entry open and close times have not been supplied by the committee** | They are a [stop-and-ask](../../architecture/principles.md#stop-and-ask) fact. A plausible time typed in here is a published claim about when a race opens |
 | **The rate-limiting rule is not live** | [Step 0.1](#01--the-waf-rate-limiting-rule-must-be-live). This is the only failure in the design with no recovery path |
-| **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment). The first real payment must not be a stranger's |
+| **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). The first real payment must not be a stranger's |
 | **The entry terms have not been written** | The form asks people to accept terms; today its hint says they are still to be confirmed. Taking £17 against terms that do not exist is not a build decision |
 | **Nobody has restored a backup** | [#23 item 2](https://github.com/southville-running-club/src-website/issues/23). The rows about to arrive include dates of birth, emergency contacts and — under separate consent — medical notes |
 
