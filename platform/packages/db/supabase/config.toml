@@ -447,13 +447,15 @@ otp_expiry = 3600
 # machine* dials out, the override is about what provider *the project being judged* has, and
 # #79's restriction is a fact about the second.
 #
-# **The remaining unknown is real, and #101 is the change that carries it**: `config push` sends
-# `smtp_enabled` and any template fields in the *same* request, so nobody has established
-# whether the API judges a request against the config arriving or the config already there. That
-# is now the favourable case — production has had custom SMTP since #50 — but it is
-# `[auth.email.template.confirmation]` below that tests it, deliberately, rather than this
-# notification block. **One template at a time**, so a refusal names one cause and reverts one
-# block.
+# ✅ **The unknown #101 carried is answered, and it went the good way.** The API accepted
+# `[auth.email.template.confirmation]` in the same request as `smtp_enabled`, on 26 August 2026
+# — so **there is nothing left refusing this block**, and uncommenting it is now an ordinary
+# change rather than a gamble against #79.
+#
+# **It still needs both halves, which is the part that is easy to get wrong.** #99's spike
+# measured that the section being present is not enough: `enabled = true` here is what makes
+# GoTrue *generate* the message at all. See the note below — a mailer decides who delivers,
+# this flag decides whether there is anything to deliver.
 #
 # ⚠️ **And the hook does not rescue it either.** #99's spike measured that
 # `password_changed_notification` is a hooked action type but that the hook only decides *who
@@ -548,17 +550,24 @@ sender_name = "Southville Running Club"
 #     Email template modification is not available for free tier projects using the default
 #     email provider. Please upgrade your plan or configure a custom SMTP provider.
 #
-# **#50 took the second escape**, and a real delivery on 26 August 2026 proved it. So the
-# sentence that refused this no longer describes the project — but **that is a reason to try,
-# not to assume**, and one thing is still genuinely unknown: `config push` sends
-# `smtp_enabled` and these template fields in the *same* request, and nobody has established
-# whether the API judges a request against the config arriving or the config already there.
-# This is the favourable case — production already has custom SMTP before the push begins —
-# and only a deploy answers it.
+# ✅ **#50 took the second escape, and this block then proved the escape works.** `deploy-db`
+# run 32957004799 pushed it green on 26 August 2026, and a real confirmation arrived at an
+# Outlook mailbox carrying the club's own hostname. **The restriction is lifted by a custom
+# SMTP provider — that is now measured rather than argued**, and the sentence in the API's
+# error is a description of the free tier's *default mailer*, not of this project.
 #
-# **If the push is refused, revert this block and nothing else.** `[auth]` does not update, so
-# production keeps the configuration it has, mail included; the cost is a red deploy rather
-# than an outage.
+# **The unknown this shipped with is answered too.** `config push` sends `smtp_enabled` and
+# these template fields in the *same* request, and nobody had established whether the API
+# judges a request against the config arriving or the config already there. It accepted them
+# together, against a project that already had custom SMTP from an earlier push. **A template
+# and its provider may travel in one request.**
+#
+# ⚠️ **One thing that reads like this failing and is not.** That deploy's first attempt went
+# red at step 7, `supabase migration list`, with
+# `FATAL: (EAUTHQUERY) auth_query secret check timed out` — a transient Supabase pooler error,
+# *before* `db push` or `config push` ran at all. A red `deploy-db` on a change touching
+# `[auth]` looks exactly like #79 and need not be it. **Read which step failed**, and re-run
+# before reverting anything.
 #
 # ⚠️ **`content_path` is resolved against the directory that holds `supabase/`, not against
 # `supabase/`.** Measured against the pinned CLI: `./templates/confirmation.html` answers
