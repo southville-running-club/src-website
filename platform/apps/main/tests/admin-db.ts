@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   ADMIN_PASSWORD,
   FIXTURE_PEOPLE_EMAILS,
-  MEMBER_EMAIL,
+  REGISTERED_EMAIL,
   NN_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
@@ -462,7 +462,7 @@ const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? '';
  * The three fixture people, created the way a real person would be.
  *
  * **`signUp()` through the anon client, not an insert**, so `identity.handle_new_user()` fires
- * and the `member` grant, the `identity.people` row and any reserved grant all come from the
+ * and the `registered` grant, the `identity.people` row and any reserved grant all come from the
  * trigger that will do it in production. The confirmation is done with SQL because there is no
  * mailbox to click in; everything else is the real path.
  *
@@ -477,7 +477,7 @@ async function seedFixturePeople(): Promise<void> {
 
   const roleFor: Record<string, string | null> = {
     [NN_ADMIN_EMAIL]: 'nn-admin',
-    [MEMBER_EMAIL]: null,
+    [REGISTERED_EMAIL]: null,
     [SUPER_ADMIN_EMAIL]: 'super-admin',
   };
 

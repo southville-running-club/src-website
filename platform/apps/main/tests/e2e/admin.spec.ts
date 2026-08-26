@@ -9,7 +9,7 @@ import {
   AWKWARD_LAST_NAME,
   CLEAN_EVENT_SLUG,
   CLEAN_PAID_LAST_NAME,
-  MEMBER_EMAIL,
+  REGISTERED_EMAIL,
   MISSING_EA_LAST_NAME,
   NN_ADMIN_EMAIL,
   PAID_EA_NUMBER,
@@ -268,10 +268,10 @@ test.describe('the door', () => {
     }
   });
 
-  test('gives a plain member a 404 that does not say the address exists', async ({
+  test('gives a plain registered account a 404 that does not say the address exists', async ({
     page,
   }) => {
-    await signInAs(page, MEMBER_EMAIL);
+    await signInAs(page, REGISTERED_EMAIL);
 
     const response = await page.goto(ADMIN);
     expect(response?.status()).toBe(404);
@@ -288,7 +288,7 @@ test.describe('the door', () => {
       'permission',
       'Forbidden',
       'not authorised',
-      MEMBER_EMAIL,
+      REGISTERED_EMAIL,
     ]) {
       expect(markup, `the 404 must not contain ${disclosure}`).not.toContain(disclosure);
     }
@@ -887,10 +887,10 @@ test.describe('people and roles', () => {
     // row it is standing in. The visible label stays short because the column is narrow at
     // 320px, so the name is carried by a visually hidden span.
     await expect(
-      page.getByRole('button', { name: `Grant nn-admin for ${MEMBER_EMAIL}` }),
+      page.getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: `Grant super-admin for ${MEMBER_EMAIL}` }),
+      page.getByRole('button', { name: `Grant super-admin for ${REGISTERED_EMAIL}` }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: `Revoke nn-admin for ${NN_ADMIN_EMAIL}` }),
@@ -922,7 +922,9 @@ test.describe('people and roles', () => {
     // **By row rather than by text**, because the address is in three places in that row — the
     // Person cell, and the hidden half of both of its buttons' names — so `getByText` matches
     // all three and fails strict mode on a page that is exactly right.
-    await expect(page.getByRole('row').filter({ hasText: MEMBER_EMAIL })).toBeVisible();
+    await expect(
+      page.getByRole('row').filter({ hasText: REGISTERED_EMAIL }),
+    ).toBeVisible();
   });
 
   test('grants a role that takes effect on the next request, and takes it back', async ({
@@ -936,22 +938,22 @@ test.describe('people and roles', () => {
     const memberPage = await memberContext.newPage();
 
     try {
-      await signInAs(memberPage, MEMBER_EMAIL);
+      await signInAs(memberPage, REGISTERED_EMAIL);
       expect(
         (await memberPage.goto(NN))?.status(),
-        'a plain member before the grant',
+        'a plain registered account before the grant',
       ).toBe(404);
 
       await signInAs(page, SUPER_ADMIN_EMAIL);
       await page.goto(PEOPLE);
       await page
-        .getByRole('button', { name: `Grant nn-admin for ${MEMBER_EMAIL}` })
+        .getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` })
         .click();
 
       // A 303 back to the list, so a reload does not repeat the act.
       await expect(page).toHaveURL(/\/admin\/people\/$/);
       await expect(
-        page.getByRole('button', { name: `Revoke nn-admin for ${MEMBER_EMAIL}` }),
+        page.getByRole('button', { name: `Revoke nn-admin for ${REGISTERED_EMAIL}` }),
       ).toBeVisible();
 
       const opened = await memberPage.goto(NN);
@@ -960,10 +962,10 @@ test.describe('people and roles', () => {
 
       await page.goto(PEOPLE);
       await page
-        .getByRole('button', { name: `Revoke nn-admin for ${MEMBER_EMAIL}` })
+        .getByRole('button', { name: `Revoke nn-admin for ${REGISTERED_EMAIL}` })
         .click();
       await expect(
-        page.getByRole('button', { name: `Grant nn-admin for ${MEMBER_EMAIL}` }),
+        page.getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` }),
       ).toBeVisible();
 
       expect(
@@ -977,7 +979,7 @@ test.describe('people and roles', () => {
       // is safe to run after a failure part-way through.
       await page.goto(PEOPLE);
       const revoke = page.getByRole('button', {
-        name: `Revoke nn-admin for ${MEMBER_EMAIL}`,
+        name: `Revoke nn-admin for ${REGISTERED_EMAIL}`,
       });
       if ((await revoke.count()) > 0) {
         await revoke.click();
@@ -1029,11 +1031,11 @@ test.describe('accessibility and small screens', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
-  test('has no axe violations on the 404 a member gets @requires-js', async ({
+  test('has no axe violations on the 404 a registered account gets @requires-js', async ({
     page,
   }) => {
     // The most-served page on this surface, and the one nobody looks at.
-    await signInAs(page, MEMBER_EMAIL);
+    await signInAs(page, REGISTERED_EMAIL);
     await page.goto(ADMIN);
 
     expect((await axe(page)).violations).toEqual([]);

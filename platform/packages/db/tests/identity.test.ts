@@ -170,7 +170,7 @@ describe('what an anonymous client may not do', () => {
 
   it('cannot call identity.has_role', async () => {
     const { error } = await anon.schema('identity').rpc('has_role', {
-      p_role: 'member',
+      p_role: 'registered',
     });
     // No grant to anon on the function: PostgREST finds it and Postgres denies it with 42501.
     // PGRST202 would mean the request never got as far as being denied.
@@ -190,23 +190,23 @@ describe('what the signup trigger does', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('grants an ordinary address member and not super-admin', async () => {
+  it('grants an ordinary address registered and not super-admin', async () => {
     const rows = await query<{ role: string }>(
       `select role from identity.role_grants
         where person_id = $1 and revoked_at is null`,
       [personA.id],
     );
-    expect(rows.map((r) => r.role)).toEqual(['member']);
+    expect(rows.map((r) => r.role)).toEqual(['registered']);
   });
 
-  it('grants the reserved address super-admin, in addition to member', async () => {
+  it('grants the reserved address super-admin, in addition to registered', async () => {
     const rows = await query<{ role: string }>(
       `select role from identity.role_grants
         where person_id = $1 and revoked_at is null
         order by role`,
       [admin.id],
     );
-    expect(rows.map((r) => r.role)).toEqual(['member', 'super-admin']);
+    expect(rows.map((r) => r.role)).toEqual(['registered', 'super-admin']);
   });
 
   it('applies the reserved grant exactly once, not once per row in the table', async () => {
@@ -352,7 +352,7 @@ describe('identity.people, updated by its owner and nobody else', () => {
 // -----------------------------------------------------------------------------------------
 
 describe('identity.grant_role, refused for anybody who is not super-admin', () => {
-  it('refuses a plain member, with the specific reason, and writes no audit row', async () => {
+  it('refuses a plain registered account, with the specific reason, and writes no audit row', async () => {
     const before = await query('select id from identity.audit');
 
     const { data, error } = await personA.client
@@ -449,7 +449,7 @@ describe('a super-admin does not thereby hold nn-admin', () => {
       [admin.id],
     );
 
-    expect(roles.map((row) => row.role)).toEqual(['member', 'super-admin']);
+    expect(roles.map((row) => row.role)).toEqual(['registered', 'super-admin']);
   });
 
   it.each(ENTRIES_READS)('entries.%s refuses them', async (name, args) => {

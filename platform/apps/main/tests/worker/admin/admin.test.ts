@@ -11,7 +11,7 @@ import {
   CLEAN_EVENT_SLUG,
   CLEAN_PAID_LAST_NAME,
   MEDICAL_NOTE,
-  MEMBER_EMAIL,
+  REGISTERED_EMAIL,
   NN_ADMIN_EMAIL,
   OVER_ENTRANT_ID,
   PAID_EA_NUMBER,
@@ -39,7 +39,7 @@ import {
  *
  * ## Every refusal is a 404, and asserting that is the point of the door section
  *
- * Signed out, a plain `member`, the wrong staff role, an address under the prefix nobody
+ * Signed out, a plain `registered`, the wrong staff role, an address under the prefix nobody
  * built: **all of them 404, and the bodies are byte-identical.** A 403 would disclose that the
  * address exists, which tells anybody who can register exactly where the club's entry list
  * lives and that it is worth attacking. This is the same answer the whole prefix gave when no
@@ -250,7 +250,7 @@ beforeAll(async () => {
   // Sequential rather than concurrent: three sign-ins is three rows in GoTrue's rate-limit
   // bucket either way, and a failure in one should say which one.
   nnAdmin = await signIn(NN_ADMIN_EMAIL);
-  member = await signIn(MEMBER_EMAIL);
+  member = await signIn(REGISTERED_EMAIL);
   superAdmin = await signIn(SUPER_ADMIN_EMAIL);
 });
 
@@ -406,7 +406,7 @@ describe('the door', () => {
     });
 
     it(`answers ${address} with a 404 to somebody who only holds member`, async () => {
-      // **Everybody with an account holds `member`.** Holding it means being signed in and
+      // **Everybody with an account holds `registered`.** Holding it means being signed in and
       // nothing else, so this is the answer the overwhelming majority of signed-in people get
       // and it must be the same answer a stranger gets.
       const response = await get(address, member);
@@ -429,7 +429,7 @@ describe('the door', () => {
     expect(await pageText(exported)).not.toContain(MEDICAL_NOTE);
   });
 
-  it('refuses the same two to a plain member', async () => {
+  it('refuses the same two to a plain registered account', async () => {
     const medical = await post(`${NN}medical/`, { entrantId: PAID_ENTRANT_ID }, member);
     const exported = await post(
       `${NN}export/`,
@@ -541,7 +541,7 @@ describe('the navigation', () => {
     expect(body).not.toContain('href="/admin/nn/"');
   });
 
-  it('offers a plain member nothing, because there is no page to offer it on', async () => {
+  it('offers a plain registered account nothing, because there is no page to offer it on', async () => {
     const response = await get(ADMIN, member);
     const body = await pageText(response);
 
@@ -1338,7 +1338,7 @@ describe('the roles page', () => {
 
     expect(markup).toContain('People and roles');
     expect(markup).toContain(NN_ADMIN_EMAIL);
-    expect(markup).toContain(MEMBER_EMAIL);
+    expect(markup).toContain(REGISTERED_EMAIL);
     expect(markup).toContain(SUPER_ADMIN_EMAIL);
     expect(markup).toContain('A role takes effect on their next request');
   });
@@ -1376,7 +1376,7 @@ describe('the roles page', () => {
     // Without it a screen reader meets four buttons all called "Grant" and has to infer from
     // the table which row it is standing in.
     const { markup } = await peoplePage();
-    const row = tableRows(markup).find((chunk) => chunk.includes(MEMBER_EMAIL))!;
+    const row = tableRows(markup).find((chunk) => chunk.includes(REGISTERED_EMAIL))!;
 
     // **The accessible name of each button, whole.** The visible half is two words and the
     // half that names the person is a visually hidden span, so the assertion is on the
@@ -1386,8 +1386,8 @@ describe('the roles page', () => {
       squash(match[1]!.replace(/<[^>]*>/g, '')).trim(),
     );
 
-    expect(names).toContain(`Grant nn-admin for ${MEMBER_EMAIL}`);
-    expect(names).toContain(`Grant super-admin for ${MEMBER_EMAIL}`);
+    expect(names).toContain(`Grant nn-admin for ${REGISTERED_EMAIL}`);
+    expect(names).toContain(`Grant super-admin for ${REGISTERED_EMAIL}`);
     // Two controls, two distinct names — never four buttons all called "Grant".
     expect(new Set(names).size).toBe(names.length);
   });
@@ -1406,7 +1406,7 @@ describe('granting and revoking a role', () => {
     // **The CSRF check comes first**, before the form is read for anything else: a request
     // that failed it is not a request from this page and nothing in it should be acted on. The
     // answer is the prefix's ordinary 404, so a forged POST learns nothing from it either.
-    const forged = await changeRole('grant', MEMBER_EMAIL, 'nn-admin', {
+    const forged = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin', {
       csrfField: 'not-the-token-this-page-minted',
     });
 
@@ -1417,7 +1417,7 @@ describe('granting and revoking a role', () => {
   });
 
   it('refuses a grant when the cookie half of the pair is missing', async () => {
-    const forged = await changeRole('grant', MEMBER_EMAIL, 'nn-admin', {
+    const forged = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin', {
       sendCsrfCookie: false,
     });
 
@@ -1431,7 +1431,7 @@ describe('granting and revoking a role', () => {
     // be useful at nine on race morning.
     expect((await get(NN, member)).status).toBe(404);
 
-    const granted = await changeRole('grant', MEMBER_EMAIL, 'nn-admin');
+    const granted = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin');
 
     // 303 rather than the list re-rendered, so a reload does not repeat the act.
     expect(granted.status).toBe(303);
@@ -1444,14 +1444,14 @@ describe('granting and revoking a role', () => {
 
   it('shows the new role on the page, and offers to take it away again', async () => {
     const { markup } = await peoplePage();
-    const row = tableRows(markup).find((chunk) => chunk.includes(MEMBER_EMAIL))!;
+    const row = tableRows(markup).find((chunk) => chunk.includes(REGISTERED_EMAIL))!;
 
-    expect(row).toContain('member, nn-admin');
-    expect(roleFormFor(markup, MEMBER_EMAIL, 'nn-admin')['action']).toBe('revoke');
+    expect(row).toContain('nn-admin, registered');
+    expect(roleFormFor(markup, REGISTERED_EMAIL, 'nn-admin')['action']).toBe('revoke');
   });
 
   it('revokes it again, and that also takes effect on the next request', async () => {
-    const revoked = await changeRole('revoke', MEMBER_EMAIL, 'nn-admin');
+    const revoked = await changeRole('revoke', REGISTERED_EMAIL, 'nn-admin');
 
     expect(revoked.status).toBe(303);
 

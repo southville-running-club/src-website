@@ -421,7 +421,7 @@ four account rules in one table — and **not one of them has been created in th
 The runbooks that gate them are `entries-open.md` step 0.1 and `accounts-open.md`.
 
 **There is a staff backend at `/admin/`, and everything under it answers 404 to anybody who may
-not be there.** Signed out, a plain `member`, the wrong role, an address nobody built — all the
+not be there.** Signed out, a plain `registered`, the wrong role, an address nobody built — all the
 same ordinary not-found page, because a 403 discloses that the address exists. `/admin/nn/` reads
 the entries for a running, the interest sign-ups, one medical note at a time, three CSV exports
 and a printable start list; `/admin/people/` is where a role is granted. The way in is an account

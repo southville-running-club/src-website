@@ -70,11 +70,19 @@ somebody registering themselves at `/account/sign-up/`, never seeded by hand exc
 migration that bootstraps the super-admin. Distinct from **membership** ([C12](requirements.md#c12--maintain-membership-records)) — an account is a person who can sign in; a member is
 someone the club has recorded as current, which is a later, separate thing.
 
-**Member** — in the accounts sense, the default role held by anyone with an account who is
-neither `super-admin` nor `nn-admin`. Not yet the same thing as a club member on the EA
-register — see **membership**, above, for why the two are kept apart.
+**Registered** — the default role held by anyone with an account who is neither `super-admin`
+nor `nn-admin`. It says what happened — somebody registered — and grants nothing on its own.
+**It used to be called `member`, and that was the wrong word**: see
+[ADR-016](../architecture/decisions/adr-016-registered-is-not-a-member.md). The entry that stood
+here needed a qualifier — "in the accounts sense" — every time it was used, which is how you can
+tell a word is doing two jobs.
 
-**Role** — one of exactly three: `super-admin`, `nn-admin`, `member`. Held in the `identity`
+**Member** — somebody the club has recorded as current: joined, paid, not lapsed, on the EA
+register. **Not a role**, and deliberately not one — see **membership**, above, and
+[C12](requirements.md#c12--maintain-membership-records). Nothing in the platform answers this
+question yet; the word is kept free for the thing that will.
+
+**Role** — one of exactly three: `super-admin`, `nn-admin`, `registered`. Held in the `identity`
 schema and checked by RLS on every table it applies to. A fourth role is a migration and a
 decision, not a config change — [ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md).
 

@@ -67,8 +67,8 @@ export const ADMIN_SECTIONS: AdminSection[] = [
 /**
  * The roles that open the backend at all.
  *
- * **`member` is not one of them, and that is the whole of the 404 rule.** Everybody with an
- * account holds `member`; holding it means being signed in and nothing else.
+ * **`registered` is not one of them, and that is the whole of the 404 rule.** Everybody with an
+ * account holds `registered`; holding it means being signed in and nothing else.
  */
 export const STAFF_ROLES = ['nn-admin', 'super-admin'] as const;
 

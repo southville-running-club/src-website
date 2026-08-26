@@ -76,8 +76,8 @@ const ENTRANT_PENDING = '0a0a0a0a-0000-4000-8000-000000000012';
  * there, beside the fixture it needs.
  */
 const NN_ADMIN_EMAIL = 'zz-entries-admin-nn@example.com';
-const MEMBER_EMAIL = 'zz-entries-admin-member@example.com';
-const PEOPLE_EMAILS = [NN_ADMIN_EMAIL, MEMBER_EMAIL];
+const REGISTERED_EMAIL = 'zz-entries-admin-member@example.com';
+const PEOPLE_EMAILS = [NN_ADMIN_EMAIL, REGISTERED_EMAIL];
 
 /** Long enough to clear the 12-character minimum #49 set. Not otherwise special. */
 const PERSON_PASSWORD = 'zz-entries-admin-test-password';
@@ -125,7 +125,7 @@ async function rpcAs(
  * click would, applies the roles asked for, and returns a client already signed in as them.
  *
  * The signup itself is left to fire `identity.handle_new_user()` exactly as production will,
- * so the `member` grant every account gets is real rather than fabricated.
+ * so the `registered` grant every account gets is real rather than fabricated.
  */
 async function fixturePerson(
   email: string,
@@ -272,7 +272,7 @@ beforeAll(async () => {
   // them concurrently would race the confirmation update against whichever signUp it belongs
   // to. `identity.test.ts` makes the same note for the same reason.
   nnAdmin = await fixturePerson(NN_ADMIN_EMAIL, ['nn-admin']);
-  member = await fixturePerson(MEMBER_EMAIL, []);
+  member = await fixturePerson(REGISTERED_EMAIL, []);
 }, 30_000);
 
 afterAll(async () => {
@@ -1132,7 +1132,7 @@ describe('the nn-admin role is the second door, and it is the only other one', (
   );
 
   it.each(ROLE_FUNCTIONS)(
-    'entries.%s refuses a signed-in person holding only member',
+    'entries.%s refuses a signed-in person holding only registered',
     async (name, args) => {
       // The whole answer, asserted as a whole — `toMatchObject` would pass while the function
       // also handed back an event name or a count, which is the disclosure this prevents.
@@ -1164,7 +1164,7 @@ describe('the nn-admin role is the second door, and it is the only other one', (
     },
   );
 
-  it('refuses a member even while the key path is wide open', async () => {
+  it('refuses a registered account even while the key path is wide open', async () => {
     // The gate key is installed for the whole of this file. A role-checked function must not
     // care: the two doors are independent, which is what lets one of them be taken away.
     expect(await rpcAs(member, 'entry_list', { p_event_slug: EVENT })).toEqual({
