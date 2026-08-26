@@ -460,11 +460,22 @@ compared `[]` to `[]` and could not fail — a line that still looks like covera
 nothing, which this repository treats as worse than no test at all. It is an exact list of the
 templates that have been argued for, so a new one is a decision in a diff.
 
-⚠️ **The open question is still open, and #101 is what answers it.** `config push` sends
-`smtp_enabled` and the template fields in the **same request**, and nobody has established
+✅ **The open question is closed, and #101's deploy is what closed it.** `config push` sends
+`smtp_enabled` and the template fields in the **same request**, and nobody had established
 whether the API judges that request against the config arriving or the config already there.
-#101 is the favourable case — production has had custom SMTP since #50 — and its deploy is the
-experiment. **One template at a time**, so a refusal names one cause and reverts one block.
+**It accepted them together** — run
+[32957004799](https://github.com/southville-running-club/src-website/actions/runs/32957004799),
+26 August 2026 — and a real confirmation then arrived at an Outlook mailbox carrying the club's
+own hostname, all three authentication checks passing.
+
+So **#79's restriction really is lifted by a custom SMTP provider**, which was the only half of
+the API's own error message this club could act on. Templates are ordinary changes now.
+
+⚠️ **One thing that looks like this failing and is not.** That deploy's first attempt went red at
+step 7, `supabase migration list`, with `FATAL: (EAUTHQUERY) auth_query secret check timed out` —
+a transient Supabase pooler error, *before* `db push` or `config push` ran. A red `deploy-db` on a
+change touching `[auth]` looks exactly like #79 and need not be it. **Read which step failed**,
+and re-run before reverting anything.
 
 ⚠️ **And [#54](https://github.com/southville-running-club/src-website/issues/54) is not
 unlocked by this, which is the correction this page most needs.** #99's spike measured that

@@ -440,11 +440,13 @@ describe('email templates, and the provider that forbids them', () => {
     // twice. So the thing to pin is which sections exist, and a new one becomes a decision
     // somebody takes in a diff rather than a line that rides along.
     //
-    // ⚠️ **`confirmation` is on this list before any deploy has proved the API accepts it.**
-    // That is #101's stated risk, not an oversight: `config push` sends `smtp_enabled` and
-    // these fields in one request, and whether the API judges the request against the config
-    // arriving or the config already there is unknown. If it is refused, this entry and the
-    // block it names come out together.
+    // ✅ **`confirmation` shipped as a stated risk and the risk paid.** It went onto this list
+    // before any deploy had proved the API would accept it — `config push` sends
+    // `smtp_enabled` and these fields in one request, and whether the API judged the request
+    // against the config arriving or the config already there was unknown. It accepted them
+    // together on 26 August 2026, and a real confirmation arrived carrying the club's own
+    // hostname. **A template and its provider may travel in one request**, so a second entry
+    // here is now an ordinary decision rather than a gamble against #79.
     expect(templateModifications()).toEqual(['auth.email.template.confirmation']);
   });
 

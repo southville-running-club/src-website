@@ -107,18 +107,19 @@ third person to sign up in an hour never receives anything and sees no error.
       [the zone](../../foundations/current-state.md#added-since-the-resend-sending-subdomain--50)
       — done, and the apex SPF was not touched because Resend's envelope sender carries its
       own on the bounce subdomain
-- [ ] ⚠️ **The `deploy-db` run was read, not assumed.** The block is `enabled = false` in the
-      base document and `true` only under `[remotes.production]`, and **that override has
-      never run here.** `supabase status` does not run the validation `config push` does, so
-      no local check can prove it applied — a green `config push` in the run log is the first
-      evidence, and the email below is the only real one. **If it silently did not apply,
-      production is on the built-in sender and nothing on this page will work**, which is
-      exactly the failure this step exists to catch
-- [ ] **A confirmation email has arrived at a real address outside the club's own domain** —
-      a personal Gmail is the test that matters, because that is where deliverability
-      problems show up
-- [ ] It arrived from **`Southville Running Club <noreply@send.southvillerunningclub.co.uk>`**,
-      and "show original" says **SPF, DKIM and DMARC all pass**
+- [x] ⚠️ **The `deploy-db` run was read, not assumed** — done, 26 August 2026. Run
+      [32950749008](https://github.com/southville-running-club/src-website/actions/runs/32950749008)
+      printed `Loading config override: [remotes.production]` and pushed `enabled` alone, with
+      every other key inherited from the base block. `supabase status` does not run the
+      validation `config push` does, so nothing local could have told you this — **keep reading
+      the run rather than the file**, for every future change to `[auth]`
+- [x] **A confirmation email has arrived at a real address outside the club's own domain** —
+      done, at two receivers that share no infrastructure: a hostedemail/rspamd mailbox and an
+      Outlook one, the latter with `compauth=pass reason=100`, `SCL: 1` and `dest:I` — the
+      **Inbox**, not Junk
+- [x] It arrived from **`Southville Running Club <noreply@send.southvillerunningclub.co.uk>`**,
+      and "show original" says **SPF, DKIM and DMARC all pass** — done, both receivers, with a
+      second `dkim=pass` for `amazonses.com` on top of the club's own
 - [ ] **Replying to it bounced, and that is the accepted state** — not a defect to raise.
       GoTrue has no `reply_to` field, so the `From` is where a reply goes, and `noreply@`
       is the honest name for an address that cannot answer. A working Reply button is
