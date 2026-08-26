@@ -31,10 +31,16 @@ test.describe('the club website', () => {
   test('links to both things that already exist', async ({ page }) => {
     await page.goto('/');
 
+    // **Scoped to `main`, since the navigation arrived.** These two links are also in the
+    // bar now, so an unscoped `getByRole` matches twice and Playwright refuses in strict
+    // mode. Narrowing to the page's own content is the right answer rather than picking a
+    // `.first()`: this test is about what the home page *says*, and the bar has its own.
+    const content = page.locator('main');
+
     await expect(
-      page.getByRole('link', { name: /Nightingale Nightmare/ }),
+      content.getByRole('link', { name: /Nightingale Nightmare/ }),
     ).toHaveAttribute('href', '/nn/');
-    await expect(page.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
+    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
       'href',
       '/timing',
     );
@@ -1294,7 +1300,14 @@ test.describe('race timing, at /timing', () => {
     await page.goto('/');
     const websiteOrigin = new URL(page.url()).origin;
 
-    await page.getByRole('link', { name: /Race timing/ }).click();
+    // Scoped to `main` since the navigation arrived — the bar carries this link too, and an
+    // unscoped match is two elements. The bar's own link is covered by its own test; this one
+    // is about the hop between two Workers on one origin, so either would do and the page's
+    // own content is the one that was always meant.
+    await page
+      .locator('main')
+      .getByRole('link', { name: /Race timing/ })
+      .click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
     expect(new URL(page.url()).origin).toBe(websiteOrigin);

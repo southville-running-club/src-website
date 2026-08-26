@@ -77,10 +77,23 @@ function clubLogo(): Html {
 /**
  * The bar that says which site this is.
  *
- * **A `div` rather than a `header`, matching the Astro component exactly**, and for the reason
- * it documents: a `<header>` outside `main` maps to the `banner` landmark, and these pages may
- * one day carry a masthead of their own. One `banner` per page or a screen reader offers the
- * same landmark twice with no way to tell them apart.
+ * ⚠️ **A `<header>` here, where the Astro component is a `<div>`, and the divergence is
+ * deliberate — CI is what forced it.** Read this before "fixing" the inconsistency.
+ *
+ * `SiteBanner.astro` must be a `div`, and `site.spec.ts` asserts why: five Nightingale
+ * Nightmare pages carry `NnMasthead`, which *is* a `<header>` outside `<main>` and therefore
+ * the `banner` landmark. A second one is `landmark-no-duplicate-banner`, and a screen reader
+ * offering "banner" twice with no way to tell them apart.
+ *
+ * **The account pages have no masthead — no `<header>` anywhere** — so the constraint that
+ * forces a `div` there does not exist here, and the cost of copying it does. As a `div` the
+ * bar's content sits outside every landmark, which axe's `region` rule flags: *"Some page
+ * content is not contained by landmarks"*, meaning somebody navigating by landmark skips the
+ * welcome sentence and the link to the old site entirely. That is 39 violations on the first
+ * CI run of this change, and the fix is to let this be the `banner` landmark it actually is.
+ *
+ * So: the tags differ by one element, on purpose, because the two documents differ. The words
+ * and the geometry still come from `@src/shared`, which is the part that must not drift.
  *
  * **The mark links home, and on the account pages that matters more than anywhere else.** Until
  * now `/account/` had no route back to the club site at all — no logo, no link, no breadcrumb.
@@ -88,7 +101,7 @@ function clubLogo(): Html {
  * never had that problem: its own masthead links to the dashboard and carries "My account".
  */
 export function siteBanner(): Html {
-  return html`<div class="site-banner">
+  return html`<header class="site-banner">
     <div class="site-banner-inner">
       <a class="site-banner-mark" href="/" aria-label="Southville Running Club, home">
         ${clubLogo()}
@@ -103,7 +116,7 @@ export function siteBanner(): Html {
         >
       </p>
     </div>
-  </div>`;
+  </header>`;
 }
 
 /**

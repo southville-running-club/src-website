@@ -155,13 +155,30 @@ describe('the club chrome, on every account page', () => {
     expect(await accountPage()).toContain('<link rel="icon" href="/favicon.svg"');
   });
 
+  it('makes the banner a real landmark, unlike the Astro one', async () => {
+    // **The one place the Worker's markup diverges from the Astro component, and CI is what
+    // forced it.** `SiteBanner.astro` is a `div` because five campaign pages already carry
+    // `NnMasthead` as their `<header>`, and two `banner` landmarks is
+    // `landmark-no-duplicate-banner`. These pages have no masthead, so copying the `div`
+    // bought nothing and cost something: axe's `region` rule flagged the welcome sentence and
+    // the link to the old site as content outside every landmark — 39 violations, the first
+    // time this change reached CI.
+    //
+    // Asserted here so the divergence is a decision somebody reads rather than an
+    // inconsistency somebody tidies away.
+    const markup = (await accountPage()).replace(/\s+/g, ' ');
+
+    expect(markup).toContain('<header class="site-banner">');
+    // And exactly one, because the moment this surface grows a masthead the div is right again.
+    expect(markup.match(/<header/g) ?? []).toHaveLength(1);
+  });
+
   it('offers a way back to the club site', async () => {
     // **The part a member actually notices.** Before this there was no route from the account
     // area back to the website at all — no logo, no link, no breadcrumb. Somebody who signed
     // in and then wanted the race page had to edit the address bar.
     const markup = (await accountPage()).replace(/\s+/g, ' ');
 
-    expect(markup).toContain('class="site-banner"');
     expect(markup).toContain('href="/" aria-label="Southville Running Club, home"');
   });
 
