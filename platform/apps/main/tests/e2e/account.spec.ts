@@ -802,6 +802,18 @@ test.describe('downloading and deleting an account @requires-js', () => {
 
     await registeredAndSignedIn(page, request, email, password, "D'Arcy O'Malley");
 
+    // **`/account/entries/` scanned on the way past**, for the reason this whole journey
+    // exists: the account is already paid for, and standing on the page costs a second where
+    // another registration costs thirty. It is the empty state — this person has entered
+    // nothing — which is the state every account starts in and the one whose *wording* is the
+    // risk. "You have no entries" would be a claim the page cannot make: they may have entered
+    // with a different address.
+    await page.goto('/account/entries/');
+    await expect(page.getByText(/Nothing is showing here yet/i)).toBeVisible();
+    await expect(page.getByText(/entered with this email address/i)).toBeVisible();
+
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
     await page.goto('/account/data/');
 
     // The promise, before the button.

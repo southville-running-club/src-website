@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AnonClient } from './supabase';
+import type { AnonClient, DbClient } from './supabase';
 import { toIsoDate } from './age-category';
 import type { NnEntry } from './nn-entry';
 
@@ -140,7 +140,7 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
  * here — the shape of "who is entering" is exactly the thing that differs between races.
  */
 export async function createNnPendingPurchase(
-  client: AnonClient,
+  client: DbClient,
   input: {
     slug: string;
     entry: NnEntry;
@@ -235,7 +235,7 @@ export async function createNnPendingPurchase(
  * send the person to Stripe anyway.
  */
 export async function attachCheckoutSession(
-  client: AnonClient,
+  client: DbClient,
   purchaseId: string,
   sessionId: string,
 ): Promise<boolean> {

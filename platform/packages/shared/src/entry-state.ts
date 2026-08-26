@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AnonClient } from './supabase';
+import type { DbClient } from './supabase';
 import { parseIsoDate, toIsoDate, type CivilDate } from './age-category';
 import { formatLondonDate } from './london-time';
 
@@ -98,7 +98,7 @@ const entryStateShape = z.object({
  * card payment.
  */
 export async function fetchEntryState(
-  client: AnonClient,
+  client: DbClient,
   slug: string,
 ): Promise<EntryStateResult> {
   const { data, error } = await client.schema('entries').rpc('entry_state', {
@@ -125,7 +125,7 @@ export async function fetchEntryState(
  * running is a page with no entry form and no year link, never a page that guesses.
  */
 export async function fetchCurrentEntryState(
-  client: AnonClient,
+  client: DbClient,
   raceSlug: string,
 ): Promise<EntryStateResult> {
   const { data, error } = await client.schema('entries').rpc('current_entry_state', {

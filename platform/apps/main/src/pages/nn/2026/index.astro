@@ -433,6 +433,25 @@ const dateLine = race.date
     </div>
 
     <div data-nn-entry hidden>
+      {
+        /* **Shown only to somebody holding `nn.entry.before_open`, and it has to exist.**
+         *
+         * A person granted `nn-tester` is shown an entry form at an address where everybody
+         * else is told entries are not open. Without this notice the only reasonable reading
+         * of that page is that entries *have* opened — and the natural next thing to do is
+         * tell people, which is precisely what an unratified opening date must not have
+         * happen to it.
+         *
+         * It ships hidden like every other conditional block on this page and is revealed by
+         * `worker/nn-entry.ts` when, and only when, the window is `pre_open` and the form is
+         * on offer anyway. When entries genuinely open it stays hidden, because `early` is
+         * false for everybody — including a tester. */
+      }
+      <p class="notice" role="status" data-nn-entry-early hidden>
+        <strong>Entries are not open to the public yet.</strong> You are seeing this form because
+        your account may enter early, so that the club can check a real payment reaches it before
+        1 September. Anything you enter here is a real entry and a real charge.
+      </p>
       <NnEntryForm />
     </div>
 

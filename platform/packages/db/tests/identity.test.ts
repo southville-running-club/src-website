@@ -642,15 +642,61 @@ describe('identity.delete_me()', () => {
  * right up until the day it was made `on delete cascade`.
  */
 describe('what a deletion cannot reach', () => {
-  it('no table in entries references identity.people', async () => {
-    const references = await query<{ table_name: string; constraint_name: string }>(
-      `select tc.table_name, tc.constraint_name
+  it('never cascades from identity.people into entries', async () => {
+    // **This assertion was "no table in entries references identity.people at all", and #107
+    // made that too strong rather than wrong.** `entry_purchases.person_id` is now a real
+    // reference — it is what `/account/entries/` reads, and what lets somebody who was signed
+    // in when they entered see their own place.
+    //
+    // The property #62 actually needs is untouched, and it is the one asserted here: **no
+    // reference from `entries` into `identity` may cascade.** `on delete set null` keeps the
+    // purchase, the amount, the Stripe reference and the club's record of the transaction, and
+    // clears only the link. A `cascade` would delete a paid entry because somebody closed their
+    // account, which is the thing #62 says must not become possible.
+    const references = await query<{
+      table_name: string;
+      constraint_name: string;
+      delete_rule: string;
+    }>(
+      `select tc.table_name, tc.constraint_name, rc.delete_rule
+         from information_schema.table_constraints as tc
+         join information_schema.referential_constraints as rc
+           on rc.constraint_name = tc.constraint_name
+          and rc.constraint_schema = tc.constraint_schema
+         join information_schema.constraint_column_usage as ccu
+           on ccu.constraint_name = tc.constraint_name
+          and ccu.constraint_schema = tc.constraint_schema
+        where tc.constraint_type = 'FOREIGN KEY'
+          and tc.table_schema = 'entries'
+          and ccu.table_schema = 'identity'
+        order by tc.table_name, tc.constraint_name`,
+    );
+
+    // Exactly one, and it is the one that was argued for. A second arriving without a decision
+    // is what this list is here to make visible.
+    expect(references).toEqual([
+      {
+        table_name: 'entry_purchases',
+        constraint_name: 'entry_purchases_person_id_fkey',
+        delete_rule: 'SET NULL',
+      },
+    ]);
+  });
+
+  it('keeps entries.entrants free of any reference to a person', async () => {
+    // **The runner rows specifically**, which is what #62's sentence is about: *"a paid race
+    // entry survives a deletion because `entries.entrants` is not keyed on `identity.people`"*.
+    // The purchase may know whose it was; the runner on the start list must not depend on an
+    // account existing at all, because most entrants will never have one.
+    const references = await query(
+      `select tc.constraint_name
          from information_schema.table_constraints as tc
          join information_schema.constraint_column_usage as ccu
            on ccu.constraint_name = tc.constraint_name
           and ccu.constraint_schema = tc.constraint_schema
         where tc.constraint_type = 'FOREIGN KEY'
           and tc.table_schema = 'entries'
+          and tc.table_name in ('entrants', 'entrant_medical')
           and ccu.table_schema = 'identity'`,
     );
 

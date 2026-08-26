@@ -459,5 +459,14 @@ this removes.
 - **The webhook** — what confirms a payment, how it authenticates, and what privilege it
   writes with. **Not a licence for a service role key**
 - **The confirmation email** — nothing is sent yet, and `/nn/2026/entry/complete/` is worded as
-  what the club will do rather than what has happened
+  what the club will do rather than what has happened. **`/account/entries/` is now the durable
+  record in the meantime**, alongside Stripe's own receipt — [#73](https://github.com/southville-running-club/src-website/issues/73)
+  is still the email
+- ~~**A way to test the payment path without opening entries**~~ — **done**, in
+  [#107](https://github.com/southville-running-club/src-website/issues/107). The `nn-tester`
+  role and a permission-gated 1p fee, so the rehearsal in the entries-open runbook no longer
+  writes an `entries_open_at` the committee has not ratified
+- ~~**Undoing an entry**~~ — **done**, narrowly. A `super-admin` may cancel and refund one
+  purchase — [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). Transfers,
+  corrections, manual entries, resends and partial refunds are each still their own decision
 - **The backup runbook**, with a tested restore

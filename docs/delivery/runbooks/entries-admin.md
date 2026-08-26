@@ -70,7 +70,9 @@ pre-assigns a role to a new volunteer's address before they have registered.
 - [ ] Sign in as a `super-admin` and open `/admin/people/`
 - [ ] Find them by email address. **They must have registered first** — this page grants roles,
       it does not create accounts
-- [ ] Press **Grant nn-admin** on their row
+- [ ] Press **Grant nn-admin** on their row — or whichever role you mean. **The buttons come
+      from the database**, so every role the club has appears here, and the collapsed *What
+      these roles allow* panel above the table says what each one carries
 - [ ] Tell them to open `/admin/`. **It takes effect on their next request** — there is no
       session to end and nothing for them to do
 
@@ -283,9 +285,44 @@ notice's other open decisions.
 
 ---
 
-## What the admin surface cannot do
+## Cancelling an entry
 
-**Nothing on it changes a record.** There is no editing, no refund, no transfer, no manual entry
+**The one thing on this surface that changes a record**, added by #107 and argued in
+[ADR-018](../../architecture/decisions/adr-018-cancelling-an-entry.md). It needs
+`nn.entry.cancel`, which **`nn-admin` carries and `super-admin` does not** — a super-admin who
+has not also been granted `nn-admin` cannot see the entry list at all, which is #58's *a grant is
+not an inheritance* and is deliberate.
+
+- [ ] Find the row on `/admin/nn/` and press **Cancel** on it
+- [ ] Read the confirmation page. It names the amount and whether there is a card payment behind
+      it
+- [ ] Press **Cancel this entry and refund it**
+
+What happens, in this order:
+
+1. The refund goes to Stripe first, against the stored payment intent, in full.
+2. Then the club's record changes: an audit row, the entrant and any medical note deleted, the
+   purchase moved to `refunded`, and the place back in the count.
+
+**It cannot be undone.** Re-entering is a fresh purchase at whatever the price is that day.
+
+### If it says "Refunded, but not recorded"
+
+The money is back and the club's record still says `paid`. **Press Cancel on the same row
+again.** The refund is idempotent on the purchase id, so the second attempt returns the first
+refund rather than issuing another, and the record then completes. That ordering is deliberate —
+the alternative leaves the club holding money for an entry it has already deleted.
+
+### If it says "Nothing was cancelled"
+
+Either Stripe refused the refund, or no `STRIPE_SECRET_KEY` is installed. **Nothing was
+deleted and the place is still taken** in both cases. Check the payment in the Stripe dashboard.
+
+---
+
+## What the admin surface still cannot do
+
+**Cancelling is the only change it makes.** There is no transfer, no correction, no manual entry
 and no resend, because each of those has to agree with Stripe and with what somebody consented
 to. They are deliberately left for a change that can think about them together.
 
@@ -293,7 +330,9 @@ Until then:
 
 | Wanted | Where |
 | --- | --- |
-| Refund somebody | Stripe dashboard, then the `update` in [the attention runbook](entries-attention.md#over_capacity--somebody-paid-and-the-race-was-full) |
+| Cancel and refund one entry | **Here**, above. Needs `nn-admin` |
+| Refund part of an entry | Nowhere. Partial refunds are their own decision |
+| Move an entry to somebody else | Nowhere yet |
 | Raise the capacity by one | [The attention runbook](entries-attention.md#the-two-ways-out) |
 | Clear an attention flag | [The attention runbook](entries-attention.md#the-query) |
 | Correct a misspelled name | Nowhere yet. Write it down; it is the awkward-cases change's first customer |

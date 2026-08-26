@@ -46,6 +46,19 @@ const FEES = [
     code: 'vi_guide',
     description: 'Guiding a visually impaired runner. There is no charge for a guide.',
   },
+  {
+    // **Last, and invisible to everybody who is not testing.** Every card in this list ships
+    // `hidden` and is revealed only when `entry_state()` returns a fee with that code — and
+    // `entries.fees.requires_permission` keeps this one out of that answer for anybody
+    // without `nn.entry.before_open`. So the markup existing is not the same as the card
+    // existing, exactly as it already is for a fee the committee withdraws.
+    //
+    // It is at the end because it is the only one whose order does not matter: nobody
+    // choosing between entry types will ever see it beside another.
+    code: 'tester',
+    description:
+      'Checks that a real card payment reaches the club. Not an entry to the race.',
+  },
 ] as const;
 
 /**

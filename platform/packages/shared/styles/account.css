@@ -107,3 +107,41 @@
   background: var(--colour-error);
   color: var(--colour-on-accent);
 }
+
+/* One race entry on /account/entries/.
+ *
+ * **A rule and a radius, and no fill.** Every colour on this surface is a `--colour-*` token
+ * and there is not a hex value in this file; a background here would need a wash, and a wash
+ * needs a contrast assertion to go with it. This carries neither, so there is nothing for the
+ * palette to get wrong — the same reasoning `.notice` above already follows.
+ *
+ * `--colour-rule` rather than `--colour-danger` or any of the semantic colours: a list of
+ * entries is neutral information, and the one thing on the card that is ever alarming is the
+ * status sentence, which is words rather than a hue. WCAG 1.4.1, as everywhere else here. */
+.account-card {
+  margin: calc(var(--space) * 1.5) 0;
+  padding: var(--space);
+  border: 1px solid var(--colour-rule);
+  border-radius: 6px;
+}
+
+.account-card > :last-child {
+  margin-bottom: 0;
+}
+
+.account-card h2 {
+  margin: 0 0 calc(var(--space) * 0.5);
+  font-size: 1.15rem;
+}
+
+/* `dt` above `dd` rather than a two-column grid. At 320px a label-and-value grid gives the
+   value about eleven characters, and "Confirmed. You have a place." wraps to four lines in a
+   column while the label sits in white space beside it. */
+.account-card dt {
+  margin-top: calc(var(--space) * 0.75);
+  font-weight: 600;
+}
+
+.account-card dd {
+  margin: 0;
+}

@@ -64,10 +64,23 @@ re-run.
   people is settled** — the admin surface is
   [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) and its
   amendment: originally a Worker secret plus a key per person, and **since #57 and #58 the
-  `nn-admin` role**, checked by `identity.has_role()` before anything is read. Four functions are
-  granted to `authenticated` for that, and `entries.test.ts` names them. **Editing people is
-  still not settled.** No refunds, transfers, corrections, manual entries or resends — each is a
-  decision about changing a record somebody paid for.
+  `nn-admin` role**, checked by `identity.has_permission()` since #107 and by
+  `identity.has_role()` before it. Eleven functions are granted to `authenticated` now, and
+  `entries.test.ts` names them with the argument for each. **Cancelling an entry is settled and
+  nothing else about editing one is.** Somebody holding `nn.entry.cancel` — which `nn-admin`
+  carries and `super-admin` deliberately does not — may refund one purchase in full, which
+  deletes its entrants and returns the place —
+  [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Transfers,
+  corrections, manual entries, resends and partial refunds are each still a stop-and-ask**, and
+  each is a decision about changing a record somebody paid for.
+- **A fifth role, or a seventh permission.** Since #107 a role is a bundle of permissions and
+  code checks the permission, never a role name —
+  [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). The four
+  roles and the six permissions are asserted exactly in
+  `packages/db/tests/identity-permissions.test.ts`, which is what replaced `identity.roles`'
+  check constraint and does the same job: it makes an addition a decision somebody takes in a
+  diff. Adding a role is a migration and no deploy — `/admin/people/` reads
+  `identity.grantable_roles()`.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and *that* is the thing to fix.
@@ -114,7 +127,7 @@ One hostname, three paths — the same locally and in production:
 | --- | --- |
 | `/` | The club website — `apps/main` |
 | `/nn` | Nightingale Nightmare — `apps/main` |
-| `/account` | Sign up, sign in, sign out and the password pages — `apps/main` |
+| `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main` |
 | `/admin` | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here |
 | `/timing` | Race timing — `apps/timing`, a different Worker |
 
@@ -425,8 +438,11 @@ not be there.** Signed out, a plain `registered`, the wrong role, an address nob
 same ordinary not-found page, because a 403 discloses that the address exists. `/admin/nn/` reads
 the entries for a running, the interest sign-ups, one medical note at a time, three CSV exports
 and a printable start list; `/admin/people/` is where a role is granted. The way in is an account
-holding `nn-admin` or `super-admin`, checked per request through `identity.my_roles()` —
-[the admin runbook](docs/delivery/runbooks/entries-admin.md) has the addresses and the bootstrap.
+holding `nn-admin` or `super-admin`, checked per request through `identity.my_roles()` and
+`identity.my_permissions()` — [the admin runbook](docs/delivery/runbooks/entries-admin.md) has the
+addresses and the bootstrap. **The sections are gated on permissions and the door is gated on
+roles**, and the split is deliberate: `isStaff()` answers "is this person staff", which
+`nn-tester` must fail even though it holds a permission.
 
 **The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
 the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308
@@ -545,6 +561,21 @@ test is what forces it to be made in a diff** — it has happened twice: `curren
 which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
 [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
 
+**`authenticated` is a second list and it went from six to eleven in #107.** It is a role
+anybody who registers holds, so every function on it authorises inside itself and the grant only
+says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` are there because
+a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a
+signed-in caller may do more. `my_entries()` is scoped to `auth.uid()` and the caller's confirmed
+address; `cancellable_purchase()` and `cancel_entry()` refuse without `nn.entry.cancel`.
+
+**Two functions in `entries` now answer differently depending on who is asking, and that is new.**
+`entry_state()` hides a fee whose `requires_permission` the caller does not hold, and
+`create_pending_purchase()` admits a `pre_open` event for a caller holding `nn.entry.before_open`.
+Both resolve that through `auth.uid()` and **never through anything the caller passes** — a
+parameter would be a free early entry for anybody who reads the page source. `entries_close_at`
+and `active` are never bypassed. `packages/db/tests/entries-tester.test.ts` re-attempts every one
+of those bypasses anonymously and as a signed-in person holding nothing.
+
 **Six functions take a key, and the key is what makes an anon grant safe.** Without one, two
 ordinary PostgREST calls with the published anon key would buy a free entry, because
 `create_pending_purchase()` issues purchase ids on request — and the five admin reads would hand
@@ -556,6 +587,30 @@ ship null, which refuses everything.
 is deliberate.** It can only delete what `/nn/privacy/` has published a promise to delete, it
 takes no arguments and returns a count — and gating it would make a legal retention obligation
 stop being kept on any day the admin key was not installed.
+
+**Somebody holding `nn-tester` can enter before entries open, and that is how the payment path
+gets tested without touching `entries_open_at`.** The role carries one permission,
+`nn.entry.before_open`, and it opens exactly one thing: `/nn/2026/` shows the entry form with a
+notice saying why, and `create_pending_purchase()` admits a `pre_open` event. There is a 1p
+**Tester** fee on `nn-2026` gated by the same permission — invisible in `entry_state()` and
+refused with `invalid_fee` by anybody else — so a real card can prove the club's live Stripe
+account for a penny. **The Worker signs those two calls with the person's own token**, through
+`createUserClient`, because the whole thing resolves through `auth.uid()`; a signed-out visitor's
+path is unchanged and costs nothing extra. A tester's entry is a **real** entry: it consumes a
+place, appears in `/admin/nn/`, in the exports and on the start list, and it is removed with the
+cancel button rather than excluded from the thing it is testing.
+
+**Production runs on Stripe *test* keys until entries open, and that is safe rather than
+sloppy** — the only person who can reach Checkout before 1 September is somebody the club granted
+`nn-tester` to. Swapping `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to live keys is the last
+manual step before the window opens, and it is in the entries-open runbook.
+
+**`/account/entries/` is what tells a runner they have a place**, and until #73 it is the only
+thing that does besides Stripe's own receipt. It reads `entries.my_entries()`, which matches on
+`person_id` — set when the buyer happened to be signed in — **or** on a `purchaser_email` equal to
+the caller's confirmed address. **An account is not required to enter and is never created by
+entering**: auto-creating one would write an unconfirmed `auth.users` row and grant it the signup
+role, which is a false statement in the table whose job is to say who somebody is.
 
 **A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide is told so plainly and

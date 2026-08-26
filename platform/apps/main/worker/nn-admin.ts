@@ -1,8 +1,10 @@
 import {
   ageCategoryFor,
+  cancelEntry,
   createAnonClient,
   createUserClient,
   csvDocument,
+  fetchCancellablePurchase,
   fetchCurrentEntryState,
   fetchEntryList,
   fetchExport,
@@ -27,7 +29,10 @@ import {
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
 import { html, raw, type Html } from './html';
-import { masthead, notFound, page, type AdminViewer } from './admin-shell';
+import { can, masthead, notFound, page, type AdminViewer } from './admin-shell';
+import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
+import { cookieValue } from './cookies';
+import { refundPayment, stripeConfig, type StripeEnv } from './stripe';
 import { ADMIN_PREFIX, NN_RACE_SLUG } from './routing';
 
 /** Where this section lives, now that it is a section rather than the whole surface. */
@@ -155,8 +160,10 @@ export async function handleNnSection(
   request: Request,
   viewer: AdminViewer,
   cfg: SupabaseConfig,
+  env: StripeEnv,
   segments: string[],
   url: URL,
+  secure: boolean,
 ): Promise<Response> {
   const reader = readerFor(cfg, viewer.accessToken);
 
@@ -194,6 +201,18 @@ export async function handleNnSection(
 
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'export') {
     return exportResponse(request, reader, viewer);
+  }
+
+  // **Cancelling, and it is the only thing under this prefix that changes a record.**
+  // Everything else here reads. `nn.entry.cancel` is a separate permission from the reads even
+  // though `nn-admin` carries both — so a future role that reads without undoing needs no
+  // change here. It is checked before the handler runs, in the same place and for the same
+  // reason the section itself is, and again inside `entries.cancel_entry()`, which is the
+  // control. See ADR-018 for why it sits with the reads rather than with `super-admin`.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'cancel') {
+    return can(viewer, 'nn.entry.cancel')
+      ? cancelResponse(request, cfg, env, viewer, secure)
+      : notFound();
   }
 
   // An address under the prefix that is not one of the six. Answered here rather than fallen
@@ -521,7 +540,7 @@ function dashboardPage(
     <main class="admin-page" id="main">
       ${attentionSection(list, flagged)} ${raceStandsSection(list, figures, interest)}
       ${raceMorningSection(list)} ${medicalAndAffiliationSection(list, figures)}
-      ${entriesSection(list, filters, url)} ${interestSection(interest)}
+      ${entriesSection(list, filters, url, viewer)} ${interestSection(interest)}
     </main>`;
 }
 
@@ -995,7 +1014,12 @@ function retentionWords(interval: string): string {
  * `<table>` with real `<th scope="col">` and `<th scope="row">` at every width — no `display:
  * block` reflow, so the table semantics that make it navigable are never traded away.
  */
-function entriesSection(list: AdminEntryList, filters: EntryFilters, url: URL): Html {
+function entriesSection(
+  list: AdminEntryList,
+  filters: EntryFilters,
+  url: URL,
+  viewer: AdminViewer,
+): Html {
   const shown = viewEntries(list.entries, filters);
   const fees = [...new Set(list.entries.map((entry) => entry.feeCode))].sort();
 
@@ -1058,24 +1082,45 @@ function entriesSection(list: AdminEntryList, filters: EntryFilters, url: URL): 
             <th scope="col" class="admin-col-wide">Paid</th>
             <th scope="col">Status</th>
             <th scope="col">Note</th>
+            ${
+              /* **`admin-col-wide`, so it folds away with Club, Category, Entry, EA number
+                 and Paid at 320px.** The phone layout keeps three columns on purpose — a
+                 fourth is what starts the table scrolling sideways, and an absolutely
+                 positioned visually-hidden span inside a scroller drags the whole page with
+                 it, which is the trap CLAUDE.md spends a paragraph on.
+
+                 Losing it on a phone is the deliberate half of that. Cancelling an entry is a
+                 desk task with the Stripe dashboard open in another tab, not something done
+                 one-handed at a race; the medical note, which *is* wanted on race morning,
+                 keeps its column. */ null
+            }
+            <th scope="col" class="admin-col-wide">Cancel</th>
           </tr>
         </thead>
         <tbody>
           ${
             shown.length === 0
               ? html`<tr>
-                  <td colspan="8">Nothing matches that filter.</td>
+                  <td colspan="9">Nothing matches that filter.</td>
                 </tr>`
-              : shown.map((entry) => entryRow(entry))
+              : shown.map((entry) => entryRow(entry, viewer))
           }
         </tbody>
       </table>
     </section>`;
 }
 
-function entryRow(entry: AdminEntry): Html {
+function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
   const category = categoryLabel(entry.age, entry.gender);
   const ea = entry.requiresEaNumber ? entry.eaNumber : null;
+
+  // **Only where there is something to cancel.** An `expired` hold has already released its
+  // place and has no entrant to remove, and a `refunded` row is the outcome of having pressed
+  // this once already — offering the button on either would be offering a no-op that reads as
+  // a destructive act.
+  const cancellable =
+    can(viewer, 'nn.entry.cancel') &&
+    (entry.status === 'paid' || entry.status === 'pending');
 
   return html`<tr>
     <th scope="row">
@@ -1117,6 +1162,25 @@ function entryRow(entry: AdminEntry): Html {
                 Show note
                 <span class="admin-visually-hidden">
                   for ${entry.firstName} ${entry.lastName}
+                </span>
+              </button>
+            </form>`
+          : '—'
+      }
+    </td>
+    <td class="admin-col-wide">
+      ${
+        cancellable
+          ? html`<form method="post" action="${NN_SECTION}/cancel/">
+              <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+              ${
+                /* No CSRF token, and no need for one: this POST changes nothing. It renders
+                 the confirmation, which mints the token the second POST has to echo. */ null
+              }
+              <button type="submit" class="admin-linkish">
+                Cancel
+                <span class="admin-visually-hidden">
+                  the entry for ${entry.firstName} ${entry.lastName}
                 </span>
               </button>
             </form>`
@@ -1653,4 +1717,252 @@ async function readForm(request: Request): Promise<FormData | null> {
   } catch {
     return null;
   }
+}
+
+// -----------------------------------------------------------------------------------------
+// Cancelling an entry
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Cancel one entry: refund it through Stripe, then record it.
+ *
+ * ## The order, and why it is this way round
+ *
+ * **Stripe first, the database second.** ADR-018 argues it in full; the short version is that
+ * this ordering is the one a retry repairs. The refund is idempotent on the purchase id, so
+ * running the whole thing again after a failure in the second half returns the same refund and
+ * completes the record. The other ordering — mark it cancelled, then call Stripe — leaves a
+ * released place, a deleted entrant and the club holding the money, with nothing on the row
+ * saying a refund is owed.
+ *
+ * ## Two POSTs, not one
+ *
+ * The button on the entry list is a `GET`-safe link to nothing; the first POST here renders a
+ * confirmation naming the amount and the entry's own reference, and the second does it.
+ * **A single-click destructive control on a table of two hundred rows is a mis-tap away from
+ * refunding a stranger**, and unlike every other control on this surface there is no undo:
+ * the entrant row and their medical note are gone, and re-entering is a fresh purchase at
+ * whatever the price is that day.
+ *
+ * ## What is checked, and where
+ *
+ *   * `nn.entry.cancel`, in `handleNnSection` before this runs — the ordering discipline the
+ *     whole surface uses.
+ *   * The CSRF token, here, because this is a state-changing POST and the session cookie is
+ *     `SameSite=Lax`. Same double-submit scheme `/admin/people/` uses.
+ *   * `nn.entry.cancel` **again**, inside `entries.cancel_entry()`, which is the control. This
+ *     one is the only one that matters; the two above are what make the page honest.
+ */
+async function cancelResponse(
+  request: Request,
+  cfg: SupabaseConfig,
+  env: StripeEnv,
+  viewer: AdminViewer,
+  secure: boolean,
+): Promise<Response> {
+  const form = await readForm(request);
+  const purchaseId = form?.get('purchaseId');
+
+  if (typeof purchaseId !== 'string' || !isUuid(purchaseId)) {
+    return notFound();
+  }
+
+  const asPerson = createUserClient(cfg, viewer.accessToken);
+  const purchase = await fetchCancellablePurchase(asPerson, purchaseId);
+
+  if (purchase.status === 'unavailable') {
+    console.error(`entries.cancellable_purchase unavailable — ${purchase.error}`);
+    return page('Cancel entry', unavailablePage(viewer), { status: 503 });
+  }
+
+  if (purchase.status === 'already-cancelled') {
+    return page(
+      'Cancel entry',
+      cancelOutcomePage(
+        viewer,
+        'Already cancelled',
+        'That entry had already been cancelled and refunded. Nothing has changed.',
+      ),
+      {},
+    );
+  }
+
+  if (purchase.status !== 'ok') {
+    // `unauthorised` and `not-found` answer identically, exactly as the reads do. A volunteer
+    // who may not cancel learns nothing about whether the entry exists.
+    return notFound();
+  }
+
+  // **The first POST only asks.** No token is required to reach this page — it changes
+  // nothing — and the token it mints is what the second POST has to echo back.
+  if (form?.get('confirm') !== 'yes') {
+    const token = mintCsrfToken();
+
+    return page(
+      'Cancel entry',
+      cancelConfirmPage(
+        viewer,
+        purchaseId,
+        purchase.amountPence,
+        purchase.paymentIntentId,
+        token,
+      ),
+      { cookies: [csrfCookie(token, secure)] },
+    );
+  }
+
+  if (
+    !csrfOk(
+      cookieValue(request.headers.get('cookie'), CSRF_COOKIE),
+      typeof form.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null,
+    )
+  ) {
+    // Asked again rather than explained, the same answer a missing session gets.
+    return notFound();
+  }
+
+  // --- Stripe, first ------------------------------------------------------------------------
+  let refundReference: string | null = null;
+
+  if (purchase.paymentIntentId !== null) {
+    const stripe = stripeConfig(env);
+
+    if (stripe === null) {
+      // **Refuse rather than cancel without refunding.** A purchase with a payment intent was
+      // paid for with a real card; marking it refunded while no refund can be issued would
+      // produce a row that says the money went back when it did not. This is the deployed
+      // state today, and it is why the message names the missing secret rather than blaming
+      // the volunteer.
+      console.error('entries: cancel attempted with no Stripe secret configured');
+      return page(
+        'Cancel entry',
+        cancelOutcomePage(
+          viewer,
+          'Nothing was cancelled',
+          'This entry was paid by card and no Stripe key is configured, so the refund cannot be made. The entry is untouched. Install STRIPE_SECRET_KEY and try again.',
+        ),
+        { status: 503 },
+      );
+    }
+
+    const refund = await refundPayment(stripe, {
+      purchaseId,
+      paymentIntentId: purchase.paymentIntentId,
+    });
+
+    if (!refund.ok) {
+      // The status and Stripe's classification, never its message — an error message can
+      // quote the value that was rejected. Same rule as `createCheckoutSession`.
+      console.error(`stripe refund failed — ${refund.error}`);
+      return page(
+        'Cancel entry',
+        cancelOutcomePage(
+          viewer,
+          'Nothing was cancelled',
+          'Stripe refused the refund, so the entry has been left exactly as it was. Nothing was deleted and the place is still taken. Try again, or check the payment in the Stripe dashboard.',
+        ),
+        { status: 503 },
+      );
+    }
+
+    refundReference = refund.refundId;
+  }
+
+  // --- the record, second -------------------------------------------------------------------
+  const cancelled = await cancelEntry(asPerson, purchaseId, refundReference);
+
+  if (cancelled.status === 'unavailable') {
+    // **The money is already back and the record still says paid.** Saying so plainly is the
+    // whole point: the fix is to press the button again, which refunds nothing the second
+    // time because the idempotency key is the purchase id, and completes the record.
+    console.error(`entries.cancel_entry unavailable after refund — ${cancelled.error}`);
+    return page(
+      'Cancel entry',
+      cancelOutcomePage(
+        viewer,
+        'Refunded, but not recorded',
+        'The refund was made and the club could not update its own record of it. The entry still shows as paid and the place is still taken. Press Cancel on it again — the refund will not be repeated.',
+      ),
+      { status: 503 },
+    );
+  }
+
+  if (cancelled.status === 'already-cancelled' || cancelled.status === 'not-found') {
+    return notFound();
+  }
+
+  if (cancelled.status !== 'ok') {
+    return notFound();
+  }
+
+  return page(
+    'Cancel entry',
+    cancelOutcomePage(
+      viewer,
+      'Cancelled',
+      refundReference === null
+        ? 'The entry has been cancelled and the place released. There was no card payment to refund.'
+        : 'The entry has been cancelled, the payment refunded and the place released. A card refund can take a few days to appear.',
+    ),
+    {},
+  );
+}
+
+/**
+ * The confirmation, and it names the money rather than the person.
+ *
+ * **No name here, deliberately.** This page is reached by a POST carrying a purchase id and
+ * nothing else; rendering the entrant's name would mean a second read of personal data purely
+ * to decorate a button. The amount and the entry's own reference are what somebody needs to
+ * check they are cancelling the right row, and they came back from the call that authorised
+ * this one.
+ */
+function cancelConfirmPage(
+  viewer: AdminViewer,
+  purchaseId: string,
+  amountPence: number,
+  paymentIntentId: string | null,
+  token: string,
+): Html {
+  return html`${masthead(viewer)}
+    <main class="admin-page" id="main">
+      <h1>Cancel this entry?</h1>
+
+      <p>
+        <strong>This cannot be undone.</strong> The runner is removed from the entry list
+        and the start list, any medical note the club holds for them is deleted, and the
+        place goes back into the race.
+      </p>
+
+      <p>
+        Amount:
+        <span class="admin-mono">${formatPence(amountPence)}</span>
+        ${
+          paymentIntentId === null
+            ? html`— not paid by card, so there is nothing to refund.`
+            : html`— this will be refunded in full to the card it was paid with.`
+        }
+      </p>
+
+      <form method="post" action="${NN_SECTION}/cancel/">
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
+        <input type="hidden" name="purchaseId" value="${purchaseId}" />
+        <input type="hidden" name="confirm" value="yes" />
+        <button type="submit" class="admin-button admin-button-grave">
+          Cancel this entry and refund it
+        </button>
+      </form>
+
+      <p><a href="${NN_SECTION}/">Leave it alone and go back to the entries</a></p>
+    </main>`;
+}
+
+/** What happened, in a sentence, with the way back. */
+function cancelOutcomePage(viewer: AdminViewer, heading: string, detail: string): Html {
+  return html`${masthead(viewer)}
+    <main class="admin-page" id="main">
+      <h1>${heading}</h1>
+      <p>${detail}</p>
+      <p><a href="${NN_SECTION}/">Back to the entries</a></p>
+    </main>`;
 }

@@ -38,6 +38,22 @@ export type AnonClient = SupabaseClient<Database, 'intake'>;
  *  caller from #52 onward is overwhelmingly asking about. */
 export type UserClient = SupabaseClient<Database, 'identity'>;
 
+/**
+ * Either client, for the reads in `entries` that are now asked by both.
+ *
+ * **Every one of them chains `.schema('entries')` explicitly**, so the client's own default
+ * schema — the only thing these two types differ in — is irrelevant to them. What is not
+ * irrelevant is *who is asking*: `entries.entry_state()` hides a permission-gated fee from a
+ * caller who does not hold its permission, and `entries.create_pending_purchase()` admits a
+ * pre-open event only for one who does. Both resolve that through `auth.uid()`, which is null
+ * unless the request carried somebody's access token.
+ *
+ * So a route that has a session must pass `createUserClient`'s client and a route that has
+ * none must pass `createAnonClient`'s — and this type is what lets one function take either
+ * without the caller reaching for a cast. See `worker/nn-entry.ts`'s `entriesClientFor`.
+ */
+export type DbClient = AnonClient | UserClient;
+
 function assertUsableConfig(config: SupabaseConfig): { url: string; anonKey: string } {
   const url = config.url?.trim();
   const anonKey = config.anonKey?.trim();

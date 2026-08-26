@@ -201,6 +201,16 @@ describe('the year page, once the event row says entries are open', () => {
     for (const code of ['affiliated', 'unaffiliated', 'vi_guide']) {
       expect(html).not.toMatch(new RegExp(`data-entry-fee="${code}"[^>]*hidden`));
     }
+
+    // **"and nothing it does not" was a claim this test did not check until #107 gave it
+    // something to be wrong about.** `nn-2026` now carries a fourth fee — 1p, gated behind
+    // `nn.entry.before_open` — and this request is anonymous, so `entry_state()` must not
+    // return it and the card must stay hidden.
+    //
+    // The window being *open* is what makes this the sharp version of the test: it proves the
+    // fee is hidden by the **permission** rather than by the form not being on offer, which is
+    // the only thing standing between a 1p entry and a page every runner can reach.
+    expect(html).toMatch(/data-entry-fee="tester"[^>]*hidden/);
   });
 
   it('hands the enhancement the two rules it cannot read off the DOM', async () => {

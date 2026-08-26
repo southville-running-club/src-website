@@ -924,3 +924,175 @@ export async function deleteExpiredMedicalNotes(
     return { ok: false, error: cause instanceof Error ? cause.name : 'unknown' };
   }
 }
+
+// -----------------------------------------------------------------------------------------
+// Cancelling an entry
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Cancelling is two calls, and the order between them is the decision.
+ *
+ * `entries.cancellable_purchase()` says what there is to refund; the Worker refunds it
+ * through Stripe; `entries.cancel_entry()` then records it, deletes the entrant and returns
+ * the place. **Stripe first, the record second**, because that ordering is the one a retry
+ * repairs: the refund is idempotent on the purchase id, so running the whole thing again
+ * after a failed second half returns the same refund and completes the record. The other
+ * ordering leaves a cancelled entry the club has kept the money for, with nothing on the row
+ * saying a refund is owed.
+ *
+ * @see docs/architecture/decisions/adr-018-cancelling-an-entry.md
+ */
+
+export interface CancellablePurchase {
+  /** **`purchaseStatus`, not `status`.** The result wrapper below already spends `status` on
+   *  its own discriminant, and a second one of a different type would intersect to `never` —
+   *  a type error that reads as though the parse were wrong rather than the naming. */
+  purchaseStatus: EntryStatus;
+  amountPence: number;
+  /** Null for a purchase that never reached a card — a `pending` hold, or an `expired` one.
+   *  The Worker skips the refund entirely for those: there is nothing to send back. */
+  paymentIntentId: string | null;
+}
+
+/**
+ * `already-cancelled` is its own outcome rather than a failure.
+ *
+ * `readEnvelope` collapses every reason but `unauthorised` into `not-found`, which is right
+ * for the reads — a volunteer asking about an entry that is not there and one asking about an
+ * entry they may not see should get the same answer. It is wrong here: pressing the button
+ * twice is an ordinary thing to do, and "that does not exist" is a lie about what happened.
+ */
+export type CancelResult<T> =
+  ({ status: 'ok' } & T) | { status: 'already-cancelled' } | AdminFailure;
+
+function readCancelEnvelope<T>(
+  data: unknown,
+  error: { code?: string | null; message: string } | null,
+  label: string,
+  parse: (value: Record<string, unknown>) => CancelResult<T>,
+): CancelResult<T> {
+  if (error) {
+    return {
+      status: 'unavailable',
+      error: `${error.code ?? 'unknown'}: ${error.message}`,
+    };
+  }
+
+  const envelope = z
+    .object({ ok: z.boolean(), reason: z.string().optional() })
+    .safeParse(data);
+
+  if (!envelope.success) {
+    return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+  }
+
+  if (!envelope.data.ok) {
+    if (envelope.data.reason === 'unauthorised') {
+      return { status: 'unauthorised' };
+    }
+
+    if (envelope.data.reason === 'already_cancelled') {
+      return { status: 'already-cancelled' };
+    }
+
+    return { status: 'not-found' };
+  }
+
+  return parse(data as Record<string, unknown>);
+}
+
+const cancellableShape = z.object({
+  status: z.enum(ENTRY_STATUSES),
+  amount_pence: z.number().int().min(0),
+  payment_intent_id: z.string().nullable(),
+});
+
+/** What there is to refund, before anything is changed. */
+export async function fetchCancellablePurchase(
+  client: UserClient,
+  purchaseId: string,
+): Promise<CancelResult<CancellablePurchase>> {
+  try {
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('cancellable_purchase', { p_purchase_id: purchaseId });
+
+    return readCancelEnvelope(data, error, 'cancellable_purchase', (value) => {
+      const parsed = cancellableShape.safeParse(value);
+
+      return parsed.success
+        ? {
+            status: 'ok',
+            purchaseStatus: parsed.data.status,
+            amountPence: parsed.data.amount_pence,
+            paymentIntentId: parsed.data.payment_intent_id,
+          }
+        : {
+            status: 'unavailable',
+            error: 'cancellable_purchase returned an unexpected shape',
+          };
+    });
+  } catch (cause) {
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
+}
+
+export interface CancelledEntry {
+  /** True when the purchase was already `refunded` — a retry, not an error. */
+  already: boolean;
+  entrantsDeleted: number;
+}
+
+/**
+ * Record the cancellation: audit it, delete the entrant and their medical note, and move the
+ * purchase to `refunded` so the place returns to capacity.
+ *
+ * `refundReference` is Stripe's refund id when there was one to make, and null for a purchase
+ * that never reached a card. It goes into the audit detail rather than onto the purchase row:
+ * the row already carries the payment intent, and a refund id is a fact about what a person
+ * did on a particular day, which is exactly what the audit trail is for.
+ */
+export async function cancelEntry(
+  client: UserClient,
+  purchaseId: string,
+  refundReference: string | null,
+): Promise<CancelResult<CancelledEntry>> {
+  try {
+    // **The key is omitted rather than set to `undefined`.** `p_refund_reference` has a SQL
+    // default, so `supabase gen types` renders it optional — and this workspace compiles with
+    // `exactOptionalPropertyTypes`, under which an optional property and one explicitly set to
+    // `undefined` are different types. Building the object two ways is what satisfies both
+    // that rule and PostgREST, which applies the Postgres default only for an absent key.
+    const params =
+      refundReference === null
+        ? { p_purchase_id: purchaseId }
+        : { p_purchase_id: purchaseId, p_refund_reference: refundReference };
+
+    const { data, error } = await client.schema('entries').rpc('cancel_entry', params);
+
+    return readCancelEnvelope(data, error, 'cancel_entry', (value) => {
+      const parsed = z
+        .object({
+          already: z.boolean(),
+          entrants_deleted: z.number().int().min(0).catch(0),
+        })
+        .safeParse(value);
+
+      return parsed.success
+        ? {
+            status: 'ok',
+            already: parsed.data.already,
+            entrantsDeleted: parsed.data.entrants_deleted,
+          }
+        : { status: 'unavailable', error: 'cancel_entry returned an unexpected shape' };
+    });
+  } catch (cause) {
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
+}

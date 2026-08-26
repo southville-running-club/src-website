@@ -262,6 +262,8 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'assert_medical_consent',
       'assert_purchase_consents',
       'attach_checkout_session',
+      'cancel_entry',
+      'cancellable_purchase',
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
@@ -275,6 +277,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'expire_pending_holds',
       'export',
       'interest_list',
+      'my_entries',
       'raise_attention',
       // **The four reads, without either door, granted to nobody.** Each key-gated function
       // and its role counterpart authorise and then call the same one of these, so the two
@@ -345,7 +348,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets authenticated execute exactly six, four of them #57’s, and no table read', async () => {
+  it('lets authenticated execute exactly eleven, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -367,6 +370,29 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //
     // There is deliberately no counterpart to `admin_sign_in` — signing in is `/account/`'s
     // job now, and a second way to mint a session is what #63 exists to remove.
+    //
+    // **Five more arrived with the `nn-tester` role, and none of them widens what `anon` may
+    // do — that list is still thirteen and is asserted above.** The argument for each:
+    //
+    //   * `create_pending_purchase` and `attach_checkout_session` were already granted to
+    //     `anon`, and a signed-in caller reaches PostgREST as `authenticated` rather than as
+    //     `anon`. Without these two grants a tester's submission would fail with `42501`
+    //     before the function was entered — and the *reason* the Worker signs the call at all
+    //     is that the pre-open bypass resolves through `auth.uid()`, which is null otherwise.
+    //     **The grant does not decide anything**: the window check inside the function does,
+    //     and it admits a pre-open event only for `nn.entry.before_open`.
+    //
+    //   * `my_entries` is the runner-facing read behind `/account/entries/`. It is scoped to
+    //     the caller inside the function — `person_id = auth.uid()`, or a `purchaser_email`
+    //     matching their **confirmed** address — and returns no medical note, no emergency
+    //     contact, no date of birth, no England Athletics number and no Stripe reference.
+    //
+    //   * `cancellable_purchase` and `cancel_entry` both refuse unless the caller holds
+    //     `nn.entry.cancel`, which only `super-admin` carries. Same shape as the four reads:
+    //     the grant says "you may ask", the permission check says "you may".
+    //
+    // `entries-tester.test.ts` re-attempts every one of these bypasses with an anonymous
+    // client and with a signed-in one holding nothing, and asserts the specific refusal.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -375,12 +401,17 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.routine_name)).toEqual([
+      'attach_checkout_session',
+      'cancel_entry',
+      'cancellable_purchase',
+      'create_pending_purchase',
       'current_entry_state',
       'entrant_medical',
       'entry_list',
       'entry_state',
       'export',
       'interest_list',
+      'my_entries',
     ]);
 
     // **And still not one grant on a table.** Asserted again here rather than only above,
@@ -521,6 +552,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       assert_medical_consent: 'v',
       assert_purchase_consents: 'v',
       attach_checkout_session: 'v',
+      // **#107's three.** `cancel_entry` writes, deletes and takes the same per-event advisory
+      // lock the entry path does, so `volatile` is load-bearing here for the reason the comment
+      // above gives — a `stable` version would count places against a snapshot taken before the
+      // transaction it had just waited behind committed. The other two only read.
+      cancel_entry: 'v',
+      cancellable_purchase: 's',
       create_pending_purchase: 'v',
       current_entry_state: 's',
       delete_expired_medical_notes: 'v',
@@ -535,6 +572,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       expire_pending_holds: 'v',
       export: 'v',
       interest_list: 's',
+      my_entries: 's',
       raise_attention: 'v',
       // The four reads themselves, granted to nobody. Same volatility as both their doors,
       // which is what makes the doors thin.
@@ -931,7 +969,7 @@ describe('the Nightingale Nightmare 2026 event row', () => {
   });
 });
 
-describe('the three fees', () => {
+describe('the fees', () => {
   // **£18 and £20 since 24 August 2026**, confirmed by the race director and recorded as
   // decision 006 — the schema seeded £15/£17 and `20260825090000_nn_2026_entry_fees.sql`
   // repriced them.
@@ -948,10 +986,15 @@ describe('the three fees', () => {
       price_pence: number;
       requires_ea_number: boolean;
     }>(
+      // **Ungated only, which is what "what the club charges" means.** The 1p tester fee is a
+      // fourth row on this event and is nobody's price — it is asserted on its own below, so a
+      // repricing diff cannot be confused with a change to it, and so this list goes on saying
+      // exactly what a runner pays.
       `select f.code, f.label, f.price_pence, f.requires_ea_number
          from entries.fees f
          join entries.events e on e.id = f.event_id
         where e.slug = 'nn-2026'
+          and f.requires_permission is null
         order by f.code`,
     );
 
@@ -970,6 +1013,44 @@ describe('the three fees', () => {
       },
       { code: 'vi_guide', label: 'VI guide', price_pence: 0, requires_ea_number: false },
     ]);
+  });
+
+  it('has a fourth row nobody can see, and it is the tester fee', async () => {
+    // **Asserted separately from the three above**, because it is a different kind of thing:
+    // those are what the club charges and this is a 1p probe that exists to prove the live
+    // Stripe account works before entries open. Folding it into that list would make a
+    // repricing diff look like a change to what a runner pays.
+    const [row] = await query<{
+      code: string;
+      price_pence: number;
+      requires_permission: string | null;
+    }>(
+      `select f.code, f.price_pence, f.requires_permission
+         from entries.fees f
+         join entries.events e on e.id = f.event_id
+        where e.slug = 'nn-2026' and f.code = 'tester'`,
+    );
+
+    expect(row).toEqual({
+      code: 'tester',
+      price_pence: 1,
+      // **The gate, and it is the only thing keeping a 1p entry off a public page.** The
+      // "dearest first" test below reads `entry_state()` as `anon` and gets three fees, which
+      // is the other half of this assertion.
+      requires_permission: 'nn.entry.before_open',
+    });
+  });
+
+  it('leaves every other fee ungated, so nothing changed for a runner', async () => {
+    const rows = await query<{ code: string }>(
+      `select f.code
+         from entries.fees f
+         join entries.events e on e.id = f.event_id
+        where e.slug = 'nn-2026' and f.requires_permission is not null
+        order by f.code`,
+    );
+
+    expect(rows.map((row) => row.code)).toEqual(['tester']);
   });
 
   it('differ by exactly the levy the club has to remit to ARC', async () => {
