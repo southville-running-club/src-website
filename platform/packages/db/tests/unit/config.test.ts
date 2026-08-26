@@ -37,6 +37,11 @@ const CONFIG = readFileSync(
   'utf8',
 );
 
+const CONFIRMATION_TEMPLATE = readFileSync(
+  join(import.meta.dirname, '..', '..', 'supabase', 'templates', 'confirmation.html'),
+  'utf8',
+);
+
 /** The `schemas = [...]` line under `[api]`. */
 function exposedSchemas(): string[] {
   const match = /^schemas\s*=\s*\[(.+)\]/m.exec(CONFIG);
@@ -363,10 +368,28 @@ describe('email templates, and the provider that forbids them', () => {
     return body.some((line) => /^enabled\s*=\s*true$/.test(line));
   }
 
-  /** `[auth.email.smtp] enabled = true` — the thing that makes a template pushable. */
+  /**
+   * Whether **production** has a custom mail provider — the thing that makes a template
+   * pushable at all.
+   *
+   * ⚠️ **This deliberately reads the remote override as well as the base block, and the
+   * distinction is the one thing to understand here.** Those two `enabled` values answer
+   * different questions:
+   *
+   *   base                  does *this machine* dial `smtp.resend.com`? No — CI and laptops
+   *                         hold a placeholder key, so `[local_smtp]`'s catcher is used
+   *   remotes.production    does the *project the API is judging* have a custom provider?
+   *                         Yes, since #50, proven by a real delivery on 26 August 2026
+   *
+   * #79's restriction is a fact about the second. Asking the first — which is what this did
+   * until #101 — would keep every template forbidden forever on the strength of a value that
+   * is about something else entirely.
+   */
   function customSmtp(): boolean {
-    const smtp = sections().find((section) => section.name === 'auth.email.smtp');
-    return smtp !== undefined && enabled(smtp.body);
+    return ['auth.email.smtp', 'remotes.production.auth.email.smtp'].some((name) => {
+      const smtp = sections().find((section) => section.name === name);
+      return smtp !== undefined && enabled(smtp.body);
+    });
   }
 
   /**
@@ -388,46 +411,49 @@ describe('email templates, and the provider that forbids them', () => {
       .map((section) => section.name);
   }
 
-  it('is still on the default email provider, so the template guard below is live', () => {
-    // **This has now been `false`, then `true`, then `false` again, and each move was the
-    // point rather than churn.** The guard below goes quiet the moment a custom provider
-    // exists — correctly, because the restriction lifts with it — and a guard that can go
-    // quiet needs something beside it that fails loudly whenever its premise moves. It has
-    // done that job twice: red when #50 enabled `[auth.email.smtp]`, and red again when #98
-    // turned it back off.
+  it('production has the custom provider that makes a template pushable at all', () => {
+    // **This has been `false`, `true`, `false`, and is now `true` for a different reason
+    // than last time — and every move was the point rather than churn.** The guard below
+    // means nothing without a premise that fails loudly whenever it moves, and this is that
+    // premise. It went red when #50 first enabled the base block, red again when #98 turned
+    // it off, and red a third time when #50 landed the production override — which is
+    // exactly the behaviour wanted from it.
     //
-    // **Why it went back off**: `enabled = true` made GoTrue really dial `smtp.resend.com`
-    // from a laptop and from CI, where the password is a placeholder — and every `signUp()`
-    // in the database tests answered `Error sending confirmation email`. Three suites, 116
-    // tests. `config.toml`'s own comment carries the ways to turn it on properly; none of
-    // them is "set this back to `true` and hope".
-    //
-    // ⚠️ **#50 turned it on in production, and this still reads `false` — deliberately.**
-    // The override lives in `[remotes.production]` and no local command resolves it, so
-    // `false` remains the literal truth for the two environments this file's other
-    // assertions describe. It is also the conservative reading for the guard below: the
-    // restriction may well have lifted in production, but `config push` sends `smtp_enabled`
-    // and any template fields in the *same* request, and **nobody has established whether
-    // the API judges that request against the config arriving or the config already there**.
-    // Finding out belongs to a change that is about the template. Until then this guard
-    // stays live, which is the state that actually protects #79.
-    expect(customSmtp()).toBe(false);
+    // **The value it reads changed shape at #101.** It used to ask whether *this file's base
+    // block* dials out, which is a question about laptops and CI runners. #79's restriction
+    // is a fact about the project the management API is judging, and that is the override.
+    // `customSmtp()`'s own comment has the two questions side by side.
+    expect(customSmtp()).toBe(true);
   });
 
-  it('declares no email template block at all while on the default provider', () => {
-    // **Uncommenting one of these is what fails here** — not enabling it. #79's first fix
-    // set `[auth.email.notification.password_changed]` to `enabled = false` and left the
-    // section in the file, this test passed, and the deploy failed twice more on `main`
-    // with the same 400. Commenting the section out is the known-good state, because it is
-    // the state the CLI shipped and the one every green deploy before #76 ran on.
+  it('declares exactly the email templates that have been argued for', () => {
+    // **Not a short-circuit any more, and that matters more than the assertion.** This used
+    // to read `customSmtp() ? [] : templateModifications()` — so the moment a custom provider
+    // existed it compared `[]` to `[]` and could not fail. That is the shape this repository
+    // treats as worse than a missing test, because the line still looks like coverage while
+    // testing nothing. #101 is the first change to make a custom provider real, so it is the
+    // change that has to fix it.
     //
-    // ✅ **Live again as of #98.** It was dormant for exactly as long as
-    // `[auth.email.smtp]` was enabled — the custom provider lifts the restriction, so this
-    // short-circuited to `[]` and could not fail, which is the one shape this repository
-    // treats as worse than a missing test because the line still looks like coverage. The
-    // assertion above is what keeps it honest in both directions: it went red when this
-    // guard went quiet, and red again when it woke back up.
-    expect(customSmtp() ? [] : templateModifications()).toEqual([]);
+    // **An exact list instead.** #79's lesson was that *presence* is the hazard, not
+    // `enabled` — the CLI serialises a section whenever it is in the file, filling in the
+    // `subject` it was not given, which is how `enabled = false` still failed the deploy
+    // twice. So the thing to pin is which sections exist, and a new one becomes a decision
+    // somebody takes in a diff rather than a line that rides along.
+    //
+    // ⚠️ **`confirmation` is on this list before any deploy has proved the API accepts it.**
+    // That is #101's stated risk, not an oversight: `config push` sends `smtp_enabled` and
+    // these fields in one request, and whether the API judges the request against the config
+    // arriving or the config already there is unknown. If it is refused, this entry and the
+    // block it names come out together.
+    expect(templateModifications()).toEqual(['auth.email.template.confirmation']);
+  });
+
+  it('still forbids every template if the custom provider ever goes away', () => {
+    // The other half, and the reason the premise above is asserted rather than assumed. If
+    // somebody removes the production override — a revert, a tidy-up, a merge gone wrong —
+    // the restriction comes back and every block in this file becomes a failed deploy. This
+    // says so in one line, so the two facts cannot drift apart silently.
+    expect(customSmtp() || templateModifications().length === 0).toBe(true);
   });
 });
 
@@ -555,5 +581,69 @@ describe('the production-only override', () => {
     // "helpfully" turns the base on to match production, CI goes red here — rather than in
     // three database suites, with an error about confirmation email that names no cause.
     expect(sectionValue('[auth.email.smtp]', 'enabled')).toBe('false');
+  });
+});
+
+/**
+ * **The confirmation email's template — #101, and the one artefact here that fails silently.**
+ *
+ * `[auth.email.template.confirmation]` names this file. Everything below guards the way it
+ * breaks, which is not the way a file usually breaks: **GoTrue does not stop when a template
+ * will not parse.** It logs `templatemailer_template_body_parse_error` into a container nothing
+ * in this repository reads, falls back to its *built-in* template, and sends the `supabase.co`
+ * link this file exists to remove. The mail still arrives and still works. The deploy is green.
+ * Nothing anywhere says the club's template was ignored.
+ *
+ * That happened while building #101, and the cause is the trap worth pinning: **a Go template
+ * parses the whole file, HTML comments included.** A comment explaining the template, written
+ * with the braces in it, opens a block that is never closed — so the file that documents itself
+ * best is the one most likely to do this.
+ */
+describe('the confirmation email template', () => {
+  /** The file with its HTML comments removed. */
+  function markup(): string {
+    return CONFIRMATION_TEMPLATE.replace(/<!--[\s\S]*?-->/g, '');
+  }
+
+  /** Just the HTML comments. */
+  function comments(): string {
+    return (CONFIRMATION_TEMPLATE.match(/<!--[\s\S]*?-->/g) ?? []).join('\n');
+  }
+
+  it('has no template action anywhere in its comments', () => {
+    // **The assertion that would have caught the real failure.** Prose about a template is
+    // still template source to the parser, and what it causes is invisible.
+    expect(comments()).not.toContain('{{');
+  });
+
+  it('balances every block it opens', () => {
+    const opens = (markup().match(/\{\{\s*(if|range|with)\b/g) ?? []).length;
+    const closes = (markup().match(/\{\{\s*end\s*\}\}/g) ?? []).length;
+
+    expect(opens).toBe(closes);
+  });
+
+  it('sends people to the origin they signed up on, not a hard-coded hostname', () => {
+    // `site_url` is the club's real hostname in every environment, so a link built from it
+    // would send a laptop and a CI runner to the live site — and the acceptance test that
+    // follows a confirmation link would leave the machine. `RedirectTo` is the validated
+    // `emailRedirectTo` from the request, which is localhost locally.
+    const href = /href="([^"]+)"/.exec(markup())?.[1] ?? '';
+
+    expect(href).toContain('.RedirectTo');
+    expect(href).toContain('token_hash={{ .TokenHash }}');
+    expect(href).toContain('type=signup');
+  });
+
+  it('never links to supabase.co, which is the whole point of it existing', () => {
+    // Checked on the markup rather than the whole file, deliberately: the comment discusses
+    // `supabase.co` at length, and a naive match would forbid explaining what this is for.
+    expect(markup()).not.toContain('supabase.co');
+  });
+
+  it('carries exactly one link, so there is one thing to click', () => {
+    // A second link gives a hesitant reader something else to press and a prefetching scanner
+    // something else to fetch — and a scanner that follows the real one spends the token.
+    expect(markup().match(/href="/g) ?? []).toHaveLength(1);
   });
 });

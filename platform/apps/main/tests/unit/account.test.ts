@@ -19,6 +19,7 @@ const setSession = vi.fn();
 const signOut = vi.fn();
 const resetPasswordForEmail = vi.fn();
 const updateUser = vi.fn();
+const verifyOtp = vi.fn();
 const rpc = vi.fn();
 
 /** `identity.people`, read and written by #61's `/account/details/`. Two functions rather
@@ -52,6 +53,7 @@ vi.mock('@src/shared', async () => {
         signOut,
         resetPasswordForEmail,
         updateUser,
+        verifyOtp,
       },
     }),
     createPkceClient: () => ({
@@ -386,6 +388,102 @@ describe('GET /account/confirm/', () => {
 
     const text = await response.text();
     expect(text).toContain('did not work');
+  });
+
+  /**
+   * #101 — the link moves onto the club's hostname, and the verification moves with it.
+   *
+   * **The two cases above are the old shape and they still pass, which is the point.** Links
+   * built by GoTrue's default template are in real inboxes with an hour to run on them; this
+   * is an expand, so both shapes work until every old one has expired.
+   */
+  describe('the token_hash link that replaces the supabase.co one', () => {
+    it('verifies the token and says so', async () => {
+      verifyOtp.mockResolvedValue({ data: {}, error: null });
+
+      const response = await handleAccount(
+        get('/account/confirm/'),
+        ENV,
+        new URL('http://localhost:8787/account/confirm/?token_hash=zz-hash&type=signup'),
+      );
+
+      expect(verifyOtp).toHaveBeenCalledWith({ type: 'signup', token_hash: 'zz-hash' });
+      expect(await response.text()).toContain('confirmed');
+    });
+
+    it('**never sets a session cookie**, however well the verification went', async () => {
+      // **The security assertion of this change, and the reason it is confirmation-only.**
+      // `/account/callback/` may hand out a session because PKCE's HttpOnly verifier proves
+      // the same browser started the flow. `token_hash` proves nothing of the kind — a
+      // prefetching mail scanner can spend the token. Confirming an address early is
+      // tolerable; handing that scanner a signed-in session is not.
+      verifyOtp.mockResolvedValue({
+        data: { session: { access_token: 'zz-access', refresh_token: 'zz-refresh' } },
+        error: null,
+      });
+
+      const response = await handleAccount(
+        get('/account/confirm/'),
+        ENV,
+        new URL('http://localhost:8787/account/confirm/?token_hash=zz-hash&type=signup'),
+      );
+
+      const setCookies = response.headers.getSetCookie();
+      expect(setCookies.some((c) => c.startsWith('src_at='))).toBe(false);
+      expect(setCookies.some((c) => c.startsWith('src_rt='))).toBe(false);
+    });
+
+    it('says the address may already be confirmed when the token will not verify', async () => {
+      // A scanner that spent the token leaves a real person with a link that fails and an
+      // account that is fine. "Sign up again" would be the wrong advice, so the page offers
+      // signing in first.
+      verifyOtp.mockResolvedValue({ data: {}, error: { message: 'Token has expired' } });
+
+      const response = await handleAccount(
+        get('/account/confirm/'),
+        ENV,
+        new URL('http://localhost:8787/account/confirm/?token_hash=zz-hash&type=signup'),
+      );
+
+      // Squashed before matching, for the reason `CLAUDE.md` gives about Prettier and the
+      // `html` tag: formatting this file reflows the markup inside every template, so a
+      // sentence written across a line break arrives with a newline in the middle of it.
+      // This assertion passed unsquashed purely because the wrap fell elsewhere.
+      const text = (await response.text()).replace(/\s+/g, ' ');
+      expect(text).toContain('did not work');
+      expect(text).toContain('confirmed already');
+    });
+
+    it('refuses any type but signup, without spending the token', async () => {
+      // This address is reached from one template. Accepting the wider set `verifyOtp` allows
+      // would quietly make it a verification endpoint for recovery and email-change tokens,
+      // neither of which ends on a page that says "your email is confirmed".
+      const response = await handleAccount(
+        get('/account/confirm/'),
+        ENV,
+        new URL(
+          'http://localhost:8787/account/confirm/?token_hash=zz-hash&type=recovery',
+        ),
+      );
+
+      expect(verifyOtp).not.toHaveBeenCalled();
+      expect(await response.text()).toContain('did not work');
+    });
+
+    it('answers 503 rather than blaming the link when the database is unreachable', async () => {
+      // Telling somebody to sign up again over a transient fault costs them the account they
+      // already made.
+      verifyOtp.mockRejectedValue(new Error('fetch failed'));
+
+      const response = await handleAccount(
+        get('/account/confirm/'),
+        ENV,
+        new URL('http://localhost:8787/account/confirm/?token_hash=zz-hash&type=signup'),
+      );
+
+      expect(response.status).toBe(503);
+      expect(await response.text()).not.toContain('Sign up again');
+    });
   });
 });
 

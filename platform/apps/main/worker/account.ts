@@ -245,7 +245,7 @@ export async function handleAccount(
   }
 
   if (request.method === 'GET' && segments.length === 1 && segments[0] === 'confirm') {
-    return confirmPage(url, secure);
+    return handleConfirm(cfg, url, secure);
   }
 
   // **The one address every non-password route lands on** — the magic link from #55 and
@@ -822,8 +822,73 @@ async function handleSignOut(
 // /account/confirm/
 // -----------------------------------------------------------------------------------------
 
-function confirmPage(url: URL, secure: boolean): Response {
-  const failed = url.searchParams.get('error') !== null;
+/**
+ * **Two link shapes arrive here, and supporting both is what makes #101 an expand.**
+ *
+ * The old one is GoTrue's default: it verifies the token at `<project>.supabase.co` and
+ * redirects here with nothing but `?error=` on a failure. **Links in that shape are sitting in
+ * real inboxes** with an hour to run on them, so this keeps answering them.
+ *
+ * The new one is `?token_hash=…&type=signup`, built by
+ * `packages/db/supabase/templates/confirmation.html`, and the whole point of it is that the
+ * address a member is asked to click is the club's rather than a Supabase project id nobody
+ * recognises. The verification moves here with it.
+ *
+ * ⚠️ **This deliberately does not sign anybody in, and that is a security decision rather
+ * than an omission.** `/account/callback/` can hand out a session because PKCE's `HttpOnly`
+ * verifier cookie proves the same browser started the flow — a prefetching mail scanner holds
+ * a code and no verifier, so its exchange is refused. **`token_hash` has no such proof**:
+ * anything that follows the link can spend the token. Consuming it early is tolerable for a
+ * confirmation, because all it confirms is that the address exists and the account is
+ * unusable without a password anyway. **Handing that scanner a session would not be.** The
+ * page has always ended by asking the person to sign in, so nothing about the journey
+ * changes.
+ *
+ * That trade is why #101 is confirmation-only. A magic link *is* a session, so the same
+ * substitution there would be a different and much worse bargain.
+ */
+async function handleConfirm(
+  cfg: SupabaseConfig,
+  url: URL,
+  secure: boolean,
+): Promise<Response> {
+  const tokenHash = url.searchParams.get('token_hash');
+
+  // `?error=` is GoTrue's own refusal, arriving on the old link shape. Checked first so a
+  // request carrying both is treated as the failure it is.
+  let failed = url.searchParams.get('error') !== null;
+
+  if (!failed && tokenHash !== null) {
+    // `signup` and nothing else. The template sends that and only that, and accepting the
+    // wider set `verifyOtp` allows would make this address a verification endpoint for
+    // recovery and email-change tokens too — neither of which ends on this page.
+    failed = url.searchParams.get('type') !== 'signup';
+
+    if (!failed) {
+      try {
+        const { error } = await createAnonClient(cfg).auth.verifyOtp({
+          type: 'signup',
+          token_hash: tokenHash,
+        });
+        failed = error !== null;
+      } catch {
+        // The database being unreachable is not a bad link, and telling somebody to sign up
+        // again would cost them their account for a transient fault.
+        return page(
+          'Confirm your email',
+          html`
+            <main class="account-page">
+              <h1>That did not work</h1>
+              <p>
+                The club’s database could not be reached. Try the link again in a moment.
+              </p>
+            </main>
+          `,
+          { status: 503, secure, cookies: [] },
+        );
+      }
+    }
+  }
 
   const body = html`
     <main class="account-page">
@@ -831,8 +896,13 @@ function confirmPage(url: URL, secure: boolean): Response {
         failed
           ? html`<h1>That link did not work</h1>
               <p>
-                It may have expired. <a href="/account/sign-up/">Sign up again</a> for a
-                fresh one, or contact the club if this keeps happening.
+                It may have expired, or it may already have been used —
+                <a href="/account/sign-in/">try signing in</a>, because your address may
+                be confirmed already.
+              </p>
+              <p>
+                If that does not work, <a href="/account/sign-up/">sign up again</a> for a
+                fresh link, or contact the club if this keeps happening.
               </p>`
           : html`<h1>Your email is confirmed</h1>
               <p><a href="/account/sign-in/">Sign in</a> to continue.</p>`
