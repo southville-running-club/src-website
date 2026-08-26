@@ -464,7 +464,7 @@ this removes.
   is still the email
 - ~~**A way to test the payment path without opening entries**~~ — **done**, in
   [#107](https://github.com/southville-running-club/src-website/issues/107). The `nn-tester`
-  role and a permission-gated 1p fee, so the rehearsal in the entries-open runbook no longer
+  role and a permission-gated £1 fee, so the rehearsal in the entries-open runbook no longer
   writes an `entries_open_at` the committee has not ratified
 - ~~**Undoing an entry**~~ — **done**, narrowly. A `super-admin` may cancel and refund one
   purchase — [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). Transfers,

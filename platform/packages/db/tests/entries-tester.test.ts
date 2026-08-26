@@ -30,7 +30,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *
  * Three fabricated runnings, and **none of them is a running of `nn`** — so nothing here can
  * change what the site's front door resolves to, and nothing here touches the seeded
- * `nn-2026` row or the real 1p tester fee on it.
+ * `nn-2026` row or the real £1 tester fee on it.
  */
 
 const LOCAL_DB =
@@ -389,7 +389,7 @@ describe('a fee only some people may see', () => {
     const result = await attemptEntry(tester.client, OPEN, { feeCode: 'tester' });
 
     expect(result.ok).toBe(true);
-    expect(result.amount_pence).toBe(1);
+    expect(result.amount_pence).toBe(100);
   });
 });
 

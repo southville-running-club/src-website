@@ -164,7 +164,7 @@ describe('the year page before entries open', () => {
     expect(markup).toContain('Entries are not open to the public yet');
   });
 
-  it('shows a tester the 1p fee and shows nobody else any fee at all', async () => {
+  it('shows a tester the £1 fee and shows nobody else any fee at all', async () => {
     const tester = await yearPage(await signIn(NN_TESTER_EMAIL));
 
     // The gated fee is revealed by code, exactly as the other three are, so the assertion is
