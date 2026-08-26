@@ -38,7 +38,10 @@ function addressFor(project: string): string {
 async function verifyLinkFor(
   request: import('@playwright/test').APIRequestContext,
   email: string,
-  type: 'signup' | 'recovery' | 'magiclink',
+  // **No `signup` here since #101** — that email has its own shape and its own helper below.
+  // Leaving it in the union would let a future caller ask for a link this function can no
+  // longer find, and get a fifteen-second timeout instead of a type error.
+  type: 'recovery' | 'magiclink',
 ): Promise<string> {
   const linkPattern = new RegExp(
     `https?:\\/\\/\\S*\\/auth\\/v1\\/verify\\?\\S*type=${type}\\S*`,
@@ -69,11 +72,46 @@ async function verifyLinkFor(
   throw new Error(`No ${type} mail with a verify link arrived for ${email} within 15s`);
 }
 
+/**
+ * The confirmation link, which since #101 is **not** the shape the three above are.
+ *
+ * `verifyLinkFor` looks for GoTrue's own `/auth/v1/verify` address. The confirmation email is
+ * rendered from `packages/db/supabase/templates/confirmation.html` now and points at the club's
+ * own `/account/confirm/` with a `token_hash`, because asking a member to prove who they are by
+ * clicking `<project>.supabase.co` is the shape of a phishing email.
+ *
+ * ⚠️ **The host in that link comes from `emailRedirectTo`, which is why this stays local.** The
+ * template deliberately does not build the URL from `site_url` — that is the club's real
+ * hostname in every environment, so this test would navigate to the live site. If this ever
+ * starts returning a `southvillerunningclub.co.uk` address on a laptop, the template has
+ * regressed to the fallback branch and **that is the bug**, not this helper.
+ */
 async function confirmationLinkFor(
   request: import('@playwright/test').APIRequestContext,
   email: string,
 ): Promise<string> {
-  return verifyLinkFor(request, email, 'signup');
+  const linkPattern = /https?:\/\/\S*\/account\/confirm\/?\?\S*type=signup/;
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    const search = await request.get(
+      `${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
+    );
+    const { messages } = (await search.json()) as { messages: { ID: string }[] };
+
+    for (const { ID } of messages) {
+      const response = await request.get(`${MAILPIT}/api/v1/message/${ID}`);
+      const { Text, HTML } = (await response.json()) as { Text: string; HTML: string };
+      const match = linkPattern.exec(`${Text}\n${HTML}`);
+      if (match !== null) return match[0].replaceAll('&amp;', '&');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(
+    `No confirmation mail with a /account/confirm/ link arrived for ${email}`,
+  );
 }
 
 /**

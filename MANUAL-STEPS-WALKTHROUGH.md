@@ -443,17 +443,28 @@ every server-side mail failure to a bare 500 with no SMTP-level detail, and neit
 `packages/db/tests/unit/config.test.ts` holds two assertions **written to invert on this exact
 change**:
 
-| Test | Expected | What actually happened |
-| --- | --- | --- |
-| *is still on the default email provider…* | **Goes red.** Change it in the same commit | **Stayed green, correctly.** `customSmtp()` reads the *base* block, and the base stays `false`. Nothing local dials Resend, so the premise it asserts is still true of the two environments this file describes |
-| *declares no email template block at all…* | **Stops forbidding templates on its own** | **Stayed live**, for the same reason — and deliberately so. See below |
+| Test | Expected | What happened at #50 | And at #101 |
+| --- | --- | --- | --- |
+| *is still on the default email provider…* | **Goes red.** Change it in the same commit | **Stayed green.** `customSmtp()` read the *base* block, which stays `false` | **Flipped** — it reads the override too now, and asserts `true` |
+| *declares no email template block at all…* | **Stops forbidding templates on its own** | **Stayed live**, for the same reason | **Replaced.** It was a short-circuit that could not fail once a provider existed; it is an exact list now |
 
-**This page predicted a flip that did not happen, and the reason matters more than the
-prediction.** `customSmtp()` is a question about *this file*, and the override lives somewhere
-no local command reads. Keeping the template guard live is also the conservative call:
-`config push` sends `smtp_enabled` and any template fields in the **same request**, and nobody
-has established whether the management API judges that request against the config arriving or
-the config already there. Finding out belongs to a change that is *about* the template.
+**The flip happened one pull request later than this page predicted, and the reason is worth
+keeping.** `customSmtp()` used to ask a question about *this machine* — does the base block
+dial out? — when #79's restriction is a fact about *the project the API is judging*. Those came
+apart the moment #50 put the answer in `[remotes.production]`, and #101 is where the test caught
+up with the distinction.
+
+**The second row matters more than the first.** The old guard read
+`customSmtp() ? [] : templateModifications()`, so the instant a custom provider existed it
+compared `[]` to `[]` and could not fail — a line that still looks like coverage while testing
+nothing, which this repository treats as worse than no test at all. It is an exact list of the
+templates that have been argued for, so a new one is a decision in a diff.
+
+⚠️ **The open question is still open, and #101 is what answers it.** `config push` sends
+`smtp_enabled` and the template fields in the **same request**, and nobody has established
+whether the API judges that request against the config arriving or the config already there.
+#101 is the favourable case — production has had custom SMTP since #50 — and its deploy is the
+experiment. **One template at a time**, so a refusal names one cause and reverts one block.
 
 ⚠️ **And [#54](https://github.com/southville-running-club/src-website/issues/54) is not
 unlocked by this, which is the correction this page most needs.** #99's spike measured that

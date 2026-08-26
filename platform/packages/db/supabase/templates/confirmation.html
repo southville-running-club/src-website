@@ -1,0 +1,72 @@
+<!--
+  The confirmation email — #101.
+
+  ⚠️⚠️ **NOTHING IN THIS COMMENT MAY CONTAIN GO TEMPLATE BRACES.** A Go template parses the
+  whole file, HTML comments included — so an explanatory comment that quotes an `if` action
+  opens a block that is never closed, and the file fails to parse with `unexpected EOF`.
+  **GoTrue does not stop when that happens.** It logs `templatemailer_template_body_parse_error`
+  in a container nothing here reads, silently falls back to its *default* template, and sends the
+  supabase.co link this file exists to remove. The email looks plausible, the deploy is green,
+  and the defect is invisible. This cost a rebuild to find; write action names in prose instead,
+  the way the paragraphs below do. `config.test.ts` now asserts the braces balance.
+
+  **The whole point of this file is the hostname in the link below.** GoTrue's default template
+  uses its ConfirmationURL variable, which resolves to
+  `https://<project>.supabase.co/auth/v1/verify?token=…`, and asks somebody to prove who they
+  are by clicking a domain they have never seen, sent from a domain that does not match it.
+  That is the shape of a phishing email, and it is the first message the club ever sends a
+  member.
+
+  ⚠️ **RedirectTo rather than SiteURL, and that is not a style choice — it is what stops a local
+  test walking into production.** `site_url` is the club's real hostname in *every* environment,
+  because one `config.toml` serves all three and `config.test.ts` pins it there deliberately. So
+  a link built from SiteURL would point at `new.southvillerunningclub.co.uk` from a laptop and
+  from CI, and the acceptance test that follows a confirmation link would leave the machine and
+  hit the live site.
+
+  RedirectTo is the `emailRedirectTo` the sign-up passed — `/account/confirm` on the request's
+  own origin, in `worker/account.ts` — so it is localhost locally and the club's hostname in
+  production, on its own. **GoTrue validates it against `additional_redirect_urls` before
+  rendering** and falls back to `site_url` if it does not match, so this cannot be pointed at
+  somebody else's host by crafting a sign-up request.
+
+  **The equality test below is that fallback made safe, and it is written that way because the
+  obvious spelling does not work.** Testing RedirectTo for emptiness is always true: GoTrue
+  substitutes `site_url` *before* the template is rendered, so an absent or rejected
+  `redirect_to` never arrives here as empty — it arrives as the site URL. Measured, on a
+  `signUp()` with no options: the link came out as
+  `https://new.southvillerunningclub.co.uk?token_hash=…`, pointing at the club's *homepage* with
+  a token on the end. A silent dead end, and it looks fine in a diff.
+
+  So the test is whether RedirectTo **equals** SiteURL, which is exactly the "GoTrue fell back"
+  case, and the path is spelled out for it. Somebody who really did ask to be sent to the site
+  root gets `/account/confirm/` too, which is where they needed to go anyway.
+
+  TokenHash is the hashed one-time token; `worker/account.ts` verifies it at `/account/confirm/`
+  rather than letting GoTrue verify it at `supabase.co`.
+
+  ⚠️ **Keep this plain.** No images, no external CSS, no tracking pixel. A confirmation mail
+  that loads remote assets trains people to accept exactly what they should not, and half of
+  the mail clients the club's members use would block them anyway. GoTrue sends this as HTML
+  with an auto-generated plain-text alternative, so anything that only works visually is
+  something a plain-text reader loses.
+
+  **Do not add a second link.** The one call to action is the point; an unsubscribe or a
+  "visit the website" link beside it gives a hesitant reader something else to click and a
+  scanner something else to fetch.
+-->
+<h2>Confirm your email address</h2>
+
+<p>Follow the link below to confirm this email address and finish signing up.</p>
+
+<p>
+  <a
+    href="{{ if eq .RedirectTo .SiteURL }}{{ .SiteURL }}/account/confirm/{{ else }}{{ .RedirectTo }}{{ end }}?token_hash={{ .TokenHash }}&type=signup"
+    >Confirm email address</a
+  >
+</p>
+
+<p>
+  If you did not sign up to Southville Running Club, you can ignore this message and
+  nothing further will happen.
+</p>

@@ -441,14 +441,19 @@ otp_expiry = 3600
 # two escapes, upgrading the plan and configuring custom SMTP, and only the second is the
 # club's plan. So `[auth.email.notification.password_changed]` a few dozen lines up becomes
 # pushable **in production** once the override below is live, which is #54's one unmet box.
-# **It stays commented out here regardless, and `config.test.ts`'s guard deliberately reads
-# only the base block rather than the override.** Three reasons, and the third is the one that
-# decides it: turning it on is a separate change; a failed template push would otherwise take
-# this block down with it and the revert would take both; and **nobody knows whether the
-# management API evaluates that restriction against the config being pushed or the config
-# already there** — `config push` sends `smtp_enabled` and the template fields in the *same*
-# request, so "custom SMTP is on now" may not be true yet from the API's point of view. That is
-# a thing to find out in a change that is *about* the template, not as a side effect of this one.
+# **It stays commented out here regardless, and #101 is what finds out whether it could be.**
+# `config.test.ts`'s guard read only the base block until #101 and now reads the override too,
+# because the two `enabled` values answer different questions — the base is about whether *this
+# machine* dials out, the override is about what provider *the project being judged* has, and
+# #79's restriction is a fact about the second.
+#
+# **The remaining unknown is real, and #101 is the change that carries it**: `config push` sends
+# `smtp_enabled` and any template fields in the *same* request, so nobody has established
+# whether the API judges a request against the config arriving or the config already there. That
+# is now the favourable case — production has had custom SMTP since #50 — but it is
+# `[auth.email.template.confirmation]` below that tests it, deliberately, rather than this
+# notification block. **One template at a time**, so a refusal names one cause and reverts one
+# block.
 #
 # ⚠️ **And the hook does not rescue it either.** #99's spike measured that
 # `password_changed_notification` is a hooked action type but that the hook only decides *who
@@ -527,6 +532,42 @@ sender_name = "Southville Running Club"
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# -----------------------------------------------------------------------------------------
+# The confirmation email — #101, and the first template this project has ever pushed
+# -----------------------------------------------------------------------------------------
+# **This exists for one reason: the hostname a member is asked to click.** GoTrue's default
+# body uses `{{ .ConfirmationURL }}`, which resolves to
+# `https://<project>.supabase.co/auth/v1/verify?token=…` — so the club's first ever email to
+# somebody asks them to prove who they are at a domain they have never seen, which does not
+# match the domain that sent it. That is the shape of a phishing message, and #101 has a real
+# delivered example. `worker/account.ts` verifies `token_hash` at `/account/confirm/` instead.
+#
+# ⚠️ **This is the block shape that took four deploys red in #79, and the premise has
+# changed.** The management API refused *any* template modification with:
+#
+#     Email template modification is not available for free tier projects using the default
+#     email provider. Please upgrade your plan or configure a custom SMTP provider.
+#
+# **#50 took the second escape**, and a real delivery on 26 August 2026 proved it. So the
+# sentence that refused this no longer describes the project — but **that is a reason to try,
+# not to assume**, and one thing is still genuinely unknown: `config push` sends
+# `smtp_enabled` and these template fields in the *same* request, and nobody has established
+# whether the API judges a request against the config arriving or the config already there.
+# This is the favourable case — production already has custom SMTP before the push begins —
+# and only a deploy answers it.
+#
+# **If the push is refused, revert this block and nothing else.** `[auth]` does not update, so
+# production keeps the configuration it has, mail included; the cost is a red deploy rather
+# than an outage.
+#
+# ⚠️ **`content_path` is resolved against the directory that holds `supabase/`, not against
+# `supabase/`.** Measured against the pinned CLI: `./templates/confirmation.html` answers
+# `ENOENT` and fails the whole file. `deploy-db.yml` runs from `packages/db`, which is that
+# directory. The CLI's own commented sample above is the convention to copy.
+[auth.email.template.confirmation]
+subject = "Confirm your email address"
+content_path = "./supabase/templates/confirmation.html"
+
 # **Off, and not because the club does not want it.** #54 turned this on for the right
 # reason: it is the only way somebody finds out their password changed without their own
 # knowledge — a stolen session, or a reset they did not request. The platform cannot keep
@@ -562,10 +603,18 @@ sender_name = "Southville Running Club"
 # tier is not. `tests/unit/config.test.ts` fails if this, or any other email template,
 # comes back before the custom provider does — including, now, a disabled one.
 #
+# ⚠️ **The `content_path` below is also wrong, and would fail even if the block were allowed.**
+# The CLI resolves it against the directory that *holds* `supabase/`, not against `supabase/`
+# itself — measured against the pinned 2.113.0, which answers
+# `Invalid config for auth.email.notification.password_changed.content_path: ENOENT` for the
+# spelling that was here. `[auth.email.template.confirmation]` below has the correct shape to
+# copy. Left visible rather than silently fixed, because a commented block that is wrong in
+# two ways should not look like it is wrong in one.
+#
 # [auth.email.notification.password_changed]
 # enabled = true
 # subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+# content_path = "./supabase/templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
