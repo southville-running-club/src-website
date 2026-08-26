@@ -1164,7 +1164,7 @@ describe('the nn-admin role is the second door, and it is the only other one', (
     },
   );
 
-  it('refuses a member even while the key path is wide open', async () => {
+  it('refuses a registered account even while the key path is wide open', async () => {
     // The gate key is installed for the whole of this file. A role-checked function must not
     // care: the two doors are independent, which is what lets one of them be taken away.
     expect(await rpcAs(member, 'entry_list', { p_event_slug: EVENT })).toEqual({

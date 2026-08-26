@@ -429,7 +429,7 @@ describe('the door', () => {
     expect(await pageText(exported)).not.toContain(MEDICAL_NOTE);
   });
 
-  it('refuses the same two to a plain member', async () => {
+  it('refuses the same two to a plain registered account', async () => {
     const medical = await post(`${NN}medical/`, { entrantId: PAID_ENTRANT_ID }, member);
     const exported = await post(
       `${NN}export/`,
@@ -541,7 +541,7 @@ describe('the navigation', () => {
     expect(body).not.toContain('href="/admin/nn/"');
   });
 
-  it('offers a plain member nothing, because there is no page to offer it on', async () => {
+  it('offers a plain registered account nothing, because there is no page to offer it on', async () => {
     const response = await get(ADMIN, member);
     const body = await pageText(response);
 
@@ -1446,7 +1446,7 @@ describe('granting and revoking a role', () => {
     const { markup } = await peoplePage();
     const row = tableRows(markup).find((chunk) => chunk.includes(REGISTERED_EMAIL))!;
 
-    expect(row).toContain('member, nn-admin');
+    expect(row).toContain('nn-admin, registered');
     expect(roleFormFor(markup, REGISTERED_EMAIL, 'nn-admin')['action']).toBe('revoke');
   });
 

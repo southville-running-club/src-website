@@ -190,7 +190,7 @@ describe('what the signup trigger does', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('grants an ordinary address member and not super-admin', async () => {
+  it('grants an ordinary address registered and not super-admin', async () => {
     const rows = await query<{ role: string }>(
       `select role from identity.role_grants
         where person_id = $1 and revoked_at is null`,
@@ -199,7 +199,7 @@ describe('what the signup trigger does', () => {
     expect(rows.map((r) => r.role)).toEqual(['registered']);
   });
 
-  it('grants the reserved address super-admin, in addition to member', async () => {
+  it('grants the reserved address super-admin, in addition to registered', async () => {
     const rows = await query<{ role: string }>(
       `select role from identity.role_grants
         where person_id = $1 and revoked_at is null
@@ -352,7 +352,7 @@ describe('identity.people, updated by its owner and nobody else', () => {
 // -----------------------------------------------------------------------------------------
 
 describe('identity.grant_role, refused for anybody who is not super-admin', () => {
-  it('refuses a plain member, with the specific reason, and writes no audit row', async () => {
+  it('refuses a plain registered account, with the specific reason, and writes no audit row', async () => {
     const before = await query('select id from identity.audit');
 
     const { data, error } = await personA.client

@@ -268,7 +268,7 @@ test.describe('the door', () => {
     }
   });
 
-  test('gives a plain member a 404 that does not say the address exists', async ({
+  test('gives a plain registered account a 404 that does not say the address exists', async ({
     page,
   }) => {
     await signInAs(page, REGISTERED_EMAIL);
@@ -941,7 +941,7 @@ test.describe('people and roles', () => {
       await signInAs(memberPage, REGISTERED_EMAIL);
       expect(
         (await memberPage.goto(NN))?.status(),
-        'a plain member before the grant',
+        'a plain registered account before the grant',
       ).toBe(404);
 
       await signInAs(page, SUPER_ADMIN_EMAIL);
@@ -1031,7 +1031,7 @@ test.describe('accessibility and small screens', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
-  test('has no axe violations on the 404 a member gets @requires-js', async ({
+  test('has no axe violations on the 404 a registered account gets @requires-js', async ({
     page,
   }) => {
     // The most-served page on this surface, and the one nobody looks at.
