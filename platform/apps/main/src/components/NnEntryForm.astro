@@ -211,6 +211,40 @@ const SUMMARY_LINKS = [
 </div>
 
 {
+  /* **The one notice on this form that a person is meant to meet.** Everything else here is
+  the club losing a race against a sold-out field, or a defect. This is somebody who already
+  has a place filling the form in again — and the most likely reason they are doing it is that
+  they are not sure the first one worked, because there is no confirmation email yet (#73) and
+  the return page deliberately never says "nothing was charged".
+
+  So it says the two things that person needs, in this order: **no second charge, no second
+  place.** Then where their entry actually is. The refusal is the database's, keyed on name
+  and date of birth — see `entries.create_pending_purchase()` — so the last paragraph has to
+  admit the case where two real runners share both. */
+}
+<div
+  class="notice notice-bad nn-card"
+  data-entry-already
+  hidden
+  tabindex="-1"
+  role="alert"
+>
+  <p><strong>This runner already has a place in this race.</strong></p>
+  <p>
+    The club has an entry recorded against this name and date of birth.{' '}
+    <strong>Nothing has been charged and no second place has been taken.</strong> One entry
+    per runner.
+  </p>
+  <p>
+    If you have an account with the club, your entry is on{' '}
+    <a href="/account/entries/">your entries page</a>. If this is not you — two runners
+    can share a name and a birthday — email{' '}
+    <a href={`mailto:${race.contact}`}>{race.contact}</a> and the race organisers will sort
+    it out.
+  </p>
+</div>
+
+{
   /* Entries closing between this page loading and the form being sent is a real sequence,
   not a hypothetical one: somebody opens the page at 6:59 and presses the button at 7:01 on
   the last day. The Worker checks the window again when the form arrives. */

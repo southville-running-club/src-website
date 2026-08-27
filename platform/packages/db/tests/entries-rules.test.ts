@@ -179,10 +179,32 @@ interface EntrantOverrides {
   leg?: number | null;
 }
 
+/**
+ * **A distinct runner per call, because one entry per runner is a database rule now.**
+ *
+ * `entries.create_pending_purchase()` refuses a second entry for a runner who already holds a
+ * live place on the same event, keyed on first name, last name and date of birth. Every
+ * fixture in this file used to be the same person, so the second entry against any one event
+ * was refused with `already_entered` and dozens of tests failed on a rule they were not
+ * written to exercise.
+ *
+ * **The counter goes on the surname rather than the date of birth**, deliberately. The default
+ * date of birth is chosen to sit comfortably clear of the minimum age and several tests read a
+ * category derived from it; moving it would make those tests depend on how many entries ran
+ * before them. A surname is read back by exactly one test, which asserts the apostrophe rather
+ * than the whole string.
+ *
+ * **The apostrophe stays in every generated name**, so the escaping it exists to prove is
+ * still exercised on every single call rather than only where somebody remembered to ask.
+ *
+ * Deterministic: a counter, not a random value, so a failing run can be read.
+ */
+let entrantSerial = 0;
+
 function entrant(overrides: EntrantOverrides = {}): Record<string, unknown> {
   return {
     first_name: 'Ada',
-    last_name: "O'Brien",
+    last_name: `O'Brien-${(entrantSerial += 1)}`,
     date_of_birth: '1990-01-01',
     gender: 'female',
     club: null,
@@ -705,5 +727,96 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
         'search_path=""',
       ]);
     }
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// One runner, one place
+// -----------------------------------------------------------------------------------------
+/**
+ * **The tenth rule, and the first one that a person is meant to meet.**
+ *
+ * The other nine on this page are bypasses: things `parseNnEntry` refuses that an anonymous
+ * PostgREST caller could once write anyway. This one is different — the form has claimed
+ * *"One entry per runner."* in prose since it was written, and until #115 that sentence was
+ * the only place in this platform the rule existed. Not a constraint, not a trigger, not even
+ * Zod. Somebody who already had a place could fill the form in again and take a second one out
+ * of 250.
+ *
+ * So the bypass being attempted here is the ordinary one: entering twice.
+ */
+describe('one runner, one place', () => {
+  it('refuses a second entry for the same runner, with that specific reason', async () => {
+    const runner = entrant({ last_name: 'Twice' });
+
+    await acceptedPurchaseId(OPEN, { entrants: [runner] });
+
+    // **`already_entered`, and not `invalid_entrants`.** The distinction is the whole reason
+    // the reason exists: one of them is a sentence the form can show somebody, and the other
+    // is a defect. See `packages/shared/src/entry-purchase.ts`.
+    expect(await refusalFor(OPEN, { entrants: [runner] })).toBe('already_entered');
+  });
+
+  it('is not fooled by a different email, because the purchaser is not the entrant', async () => {
+    const runner = entrant({ last_name: 'Payer' });
+
+    await acceptedPurchaseId(OPEN, { entrants: [runner], email: 'first@example.com' });
+
+    // **The key is the runner, not the card.** Keying on `purchaser_email` would have let this
+    // through — and would separately have refused a partner paying for a partner, which is the
+    // failure direction that costs somebody a place.
+    expect(
+      await refusalFor(OPEN, { entrants: [runner], email: 'second@example.com' }),
+    ).toBe('already_entered');
+  });
+
+  it('is not fooled by the case or the spacing of a name', async () => {
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ first_name: 'Ada', last_name: 'Casefold' })],
+    });
+
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ first_name: '  ADA ', last_name: 'casefold  ' })],
+      }),
+    ).toBe('already_entered');
+  });
+
+  it('lets a different runner enter, which is the case that must not break', async () => {
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ first_name: 'Ada', last_name: 'Distinct' })],
+    });
+
+    // **The expensive failure is the false positive**, not the false negative: refusing a real
+    // runner at the moment they are paying. A shared surname, a shared first name and a shared
+    // birthday are each fine on their own.
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ first_name: 'Grace', last_name: 'Distinct' })],
+    });
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [
+        entrant({
+          first_name: 'Ada',
+          last_name: 'Distinct',
+          date_of_birth: '1991-02-03',
+        }),
+      ],
+    });
+  });
+
+  it('lets a runner enter again once the first hold has lapsed', async () => {
+    const runner = entrant({ last_name: 'Lapsed' });
+    const purchaseId = await acceptedPurchaseId(OPEN, { entrants: [runner] });
+
+    // A hold that ran out released its place, so the person it belonged to must be able to try
+    // again. Anything stricter strands somebody whose payment failed halfway.
+    await query(
+      `update entries.entry_purchases set hold_expires_at = now() - interval '1 minute'
+        where id = $1`,
+      [purchaseId],
+    );
+
+    await acceptedPurchaseId(OPEN, { entrants: [runner] });
   });
 });

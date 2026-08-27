@@ -186,18 +186,31 @@ export const ENTRY_STATUSES = ['paid', 'pending', 'expired', 'refunded'] as cons
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
 
 export interface AdminEntry {
-  entrantId: string;
+  /**
+   * **Null for a cancelled entry, and that is the whole of #116.** `entries.cancel_entry()`
+   * deletes the entrants — deliberately, so the club stops holding personal data for a race
+   * somebody is not running — and `read_entry_list()` left joins them, so a refunded purchase
+   * arrives here as a row with no runner on it.
+   *
+   * The row is the **purchase**: it is what has a status, an amount and a Stripe reference.
+   * The runner is a fact about it that a refund legitimately removes, exactly as
+   * `entries.my_entries()` has always reported it to `/account/entries/`.
+   */
+  entrantId: string | null;
   purchaseId: string;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;
+  lastName: string | null;
   club: string | null;
   /**
    * Completed years at the event date, computed in Postgres by the same expression
    * `create_pending_purchase()` enforces the minimum age with. **The date of birth it came from
    * never leaves the database** — see the migration.
+   *
+   * Null alongside the name for a cancelled entry: it was derived from a date of birth that
+   * was deleted with the entrant.
    */
-  age: number;
-  gender: (typeof NN_ENTRY_GENDERS)[number];
+  age: number | null;
+  gender: (typeof NN_ENTRY_GENDERS)[number] | null;
   eaNumber: string | null;
   feeCode: string;
   feeLabel: string;
@@ -311,13 +324,17 @@ export interface AdminEntryList {
 }
 
 const entryShape = z.object({
-  entrant_id: z.uuid(),
+  // **Every runner column is nullable, because a cancelled entry has no runner.** See
+  // `AdminEntry` above and the `20260827091000` migration. `age` and `gender` go with the
+  // name: they are derived from a `date_of_birth` that was deleted with the entrant, so a
+  // non-null shape here would refuse to parse the very rows the Refunded filter exists for.
+  entrant_id: z.uuid().nullable(),
   purchase_id: z.uuid(),
-  first_name: z.string(),
-  last_name: z.string(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
   club: z.string().nullable(),
-  age: z.number().int(),
-  gender: z.enum(NN_ENTRY_GENDERS),
+  age: z.number().int().nullable(),
+  gender: z.enum(NN_ENTRY_GENDERS).nullable(),
   ea_number: z.string().nullable(),
   fee_code: z.string(),
   fee_label: z.string(),

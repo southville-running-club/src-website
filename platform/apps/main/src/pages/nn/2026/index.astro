@@ -452,6 +452,28 @@ const dateLine = race.date
         your account may enter early, so that the club can check a real payment reaches it before
         1 September. Anything you enter here is a real entry and a real charge.
       </p>
+      {
+        /* **Said before the fourteen fields rather than after them.** The database refuses a
+         * second entry for a runner who already has a live place — `already_entered`, keyed on
+         * name and date of birth — and that refusal is honest but late: somebody has filled the
+         * whole form in by the time they meet it.
+         *
+         * This is the same fact, offered first. It is revealed only for a **signed-in** person
+         * whose account already shows a `paid` entry on this running, which is why a signed-out
+         * visitor's page costs no extra round trip — the same trade `data-nn-entry-early`
+         * above makes.
+         *
+         * **The form stays on offer below it**, deliberately. An account holder can legitimately
+         * be entering somebody else — one card pays for a partner — and hiding the form would
+         * refuse that outright, which is the failure direction this repository avoids. #115. */
+      }
+      <p class="notice" role="status" data-nn-entry-entered hidden>
+        <strong>You already have a place in this race.</strong> The club has a confirmed entry
+        recorded against your account — it is on{' '}
+        <a href="/account/entries/">your entries page</a>. One entry per runner, so
+        entering again for yourself will be refused before anything is charged. If you are
+        entering somebody else, carry on below.
+      </p>
       <NnEntryForm />
     </div>
 

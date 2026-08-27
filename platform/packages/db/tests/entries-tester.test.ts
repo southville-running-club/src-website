@@ -240,10 +240,32 @@ afterAll(async () => {
 // Calling the entry path the way a script with the published key would
 // -----------------------------------------------------------------------------------------
 
+/**
+ * **A distinct runner per call, because one entry per runner is a database rule now.**
+ *
+ * `entries.create_pending_purchase()` refuses a second entry for a runner who already holds a
+ * live place on the same event, keyed on first name, last name and date of birth. Every
+ * fixture in this file used to be the same person, so the second entry against any one event
+ * was refused with `already_entered` and dozens of tests failed on a rule they were not
+ * written to exercise.
+ *
+ * **The counter goes on the surname rather than the date of birth**, deliberately. The default
+ * date of birth is chosen to sit comfortably clear of the minimum age and several tests read a
+ * category derived from it; moving it would make those tests depend on how many entries ran
+ * before them. A surname is read back by exactly one test, which asserts the apostrophe rather
+ * than the whole string.
+ *
+ * **The apostrophe stays in every generated name**, so the escaping it exists to prove is
+ * still exercised on every single call rather than only where somebody remembered to ask.
+ *
+ * Deterministic: a counter, not a random value, so a failing run can be read.
+ */
+let entrantSerial = 0;
+
 function entrant(): Record<string, unknown> {
   return {
     first_name: 'Ada',
-    last_name: "O'Brien",
+    last_name: `O'Brien-${(entrantSerial += 1)}`,
     date_of_birth: '1990-01-01',
     gender: 'female',
     club: null,
@@ -520,6 +542,70 @@ describe('what a runner may read about their own entries', () => {
 // -----------------------------------------------------------------------------------------
 
 describe('cancelling an entry', () => {
+  /**
+   * **The row survives the runner, and the admin page has to keep showing it.** #116.
+   *
+   * `cancel_entry()` deletes the entrants on purpose, so the club stops holding personal data
+   * for a race somebody is not running. `read_entry_list()` used to drive its rows from
+   * `entries.entrants` and inner-join the purchase, so a refunded purchase **could not appear
+   * on `/admin/nn/` at all** — the Refunded filter on that page could never match a row, and a
+   * volunteer clicking it concluded there had been no refunds.
+   *
+   * Read through `entries.read_entry_list()` directly rather than through one of the six
+   * functions that wrap it: this is about the shape of the rows, and the doors in front of it
+   * have their own tests. It is granted to nobody, which is why this goes over the superuser
+   * connection rather than through PostgREST.
+   */
+  it('leaves the purchase on the admin list with no runner on it', async () => {
+    const made = await attemptEntry(anon, OPEN, { email: 'cancel-visible@example.com' });
+    expect(made.ok).toBe(true);
+
+    // **`paid_at` goes with the status**, because `entry_purchases_paid_has_timestamp` refuses
+    // a paid row that does not say when — the constraint that stops a purchase claiming a
+    // payment with no moment attached. Set here rather than through the webhook because what
+    // this test is about is what the admin list does with a *cancelled* row, not how one
+    // becomes paid; `entries-webhook.test.ts` owns that.
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [made.purchase_id],
+    );
+
+    const cancelled = await canceller.client
+      .schema('entries')
+      .rpc('cancel_entry', { p_purchase_id: made.purchase_id });
+
+    expect(cancelled.error).toBeNull();
+    expect(cancelled.data).toMatchObject({ ok: true });
+
+    const listed = await single<{ result: { entries: Record<string, unknown>[] } }>(
+      'select entries.read_entry_list($1) as result',
+      [OPEN],
+    );
+
+    const row = listed.result.entries.find(
+      (entry) => entry.purchase_id === made.purchase_id,
+    );
+
+    // **Present at all** is the assertion. Before this it was absent, and absent is
+    // indistinguishable from "there have been no refunds".
+    expect(row, 'the cancelled purchase is missing from the admin list').toBeDefined();
+
+    expect(row).toMatchObject({
+      status: 'refunded',
+      // Null rather than gone: the runner is a fact about the purchase that the refund
+      // legitimately removed, exactly as `my_entries()` has always reported it.
+      entrant_id: null,
+      first_name: null,
+      last_name: null,
+      age: null,
+      gender: null,
+    });
+
+    // And the amount is still there, because that is what a refund is *about* — a row with no
+    // money on it would be useless to whoever is reconciling against Stripe.
+    expect(row?.amount_pence).toEqual(expect.any(Number));
+  });
+
   it('refuses somebody signed in who holds no permission', async () => {
     const made = await attemptEntry(anon, OPEN, { email: 'cancel-a@example.com' });
     expect(made.ok).toBe(true);

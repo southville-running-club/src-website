@@ -6,6 +6,7 @@ import {
   entryRulesFrom,
   fetchCurrentEntryState,
   fetchEntryState,
+  fetchMyEntries,
   formatEventDate,
   formatEventStartTime,
   formatPence,
@@ -17,6 +18,7 @@ import {
   type EntryState,
   type EntryStateResult,
   type EntryWindowState,
+  type MyEntry,
   type NnEntryErrors,
   type NnEntryField,
 } from '@src/shared';
@@ -126,6 +128,18 @@ export type NnEntryView =
        * an unratified opening date must not have happen to it.
        */
       early: boolean;
+      /**
+       * True when the person asking already holds a **confirmed** place on this running.
+       *
+       * Always false for a signed-out visitor, who is the whole population until 1 September —
+       * this is read from `entries.my_entries()`, which is scoped to `auth.uid()` and the
+       * caller's confirmed address, and there is nothing to scope it to without a session.
+       *
+       * **A notice, not a gate.** The form stays on offer: an account holder can legitimately
+       * be entering somebody else. The rule that actually stops a second entry is
+       * `create_pending_purchase()`'s, and it is enforced in Postgres whatever this says.
+       */
+      entered: boolean;
     };
 
 /**
@@ -211,6 +225,50 @@ async function mayEnterEarly(
  * is *why*, and `fetchEntryState` builds that string from a PostgREST code and message —
  * neither of which can carry personal data, because the function reads none.
  */
+/**
+ * Whether the person asking already holds a confirmed place on this running.
+ *
+ * **Costs nothing for a signed-out visitor**, which is the whole population until 1 September
+ * — the same trade `mayEnterEarly()` makes, and for the same reason: an extra round trip on
+ * the busiest page of the year has to be earned.
+ *
+ * **`paid` only.** A `pending` hold is not a place, and telling somebody mid-payment that they
+ * already have one is how they abandon a checkout they were about to finish. The database rule
+ * is broader — it counts a live hold too, because two simultaneous submissions must not both
+ * succeed — but a *notice* may only claim what is settled.
+ *
+ * **Never throws, and a failure is silence.** This is a courtesy on top of a rule that is
+ * enforced in Postgres regardless; a database that could not be reached must not take the
+ * entry form down with it.
+ */
+async function hasConfirmedEntry(
+  env: NnEntryEnv,
+  viewer: NnEntryViewer | null,
+  eventSlug: string,
+): Promise<boolean> {
+  if (viewer === null) {
+    return false;
+  }
+
+  const result = await fetchMyEntries(
+    createUserClient(
+      { url: env.PUBLIC_SUPABASE_URL, anonKey: env.PUBLIC_SUPABASE_ANON_KEY },
+      viewer.accessToken,
+    ),
+  );
+
+  if (!result.ok) {
+    // Not an error worth a page: the rule below still holds. Logged without the reason's
+    // detail, which `fetchMyEntries` builds from a PostgREST code and message.
+    console.warn(`entries.my_entries unavailable for the entry form — ${result.error}`);
+    return false;
+  }
+
+  return result.entries.some(
+    (entry: MyEntry) => entry.eventSlug === eventSlug && entry.status === 'paid',
+  );
+}
+
 export async function resolveNnEntryView(
   env: NnEntryEnv,
   eventSlug: string,
@@ -223,7 +281,12 @@ export async function resolveNnEntryView(
   );
 
   if (view.show === 'entry') {
-    return { show: 'entry', state: view.state, early: false };
+    return {
+      show: 'entry',
+      state: view.state,
+      early: false,
+      entered: await hasConfirmedEntry(env, viewer, eventSlug),
+    };
   }
 
   // **The bypass, and it is the only place the window is second-guessed.** A `pre_open`
@@ -234,7 +297,12 @@ export async function resolveNnEntryView(
   // Note the ordering: the permission is asked for *only* when the state is `pre_open`. A
   // tester on an open form costs no extra round trip, and neither does one on a closed race.
   if (view.state?.state === 'pre_open' && (await mayEnterEarly(env, viewer))) {
-    return { show: 'entry', state: view.state, early: true };
+    return {
+      show: 'entry',
+      state: view.state,
+      early: true,
+      entered: await hasConfirmedEntry(env, viewer, eventSlug),
+    };
   }
 
   return { show: 'closed' };
@@ -432,7 +500,8 @@ function readSubmission(form: FormData): NnEntrySubmission {
 }
 
 /** The statuses that re-render the form with a notice above it and everything preserved. */
-export type NnEntryStoppedStatus = 'not-taken' | 'sold-out' | 'failed' | 'free';
+export type NnEntryStoppedStatus =
+  'not-taken' | 'sold-out' | 'failed' | 'free' | 'already-entered';
 
 export type NnEntryOutcome =
   | { status: 'closed' }
@@ -560,6 +629,15 @@ export async function processNnEntry(
 
     if (outcome.reason === 'closed' || outcome.reason === 'no_such_event') {
       return { status: 'closed' };
+    }
+
+    // **Not a defect, and the only refusal on this path that is somebody's ordinary
+    // mistake.** `create_pending_purchase()` refuses a runner who already holds a live place
+    // on this event, keyed on name and date of birth. It is deliberately *not* logged as an
+    // error: the form is allowed to be filled in twice, and the database saying so is the
+    // rule working rather than drift between the schema module and the tables.
+    if (outcome.reason === 'already_entered') {
+      return { status: 'already-entered', submitted };
     }
 
     // Everything else — a fee the event is not offering, an entrant the tables refused, an
@@ -1036,6 +1114,12 @@ export function renderNnEntryView(
     rewriter.on('[data-nn-entry-early]', new RevealHandler());
   }
 
+  // **Independent of `early`.** A tester with a place and a runner with a place both need
+  // telling, and after 1 September only the second exists.
+  if (view.entered) {
+    rewriter.on('[data-nn-entry-entered]', new RevealHandler());
+  }
+
   // The two rules the browser-side enhancement cannot read off the DOM. Neither is personal
   // data and neither is a secret — the race date is on this page already, and an empty
   // minimum age is the honest rendering of "none has been confirmed".
@@ -1126,7 +1210,7 @@ export function renderNnEntryErrors(
 /**
  * Which notice each stopped outcome reveals.
  *
- * **Four separate notices rather than one with four wordings**, because the difference
+ * **Five separate notices rather than one with five wordings**, because the difference
  * between them is exactly what somebody needs: "the race is full" and "we could not reach
  * the payment page" ask for completely different things next. Each is written out in the
  * markup so there is one copy of the page in `dist/` and no template in the Worker to drift
@@ -1137,6 +1221,7 @@ const STOPPED_NOTICES: Record<NnEntryStoppedStatus, string> = {
   'sold-out': '[data-entry-soldout]',
   failed: '[data-entry-failed]',
   free: '[data-entry-free]',
+  'already-entered': '[data-entry-already]',
 };
 
 /**
