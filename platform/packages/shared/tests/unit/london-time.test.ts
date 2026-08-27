@@ -88,13 +88,14 @@ describe('race day — Nightingale Nightmare, the weekend after the change', () 
   });
 });
 
-describe('the proposed 2026 entry window — one instant either side of the change', () => {
-  // **The window is not in `entries.events` yet and these are still the right assertions.**
-  // The race director proposed opening 1 September 2026 at 07:00 and closing 30 October at
-  // 17:00, both Europe/London; the committee has not ratified it, so both columns are null and
-  // `packages/db/tests/entries.test.ts` holds them there. What is asserted here is the
-  // *conversion*, which is settled whoever ratifies it — so the day it is applied, the two
-  // literals pasted into the runbook's `update` are ones a test has already checked.
+describe('the ratified 2026 entry window — one instant either side of the change', () => {
+  // **The committee ratified the window over WhatsApp on Monday 24 August 2026**: it opens
+  // 1 September 2026 at 07:00 and closes 30 October at 17:00, both Europe/London. `entries_close_at` is applied;
+  // `entries_open_at` is still null, because ratifying the window is not the same act as
+  // opening it — `packages/db/tests/entries.test.ts` holds that distinction and says why.
+  //
+  // What is asserted here is the *conversion*, which was settled before the ratification was
+  // and is what makes the literals in the runbook's `update` ones a test has already checked.
   //
   // **This is the pair that catches a hardcoded offset, and nothing else here would.** BST
   // ends on Sunday 25 October 2026, so the open is UTC+1 and the close is UTC+0 — 07:00 London
