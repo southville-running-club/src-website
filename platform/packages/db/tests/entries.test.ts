@@ -1,6 +1,13 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
+import {
+  formatLondonDate,
+  formatLondonTime,
+  isBritishSummerTime,
+  londonOffsetMinutes,
+  toUtcIso,
+} from '@src/shared';
 
 /**
  * The `entries` schema, tested from **both sides**.
@@ -924,6 +931,20 @@ describe('the window states, on fabricated events rather than the real one', () 
 // What the migration seeded
 // -----------------------------------------------------------------------------------------
 
+/**
+ * The entry window the committee ratified, as instants.
+ *
+ * **Written in UTC and asserted in `Europe/London`**, which is the only pairing that can catch
+ * the mistake this race is exposed to. The clocks go back at 02:00 on 25 October 2026 —
+ * *between* these two — so 07:00 and 17:00 sit on different offsets: `+01:00` and `Z`. Writing
+ * them as local wall-clock strings and trusting the runtime is exactly how one of them ends up
+ * an hour out, and it is the end nobody checks that moves.
+ *
+ * `entries_open_at` is deliberately **not** applied to the row; see the test that says so.
+ */
+const NN_2026_OPENS_UTC = '2026-09-01T06:00:00.000Z'; // 07:00 BST
+const NN_2026_CLOSES_UTC = '2026-10-30T17:00:00.000Z'; // 17:00 GMT
+
 describe('the Nightingale Nightmare 2026 event row', () => {
   it('holds the confirmed facts', async () => {
     const rows = await query<{
@@ -945,30 +966,66 @@ describe('the Nightingale Nightmare 2026 event row', () => {
     });
   });
 
-  it('leaves the entry window null, because nobody has ratified it', async () => {
-    // **The assertion that stops a plausible placeholder**, and as of 24 August 2026 it is
-    // holding back a real proposal rather than a hypothetical one: the race director has
-    // proposed opening 1 September 2026 at 07:00 and closing 30 October at 17:00, and the
-    // committee has not ratified it.
+  it('holds the ratified close date, and it reads 17:00 in Europe/London', async () => {
+    // **The committee ratified the window over WhatsApp on Monday 24 August 2026**, replacing
+    // the race director's proposal that this assertion held back until it did — agreed the same
+    // day it was proposed, which is why the migration written on the 25th still describes it as
+    // a proposal. The closing half is applied; the opening half is not, and the test below says
+    // why.
     //
-    // **It stays null because this column is not configuration, it is the switch.**
-    // `entry_state()` resolves `pre_open` until `now()` passes `entries_open_at` and `open`
-    // afterwards, so a date here is a dated instruction to start selling places — unattended,
-    // with no deploy and nobody present. The entries-open runbook makes that moment the
-    // committee's and lists stop conditions that are not met: no WAF rate-limiting rule, no
-    // payment ever completed end to end, and no entry terms. The runbook carries the exact
-    // `update` for the day they are.
+    // **17:00 is asserted through `Europe/London`, never through the stored instant**, and
+    // that is the whole point of this assertion rather than a flourish. The suite pins
+    // `TZ=UTC` (see `vitest.config.ts`), so a test that compared a rendered string against the
+    // raw column would pass just as happily on `18:00` — which is what a wrong offset would
+    // produce and what a runner would then read on the page.
+    const rows = await query<{ entries_close_at: Date | null }>(
+      "select entries_close_at from entries.events where slug = 'nn-2026'",
+    );
+
+    const closesAt = rows[0]?.entries_close_at;
+    expect(closesAt).not.toBeNull();
+    expect(toUtcIso(closesAt as Date)).toBe(NN_2026_CLOSES_UTC);
+    expect(formatLondonTime(closesAt as Date)).toBe('17:00');
+    expect(formatLondonDate(closesAt as Date)).toBe('30 October 2026');
+  });
+
+  it('opens in BST and closes in GMT, on opposite sides of the clock change', async () => {
+    // **The sharpest form of the check, and the reason this race needs one at all.** The
+    // clocks go back at 02:00 on 25 October 2026, between the two ends of the window — so the
+    // ratified pair do *not* share a UTC offset, and any code that assumes they do is wrong in
+    // one direction or the other. 07:00 BST is 06:00Z; 17:00 GMT is 17:00Z.
     //
-    // Null is also the honest state meanwhile, and it is what the site shows today.
-    const rows = await query<{
-      entries_open_at: Date | null;
-      entries_close_at: Date | null;
-    }>(
-      "select entries_open_at, entries_close_at from entries.events where slug = 'nn-2026'",
+    // A formatted string can pass for the wrong reason. An offset cannot, which is what
+    // `londonOffsetMinutes` is exported for.
+    expect(londonOffsetMinutes(NN_2026_OPENS_UTC)).toBe(60);
+    expect(isBritishSummerTime(NN_2026_OPENS_UTC)).toBe(true);
+    expect(formatLondonTime(NN_2026_OPENS_UTC)).toBe('07:00');
+
+    expect(londonOffsetMinutes(NN_2026_CLOSES_UTC)).toBe(0);
+    expect(isBritishSummerTime(NN_2026_CLOSES_UTC)).toBe(false);
+    expect(formatLondonTime(NN_2026_CLOSES_UTC)).toBe('17:00');
+  });
+
+  it('leaves entries_open_at null — ratifying the window is not opening it', async () => {
+    // **This is the guard that matters, and it must fail if somebody sets the open date
+    // outside the runbook.**
+    //
+    // The window being ratified settles *what* the times are. It does not perform the
+    // opening, because this column is not configuration waiting to be switched on — it **is**
+    // the switch. `entry_state()` resolves `pre_open` until `now()` passes it and `open`
+    // afterwards, so a date here is a dated instruction to start selling 250 places,
+    // unattended, with no deploy and nobody present.
+    //
+    // Two things are outstanding and both are about taking money, not about the times: the
+    // live Stripe keys are not in, and the webhook digest has never been verified by a real
+    // signed event. Opening against sandbox keys would take entries the club cannot collect.
+    //
+    // The entries-open runbook carries the single `update` that flips it, and owns the moment.
+    const rows = await query<{ entries_open_at: Date | null }>(
+      "select entries_open_at from entries.events where slug = 'nn-2026'",
     );
 
     expect(rows[0]?.entries_open_at).toBeNull();
-    expect(rows[0]?.entries_close_at).toBeNull();
   });
 
   it('carries the confirmed minimum age of 18', async () => {
@@ -988,7 +1045,15 @@ describe('the Nightingale Nightmare 2026 event row', () => {
     expect(rows[0]?.minimum_age).toBe(18);
   });
 
-  it('shows as pre_open through the public function', async () => {
+  it('shows as pre_open with the close date set and the open date not', async () => {
+    // **The configuration this change creates, asserted end to end through the public
+    // function.** A close date on its own cannot open anything: `entry_state()` tests
+    // `entries_open_at is null` as an explicit branch *before* it compares anything, and
+    // `entries_close_at` is only ever consulted behind `is not null`. So the half that is
+    // applied is inert until the half that is not joins it.
+    //
+    // This is what the site serves today, and it is the reason the closing half was safe to
+    // apply on its own.
     const { data } = await anon
       .schema('entries')
       .rpc('entry_state', { p_slug: 'nn-2026' });

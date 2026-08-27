@@ -26,11 +26,16 @@ import '@src/shared/styles/nn-theme.css';
 // into a race file and a year file — that is a content change with its own review, and doing it
 // inside a route reorganisation would put two unrelated diffs in one commit.
 //
-// What is still `null` in it is still genuinely undecided rather than merely `price` and `entriesOpen` stay `null` for a different reason from the rest:
-// **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
-// `entries.events`, and the Worker paints them onto the entry form — a second copy in this
-// file is how two numbers start disagreeing. The opening time nobody has decided. Inventing
-// either of them here is a "stop and ask" trigger, not a placeholder.
+// **`price` stays `null` because it is the database's.** The fees live in
+// `entries.fees.price_pence` and the Worker paints them onto the entry form, so a second copy
+// in this file is how two numbers start disagreeing. Inventing one here is a "stop and ask"
+// trigger, not a placeholder.
+//
+// **`entriesOpen` is not the same case, and this comment used to say it was.** Nothing paints
+// that cell — there is no `HTMLRewriter` selector for it in `worker/nn-entry.ts`, and there
+// never was — so `race.json` is its only source and always has been. It now carries the
+// window the committee ratified. The database still holds the switch, and the two are
+// deliberately separate; the note at the cell itself says what that costs and who closes it.
 //
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
@@ -171,8 +176,44 @@ const dateLine = race.date
       <dt>Entry fee</dt>
       <dd data-nn-fee>{orTbc(race.price)}</dd>
 
+      {
+        /* **This announces when entries open; it does not open them.** The two live in
+        different places on purpose, and the split is now real rather than latent:
+        `race.json` carries the sentence a runner reads, and `entries.events.entries_open_at`
+        is the switch `entry_state()` resolves. The committee has ratified the window, and the
+        opening itself is a manual act gated on the live Stripe keys and a webhook digest
+        verified by a real signed event — so the column is still null while this cell has a
+        date in it.
+
+        **The failure mode that buys is worth naming, because it is the one somebody meets on
+        the morning.** If nobody runs the update in the entries-open runbook at 07:00 on 1
+        September, this page goes on promising open entries against a form that is still shut,
+        and it does so silently — nothing here reads the column, so nothing can notice the
+        disagreement. That is the cost of the split, accepted deliberately: a runner needs to
+        know when to come back, and a page that said nothing until the moment it opened would
+        be worse. The runbook is what closes the gap, and it is a diary entry rather than a
+        deploy.
+
+        Painting this cell from the database instead would remove the gap entirely and is the
+        right end state — an ADR after entries open, not a change to this page's rendering
+        path in the week before. */
+      }
       <dt>Entries open</dt>
       <dd>{orTbc(race.entriesOpen)}</dd>
+
+      {
+        /* **The closing half, and it is the sturdier of the two.** `entries_close_at` is
+        applied, and `create_pending_purchase()` checks it on every submission — "absolute,
+        whatever the caller holds", ahead of even the tester's early-entry permission. So this
+        row and the database agree by construction: when the page says entries have closed, the
+        form has closed, and no permission opens it again.
+
+        That is the opposite of the row above, where the page announces a time the database is
+        not yet holding. Two rows, one sentence apart, with genuinely different guarantees
+        behind them — which is worth knowing before either is edited. */
+      }
+      <dt>Entries close</dt>
+      <dd>{orTbc(race.entriesClose)}</dd>
 
       {
         /* **Issued on 27 August 2026, and this is the year's own number** — not 2023's,

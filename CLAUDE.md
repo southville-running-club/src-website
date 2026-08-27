@@ -37,12 +37,21 @@ re-run.
   date** and may not appear on `/nn/`, `/nn/course/` or `/nn/privacy/`; `site.spec.ts` asserts
   both halves. The 2023 number is still not a substitute for any future year's. **Still
   unconfirmed, and neither may appear anywhere:** the 2026 race director's name, and the
-  transfer deadline. **The entry open and close times have been *proposed* — 1
-  September 07:00 and 30 October 17:00 — and not ratified**, so they may not appear either, and
-  in particular **they may not go into `entries.events`**: that column is not configuration
-  waiting to be switched on, it is the switch, and the entries-open runbook owns the moment.
-  Do not invent a fact, do not infer one from a phase document, and do not put a plausible
-  placeholder in markup.
+  transfer deadline. **The entry window is ratified now** — agreed by the committee over
+  WhatsApp on **Monday 24 August 2026**, the same day the race director proposed it —
+  **opens Tuesday 1 September 2026
+  07:00 BST, closes Friday 30 October 2026 17:00 GMT** — and it is published on `/nn/2026/`
+  from `race.json`'s `entriesOpen`. The clocks go back between the two, so they do **not**
+  share a UTC offset: 06:00Z and 17:00Z. **Ratifying the window is not opening it, and the two
+  halves are in different states on purpose.** `entries_close_at` is applied and is inert on
+  its own — `entry_state()` tests `entries_open_at is null` as an explicit branch before it
+  compares anything, so a null open date means *never opens* rather than *no lower bound*.
+  **`entries_open_at` is still null, and it is still the switch**: a date in it starts selling
+  250 places unattended, and it is gated on the live Stripe keys being in and the webhook
+  digest having been verified by a real signed event. Neither has happened; the entries-open
+  runbook owns that moment and carries the single `update`. So the *times* are quotable
+  anywhere; the *column* is a stop-and-ask. Do not invent a fact, do not infer one from a phase
+  document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
   list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
@@ -536,8 +545,9 @@ two functions that are inverses of each other.
 retired the plan to give them a repository of their own. **The two forms are on two pages**,
 and the address a submission arrives at is what tells them apart — there is no hidden `form`
 field any more. Each page carries two states and the Worker reveals one, decided per request
-rather than by a deploy. `entries.events.entries_open_at` is `null` today, so production serves
-the interest form on `/nn/` and "entries are not open yet" on `/nn/2026/`.
+rather than by a deploy. `entries.events.entries_open_at` is `null` today — **still, and
+deliberately, with the window ratified** — so production serves the interest form on `/nn/` and
+"entries are not open yet" on `/nn/2026/`. `entries_close_at` is set and changes none of that.
 
 **A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
 per-event advisory lock: re-check the window, count the places gone, price it from
