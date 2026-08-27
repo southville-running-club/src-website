@@ -467,6 +467,16 @@ the surface mixes. **The audit trail is deliberately not on it**: nothing may re
 `entries.admin_audit`, and rendering it would need a fourteenth anon-callable function, which is a
 stop-and-ask rather than a layout decision.
 
+**A cancelled entry stays on `/admin/nn/`, with no runner on it.** `cancel_entry()` deletes the
+entrants — deliberately, so the club stops holding personal data for a race somebody is not
+running — and `read_entry_list()` inner-joined them, so a refunded purchase could not appear on
+that page at all: the **Refunded** filter could never match a row, and a volunteer clicking it
+concluded there had been no refunds. The list is purchase-driven with the entrant left joined
+now, and a row with no runner reads "No runner recorded", exactly as `/account/entries/` has
+always rendered the same purchase. **The counts were already right** — they read the purchase
+grain — and **`holding` and the three exports keep their inner joins**, because capacity is
+measured in runners and a start list has nobody to put on it. #116.
+
 **The medical notes are deleted a month after the race, and the promise and the enforcement are
 tied together by a test.** `entries.events.medical_retention` is what the five-minute cron
 applies; `race.json`'s `privacy.medicalRetention` is what `/nn/privacy/` publishes;
@@ -512,7 +522,16 @@ check constraint where the rule is static, a trigger where it spans tables, and 
 for the two a person needs words about (`ea_number_required`, `consents_missing`).
 `packages/db/tests/entries-rules.test.ts` re-attempts each bypass and asserts the **specific**
 refusal, because a Postgres error is not a refusal: a broken function refuses everything, which
-reads as every rule holding at once. **Which consents an event requires is
+reads as every rule holding at once. **The tenth rule is "one entry per runner", and it is the
+first one a person is meant to meet.** The form claimed it in prose from the day it was written
+and nothing enforced it, so somebody who already had a place could pay again and take a second
+one out of 250 — #115. `create_pending_purchase()` now refuses with `already_entered`, keyed on
+**first name, last name and date of birth** and counting only a *live* place: `paid`, or
+`pending` with a hold that has not lapsed, so an expired hold or a cancelled entry lets somebody
+try again. **Not `purchaser_email`** — one card legitimately pays for a partner, and refusing
+that would cost a real runner a place. The check sits inside the per-event advisory lock, and
+**every database fixture that enters more than once now carries a serial on the surname**,
+because a suite whose runners are all the same person cannot hold two places any more. **Which consents an event requires is
 `events.required_consents`**, not a constant — the set differs between races. **Four check
 constraints ship `NOT VALID`** and protect every new write; validating them against the rows
 already there is [a runbook](docs/delivery/runbooks/entries-constraints.md), because a

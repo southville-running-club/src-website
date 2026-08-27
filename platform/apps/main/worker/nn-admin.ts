@@ -284,9 +284,25 @@ export function viewEntries(entries: AdminEntry[], filters: EntryFilters): Admin
       (filters.fee === 'all' || entry.feeCode === filters.fee),
   );
 
-  const byName = (a: AdminEntry, b: AdminEntry): number =>
-    a.lastName.localeCompare(b.lastName, 'en-GB') ||
-    a.firstName.localeCompare(b.firstName, 'en-GB');
+  // **A cancelled entry has no name, and it sorts last in every order rather than in some
+  // arbitrary place.** It is the one row on this page that is about a place which came back
+  // rather than about somebody who is running, so a volunteer scanning for runners should not
+  // meet it in the middle of the alphabet. Deterministic either way, which is what stops two
+  // refunds swapping places between two loads of the same page.
+  const byName = (a: AdminEntry, b: AdminEntry): number => {
+    if (a.lastName === null || b.lastName === null) {
+      return Number(a.lastName === null) - Number(b.lastName === null);
+    }
+
+    return (
+      a.lastName.localeCompare(b.lastName, 'en-GB') ||
+      (a.firstName ?? '').localeCompare(b.firstName ?? '', 'en-GB')
+    );
+  };
+
+  // Same reason, for the age sort: an age derived from a date of birth that was deleted with
+  // the entrant is null, and a null must not read as a newborn at the top of the list.
+  const ageOf = (entry: AdminEntry): number => entry.age ?? Number.MAX_SAFE_INTEGER;
 
   return [...kept].sort((a, b) => {
     if (filters.sort === 'entered') {
@@ -295,7 +311,7 @@ export function viewEntries(entries: AdminEntry[], filters: EntryFilters): Admin
     }
 
     if (filters.sort === 'category') {
-      return a.age - b.age || byName(a, b);
+      return ageOf(a) - ageOf(b) || byName(a, b);
     }
 
     if (filters.sort === 'status') {
@@ -1110,8 +1126,34 @@ function entriesSection(
     </section>`;
 }
 
+/**
+ * What to put in the runner cell when there is no runner.
+ *
+ * **A cancelled entry has had its entrants deleted** — `entries.cancel_entry()` does that on
+ * purpose, so the club stops holding personal data for a race somebody is not running — and
+ * since #116 the row survives that deletion instead of vanishing from the page. So the cell
+ * has to say something, and what it says is the same sentence `/account/entries/` has always
+ * used for the same row, shortened to fit a table.
+ *
+ * **Not an em dash.** Every other cell on this page uses one for "nothing here", and this is
+ * not nothing — it is a purchase the club took money for and gave back, and the words are
+ * what stop it reading as a rendering fault.
+ */
+function runnerName(entry: AdminEntry): string {
+  if (entry.lastName === null || entry.firstName === null) {
+    return 'No runner recorded';
+  }
+
+  return `${entry.lastName}, ${entry.firstName}`;
+}
+
 function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
-  const category = categoryLabel(entry.age, entry.gender);
+  // Null together, for the same reason the name is: the category is computed from a date of
+  // birth that was deleted with the entrant.
+  const category =
+    entry.age === null || entry.gender === null
+      ? null
+      : categoryLabel(entry.age, entry.gender);
   const ea = entry.requiresEaNumber ? entry.eaNumber : null;
 
   // **Only where there is something to cancel.** An `expired` hold has already released its
@@ -1124,10 +1166,10 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
 
   return html`<tr>
     <th scope="row">
-      ${entry.lastName}, ${entry.firstName}
+      ${runnerName(entry)}
       <span class="admin-stack">
         <span>${entry.club ?? 'No club'}</span>
-        <span>${category}</span>
+        <span>${category ?? 'No category'}</span>
         <span>${entry.feeLabel}</span>
         <span class="admin-mono">${formatPence(entry.amountPence)}</span>
         ${
@@ -1160,9 +1202,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
               <input type="hidden" name="entrantId" value="${entry.entrantId}" />
               <button type="submit" class="admin-linkish">
                 Show note
-                <span class="admin-visually-hidden">
-                  for ${entry.firstName} ${entry.lastName}
-                </span>
+                <span class="admin-visually-hidden"> for ${runnerName(entry)} </span>
               </button>
             </form>`
           : '—'
@@ -1180,7 +1220,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
               <button type="submit" class="admin-linkish">
                 Cancel
                 <span class="admin-visually-hidden">
-                  the entry for ${entry.firstName} ${entry.lastName}
+                  the entry for ${runnerName(entry)}
                 </span>
               </button>
             </form>`

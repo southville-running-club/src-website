@@ -58,6 +58,13 @@ export const PENDING_PURCHASE_REASONS = [
   // in the entrant block. Only the first is actionable at four in the morning.
   'ea_number_required',
   'consents_missing',
+  // **The one reason on this list that a person is meant to meet.** Everything above it is
+  // either drift or a race the club lost; this is the ordinary case of somebody who already
+  // has a place filling the form in again — most often because they are not sure the first
+  // one worked, which is a thing the confirmation page cannot reassure them about and the
+  // absent confirmation email cannot either. So it gets its own notice rather than folding
+  // into `failed`, and the notice points at `/account/entries/`.
+  'already_entered',
   'unknown',
 ] as const;
 

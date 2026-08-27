@@ -34,6 +34,23 @@ const SITE = 'https://new.southvillerunningclub.co.uk';
  * a test that only wanted a different address to write to got a 422 about the confirmation
  * box and read as though the thing under test had broken.
  */
+/**
+ * **A distinct runner per call, because one entry per runner is a database rule now.**
+ *
+ * `entries.create_pending_purchase()` refuses a second entry for a runner who already holds a
+ * live place on the same event — `already_entered`, keyed on first name, last name and date of
+ * birth. This suite submits several valid entries against one event and varied only the email,
+ * so every call after the first was refused and answered with the form and a notice instead of
+ * a 303 to Stripe. The symptom was "expected no body, got an HTML document", which reads as a
+ * redirect defect and is not one.
+ *
+ * The serial goes on the surname: `firstName` is asserted by two tests that check a rejected
+ * form preserves what was typed, and the date of birth feeds the age category.
+ *
+ * Deterministic, so a failing run can be read.
+ */
+let entrantSerial = 0;
+
 function goodEntry(overrides: Record<string, string> = {}): Record<string, string> {
   const fields: Record<string, string> = {
     // **Both forms are on this page again**, one shown at a time, so the hidden field is what
@@ -42,7 +59,7 @@ function goodEntry(overrides: Record<string, string> = {}): Record<string, strin
     // pressed.
     form: 'entry',
     firstName: 'Grace',
-    lastName: 'Hopper',
+    lastName: `Hopper-${(entrantSerial += 1)}`,
     email: 'worker-entry@example.com',
     emailConfirm: 'worker-entry@example.com',
     dobDay: '9',

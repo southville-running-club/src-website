@@ -138,8 +138,8 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/entry/complet
         record.
       </p>
       <p>
-        Keep this page's address if you would like to check again later. Race day details
-        are on <a href="/nn/2026/race-day/">the race day page</a>.
+        Keep this page's address if you would like to check again later. What to do on the
+        day is on <a href="/nn/2026/race-day/">the race instructions</a>.
       </p>
     </div>
 
@@ -201,6 +201,26 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/entry/complet
         <a href="/nn/privacy/">the privacy notice</a>.
       </p>
     </div>
+
+    {
+      /* **The way back, and the reason it is one link rather than the navigation bar.**
+
+      This page ships `nav={false}` on the masthead, and the argument for that is good: four
+      links offering the course, the race-day plan and the spectator guide are four ways to
+      leave before reading the one paragraph somebody came here for. It is right *while* that
+      paragraph is being read.
+
+      It was wrong afterwards. The page is a **destination** rather than a step — Stripe sends
+      people here, the copy above tells them to keep the address and come back to it later,
+      and `/account/entries/` links here too — so most arrivals are people for whom the
+      question is already answered, and the only things left to click were a wordmark leading
+      out of the campaign entirely and one link to the race-day page. #114.
+
+      One link, below the answer rather than above it, keeps both properties. */
+    }
+    <p class="nn-back">
+      <a href="/nn/2026/">Back to Nightingale Nightmare 2026</a>
+    </p>
 
     <footer>
       <p>Southville Running Club.</p>

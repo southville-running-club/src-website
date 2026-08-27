@@ -133,10 +133,32 @@ async function seedEvent(slug: string, options: EventOptions = {}): Promise<stri
  * One runner. Born 9 December 1986, which is forty on race day and comfortably clear of the
  * minimum — the awkward ages are asked for explicitly by the tests that want them.
  */
+/**
+ * **A distinct runner per call, because one entry per runner is a database rule now.**
+ *
+ * `entries.create_pending_purchase()` refuses a second entry for a runner who already holds a
+ * live place on the same event, keyed on first name, last name and date of birth. Every
+ * fixture in this file used to be the same person, so the second entry against any one event
+ * was refused with `already_entered` and dozens of tests failed on a rule they were not
+ * written to exercise.
+ *
+ * **The counter goes on the surname rather than the date of birth**, deliberately. The default
+ * date of birth is chosen to sit comfortably clear of the minimum age and several tests read a
+ * category derived from it; moving it would make those tests depend on how many entries ran
+ * before them. A surname is read back by exactly one test, which asserts the apostrophe rather
+ * than the whole string.
+ *
+ * **The apostrophe stays in every generated name**, so the escaping it exists to prove is
+ * still exercised on every single call rather than only where somebody remembered to ask.
+ *
+ * Deterministic: a counter, not a random value, so a failing run can be read.
+ */
+let entrantSerial = 0;
+
 function entrant(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     first_name: 'Grace',
-    last_name: "O'Sullivan",
+    last_name: `O'Sullivan-${(entrantSerial += 1)}`,
     date_of_birth: '1986-12-09',
     gender: 'female',
     club: null,
@@ -748,7 +770,11 @@ describe('how many people one entry may cover', () => {
         where p.event_id = $1`,
       [eventId],
     );
-    expect(rows[0]?.last_name).toBe("O'Sullivan");
+    // **The apostrophe, not the whole string.** The surname now carries a serial so that
+    // each fixture is a distinct runner — see the note on `entrantSerial` — and what this test
+    // is about is that `O'` survives a round trip through a jsonb argument, a plpgsql insert
+    // and a PostgREST read without being doubled, dropped or escaped into something else.
+    expect(rows[0]?.last_name).toMatch(/^O'Sullivan-\d+$/);
   });
 });
 

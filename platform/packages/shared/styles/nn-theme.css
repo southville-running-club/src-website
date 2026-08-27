@@ -1977,8 +1977,34 @@ html:has(body.theme-nn) {
 }
 
 /* -------------------------------------------------------------------------------------
- * Footer
+ * The way back, on the entry confirmation page
+ * -------------------------------------------------------------------------------------
+ * **One link, and it is the only route back into the campaign from that page.**
+ * `/nn/<year>/entry/complete/` renders its masthead with `nav={false}` on purpose — see the
+ * comment in the page — which left a runner who had just paid with a wordmark leading out to
+ * the club site and nothing leading back to the race. #114.
+ *
+ * Sits above the footer's rule rather than inside it, because it is a place to go rather
+ * than a statement of who is answerable for the page. No `.button`: the page's own subject is
+ * the status card above it, and a second filled control competing with that is how somebody
+ * ends up clicking past the answer they came for.
  * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-back {
+  margin-top: 34px;
+  font-size: 16px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Footer
+ * -------------------------------------------------------------------------------------
+ * **`margin-top` drops to 0 when the back link is directly above it**, because the link
+ * already paid for that gap and two stacked 34px margins read as a dropped section rather
+ * than as a rule under the page.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-back + footer {
+  margin-top: 0;
+}
+
 .theme-nn footer {
   margin-top: 34px;
   padding: 18px 0 40px;

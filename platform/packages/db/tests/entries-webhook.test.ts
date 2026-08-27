@@ -122,6 +122,16 @@ interface Created {
 }
 
 /** Hold a place, the way the form does. */
+/**
+ * **A distinct runner per call, because one entry per runner is a database rule now.**
+ * `create_pending_purchase()` refuses a second entry for a runner already holding a live place
+ * on the same event, keyed on name and date of birth — so a fixture that is always the same
+ * person cannot hold two places, which several tests here need. The apostrophe stays in every
+ * generated surname so the escaping it proves is still exercised on every call. Deterministic:
+ * a counter, not a random value.
+ */
+let entrantSerial = 0;
+
 async function hold(slug: string, email = 'fixture@example.com'): Promise<Created> {
   const rows = await query<{ result: Created | { ok: false; reason: string } }>(
     `select entries.create_pending_purchase(
@@ -133,7 +143,7 @@ async function hold(slug: string, email = 'fixture@example.com'): Promise<Create
       JSON.stringify([
         {
           first_name: 'Grace',
-          last_name: "O'Sullivan",
+          last_name: `O'Sullivan-${(entrantSerial += 1)}`,
           date_of_birth: '1986-12-09',
           gender: 'female',
           club: null,
