@@ -220,6 +220,15 @@ export interface AdminEntry {
   /** Non-null means somebody has to look at this row. `over_capacity` is the loud one. */
   attention: string | null;
   attentionResolved: boolean;
+  /**
+   * What the entrant has asked the club to do with this entry, or null.
+   *
+   * **A request, not a status.** A paid entry carrying a cancellation request is still paid and
+   * still holds a place, and stays that way until a volunteer acts on it — which is why this is
+   * its own field rather than a fifth `status`, invisible to the capacity predicate.
+   */
+  requestedAction: 'cancel' | 'transfer' | null;
+  requestResolved: boolean;
   /** Whether a medical note exists. **Never the note** — that is its own audited read. */
   hasMedical: boolean;
   createdAt: string;
@@ -346,6 +355,10 @@ const entryShape = z.object({
   status: z.enum(ENTRY_STATUSES).catch('pending'),
   attention: z.string().nullable(),
   attention_resolved: z.boolean(),
+  // Same `.catch` reasoning as every optional field on this shape: a Worker deployed ahead of
+  // its migration renders the row rather than refusing the page.
+  requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
+  request_resolved: z.boolean().catch(false),
   has_medical: z.boolean(),
   created_at: z.string(),
   paid_at: z.string().nullable(),
@@ -461,6 +474,8 @@ function parseEntryList(
       status: entry.status,
       attention: entry.attention,
       attentionResolved: entry.attention_resolved,
+      requestedAction: entry.requested_action,
+      requestResolved: entry.request_resolved,
       hasMedical: entry.has_medical,
       createdAt: entry.created_at,
       paidAt: entry.paid_at,

@@ -756,3 +756,181 @@ describe('cancelling an entry', () => {
     }
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// Asking the club to do something with your own entry
+// -----------------------------------------------------------------------------------------
+/**
+ * **A purchase id is not a credential, and this is the suite that says so.**
+ *
+ * `entries.request_entry_action()` takes one, and it is printed on the confirmation page, sent
+ * in the return URL and now shown on `/account/entries/`. So the interesting tests here are not
+ * "does it work" — they are the three ways somebody holding a reference might use it against
+ * an entry that is not theirs.
+ *
+ * It records an ask and performs nothing: cancelling is `cancel_entry()` behind
+ * `nn.entry.cancel`, and transferring has no implementation at all.
+ */
+describe('requesting something on your own entry', () => {
+  async function ask(
+    client: SupabaseClient,
+    purchaseId: string,
+    action: string,
+  ): Promise<Attempt> {
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('request_entry_action', { p_purchase_id: purchaseId, p_action: action });
+
+    if (error) {
+      throw new Error(`request_entry_action errored: ${error.code} ${error.message}`);
+    }
+
+    return data as Attempt;
+  }
+
+  /** A paid entry belonging to whoever bought it. */
+  async function paidEntryFor(client: SupabaseClient, email: string): Promise<string> {
+    const made = await attemptEntry(client, OPEN, { email });
+    expect(made.ok).toBe(true);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [made.purchase_id],
+    );
+
+    return made.purchase_id as string;
+  }
+
+  it('is not callable by anon at all, which is a stronger refusal than a reason', async () => {
+    const purchaseId = await paidEntryFor(tester.client, 'ask-anon@example.com');
+
+    // **`42501`, not a structured refusal, and that is the better answer.** This function is
+    // granted to `authenticated` and to nothing else, so an anonymous caller is stopped by the
+    // grant before a line of it runs — the published anon key cannot reach it whatever id it
+    // carries. The `auth.uid() is null` branch inside is belt and braces for a caller who
+    // presents a token that resolves to nobody, and is deliberately kept.
+    //
+    // Asserted as the **specific** error rather than as "something failed", for this file's
+    // usual reason: a function that is broken for everybody would otherwise score as a rule
+    // holding.
+    const { error } = await anon
+      .schema('entries')
+      .rpc('request_entry_action', { p_purchase_id: purchaseId, p_action: 'cancel' });
+
+    expect(error?.code).toBe('42501');
+
+    const row = await single<{ requested_action: string | null }>(
+      'select requested_action from entries.entry_purchases where id = $1',
+      [purchaseId],
+    );
+    expect(row.requested_action).toBeNull();
+  });
+
+  it('refuses a signed-in stranger, and tells them nothing about the entry', async () => {
+    const purchaseId = await paidEntryFor(tester.client, 'ask-owner@example.com');
+
+    // **The assertion that matters most on this page.** `plain` holds an account and no
+    // permission, and is not the buyer. The answer is `no_such_entry` — the same answer an
+    // invented uuid gets — so the reference cannot be used to find out whether it names a real
+    // paid entry belonging to somebody else.
+    expect(await ask(plain.client, purchaseId, 'cancel')).toMatchObject({
+      ok: false,
+      reason: 'no_such_entry',
+    });
+
+    const invented = await ask(
+      plain.client,
+      '00000000-0000-0000-0000-000000000000',
+      'cancel',
+    );
+    expect(invented).toMatchObject({ ok: false, reason: 'no_such_entry' });
+
+    // And the entry is untouched, which is what makes the refusal a refusal.
+    const row = await single<{ requested_action: string | null }>(
+      'select requested_action from entries.entry_purchases where id = $1',
+      [purchaseId],
+    );
+    expect(row.requested_action).toBeNull();
+  });
+
+  it('refuses an action that is not one of the two words', async () => {
+    const purchaseId = await paidEntryFor(tester.client, 'ask-bad-action@example.com');
+
+    expect(await ask(tester.client, purchaseId, 'refund')).toMatchObject({
+      ok: false,
+      reason: 'invalid_action',
+    });
+  });
+
+  it('refuses an entry the club has not recorded a place for', async () => {
+    // Left `pending`: there is nothing to ask about a place that is not held, and a lapsed
+    // hold carrying a request would put rows on the volunteers' list that resolve themselves.
+    const made = await attemptEntry(tester.client, OPEN, {
+      email: 'ask-pending@example.com',
+    });
+    expect(made.ok).toBe(true);
+
+    expect(await ask(tester.client, made.purchase_id as string, 'cancel')).toMatchObject({
+      ok: false,
+      reason: 'no_such_entry',
+    });
+  });
+
+  it('records the ask for the person who bought it, and changes nothing else', async () => {
+    const purchaseId = await paidEntryFor(tester.client, 'ask-records@example.com');
+
+    expect(await ask(tester.client, purchaseId, 'cancel')).toMatchObject({
+      ok: true,
+      action: 'cancel',
+    });
+
+    const row = await single<{
+      requested_action: string;
+      requested_at: string;
+      status: string;
+    }>(
+      `select requested_action, requested_at, status
+         from entries.entry_purchases where id = $1`,
+      [purchaseId],
+    );
+
+    expect(row.requested_action).toBe('cancel');
+    expect(row.requested_at).not.toBeNull();
+
+    // **Still paid, and still holding a place.** The request is not a fifth status: the
+    // capacity predicate counts `paid`, and an entry somebody has asked to cancel is one
+    // until a volunteer cancels it.
+    expect(row.status).toBe('paid');
+  });
+
+  it('replaces an earlier ask rather than stacking one on it', async () => {
+    const purchaseId = await paidEntryFor(tester.client, 'ask-replace@example.com');
+
+    await ask(tester.client, purchaseId, 'cancel');
+
+    // A volunteer deals with it...
+    await query(
+      'update entries.entry_purchases set request_resolved_at = now() where id = $1',
+      [purchaseId],
+    );
+
+    // ...and the runner asks for something else. The resolved mark has to clear, or the new
+    // ask arrives on the volunteers' list already looking handled.
+    expect(await ask(tester.client, purchaseId, 'transfer')).toMatchObject({
+      ok: true,
+      action: 'transfer',
+    });
+
+    const row = await single<{
+      requested_action: string;
+      request_resolved_at: string | null;
+    }>(
+      `select requested_action, request_resolved_at
+         from entries.entry_purchases where id = $1`,
+      [purchaseId],
+    );
+
+    expect(row.requested_action).toBe('transfer');
+    expect(row.request_resolved_at).toBeNull();
+  });
+});

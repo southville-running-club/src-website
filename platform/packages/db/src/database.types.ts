@@ -210,6 +210,9 @@ export type Database = {
           person_id: string | null
           purchaser_email: string
           purchaser_name: string
+          request_resolved_at: string | null
+          requested_action: string | null
+          requested_at: string | null
           revived_at: string | null
           status: string
           stripe_checkout_session_id: string | null
@@ -234,6 +237,9 @@ export type Database = {
           person_id?: string | null
           purchaser_email: string
           purchaser_name: string
+          request_resolved_at?: string | null
+          requested_action?: string | null
+          requested_at?: string | null
           revived_at?: string | null
           status: string
           stripe_checkout_session_id?: string | null
@@ -258,6 +264,9 @@ export type Database = {
           person_id?: string | null
           purchaser_email?: string
           purchaser_name?: string
+          request_resolved_at?: string | null
+          requested_action?: string | null
+          requested_at?: string | null
           revived_at?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
@@ -502,6 +511,10 @@ export type Database = {
           p_session_id?: string
           p_stripe_event_id?: string
         }
+        Returns: Json
+      }
+      request_entry_action: {
+        Args: { p_action: string; p_purchase_id: string }
         Returns: Json
       }
     }

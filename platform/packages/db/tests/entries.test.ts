@@ -288,6 +288,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'read_interest_list',
       'record_admin_action',
       'record_checkout_event',
+      'request_entry_action',
     ]);
   });
 
@@ -348,7 +349,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets authenticated execute exactly eleven, and still no table read', async () => {
+  it('lets authenticated execute exactly twelve, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -393,6 +394,19 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //
     // `entries-tester.test.ts` re-attempts every one of these bypasses with an anonymous
     // client and with a signed-in one holding nothing, and asserts the specific refusal.
+    //
+    // **The twelfth is `request_entry_action`, and it is the first one on this list that a
+    // runner rather than a volunteer calls.** It records that somebody has asked the club to
+    // cancel or transfer one of their own entries, and it **performs neither** — cancelling is
+    // `cancel_entry` above, behind `nn.entry.cancel`, and transferring has no implementation at
+    // all because whether this club transfers a place is undecided.
+    //
+    // The grant is safe for the reason every grant on this list is: the function authorises
+    // inside itself. Ownership is re-derived from `auth.uid()` and the caller's **confirmed**
+    // address — the same predicate `my_entries` uses — and never from the purchase id in the
+    // argument, which is printed on the confirmation page and is not a credential. It refuses
+    // "not yours", "not there" and "not paid" with one identical answer, so a reference cannot
+    // be used to learn whether it names somebody else's paid entry.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -412,6 +426,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'export',
       'interest_list',
       'my_entries',
+      'request_entry_action',
     ]);
 
     // **And still not one grant on a table.** Asserted again here rather than only above,
@@ -573,6 +588,10 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       export: 'v',
       interest_list: 's',
       my_entries: 's',
+      // **Volatile, because it writes.** It is the only function on the runner's side of this
+      // schema that changes a row, and what it changes is one word about what somebody has
+      // asked for — never the entry's status, never its place.
+      request_entry_action: 'v',
       raise_attention: 'v',
       // The four reads themselves, granted to nobody. Same volatility as both their doors,
       // which is what makes the doors thin.
