@@ -420,6 +420,34 @@ on screen. **Wait for the run that was dispatched** — this is the sharp edge o
 through a subagent, because a background run that looks slow is exactly what makes somebody
 start another.
 
+**`./dev test` fails one Worker test on any machine that has a Stripe key, and it is the
+machine rather than the branch.** `tests/worker/admin/tester.test.ts`'s "gets the tester entry
+type back still chosen" asserts **503** — the branch the Worker takes when no
+`STRIPE_SECRET_KEY` is bound, where the submission was good and nothing was stored and nothing
+was charged. `platform/apps/main/.dev.vars` is gitignored and holds exactly that key on any
+machine somebody has set one up on, so the Worker reaches Stripe Checkout instead and answers
+**303**. `AssertionError: expected 303 to be 503` under `vitest.worker.admin.config.ts` is the
+whole signature, and it reads as a regression in the entry path when nothing has regressed:
+**CI passes because CI has no `.dev.vars`.** The cost is not one test — `cmd_test` stops at the
+Worker layer, so Playwright and axe never run at all and the acceptance layer reports nothing,
+which is the half somebody was waiting on. **Move `.dev.vars` aside and run again**, which is
+the CI environment reproduced. **Do not retry and do not edit the test**: the failure is
+deterministic, and the test is asserting the right thing about the right branch. Rename the
+file rather than copying it, so a live key is never on disk twice, and check its digest when
+you put it back.
+
+**`git fetch` fast-forwards local `main` here, so "branch off `main`" is not stable across a
+fetch.** A session can read `main`, plan against it, fetch for some unrelated reason, and then
+branch from a different commit than the one it inspected — with nothing in the output saying
+the base moved. **The cost is a branch silently based on a different tree than the one that was
+reviewed**, and it is worst where it is hardest to see: a diff that applies cleanly to either
+base, a suite that went green against the older one, and a pull request carrying a verification
+that no longer means what it claims. It has happened here — a branch cut from `main`, a fetch a
+few steps later, and `main` by then two commits ahead, with those two adding `entries`
+migrations underneath a branch whose green run predated them. **Re-check `git rev-parse main`
+immediately before `git checkout -b`, and put the base SHA in the first commit message**, so
+the tree a change was verified against is recorded rather than inferred.
+
 ---
 
 ## What is not built yet
