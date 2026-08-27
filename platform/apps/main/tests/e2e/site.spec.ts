@@ -449,21 +449,37 @@ test.describe('Nightingale Nightmare, at /nn', () => {
   });
 
   test('invents none of the facts that are still open', async ({ page }) => {
-    // The other half, and the half that still matters most. **The entry fee and the
-    // opening date belong to `entries.events` and `entries.fees`** — this site does not
-    // quote a figure it does not own, and the mockup's "from £15" and "7am, Tue 1 September"
-    // are exactly the plausible-looking values that would get here by being copied rather
-    // than by being confirmed.
+    // The other half, and the half that still matters most. **The entry fee belongs to
+    // `entries.fees`** — this site does not quote a figure it does not own, and the mockup's
+    // "from £15" and "7am, Tue 1 September" are exactly the plausible-looking values that
+    // would get here by being copied rather than by being confirmed.
+    //
+    // **That principle is unchanged; the assertion enforcing it got sharper.** It used to
+    // forbid `£` on both pages outright, which was right while the fee was unsettled. Now the
+    // committee has settled it, the year page states it — so this asserts the figure shown is
+    // **exactly** the one the database produced, which is a tighter guard than "no figure at
+    // all": an invented price fails this, and so does a stale one, whereas the old assertion
+    // would have passed just as happily on a page that had lost the fee entirely.
     for (const path of ['/nn/', '/nn/2026/']) {
       await page.goto(path);
       const body = (await page.locator('body').textContent()) ?? '';
-
-      expect(body, path).not.toMatch(/£\s?\d/);
 
       // Live capacity is the entries application's business too. 250 is how big the race is;
       // "238 of 250 remaining" is demo data from the mockup and must not follow it here.
       expect(body, path).toContain('250 places');
       expect(body, path).not.toMatch(/\bof 250\b|places remaining/i);
+
+      if (path === '/nn/') {
+        // The evergreen page names no year, and a fee belongs to one running — the same rule
+        // the date and the ARC permit follow.
+        expect(body, path).not.toMatch(/£\s?\d/);
+        continue;
+      }
+
+      // Dearest first, straight from `entry_state()`'s `order by fee.price_pence desc`. The
+      // £0 guide's place is absent because `feeLine` drops free places.
+      expect(body, path).toContain('£20.00 unaffiliated · £18.00 affiliated');
+      expect(body, path).not.toMatch(/£15|£17|from £/);
     }
   });
 
@@ -492,45 +508,30 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     ).toHaveText('ARC/26/0842');
   });
 
-  test('states the ratified opening time, at 07:00 and not 06:00', async ({ page }) => {
-    // **The same shape as the permit above, and it replaced the same kind of assertion**:
-    // `entriesOpen` was `null` and this row read "To be confirmed". The committee ratified the
-    // window, so the page states it and a runner knows when to come back.
+  test('states the entry fee from the database, with entries still shut', async ({
+    page,
+  }) => {
+    // **The cell ships as "To be confirmed" and the Worker paints over it**, so this asserts
+    // the wiring rather than the markup: `race.json`'s `price` is `null` and must stay null,
+    // because `entries.fees.price_pence` is what `create_pending_purchase()` actually charges
+    // and a second copy in the page is how the two start disagreeing.
     //
-    // **07:00 is the assertion, and 06:00 is the failure it exists to catch.** The stored
-    // instant is `06:00Z` — 1 September is British Summer Time — so anything that renders the
-    // UTC value instead of the Europe/London one produces `06:00`, which looks entirely
-    // plausible on a page and is an hour wrong on the morning 250 places go on sale. The
-    // clocks-change half of this is asserted at the source in
-    // `packages/db/tests/entries.test.ts`, which checks the two ends sit on different offsets.
+    // **Asserted while the window is shut**, which is the state production is in and the state
+    // this fixes. The fee is a fact about the race, not a property of the form — somebody
+    // deciding whether to come in the months before entries open is exactly who needs it, and
+    // "To be confirmed" was wrong for them from the day the committee settled £18 and £20.
     //
-    // The literal is pinned rather than read from `race.json`, for the reason above: an
-    // expectation that reads the page's own source asserts nothing.
+    // The £0 guide's place is deliberately absent: `feeLine` drops free places, because "Free"
+    // beside two prices reads as an offer anybody can take.
     await page.goto('/nn/2026/');
 
-    const opens = page.getByRole('term').filter({ hasText: 'Entries open' });
-    await expect(opens).toHaveCount(1);
-    await expect(
-      page.locator('dt', { hasText: 'Entries open' }).locator('+ dd'),
-    ).toHaveText('Tuesday 1 September 2026, 07:00');
-  });
+    const fee = page.locator('dt', { hasText: 'Entry fee' }).locator('+ dd');
 
-  test('states the ratified closing time, at 17:00 and not 18:00', async ({ page }) => {
-    // **The other end of the window, and the one where a wrong hour costs somebody a place.**
-    // 30 October is after the clocks go back, so the stored instant is `17:00Z` and London is
-    // `17:00` — the two agree here and disagree in September, which is exactly why both ends
-    // are pinned rather than one. A single offset applied to both gets precisely one wrong.
-    //
-    // Unlike the opening row, this one is enforced: `create_pending_purchase()` checks
-    // `entries_close_at` on every submission, ahead of even the tester permission, so the page
-    // and the form cannot disagree about it.
-    await page.goto('/nn/2026/');
-
-    const closes = page.getByRole('term').filter({ hasText: 'Entries close' });
-    await expect(closes).toHaveCount(1);
-    await expect(
-      page.locator('dt', { hasText: 'Entries close' }).locator('+ dd'),
-    ).toHaveText('Friday 30 October 2026, 17:00');
+    // **Dearest first**, which is `entry_state()`'s `order by fee.price_pence desc` reaching
+    // the page unchanged — `feeLine` keeps the order it is handed rather than imposing one.
+    await expect(fee).toHaveText('£20.00 unaffiliated · £18.00 affiliated');
+    await expect(fee).not.toHaveText(/To be confirmed/);
+    await expect(fee).not.toContainText('Free');
   });
 });
 

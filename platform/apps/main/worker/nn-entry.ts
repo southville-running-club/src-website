@@ -114,7 +114,24 @@ export interface NnEntryEnv extends StripeEnv {
  * rather than of whoever reads it next.
  */
 export type NnEntryView =
-  | { show: 'closed' }
+  | {
+      show: 'closed';
+      /**
+       * **The fees, even though the form is not on offer.** The price is a fact about the race
+       * rather than a property of the form: `/nn/2026/` states it in its facts list months
+       * before anybody can pay it, and "To be confirmed" there is wrong the moment the
+       * committee has settled a number.
+       *
+       * It comes from `entry_state()`, which this path has already read and used to decide the
+       * window — so carrying it costs no extra round trip; the previous shape simply threw it
+       * away.
+       *
+       * **Empty when the database could not be reached**, which is what keeps the failure
+       * direction right: no fees means the page falls back to "To be confirmed" and claims
+       * nothing, rather than claiming a price it could not check.
+       */
+      fees: EntryFee[];
+    }
   | {
       show: 'entry';
       state: EntryState;
@@ -305,7 +322,10 @@ export async function resolveNnEntryView(
     };
   }
 
-  return { show: 'closed' };
+  // `view.state` is undefined only when the database could not be reached — `resolveView`
+  // collapses "no such event" and an unreachable database into the same shut door, and only the
+  // second has nothing to report. Either way the fee row falls back to "To be confirmed".
+  return { show: 'closed', fees: view.state?.fees ?? [] };
 }
 
 /**
@@ -1087,14 +1107,36 @@ const NAV_LABELS: Record<EntryWindowState, { long: string; short: string }> = {
  *
  * **The interest form ships visible and the entry form ships hidden**, which is the safe
  * default rather than an arbitrary one: a page that cannot tell whether entries are open must
- * not offer to take one, and the form that takes no money is the one to fall back to. So the
- * `closed` case does no rewriting at all, and the common path and the database-unreachable
- * path produce byte-identical HTML.
+ * not offer to take one, and the form that takes no money is the one to fall back to.
+ *
+ * **The `closed` case reveals no form — but it does now fill in the entry fee**, and that
+ * distinction is what the reasoning above was always about. Revealing a form is offering to
+ * take money; stating a price is not. The fee is a fact about the race, published in the facts
+ * list months before anybody can pay it, and leaving it as "To be confirmed" once the committee
+ * has settled a number is the page being wrong rather than being careful.
+ *
+ * So the old property is narrower now: **the shut page and the database-unreachable page are
+ * byte-identical apart from that one cell.** An unreachable database yields no fees and the
+ * cell falls back to "To be confirmed", so the direction still fails towards claiming less.
  */
 export function renderNnEntryView(
   rewriter: HTMLRewriter,
   view: NnEntryView,
 ): HTMLRewriter {
+  // **Before the early return, because the fee is not part of the form.** Both states publish
+  // it, and the shut state is the one the public sees until 1 September — which is exactly the
+  // window in which somebody is deciding whether the race is worth entering.
+  //
+  // `feeLine` drops the £0 guide's place for the reason given at its definition, so an event
+  // whose only fee is free yields an empty string and the cell keeps saying "To be confirmed"
+  // rather than going blank. Guarded on the line rather than on the array for that reason.
+  const fees = view.show === 'entry' ? view.state.fees : view.fees;
+  const fee = feeLine(fees);
+
+  if (fee !== '') {
+    rewriter.on('[data-nn-fee]', new TextHandler(fee));
+  }
+
   if (view.show !== 'entry') {
     return rewriter;
   }

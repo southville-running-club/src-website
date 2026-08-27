@@ -353,15 +353,34 @@ test.describe('before entries open', () => {
     await expect(page.locator('[data-nn-entries-open]')).toBeHidden();
   });
 
-  test('quotes no price, because prices belong to an open entry', async ({ page }) => {
-    // The three fee cards are in the DOM and stay hidden, with their prices unpainted. A
-    // price on a page that cannot take an entry is a claim about a race nobody can enter.
-    for (const path of ['/nn/', YEAR]) {
-      await page.goto(path);
+  test('states the fee on the running, and never on the race page', async ({ page }) => {
+    // **This used to forbid a price on both pages, and the rule moved rather than lapsed.**
+    // It read "quotes no price, because prices belong to an open entry", on the reasoning that
+    // "a price on a page that cannot take an entry is a claim about a race nobody can enter" —
+    // written while the fee was genuinely unsettled. The committee settled it on 24 August
+    // 2026, and the old rule then made the facts list say "To be confirmed" about a confirmed
+    // fact.
+    //
+    // **The line is now between the fact and the control.** The year page states the fee as a
+    // race fact, exactly as it states the date, the field size and the ARC permit while entries
+    // are shut. The fee *cards* — the control that takes money — stay hidden and unpainted.
+    await page.goto(YEAR);
 
-      const body = (await page.locator('body').textContent()) ?? '';
-      expect(body, path).not.toMatch(/£\s?\d/);
-    }
+    const year = (await page.locator('body').textContent()) ?? '';
+    expect(year).toContain('£20.00 unaffiliated · £18.00 affiliated');
+
+    // The control, still shut: no card revealed, no card's price filled in.
+    await expect(entry(page).locator('[data-entry-fee="affiliated"]')).toBeHidden();
+    await expect(entry(page).locator('[data-entry-fee-price="affiliated"]')).toHaveText(
+      '',
+    );
+
+    // **`/nn/` is untouched, and that half of the old rule is the half that survives.** It is
+    // the evergreen page and names no year; a fee belongs to one running, exactly as the date
+    // and the permit do.
+    await page.goto('/nn/');
+    const race = (await page.locator('body').textContent()) ?? '';
+    expect(race).not.toMatch(/£\s?\d/);
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {

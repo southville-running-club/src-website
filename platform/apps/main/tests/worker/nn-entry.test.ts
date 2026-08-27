@@ -146,13 +146,35 @@ describe('the year page, while entries are not open', () => {
     expect(html).toContain('<input type="hidden" name="form" value="interest">');
   });
 
-  it('paints no price onto a page that cannot take an entry', async () => {
-    // The three fee cards are in `dist/` and stay hidden with their prices unpainted. A price
-    // on a page nobody can enter through is a claim about a race that is not open. The same
-    // assertion in `serves.test.ts` guards the rest of the page.
+  it('states the fee as a race fact, and still paints no price onto the form', async () => {
+    // **This assertion used to be the opposite, and the rule moved rather than went away.**
+    //
+    // It read "paints no price onto a page that cannot take an entry", on the reasoning that
+    // "a price on a page nobody can enter through is a claim about a race that is not open".
+    // That was written while the fee was genuinely unsettled. The committee settled it on
+    // 24 August 2026 — £18 and £20 — and the old rule then made the facts list render "To be
+    // confirmed" about a confirmed fact: a guard against false statements producing one.
+    //
+    // **The line is now between the fact and the control, not between open and shut.** The
+    // date, the field size and the ARC permit are all published on this page while entries are
+    // shut; a settled price is the same kind of thing, and it is what somebody deciding whether
+    // to come actually wants in the weeks beforehand.
+    //
+    // **The three fee cards are still hidden and still unpainted**, and that half is unchanged:
+    // they are the control that takes money, and revealing them would be offering an entry this
+    // page cannot take. They ship `hidden` with `data-entry-fee-pence=""` and empty price
+    // spans, and nothing fills them in until the window is open.
     const html = await yearPage();
 
-    expect(html).not.toMatch(/£\s?\d/);
+    // The fact, in the facts list. **Dearest first**, because that is the order
+    // `entry_state()` returns fees in — `order by fee.price_pence desc` — and `feeLine` keeps
+    // the order it is given rather than imposing one.
+    expect(html).toContain('£20.00 unaffiliated · £18.00 affiliated');
+
+    // The control, still shut. No card is revealed and no card's price is filled in.
+    expect(html).toMatch(/data-entry-fee="affiliated"[^>]*hidden/);
+    expect(html).toContain('data-entry-fee-pence=""');
+    expect(html).not.toMatch(/data-entry-fee-price="[^"]*">\s*£/);
   });
 
   it('leaves the enhancement without the rules it needs, so it does nothing', async () => {

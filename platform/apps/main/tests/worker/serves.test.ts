@@ -91,17 +91,26 @@ describe('Nightingale Nightmare', () => {
 
   it('states the confirmed date on the running it belongs to, and not on the race', async () => {
     // The date is confirmed — Sunday 1 November 2026 — and it is a fact about **one running**,
-    // so it is on the year page and not on the race page. The entry fee and the opening date
-    // are `null` in `race.json` for a different reason: they are the database's, and the Worker
-    // paints them on. Either way, inventing one here is a "stop and ask" trigger rather than a
-    // placeholder, and both render as "To be confirmed" until they are painted.
+    // so it is on the year page and not on the race page. The entry fee is `null` in
+    // `race.json` for a different reason: it is the database's, and the Worker paints it on.
+    // Inventing either here is a "stop and ask" trigger rather than a placeholder.
+    //
+    // **The price assertion is now year-page-only, and that is a rule that changed rather than
+    // one that lapsed.** It used to forbid `£` on both pages while entries were shut. The
+    // committee settled the fee on 24 August 2026, so the year page states it as a race fact —
+    // see `nn-entry.test.ts`, which asserts the other half: the fee *cards* on the form stay
+    // hidden and unpainted, because they are the control that takes money.
+    //
+    // **`/nn/` still quotes no price, and that half is untouched.** It is the evergreen page
+    // and names no year; a fee belongs to one running, exactly as the date and the permit do.
     const year = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
     const race = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
     expect(year).toContain('Sunday 1 November 2026');
     expect(race).not.toContain('Sunday 1 November 2026');
 
-    expect(year).not.toMatch(/£\s?\d/);
+    // Dearest first — `entry_state()` orders `by fee.price_pence desc`.
+    expect(year).toContain('£20.00 unaffiliated · £18.00 affiliated');
     expect(race).not.toMatch(/£\s?\d/);
   });
 
