@@ -820,7 +820,7 @@ describe('the entries list', () => {
     expect(await pageText(response)).toContain('Nwosu, Harriet');
   });
 
-  it('offers exactly one way to change anything, and it is the cancel button', async () => {
+  it('offers exactly two ways to change anything: cancel and transfer', async () => {
     /**
      * **Nothing on this surface writes to an entry, and the page is built so that is visible
      * rather than hidden.**
@@ -833,6 +833,11 @@ describe('the entries list', () => {
      *
      * **Three endpoints now rather than four**: the sign-out form has gone with the key
      * scheme, and the way out of the surface is the masthead's plain link to `/account/`.
+     *
+     * **And two of the five change a record rather than one.** This assertion is the reason
+     * that sentence had to be written down: adding transfer made this test fail, which is
+     * exactly what it is for. A second way to alter an entry somebody paid for should cost
+     * somebody a deliberate edit here, not arrive unremarked.
      */
     const body = await (await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)).text();
 
@@ -853,6 +858,11 @@ describe('the entries list', () => {
         // payment and deletes an entrant, which is why it posts to a confirmation page rather
         // than doing it — the POST that arrives here changes nothing on its own.
         '/admin/nn/cancel/',
+        // **The fifth, and the second that changes a record.** Same two-step shape as cancel
+        // — the POST that arrives here renders the form and mints the token the real one has
+        // to echo — but it takes no money and gives none back: the runner changes and the
+        // place stays exactly where it is.
+        '/admin/nn/transfer/',
       ]),
     );
 
