@@ -275,13 +275,48 @@ one. The date is one tap away, on the running `/nn/` links to. Recorded as a gap
 as a decision to leave closed.
 
 **A `null` is a fact nobody has confirmed, and it renders as "To be confirmed"** rather than
-as a blank or an invention. Three still are, and each for a different reason:
+as a blank or an invention. Two still are, and each for a different reason:
 
 | | |
 | --- | --- |
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
-| `permit` | **The 2026 ARC permit number has not been issued.** The 2023 number is on record and is not a stand-in for it — it would read as a claim that this year's race is permitted |
 | `privacy.*` | Nine keys. **Five are settled and written in** — the controller, the registered office, the company number, the one-month medical retention, and the date the notice was last updated. **Four are `null` and render "To be confirmed by the club"**: `contact`, `entryRetention`, `emailRetention` and `photographs`. A wrong answer on that page is a legal claim rather than a typo, so filling one in is a one-line edit here and `nn-privacy.spec.ts` counts the markers to stop a fifth appearing or a fourth quietly vanishing |
+
+### The ARC permit number, and why it is quoted twice
+
+**`permit` was the third `null` and is now `ARC/26/0842`**, issued 27 August 2026. Landing it
+was the second test of what this file is for: a one-line edit, and the year page's facts list
+picked it up with no markup moving — exactly as the race date did on 12 August.
+
+**It is quoted in two places, and one of them would not have been enough.** ARC print the
+requirement on the permit itself — *"Please quote Permit Number on race entry forms and
+advertising material."* The facts list on `/nn/2026/` is the advertising half; the foot of the
+entry form, below the pay note, is the form half. The race page alone does not satisfy the
+instruction, which is why `nn-entry.spec.ts` asserts the form's copy **visible** rather than
+merely present: the form ships `hidden` and the Worker reveals it, so a permit line that only
+ever reached the markup would pass a `toContain` and fail what ARC actually ask for.
+
+**At the foot of the form rather than under its heading.** ARC ask for the number to be
+quoted, not made prominent. The printed-form convention of putting it at the top exists
+because paper detaches from its context; a web form does not.
+
+**It is year-scoped, like the date.** A permit is issued for one running, so it may not reach
+`/nn/`, `/nn/course/` or `/nn/privacy/` — see
+[ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md).
+`site.spec.ts` asserts the number renders on `/nn/2026/` **and** that neither the label nor the
+number appears on `/nn/`; the number half of that is new, because until there was a number
+there was nothing to leak. `/nn/privacy/` still says the race is run under an ARC permit
+without naming one, which is evergreen and stays.
+
+**`/nn/` is the most advertising-shaped page on the site and structurally cannot carry the
+number.** Recorded as a gap rather than accepted silently: the mitigation is that its call to
+action points at `/nn/2026/`, which does carry it. Putting it on `/nn/` would mean painting it
+from `current_entry_state('nn')` in the Worker, which is a larger change and a decision nobody
+has taken.
+
+**The type, the issue date and the promoting body are on the permit and are not published.**
+Only the number is required, and only the number is here — the permit document is the club's
+record, not this repository's.
 
 **`src/content/privacy.json` is the club notice's own file, and it holds only what is not
 already here.** `/privacy/` reads the controller, the registered office, the company number and

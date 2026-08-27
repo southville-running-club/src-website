@@ -29,9 +29,8 @@ import '@src/shared/styles/nn-theme.css';
 // What is still `null` in it is still genuinely undecided rather than merely `price` and `entriesOpen` stay `null` for a different reason from the rest:
 // **they are the database's**. The fees live in `entries.fees.price_pence` and the window in
 // `entries.events`, and the Worker paints them onto the entry form — a second copy in this
-// file is how two numbers start disagreeing. The opening time nobody has decided, and the
-// 2026 ARC permit number has not been issued. Inventing any of them here is a "stop and ask"
-// trigger, not a placeholder.
+// file is how two numbers start disagreeing. The opening time nobody has decided. Inventing
+// either of them here is a "stop and ask" trigger, not a placeholder.
 //
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
@@ -161,9 +160,11 @@ const dateLine = race.date
       <dd>{orTbc(race.entriesOpen)}</dd>
 
       {
-        /* **Null, and it stays null until a number is issued.** The 2023 permit number is
-        on record and it belongs to the 2023 race; putting it here would be a claim that
-        this year's race is permitted, which is a different sort of wrong from a typo. */
+        /* **Issued on 27 August 2026, and this is the year's own number** — not 2023's,
+        which is on record and belongs to the 2023 race. It is quoted here and on the entry
+        form because ARC ask for it on entry forms and advertising material; it is on the
+        year page rather than on `/nn/` because a permit belongs to one running, which is
+        the same rule the date follows. See ADR-011. */
       }
       <dt>ARC permit</dt>
       <dd>{orTbc(race.permit)}</dd>

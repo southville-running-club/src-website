@@ -1888,6 +1888,14 @@ html:has(body.theme-nn) {
   text-align: center;
 }
 
+/* The ARC permit number, under the pay note and quieter still. ARC ask for the number to be
+   quoted rather than made prominent, so it sits with the pay note as one closing block —
+   tighter to it than the pay note is to the button, because the two belong together. */
+.theme-nn .nn-permit {
+  margin-top: 6px;
+  text-align: center;
+}
+
 /* -------------------------------------------------------------------------------------
  * Notices — the acknowledgement, the failure, the error summary
  * -------------------------------------------------------------------------------------

@@ -421,6 +421,14 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     expect(body).not.toContain('Sunday 1 November 2026');
     expect(body).not.toContain('BS3 2JL');
     expect(body).not.toContain('ARC permit');
+
+    // **The number as well as the label, now that there is a number.** Asserting the label
+    // alone was enough while `race.json`'s `permit` was `null` — there was nothing to leak.
+    // A permit belongs to one running exactly as the date does, so a year's number reaching
+    // this evergreen page would be the same defect as the date reaching it, and the label
+    // check would miss it the moment somebody quoted the number in a sentence instead of a
+    // `<dt>`. See ADR-011.
+    expect(body).not.toContain('ARC/26/0842');
   });
 
   test('the year page states the confirmed facts of its own running', async ({
@@ -457,16 +465,31 @@ test.describe('Nightingale Nightmare, at /nn', () => {
       expect(body, path).toContain('250 places');
       expect(body, path).not.toMatch(/\bof 250\b|places remaining/i);
     }
+  });
 
-    // **The 2026 ARC permit has not been issued.** A number here would be last year's, and
-    // it would read as a claim that this year's race is permitted. It is on the year page,
-    // because a permit belongs to one running.
+  test('quotes the ARC permit number on the running it was issued for', async ({
+    page,
+  }) => {
+    // **This test used to assert the opposite, and that is the whole of what changed.** The
+    // permit was `null` and the assertion here was that the page said "To be confirmed";
+    // ARC/26/0842 was issued on 27 August 2026, so the assertion becomes what it was always
+    // really guarding — that the page states the number it is required to state.
+    //
+    // **A permit number that silently stops rendering is a compliance defect that looks like
+    // nothing on the page**, which is why this is pinned rather than hoped for. ARC print the
+    // requirement on the permit itself: "Please quote Permit Number on race entry forms and
+    // advertising material." This is the advertising half; `nn-entry.spec.ts` has the form
+    // half, and the two together are what satisfy it.
+    //
+    // The literal is pinned rather than read from `race.json` — an expectation that reads the
+    // page's own source asserts nothing, which is the same rule the race date follows above.
     await page.goto('/nn/2026/');
+
     const permit = page.getByRole('term').filter({ hasText: 'ARC permit' });
     await expect(permit).toHaveCount(1);
     await expect(
       page.locator('dt', { hasText: 'ARC permit' }).locator('+ dd'),
-    ).toHaveText('To be confirmed');
+    ).toHaveText('ARC/26/0842');
   });
 });
 
@@ -1275,9 +1298,12 @@ test.describe('the Nightingale Nightmare content pages', () => {
     page,
   }) => {
     // These are the club's words about things that do not change year to year, so they are
-    // safe to state. Anything not on that list stays off the page — the entry price, the
-    // deadline for passing a place on, and the 2026 permit number are all still open, and
-    // the assertions above are what keep them off.
+    // safe to state. Anything not on that list stays off the page — the entry price is the
+    // database's rather than this file's, and the deadline for passing a place on is still
+    // open, and the assertions above are what keep them off. **The 2026 permit number is no
+    // longer on that list**: it was issued on 27 August 2026 and it is quoted on the year
+    // page and on the entry form, which is where ARC ask for it. It is still off this page,
+    // because race-day instructions are neither of those things.
     await page.goto('/nn/2026/race-day/');
     const body = (await page.locator('body').textContent()) ?? '';
 
