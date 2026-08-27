@@ -163,7 +163,10 @@ export {
   type ExportKind,
   type MedicalExportRow,
   type MedicalRetentionSweep,
+  transferEntry,
   type StartListExportRow,
+  type TransferredEntry,
+  type TransferTo,
 } from './admin';
 
 export {

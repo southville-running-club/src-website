@@ -934,3 +934,227 @@ describe('requesting something on your own entry', () => {
     expect(row.request_resolved_at).toBeNull();
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// Transferring a place
+// -----------------------------------------------------------------------------------------
+/**
+ * **The same place, a different runner, and no money moving.**
+ *
+ * The tests that matter here are the two ways a transfer could be a way *around* something:
+ * around the minimum age, and around one-runner-one-place. Both rules are enforced on the
+ * entry path, and a transfer that skipped them would be the hole somebody walks through.
+ *
+ * The third is the medical note, which is a privacy question rather than a rules one: a note
+ * belongs to the runner who wrote it, and carrying one across a transfer would file a
+ * stranger's condition against a new name.
+ */
+describe('transferring a place to somebody else', () => {
+  /**
+   * **A distinct arrival per transfer, and my own rule is what forced it.**
+   *
+   * These began as one shared `NEW_RUNNER`, so the second successful transfer moved a second
+   * place onto the same person and `transfer_entry()` refused it with `already_entered` —
+   * correctly, because that is precisely the rule this branch added and re-applies here. The
+   * fixture was wrong, not the function.
+   */
+  let arrival = 0;
+
+  function newRunner(): Record<string, unknown> {
+    arrival += 1;
+
+    return {
+      p_email: `new-runner-${arrival}@example.com`,
+      p_first_name: 'Bernadette',
+      p_last_name: `Devlin-${arrival}`,
+      p_date_of_birth: '1988-04-23',
+      p_gender: 'female',
+      p_club: '',
+      p_emergency_contact_name: 'Somebody Else',
+      p_emergency_contact_phone: '0117 496 0001',
+    };
+  }
+
+  async function transfer(
+    client: SupabaseClient,
+    purchaseId: string,
+    overrides: Record<string, unknown> = {},
+  ): Promise<Attempt> {
+    const { data, error } = await client.schema('entries').rpc('transfer_entry', {
+      p_purchase_id: purchaseId,
+      ...newRunner(),
+      ...overrides,
+    });
+
+    if (error) {
+      throw new Error(`transfer_entry errored: ${error.code} ${error.message}`);
+    }
+
+    return data as Attempt;
+  }
+
+  async function paidEntry(email: string): Promise<string> {
+    const made = await attemptEntry(tester.client, OPEN, { email });
+    expect(made.ok).toBe(true);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [made.purchase_id],
+    );
+
+    return made.purchase_id as string;
+  }
+
+  it('refuses somebody signed in who holds no permission', async () => {
+    const purchaseId = await paidEntry('transfer-unauth@example.com');
+
+    expect(await transfer(plain.client, purchaseId)).toMatchObject({
+      ok: false,
+      reason: 'unauthorised',
+    });
+  });
+
+  it('moves the runner and the email, and leaves the money alone', async () => {
+    const purchaseId = await paidEntry('transfer-ok@example.com');
+
+    expect(await transfer(canceller.client, purchaseId)).toMatchObject({ ok: true });
+
+    const row = await single<{
+      purchaser_email: string;
+      person_id: string | null;
+      status: string;
+      amount_pence: number;
+      first_name: string;
+      last_name: string;
+    }>(
+      `select p.purchaser_email, p.person_id, p.status, p.amount_pence,
+              e.first_name, e.last_name
+         from entries.entry_purchases p
+         join entries.entrants e on e.purchase_id = p.id
+        where p.id = $1`,
+      [purchaseId],
+    );
+
+    expect(row.first_name).toBe('Bernadette');
+    expect(row.last_name).toMatch(/^Devlin-\d+$/);
+    expect(row.purchaser_email).toMatch(/^new-runner-\d+@example\.com$/);
+
+    // **Null, so the entry belongs to whoever proves that address.** Leaving the old id would
+    // keep the place on the account of somebody who is no longer running it.
+    expect(row.person_id).toBeNull();
+
+    // **Still paid, still the same money.** A transfer is not a refund and not a new sale.
+    expect(row.status).toBe('paid');
+    expect(row.amount_pence).toBeGreaterThan(0);
+  });
+
+  it('deletes the previous runner’s medical note rather than carrying it across', async () => {
+    const made = await attemptEntry(tester.client, OPEN, {
+      email: 'transfer-medical@example.com',
+    });
+    expect(made.ok).toBe(true);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [made.purchase_id],
+    );
+
+    const entrant = await single<{ id: string }>(
+      'select id from entries.entrants where purchase_id = $1',
+      [made.purchase_id],
+    );
+
+    // **The consent has to be on the purchase first.** `assert_medical_consent()` refuses a
+    // note against a purchase that withheld it — one of Slice G's nine — so a fixture that
+    // just inserts one is refused by the database rather than accepted and filtered later.
+    await query(
+      `update entries.entry_purchases
+          set consents = consents || '{"medical": true}'::jsonb
+        where id = $1`,
+      [made.purchase_id],
+    );
+
+    await query(
+      `insert into entries.entrant_medical (entrant_id, notes)
+       values ($1, 'Carries an inhaler')`,
+      [entrant.id],
+    );
+
+    await transfer(canceller.client, made.purchase_id as string);
+
+    // **The assertion that stops a stranger's condition reaching the first aiders under the
+    // wrong name.** Nothing in the club's request mentioned this; it falls out of what a
+    // transfer is.
+    const notes = await query(
+      `select 1 from entries.entrant_medical m
+         join entries.entrants e on e.id = m.entrant_id
+        where e.purchase_id = $1`,
+      [made.purchase_id],
+    );
+
+    expect(notes).toHaveLength(0);
+  });
+
+  it('will not be a way around the minimum age', async () => {
+    const purchaseId = await paidEntry('transfer-age@example.com');
+
+    // `OPEN` carries the event's minimum age, and the entry path refuses below it. A transfer
+    // that did not would be the door left open beside the locked one.
+    expect(
+      await transfer(canceller.client, purchaseId, { p_date_of_birth: '2015-01-01' }),
+    ).toMatchObject({ ok: false, reason: 'under_minimum_age' });
+  });
+
+  it('will not be a way around one runner, one place', async () => {
+    const held = await paidEntry('transfer-dupe-a@example.com');
+    const toMove = await paidEntry('transfer-dupe-b@example.com');
+
+    // Whoever holds `held` is the fixture runner. Transferring `toMove` onto the same person
+    // would give them two places on one event, which the entry form refuses outright.
+    const existing = await single<{
+      first_name: string;
+      last_name: string;
+      date_of_birth: string;
+    }>(
+      `select first_name, last_name, date_of_birth
+         from entries.entrants where purchase_id = $1`,
+      [held],
+    );
+
+    expect(
+      await transfer(canceller.client, toMove, {
+        p_first_name: existing.first_name,
+        p_last_name: existing.last_name,
+        p_date_of_birth: existing.date_of_birth,
+      }),
+    ).toMatchObject({ ok: false, reason: 'already_entered' });
+  });
+
+  it('refuses an entry the club has not recorded a place for', async () => {
+    const made = await attemptEntry(tester.client, OPEN, {
+      email: 'transfer-pending@example.com',
+    });
+    expect(made.ok).toBe(true);
+
+    expect(await transfer(canceller.client, made.purchase_id as string)).toMatchObject({
+      ok: false,
+      reason: 'not_paid',
+    });
+  });
+
+  it('writes an audit row naming who is leaving as well as who is arriving', async () => {
+    const purchaseId = await paidEntry('transfer-audit@example.com');
+    await transfer(canceller.client, purchaseId);
+
+    const audit = await single<{ action: string; detail: Record<string, unknown> }>(
+      `select action, detail from entries.admin_audit
+        where detail ->> 'purchase_id' = $1 and action = 'transfer_entry'`,
+      [purchaseId],
+    );
+
+    expect(audit.action).toBe('transfer_entry');
+    // The question somebody actually asks afterwards is whose place this was.
+    expect(audit.detail.previous_runner).toBeTruthy();
+    expect(audit.detail.previous_email).toBe('transfer-audit@example.com');
+  });
+});
