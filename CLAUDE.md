@@ -30,9 +30,14 @@ re-run.
   £2 gap is ARC's, not the club's**: it is the Unattached Runner Levy the promoter must impose
   under Rule 21(2)(b) and remit to ARC within 30 days under 21(2)(c), so the club nets £18
   either way — decision 006. **So is the minimum age: 18 on race day**, in
-  `entries.events.minimum_age`. **Still unconfirmed, and none of them may appear anywhere:**
-  the 2026 ARC permit number (the 2023 number is not a substitute), the 2026 race director's
-  name, and the transfer deadline. **The entry open and close times have been *proposed* — 1
+  `entries.events.minimum_age`. **The 2026 ARC permit number is confirmed and published** —
+  **`ARC/26/0842`**, issued 27 August 2026 — and it lives in `race.json`'s `permit`, never in
+  markup. ARC require it on entry forms and advertising material, so it is quoted twice: the
+  facts list on `/nn/2026/` and the foot of the entry form. It is **year-scoped like the
+  date** and may not appear on `/nn/`, `/nn/course/` or `/nn/privacy/`; `site.spec.ts` asserts
+  both halves. The 2023 number is still not a substitute for any future year's. **Still
+  unconfirmed, and neither may appear anywhere:** the 2026 race director's name, and the
+  transfer deadline. **The entry open and close times have been *proposed* — 1
   September 07:00 and 30 October 17:00 — and not ratified**, so they may not appear either, and
   in particular **they may not go into `entries.events`**: that column is not configuration
   waiting to be switched on, it is the switch, and the entries-open runbook owns the moment.

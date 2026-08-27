@@ -864,6 +864,28 @@ const SUMMARY_LINKS = [
     Payment is taken by Stripe on their own secure page. The club never sees your card
     details. Your place is held for 30 minutes while you pay.
   </p>
+
+  {
+    /* **The permit number, because ARC ask for it on the entry form.** Printed on the permit
+    itself: "Please quote Permit Number on race entry forms and advertising material." The
+    year page's facts list is the advertising half; this is the form half, and the race page
+    alone would not satisfy it.
+
+    **From `race.json`, never typed here.** It is a fact about one running, so it lives where
+    the date and the field size live — and a number retyped into markup is a number that
+    outlives the year it belongs to.
+
+    **At the foot, after the pay note, rather than under the heading.** ARC ask for the
+    number to be quoted, not made prominent, and the printed-form convention of putting it at
+    the top exists because paper detaches from its context. A web form does not: this page is
+    headed with the race and the year already.
+
+    The register matches `/nn/privacy/`'s "Our race is run under an ARC permit", which is the
+    only other place on the site that mentions the permit at all. */
+  }
+  <p class="field-hint nn-permit">
+    This race is run under ARC permit {race.permit}.
+  </p>
 </form>
 
 <script>

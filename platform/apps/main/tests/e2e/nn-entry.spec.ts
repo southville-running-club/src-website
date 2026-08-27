@@ -408,6 +408,28 @@ test.describe('once entries are open', () => {
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeVisible();
   });
 
+  test('quotes the ARC permit number on the form itself', async ({ page }) => {
+    // **ARC's instruction, printed on the permit: "Please quote Permit Number on race entry
+    // forms and advertising material."** The year page's facts list satisfies the advertising
+    // half and `site.spec.ts` guards it; the race page alone does not satisfy the instruction,
+    // which is why this assertion exists separately rather than being folded into that one.
+    //
+    // **Asserted visible, and only once entries are open.** The form ships `hidden` inside
+    // `[data-nn-entry]` and the Worker reveals it, so a permit line that rendered into the
+    // markup but never onto a page anybody sees would pass a `toContain` on the HTML and fail
+    // the thing ARC actually ask for. `toBeVisible` is the difference.
+    //
+    // **Scoped to the form.** `/nn/2026/` carries this number twice — here and in the facts
+    // list above — so an unscoped locator is two elements and Playwright's strict mode rightly
+    // refuses to guess. Scoping it also means this cannot pass on the facts list's copy while
+    // the form's has gone.
+    await page.goto(YEAR);
+
+    await expect(
+      entry(page).getByText('This race is run under ARC permit ARC/26/0842.'),
+    ).toBeVisible();
+  });
+
   test('a guide is told before the fourteen fields, not after them', async ({ page }) => {
     // **Issue #22, and step 0.4 of `docs/delivery/runbooks/entries-open.md`.** Stripe refuses a
     // zero-total Checkout session, so a visually impaired runner's guide cannot finish this

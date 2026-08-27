@@ -91,10 +91,10 @@ describe('Nightingale Nightmare', () => {
 
   it('states the confirmed date on the running it belongs to, and not on the race', async () => {
     // The date is confirmed — Sunday 1 November 2026 — and it is a fact about **one running**,
-    // so it is on the year page and not on the race page. The entry fee, the opening date and
-    // the 2026 ARC permit number are not confirmed at all; inventing one of those is a "stop
-    // and ask" trigger rather than a placeholder, which is why they are `null` in `race.json`
-    // and render as "To be confirmed" instead.
+    // so it is on the year page and not on the race page. The entry fee and the opening date
+    // are `null` in `race.json` for a different reason: they are the database's, and the Worker
+    // paints them on. Either way, inventing one here is a "stop and ask" trigger rather than a
+    // placeholder, and both render as "To be confirmed" until they are painted.
     const year = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
     const race = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
@@ -103,6 +103,22 @@ describe('Nightingale Nightmare', () => {
 
     expect(year).not.toMatch(/£\s?\d/);
     expect(race).not.toMatch(/£\s?\d/);
+  });
+
+  it('carries the ARC permit number into the built year page, and not into the race', async () => {
+    // **The same rule the date follows, applied to the permit** — a permit is issued for one
+    // running, so `ARC/26/0842` belongs on `/nn/2026/` and must not reach the evergreen page.
+    // ADR-011.
+    //
+    // **This is the build-output half of the guard.** `site.spec.ts` asserts what a browser
+    // renders and `nn-entry.spec.ts` asserts the form's copy is visible; this asserts the
+    // number survives the Astro build into `dist/` at all. It is the cheapest of the three and
+    // it fails first, which is what makes it worth having as well rather than instead.
+    const year = await (await SELF.fetch(`${SITE}/nn/2026/`)).text();
+    const race = await (await SELF.fetch(`${SITE}/nn/`)).text();
+
+    expect(year).toContain('ARC/26/0842');
+    expect(race).not.toContain('ARC/26/0842');
   });
 
   it.each([
