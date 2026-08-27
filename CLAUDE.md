@@ -598,10 +598,12 @@ stop being kept on any day the admin key was not installed.
 **Somebody holding `nn-tester` can enter before entries open, and that is how the payment path
 gets tested without touching `entries_open_at`.** The role carries one permission,
 `nn.entry.before_open`, and it opens exactly one thing: `/nn/2026/` shows the entry form with a
-notice saying why, and `create_pending_purchase()` admits a `pre_open` event. There is a 1p
+notice saying why, and `create_pending_purchase()` admits a `pre_open` event. There is a £1
 **Tester** fee on `nn-2026` gated by the same permission — invisible in `entry_state()` and
 refused with `invalid_fee` by anybody else — so a real card can prove the club's live Stripe
-account for a penny. **The Worker signs those two calls with the person's own token**, through
+account for a pound. **£1 rather than a penny because Stripe will not charge below £0.30 in
+GBP** — a fee under that floor passes the free-place guard, holds a place, and only then fails
+at the session call. **The Worker signs those two calls with the person's own token**, through
 `createUserClient`, because the whole thing resolves through `auth.uid()`; a signed-out visitor's
 path is unchanged and costs nothing extra. A tester's entry is a **real** entry: it consumes a
 place, appears in `/admin/nn/`, in the exports and on the start list, and it is removed with the

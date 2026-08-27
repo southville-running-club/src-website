@@ -986,7 +986,7 @@ describe('the fees', () => {
       price_pence: number;
       requires_ea_number: boolean;
     }>(
-      // **Ungated only, which is what "what the club charges" means.** The 1p tester fee is a
+      // **Ungated only, which is what "what the club charges" means.** The £1 tester fee is a
       // fourth row on this event and is nobody's price — it is asserted on its own below, so a
       // repricing diff cannot be confused with a change to it, and so this list goes on saying
       // exactly what a runner pays.
@@ -1017,7 +1017,7 @@ describe('the fees', () => {
 
   it('has a fourth row nobody can see, and it is the tester fee', async () => {
     // **Asserted separately from the three above**, because it is a different kind of thing:
-    // those are what the club charges and this is a 1p probe that exists to prove the live
+    // those are what the club charges and this is a £1 probe that exists to prove the live
     // Stripe account works before entries open. Folding it into that list would make a
     // repricing diff look like a change to what a runner pays.
     const [row] = await query<{
@@ -1033,8 +1033,8 @@ describe('the fees', () => {
 
     expect(row).toEqual({
       code: 'tester',
-      price_pence: 1,
-      // **The gate, and it is the only thing keeping a 1p entry off a public page.** The
+      price_pence: 100,
+      // **The gate, and it is the only thing keeping a £1 entry off a public page.** The
       // "dearest first" test below reads `entry_state()` as `anon` and gets three fees, which
       // is the other half of this assertion.
       requires_permission: 'nn.entry.before_open',

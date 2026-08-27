@@ -251,7 +251,7 @@ the role carries: `nn.entry.before_open`, and nothing else. A tester cannot read
 7. **Cancel it** from `/admin/nn/`, as a `super-admin`. Confirm the refund appears in Stripe,
    the row is `refunded`, and the place is back in the count on `/admin/nn/`.
 
-### 2c — then live mode, for a penny
+### 2c — then live mode, for a pound
 
 Test mode proves the integration. It does **not** prove the club's live account, its payout
 settings, or that the live webhook endpoint is registered and reachable. That is what this
@@ -261,12 +261,14 @@ sub-step is for, and finding out on 1 September is finding out too late.
    (`wrangler secret put`, both, in that order — the endpoint's signing secret comes from the
    live-mode endpoint in the Stripe dashboard, which is a different endpoint from the test one
    and has to be registered separately).
-2. Repeat 2b, choosing the **Tester (do not use)** entry type, which costs 1p. It is visible
-   only to somebody holding `nn.entry.before_open`.
+2. Repeat 2b, choosing the **Tester (do not use)** entry type, which costs **£1**. It is
+   visible only to somebody holding `nn.entry.before_open`. **Not a penny** — Stripe's minimum
+   charge in GBP is £0.30, and a fee below it holds a place and then fails at the session
+   call.
 3. Pay with a real card.
 4. Verify the same four things, plus: the money appears in the club's real Stripe balance and
    the payout schedule is what the treasurer expects.
-5. **Cancel it**, and confirm the penny comes back.
+5. **Cancel it**, and confirm the pound comes back.
 
 ### 2d — revoke the role
 

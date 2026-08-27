@@ -30,7 +30,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *
  * Three fabricated runnings, and **none of them is a running of `nn`** — so nothing here can
  * change what the site's front door resolves to, and nothing here touches the seeded
- * `nn-2026` row or the real 1p tester fee on it.
+ * `nn-2026` row or the real £1 tester fee on it.
  */
 
 const LOCAL_DB =
@@ -389,6 +389,14 @@ describe('a fee only some people may see', () => {
     const result = await attemptEntry(tester.client, OPEN, { feeCode: 'tester' });
 
     expect(result.ok).toBe(true);
+
+    // **1, and deliberately not the seeded £1.** This is the fabricated `zztester` event's own
+    // fee, inserted above at a penny; the real fee on `nn-2026` is £1 because Stripe will not
+    // charge below £0.30, and `entries.test.ts` is what asserts that. The two are different
+    // numbers on purpose — the price here is arbitrary, which is the whole point of the test:
+    // what comes back is the row's price rather than anything the caller sent. Making them
+    // match would quietly turn this into a second assertion about the seeded row, and the
+    // fixture would stop being invented.
     expect(result.amount_pence).toBe(1);
   });
 });
