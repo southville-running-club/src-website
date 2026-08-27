@@ -587,12 +587,47 @@ test is what forces it to be made in a diff** — it has happened twice: `curren
 which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
 [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
 
-**`authenticated` is a second list and it went from six to eleven in #107.** It is a role
+**`authenticated` is a second list: six, then eleven in #107, then twelve.** It is a role
 anybody who registers holds, so every function on it authorises inside itself and the grant only
 says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` are there because
 a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a
 signed-in caller may do more. `my_entries()` is scoped to `auth.uid()` and the caller's confirmed
 address; `cancellable_purchase()` and `cancel_entry()` refuse without `nn.entry.cancel`.
+
+**A twelfth arrived with the entry-request slice, and it is the first one a runner rather
+than a volunteer calls.** `request_entry_action()` records that somebody has asked the club
+to cancel or transfer one of their own paid entries, and **performs neither** — cancelling is
+`cancel_entry()` behind `nn.entry.cancel`, and transferring has no implementation at all.
+Ownership is re-derived from `auth.uid()` and the caller's confirmed address, **never from
+the purchase id it is given**: that is printed on the confirmation page and on
+`/account/entries/`, and it is not a credential. "Not yours", "not there" and "not paid" all
+answer `no_such_entry`, so a reference cannot be used to learn whether it names somebody
+else's entry.
+
+**A request is not a status, and that is load-bearing.** `requested_action` is its own column
+beside `attention` rather than a sixth value of `status`, because the capacity predicate
+counts `status = 'paid'` — an entry somebody has asked to cancel still holds its place until
+a volunteer acts, and a new status would make that place invisible to the count and sellable
+twice. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
+no transfer button: transfers are on the stop-and-ask list above, and showing the ask is not
+the same as answering it. **The email half is not built** — there is no send path until #73.
+
+**`/admin/nn/` filters on sets, and leaves test entries out by default.** Status and entry
+type are multi-select, carried as repeated query parameters so a filtered view is a URL
+somebody can send to the other volunteer; an empty set means every value. Exclusion is
+`hide`, namespaced — `hide=fee:tester`, `hide=status:refunded` — and `hide=none` is how
+"leave nothing out" is written, because absent and empty would otherwise mean opposite
+things. A tester's place is still real and still counted; it is simply not what somebody
+opens that page to look at.
+
+**`/account/entries/` shows confirmed places only — unless there are none, and that
+exception is not decoration.** A lapsed attempt beside a real ticket makes the page look
+broken, so once somebody holds a place it is the only thing they see. Hiding the rest
+*unconditionally* would show an empty page to somebody whose payment succeeded while the
+webhook was late, who reads that as nothing having been taken and enters again. So: only
+successful tickets, unless there are none. Same rule as `/nn/<year>/entry/complete/`, which
+may not make a negative claim either, applied to a list. Every entry carries its purchase id
+as a reference, because somebody emailing the club had nothing to name one by.
 
 **Two functions in `entries` now answer differently depending on who is asking, and that is new.**
 `entry_state()` hides a fee whose `requires_permission` the caller does not hold, and

@@ -129,6 +129,60 @@
   margin-bottom: 0;
 }
 
+/* **Quieter, not hidden, and the distinction is somebody paying twice.**
+   An entry the club has not confirmed still has to be findable: a payment can succeed while
+   the webhook is late, and a person who is shown nothing concludes nothing was taken. So these
+   sit below the confirmed ones and read as secondary rather than disappearing.
+   **Opacity is not used**, because it would drag the text under its contrast ratio wherever it
+   lands. The border does the demoting and every value in the card keeps its own colour. */
+.account-card-quiet {
+  border-style: dashed;
+}
+
+/* The two asks on a confirmed entry.
+   **Buttons, not links**, because each one submits a POST that writes a record — a link that
+   changes state is the thing prefetchers and crawlers fire by accident. They are styled to read
+   as quiet controls rather than as calls to action: the page's subject is the entry above them,
+   and the club would rather somebody read the status than press something. */
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+  margin-top: var(--space);
+}
+
+.account-linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.account-subhead {
+  margin: calc(var(--space) * 2) 0 var(--space);
+}
+
+/* **No `color` here on purpose.** `--colour-muted` is defined in `nn-theme.css`, which this
+   page does not necessarily load, and a token that resolves to nothing would silently leave the
+   text at whatever it inherits — which is the good outcome by luck rather than by design.
+   Position and brevity do the work instead, and the contrast stays whatever the page already
+   guarantees. */
+.account-note {
+  margin: 0 0 var(--space);
+}
+
+/* A uuid is long, and it is quoted rather than read as prose — so it wraps anywhere rather
+   than pushing the card sideways on a phone. `overflow-wrap` and not `word-break`, which would
+   also split ordinary words if this class were ever reused. */
+.account-reference {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
 .account-card h2 {
   margin: 0 0 calc(var(--space) * 0.5);
   font-size: 1.15rem;

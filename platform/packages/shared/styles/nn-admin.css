@@ -695,6 +695,25 @@ body.admin {
   margin-bottom: 0;
 }
 
+/* **The line that says what is being left out of the list.**
+   Not a chip: the default is to hide the club's own test entries, and a chip row would have to
+   show a selection nobody made in order to be honest about it. A sentence says the same thing
+   where somebody will read it, and carries the link that turns it off.
+   `--colour-muted` because it is a note about the list rather than part of it — the same weight
+   the row of labels above it carries. No hex value here or anywhere in this file. */
+/* A request a volunteer has already dealt with, kept on the row rather than removed: what
+   somebody about to touch this entry needs is "asked for, and handled", not silence. No
+   `opacity` — it would drag the text under its contrast ratio. */
+.admin-request-done {
+  text-decoration: line-through;
+}
+
+.admin-filters-note {
+  margin: 0.75rem 0 0;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+}
+
 .admin-filters-label {
   margin: 0 0 0.4rem;
   color: var(--colour-muted);

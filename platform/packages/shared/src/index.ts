@@ -169,9 +169,12 @@ export {
 export {
   entryStatusWording,
   fetchMyEntries,
+  requestEntryAction,
+  type EntryActionRequest,
   type MyEntrant,
   type MyEntriesResult,
   type MyEntry,
+  type RequestEntryActionResult,
 } from './my-entries';
 
 export { BOM, csvDocument, csvField, csvRow } from './csv';

@@ -3,6 +3,7 @@ import {
   createPkceClient,
   createUserClient,
   entryStatusWording,
+  requestEntryAction,
   fetchMyEntries,
   formatEventDate,
   formatEventStartTime,
@@ -314,8 +315,14 @@ export async function handleAccount(
     }
   }
 
-  if (request.method === 'GET' && segments.length === 1 && segments[0] === 'entries') {
-    return entriesPage(session, cfg, secure, refreshedCookies);
+  if (segments.length === 1 && segments[0] === 'entries') {
+    if (request.method === 'GET') {
+      return entriesPage(session, cfg, secure, refreshedCookies, url);
+    }
+
+    if (request.method === 'POST') {
+      return requestOnEntry(request, session, cfg, secure, refreshedCookies);
+    }
   }
 
   if (segments.length === 1 && segments[0] === 'data') {
@@ -2710,11 +2717,83 @@ function isCaptchaError(error: unknown): boolean {
  * sentences and is unit-tested on its own, because the wording is where the risk is: telling
  * somebody nothing was charged when the webhook is merely late is how a person pays twice.
  */
+/**
+ * `POST /account/entries/` — somebody asking the club to do something with their own entry.
+ *
+ * ## What it is not
+ *
+ * **It does not cancel anything and it does not transfer anything.** It writes one word and a
+ * timestamp against a purchase the caller owns. Cancelling is `entries.cancel_entry()`, behind
+ * `nn.entry.cancel`, and a volunteer presses it; transferring has no implementation at all,
+ * because whether this club transfers a place is a decision nobody has taken — CLAUDE.md keeps
+ * transfers on the stop-and-ask list, and a request is not a transfer.
+ *
+ * ## Post, redirect, get
+ *
+ * The answer comes back as a query parameter on a 303 rather than as a rendered page, so a
+ * refresh cannot re-send the request and the back button behaves. **The redirect is the whole
+ * error handling**: there is no partial state to preserve, because there is no form to refill.
+ *
+ * ## The purchase id in the body is not what authorises this
+ *
+ * It names a row and nothing else. `entries.request_entry_action()` re-derives ownership from
+ * `auth.uid()` and the caller's confirmed address — the same predicate `my_entries()` uses — so
+ * a reference somebody has seen on a confirmation page cannot be used to touch a stranger's
+ * race. The Worker passes the id through and trusts none of it.
+ */
+async function requestOnEntry(
+  request: Request,
+  session: Session | null,
+  cfg: SupabaseConfig,
+  secure: boolean,
+  refreshedCookies: string[],
+): Promise<Response> {
+  if (session === null) {
+    return redirectTo('/account/sign-in/', secure, refreshedCookies);
+  }
+
+  const form = await readForm(request);
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return redirectTo('/account/entries/?problem=1', secure, refreshedCookies);
+  }
+
+  const purchaseId = readString(form, 'purchaseId');
+  const action = readString(form, 'action');
+
+  if (purchaseId === '' || (action !== 'cancel' && action !== 'transfer')) {
+    return redirectTo('/account/entries/?problem=1', secure, refreshedCookies);
+  }
+
+  const outcome = await requestEntryAction(createUserClient(cfg, session.accessToken), {
+    purchaseId,
+    action,
+  });
+
+  if (!outcome.ok) {
+    // **The reason is logged and never shown.** `no_such_entry` covers "not yours" as well as
+    // "not there", and echoing it back would turn the page into an oracle for whether a
+    // reference names somebody else's paid entry.
+    console.error(`entries.request_entry_action refused — ${outcome.error}`);
+    return redirectTo('/account/entries/?problem=1', secure, refreshedCookies);
+  }
+
+  return redirectTo(
+    `/account/entries/?asked=${outcome.action}`,
+    secure,
+    refreshedCookies,
+  );
+}
+
 async function entriesPage(
   session: Session | null,
   cfg: SupabaseConfig,
   secure: boolean,
   refreshedCookies: string[],
+  url: URL,
 ): Promise<Response> {
   if (session === null) {
     return redirectTo('/account/sign-in/', secure, refreshedCookies);
@@ -2745,9 +2824,76 @@ async function entriesPage(
     );
   }
 
+  /**
+   * **Demoted rather than hidden, and the difference is somebody paying twice.**
+   *
+   * A confirmed place is what somebody comes here to see, and a list led by lapsed attempts
+   * buries it. But hiding the rest outright would show an **empty page** to the one person who
+   * must not see one: somebody whose payment succeeded while the webhook was late. They would
+   * conclude nothing was taken, and the next thing they would do is enter again.
+   *
+   * That is the same rule `/nn/<year>/entry/complete/` is built on — no state may make a
+   * negative claim — applied to a list rather than to a page. Below the fold, quieter, and
+   * still there.
+   */
+  const confirmed = result.entries.filter((entry) => entry.status === 'paid');
+
+  /**
+   * **Shown only when there is no confirmed place to show, and that exception is the design.**
+   *
+   * A lapsed attempt sitting beside a real ticket makes the page look broken, so once somebody
+   * holds a place it is the only thing they see. But hiding these *unconditionally* would show
+   * an **empty page** to the one person who must not get one: somebody whose payment succeeded
+   * while the webhook was late. They would read an empty page as nothing having been taken, and
+   * the next thing they would do is pay again.
+   *
+   * So the rule is "only successful tickets, unless there are none" — clean in every case where
+   * a runner has a ticket, and never silent in the case where they might have paid for one.
+   *
+   * Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either,
+   * applied to a list rather than to a page.
+   */
+  const unconfirmed =
+    confirmed.length > 0 ? [] : result.entries.filter((entry) => entry.status !== 'paid');
+
+  /**
+   * **A token per render, and the cookie that pairs with it.** The two buttons on each card are
+   * POSTs that change a record, so they need the same protection every other write in this area
+   * has — a request triggered from another origin must not be able to lodge a cancellation
+   * against somebody's race.
+   */
+  const csrfToken = mintCsrfToken();
+
+  // Post/redirect/get: the outcome arrives as a query parameter so a refresh does not re-send
+  // the request, and so the answer survives the redirect that stops it being re-sent.
+  const asked = url.searchParams.get('asked');
+  const problem = url.searchParams.get('problem') === '1';
+
   const body = html`
     <main class="account-page">
       <h1>Your entries</h1>
+      ${
+        asked === 'cancel' || asked === 'transfer'
+          ? html`<p class="account-note" role="status">
+              <strong>The club has your request.</strong>
+              ${
+                asked === 'cancel'
+                  ? 'Somebody will look at cancelling this entry and be in touch.'
+                  : 'Somebody will be in touch about transferring this place. Transfers are not guaranteed — the club has not settled how they work for 2026.'
+              }
+              Your place is unchanged until they have.
+            </p>`
+          : null
+      }
+      ${
+        problem
+          ? html`<p class="account-note" role="alert">
+              <strong>That could not be recorded just now.</strong> Nothing has changed.
+              Please try again in a moment, or email the club and somebody will sort it
+              out.
+            </p>`
+          : null
+      }
       ${
         result.entries.length === 0
           ? html`<p>
@@ -2759,13 +2905,27 @@ async function entriesPage(
                 If you have entered a race with a different address and want it moved onto
                 this account, get in touch and the club will sort it out.
               </p>`
-          : result.entries.map((entry) => entryCard(entry))
+          : html`${confirmed.map((entry) => entryCard(entry, false, csrfToken))}
+            ${
+              unconfirmed.length === 0
+                ? null
+                : html`<p class="account-note">
+                      The club has not recorded a confirmed place for you yet. What it
+                      does have is below — <strong>read it before entering again</strong>,
+                      because a payment can reach the club after the page that took it has
+                      given up.
+                    </p>
+                    ${unconfirmed.map((entry) => entryCard(entry, true))}`
+            }`
       }
       <p><a href="/account/">Back to your account</a></p>
     </main>
   `;
 
-  return page('Your entries', body, { secure, cookies: refreshedCookies });
+  return page('Your entries', body, {
+    secure,
+    cookies: [...refreshedCookies, csrfCookie(csrfToken, secure)],
+  });
 }
 
 /**
@@ -2775,7 +2935,7 @@ async function entriesPage(
  * entering themselves sees their name once, and somebody who entered on behalf of another sees
  * both, which is the only case where the distinction carries information.
  */
-function entryCard(entry: MyEntry): Html {
+function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = null): Html {
   const runners = entry.entrants
     .map((runner) => `${runner.firstName} ${runner.lastName}`)
     .join(', ');
@@ -2783,7 +2943,7 @@ function entryCard(entry: MyEntry): Html {
   const differentPurchaser =
     runners !== '' && runners.toLowerCase() !== entry.purchaserName.toLowerCase();
 
-  return html`<section class="account-card">
+  return html`<section class="account-card ${quiet ? 'account-card-quiet' : ''}">
     <h2>${entry.eventName}</h2>
     <dl>
       <dt>Date</dt>
@@ -2813,6 +2973,23 @@ function entryCard(entry: MyEntry): Html {
       <dt>Entry type</dt>
       <dd>${entry.feeLabel}, ${formatPence(entry.amountPence)}</dd>
 
+      ${
+        /* **The reference, and it is the purchase id rather than a new short code.**
+
+        Somebody emailing the club about an entry has had nothing to name it by except their
+        own name, which is not unique and is exactly what a support email is trying to
+        establish. This is unique, it already exists, and it is what `/admin/nn/` and the
+        Stripe metadata both key on — so a volunteer can find the entry from it without a
+        lookup table.
+
+        **It is not a secret and it is not a credential.** It identifies a row; it authorises
+        nothing. `entry_completion_state()` returns one word to anybody holding a session id
+        for precisely this reason. A shorter, quotable code would be kinder over the phone and
+        is a new column, which is a decision rather than a rendering choice — noted in #118. */ null
+      }
+      <dt>Reference</dt>
+      <dd class="account-reference">${entry.purchaseId}</dd>
+
       <dt>Status</dt>
       <dd>
         ${entryStatusWording(entry.status)}
@@ -2824,6 +3001,49 @@ function entryCard(entry: MyEntry): Html {
               html`<br />Paid ${formatLondon(entry.paidAt)}.`
         }
       </dd>
+
+      ${
+        entry.requestedAction === null
+          ? null
+          : html`<dt>Asked for</dt>
+              <dd>
+                ${
+                  entry.requestedAction === 'cancel'
+                    ? 'You have asked the club to cancel this entry.'
+                    : 'You have asked the club about transferring this place.'
+                }
+                ${
+                  entry.requestResolved
+                    ? 'The club has dealt with it.'
+                    : 'Nothing has changed yet — your place is still yours until the club acts.'
+                }
+              </dd>`
+      }
     </dl>
+
+    ${
+      /* **Only on a confirmed place, and only with a token.** There is nothing to ask about an
+      entry the club has not recorded a place for, and the quiet cards below the fold are
+      exactly those. `csrfToken` is null for them, which is what makes that structural rather
+      than a rule somebody has to remember.
+
+      **Both are asks and the copy says so.** Cancelling has an answer in the admin surface;
+      transferring does not — whether this club transfers a place at all is undecided, and a
+      button implying otherwise would be the page making a promise the committee has not. */ null
+    }
+    ${
+      csrfToken === null
+        ? null
+        : html`<form method="post" action="/account/entries/" class="account-actions">
+            <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
+            <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+            <button type="submit" name="action" value="cancel" class="account-linkish">
+              Ask to cancel this entry
+            </button>
+            <button type="submit" name="action" value="transfer" class="account-linkish">
+              Ask about transferring it
+            </button>
+          </form>`
+    }
   </section>`;
 }

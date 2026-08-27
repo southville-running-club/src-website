@@ -57,6 +57,17 @@ export interface MyEntry {
   /** ISO 8601, UTC. Null unless the webhook has confirmed the payment. */
   paidAt: string | null;
   createdAt: string;
+  /**
+   * What this person has asked the club to do with this entry, or null for nothing asked.
+   *
+   * **A request and never a state.** It does not change what the entry *is* — a paid entry
+   * with a cancellation request is still a paid entry holding a place, and stays one until a
+   * volunteer acts. Keeping it off `status` is what stops it being mistaken for a fifth
+   * status, which the capacity predicate would not count.
+   */
+  requestedAction: 'cancel' | 'transfer' | null;
+  /** Whether a volunteer has marked the request above as dealt with. */
+  requestResolved: boolean;
   entrants: MyEntrant[];
 }
 
@@ -85,6 +96,11 @@ const entryShape = z.object({
   purchaser_name: z.string().min(1),
   paid_at: z.string().nullable(),
   created_at: z.string(),
+  // **`.catch` on both, because nothing sequences a migration against the Cloudflare deploy.**
+  // A Worker newer than the database asks for columns that are not there yet and must render
+  // the entry rather than fail the page.
+  requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
+  request_resolved: z.boolean().catch(false),
   entrants: z.array(entrantShape),
 });
 
@@ -104,6 +120,59 @@ const envelopeShape = z.object({
  * one unreadable row should not hide the other three, and the date is the only field the
  * page cannot render without.
  */
+export type EntryActionRequest = 'cancel' | 'transfer';
+
+export type RequestEntryActionResult =
+  | { ok: true; action: EntryActionRequest }
+  /**
+   * One reason for every failure, deliberately. `request_entry_action()` answers `no_such_entry`
+   * for "not yours", "not there" and "not paid" alike so that a purchase id — which is on the
+   * confirmation page and now on `/account/entries/` — cannot be used to find out whether it
+   * names a real paid entry belonging to somebody else.
+   */
+  | { ok: false; error: string };
+
+/**
+ * Ask the club to cancel or transfer one of your own entries.
+ *
+ * **Records the ask and performs nothing.** Cancelling has its own function and its own
+ * permission; transferring has neither, because whether this club transfers a place at all is a
+ * decision nobody has taken. See the migration.
+ *
+ * Never throws. A failure here must leave the page usable — somebody who cannot lodge a request
+ * still has the club's email address in front of them.
+ */
+export async function requestEntryAction(
+  client: UserClient,
+  input: { purchaseId: string; action: EntryActionRequest },
+): Promise<RequestEntryActionResult> {
+  try {
+    const { data, error } = await client.schema('entries').rpc('request_entry_action', {
+      p_purchase_id: input.purchaseId,
+      p_action: input.action,
+    });
+
+    if (error) {
+      return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
+    }
+
+    const answer = data as { ok?: unknown; reason?: unknown } | null;
+
+    if (answer?.ok !== true) {
+      return {
+        ok: false,
+        error: typeof answer?.reason === 'string' ? answer.reason : 'unknown',
+      };
+    }
+
+    return { ok: true, action: input.action };
+  } catch (cause) {
+    // The name only. A fetch failure cannot carry personal data, but a message might quote
+    // the request — the same rule `worker/stripe.ts` follows.
+    return { ok: false, error: cause instanceof Error ? cause.name : 'unknown' };
+  }
+}
+
 export async function fetchMyEntries(client: UserClient): Promise<MyEntriesResult> {
   try {
     const { data, error } = await client.schema('entries').rpc('my_entries');
@@ -141,6 +210,8 @@ export async function fetchMyEntries(client: UserClient): Promise<MyEntriesResul
         purchaserName: row.purchaser_name,
         paidAt: row.paid_at,
         createdAt: row.created_at,
+        requestedAction: row.requested_action,
+        requestResolved: row.request_resolved,
         entrants: row.entrants.map((entrant) => ({
           firstName: entrant.first_name,
           lastName: entrant.last_name,

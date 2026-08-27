@@ -241,23 +241,69 @@ const STATUS_FILTERS = ['all', ...ENTRY_STATUSES, 'attention'] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
+/**
+ * **The one entry type that is out of the default view, and why it is a default rather than a
+ * rule.** A tester's place is a real place — the capacity predicate counts it, and #107 argues
+ * that excluding it from the thing being tested makes the test worthless. It is simply not what
+ * somebody opens this page to look at, and a race director scanning a field of 250 should not
+ * have the club's own probes in the list unless they ask for them.
+ *
+ * Expressed as a *hidden* code rather than by pre-selecting the other fee codes, because those
+ * are not known here: they come from the rows, so a fourth fee is a migration and not a deploy.
+ */
+const HIDDEN_BY_DEFAULT = 'fee:tester';
+
+/**
+ * **Every filter is a set now, and an empty set means "all".**
+ *
+ * Single-select could not answer the ordinary question — "paid and held" is what *who has a
+ * place right now* means, and the page could not be asked it. Repeated query parameters carry
+ * it (`?status=paid&status=pending`), which works with no JavaScript and leaves the state
+ * legible in the address bar.
+ *
+ * **Exclusion is `hide`**, namespaced so one parameter covers both rows: `hide=fee:tester`,
+ * `hide=status:refunded`. It is separate from the include sets rather than a third chip state,
+ * because a link that cycles through three meanings cannot say what it does in its own text —
+ * and this page is read by two volunteers a few times a year, not learned.
+ *
+ * `hide=none` is how "show me everything" is written, and it exists because the *absence* of
+ * the parameter is not neutral: it means the default above.
+ */
 interface EntryFilters {
-  status: StatusFilter;
-  fee: string;
+  /** Empty means every status. */
+  status: ReadonlySet<string>;
+  /** Empty means every entry type. */
+  fee: ReadonlySet<string>;
+  /** Namespaced `fee:` / `status:` values to leave out, whatever the include sets say. */
+  hide: ReadonlySet<string>;
   sort: Sort;
 }
 
 function readFilters(url: URL): EntryFilters {
-  const status = url.searchParams.get('status') ?? 'all';
   const sort = url.searchParams.get('sort') ?? 'name';
 
+  const status = new Set(
+    url.searchParams
+      .getAll('status')
+      .filter((value) => value !== 'all')
+      .filter((value) => (STATUS_FILTERS as readonly string[]).includes(value)),
+  );
+
+  // Not validated against a list written here — see the note the old reader carried: fee codes
+  // come from the rows, so a fourth one is a migration and not also a deploy. An unknown code
+  // simply matches nothing, which is the honest answer to a hand-typed address.
+  const fee = new Set(url.searchParams.getAll('fee').filter((value) => value !== 'all'));
+
+  const hidden = url.searchParams.getAll('hide');
+
   return {
-    status: (STATUS_FILTERS as readonly string[]).includes(status)
-      ? (status as StatusFilter)
-      : 'all',
-    // Matched against the fee codes the answer actually carries rather than against a list
-    // written here, so a fourth fee code is a migration and not also a deploy.
-    fee: url.searchParams.get('fee') ?? 'all',
+    status,
+    fee,
+    hide: new Set(
+      hidden.length === 0
+        ? [HIDDEN_BY_DEFAULT]
+        : hidden.filter((value) => value !== 'none'),
+    ),
     sort: (SORTS as readonly string[]).includes(sort) ? (sort as Sort) : 'name',
   };
 }
@@ -275,13 +321,23 @@ export function needsAHuman(entry: AdminEntry): boolean {
  * showing them, and the data is already in memory.
  */
 export function viewEntries(entries: AdminEntry[], filters: EntryFilters): AdminEntry[] {
+  const includedByStatus = (entry: AdminEntry): boolean =>
+    filters.status.size === 0 ||
+    [...filters.status].some((wanted) =>
+      wanted === 'attention' ? needsAHuman(entry) : entry.status === wanted,
+    );
+
+  // **Hidden beats included**, deliberately. Somebody who has asked not to see the club's own
+  // test entries has asked for that, and a status chip should not quietly bring them back.
+  const hidden = (entry: AdminEntry): boolean =>
+    filters.hide.has(`fee:${entry.feeCode}`) ||
+    filters.hide.has(`status:${entry.status}`);
+
   const kept = entries.filter(
     (entry) =>
-      (filters.status === 'all' ||
-        (filters.status === 'attention'
-          ? needsAHuman(entry)
-          : entry.status === filters.status)) &&
-      (filters.fee === 'all' || entry.feeCode === filters.fee),
+      includedByStatus(entry) &&
+      (filters.fee.size === 0 || filters.fee.has(entry.feeCode)) &&
+      !hidden(entry),
   );
 
   // **A cancelled entry has no name, and it sorts last in every order rather than in some
@@ -1053,7 +1109,7 @@ function entriesSection(
         <p class="admin-filters-label" id="filter-status">Status</p>
         <ul aria-labelledby="filter-status">
           ${STATUS_FILTERS.map((status) =>
-            filterLink(url, 'status', status, statusFilterLabel(status), filters.status),
+            toggleLink(url, 'status', status, statusFilterLabel(status), filters.status),
           )}
         </ul>
         ${
@@ -1062,16 +1118,15 @@ function entriesSection(
             : html`<p class="admin-filters-label" id="filter-fee">Entry type</p>
                 <ul aria-labelledby="filter-fee">
                   ${['all', ...fees].map((fee) =>
-                    filterLink(url, 'fee', fee, feeFilterLabel(fee, list), filters.fee),
+                    toggleLink(url, 'fee', fee, feeFilterLabel(fee, list), filters.fee),
                   )}
                 </ul>`
         }
         <p class="admin-filters-label" id="filter-sort">Sort by</p>
         <ul aria-labelledby="filter-sort">
-          ${SORTS.map((sort) =>
-            filterLink(url, 'sort', sort, sortLabel(sort), filters.sort),
-          )}
+          ${SORTS.map((sort) => sortLink(url, sort, sortLabel(sort), filters.sort))}
         </ul>
+        ${hideToggle(url, filters)}
       </nav>
 
       ${
@@ -1248,6 +1303,25 @@ function statusCell(entry: AdminEntry): Html {
       flagged && entry.attention !== 'over_capacity'
         ? html` <strong class="admin-error">${attentionWords(entry.attention)}</strong>`
         : null
+    }${
+      /* **What the entrant has asked for, beside the status and not instead of it.** A paid
+      entry with a cancellation request against it is still paid and still holds a place — the
+      request changes nothing until a volunteer acts, and showing it as a status would be a
+      fifth value the capacity predicate cannot see.
+
+      Struck through once dealt with rather than removed, because "somebody asked and it was
+      handled" is what a volunteer needs to see on the row they are about to touch. */ null
+    }${
+      entry.requestedAction === null
+        ? null
+        : html` <span
+            class="admin-quiet ${entry.requestResolved ? 'admin-request-done' : ''}"
+            >${
+              entry.requestedAction === 'cancel'
+                ? 'cancellation asked for'
+                : 'transfer asked for'
+            }${entry.requestResolved ? ' — dealt with' : ''}</span
+          >`
     }`;
 }
 
@@ -1637,36 +1711,119 @@ function sortLabel(sort: Sort): string {
  * chosen. `aria-current="true"` rather than a class alone, so the selected one is announced as
  * selected and not merely coloured.
  */
-function filterLink(
-  url: URL,
-  parameter: string,
-  value: string,
-  label: string,
-  selected: string,
-): Html {
+/**
+ * Everything on this page's address except one parameter, preserved.
+ *
+ * **`append`, not `set`.** Every filter is multi-valued now, and `set` collapses repeated
+ * parameters to the last one — so rebuilding a URL with it would silently drop every selection
+ * but one on the *other* rows. That is the kind of defect that looks like a filter "not
+ * sticking" and gets diagnosed for an hour.
+ */
+function withoutParameter(url: URL, parameter: string): URL {
   const next = new URL(url.toString());
   next.search = '';
 
   for (const [key, existing] of url.searchParams) {
     if (key !== parameter) {
-      next.searchParams.set(key, existing);
+      next.searchParams.append(key, existing);
     }
   }
 
-  if (value !== 'all' || parameter === 'sort') {
-    next.searchParams.set(parameter, value);
-  }
+  return next;
+}
 
-  const here = value === selected;
-
+function chip(href: string, label: string, on: boolean): Html {
   return html`<li>
     <a
-      href="${`${next.pathname}${next.search}`}"
-      class="admin-filter ${here ? 'admin-filter-on' : ''}"
-      ${here ? raw('aria-current="true"') : null}
+      href="${href}"
+      class="admin-filter ${on ? 'admin-filter-on' : ''}"
+      ${on ? raw('aria-current="true"') : null}
       >${label}</a
     >
   </li>`;
+}
+
+/**
+ * One chip in a multi-select row: clicking adds the value, clicking again takes it away.
+ *
+ * **"All" is the empty set rather than a value.** It clears the parameter entirely, so the
+ * address of an unfiltered page carries nothing — which is what makes a bookmarked or pasted
+ * URL mean the same thing next month, and what lets `readFilters` treat *absent* as "every".
+ */
+function toggleLink(
+  url: URL,
+  parameter: string,
+  value: string,
+  label: string,
+  selected: ReadonlySet<string>,
+): Html {
+  const next = withoutParameter(url, parameter);
+  const on = value === 'all' ? selected.size === 0 : selected.has(value);
+
+  if (value !== 'all') {
+    const after = new Set(selected);
+
+    if (after.has(value)) {
+      after.delete(value);
+    } else {
+      after.add(value);
+    }
+
+    for (const kept of [...after].sort()) {
+      next.searchParams.append(parameter, kept);
+    }
+  }
+
+  return chip(`${next.pathname}${next.search}`, label, on);
+}
+
+/** Sort is the one control that is still one-of, because a list has one order. */
+function sortLink(url: URL, value: string, label: string, selected: string): Html {
+  const next = withoutParameter(url, 'sort');
+  next.searchParams.append('sort', value);
+
+  return chip(`${next.pathname}${next.search}`, label, value === selected);
+}
+
+/**
+ * The control that turns the default off, and the reason it is a sentence rather than a chip.
+ *
+ * **The absence of `hide` is not neutral** — it means `fee:tester`, so a row of chips would have
+ * to show a selection nobody made, in a row nobody looked at, to be honest about it. A line
+ * saying what is being left out, with the link that stops it, says the same thing in the place
+ * somebody will actually read it.
+ *
+ * `hide=none` is how "leave nothing out" is written. It has to be written down rather than
+ * implied by an empty parameter, because empty and absent would otherwise mean opposite things.
+ */
+function hideToggle(url: URL, filters: EntryFilters): Html {
+  const next = withoutParameter(url, 'hide');
+  const after = new Set(filters.hide);
+  const hidingTesters = after.has(HIDDEN_BY_DEFAULT);
+
+  if (hidingTesters) {
+    after.delete(HIDDEN_BY_DEFAULT);
+  } else {
+    after.add(HIDDEN_BY_DEFAULT);
+  }
+
+  if (after.size === 0) {
+    next.searchParams.append('hide', 'none');
+  } else {
+    for (const kept of [...after].sort()) {
+      next.searchParams.append('hide', kept);
+    }
+  }
+
+  const href = `${next.pathname}${next.search}`;
+
+  return html`<p class="admin-filters-note">
+    ${
+      hidingTesters
+        ? html`Test entries are not shown. <a href="${href}">Show them</a>`
+        : html`Test entries are shown. <a href="${href}">Hide them</a>`
+    }
+  </p>`;
 }
 
 function exportButton(
