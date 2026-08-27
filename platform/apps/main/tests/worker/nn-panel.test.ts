@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { SELF } from 'cloudflare:test';
-import { feeLine, renderNnPreviousYears, NN_PREVIOUS_SLOTS } from '../../worker/nn-entry';
+import {
+  feeLine,
+  renderNnEntryView,
+  renderNnPreviousYears,
+  NN_PREVIOUS_SLOTS,
+  type NnEntryView,
+} from '../../worker/nn-entry';
 
 /**
  * The front door's year panel, and the row of past runnings beneath it.
@@ -220,5 +226,60 @@ describe('the fee line', () => {
 
   it('is empty when an event offers nothing priced', () => {
     expect(feeLine([])).toBe('');
+  });
+});
+
+describe('the entry fee on the year page', () => {
+  // **The shut state is the one that matters here**, because it is the one production is in
+  // and the one this wiring exists for. `renderNnEntryView` returns early for anything that is
+  // not the entry form; the fee is painted before that return, because a price is a fact about
+  // the race rather than a property of the form.
+
+  // **Dearest first, because that is the order `entry_state()` hands them over in** —
+  // `order by fee.price_pence desc, fee.code`. A fixture in a different order would test a
+  // shape the database never produces, and would have hidden that the rendered line reads
+  // "£20.00 unaffiliated · £18.00 affiliated" rather than the other way round.
+  const FEES = [
+    {
+      code: 'unaffiliated',
+      label: 'Unaffiliated',
+      pricePence: 2000,
+      requiresEaNumber: false,
+    },
+    { code: 'affiliated', label: 'Affiliated', pricePence: 1800, requiresEaNumber: true },
+    { code: 'vi_guide', label: 'VI guide', pricePence: 0, requiresEaNumber: false },
+  ];
+
+  const render = async (view: NnEntryView): Promise<string> => {
+    const html = '<dl><dt>Entry fee</dt><dd data-nn-fee>To be confirmed</dd></dl>';
+    const response = renderNnEntryView(new HTMLRewriter(), view).transform(
+      new Response(html, { headers: { 'content-type': 'text/html' } }),
+    );
+    return response.text();
+  };
+
+  it('states the fee even though the form is not on offer', async () => {
+    const html = await render({ show: 'closed', fees: FEES });
+
+    expect(html).toContain('£20.00 unaffiliated · £18.00 affiliated');
+    expect(html).not.toContain('To be confirmed');
+  });
+
+  it('leaves the shipped text alone when the database could not be reached', async () => {
+    // **The failure direction, and the whole reason the cell ships with words in it.** No fees
+    // means no claim: "To be confirmed" is true of a page that could not check, and a stale
+    // number would not be. `resolveNnEntryView` yields an empty array for an unreachable
+    // database, so this is that case exactly.
+    const html = await render({ show: 'closed', fees: [] });
+
+    expect(html).toContain('To be confirmed');
+    expect(html).not.toContain('£');
+  });
+
+  it('never advertises the free guide place as a price', async () => {
+    const html = await render({ show: 'closed', fees: FEES });
+
+    expect(html).not.toContain('Free');
+    expect(html).not.toContain('guide');
   });
 });

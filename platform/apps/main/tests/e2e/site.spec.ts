@@ -449,21 +449,37 @@ test.describe('Nightingale Nightmare, at /nn', () => {
   });
 
   test('invents none of the facts that are still open', async ({ page }) => {
-    // The other half, and the half that still matters most. **The entry fee and the
-    // opening date belong to `entries.events` and `entries.fees`** — this site does not
-    // quote a figure it does not own, and the mockup's "from £15" and "7am, Tue 1 September"
-    // are exactly the plausible-looking values that would get here by being copied rather
-    // than by being confirmed.
+    // The other half, and the half that still matters most. **The entry fee belongs to
+    // `entries.fees`** — this site does not quote a figure it does not own, and the mockup's
+    // "from £15" and "7am, Tue 1 September" are exactly the plausible-looking values that
+    // would get here by being copied rather than by being confirmed.
+    //
+    // **That principle is unchanged; the assertion enforcing it got sharper.** It used to
+    // forbid `£` on both pages outright, which was right while the fee was unsettled. Now the
+    // committee has settled it, the year page states it — so this asserts the figure shown is
+    // **exactly** the one the database produced, which is a tighter guard than "no figure at
+    // all": an invented price fails this, and so does a stale one, whereas the old assertion
+    // would have passed just as happily on a page that had lost the fee entirely.
     for (const path of ['/nn/', '/nn/2026/']) {
       await page.goto(path);
       const body = (await page.locator('body').textContent()) ?? '';
-
-      expect(body, path).not.toMatch(/£\s?\d/);
 
       // Live capacity is the entries application's business too. 250 is how big the race is;
       // "238 of 250 remaining" is demo data from the mockup and must not follow it here.
       expect(body, path).toContain('250 places');
       expect(body, path).not.toMatch(/\bof 250\b|places remaining/i);
+
+      if (path === '/nn/') {
+        // The evergreen page names no year, and a fee belongs to one running — the same rule
+        // the date and the ARC permit follow.
+        expect(body, path).not.toMatch(/£\s?\d/);
+        continue;
+      }
+
+      // Dearest first, straight from `entry_state()`'s `order by fee.price_pence desc`. The
+      // £0 guide's place is absent because `feeLine` drops free places.
+      expect(body, path).toContain('£20.00 unaffiliated · £18.00 affiliated');
+      expect(body, path).not.toMatch(/£15|£17|from £/);
     }
   });
 
@@ -490,6 +506,32 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     await expect(
       page.locator('dt', { hasText: 'ARC permit' }).locator('+ dd'),
     ).toHaveText('ARC/26/0842');
+  });
+
+  test('states the entry fee from the database, with entries still shut', async ({
+    page,
+  }) => {
+    // **The cell ships as "To be confirmed" and the Worker paints over it**, so this asserts
+    // the wiring rather than the markup: `race.json`'s `price` is `null` and must stay null,
+    // because `entries.fees.price_pence` is what `create_pending_purchase()` actually charges
+    // and a second copy in the page is how the two start disagreeing.
+    //
+    // **Asserted while the window is shut**, which is the state production is in and the state
+    // this fixes. The fee is a fact about the race, not a property of the form — somebody
+    // deciding whether to come in the months before entries open is exactly who needs it, and
+    // "To be confirmed" was wrong for them from the day the committee settled £18 and £20.
+    //
+    // The £0 guide's place is deliberately absent: `feeLine` drops free places, because "Free"
+    // beside two prices reads as an offer anybody can take.
+    await page.goto('/nn/2026/');
+
+    const fee = page.locator('dt', { hasText: 'Entry fee' }).locator('+ dd');
+
+    // **Dearest first**, which is `entry_state()`'s `order by fee.price_pence desc` reaching
+    // the page unchanged — `feeLine` keeps the order it is handed rather than imposing one.
+    await expect(fee).toHaveText('£20.00 unaffiliated · £18.00 affiliated');
+    await expect(fee).not.toHaveText(/To be confirmed/);
+    await expect(fee).not.toContainText('Free');
   });
 });
 

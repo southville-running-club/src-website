@@ -153,8 +153,23 @@ const dateLine = race.date
       <dt>Field size</dt>
       <dd>{race.places} places</dd>
 
+      {
+        /* **The one cell on this page the Worker fills in, and `race.price` stays `null` on
+        purpose.** The fees are `entries.fees.price_pence` and nothing else: they are money,
+        they are what `create_pending_purchase()` charges, and a second copy here is how the
+        page and the till start disagreeing — with the page being the copy nobody notices has
+        gone stale. So this ships as "To be confirmed" and `worker/nn-entry.ts` paints
+        `£18 affiliated · £20 unaffiliated` over it from `entry_state()`.
+
+        **It is painted whether or not entries are open**, because a price is a fact about the
+        race rather than a property of the form, and the months before the window opens are
+        exactly when somebody is deciding whether to come.
+
+        If the database cannot be answered the cell keeps its shipped text, which is the honest
+        fallback: "To be confirmed" claims nothing, and a stale number would. */
+      }
       <dt>Entry fee</dt>
-      <dd>{orTbc(race.price)}</dd>
+      <dd data-nn-fee>{orTbc(race.price)}</dd>
 
       <dt>Entries open</dt>
       <dd>{orTbc(race.entriesOpen)}</dd>
