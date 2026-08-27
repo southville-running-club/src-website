@@ -1056,10 +1056,35 @@ test.describe('the Nightingale Nightmare content pages', () => {
     await page.goto('/nn/2026/race-day/');
     const raceDay = (await page.locator('body').textContent()) ?? '';
 
-    // The schedule, which is the reason this page exists.
-    for (const time of ['09:15', '10:15', '10:30', '10:45', '11:00']) {
-      expect(raceDay).toContain(time);
+    // **The schedule, which is the reason this page exists — each time against the thing it
+    // labels.** This was five `toContain`s on bare time strings, and a bare string proves only
+    // that the characters are somewhere in the page: `10:30` passed whether it labelled the
+    // briefing or the walk, and it would have passed with the two **swapped**. On the one page
+    // somebody reads on the morning to find out whether they are late, a row pointing at the
+    // wrong event is the defect that would actually cost somebody their race — and it was the
+    // defect this assertion could not see.
+    //
+    // **`nth` rather than a lookup, so the order is asserted too.** The morning is a sequence
+    // and the page reads down it; a schedule with the right pairs in the wrong order is still
+    // wrong. The literals are pinned rather than read from `race.json`, because an expectation
+    // that reads its own subject asserts nothing.
+    const SCHEDULE = [
+      ['09:15', /Registration opens at HQ/],
+      ['10:30', /Race briefing at HQ/],
+      ['10:40', /Walk to the start together/],
+      ['10:50', /Group warm-up at the start/],
+      ['11:00', /The race starts/],
+      ['Afterwards', /Prizegiving at HQ once the last finisher is in/],
+    ] as const;
+
+    const rows = page.locator('.nn-schedule-row');
+    await expect(rows).toHaveCount(SCHEDULE.length);
+
+    for (const [index, [time, what]] of SCHEDULE.entries()) {
+      await expect(rows.nth(index).locator('dt'), time).toHaveText(time);
+      await expect(rows.nth(index).locator('dd'), time).toContainText(what);
     }
+
     expect(raceDay).toContain('BS3 2JL');
 
     await page.goto('/nn/2026/spectators/');

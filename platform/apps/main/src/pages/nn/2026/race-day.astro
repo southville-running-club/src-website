@@ -38,16 +38,19 @@ import '@src/shared/styles/nn-theme.css';
 // Renaming the slug would cost a redirect this site has no mechanism for — ADR-011. The same
 // divergence, for the same reason, as `spectators.astro`.
 //
-// **The times below are still `race.json`'s and are still the committed ones.** A revised
-// schedule is confirmed for 2026 — the briefing moves to 10:30 and the walk to the start to
-// 10:40, because the 2023 debrief found the race went off before the marshals were in position
-// — but the 10:45 group warm-up cannot stand once the field leaves HQ at 10:40, and no
-// replacement has been supplied. **One unresolved row blocks all four**, so none of them is
-// applied here: a schedule that is half-updated is worse than one that is wholly out of date,
-// because nothing on the page says which half.
+// **The revised 2026 schedule is applied, and the row that was blocking it is answered.** The
+// briefing moved to 10:30 and the walk to the start to 10:40, because the 2023 debrief found
+// the race went off before the marshals were in position — and the group warm-up, which could
+// not stay at 10:45 once the field leaves HQ at 10:40, is **10:50**, confirmed by the race
+// director on 26 August 2026. Until that last row had an answer none of the four was applied:
+// a schedule that is half-updated is worse than one that is wholly out of date, because
+// nothing on the page says which half.
 //
-// When it lands, the three hardcoded `10:30`s in the prose below go with it. They are the
-// walk-to-the-start time written out in sentences, and `race.json` cannot correct them.
+// **The prose below no longer writes any of these times out**, which is the part worth keeping.
+// It carried three hardcoded `10:30`s — the walk-to-the-start time in sentences, which
+// `race.json` could not correct — and 10:30 now means the *briefing*, so updating them in place
+// would have left the page confidently attaching the right number to the wrong event. The
+// schedule `<dl>` states each time once, from the file.
 //
 // See docs/architecture/principles.md#stop-and-ask
 const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/race-day/';
@@ -128,11 +131,11 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
         right here — but race HQ is an address rather than a pin, and a figure worked out
         from a guessed school entrance is exactly the plausible-looking number this
         repository keeps out of markup. What the schedule already says is enough to act on:
-        be at HQ, and leave with everybody else at 10:30. */
+        be at HQ, and leave with everybody else at 10:40. */
       }
       <p>
         <strong>Not at race HQ.</strong> The race starts and finishes away from the school,
-        and everybody walks down together at 10:30 — so on the day there is nothing to find
+        and everybody walks down together beforehand — so on the day there is nothing to find
         on your own, and the walk is on the schedule below rather than left to you.
       </p>
 
@@ -166,7 +169,7 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
 
       <p>
         <strong>There is a bag drop at HQ and another one at the start</strong>, so a coat
-        you want at 10:30 does not have to be a coat you abandon at 11:00.
+        you want on the walk down does not have to be a coat you abandon at the start.
       </p>
 
       <h2>Fancy dress</h2>
