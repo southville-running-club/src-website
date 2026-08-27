@@ -1,4 +1,6 @@
 import {
+  NN_ENTRY_GENDERS,
+  transferEntry,
   ageCategoryFor,
   cancelEntry,
   createAnonClient,
@@ -215,6 +217,16 @@ export async function handleNnSection(
       : notFound();
   }
 
+  // **Transferring, and it shares `nn.entry.cancel` rather than adding a permission.** An
+  // eighth permission is a stop-and-ask, so this reuses the one that already means "may undo an
+  // entry somebody paid for". A dedicated `nn.entry.transfer` is the cleaner answer and is a
+  // decision somebody should take on purpose — see the migration.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'transfer') {
+    return can(viewer, 'nn.entry.cancel')
+      ? transferResponse(request, cfg, viewer, secure)
+      : notFound();
+  }
+
   // An address under the prefix that is not one of the six. Answered here rather than fallen
   // through, because falling through would hand it to the assets binding and the 404 page would
   // arrive without the `noindex` header this surface sets on everything.
@@ -237,7 +249,10 @@ type Sort = (typeof SORTS)[number];
  * separately: "needs a human" is a flag on a purchase rather than a state of one, and it is the
  * filter somebody actually wants on the morning they find out the field is oversold.
  */
-const STATUS_FILTERS = ['all', ...ENTRY_STATUSES, 'attention'] as const;
+// **`requested` is a view, not a status**, exactly as `attention` is. A row it matches has a
+// real status of its own — almost always `paid` — and the filter answers a different question:
+// which entries has somebody asked the club to do something about, and nobody has yet.
+const STATUS_FILTERS = ['all', ...ENTRY_STATUSES, 'attention', 'requested'] as const;
 
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
@@ -323,9 +338,20 @@ export function needsAHuman(entry: AdminEntry): boolean {
 export function viewEntries(entries: AdminEntry[], filters: EntryFilters): AdminEntry[] {
   const includedByStatus = (entry: AdminEntry): boolean =>
     filters.status.size === 0 ||
-    [...filters.status].some((wanted) =>
-      wanted === 'attention' ? needsAHuman(entry) : entry.status === wanted,
-    );
+    [...filters.status].some((wanted) => {
+      if (wanted === 'attention') {
+        return needsAHuman(entry);
+      }
+
+      // **Outstanding only.** A request a volunteer has already dealt with is history, and a
+      // filter that kept showing it would fill up with rows there is nothing left to do about
+      // — which is how a filter stops being looked at.
+      if (wanted === 'requested') {
+        return entry.requestedAction !== null && !entry.requestResolved;
+      }
+
+      return entry.status === wanted;
+    });
 
   // **Hidden beats included**, deliberately. Somebody who has asked not to see the club's own
   // test entries has asked for that, and a status chip should not quietly bring them back.
@@ -1281,6 +1307,24 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
             </form>`
           : '—'
       }
+      ${
+        /* **Transfer sits beside Cancel and only where Cancel does.** Both need a place that
+        exists, and the two together are the whole of what this surface may do to an entry
+        somebody paid for. Same two-step shape: this POST only asks. */ null
+      }
+      ${
+        cancellable
+          ? html`<form method="post" action="${NN_SECTION}/transfer/">
+              <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+              <button type="submit" class="admin-linkish">
+                Transfer
+                <span class="admin-visually-hidden">
+                  the entry for ${runnerName(entry)} to somebody else
+                </span>
+              </button>
+            </form>`
+          : null
+      }
     </td>
   </tr>`;
 }
@@ -1686,6 +1730,8 @@ function statusFilterLabel(status: StatusFilter): string {
   // is an alarm and the filter is a view of the table; giving them the same words made a page with
   // nothing wrong with it contain the alarm's wording, which is exactly what the test asserting
   // the panel's *absence* is there to catch.
+  if (status === 'requested') return 'Asked about';
+
   return 'Needs attention';
 }
 
@@ -1950,6 +1996,276 @@ async function readForm(request: Request): Promise<FormData | null> {
  *   * `nn.entry.cancel` **again**, inside `entries.cancel_entry()`, which is the control. This
  *     one is the only one that matters; the two above are what make the page honest.
  */
+/**
+ * `POST /admin/nn/transfer/` — the same place, a different runner.
+ *
+ * **Two POSTs, exactly as cancelling is.** The first carries no token and changes nothing: it
+ * renders the form and mints the token the second has to echo. That is what makes a transfer
+ * impossible to trigger by following a link.
+ *
+ * **No Stripe call anywhere on this path.** The money stays where it is and the place never
+ * returns to the pool, which is the whole difference between this and cancelling — a
+ * transferred place cannot be taken by somebody else in between.
+ */
+async function transferResponse(
+  request: Request,
+  cfg: SupabaseConfig,
+  viewer: AdminViewer,
+  secure: boolean,
+): Promise<Response> {
+  const form = await readForm(request);
+  const purchaseId = form?.get('purchaseId');
+
+  if (typeof purchaseId !== 'string' || !isUuid(purchaseId)) {
+    return notFound();
+  }
+
+  if (form?.get('confirm') !== 'yes') {
+    const token = mintCsrfToken();
+
+    return page('Transfer entry', transferFormPage(viewer, purchaseId, token, null), {
+      cookies: [csrfCookie(token, secure)],
+    });
+  }
+
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    const token = mintCsrfToken();
+
+    return page(
+      'Transfer entry',
+      transferFormPage(
+        viewer,
+        purchaseId,
+        token,
+        'That form had expired. Please try again.',
+      ),
+      { cookies: [csrfCookie(token, secure)] },
+    );
+  }
+
+  const read = (name: string): string => {
+    const value = form.get(name);
+    return typeof value === 'string' ? value.trim() : '';
+  };
+
+  const gender = read('gender');
+  const dateOfBirth = read('dateOfBirth');
+
+  // **The form's own control, and it is not the system's.** Everything here is re-checked
+  // inside `entries.transfer_entry()` — the permission, the minimum age, one-runner-one-place
+  // — because this function is reachable only through a browser and that one is reachable
+  // through PostgREST.
+  if (
+    read('email') === '' ||
+    read('firstName') === '' ||
+    read('lastName') === '' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
+    !(NN_ENTRY_GENDERS as readonly string[]).includes(gender) ||
+    read('emergencyName') === '' ||
+    read('emergencyPhone') === ''
+  ) {
+    const token = mintCsrfToken();
+
+    return page(
+      'Transfer entry',
+      transferFormPage(
+        viewer,
+        purchaseId,
+        token,
+        'Every box except the club is needed, and the date of birth has to be a real date.',
+      ),
+      { cookies: [csrfCookie(token, secure)] },
+    );
+  }
+
+  const outcome = await transferEntry(
+    createUserClient(cfg, viewer.accessToken),
+    purchaseId,
+    {
+      email: read('email'),
+      firstName: read('firstName'),
+      lastName: read('lastName'),
+      dateOfBirth,
+      gender: gender as (typeof NN_ENTRY_GENDERS)[number],
+      club: read('club') === '' ? null : read('club'),
+      emergencyContactName: read('emergencyName'),
+      emergencyContactPhone: read('emergencyPhone'),
+    },
+  );
+
+  if (outcome.status === 'unavailable') {
+    console.error(`entries.transfer_entry unavailable — ${outcome.error}`);
+    return page('Transfer entry', unavailablePage(viewer), { status: 503 });
+  }
+
+  if (outcome.status !== 'ok') {
+    // `unauthorised` and `not-found` answer identically, exactly as every other read and write
+    // on this surface does.
+    return notFound();
+  }
+
+  return page(
+    'Transfer entry',
+    cancelOutcomePage(
+      viewer,
+      'The place has a new runner',
+      `It was ${outcome.previousRunner}'s and is now recorded against the details you entered. No money moved, and the place never went back into the race. Any medical note the previous runner had written has been deleted, and their England Athletics number has been cleared.`,
+    ),
+    {},
+  );
+}
+
+/**
+ * The three gender values in words.
+ *
+ * **Local rather than shared, because it is a form label and not a category.**
+ * `packages/shared`'s `categoryLabel` names a *prize* category, which is a different question
+ * with a different answer — the 2023 form offered non-binary and there were no non-binary
+ * categories to put those entrants in, which is a committee matter and not a rendering one.
+ */
+function genderLabel(value: (typeof NN_ENTRY_GENDERS)[number]): string {
+  if (value === 'female') {
+    return 'Female';
+  }
+
+  return value === 'male' ? 'Male' : 'Non-binary';
+}
+
+/** The form, and what it warns about before somebody fills it in. */
+function transferFormPage(
+  viewer: AdminViewer,
+  purchaseId: string,
+  token: string,
+  problem: string | null,
+): Html {
+  return html`${masthead(viewer)}
+    <main class="admin-page" id="main">
+      <h1>Transfer this entry</h1>
+
+      ${
+        problem === null
+          ? null
+          : html`<p class="admin-error" role="alert"><strong>${problem}</strong></p>`
+      }
+
+      <p>
+        The place stays exactly where it is — the same purchase, the same amount, the same
+        spot in the field. <strong>No money is taken and none is given back.</strong> If
+        the runner who is leaving is owed anything, that is between them and whoever is
+        taking it on.
+      </p>
+
+      <p>
+        The entry moves to the email address below. That address does not need an account,
+        and one is not created for it: if it ever registers and confirms, the entry
+        appears on that account by itself.
+      </p>
+
+      <p>
+        <strong>The previous runner's medical note is deleted</strong>, along with their
+        England Athletics number. A note belongs to the person who wrote it, and the new
+        runner supplies their own or has none.
+      </p>
+
+      <form method="post" action="${NN_SECTION}/transfer/" class="admin-form">
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
+        <input type="hidden" name="purchaseId" value="${purchaseId}" />
+        <input type="hidden" name="confirm" value="yes" />
+
+        <p>
+          <label for="transfer-email">Email address of the new runner</label>
+          <input
+            type="email"
+            id="transfer-email"
+            name="email"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        <p>
+          <label for="transfer-first">First name</label>
+          <input
+            type="text"
+            id="transfer-first"
+            name="firstName"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        <p>
+          <label for="transfer-last">Last name</label>
+          <input
+            type="text"
+            id="transfer-last"
+            name="lastName"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        <p>
+          <label for="transfer-dob">Date of birth</label>
+          <input type="date" id="transfer-dob" name="dateOfBirth" required />
+        </p>
+
+        <fieldset>
+          <legend>Gender</legend>
+          ${NN_ENTRY_GENDERS.map(
+            (value: (typeof NN_ENTRY_GENDERS)[number]) =>
+              html`<p>
+                <input
+                  type="radio"
+                  id="transfer-gender-${value}"
+                  name="gender"
+                  value="${value}"
+                />
+                <label for="transfer-gender-${value}">${genderLabel(value)}</label>
+              </p>`,
+          )}
+        </fieldset>
+
+        <p>
+          <label for="transfer-club">Running club (optional)</label>
+          <input type="text" id="transfer-club" name="club" autocomplete="off" />
+        </p>
+
+        <p>
+          <label for="transfer-emergency-name">Emergency contact name</label>
+          <input
+            type="text"
+            id="transfer-emergency-name"
+            name="emergencyName"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        <p>
+          <label for="transfer-emergency-phone">Emergency contact number</label>
+          <input
+            type="tel"
+            id="transfer-emergency-phone"
+            name="emergencyPhone"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        <button type="submit" class="admin-button admin-button-grave">
+          Move the place to this runner
+        </button>
+      </form>
+
+      <p><a href="${NN_SECTION}/">Leave it alone and go back to the entries</a></p>
+    </main>`;
+}
+
 async function cancelResponse(
   request: Request,
   cfg: SupabaseConfig,

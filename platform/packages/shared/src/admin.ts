@@ -1087,6 +1087,77 @@ export interface CancelledEntry {
  * the row already carries the payment intent, and a refund id is a fact about what a person
  * did on a particular day, which is exactly what the audit trail is for.
  */
+/** The new runner, as the transfer form collects them. */
+export interface TransferTo {
+  email: string;
+  firstName: string;
+  lastName: string;
+  /** `YYYY-MM-DD`, already validated by the form. */
+  dateOfBirth: string;
+  gender: (typeof NN_ENTRY_GENDERS)[number];
+  club: string | null;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+}
+
+export interface TransferredEntry {
+  status: 'ok';
+  /** Who the place belonged to before, for the sentence the outcome page shows. */
+  previousRunner: string;
+}
+
+/**
+ * Move one paid entry to a different runner.
+ *
+ * **No money moves.** The purchase keeps its amount and its Stripe references, and the place
+ * never returns to the pool — which is the difference between this and cancelling, and the
+ * reason a transfer cannot be taken by somebody else in between.
+ *
+ * Every rule that matters is re-applied inside `entries.transfer_entry()` rather than here: the
+ * permission, the minimum age, and one-runner-one-place. This is the form's control; that is
+ * the system's.
+ */
+export async function transferEntry(
+  client: UserClient,
+  purchaseId: string,
+  to: TransferTo,
+): Promise<CancelResult<TransferredEntry>> {
+  try {
+    const { data, error } = await client.schema('entries').rpc('transfer_entry', {
+      p_purchase_id: purchaseId,
+      p_email: to.email,
+      p_first_name: to.firstName,
+      p_last_name: to.lastName,
+      p_date_of_birth: to.dateOfBirth,
+      p_gender: to.gender,
+      // **Empty string rather than null.** `p_club` has no SQL default, so the generated type
+      // makes it required and non-nullable; the function turns an empty string back into null
+      // with `nullif(btrim(coalesce(...)))`, which is where "no club" belongs anyway.
+      p_club: to.club ?? '',
+      p_emergency_contact_name: to.emergencyContactName,
+      p_emergency_contact_phone: to.emergencyContactPhone,
+    });
+
+    return readCancelEnvelope(data, error, 'transfer_entry', (value) => {
+      const parsed = z
+        .object({ previous_runner: z.string().nullable().catch(null) })
+        .safeParse(value);
+
+      return parsed.success
+        ? {
+            status: 'ok',
+            previousRunner: parsed.data.previous_runner ?? 'the previous runner',
+          }
+        : { status: 'unavailable', error: 'transfer_entry returned an unexpected shape' };
+    });
+  } catch (cause) {
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
+}
+
 export async function cancelEntry(
   client: UserClient,
   purchaseId: string,

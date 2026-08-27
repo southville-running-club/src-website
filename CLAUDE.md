@@ -604,13 +604,25 @@ the purchase id it is given**: that is printed on the confirmation page and on
 answer `no_such_entry`, so a reference cannot be used to learn whether it names somebody
 else's entry.
 
+**Transferring a place is built, and it means one thing: the runner changes and nothing
+else does.** `transfer_entry()` replaces the entrant, re-points `purchaser_email` at the new
+person and sets `person_id` **null** — the state a signed-out purchase sits in, so the entry
+appears on their account the moment that address registers and confirms. **No account is
+created**, for the reason the entry path gives. **No money moves**, so the place never returns
+to the pool and cannot be taken by somebody else in between. It **deletes the previous
+runner's medical note and clears their England Athletics number**: a note belongs to whoever
+wrote it, and carrying one across would file a stranger's condition under a new name. And it
+**re-applies the minimum age and one-runner-one-place**, so a transfer cannot be the way round
+either. It reuses `nn.entry.cancel` rather than adding an eighth permission, which would be a
+stop-and-ask; a dedicated `nn.entry.transfer` is the cleaner answer and is a decision.
+
 **A request is not a status, and that is load-bearing.** `requested_action` is its own column
 beside `attention` rather than a sixth value of `status`, because the capacity predicate
 counts `status = 'paid'` — an entry somebody has asked to cancel still holds its place until
 a volunteer acts, and a new status would make that place invisible to the count and sellable
 twice. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
-no transfer button: transfers are on the stop-and-ask list above, and showing the ask is not
-the same as answering it. **The email half is not built** — there is no send path until #73.
+no transfer button until the club asked for one — see the paragraph above, which is what
+that ask turned into. **The email half is not built** — there is no send path until #73.
 
 **`/admin/nn/` filters on sets, and leaves test entries out by default.** Status and entry
 type are multi-select, carried as repeated query parameters so a filtered view is a URL

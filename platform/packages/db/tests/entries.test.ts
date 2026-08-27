@@ -289,6 +289,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'record_admin_action',
       'record_checkout_event',
       'request_entry_action',
+      'transfer_entry',
     ]);
   });
 
@@ -349,7 +350,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets authenticated execute exactly twelve, and still no table read', async () => {
+  it('lets authenticated execute exactly thirteen, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -427,6 +428,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'interest_list',
       'my_entries',
       'request_entry_action',
+      // **The thirteenth, and it shares `nn.entry.cancel` rather than adding a permission.**
+      // An eighth permission is a stop-and-ask, so transferring reuses the one that already
+      // means "may undo an entry somebody paid for". The grant says "you may ask"; the
+      // permission check inside says "you may" — and the function re-applies the minimum age
+      // and one-runner-one-place, so a transfer cannot be a way around either.
+      'transfer_entry',
     ]);
 
     // **And still not one grant on a table.** Asserted again here rather than only above,
@@ -592,6 +599,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // schema that changes a row, and what it changes is one word about what somebody has
       // asked for — never the entry's status, never its place.
       request_entry_action: 'v',
+      transfer_entry: 'v',
       raise_attention: 'v',
       // The four reads themselves, granted to nobody. Same volatility as both their doors,
       // which is what makes the doors thin.

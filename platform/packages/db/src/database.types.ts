@@ -517,6 +517,20 @@ export type Database = {
         Args: { p_action: string; p_purchase_id: string }
         Returns: Json
       }
+      transfer_entry: {
+        Args: {
+          p_club: string
+          p_date_of_birth: string
+          p_email: string
+          p_emergency_contact_name: string
+          p_emergency_contact_phone: string
+          p_first_name: string
+          p_gender: string
+          p_last_name: string
+          p_purchase_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
