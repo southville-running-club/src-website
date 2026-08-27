@@ -2837,7 +2837,24 @@ async function entriesPage(
    * still there.
    */
   const confirmed = result.entries.filter((entry) => entry.status === 'paid');
-  const unconfirmed = result.entries.filter((entry) => entry.status !== 'paid');
+
+  /**
+   * **Shown only when there is no confirmed place to show, and that exception is the design.**
+   *
+   * A lapsed attempt sitting beside a real ticket makes the page look broken, so once somebody
+   * holds a place it is the only thing they see. But hiding these *unconditionally* would show
+   * an **empty page** to the one person who must not get one: somebody whose payment succeeded
+   * while the webhook was late. They would read an empty page as nothing having been taken, and
+   * the next thing they would do is pay again.
+   *
+   * So the rule is "only successful tickets, unless there are none" — clean in every case where
+   * a runner has a ticket, and never silent in the case where they might have paid for one.
+   *
+   * Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either,
+   * applied to a list rather than to a page.
+   */
+  const unconfirmed =
+    confirmed.length > 0 ? [] : result.entries.filter((entry) => entry.status !== 'paid');
 
   /**
    * **A token per render, and the cookie that pairs with it.** The two buttons on each card are
@@ -2892,10 +2909,11 @@ async function entriesPage(
             ${
               unconfirmed.length === 0
                 ? null
-                : html`<h2 class="account-subhead">Other records</h2>
-                    <p class="account-note">
-                      The club has not recorded a confirmed place for these. Each one says
-                      what is known about it — read it before entering again.
+                : html`<p class="account-note">
+                      The club has not recorded a confirmed place for you yet. What it
+                      does have is below — <strong>read it before entering again</strong>,
+                      because a payment can reach the club after the page that took it has
+                      given up.
                     </p>
                     ${unconfirmed.map((entry) => entryCard(entry, true))}`
             }`

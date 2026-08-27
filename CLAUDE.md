@@ -620,11 +620,14 @@ somebody can send to the other volunteer; an empty set means every value. Exclus
 things. A tester's place is still real and still counted; it is simply not what somebody
 opens that page to look at.
 
-**`/account/entries/` leads with confirmed places and demotes the rest rather than hiding
-them.** Hiding would show an empty page to somebody whose payment succeeded while the webhook
-was late — who reads that as nothing having been taken, and enters again. Same rule as
-`/nn/<year>/entry/complete/`, applied to a list. Every entry carries its purchase id as a
-reference, because somebody emailing the club had nothing to name one by.
+**`/account/entries/` shows confirmed places only — unless there are none, and that
+exception is not decoration.** A lapsed attempt beside a real ticket makes the page look
+broken, so once somebody holds a place it is the only thing they see. Hiding the rest
+*unconditionally* would show an empty page to somebody whose payment succeeded while the
+webhook was late, who reads that as nothing having been taken and enters again. So: only
+successful tickets, unless there are none. Same rule as `/nn/<year>/entry/complete/`, which
+may not make a negative claim either, applied to a list. Every entry carries its purchase id
+as a reference, because somebody emailing the club had nothing to name one by.
 
 **Two functions in `entries` now answer differently depending on who is asking, and that is new.**
 `entry_state()` hides a fee whose `requires_permission` the caller does not hold, and
