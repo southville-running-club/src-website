@@ -238,19 +238,24 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       the build's: the walk drops from 15 minutes to 10 and the warm-up from 15 to 10, and the
       warm-up is the only slack in the morning if a field of 250 takes longer than ten minutes
       to walk down. **No time here was adjusted to compensate** — 10:50 is applied as supplied
-- [ ] **The entry window.** The race director proposed **open Tuesday 1 September 2026 at 07:00,
-      close Friday 30 October at 17:00** on 24 August; the committee has not ratified it.
-      [The entries-open runbook](runbooks/entries-open.md) now carries both values, their UTC
-      conversions and the `update` that applies them, marked **proposed, not ratified** — and
-      `london-time.test.ts` asserts the conversions, because the window spans the clocks change
-      and the two ends therefore have **different offsets** (`07:00 → 06:00Z` in September,
-      `17:00 → 17:00Z` in late October). **The values are deliberately not in
-      `entries.events`**: that column is not configuration waiting to be switched on, it is the
-      switch — `entry_state()` flips to `open` the moment `now()` passes it, so a date there
-      starts selling places unattended, with no deploy and nobody present, while the runbook's
-      stop conditions are still unmet. `entries.test.ts` holds both columns null. Publishing the
-      close time on a page is a second, separate decision: `entry_state()` deliberately does not
-      return `entries_close_at`
+- [ ] **The entry window — ratified, half applied, and the remaining half is the opening.**
+      The committee agreed **open Tuesday 1 September 2026 at 07:00, close Friday 30 October
+      at 17:00** over WhatsApp on **Monday 24 August 2026** — the same day the race director
+      proposed them — and both are published on `/nn/2026/` from `race.json`. The window spans the
+      clocks change, so the two ends have **different offsets** (`07:00 → 06:00Z` in September,
+      `17:00 → 17:00Z` in late October); `london-time.test.ts` asserts the conversions and
+      `entries.test.ts` asserts them again against the row.
+      **`entries_close_at` is applied** — `20260827180000_nn_2026_entries_close_at.sql` — and is
+      inert on its own, because `entry_state()` tests `entries_open_at is null` as an explicit
+      branch before it compares anything.
+      **`entries_open_at` is still null, and that is what is left of this item.** Ratifying the
+      window settles the times; it does not perform the opening, because that column is not
+      configuration waiting to be switched on, it is the switch — a date in it starts selling
+      250 places unattended, with no deploy and nobody present. It is gated on the live Stripe
+      keys being in and the webhook digest having been verified by a real signed event; neither
+      has happened. [The entries-open runbook](runbooks/entries-open.md) carries the
+      single-column `update` and its Europe/London read-back, and names the 07:00 deadline it
+      has to be run by
 - [ ] **The 2026 race-day text exists as an email, not as page copy, and that was a decision.**
       The race director's race-day wording — the "all the information you need for the big day"
       opening, the two typos, the "more on that later" forward reference — is **not in this
@@ -480,7 +485,9 @@ this removes.
 - ~~**A way to test the payment path without opening entries**~~ — **done**, in
   [#107](https://github.com/southville-running-club/src-website/issues/107). The `nn-tester`
   role and a permission-gated £1 fee, so the rehearsal in the entries-open runbook no longer
-  writes an `entries_open_at` the committee has not ratified
+  writes an `entries_open_at` at all. That mattered when the window was unratified and it
+  matters for a second reason now that it is: the times being settled does not make the column
+  safe to set early, and the rehearsal must not be the thing that opens the race
 - ~~**Undoing an entry**~~ — **done**, narrowly. A `super-admin` may cancel and refund one
   purchase — [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). Transfers,
   corrections, manual entries, resends and partial refunds are each still their own decision

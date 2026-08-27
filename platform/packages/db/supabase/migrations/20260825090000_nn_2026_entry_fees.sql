@@ -83,9 +83,17 @@ comment on column entries.fees.requires_ea_number is
   'Whether this fee requires an England Athletics number. The £2 differential is ARC''s Unattached Runner Levy under Rule 21(2)(b), collected by the promoter and remitted to ARC within 30 days with the entry list under 21(2)(c) — not club income, and not an England Athletics rebate. The number is collected and format-checked and is NOT verified. Rule 21(2)(b) also exempts members of ARC-affiliated clubs, who have no EA number: see issue #72.';
 
 -- ---------------------------------------------------------------------------------------
--- The entry window is deliberately still null, and this migration is where somebody will
--- look for it
+-- The entry window is not written here, and this migration is where somebody will look for it
 -- ---------------------------------------------------------------------------------------
+-- **Superseded — the committee ratified the window over WhatsApp on Monday 24 August 2026**,
+-- and the closing half is applied by `20260827180000_nn_2026_entries_close_at.sql`.
+--
+-- The paragraph below described the state as this migration was written on 25 August 2026, and
+-- it was already one day stale: it records the values as the race director's proposal, which is
+-- what they had been until the committee agreed them the previous day. Kept rather than
+-- rewritten, because this migration has already run everywhere and its comment describes what
+-- it did and why; the correction is the pointer above.
+--
 -- Values have been proposed — **entries open 1 September 2026 at 07:00 and close 30 October
 -- 2026 at 17:00, Europe/London** — and they are not written here, because
 -- `entries.events.entries_open_at` is not configuration waiting to be switched on. It **is**
@@ -101,4 +109,7 @@ comment on column entries.fees.requires_ea_number is
 -- So the window stays null and arrives as one `update` a human runs, which the runbook now
 -- carries verbatim. `packages/db/tests/entries.test.ts` asserts both columns are null; that
 -- assertion is the thing standing between a proposal and a race that starts selling itself.
+--
+-- **What is true now:** `entries_close_at` is set and inert on its own; `entries_open_at` is
+-- still null, and still the switch, for the reasons the later migration sets out.
 -- ---------------------------------------------------------------------------------------

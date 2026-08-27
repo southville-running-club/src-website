@@ -491,6 +491,47 @@ test.describe('Nightingale Nightmare, at /nn', () => {
       page.locator('dt', { hasText: 'ARC permit' }).locator('+ dd'),
     ).toHaveText('ARC/26/0842');
   });
+
+  test('states the ratified opening time, at 07:00 and not 06:00', async ({ page }) => {
+    // **The same shape as the permit above, and it replaced the same kind of assertion**:
+    // `entriesOpen` was `null` and this row read "To be confirmed". The committee ratified the
+    // window, so the page states it and a runner knows when to come back.
+    //
+    // **07:00 is the assertion, and 06:00 is the failure it exists to catch.** The stored
+    // instant is `06:00Z` — 1 September is British Summer Time — so anything that renders the
+    // UTC value instead of the Europe/London one produces `06:00`, which looks entirely
+    // plausible on a page and is an hour wrong on the morning 250 places go on sale. The
+    // clocks-change half of this is asserted at the source in
+    // `packages/db/tests/entries.test.ts`, which checks the two ends sit on different offsets.
+    //
+    // The literal is pinned rather than read from `race.json`, for the reason above: an
+    // expectation that reads the page's own source asserts nothing.
+    await page.goto('/nn/2026/');
+
+    const opens = page.getByRole('term').filter({ hasText: 'Entries open' });
+    await expect(opens).toHaveCount(1);
+    await expect(
+      page.locator('dt', { hasText: 'Entries open' }).locator('+ dd'),
+    ).toHaveText('Tuesday 1 September 2026, 07:00');
+  });
+
+  test('states the ratified closing time, at 17:00 and not 18:00', async ({ page }) => {
+    // **The other end of the window, and the one where a wrong hour costs somebody a place.**
+    // 30 October is after the clocks go back, so the stored instant is `17:00Z` and London is
+    // `17:00` — the two agree here and disagree in September, which is exactly why both ends
+    // are pinned rather than one. A single offset applied to both gets precisely one wrong.
+    //
+    // Unlike the opening row, this one is enforced: `create_pending_purchase()` checks
+    // `entries_close_at` on every submission, ahead of even the tester permission, so the page
+    // and the form cannot disagree about it.
+    await page.goto('/nn/2026/');
+
+    const closes = page.getByRole('term').filter({ hasText: 'Entries close' });
+    await expect(closes).toHaveCount(1);
+    await expect(
+      page.locator('dt', { hasText: 'Entries close' }).locator('+ dd'),
+    ).toHaveText('Friday 30 October 2026, 17:00');
+  });
 });
 
 test.describe('the Nightingale Nightmare content pages', () => {

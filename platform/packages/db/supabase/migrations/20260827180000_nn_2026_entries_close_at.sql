@@ -1,0 +1,65 @@
+-- ---------------------------------------------------------------------------------------
+-- The ratified entry window, closing half only
+-- ---------------------------------------------------------------------------------------
+-- The committee has ratified the Nightingale Nightmare 2026 entry window:
+--
+--     opens   Tuesday  1 September 2026, 07:00 Europe/London  (BST, UTC+1)  = 06:00Z
+--     closes  Friday  30 October   2026, 17:00 Europe/London  (GMT, UTC+0)  = 17:00Z
+--
+-- **This migration applies the closing half and deliberately leaves `entries_open_at` null.**
+-- That is not caution about the value — the value is ratified — it is that the two columns do
+-- different jobs, and only one of them sells anything.
+--
+-- ## Why the close date is safe on its own
+--
+-- `entry_state()` tests `entries_open_at is null` as an **explicit branch, before it compares
+-- anything**, and only consults `entries_close_at` behind `is not null`:
+--
+--     when not active                             then 'closed'
+--     when entries_open_at is null                then 'pre_open'   -- ← here
+--     when now() < entries_open_at                then 'pre_open'
+--     when entries_close_at is not null
+--          and now() >= entries_close_at          then 'closed'
+--     else 'open'
+--
+-- So a null open date means *never opens*, not *no lower bound*. `create_pending_purchase()`
+-- agrees — `v_early := entries_open_at is null or now() < entries_open_at` — and refuses an
+-- early caller without `nn.entry.before_open`. The row stays `pre_open` after this migration,
+-- and `packages/db/tests/entries.test.ts` asserts exactly that.
+--
+-- ## Why the open date is not here
+--
+-- `entries_open_at` is not configuration waiting to be switched on. It **is** the switch: a
+-- date in it is a dated instruction to start selling 250 places, unattended, with no deploy
+-- and nobody present. Two things are outstanding, and neither is about the times:
+--
+--   * the live Stripe keys are not in — production holds sandbox values, so an entry taken
+--     against them is money the club cannot collect;
+--   * the webhook digest has never been verified by a real signed event, and the webhook is
+--     the only thing that may write `paid`.
+--
+-- Opening before both are true would take real entries into a payment path that cannot
+-- confirm them. [The entries-open runbook](../../../../docs/delivery/runbooks/entries-open.md)
+-- carries the single `update` that flips it and owns that moment.
+--
+-- ## The offsets are explicit, and that is the point
+--
+-- The clocks go back at 02:00 on 25 October 2026 — **between** the two ends of this window —
+-- so open is BST and close is GMT and they do not share an offset. Written as `+00` here
+-- rather than as a bare local string, because a bare string is resolved against whatever
+-- `TimeZone` the session happens to carry, and the end nobody checks is the end that moves.
+--
+-- ## Applied by `update`, not by editing the migration that seeded the row
+--
+-- The same reasoning as `minimum_age` in `20260813161500_entries_pending_purchases.sql`, and
+-- as the fee rows: that migration has already run everywhere. Editing it would change what a
+-- fresh `db reset` produces without changing any database that already exists, which is how
+-- two environments start disagreeing about a date that turns entrants away.
+--
+-- Idempotent, and scoped to the one event. Production may already carry this value applied by
+-- hand from the runbook; re-applying the identical instant is a no-op.
+-- ---------------------------------------------------------------------------------------
+
+update entries.events
+   set entries_close_at = timestamptz '2026-10-30 17:00:00+00'
+ where slug = 'nn-2026';

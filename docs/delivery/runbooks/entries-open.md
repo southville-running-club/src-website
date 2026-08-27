@@ -43,11 +43,59 @@ that cannot be undone by closing entries again afterwards.
 
 | | Why it stops the run |
 | --- | --- |
-| **The entry open and close times have not been supplied by the committee** | They are a [stop-and-ask](../../architecture/principles.md#stop-and-ask) fact. A plausible time typed in here is a published claim about when a race opens |
+| ~~**The entry open and close times have not been supplied by the committee**~~ | **Met.** Agreed by the committee over WhatsApp on **Monday 24 August 2026**: **open Tuesday 1 September 2026 07:00 BST, close Friday 30 October 2026 17:00 GMT**. `entries_close_at` is already applied; this runbook sets the opening half only |
 | **The rate-limiting rule is not live** | [Step 0.1](#01--the-waf-rate-limiting-rule-must-be-live). This is the only failure in the design with no recovery path |
 | **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). The first real payment must not be a stranger's |
 | **The entry terms have not been written** | The form asks people to accept terms; today its hint says they are still to be confirmed. Taking £17 against terms that do not exist is not a build decision |
 | **Nobody has restored a backup** | [#23 item 2](https://github.com/southville-running-club/src-website/issues/23). The rows about to arrive include dates of birth, emergency contacts and — under separate consent — medical notes |
+
+---
+
+## ⏰ The deadline this runbook now has: 07:00, Tuesday 1 September 2026
+
+**`/nn/2026/` already tells runners that entries open at 07:00 on 1 September. Nothing in the
+database enforces that.** The page reads `race.json`; the form reads
+`entries.events.entries_open_at`, which is still null. **Until step 3 is run, the page promises
+open entries against a form that is shut.**
+
+**It fails silently and in the worst direction.** Nothing reads both values, so nothing can
+notice they disagree — there is no alarm, no failing test, and no log line. What happens instead
+is that people who set an alarm for 07:00 arrive to a page saying entries are open, find the
+interest form, and email the club. The first the club hears of it is the inbox.
+
+**So this is a diary entry, not a deploy.** One volunteer awake before 07:00 on Tuesday 1
+September, with these two statements to hand. They are the same ones in
+[step 3](#step-3--the-row-edit), repeated here so that whoever is awake is not scrolling for
+them:
+
+```sql
+-- Opens Tuesday 1 September 2026, 07:00 BST. Explicit +01, so it does not depend
+-- on the session's TimeZone. 07:00 BST = 06:00Z.
+update entries.events
+   set entries_open_at = timestamptz '2026-09-01 07:00:00+01'
+ where slug = 'nn-2026'
+returning slug, entries_open_at, entries_close_at, capacity, minimum_age;
+```
+
+```sql
+-- Read back in the timezone a runner reads it in, never in UTC —
+-- an hour out looks identical to correct there.
+select entries_open_at  at time zone 'Europe/London' as opens_london,
+       entries_close_at at time zone 'Europe/London' as closes_london
+  from entries.events where slug = 'nn-2026';
+```
+
+**`opens_london` must read `2026-09-01 07:00` and `closes_london` `2026-10-30 17:00`.** `06:00`
+or `18:00` means the offset went in the wrong way round — the clocks go back between the two
+ends of this window, so they do not share one.
+
+**If it is already past 07:00 when somebody notices**, run it anyway and then check
+`/admin/nn/` for the interest sign-ups that arrived in the gap: those are people who tried to
+enter and could not, and they are the ones to tell first.
+
+**The permanent fix is to publish from the database rather than from `race.json`**, which
+removes the gap instead of scheduling around it. That is an ADR after entries open, not a change
+to make in the week before — recorded here so the deadline is understood as a symptom.
 
 ---
 
@@ -285,13 +333,37 @@ and swapping them back to test keys before opening entries would take real money
 
 **Both volunteers present.** One types, one reads it back before it runs.
 
+**One column, not two.** The committee's ratified window is
+**opens Tuesday 1 September 2026 07:00 BST, closes Friday 30 October 2026 17:00 GMT**, and
+**the closing half is already applied** —
+`20260827180000_nn_2026_entries_close_at.sql`. It is inert on its own, because `entry_state()`
+tests `entries_open_at is null` as an explicit branch before it compares anything. So this step
+sets the one column that opens the race, and touching `entries_close_at` again would be an
+opportunity to get a date wrong for no gain.
+
+**The offsets differ and that is not a typo.** The clocks go back at 02:00 on 25 October 2026,
+between the two ends of the window: 07:00 BST is `06:00Z`, 17:00 GMT is `17:00Z`. Written with
+an explicit `+01` below so it does not depend on the session's `TimeZone`.
+
 ```sql
 update entries.events
-   set entries_open_at  = '2026-__-__ __:__:00+00',   -- UTC, from step 1
-       entries_close_at = '2026-__-__ __:__:00+00'    -- UTC, or null
+   set entries_open_at = timestamptz '2026-09-01 07:00:00+01'   -- 07:00 BST = 06:00Z
  where slug = 'nn-2026'
 returning slug, entries_open_at, entries_close_at, capacity, minimum_age;
 ```
+
+Then read it back in the timezone a runner reads it in — **not** in UTC, where an hour out looks
+identical to correct:
+
+```sql
+select entries_open_at  at time zone 'Europe/London' as opens_london,
+       entries_close_at at time zone 'Europe/London' as closes_london
+  from entries.events where slug = 'nn-2026';
+```
+
+**Both must read the wall-clock times, not the stored instants:** `opens_london` is
+`2026-09-01 07:00` and `closes_london` is `2026-10-30 17:00`. `06:00` or `18:00` means the
+offset was applied the wrong way round — stop, and set it again.
 
 **Read the returned row.** `capacity` should be 250 and `minimum_age` 18. If either is not what
 you expect, close the window immediately and find out why before anybody arrives.
