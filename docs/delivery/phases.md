@@ -216,13 +216,28 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       and the permit number must appear on any printed matter or electronic communication
       connected with the event, and the website is both. Scoped now so it is not discovered in
       October; blocked on the number
-- [ ] **The group warm-up time.** The 2026 schedule is confirmed in four of its five rows —
-      registration 09:15, briefing **10:30**, walk to the start **10:40**, start 11:00, moved
-      later because the 2023 debrief found the race went off before the marshals were in
-      position. The fifth row, a group warm-up at 10:45, cannot stand once the field leaves HQ
-      at 10:40 and no replacement has been supplied. **One unresolved row blocks all four**, so
-      `race.json` still carries the old schedule rather than half the new one. Three
-      hardcoded `10:30`s in `race-day.astro`'s prose go with it when it lands
+- [x] **The group warm-up time — answered 26 August 2026, and the whole schedule landed with
+      it.** Four rows were confirmed and the fifth blocked all four: a group warm-up at 10:45
+      could not stand once the field leaves HQ at 10:40, and `race.json` therefore kept the old
+      schedule rather than half the new one, because a schedule that is half-updated is worse
+      than one that is wholly out of date — nothing on the page says which half. The race
+      director's answer was **"The warm up time should be 10:50."** So `race.json` now carries
+      registration 09:15, briefing **10:30**, walk to the start **10:40**, warm-up at the start
+      **10:50**, start 11:00 — the briefing and the walk moved later because the 2023 debrief
+      found the race went off before the marshals were in position.
+
+      **The three hardcoded `10:30`s in `race-day.astro`'s prose were removed rather than
+      updated**, which is the part that outlives this row. 10:30 now means the *briefing*, so a
+      prose sentence still reading "walks down together at 10:30" would have attached the right
+      number to the wrong event — a stale value that names a real thing ten minutes earlier is
+      worse than one that names nothing. The schedule `<dl>` states each time once, from the
+      file, and `site.spec.ts` now asserts **each time against the row it labels** rather than
+      as a bare string, so a swapped pair fails.
+
+      **One operational question goes back to the race director**, and it is hers rather than
+      the build's: the walk drops from 15 minutes to 10 and the warm-up from 15 to 10, and the
+      warm-up is the only slack in the morning if a field of 250 takes longer than ten minutes
+      to walk down. **No time here was adjusted to compensate** — 10:50 is applied as supplied
 - [ ] **The entry window.** The race director proposed **open Tuesday 1 September 2026 at 07:00,
       close Friday 30 October at 17:00** on 24 August; the committee has not ratified it.
       [The entries-open runbook](runbooks/entries-open.md) now carries both values, their UTC

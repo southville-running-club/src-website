@@ -15,9 +15,9 @@
   "contact": "nightingalenightmare@southvillerunningclub.co.uk",
   "schedule": [
     { "time": "09:15", "what": "Registration opens at HQ. Collect your number." },
-    { "time": "10:15", "what": "Race briefing at HQ." },
-    { "time": "10:30", "what": "Walk to the start together." },
-    { "time": "10:45", "what": "Group warm-up at the start." },
+    { "time": "10:30", "what": "Race briefing at HQ." },
+    { "time": "10:40", "what": "Walk to the start together." },
+    { "time": "10:50", "what": "Group warm-up at the start." },
     { "time": "11:00", "what": "The race starts." },
     {
       "time": "Afterwards",
