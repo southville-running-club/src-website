@@ -1095,6 +1095,35 @@ describe('transferring a place to somebody else', () => {
     expect(notes).toHaveLength(0);
   });
 
+  it('clears the previous runner’s recorded gender rather than carrying it across', async () => {
+    // **The same rule as the medical note and the England Athletics number — ADR-020.** How
+    // somebody describes their gender is a fact about *them*; leaving it on the row would file
+    // one person's answer under another person's name, which is the worse half of the defect
+    // the column was added to fix.
+    //
+    // Set on the row directly rather than through the entry path, because the point under test
+    // is what `transfer_entry()` does to a value that is already there.
+    const purchaseId = await paidEntry('transfer-gender@example.com');
+
+    await query(
+      `update entries.entrants set gender_identity = 'Agender' where purchase_id = $1`,
+      [purchaseId],
+    );
+
+    await transfer(canceller.client, purchaseId);
+
+    const row = await single<{ gender: string; gender_identity: string | null }>(
+      'select gender, gender_identity from entries.entrants where purchase_id = $1',
+      [purchaseId],
+    );
+
+    expect(row.gender_identity).toBeNull();
+    // **The category is replaced, not cleared**, and the difference is the whole decision: a
+    // transfer supplies the new runner's category because a results table has to place them,
+    // and supplies nothing for the question the transfer form does not ask.
+    expect(row.gender).toBe('female');
+  });
+
   it('will not be a way around the minimum age', async () => {
     const purchaseId = await paidEntry('transfer-age@example.com');
 

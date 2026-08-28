@@ -126,6 +126,7 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
     last_name: entry.lastName,
     date_of_birth: toIsoDate(entry.dateOfBirth),
     gender: entry.gender,
+    gender_identity: entry.genderIdentity,
     club: entry.club,
     // Already null unless the chosen fee wanted one — `parseNnEntry` drops it at the
     // boundary. This carries whatever survived that, and never re-derives it.

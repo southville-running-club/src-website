@@ -210,7 +210,16 @@ export interface AdminEntry {
    * was deleted with the entrant.
    */
   age: number | null;
+  /** The race category — what the results and the prize list are grouped by. */
   gender: (typeof NN_ENTRY_GENDERS)[number] | null;
+  /**
+   * How this runner described their gender, or null because they did not say — which is most
+   * of them, and is an answer rather than a gap. Shown here and nowhere else: it is not on the
+   * start list, not in an export, and not on any page a runner or a spectator can reach.
+   * Collecting it and never surfacing it would be collecting it for no purpose; surfacing it
+   * any wider would out somebody. See ADR-020.
+   */
+  genderIdentity: string | null;
   eaNumber: string | null;
   feeCode: string;
   feeLabel: string;
@@ -344,6 +353,9 @@ const entryShape = z.object({
   club: z.string().nullable(),
   age: z.number().int().nullable(),
   gender: z.enum(NN_ENTRY_GENDERS).nullable(),
+  // `.catch` for the same reason every optional field on this shape has one: a Worker deployed
+  // ahead of its migration renders the row rather than refusing the page.
+  gender_identity: z.string().nullable().catch(null),
   ea_number: z.string().nullable(),
   fee_code: z.string(),
   fee_label: z.string(),
@@ -466,6 +478,7 @@ function parseEntryList(
       club: entry.club,
       age: entry.age,
       gender: entry.gender,
+      genderIdentity: entry.gender_identity,
       eaNumber: entry.ea_number,
       feeCode: entry.fee_code,
       feeLabel: entry.fee_label,

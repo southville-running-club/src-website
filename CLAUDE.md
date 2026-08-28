@@ -54,7 +54,19 @@ re-run.
   document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
-  list — it is `packages/shared/src/nn-entry.ts` — and a fifteenth field is a new decision.
+  list — it is `packages/shared/src/nn-entry.ts` — and **the fifteenth was taken on 28 August
+  2026**: `gender_identity`, optional free text, in
+  [ADR-020](docs/architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md).
+  A sixteenth is a new decision. **Race category and gender are two questions now**, and the
+  split is the decision rather than a wording change: `gender` is the closed list of three the
+  club awards prizes in and publishes results by — labelled **"Race category"** on the form —
+  and `gender_identity` beside it is the open question, on no list, that nothing derives,
+  groups, sorts or publishes by. **Widening `gender` is a decision about prize lists**, because
+  every value past `female` and `male` is a category with no band to receive it; the
+  non-binary gap is still open and `ageCategoryFor()` still answers
+  `gender-has-no-categories`. `gender_identity` is on `/admin/nn/` and **nowhere else** — not
+  the start list, not the three exports, never published — and `admin.spec.ts` asserts that
+  absence against a *paid* fixture, which is the only kind an export carries.
 - **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
   there: who somebody writes to about their data, how long an entry record is kept, whether
   an email address is kept to tell people about next year's race, and what is true about

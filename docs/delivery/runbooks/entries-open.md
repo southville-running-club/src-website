@@ -188,7 +188,7 @@ backup is configured" — a restore that somebody has actually carried out.
 
 **[#22](https://github.com/southville-running-club/src-website/issues/22).** Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide cannot complete online —
-and today they find that out *after* filling in fourteen fields.
+and today they find that out *after* filling in fifteen fields.
 
 - [ ] A guide learns the position **before** filling in the form, either by hiding the
       `vi_guide` fee and saying in prose how a guide enters, or by moving the notice to the

@@ -171,7 +171,10 @@ interface EntrantOverrides {
   first_name?: string;
   last_name?: string;
   date_of_birth?: string | null;
+  /** The race category — three values, and what the prize list is grouped by. */
   gender?: string | null;
+  /** The open question beside it. Optional, free text, on no list. See ADR-020. */
+  gender_identity?: string | null;
   club?: string | null;
   ea_number?: string | null;
   emergency_contact_name?: string;
@@ -348,6 +351,94 @@ describe('the England Athletics number, against the fee that was chosen', () => 
 // =========================================================================================
 // 2. The consents — the record of what somebody agreed to
 // =========================================================================================
+
+describe('the race category, and the gender question beside it', () => {
+  // **Two columns, and the rules on them are deliberately different — ADR-020.** `gender` is
+  // the closed list the prize table is grouped by; `gender_identity` is the open question. The
+  // assertions here are what stop the second one acquiring the first one's rules, and they run
+  // through the function an anonymous caller actually reaches rather than through Zod.
+
+  it('still refuses a category that is not one of the three', async () => {
+    expect(await refusalFor(OPEN, { entrants: [entrant({ gender: 'other' })] })).toBe(
+      'invalid_entrants',
+    );
+  });
+
+  it('stores the gender somebody typed, exactly as they typed it', async () => {
+    // No mapping onto the three, no normalising, no title-casing. The answer is theirs, and a
+    // database that tidied it would be answering a question nobody asked it.
+    const id = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ gender: 'non_binary', gender_identity: 'Agender' })],
+    });
+
+    const row = await single<{ gender: string; gender_identity: string | null }>(
+      'select gender, gender_identity from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.gender).toBe('non_binary');
+    expect(row.gender_identity).toBe('Agender');
+  });
+
+  it('accepts an entry that never mentions the key at all', async () => {
+    // **The expand step, asserted.** A Worker deployed before this migration sends a payload
+    // with no `gender_identity` in it, and that has to keep working and mean "did not say".
+    const id = await acceptedPurchaseId(OPEN, { entrants: [entrant()] });
+
+    const row = await single<{ gender_identity: string | null }>(
+      'select gender_identity from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.gender_identity).toBeNull();
+  });
+
+  it('normalises an empty answer to null rather than storing two kinds of nothing', async () => {
+    // An untouched text input posts `''`. Stored as-is it would be a second value meaning
+    // "did not say", and every later count of who answered would be wrong in a way nothing
+    // reports.
+    const id = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ gender_identity: '   ' })],
+    });
+
+    const row = await single<{ gender_identity: string | null }>(
+      'select gender_identity from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.gender_identity).toBeNull();
+  });
+
+  it('refuses one past the column ceiling, whatever the form allowed', async () => {
+    // The check constraint, reached through the function's own handler — the backstop for a
+    // caller who never met the form. Zod is the form's control; this is the system's.
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ gender_identity: 'x'.repeat(61) })],
+      }),
+    ).toBe('invalid_entrants');
+  });
+
+  it('never lets either gender field become part of one-runner-one-place', async () => {
+    // **The rule is keyed on name and date of birth and must stay that way.** If either column
+    // were in the key, changing an answer would be a way of buying a second place out of 250 —
+    // the defect #115 closed, reopened through a different door.
+    //
+    // **The surname is pinned rather than left to `entrant()`'s serial**, which exists to make
+    // every other test in this file a *different* runner. This is the one test that needs the
+    // same one twice, so it says so.
+    const same = { last_name: "O'Brien-samerunner", date_of_birth: '1990-01-01' };
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ ...same, gender: 'female', gender_identity: 'Woman' })],
+    });
+
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [
+          entrant({ ...same, gender: 'non_binary', gender_identity: 'Genderfluid' }),
+        ],
+      }),
+    ).toBe('already_entered');
+  });
+});
 
 describe('the consents an event requires', () => {
   it('refuses a submission that sent no consents at all', async () => {

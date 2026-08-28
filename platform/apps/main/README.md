@@ -133,7 +133,7 @@ knowing without reading either:
   and `site.spec.ts` sweeps nine widths to check each tracks the bar.
 
 **`/nn/privacy/` is the fifth link**, added by ADR-014. It was the one page in the campaign whose
-header linked everywhere except where you were standing; the notice describes fourteen fields, a
+header linked everywhere except where you were standing; the notice describes fifteen fields, a
 payment and a special category of data, and the person most likely to want it is filling in the
 form that collects them. It stays at `/nn/privacy/`, and now links up to `/privacy/` — the
 club's own notice, which arrived with member accounts. ADR-011 flagged `/privacy/` as this
@@ -475,10 +475,10 @@ type. [The webhook](#the-webhook) is what confirms, and it is the only thing tha
 | | |
 | --- | --- |
 | **Valid** | `303` to `checkout.stripe.com`, `cache-control: no-store`, and no body at all |
-| **Rejected** | `422`, messages against their fields, **every value preserved** — fourteen fields is ten times as much to retype as the interest form |
+| **Rejected** | `422`, messages against their fields, **every value preserved** — fifteen fields is ten times as much to retype as the interest form |
 | **Entries closed** | `409`. Somebody opened the page at 6:59 and pressed the button at 7:01; the window is re-checked when the form arrives, and again inside the transaction |
-| **Sold out** | `409`, and **every value still in the boxes.** This is the case where losing somebody's typing hurts most: they have filled in fourteen fields and are being told the race went while they were doing it, and they may want to ask about a waiting list |
-| **Already entered** | `409`, **every value preserved**, and the only refusal here that is somebody's ordinary mistake rather than a defect or a lost race. `create_pending_purchase()` returns `already_entered` for a runner who already holds a live place — keyed on name and date of birth, never on the purchaser's email, because one card legitimately pays for a partner. The notice says no second charge and no second place, then points at `/account/entries/`. A signed-in person is told **before** the fourteen fields as well, by `data-nn-entry-entered` on the year page |
+| **Sold out** | `409`, and **every value still in the boxes.** This is the case where losing somebody's typing hurts most: they have filled in fifteen fields and are being told the race went while they were doing it, and they may want to ask about a waiting list |
+| **Already entered** | `409`, **every value preserved**, and the only refusal here that is somebody's ordinary mistake rather than a defect or a lost race. `create_pending_purchase()` returns `already_entered` for a runner who already holds a live place — keyed on name and date of birth, never on the purchaser's email, because one card legitimately pays for a partner. The notice says no second charge and no second place, then points at `/account/entries/`. A signed-in person is told **before** the fifteen fields as well, by `data-nn-entry-entered` on the year page |
 | **A free place** | `503`. A guide pays nothing and Stripe refuses a zero-total session outright — see [what it deliberately does not do](#what-the-entry-form-deliberately-does-not-do) |
 | **No Stripe secret set** | `503`, **nothing stored and nothing charged**, said in those words. This is the deployed state today |
 | **Anything else went wrong** | `503`, "nothing has been charged", input preserved. A place may be held, and it lapses on its own |
@@ -681,10 +681,30 @@ the control. A boundary test on each side of exactly 18 on race day sits in both
 suite and the database suite, because if those two derivations ever disagreed that is what
 would notice.
 
-**No age category is invented for a non-binary runner.** The 2023 form offered the option and
-there were no categories to receive it. The form records the answer and says plainly that the
-categories are undecided. That is still not the same question as the minimum age, even though
-both numbers happen to be 18.
+**Race category and gender are two questions, and that is
+[ADR-020](../../../docs/architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md).**
+They were one field labelled "Gender", with three options, required — which is a statement
+that there are three. The closed list is now labelled **"Race category"**, because that is
+what it has always been: it is what the prize list is grouped by, what the start list sorts
+into and what `age-category.ts` derives a band from, and it is three because three is how many
+categories exist. Under it sits an optional free-text **Gender** box, on no list, that nothing
+derives, groups, sorts, prices or publishes from. That is the same shape `/account/details/`
+has collected since #61, and the same shape the GSS harmonised standard and HL7's Gender
+Harmony model both specify. **A longer closed list was the rejected option** — it is the same
+defect with more rows, and every value past female and male would advertise a category with no
+prize to award.
+
+The open answer reaches `/admin/nn/`, under the category, and **nowhere else** — not the start
+list, not any of the three exports. Collecting it and showing it nowhere would be collecting it
+for no purpose; putting it on paper handed round a race HQ would out somebody who answered a
+question the form told them was optional. `/nn/privacy/` publishes both halves of that, and
+`admin.spec.ts` asserts the absence against a *paid* fixture, because a pending one would pass
+by not being in the file at all.
+
+**No age category is invented for a non-binary runner**, and the split does not change that.
+The 2023 form offered the option and there were no categories to receive it. The form records
+the answer and says plainly that the categories are undecided. That is still not the same
+question as the minimum age, even though both numbers happen to be 18.
 
 **The England Athletics number is format-checked and never verified** — England Athletics
 publishes no way to. It is spot-checked by a human afterwards, and nothing here should be read

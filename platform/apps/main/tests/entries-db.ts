@@ -43,7 +43,15 @@ export interface PurchaseRow {
   feeCode: string;
   purchaserEmail: string;
   sessionId: string | null;
-  entrants: { firstName: string; lastName: string; club: string | null }[];
+  entrants: {
+    firstName: string;
+    lastName: string;
+    club: string | null;
+    /** The race category — three values, and what the prize list is grouped by. */
+    gender: string;
+    /** What the runner typed when asked how they describe their gender, or null. */
+    genderIdentity: string | null;
+  }[];
   medicalNotes: string[];
 }
 
@@ -56,7 +64,15 @@ export async function purchases(): Promise<PurchaseRow[]> {
       code: string;
       purchaser_email: string;
       stripe_checkout_session_id: string | null;
-      entrants: { first_name: string; last_name: string; club: string | null }[] | null;
+      entrants:
+        | {
+            first_name: string;
+            last_name: string;
+            club: string | null;
+            gender: string;
+            gender_identity: string | null;
+          }[]
+        | null;
       medical: string[] | null;
     }>(
       `select p.status,
@@ -68,7 +84,9 @@ export async function purchases(): Promise<PurchaseRow[]> {
                 select json_agg(json_build_object(
                          'first_name', e.first_name,
                          'last_name', e.last_name,
-                         'club', e.club
+                         'club', e.club,
+                         'gender', e.gender,
+                         'gender_identity', e.gender_identity
                        ) order by e.created_at)
                   from entries.entrants e
                  where e.purchase_id = p.id
@@ -97,6 +115,8 @@ export async function purchases(): Promise<PurchaseRow[]> {
         firstName: entrant.first_name,
         lastName: entrant.last_name,
         club: entrant.club,
+        gender: entrant.gender,
+        genderIdentity: entrant.gender_identity,
       })),
       medicalNotes: row.medical ?? [],
     }));
