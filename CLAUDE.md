@@ -481,15 +481,25 @@ the tree a change was verified against is recorded rather than inferred.
 So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
 email and no timing application code**.
 
-**There is no rate limiting live anywhere, and both layers of it are now written down.**
+**One rate-limiting rule is live, and it is the whole of the Cloudflare layer.**
 `[auth.rate_limit]` in `packages/db/supabase/config.toml` is chosen rather than defaulted, with
 a comment per value and `tests/unit/config.test.ts` asserting each — **and the trap that decides
 those numbers is that "per IP address" is not the runner's address**: every GoTrue call the
 account area makes is server-side, so a per-IP limit behind the Worker is a project-wide limit
 and a tight number is a cap on the whole club. The per-person layer is Cloudflare's, recorded as
-a reviewable artefact in `docs/reference/cloudflare-waf-rules.md` — the race forms' rule and the
-four account rules in one table — and **not one of them has been created in the dashboard yet**.
-The runbooks that gate them are `entries-open.md` step 0.1 and `accounts-open.md`.
+a reviewable artefact in `docs/reference/cloudflare-waf-rules.md`, and since **25 August 2026**
+that layer is **C1**: one combined rule over every `POST` under `/account/`, `/admin/` and
+`/nn/` except `/nn/stripe-webhook`, at **3 requests per 10 seconds, Block, 10-second
+mitigation**. The race forms' rule and the four account rules are still in that table as **E1**
+and **A1**–**A4**, and **not one of them was ever created**, because **the free plan allows
+exactly one rate-limiting rule** — but the rule count was never the binding constraint. **The
+plan caps both the period and the mitigation at 10 seconds**, which is the length A1 and A3
+were argued from, so what exists is a burst brake on the entry form and close to nothing
+against credential stuffing. **Whether the account endpoints justify a paid plan is the first
+money question this platform has raised, and it is open.** The runbooks are `accounts-open.md`,
+whose step 0.1 is what created C1 and whose remaining stop condition is step 0.3 — **nobody has
+watched the rule fire** — and `entries-open.md` step 0.1, which still asks for **E1** by name
+and has not been reconciled with C1 covering its `/nn/` prefix.
 
 **There is a staff backend at `/admin/`, and everything under it answers 404 to anybody who may
 not be there.** Signed out, a plain `registered`, the wrong role, an address nobody built — all the
