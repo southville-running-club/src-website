@@ -186,10 +186,16 @@ export async function handleAdmin(
       ? await handleNnSection(request, viewer, cfg, env, path.slice(1), url, secure)
       : notFound();
   } else if (path[0] === 'emails') {
-    // **The read opens the section; `nn.entry.cancel` opens the buttons inside it.** Same
-    // split as `people` below, and the same reasoning: reading the queue is strictly less
-    // than the entry list already shows, and re-sending is an act with an outside effect.
-    response = can(viewer, 'nn.entry.read')
+    // **The read opens the section; `nn.email.resend` opens the buttons inside it.** Same
+    // split as `people` below, and the same reasoning: reading the queue is one act and
+    // sending something is another.
+    //
+    // Both are the queue's own permissions since 29 August 2026. #133 borrowed
+    // `nn.entry.read` and `nn.entry.cancel` and said in its own header that a pair of its own
+    // was the cleaner answer; the borrow was worst on the write, because `nn.entry.cancel`
+    // means "may refund an entry somebody paid for" and a volunteer trusted to answer *"I
+    // never got my confirmation"* had to be trusted with that first.
+    response = can(viewer, 'nn.email.read')
       ? await handleEmailsSection(request, viewer, cfg, path.slice(1), secure)
       : notFound();
   } else if (path[0] === 'people') {
@@ -229,7 +235,7 @@ function dashboard(viewer: AdminViewer): Response {
       </p>
       <p>
         ${
-          can(viewer, 'nn.entry.read')
+          can(viewer, 'nn.email.read')
             ? html`<a href="/admin/emails/">Emails</a> — what the club has told people,
                 and what it still owes them.`
             : null

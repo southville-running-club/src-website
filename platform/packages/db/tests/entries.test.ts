@@ -62,6 +62,7 @@ const TABLES = [
   'fees',
   'discount_codes',
   'entry_purchases',
+  'entry_requests',
   'entrants',
   'entrant_medical',
   'webhook_secrets',
@@ -82,6 +83,7 @@ const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   fees: 'active',
   discount_codes: 'active',
   entry_purchases: 'created_at',
+  entry_requests: 'requested_at',
   entrants: 'created_at',
   entrant_medical: 'created_at',
   webhook_secrets: 'updated_at',
@@ -268,6 +270,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
 
     expect(rows.map((row) => row.proname)).toEqual([
       'admin_entrant_medical',
+      'admin_entry_detail',
       'admin_entry_list',
       'admin_export',
       'admin_interest_list',
@@ -336,6 +339,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // delegates with a null.
       'request_entry_action',
       'request_entry_action',
+      'resolve_entry_requests',
       'transfer_entry',
       'transfer_entry',
     ]);
@@ -505,12 +509,26 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.routine_name)).toEqual([
-      // **The fourteenth and fifteenth are `/admin/emails/`'s** — #73's second half. Reading
-      // the queue is `nn.entry.read`, which already opens the entry list where every one of
-      // these addresses appears beside a name and an emergency contact, so it needs no
-      // permission of its own. Re-sending is `nn.entry.cancel`, reused rather than adding an
-      // eighth permission — the same trade `transfer_entry` made, and a dedicated
-      // `nn.email.resend` is still the cleaner answer.
+      // **The sixteenth, and it is the whole of ADR-024.** `admin_entry_detail` returns
+      // everything the club holds about one purchase — the payment, the people, every ask, the
+      // emails it owes and the `admin_audit` rows that name it. It is the first read anywhere
+      // that returns the audit trail, which is a change of position rather than a layout
+      // choice; it is scoped to one entry and it never returns the whole table.
+      //
+      // Safe on the same terms as everything else on this list: `authenticated` is a role
+      // anybody who registers holds, so the grant only says "you may ask", and
+      // `identity.has_permission('nn.entry.read')` inside says "you may". It returns whether
+      // there is a medical note and never the note — that keeps its own audited door — and it
+      // returns `consent_version` and never `consents`, because ADR-022 put the visually
+      // impaired declaration there precisely so that no read would return it.
+      'admin_entry_detail',
+      // **The fourteenth and fifteenth are `/admin/emails/`'s** — #73's second half. Both are
+      // behind the queue's **own** permissions since 29 August 2026: `nn.email.read` opens it
+      // and `nn.email.resend` sends a failed message again. They were built borrowing
+      // `nn.entry.read` and `nn.entry.cancel`, which that migration's own header called the
+      // wrong answer — the write half worst of all, because "may refund an entry somebody paid
+      // for" is a strange thing to have to hold in order to answer *"I never got my
+      // confirmation"*.
       'admin_outbox_list',
       'admin_outbox_resend',
       'attach_checkout_session',
@@ -671,6 +689,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // The two admin reads that write an audit row are volatile because of the write, and
       // the two lists are stable because rendering a list is deliberately not audited.
       admin_entrant_medical: 'v',
+      admin_entry_detail: 's',
       admin_entry_list: 's',
       admin_export: 'v',
       admin_interest_list: 's',
@@ -715,6 +734,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // schema that changes a row, and what it changes is one word about what somebody has
       // asked for — never the entry's status, never its place.
       request_entry_action: 'v',
+      resolve_entry_requests: 'v',
       transfer_entry: 'v',
       raise_attention: 'v',
       // The four reads themselves, granted to nobody. Same volatility as both their doors,

@@ -30,15 +30,20 @@ import { cookieValue } from './cookies';
  *
  * ## Two readings, and the same split `/admin/people/` makes
  *
- * **`nn.entry.read` opens the page; `nn.entry.cancel` opens the buttons on it.** Reading the
- * queue is strictly less than the entry list already shows — these addresses appear there
- * beside a name, a date of birth and an emergency contact — so it needs no permission of its
- * own. Asking for a message again is an act with an outside effect, so it is gated separately.
+ * **`nn.email.read` opens the page; `nn.email.resend` opens the buttons on it.** Reading the
+ * queue is one act and sending something is another, which is the same split `/admin/people/`
+ * makes between its table and its controls.
  *
- * ⚠️ **`nn.entry.cancel` is not what that permission is named for.** It is reused rather than
- * adding an eighth, which is the same trade `transfer_entry()` made and which CLAUDE.md names
- * as a stop-and-ask. A dedicated `nn.email.resend` is the cleaner answer and is a decision the
- * club can take later; the migration says so too.
+ * **Both are the queue's own permissions, as of 29 August 2026.** This page was built behind
+ * `nn.entry.read` and `nn.entry.cancel` — a borrow this file's own header called the wrong
+ * answer, and the migration that made it agreed. The write half was the worse of the two:
+ * `nn.entry.cancel` means *"may refund an entry somebody paid for and move money"*, so a
+ * volunteer trusted to answer *"I never got my confirmation"* had to be trusted with refunds
+ * first. That is backwards, and it is how a permission quietly widens until it means nothing.
+ *
+ * Nobody gained or lost anything on the day: `nn-admin` carries all four, so the set of people
+ * who can open this page and press its buttons is identical before and after. What changed is
+ * that the two can now be granted apart, which is what a sixth role would need.
  *
  * ## What this page will not do
  *
@@ -112,10 +117,10 @@ export async function handleEmailsSection(
 
   if (request.method === 'POST') {
     // **Gated here, before the form is read.** `admin.ts` lets anybody holding
-    // `nn.entry.read` reach this file, and somebody served a table with no buttons can still
+    // `nn.email.read` reach this file, and somebody served a table with no buttons can still
     // hand-craft this POST. `admin_outbox_resend()` refuses them as well, and that is the
     // enforcement; this is the door being shut in the right order.
-    if (!can(viewer, 'nn.entry.cancel')) {
+    if (!can(viewer, 'nn.email.resend')) {
       return notFound();
     }
 
@@ -205,7 +210,7 @@ async function listPage(
   // **No token for somebody who cannot act, and no cookie either.** Same reasoning as
   // `/admin/people/`: a token binds a form to this browser, and a page with no forms has
   // nothing to bind.
-  const token = can(viewer, 'nn.entry.cancel') ? mintCsrfToken() : null;
+  const token = can(viewer, 'nn.email.resend') ? mintCsrfToken() : null;
 
   return page(
     'Emails',

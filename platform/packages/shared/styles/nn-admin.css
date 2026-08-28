@@ -1164,3 +1164,94 @@ body.admin {
 .admin-details dd {
   margin: 0;
 }
+
+/*
+ * The entry detail page — ADR-024.
+ * -------------------------------------------------------------------------------------------
+ * One entry, laid out as facts rather than as a row, because the whole point of the page is
+ * the things that did not fit in a column.
+ *
+ * **A definition list rather than a table.** These are label/value pairs about one subject,
+ * which is exactly what `<dl>` is for, and a one-column table would be a table lying about
+ * being tabular. It also means every pair wraps on its own at 320px instead of a table
+ * scrolling sideways — and this page has no fixed set of columns to scroll.
+ *
+ * No hex value here, as nowhere in this file: `admin-contrast.test.ts` asserts the contrast of
+ * every wash this surface mixes, and a colour written literally would be one it cannot see.
+ */
+.admin-facts {
+  display: grid;
+  margin: 0;
+  gap: 0.125rem 1rem;
+}
+
+/*
+ * Two columns once there is room for a label beside its value, one below that. A ceiling on
+ * the label column, because a long label must not squeeze the value it describes into a
+ * ribbon — and a floor of its own content, so the widest label sets the gutter and no value is
+ * left ragged against it.
+ */
+@media (min-width: 34rem) {
+  .admin-facts {
+    grid-template-columns: minmax(min-content, 12rem) 1fr;
+  }
+}
+
+.admin-facts dt {
+  color: var(--colour-muted);
+  font-size: 0.875rem;
+  /* Aligned with the first line of its value rather than to the grid row, which is what makes
+     a two-line value read as one pair rather than as two. */
+  padding-top: 0.125rem;
+}
+
+.admin-facts dd {
+  margin: 0 0 0.375rem;
+  /* An emergency number, a Stripe reference and a purchase id are all long, unbreakable, and
+     the whole reason this page exists. Wrapping anywhere beats a page that scrolls sideways —
+     the defect `.admin-scroll`'s own comment is about, one page along. */
+  overflow-wrap: anywhere;
+}
+
+/* One person on the entry. Ruled off from the next, because a visually impaired runner and
+   their guide are two people and the page must not read as one long list of facts. */
+.admin-entrant + .admin-entrant {
+  margin-top: var(--space);
+  padding-top: var(--space);
+  border-top: 1px solid var(--colour-rule);
+}
+
+.admin-entrant h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+/*
+ * The three histories — the asks, the emails, and what the club has done.
+ *
+ * **An ordered list, and the order is the content.** Newest first, which is what somebody
+ * opening this page wants. `list-style: none` because the numbers would read as a ranking.
+ */
+.admin-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.625rem;
+  padding: 0.5rem 0;
+}
+
+.admin-timeline li + li {
+  border-top: 1px solid var(--colour-rule);
+}
+
+/* Their own words, on their own line, under the fact they belong to. */
+.admin-timeline blockquote {
+  flex-basis: 100%;
+  margin: 0.25rem 0 0;
+}

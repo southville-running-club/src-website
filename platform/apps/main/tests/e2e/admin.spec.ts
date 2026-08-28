@@ -9,6 +9,7 @@ import {
   AWKWARD_LAST_NAME,
   CLEAN_EVENT_SLUG,
   CLEAN_PAID_LAST_NAME,
+  CLEAN_PAID_PURCHASE_ID,
   REGISTERED_EMAIL,
   NEVER_STORED_EA_NUMBER,
   NN_ADMIN_EMAIL,
@@ -301,6 +302,7 @@ test.describe('the door', () => {
       'Nightingale Nightmare',
       'People and roles',
       'permission',
+      'Emails',
       'Forbidden',
       'not authorised',
       REGISTERED_EMAIL,
@@ -364,7 +366,15 @@ test.describe('the navigation', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ADMIN);
 
-    await expect(sections(page)).toHaveText(['Dashboard', 'Nightingale Nightmare']);
+    // **Emails is in the bar as of 29 August 2026.** It had been reachable since #133 and had
+    // never been linked from anywhere but the dashboard — so the only way to the queue was to
+    // go back to `/admin/` first, from a page whose whole purpose is answering *"did this
+    // runner get their email"*.
+    await expect(sections(page)).toHaveText([
+      'Dashboard',
+      'Nightingale Nightmare',
+      'Emails',
+    ]);
 
     // **A link to a page that 404s is worse than no link**: it tells somebody the page exists
     // and refuses them, which is the exact disclosure the 404 rule exists to avoid.
@@ -385,6 +395,10 @@ test.describe('the navigation', () => {
     await expect(page.getByRole('link', { name: 'Nightingale Nightmare' })).toHaveCount(
       0,
     );
+    // **`nn.email.read` is on `nn-admin` and deliberately not on `super-admin`**, for the
+    // reason every `nn.*` permission is: the queue is a list of the same people's email
+    // addresses, and a super-admin cannot read the entry list they appear on.
+    await expect(page.getByRole('link', { name: 'Emails' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'My account' })).toBeVisible();
   });
 
@@ -838,6 +852,82 @@ test.describe('a medical note', () => {
     // **A POST, so the entrant id never lands in the address bar.**
     expect(page.url()).toContain('/admin/nn/medical/');
     expect(page.url()).not.toContain('entrantId');
+  });
+});
+
+test.describe('one entry in full', () => {
+  const CLEAN = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
+
+  test('is behind a deliberate action from the row, and puts no id in the address bar', async ({
+    page,
+  }) => {
+    // **A POST for the reason the medical note is one**: no personal data in a URL or a query
+    // string, ever. The purchase id travels in the body.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    await expect(
+      page.getByRole('heading', { name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+    ).toBeVisible();
+
+    expect(page.url()).toContain('/admin/nn/entry/');
+    expect(page.url()).not.toContain('purchaseId');
+    expect(page.url()).not.toContain(CLEAN_PAID_PURCHASE_ID);
+  });
+
+  test('says the things the table had no column for', async ({ page }) => {
+    // The whole reason the page exists: the reference somebody quotes on the phone, the address
+    // that paid, and the emergency contact.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    const markup = await undecoratedMarkup(page);
+
+    expect(markup).toContain(CLEAN_PAID_PURCHASE_ID);
+    expect(markup).toContain(`Kin ${CLEAN_PAID_LAST_NAME}`);
+    await expect(page.getByText('Who paid')).toBeVisible();
+    await expect(page.getByText('What they have asked for')).toBeVisible();
+    await expect(page.getByText('What has been done to it')).toBeVisible();
+  });
+
+  test('shows whether there is a medical note and never the note itself', async ({
+    page,
+  }) => {
+    // **The note keeps its single audited door.** This page links to it and never renders it —
+    // a second, unaudited read of Article 9 data is the one thing it must not become.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(OVERSOLD);
+
+    await page
+      .getByRole('button', { name: /Details/ })
+      .first()
+      .click();
+
+    expect(await undecoratedMarkup(page)).not.toContain('inhaler');
+    await expect(page.getByRole('button', { name: /Show note/ })).toBeVisible();
+  });
+
+  test('is a 404 for a plain registered account, like every other address here', async ({
+    page,
+  }) => {
+    await signInAs(page, REGISTERED_EMAIL);
+
+    const response = await page.request.post(`${NN}entry/`, {
+      form: { purchaseId: CLEAN_PAID_PURCHASE_ID },
+    });
+
+    expect(response.status()).toBe(404);
+    expect(await response.text()).not.toContain(CLEAN_PAID_LAST_NAME);
   });
 });
 
