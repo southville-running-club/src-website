@@ -507,6 +507,7 @@ const TEXT_FIELDS = [
   'guideDobMonth',
   'guideDobYear',
   'guideEmergencyName',
+  'guideEmail',
   'guideEmergencyPhone',
 ] as const;
 
@@ -520,12 +521,7 @@ function readString(form: FormData, field: string): string {
 function readSubmission(form: FormData): NnEntrySubmission {
   const text: Record<string, string> = {};
 
-  for (const field of [
-    ...TEXT_FIELDS,
-    ...TEXTAREA_FIELDS,
-    'gender',
-    'guideGender',
-  ] as const) {
+  for (const field of [...TEXT_FIELDS, ...TEXTAREA_FIELDS, 'gender'] as const) {
     text[field] = readString(form, field);
   }
 
@@ -1435,11 +1431,13 @@ function restoreSubmission(
     );
   }
 
-  // The `<select>`s: the chosen `<option>` gets `selected`, and the select itself is marked.
-  // **The guide's is restored on the same terms as the runner's**, because a form that gives
-  // back thirteen of somebody's answers and loses the fourteenth is worse than one that loses
-  // all of them — they have to find which one it was.
-  for (const select of ['gender', 'guideGender'] as const) {
+  // The `<select>`: the chosen `<option>` gets `selected`, and the select itself is marked.
+  //
+  // **One again, not two.** The guide had a race category until ADR-022's amendment, and it
+  // was removed because a guide is in no category — so asking which one they would be in was
+  // collecting an answer nothing could use. Their email took its place, and an email is a text
+  // input restored by the loop above.
+  for (const select of ['gender'] as const) {
     const chosen = submitted.text[select] ?? '';
     for (const option of ['', 'female', 'male', 'non_binary']) {
       rewriter.on(

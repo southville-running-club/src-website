@@ -339,6 +339,24 @@ deleted and the place is still taken** in both cases. Check the payment in the S
 
 ---
 
+## Finding a discount code
+
+**`/admin/nn/` → the "Discount codes" panel**, which needs `nn.entry.read` like the rest of the
+page.
+
+**It is the only place a code is written down.** A code is minted when the database is built and
+is deliberately never put in the repository, which anybody can read — so this panel is how
+somebody finds out what to tell the club it belongs to. The panel shows what it takes off, which
+entry type it applies to, and how many have gone; the entries table has a **Code** column so you
+can see which entries used it.
+
+**`used of 22` goes down as well as up.** A use is spent when a place is held and given back when
+a hold lapses or an entry is refunded, so a figure that looks wrong mid-rush is most likely a
+hold that has not expired yet. [The discount-code runbook](entries-discount-codes.md) has the
+rest.
+
+---
+
 ## Assigning a complimentary place
 
 **"Assign a place" on `/admin/nn/`, and it needs `nn.entry.create`** — the eighth permission,

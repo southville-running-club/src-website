@@ -19,6 +19,7 @@ import {
   isExportKind,
   medicalRetentionWording,
   ENTRY_STATUSES,
+  type AdminDiscountCode,
   type AdminEntry,
   type AdminEntryList,
   type AdminEventFigures,
@@ -657,7 +658,8 @@ function dashboardPage(
     <main class="admin-page" id="main">
       ${attentionSection(list, flagged)} ${raceStandsSection(list, figures, interest)}
       ${raceMorningSection(list)} ${medicalAndAffiliationSection(list, figures)}
-      ${entriesSection(list, filters, url, viewer)} ${interestSection(interest)}
+      ${discountCodesSection(list)} ${entriesSection(list, filters, url, viewer)}
+      ${interestSection(interest)}
     </main>`;
 }
 
@@ -1213,6 +1215,7 @@ function entriesSection(
             <th scope="col" class="admin-col-wide">Category</th>
             <th scope="col" class="admin-col-wide">Entry</th>
             <th scope="col" class="admin-col-wide">EA number</th>
+            <th scope="col" class="admin-col-wide">Code</th>
             <th scope="col" class="admin-col-wide">Paid</th>
             <th scope="col">Status</th>
             <th scope="col">Note</th>
@@ -1235,7 +1238,7 @@ function entriesSection(
           ${
             shown.length === 0
               ? html`<tr>
-                  <td colspan="9">Nothing matches that filter.</td>
+                  <td colspan="10">Nothing matches that filter.</td>
                 </tr>`
               : shown.map((entry) => entryRow(entry, viewer))
           }
@@ -1321,6 +1324,11 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
         <span>${entry.feeLabel}</span>
         <span class="admin-mono">${amountCell(entry)}</span>
         ${
+          entry.discountCode === null
+            ? null
+            : html`<span class="admin-mono">${entry.discountCode}</span>`
+        }
+        ${
           entry.requiresEaNumber
             ? ea === null
               ? html`<strong class="admin-error">EA number missing</strong>`
@@ -1348,6 +1356,13 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
           : '—'
       }
     </td>
+    ${
+      /* **The code this entry was bought with, and a dash for the many that used none.**
+      Beside the amount rather than in the stacked summary alone, because the question a
+      volunteer opens this page with is "who used the Left Handed Giant allocation" and the answer
+      is a column you can read down. */ null
+    }
+    <td class="admin-col-wide admin-mono">${entry.discountCode ?? '—'}</td>
     <td class="admin-col-wide admin-mono">${amountCell(entry)}</td>
     <td>${statusCell(entry)}</td>
     <td>
@@ -2975,4 +2990,115 @@ function assignFormPage(
 
       <p><a href="${NN_SECTION}/">Go back to the entries without giving one</a></p>
     </main>`;
+}
+
+/**
+ * The discount codes on this running, and how much of each is left.
+ *
+ * **This panel is the only place a code can be read.** A code is minted by a migration and is
+ * deliberately never written into the repository, which is public — so without this, the only
+ * copy would be wherever somebody happened to paste it, and the volunteer who needs to tell
+ * Left Handed Giant what it is would have nowhere to look.
+ *
+ * **Rendered only when there is one**, rather than as an empty panel saying "no codes". A
+ * running with no codes is the ordinary case — most races have none — and a permanent empty
+ * box is a thing to scroll past for ever.
+ *
+ * `uses` goes **down** as well as up: a lapsed hold and a refund each give one back, which the
+ * note says so that a volunteer who watches the number move does not report it as a defect.
+ */
+function discountCodesSection(list: AdminEntryList): Html {
+  if (list.discountCodes.length === 0) {
+    return html``;
+  }
+
+  return html`<h2 class="admin-h2">Discount codes</h2>
+    <section class="admin-panel" aria-labelledby="discount-codes">
+      <div class="admin-panel-head">
+        <h3 id="discount-codes">Codes on this running</h3>
+      </div>
+      <div class="admin-panel-body">
+        <p>
+          <strong>This is the only place these are written down.</strong> A code is
+          generated when the club's database is built and is never put in the code
+          repository, which anybody can read. Copy it from here to give it out.
+        </p>
+        <div class="admin-scroll">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Code</th>
+                <th scope="col" class="admin-col-wide">Takes off</th>
+                <th scope="col" class="admin-col-wide">Applies to</th>
+                <th scope="col">Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.discountCodes.map((code) => discountCodeRow(code))}
+            </tbody>
+          </table>
+        </div>
+        <p class="admin-panel-note">
+          A use is spent when a place is held and <strong>given back</strong> when a hold
+          lapses or an entry is refunded — so a number that looks wrong in the middle of a
+          rush is most likely a hold that has not expired yet.
+        </p>
+      </div>
+    </section>`;
+}
+
+/** One code, with what is left of it. */
+function discountCodeRow(code: AdminDiscountCode): Html {
+  const left = code.maxUses === null ? null : code.maxUses - code.uses;
+
+  return html`<tr>
+    <th scope="row">
+      <span class="admin-mono">${code.code}</span>
+      ${code.active ? null : html`<span class="admin-sub">Withdrawn</span>`}
+    </th>
+    <td class="admin-col-wide">${String(code.percentOff)}%</td>
+    ${
+      /* **Which fee it is for, in words rather than a code.** "10% off an unaffiliated entry"
+      is two facts, and a volunteer telling somebody about the code has to be able to say the
+      second one — the database refuses it against any other entry type. */ null
+    }
+    <td class="admin-col-wide">
+      ${code.feeCode === null ? 'Any entry type' : feeCodeWords(code.feeCode)}
+    </td>
+    <td>
+      <span class="admin-mono">${String(code.uses)}</span>
+      ${
+        code.maxUses === null
+          ? html` of unlimited`
+          : html` of <span class="admin-mono">${String(code.maxUses)}</span>
+              <span class="admin-sub">
+                ${left === 0 ? 'all gone' : `${String(left)} left`}
+              </span>`
+      }
+    </td>
+  </tr>`;
+}
+
+/**
+ * A fee code in the words a person uses.
+ *
+ * **Local, and deliberately not read from the fee rows.** A code can be scoped to a fee that
+ * this event no longer offers, and the panel still has to say what it was for rather than
+ * render a blank. The three codes are fixed by `entries.fees`' own check constraint, so this
+ * cannot drift far without a migration somebody reviewed.
+ */
+function feeCodeWords(code: string): string {
+  if (code === 'affiliated') {
+    return 'Affiliated entries';
+  }
+
+  if (code === 'unaffiliated') {
+    return 'Unaffiliated entries';
+  }
+
+  if (code === 'vi_guide') {
+    return 'Guide places';
+  }
+
+  return code;
 }

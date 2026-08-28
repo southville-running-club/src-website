@@ -212,15 +212,18 @@ describe('the year page, once the event row says entries are open', () => {
 
     expect(html).toMatch(/data-entry-fee-price="affiliated">£18\.00/);
     expect(html).toMatch(/data-entry-fee-price="unaffiliated">£20\.00/);
-    // A guide's place is free, and reads "Free" rather than "£0.00" — a price of nothing set
-    // in the same figures as a price of something reads like a mistake.
-    expect(html).toMatch(/data-entry-fee-price="vi_guide">Free/);
+
+    // **Two cards, not three.** The VI guide card was removed with ADR-022's amendment: a
+    // guide rides on the runner's entry now, so an entry type for them was a choice that led
+    // nowhere. The fee row survives — a purchase could reference it — and simply has no card
+    // to be painted onto.
+    expect(html).not.toContain('data-entry-fee-price="vi_guide"');
   });
 
   it('reveals every fee the event offers, and nothing it does not', async () => {
     const html = await page();
 
-    for (const code of ['affiliated', 'unaffiliated', 'vi_guide']) {
+    for (const code of ['affiliated', 'unaffiliated']) {
       expect(html).not.toMatch(new RegExp(`data-entry-fee="${code}"[^>]*hidden`));
     }
 
@@ -292,10 +295,13 @@ describe('a valid entry, which now holds a place and goes to Stripe', () => {
 
 describe('a free place, which a payment page cannot take a payment for', () => {
   it('is refused honestly, and nothing is written', async () => {
-    // A visually impaired runner's guide pays nothing. Completing that would mean deciding
-    // here that an unpaid entry counts as paid, and **nothing in this repository moves a
-    // purchase to `paid`** — so it stops before a place is held and says so, with the race
-    // address to write to.
+    // Stripe refuses a zero-total Checkout session, so a fee that comes to nothing stops
+    // before a place is held and says so, with the race address to write to.
+    //
+    // **Nothing a person can select on the page reaches this any more.** ADR-022 removed the
+    // VI guide card, so this posts the fee code directly — which is the point: the refusal is
+    // a *backstop*, and the request it now guards against is a crafted one rather than a
+    // radio somebody clicked. The fee row is still there for it to find.
     const before = await sessionsCreated();
 
     const response = await submit(goodEntry({ feeCode: 'vi_guide' }));
@@ -303,8 +309,8 @@ describe('a free place, which a payment page cannot take a payment for', () => {
 
     expect(response.status).toBe(503);
     expect(html).toMatch(/data-entry-free[^>]*autofocus/);
-    expect(html).toContain("A guide's place cannot be booked online yet.");
-    expect(html).toContain('Nothing has been charged.');
+    expect(html).toContain('That entry cannot be completed online.');
+    expect(html).toContain('Nothing has been charged and no place has been taken.');
 
     expect(await sessionsCreated()).toBe(before);
   });
@@ -317,7 +323,12 @@ describe('a free place, which a payment page cannot take a payment for', () => {
 
     expect(html).toContain('data-entry-value="firstName" value="Grace"');
     expect(html).toContain(`value="O'Sullivan Runners"`);
-    expect(html).toMatch(/data-entry-checked="feeCode:vi_guide" checked/);
+
+    // **The fee radio is no longer asserted here, and could not be.** This posts `vi_guide`,
+    // which has had no card since ADR-022's amendment — so there is no radio to come back
+    // checked. What this test is actually about is the typing somebody would otherwise have
+    // to do again, and the two assertions above are that. The radio restore itself is covered
+    // by the tests that post a fee a person can really choose.
   });
 });
 

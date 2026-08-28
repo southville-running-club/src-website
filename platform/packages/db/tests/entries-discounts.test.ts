@@ -43,7 +43,7 @@ const anon = createClient(LOCAL_API, ANON_KEY, {
 const EVENT = 'zzdisc-open';
 const EVENT_DATE = '2027-06-01';
 
-/** Scoped to the unaffiliated fee, which is the 2026 Long Ashton code's actual shape. */
+/** Scoped to the unaffiliated fee, which is the 2026 Left Handed Giant code's actual shape. */
 const SCOPED = 'ZZDISC-SCOPED';
 /** Null `fee_id`, which is what "any fee" looks like. */
 const ANY_FEE = 'ZZDISC-ANYFEE';

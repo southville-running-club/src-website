@@ -1,133 +1,94 @@
-# Issuing a discount code
+# Discount codes
 
-**One `insert` per code, run by hand, and the code itself never goes in this repository.**
-`entries.discount_codes` has been in the schema since Slice A and deliberately empty ever since.
-This is how a row gets into it.
+**The Left Handed Giant code already exists and nobody has to make it.** It is minted by a
+migration and read off `/admin/nn/`. This runbook is how you find it, how you watch it, and what
+to do about a second one.
 
 Serves [Phase 3](../phases.md#phase-3--nightingale-nightmare-live). Reasoning:
-[`20260828140000_entries_discounts_and_guides.sql`](../../../platform/packages/db/supabase/migrations/20260828140000_entries_discounts_and_guides.sql).
+[`20260828210000_nn_2026_lhg_discount_code.sql`](../../../platform/packages/db/supabase/migrations/20260828210000_nn_2026_lhg_discount_code.sql).
 
 ---
 
-## Why this is a runbook and not a migration
+## Why there is no code written down here
 
-**`southville-running-club/src-website` is a public repository.** A code committed to a migration
-is not an unguessable code, it is a published one — readable by anybody, in the diff, in the file,
-and in the history for ever afterwards even if it is removed later. Twenty-two Long Ashton places
-would be gone before the club had told Long Ashton the code.
+**`southville-running-club/src-website` is a public repository.** A code committed to a
+migration is not an unguessable code, it is a published one — readable by anybody, in the diff,
+in the file, and in the history for ever after even if it is removed later. Twenty-two places
+would be gone before the club had told Left Handed Giant.
 
-The table's own comment has said this since it was written: bringing a code back is *"one `insert`
-rather than a deploy in the middle of a live entry window"*. This is that insert.
+So the migration carries the **generator** and never the value. Every environment mints its own:
+a laptop gets one, CI gets one, and production gets the one that counts. **None of them is
+anywhere in git.**
 
-**The entropy is the only control.** There is no rate limiting live anywhere yet — the rules in
-[`cloudflare-waf-rules.md`](../../reference/cloudflare-waf-rules.md) are written and have not been
-created in the dashboard — so nothing slows down somebody trying codes. A short or guessable code
-is the whole of the exposure.
-
----
-
-## 1. Generate the code
-
-Twelve characters from a 32-letter alphabet with `O`, `0`, `I` and `1` removed, so that a code
-read aloud down a phone or off a printed newsletter cannot be mistyped into a different valid one.
-That is about 60 bits, which is not brute-forceable over HTTP at any rate anybody could sustain.
-
-**A prefix that says whose it is**, because a volunteer looking at `uses` in six weeks needs to
-know which code that row is without asking anybody.
-
-```bash
-python3 -c "import secrets; a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; print('LHG-2026-' + ''.join(secrets.choice(a) for _ in range(12)))"
-```
-
-`secrets`, not `random` — `random` is seeded predictably and is not for this.
-
-**Put it in the club's password manager before you do anything else**, in the shared vault, named
-for the code and the year. It cannot be read back out of the database in any useful way once it is
-in, and there is deliberately no page that displays it.
+**This replaced a runbook that asked a volunteer to generate one by hand and paste an `insert`
+into the SQL editor.** That worked and had one cost nobody had priced: nothing displayed the
+code, so the password manager was the only copy, and the person who needed to tell Left Handed
+Giant what it was had to go and find it there. Now the club reads it off its own admin page.
 
 ---
 
-## 2. Insert the row
+## 1. Find the code
 
-Supabase dashboard → SQL editor, against the production project. Substitute the code you just
-generated; everything else is as recorded here.
+**`/admin/nn/` → the "Discount codes" panel.** You need to be signed in and hold `nn-admin`;
+everybody else gets the ordinary 404 the whole surface gives.
+
+The panel shows the code itself, what it takes off, which entry type it applies to, and how many
+of the twenty-two have gone. Copy it from there to give it out.
+
+It looks like `LHG-10-3F9A2B7C1D0E` — who it is for, what it takes off, and twelve random
+characters. Matching is case-insensitive at both ends, so nobody has to reproduce the case.
+
+**Tell Left Handed Giant it is for the unaffiliated entry.** The code is scoped to that fee and
+is refused against the £18 affiliated one, deliberately — a member who is England Athletics
+registered enters at the affiliated price, which is already the cheaper of the two.
+
+---
+
+## 2. What it costs the club
+
+10% of £20.00 is exactly £2.00, and **that £2 is the ARC Unattached Runner Levy the club still
+has to remit** under Rule 21(2)(b) — decision 006. So the club nets **£16** on each of these
+twenty-two rather than £18, and £44 across the allocation.
+
+Agreed, and written here because it is not visible from the row.
+
+---
+
+## 3. Watching it
+
+The panel's `used of 22` is the live figure. If you would rather see it in SQL:
 
 ```sql
-insert into entries.discount_codes (event_id, code, percent_off, max_uses, fee_id)
-select
-  event.id,
-  'LHG-2026-XXXXXXXXXXXX',
-  10,
-  22,
-  fee.id
-from entries.events as event
-join entries.fees as fee
-  on fee.event_id = event.id and fee.code = 'unaffiliated'
-where event.slug = 'nn-2026';
-```
-
-| Column | Value | Why |
-| --- | --- | --- |
-| `code` | the generated string | `citext`, so a runner typing it in any case matches |
-| `percent_off` | `10` | 10% of £20.00 is exactly £2.00, and the rounding never fires |
-| `max_uses` | `22` | The 22 places agreed with Long Ashton. Null would be unlimited |
-| `fee_id` | the **unaffiliated** fee | *"10% off an unaffiliated entry"* is two facts and `percent_off` is only one of them. Without this the code applies to whichever fee the runner picked, and an affiliated entrant takes 10% off £18 |
-
-**The £2 comes out of the club's share, not ARC's.** An unattached runner still owes the Unattached
-Runner Levy under Rule 21(2)(b), which the club must remit within 30 days under 21(2)(c) —
-decision 006. So the club nets **£16** on a discounted Long Ashton entry rather than £18, and
-£44 across all twenty-two. That is the agreed trade; it is written down here because it is not
-visible from the row.
-
----
-
-## 3. Check it took
-
-```sql
-select code, percent_off, max_uses, uses, active,
-       (select code from entries.fees where id = discount_codes.fee_id) as fee
+select code, percent_off, max_uses, uses, max_uses - uses as remaining, active
   from entries.discount_codes;
 ```
 
-Then **use it once yourself** on a tester entry, before telling anybody it exists. The confirm
-step on `/nn/2026/` shows what the code takes off before anything is charged, so this costs
-nothing: enter with the code, read the total, and close the tab rather than continuing to payment.
-Nothing is held and no use is spent by a preview.
-
----
-
-## 4. Watching it
-
-```sql
-select code, uses, max_uses, max_uses - uses as left
-  from entries.discount_codes where active;
-```
-
 **A use is spent when a place is held and given back when the place is.** A runner who reaches
-Stripe and closes the tab spends one for up to 31 minutes, and the five-minute cron returns it
-when the hold lapses; `cancel_entry()` returns it on a refund. So a count that looks too high in
-the middle of a rush is not necessarily wrong — check again after half an hour before doing
+Stripe and closes the tab spends one for up to 31 minutes; the five-minute cron returns it when
+the hold lapses, and `cancel_entry()` returns it on a refund. **So a count that looks too high
+in the middle of a rush is not necessarily wrong** — look again after half an hour before doing
 anything about it.
 
 **Never edit `uses` by hand to make room.** It is floored at zero and bounded by
 `discount_codes_within_max_uses`, and the number is the record of how many places have actually
-gone. If the club wants more than twenty-two, raise `max_uses`, which is the honest change:
+gone. If the club agrees to more than twenty-two, raise the ceiling, which is the honest change:
 
 ```sql
-update entries.discount_codes set max_uses = 30 where code = 'LHG-2026-XXXXXXXXXXXX';
+update entries.discount_codes set max_uses = 30 where code like 'LHG-%';
 ```
 
 ---
 
-## 5. Withdrawing a code
+## 4. Withdrawing a code
 
 ```sql
-update entries.discount_codes set active = false where code = 'LHG-2026-XXXXXXXXXXXX';
+update entries.discount_codes set active = false where code like 'LHG-%';
 ```
 
 **Never delete the row.** `entry_purchases.discount_code_id` references it, so a purchase bought
 under that code would lose the record of why it cost what it cost — and the delete would be
-refused anyway. `active = false` refuses every new use and leaves every past one explicable.
+refused anyway. `active = false` refuses every new use and leaves every past one explicable. The
+panel shows a withdrawn code as **Withdrawn** rather than hiding it.
 
 A withdrawn code, an exhausted one, a mistyped one and one used against the wrong entry type all
 answer identically to the runner: *"That discount code cannot be used with this entry."* That is
@@ -136,17 +97,25 @@ made a typo.
 
 ---
 
-## What this runbook is not for
+## 5. A second code, or next year's
+
+**Both are a migration**, following `20260828210000`'s shape: an `insert` that generates the
+value rather than containing it, guarded by `where not exists` on the prefix so a re-apply
+cannot mint a duplicate.
+
+**Never reuse this year's string for next year's race.** Anybody who kept the 2026 newsletter
+would enter cheaply, and `event_id` scopes a code to one running precisely so that cannot
+happen by accident.
+
+---
+
+## What this is not for
 
 **A 100% code.** Stripe refuses a zero-total Checkout session and will not charge below £0.30 in
-GBP at all, so a code that zeroes a fee produces a held place that can never be completed. A free
-place is **given** from `/admin/nn/` instead — see
+GBP, so a code that zeroes a fee produces a held place that can never be completed. A free place
+is **given** from `/admin/nn/` instead — see
 [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md) and
-[the admin runbook](entries-admin.md).
+[the admin runbook](entries-admin.md#assigning-a-complimentary-place).
 
-**A fixed amount off.** `percent_off` is a percentage and there is no pence-off column. Adding one
-is a schema change and a decision, not a row.
-
-**A code for a race that is not this one.** `event_id` scopes a code to one running. A 2027 code
-is a new row against the 2027 event, generated fresh — **never the 2026 string reused**, which
-would let anybody who kept last year's newsletter enter cheaply.
+**A fixed amount off.** `percent_off` is a percentage and there is no pence-off column. Adding
+one is a schema change and a decision, not a row.

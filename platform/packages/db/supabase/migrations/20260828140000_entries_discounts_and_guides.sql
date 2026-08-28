@@ -5,7 +5,7 @@
 -- 1. A discount code is scoped to a fee
 -- ---------------------------------------------------------------------------------------
 -- `entries.discount_codes` has been empty since Slice A, and its own table comment says why:
--- *"A Long Ashton code existed in 2023: 10% off an unaffiliated entry, 22 places. Whether it
+-- *"A Left Handed Giant code existed in 2023: 10% off an unaffiliated entry, 22 places. Whether it
 -- returns for 2026 has not been decided."* It has been decided — it returns — and the shape
 -- it returns in exposes something the original table could not say.
 --
@@ -112,7 +112,7 @@ alter table entries.discount_codes
   add column fee_id uuid references entries.fees (id);
 
 comment on column entries.discount_codes.fee_id is
-  'Which fee this code discounts. Null means any fee. The 2026 Long Ashton code points at unaffiliated, because "10% off an unaffiliated entry" is two facts and percent_off is only one of them.';
+  'Which fee this code discounts. Null means any fee. The 2026 Left Handed Giant code points at unaffiliated, because "10% off an unaffiliated entry" is two facts and percent_off is only one of them.';
 
 comment on table entries.discount_codes is
   'Percentage discounts, per event, optionally scoped to one fee. Deliberately empty in every migration: this repository is public, so a seeded code is a published code. Rows are inserted by hand — see docs/delivery/runbooks/entries-discount-codes.md.';

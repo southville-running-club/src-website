@@ -118,6 +118,37 @@ surfaced as a fact about a person on a screen.
 an entry with a guide on it is an entry with two people on the road, which is what planning needs.
 Nothing needs a disability flag rendered next to somebody's name to know that.
 
+## Amended, 28 August 2026 — what a guide is actually asked
+
+Three corrections, all in the same direction: **ask a guide what the club needs and nothing
+else.** The original decision reused the runner's field list wholesale, which was the quick
+answer rather than the considered one.
+
+**The race category is no longer asked.** `gender` is what the club awards prizes in and
+publishes results by — [ADR-020](adr-020-race-category-and-gender-are-two-questions.md) — and a
+guide is in **no** category: not timed, not placed, rendered as `Guide` wherever a band would
+go. Asking was collecting an answer nothing could ever use, which is the minimisation rule read
+backwards. `entrants.gender` drops its `not null` and gains
+`entrants_gender_unless_guide`, which allows null **exactly when the row is a guide** — a runner
+with no category is refused as loudly as it ever was.
+
+**The email address is asked, and should have been from the start.** A runner is reachable
+through `entry_purchases.purchaser_email`, the address that paid. A guide has no purchase of
+their own, so the club was putting a second person on an unlit course at night with **no way to
+reach them** — and would have found that out on the day. `entrants.email` is a new column
+holding personal data, which is a committee decision, and it was taken with this one.
+
+**The VI guide entry type is gone from the form.** With a guide riding on the runner's entry, an
+entry type of their own was a choice that led nowhere — and it was the only thing on the page
+that reached a £0 total, which Stripe refuses. The `vi_guide` **fee row survives**, because a
+purchase could reference it and because the refusal it triggers is still the backstop against a
+crafted request and a discount code that zeroes a fee. It simply has no card.
+
+**What this cost elsewhere, recorded because it is the honest part:** the free-place refusal can
+no longer be reached through a browser, so its acceptance test was deleted and its coverage moved
+to the Worker layer, where the fee code can still be posted directly. A test that could only be
+driven through a control that no longer exists is not coverage.
+
 **Two questions are deliberately left open for the committee**, and neither is answered here:
 
 1. **A guide on the published start list discloses that their partner is visually impaired.**

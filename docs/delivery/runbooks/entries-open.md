@@ -200,22 +200,25 @@ on 28 August 2026.** Stripe refuses a zero-total Checkout session, so nothing ca
 - [ ] The stop in `worker/nn-entry.ts` is **unchanged**. It is still the backstop for any fee
       that prices at zero on the public path, and nothing should be able to reach it now
 
-### 0.4a — the Long Ashton discount code is installed
+### 0.4a — the Left Handed Giant discount code is known and given out
 
 > **⚙️ Ops**
 
-**22 places at 10% off an unaffiliated entry**, confirmed 28 August 2026. The code is not in the
-repository — this one is public — so it is an `insert` somebody runs, and it has to be run
-**before** the window opens or the first Long Ashton member to try it is told it does not exist.
+**22 places at 10% off an unaffiliated entry**, confirmed 28 August 2026. **The code already
+exists** — it is minted by a migration and is not in the repository, which is public — so there
+is nothing to generate. What there is, is telling somebody.
 
-- [ ] The code is generated, stored in the club's password manager, and inserted, following
-      [the discount-code runbook](entries-discount-codes.md)
-- [ ] It has been **used once on a tester entry** as far as the confirm screen, which shows what
-      it takes off without holding a place or spending a use
-- [ ] Long Ashton have been given the code, and told it is for the **unaffiliated** entry — it
-      is refused against the affiliated one, deliberately
+- [ ] The code has been read off `/admin/nn/` → **Discount codes**, and given to Left Handed Giant
+- [ ] They have been told it is for the **unaffiliated** entry — it is refused against the
+      affiliated one, deliberately, since an England Athletics registered member already has
+      the cheaper price
+- [ ] Somebody has used it once as far as the confirm screen, which shows what it takes off
+      **without holding a place or spending a use**, to prove the whole path end to end
 - [ ] The committee know the club nets **£16** rather than £18 on each of the 22, because the
       10% is £2 and the ARC levy is still owed on an unattached runner
+
+Full detail, including watching it and withdrawing it:
+[the discount-code runbook](entries-discount-codes.md).
 
 ### 0.5 — the governance prerequisites
 

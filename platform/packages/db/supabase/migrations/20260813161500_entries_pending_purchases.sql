@@ -284,7 +284,7 @@ begin
 
   -- --- the discount code, if one was typed ---------------------------------------------------
   -- **`entries.discount_codes` is empty and this path is currently unreachable.** It is
-  -- built and tested anyway: the 2023 Long Ashton code was 10% off an unaffiliated entry
+  -- built and tested anyway: the 2023 Left Handed Giant code was 10% off an unaffiliated entry
   -- capped at 22 places, and if the committee brings it back after entries open, enabling it
   -- must be one `insert` rather than a deploy in the middle of a live entry window.
   if p_discount_code is not null and pg_catalog.btrim(p_discount_code) <> '' then

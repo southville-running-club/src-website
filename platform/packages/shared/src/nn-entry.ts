@@ -128,7 +128,7 @@ export const NN_ENTRY_FIELDS = [
   'guideFirstName',
   'guideLastName',
   'guideDateOfBirth',
-  'guideGender',
+  'guideEmail',
   'guideEmergencyName',
   'guideEmergencyPhone',
   'medicalNotes',
@@ -210,8 +210,12 @@ const MESSAGES = {
   guideDobNotADate: 'That is not a date. Check the day, the month and the year.',
   guideDobInFuture: 'A date of birth cannot be in the future.',
   guideDobImplausible: `Check the year — the earliest this form takes is ${NN_ENTRY_EARLIEST_BIRTH_YEAR}.`,
-  guideGenderMissing: "Choose your guide's category.",
-  guideGenderUnknown: 'Choose one of the categories listed.',
+  // **The guide's own address, and the club has none without it.** A runner is reachable
+  // through the address that paid; a guide has no purchase of their own, so this is the only
+  // way to reach the second person on the course.
+  guideEmailMissing: "Enter your guide's email address.",
+  guideEmailInvalid: 'Enter an email address for your guide, like them@example.com.',
+  guideEmailTooLong: 'That email address is too long.',
   guideEmergencyNameMissing:
     'Enter the name of somebody the club can contact about your guide in an emergency.',
   guideEmergencyPhoneMissing: "Enter a phone number for your guide's emergency contact.",
@@ -302,9 +306,14 @@ export interface NnEntryGuide {
   firstName: string;
   lastName: string;
   dateOfBirth: CivilDate;
-  /** The race category. A guide is in no prize category; this is here because
-   *  `entrants.gender` is not null and the column is the same question for the same reason. */
-  gender: Gender;
+  /**
+   * The guide's own address.
+   *
+   * **A runner has none of these and a guide must.** A runner is reachable through the address
+   * that paid, and a guide has no purchase of their own — so without this the club has put a
+   * second person on an unlit course with no way to reach them.
+   */
+  email: string;
   emergencyName: string;
   emergencyPhone: string;
   /** Null whenever the runner's medical consent was not given — the same consent covers both. */
@@ -407,7 +416,7 @@ const TEXT_KEYS = [
   'guideDobDay',
   'guideDobMonth',
   'guideDobYear',
-  'guideGender',
+  'guideEmail',
   'guideEmergencyName',
   'guideEmergencyPhone',
   'guideMedicalNotes',
@@ -552,7 +561,9 @@ function nnEntryObject(rules: NnEntryRules) {
       guideDobMonth: z.string().trim().catch(''),
       guideDobYear: z.string().trim().catch(''),
 
-      guideGender: z.string().trim().catch(''),
+      guideEmail: optionalText.pipe(
+        z.string().max(NN_ENTRY_EMAIL_MAX_LENGTH, MESSAGES.guideEmailTooLong).optional(),
+      ),
 
       guideEmergencyName: optionalText.pipe(
         z
@@ -674,10 +685,10 @@ function nnEntryObject(rules: NnEntryRules) {
           fail('guideDateOfBirth', guideDobIssue);
         }
 
-        if (values.guideGender === '') {
-          fail('guideGender', MESSAGES.guideGenderMissing);
-        } else if (!isGender(values.guideGender)) {
-          fail('guideGender', MESSAGES.guideGenderUnknown);
+        if (values.guideEmail === undefined) {
+          fail('guideEmail', MESSAGES.guideEmailMissing);
+        } else if (!z.email().safeParse(values.guideEmail).success) {
+          fail('guideEmail', MESSAGES.guideEmailInvalid);
         }
 
         if (values.guideEmergencyName === undefined) {
@@ -887,9 +898,9 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
     if (
       values.guideFirstName === undefined ||
       values.guideLastName === undefined ||
+      values.guideEmail === undefined ||
       values.guideEmergencyName === undefined ||
-      values.guideEmergencyPhone === undefined ||
-      !isGender(values.guideGender)
+      values.guideEmergencyPhone === undefined
     ) {
       return { ok: false, errors: { guideFirstName: MESSAGES.guideFirstNameMissing } };
     }
@@ -902,7 +913,10 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
         month: Number(values.guideDobMonth),
         day: Number(values.guideDobDay),
       },
-      gender: values.guideGender,
+      // **No race category, deliberately.** A guide is in none — not timed, not placed — so
+      // asking which one they would be in was collecting an answer nothing could use. The
+      // column allows null for exactly this row and no other. See ADR-022.
+      email: values.guideEmail,
       emergencyName: values.guideEmergencyName,
       emergencyPhone: values.guideEmergencyPhone,
       medicalNotes: values.medicalConsent ? (values.guideMedicalNotes ?? null) : null,

@@ -8,7 +8,7 @@
 -- below £0.30 in GBP at all. `apps/main/worker/nn-entry.ts` has carried a backstop for exactly
 -- this since the entry path was built — *"a hundred-per-cent discount code would zero a fee
 -- that is not itself free"* — which holds a place, charges nothing, and tells the person their
--- entry cannot be completed. Twenty-two Long Ashton places work through a code because they
+-- entry cannot be completed. Twenty-two Left Handed Giant places work through a code because they
 -- are 10% off something; two free places cannot, because they are 100% off everything.
 --
 -- So a free place is not sold at a price of nothing. It is **given**, by somebody the club

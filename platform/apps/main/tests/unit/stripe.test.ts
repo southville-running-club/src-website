@@ -51,7 +51,7 @@ describe('what the Checkout session is built from', () => {
   });
 
   it('carries a discounted amount through unchanged as well', () => {
-    // 10% off an unaffiliated entry is the 2023 Long Ashton code, and the arithmetic that
+    // 10% off an unaffiliated entry is the 2023 Left Handed Giant code, and the arithmetic that
     // produced 1530 is the database's. This asserts only that nothing here second-guesses it.
     expect(
       params({ amountPence: 1530 }).get('line_items[0][price_data][unit_amount]'),

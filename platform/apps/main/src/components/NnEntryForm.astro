@@ -49,10 +49,6 @@ const FEES = [
     description: 'Everybody else, and just as welcome.',
   },
   {
-    code: 'vi_guide',
-    description: 'Guiding a visually impaired runner. There is no charge for a guide.',
-  },
-  {
     // **Last, and invisible to everybody who is not testing.** Every card in this list ships
     // `hidden` and is revealed only when `entry_state()` returns a fee with that code — and
     // `entries.fees.requires_permission` keeps this one out of that answer for anybody
@@ -90,7 +86,7 @@ const SUMMARY_LINKS = [
   ['guideFirstName', 'entry-guide-first-name'],
   ['guideLastName', 'entry-guide-last-name'],
   ['guideDateOfBirth', 'entry-guide-dob-day'],
-  ['guideGender', 'entry-guide-gender'],
+  ['guideEmail', 'entry-guide-email'],
   ['guideEmergencyName', 'entry-guide-emergency-name'],
   ['guideEmergencyPhone', 'entry-guide-emergency-phone'],
   ['medicalNotes', 'entry-medical-notes'],
@@ -206,19 +202,23 @@ const SUMMARY_LINKS = [
 </div>
 
 {
-  /* **A guide's place is free, and a payment page cannot take a payment of nothing.**
-  Completing a free entry means deciding that an unpaid entry counts as paid, and that
-  decision is not the payment step's to take — so this says so plainly and gives the race
-  address rather than holding a place nobody can finish.
+  /* **A payment page cannot take a payment of nothing**, and this is what says so when one is
+  somehow asked for. Stripe refuses a zero-total Checkout session outright.
 
-  This is the one thing on the form that the club has to answer by hand today. It is flagged
-  in `apps/main/README.md` under what the entry form deliberately does not do. */
+  **It stopped being about guides with ADR-022** — a guide rides on the runner's entry now and
+  never reaches a fee of their own — so nothing a person can select on this page leads here any
+  more. It is a **backstop**, and it is kept for exactly that: a £0 fee reachable only by
+  crafting a request, and a discount code that zeroes a fee that is not itself free. A place
+  the club gives away goes through `/admin/nn/` instead, which is ADR-021.
+
+  Deliberately not deleted along with the card. The reachable path is gone; the refusal is what
+  makes the unreachable one safe. */
 }
 <div class="notice notice-bad nn-card" data-entry-free hidden tabindex="-1" role="alert">
-  <p><strong>A guide's place cannot be booked online yet.</strong></p>
+  <p><strong>That entry cannot be completed online.</strong></p>
   <p>
-    There is no charge for guiding a visually impaired runner, and the payment step has
-    nothing to take. <strong>Nothing has been charged.</strong>
+    It came to nothing to pay, and the payment step has nothing to take.
+    <strong>Nothing has been charged and no place has been taken.</strong>
   </p>
   <p>
     Email <a href={`mailto:${race.contact}`}>{race.contact}</a> and the race organisers will
@@ -339,29 +339,28 @@ const SUMMARY_LINKS = [
 </div>
 
 {
-  /* **A guide learns the position before the fourteen fields, not after them** — issue #22,
-  and step 0.4 of `docs/delivery/runbooks/entries-open.md`.
+  /* **A guide learns the position before the fields, not after them** — issue #22, and step
+  0.4 of `docs/delivery/runbooks/entries-open.md`.
 
-  The same fact was already on this page twice and neither copy arrived in time. The fee
-  card's description says a guide is free, which is true and is not the problem; the
-  `data-entry-free` notice below says a guide's place cannot be booked, and it ships `hidden`
-  because the Worker reveals it **after** a submission is refused. So the one person on this
-  page who cannot finish it was the one person told so last.
+  **What this said until ADR-022 was that guide places could not be booked here at all**, which
+  was true: a guide had to enter separately on a £0 fee, and Stripe refuses a zero-total
+  session, so the one person on this page who could not finish it was the one person told so
+  last. That is no longer the arrangement — a guide is entered on the runner's own entry — so
+  the notice now points at the box that does it rather than at an email address.
 
-  **This is the third copy and the only unconditional one.** It is not a `role="alert"` and it
-  is not hidden: nothing has gone wrong, and a guide reading it has simply been told what to do
-  before spending ten minutes not being able to do it. A plain `.notice` — no `-ok`, no `-bad` —
-  because colour carries none of the meaning here and there is nothing to warn about.
+  It is not a `role="alert"` and it is not hidden: nothing has gone wrong, and a runner reading
+  it has simply been told where to look before filling anything in. A plain `.notice` — no
+  `-ok`, no `-bad` — because colour carries none of the meaning here.
 
   **The stop in `worker/nn-entry.ts` is untouched**, which step 0.4 requires: this is copy in
-  front of a backstop, not a replacement for one. It still has to refuse a discount code that
-  zeroes a fee that is not itself free. */
+  front of a backstop, not a replacement for one. */
 }
 <div class="notice nn-card" data-entry-guide>
   <p>
-    Runners who need a guide or support runner can bring one, and that person enters free.
-    Guide places cannot be booked through this form — please{' '}
-    <a href={`mailto:${race.contact}`}>contact us</a> to arrange one.
+    Runners who need a guide or support runner can bring one, and <strong
+      >that person enters free</strong
+    >. You do not need a second entry for them — say so under
+    <strong>Running with a guide</strong> below and give their details there.
   </p>
 </div>
 
@@ -936,7 +935,7 @@ const SUMMARY_LINKS = [
       <p class="field-hint" id="entry-vi-guide-hint">
         There is <strong>no charge</strong> for your guide, and you do not need a second entry
         for them — enter their details below.{' '}
-        <strong>Your guide takes one of the race's 250 places</strong>, so the club needs
+        <strong>Your guide takes up a place in the race</strong>, so the club needs much
         the same details about them as about you.
       </p>
     </div>
@@ -1048,37 +1047,41 @@ const SUMMARY_LINKS = [
       </fieldset>
 
       {
-        /* **The race category, and a guide is in none of them.** The column is not null and
-        the question is the same question, so it is asked — but nothing derives a prize
-        category for somebody whose job is to run beside another runner. The hint says so
-        rather than leaving somebody to wonder what they are being entered for. */
+        /* **No race category is asked, and that is the change rather than an omission.** A
+        guide is in none — not timed, not placed, shown as "Guide" wherever a band would go —
+        so asking which one they would be in was collecting an answer nothing could ever use.
+
+        **Their email address is asked instead, and it is the one thing the club had no way
+        to get.** A runner is reachable through the address that paid; a guide has no purchase
+        of their own, so without this the club would put a second person on an unlit course at
+        night with no way to contact them. See ADR-022. */
       }
       <div class="field">
-        <label class="field-label" for="entry-guide-gender">Guide's race category</label>
-        <p class="field-hint" id="entry-guide-gender-hint">
-          Guides are not placed and are in no age category. The club records this for the
-          same reasons it records it for every runner.
+        <label class="field-label" for="entry-guide-email">Guide's email address</label>
+        <p class="field-hint" id="entry-guide-email-hint">
+          So the club can send your guide the race information directly, and reach them if
+          something changes.
         </p>
         <p
           class="field-error"
-          id="entry-guide-gender-error"
-          data-entry-error="guideGender"
+          id="entry-guide-email-error"
+          data-entry-error="guideEmail"
           hidden
         >
         </p>
-        <select
+        <input
           class="field-input"
-          id="entry-guide-gender"
-          name="guideGender"
-          aria-describedby="entry-guide-gender-hint entry-guide-gender-error"
-        >
-          <option value="" data-entry-selected="guideGender:">Choose one</option>
-          <option value="female" data-entry-selected="guideGender:female">Female</option>
-          <option value="male" data-entry-selected="guideGender:male">Male</option>
-          <option value="non_binary" data-entry-selected="guideGender:non_binary">
-            Non-binary
-          </option>
-        </select>
+          id="entry-guide-email"
+          name="guideEmail"
+          type="email"
+          inputmode="email"
+          maxlength="254"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          aria-describedby="entry-guide-email-hint entry-guide-email-error"
+          data-entry-value="guideEmail"
+        />
       </div>
 
       <div class="field">

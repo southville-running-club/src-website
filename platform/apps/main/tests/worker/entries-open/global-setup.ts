@@ -6,7 +6,7 @@ import {
   installDiscountCode,
 } from '../../entries-db';
 import { startStripeStub, stopStripeStub } from '../../stripe-stub';
-// **The code this run exercises**: the shape of the club's actual Long Ashton one — 10% off,
+// **The code this run exercises**: the shape of the club's actual Left Handed Giant one — 10% off,
 // capped, and scoped to the unaffiliated fee, so applying it to the affiliated entry is refused.
 // It lives in a module of its own because the test that asserts on it runs inside `workerd`,
 // where this file's `pg` import cannot load.

@@ -204,7 +204,7 @@ comment on table entries.fees is
 -- ---------------------------------------------------------------------------------------
 -- discount_codes — the table, and no rows
 -- ---------------------------------------------------------------------------------------
--- A Long Ashton code existed in 2023: 10% off an unaffiliated entry, 22 places. **Whether
+-- A Left Handed Giant code existed in 2023: 10% off an unaffiliated entry, 22 places. **Whether
 -- it returns for 2026 has not been decided**, so the table is here and it is empty. Seeding
 -- a code nobody has agreed to would be a discount the club is offering.
 create table entries.discount_codes (

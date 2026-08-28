@@ -207,10 +207,11 @@ export type Database = {
           created_at: string
           date_of_birth: string
           ea_number: string | null
+          email: string | null
           emergency_contact_name: string
           emergency_contact_phone: string
           first_name: string
-          gender: string
+          gender: string | null
           gender_identity: string | null
           id: string
           last_name: string
@@ -223,10 +224,11 @@ export type Database = {
           created_at?: string
           date_of_birth: string
           ea_number?: string | null
+          email?: string | null
           emergency_contact_name: string
           emergency_contact_phone: string
           first_name: string
-          gender: string
+          gender?: string | null
           gender_identity?: string | null
           id?: string
           last_name: string
@@ -239,10 +241,11 @@ export type Database = {
           created_at?: string
           date_of_birth?: string
           ea_number?: string | null
+          email?: string | null
           emergency_contact_name?: string
           emergency_contact_phone?: string
           first_name?: string
-          gender?: string
+          gender?: string | null
           gender_identity?: string | null
           id?: string
           last_name?: string
