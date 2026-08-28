@@ -454,32 +454,29 @@ test.describe('once entries are open', () => {
     ).toBeVisible();
   });
 
-  test('a guide is told before the fourteen fields, not after them', async ({ page }) => {
-    // **Issue #22, and step 0.4 of `docs/delivery/runbooks/entries-open.md`.** Stripe refuses a
-    // zero-total Checkout session, so a visually impaired runner's guide cannot finish this
-    // form — and the notice saying so ships `hidden`, revealed by the Worker only once a
-    // submission has already been refused. The one person on the page who could not complete it
+  test('a guide is told where to look before the fields, not after them', async ({
+    page,
+  }) => {
+    // **Issue #22, and step 0.4 of `docs/delivery/runbooks/entries-open.md`.** The requirement
+    // is unchanged and what it says is not. It used to tell a guide they could not finish this
+    // form at all — true then, because a guide entered separately on a £0 fee and Stripe
+    // refuses a zero-total session, so the one person on the page who could not complete it
     // was the last to be told.
     //
-    // **This copy is unconditional and it is above the form.** Asserted visible on a page where
-    // nothing has gone wrong, asserted to carry a real way out, and asserted to come before the
-    // form element — which is the whole of what 0.4 asks for. The `data-entry-free` stop in
-    // `worker/nn-entry.ts` is deliberately untouched: this is copy in front of a backstop, not a
-    // replacement for one.
+    // **ADR-022 removed the obstacle rather than the notice.** A guide is entered on the
+    // runner's own entry now, so the copy points at the box that does it. The requirement it
+    // serves is the same: say it **before** the fields, unconditionally, where somebody meets
+    // it before spending ten minutes on the wrong thing.
     await page.goto(YEAR);
 
     const guide = entry(page).locator('[data-entry-guide]');
 
     await expect(guide).toBeVisible();
     await expect(guide).toContainText('that person enters free');
-    await expect(guide).toContainText('cannot be booked through this form');
-
-    // A literal rather than `race.json`'s value, for the reason `YEAR` is a literal: an
-    // expectation that reads the page's own source asserts nothing.
-    await expect(guide.getByRole('link', { name: 'contact us' })).toHaveAttribute(
-      'href',
-      'mailto:nightingalenightmare@southvillerunningclub.co.uk',
-    );
+    await expect(guide).toContainText('You do not need a second entry for them');
+    // **It names the control rather than describing it**, so somebody can search the page for
+    // the words they were just given.
+    await expect(guide).toContainText('Running with a guide');
 
     // **Before the form, not merely on the page.** Landing it anywhere below the first input
     // would be the same defect in a new place.
@@ -561,7 +558,12 @@ test.describe('once entries are open', () => {
     await expect(page.locator('[data-entry-fee-price="unaffiliated"]')).toHaveText(
       '£20.00',
     );
-    await expect(page.locator('[data-entry-fee-price="vi_guide"]')).toHaveText('Free');
+
+    // **Two entry types, not three.** The VI guide card went with ADR-022's amendment: a guide
+    // rides on the runner's own entry now, so offering them an entry type of their own was a
+    // choice that led nowhere. A visually impaired runner picks affiliated or unaffiliated
+    // like anybody else.
+    await expect(page.locator('[data-entry-fee="vi_guide"]')).toHaveCount(0);
   });
 
   test('points the year page hero button at the form below it', async ({ page }) => {
@@ -817,31 +819,17 @@ test.describe('once entries are open', () => {
     expect(held[0]?.medicalNotes).toEqual(['Type 1 diabetic.']);
   });
 
-  test('refuses a free guide’s place rather than holding one it cannot charge for', async ({
-    page,
-  }) => {
-    // A payment page cannot take a payment of nothing, and completing a free entry would mean
-    // deciding here that an unpaid entry counts as paid. It says so, gives the race address,
-    // and **writes nothing**.
-    await clearPurchases();
-    await page.goto(YEAR);
-
-    await fillEntry(page, { email: 'e2e-guide@example.com' });
-    await entry(page)
-      .getByLabel(/^VI guide/)
-      .check();
-
-    await page.getByRole('button', { name: 'Continue to payment' }).click();
-
-    const notice = page.locator('[data-entry-free]');
-    await expect(notice).toBeVisible();
-    await expect(notice).toContainText('Nothing has been charged.');
-    // It holds focus, which with no JavaScript is `autofocus` on an element carrying
-    // `tabindex="-1"` — and is what tells somebody using a screen reader anything happened.
-    await expect(notice).toBeFocused();
-
-    expect(await purchases()).toEqual([]);
-  });
+  // **The free-place refusal used to be tested here and cannot be any more**, which is worth
+  // saying rather than leaving as an absence. It was driven by choosing the VI guide entry
+  // type; ADR-022's amendment removed that card, because a guide rides on the runner's own
+  // entry now. **Nothing a person can click on this page reaches a fee of £0**, so there is no
+  // longer a browser journey to drive.
+  //
+  // The refusal itself is untouched and still matters — it guards a crafted request and a
+  // discount code that zeroes a fee that is not itself free. It is covered where it can now be
+  // reached, by posting the fee code directly:
+  // `tests/worker/entries-open/nn-entry-open.test.ts`, "a free place, which a payment page
+  // cannot take a payment for".
 
   test('never renders a Stripe key into the page, on any path through it', async ({
     page,
@@ -1071,10 +1059,10 @@ test.describe('once entries are open', () => {
 
     const cardPosition = () =>
       page.evaluate(() => {
-        const card = document.querySelector('[data-entry-fee="vi_guide"]');
+        const card = document.querySelector('[data-entry-fee="unaffiliated"]');
 
         if (card === null) {
-          throw new Error('the VI guide card is not in the page');
+          throw new Error('the unaffiliated card is not in the page');
         }
 
         const { top, bottom } = card.getBoundingClientRect();
@@ -1085,18 +1073,26 @@ test.describe('once entries are open', () => {
       .getByLabel(/^Affiliated/)
       .check();
 
-    await page.locator('[data-entry-fee="vi_guide"]').scrollIntoViewIfNeeded();
+    await page.locator('[data-entry-fee="unaffiliated"]').scrollIntoViewIfNeeded();
     const before = await cardPosition();
 
+    // **Unaffiliated rather than the VI guide card this used to choose**, which no longer
+    // exists. The rule under test is unchanged and so is the collapse that threatens it:
+    // leaving the affiliated entry hides the England Athletics box, which is the 277px that
+    // once threw the chosen card off a 320px screen.
     await entry(page)
-      .getByLabel(/^VI guide/)
+      .getByLabel(/^Unaffiliated/)
       .check();
 
     const after = await cardPosition();
 
-    // On the screen, both edges of it.
+    // On the screen, both edges of it — within a pixel, because `scrollIntoViewIfNeeded`
+    // places the card flush with the fold and sub-pixel layout then puts its bottom a third of
+    // a pixel past it. **The defect this guards is a card leaving the viewport by hundreds of
+    // pixels**, which is what the 277px collapse did; a strict comparison here fails on
+    // rounding and says nothing about that.
     expect(after.top).toBeGreaterThanOrEqual(0);
-    expect(after.bottom).toBeLessThanOrEqual(after.viewport);
+    expect(after.bottom).toBeLessThanOrEqual(after.viewport + 1);
     // And within a line of where it was left, rather than merely somewhere on the page.
     expect(Math.abs(after.top - before.top)).toBeLessThan(24);
   });
@@ -1274,10 +1270,13 @@ test.describe('what JavaScript adds @requires-js', () => {
       .check();
     await expect(total).toHaveText('Total to pay: £18.00');
 
+    // **£20.00 rather than "Free"**, which was the VI guide card's price and is no longer on
+    // offer. What this asserts is that the total follows the choice, and two priced cards say
+    // that at least as well as a priced one and a free one did.
     await entry(page)
-      .getByLabel(/^VI guide/)
+      .getByLabel(/^Unaffiliated/)
       .check();
-    await expect(total).toHaveText('Total to pay: Free');
+    await expect(total).toHaveText('Total to pay: £20.00');
   });
 
   test('validates inline without ever blocking a submission', async ({ page }) => {

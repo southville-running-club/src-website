@@ -160,6 +160,7 @@ export {
   fetchInterestList,
   fetchMedicalNote,
   isExportKind,
+  type AdminDiscountCode,
   type AdminEntry,
   type AdminEntryEvent,
   type AdminEntryList,

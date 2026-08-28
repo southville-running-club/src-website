@@ -203,7 +203,7 @@ export async function restoreCapacity(): Promise<void> {
  * the run failed**, so a laptop is never left holding a working discount against the real
  * running.
  *
- * `feeCode` is what makes the row like the club's actual Long Ashton code — scoped to one fee,
+ * `feeCode` is what makes the row like the club's actual Left Handed Giant code — scoped to one fee,
  * so applying it to another is refused. Pass null for a code that applies to any.
  */
 export async function installDiscountCode(options: {

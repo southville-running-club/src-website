@@ -154,7 +154,15 @@ export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | nul
     first_name: guide.firstName,
     last_name: guide.lastName,
     date_of_birth: toIsoDate(guide.dateOfBirth),
-    gender: guide.gender,
+    // **Their own address, and the one key a runner's payload does not carry.** A runner is
+    // reachable through `entry_purchases.purchaser_email`; a guide has no purchase of their
+    // own, so this is the club's only way to reach the second person on the course.
+    email: guide.email,
+    // **Null, and the column allows it for exactly this row.** A guide is in no prize
+    // category — not timed, not placed, rendered as `Guide` wherever a band would go — so
+    // asking which one they would be in was collecting an answer nothing could use. A runner
+    // with a null here is still refused, by `entrants_gender_unless_guide`.
+    gender: null,
     gender_identity: null,
     club: null,
     ea_number: null,

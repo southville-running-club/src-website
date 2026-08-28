@@ -11,13 +11,13 @@
 ## Context
 
 The club has two places to give to Kinsi. The brief asked for them as a **100% discount code**,
-alongside a 10% code for 22 Long Ashton places, and the two look like the same feature at
+alongside a 10% code for 22 Left Handed Giant places, and the two look like the same feature at
 different percentages. They are not.
 
 **Stripe refuses a zero-total Checkout session**, and will not charge below £0.30 in GBP at all.
 `apps/main/worker/nn-entry.ts` has carried a backstop for this since the entry path was written —
 *"a hundred-per-cent discount code would zero a fee that is not itself free"* — which holds a
-place, charges nothing, and tells the person their entry cannot be completed. So the Long Ashton
+place, charges nothing, and tells the person their entry cannot be completed. So the Left Handed Giant
 code works because it is 10% off something; two free places cannot, because they are 100% off
 everything.
 

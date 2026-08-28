@@ -1287,20 +1287,65 @@ describe('the fees', () => {
 });
 
 describe('the discount codes table', () => {
-  it('is empty for the real event, because the 2023 code has not been confirmed for 2026', async () => {
-    // A Long Ashton code existed in 2023 — 10% off unaffiliated, 22 places. Whether it
-    // returns has not been decided, and seeding one would be a discount the club is offering.
+  it('carries exactly one Left Handed Giant code, minted rather than written down', async () => {
+    // **This test used to assert the table was empty**, because the 2023 code had not been
+    // confirmed for 2026 and seeding one would have been a discount the club was offering. It
+    // has been confirmed — 10% off an unaffiliated entry, 22 places — so the assertion is now
+    // the opposite one, and it is here rather than deleted because *how* the code exists is
+    // the part worth protecting.
     //
     // **Scoped to `nn-2026` rather than asserted over the whole table.**
     // `entries-capacity.test.ts` seeds codes against fabricated events to exercise the
     // redemption path, and Vitest runs the two files at the same time — an unscoped `select`
     // here would fail on whichever machine happened to interleave them.
-    const rows = await query(
-      `select 1 from entries.discount_codes d
+    const rows = await query<{
+      code: string;
+      percent_off: number;
+      max_uses: number;
+      uses: number;
+      fee_code: string | null;
+    }>(
+      `select d.code::text as code, d.percent_off, d.max_uses, d.uses,
+              (select f.code from entries.fees f where f.id = d.fee_id) as fee_code
+         from entries.discount_codes d
          join entries.events e on e.id = d.event_id
-        where e.slug = 'nn-2026'`,
+        where e.slug = 'nn-2026' and d.code::text like 'LHG-%'`,
     );
-    expect(rows).toEqual([]);
+
+    expect(rows).toHaveLength(1);
+
+    const [code] = rows;
+
+    // **10% off an *unaffiliated* entry is two facts**, and `fee_id` is the second. Without it
+    // the same code takes 10% off the £18 affiliated entry, which is not what was agreed.
+    expect(code?.percent_off).toBe(10);
+    expect(code?.max_uses).toBe(22);
+    expect(code?.fee_code).toBe('unaffiliated');
+    expect(code?.uses).toBe(0);
+  });
+
+  it('mints a code that is not written down anywhere a stranger can read', async () => {
+    // **The property the whole arrangement exists for, asserted rather than trusted.** This
+    // repository is public: a code committed to a migration is a published code, and the 22
+    // places would be gone before the club had told Left Handed Giant. So the migration carries the
+    // *generator* and never the value.
+    //
+    // Asserted on shape rather than by grepping the repository, which a database test cannot
+    // do — but the shape is what proves it was generated: twelve hex characters that no
+    // migration could have contained, behind the club's own prefix.
+    const [row] = await query<{ code: string }>(
+      `select d.code::text as code from entries.discount_codes d
+         join entries.events e on e.id = d.event_id
+        where e.slug = 'nn-2026' and d.code::text like 'LHG-%'`,
+    );
+
+    // `LHG-10-` says who it is for and what it takes off; the rest is the random half.
+    expect(row?.code).toMatch(/^LHG-10-[0-9A-F]{12}$/);
+
+    // **48 bits, and no confusable pair.** Hex carries `0` and `1` but no `O` and no `I`, so a
+    // code read down a phone cannot be mistyped into a *different valid code* — which is the
+    // failure that matters, rather than mistyping into no code at all.
+    expect(row?.code).not.toMatch(/[OI]/);
   });
 
   it('matches a code whatever case it was typed in', async () => {

@@ -231,6 +231,14 @@ export interface AdminEntry {
    * place it is.
    */
   role: 'runner' | 'guide' | null;
+  /**
+   * The discount code this entry was bought with, or null — which is most of them.
+   *
+   * Shown so a volunteer can see who used the Left Handed Giant allocation without cross-referencing
+   * anything. It is the code itself rather than an id, because an id means nothing to the
+   * person reading the page.
+   */
+  discountCode: string | null;
   eaNumber: string | null;
   feeCode: string;
   feeLabel: string;
@@ -343,8 +351,33 @@ export interface AdminEntryEvent {
   figures: AdminEventFigures | null;
 }
 
+/**
+ * One discount code on the event, and how much of it has gone.
+ *
+ * **This is the only place a code can be read.** It is minted by a migration and deliberately
+ * never written into the repository, which is public — so `/admin/nn/` is how somebody finds
+ * out what to tell the club it belongs to.
+ */
+export interface AdminDiscountCode {
+  code: string;
+  percentOff: number;
+  /** Null means unlimited. 22 for the Left Handed Giant allocation. */
+  maxUses: number | null;
+  /**
+   * How many are gone **right now**, which goes down as well as up: a lapsed hold and a refund
+   * each give one back. A number that looks wrong mid-rush is probably a hold that has not
+   * expired yet.
+   */
+  uses: number;
+  active: boolean;
+  /** Which fee it applies to, or null for any. "10% off an unaffiliated entry" is two facts. */
+  feeCode: string | null;
+}
+
 export interface AdminEntryList {
   event: AdminEntryEvent;
+  /** Every code on this event. Empty until one is minted. */
+  discountCodes: AdminDiscountCode[];
   /** Every entrant against this event, whatever their status. */
   entries: AdminEntry[];
   /** How many there really are. Differs from `entries.length` only if the cap bit. */
@@ -370,6 +403,9 @@ const entryShape = z.object({
   // Same `.catch` reasoning: a Worker deployed ahead of its migration finds no `role` and
   // renders every row as a runner, which is what every row was before guides existed.
   role: z.enum(['runner', 'guide']).nullable().catch(null),
+  // Same `.catch` reasoning as every optional field here: a Worker deployed ahead of its
+  // migration renders the row rather than refusing the page.
+  discount_code: z.string().nullable().catch(null),
   ea_number: z.string().nullable(),
   fee_code: z.string(),
   fee_label: z.string(),
@@ -407,6 +443,21 @@ const entryListShape = z.object({
   total: z.number().int().min(0),
   returned: z.number().int().min(0),
   entries: z.array(entryShape),
+  // `.catch([])` rather than a hard failure, for the reason every optional field here has one:
+  // a Worker deployed ahead of its migration renders the page without the panel rather than
+  // refusing to render the entries at all.
+  discount_codes: z
+    .array(
+      z.object({
+        code: z.string().min(1),
+        percent_off: z.number().int(),
+        max_uses: z.number().int().nullable(),
+        uses: z.number().int().min(0),
+        active: z.boolean(),
+        fee_code: z.string().nullable(),
+      }),
+    )
+    .catch([]),
 });
 
 /**
@@ -482,6 +533,14 @@ function parseEntryList(
       attention: parsed.data.event.attention,
       figures: readFigures((value as { event?: unknown }).event),
     },
+    discountCodes: parsed.data.discount_codes.map((code) => ({
+      code: code.code,
+      percentOff: code.percent_off,
+      maxUses: code.max_uses,
+      uses: code.uses,
+      active: code.active,
+      feeCode: code.fee_code,
+    })),
     total: parsed.data.total,
     returned: parsed.data.returned,
     entries: parsed.data.entries.map((entry) => ({
@@ -494,6 +553,7 @@ function parseEntryList(
       gender: entry.gender,
       genderIdentity: entry.gender_identity,
       role: entry.role,
+      discountCode: entry.discount_code,
       eaNumber: entry.ea_number,
       feeCode: entry.fee_code,
       feeLabel: entry.fee_label,

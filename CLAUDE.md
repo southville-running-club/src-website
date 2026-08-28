@@ -78,7 +78,14 @@ re-run.
   and is **marked on the start list**. The `vi` declaration itself is rendered **nowhere** — no
   read returns a purchase's `consents`, so it is stored as the lawful basis for holding the
   guide's data and never as a fact on a screen; what a volunteer sees is the guide's row, which
-  is the operational fact anyway. **A seventeenth is a new decision.**
+  is the operational fact anyway. **Amended 28 August 2026**, and both halves are decisions: a
+  guide is asked for their **own email address** — `entrants.email`, the seventeenth field,
+  because a runner is reachable through the address that paid and a guide has no purchase of
+  their own — and is **not** asked their race category, because a guide is in none. So
+  `entrants.gender` is nullable behind `entrants_gender_unless_guide`, which permits that for a
+  guide and for nothing else, and a runner without one is refused as loudly as ever. **The VI
+  guide entry type is off the form**; the `vi_guide` fee row survives as the backstop's
+  subject. **An eighteenth field is a new decision.**
 - **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
   there: who somebody writes to about their data, how long an entry record is kept, whether
   an email address is kept to tell people about next year's race, and what is true about
@@ -650,6 +657,14 @@ deliberately, with the window ratified** — so production serves the interest f
 per-event advisory lock: re-check the window, count the places gone, price it from
 `entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
 exactly that amount and a 303 to it.
+
+**The Left Handed Giant code exists, is minted by a migration, and is read off `/admin/nn/`.** 10%
+off an unaffiliated entry, 22 places, `LHG-10-` plus twelve random characters. **The migration
+carries the generator and never the value**, so every environment mints its own and none is in
+this public repository — and `/admin/nn/`'s "Discount codes" panel is the only place it can be
+read, which is how somebody finds out what to tell Left Handed Giant. The entries table carries a
+**Code** column so who used it is a column you read down. See
+[the runbook](docs/delivery/runbooks/entries-discount-codes.md).
 
 **A discount code is priced before anything is held, and the code itself is never in this
 repository.** `entries.discount_codes` was built in Slice A and left empty; it takes rows now,

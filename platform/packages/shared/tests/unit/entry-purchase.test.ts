@@ -99,7 +99,7 @@ const GUIDE: NnEntryGuide = {
   firstName: 'Katherine',
   lastName: 'Johnson',
   dateOfBirth: { year: 1988, month: 8, day: 26 },
-  gender: 'female',
+  email: 'katherine@example.com',
   emergencyName: 'Dorothy Vaughan',
   emergencyPhone: '0117 496 0001',
   medicalNotes: 'Asthmatic.',
@@ -111,11 +111,16 @@ describe('the guide, in the same column names', () => {
       first_name: 'Katherine',
       last_name: 'Johnson',
       date_of_birth: '1988-08-26',
-      gender: 'female',
-      // **Four nulls, and each is null for a reason rather than because the form did not
-      // ask.** `gender_identity` and `club` derive nothing for somebody in no category;
-      // `ea_number` justifies the affiliated rebate and a guide is not paying; `leg` is a
-      // paired-race field on a solo race.
+      // **The one key a runner's payload does not carry**, and the club has no way to reach
+      // this person without it: a runner is reachable through the address that paid, and a
+      // guide has no purchase of their own.
+      email: 'katherine@example.com',
+      // **Five nulls, and each is null for a reason rather than because the form did not
+      // ask.** `gender` is the race category and a guide is in none — asking was collecting an
+      // answer nothing could use; `gender_identity` and `club` derive nothing for somebody in
+      // no category either; `ea_number` justifies the affiliated rebate and a guide is not
+      // paying; `leg` is a paired-race field on a solo race.
+      gender: null,
       gender_identity: null,
       club: null,
       ea_number: null,

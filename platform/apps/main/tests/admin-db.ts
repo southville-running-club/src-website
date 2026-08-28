@@ -347,7 +347,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       amountPence: 1700,
       firstName: 'Kwame',
       lastName: 'Adjei',
-      club: 'Long Ashton RC',
+      club: 'Left Handed Giant RC',
       eaNumber: null,
       dateOfBirth: '1975-06-30',
       gender: 'male',

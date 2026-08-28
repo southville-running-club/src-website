@@ -209,7 +209,7 @@ insert into entries.entrants (
    'Rae Pike', '0117 496 0003', now()),
 
   ('0e0e0e0e-0000-4000-8000-000000000204', '0e0e0e0e-0000-4000-8000-000000000104',
-   'Kwame', 'Adjei', date '1975-06-30', 'male', 'Long Ashton RC', null,
+   'Kwame', 'Adjei', date '1975-06-30', 'male', 'Left Handed Giant RC', null,
    'Afua Adjei', '0117 496 0004', '2026-08-03T11:00:00Z'),
 
   ('0e0e0e0e-0000-4000-8000-000000000205', '0e0e0e0e-0000-4000-8000-000000000105',

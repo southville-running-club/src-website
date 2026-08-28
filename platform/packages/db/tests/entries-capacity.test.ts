@@ -549,7 +549,7 @@ describe('the price, which comes from the fees table and from nowhere else', () 
 // -----------------------------------------------------------------------------------------
 
 describe('a discount code', () => {
-  // `entries.discount_codes` is empty in production, because whether the 2023 Long Ashton
+  // `entries.discount_codes` is empty in production, because whether the 2023 Left Handed Giant
   // code returns has not been decided. It is exercised here so that enabling it is one
   // `insert` after entries open rather than a deploy in the middle of a live entry window.
 
