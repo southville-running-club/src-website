@@ -251,12 +251,19 @@ describe('exactly which functions exist here, and exactly who may call them', ()
   // of naming the set rather than testing members of it.
 
   it('has exactly these functions and no others', async () => {
-    const rows = await query<{ proname: string }>(
-      `select p.proname
+    // **Rows rather than distinct names, so an overload has to be argued for too.** Two
+    // functions here have two signatures: `request_entry_action` and `transfer_entry` each kept
+    // their old shape as a thin wrapper when an argument was added, because nothing sequences a
+    // migration against the Cloudflare deploy and for the length of one both are live. That is
+    // the expand step, and it has a contract step owing — when the older Worker is gone the
+    // wrappers are dropped and this list goes back to one entry each. Listing them twice is
+    // what makes that a change somebody notices rather than one that never happens.
+    const rows = await query<{ proname: string; args: string }>(
+      `select p.proname, pg_get_function_identity_arguments(p.oid) as args
          from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'entries'
-        order by p.proname`,
+        order by p.proname, pg_get_function_identity_arguments(p.oid)`,
     );
 
     expect(rows.map((row) => row.proname)).toEqual([
@@ -321,9 +328,27 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'record_admin_action',
       'record_checkout_event',
       'record_send_result',
+      // **Two signatures each, and each pair is one expand step.** The three-argument
+      // `request_entry_action` records why somebody asked; the two-argument one delegates with
+      // a null reason. The ten-argument `transfer_entry` takes the new runner's own England
+      // Athletics number — without which an affiliated transfer raised a `check_violation` that
+      // reached a volunteer as "the database could not be reached" — and the nine-argument one
+      // delegates with a null.
+      'request_entry_action',
       'request_entry_action',
       'transfer_entry',
+      'transfer_entry',
     ]);
+
+    // **And the wrapper is the *shorter* of each pair**, asserted rather than assumed. A
+    // wrapper that had somehow become the longer signature would mean the delegation ran the
+    // wrong way round — the old caller reaching the new body is the whole property here.
+    const signatures = rows
+      .filter((row) => row.proname === 'transfer_entry')
+      .map((row) => row.args.split(',').length)
+      .sort((a, b) => a - b);
+
+    expect(signatures).toEqual([9, 10]);
   });
 
   it('lets anon execute exactly fifteen of the thirty-one, and never PUBLIC', async () => {

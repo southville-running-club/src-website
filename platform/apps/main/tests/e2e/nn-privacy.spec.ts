@@ -181,6 +181,11 @@ test.describe('the privacy notice', () => {
     expect(body).toMatch(/which boxes you ticked/i);
     expect(body).toMatch(/when you entered, and when your payment was confirmed/i);
 
+    // **The words somebody writes when they ask the club to cancel or transfer.** Optional,
+    // never exported and never published — but collected, and this notice lists what the
+    // tables hold rather than what the entry form asks.
+    expect(body).toMatch(/if you ask us to cancel or transfer/i);
+
     // The interest form's own timestamp, which the page this replaced disclosed and the
     // draft dropped. Losing it would be a regression against what was already published.
     expect(body).toMatch(/date and time you asked/i);

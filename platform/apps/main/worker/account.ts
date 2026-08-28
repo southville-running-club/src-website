@@ -1,4 +1,5 @@
 import {
+  ENTRY_REQUEST_REASON_MAX_LENGTH,
   createAnonClient,
   createPkceClient,
   createUserClient,
@@ -2818,9 +2819,19 @@ async function requestOnEntry(
     return redirectTo('/account/entries/?problem=1', secure, refreshedCookies);
   }
 
+  // **Trimmed here and normalised again in the database.** The ceiling is the column's own
+  // check constraint; this is the form's control, and refusing before the round trip is what
+  // lets the page say which of two different things went wrong.
+  const reason = readString(form, 'reason').trim();
+
+  if (reason.length > ENTRY_REQUEST_REASON_MAX_LENGTH) {
+    return redirectTo('/account/entries/?problem=reason', secure, refreshedCookies);
+  }
+
   const outcome = await requestEntryAction(createUserClient(cfg, session.accessToken), {
     purchaseId,
     action,
+    reason: reason === '' ? null : reason,
   });
 
   if (!outcome.ok) {
@@ -2918,6 +2929,10 @@ async function entriesPage(
   // the request, and so the answer survives the redirect that stops it being re-sent.
   const asked = url.searchParams.get('asked');
   const problem = url.searchParams.get('problem') === '1';
+  // **Its own answer rather than the generic one.** "That could not be recorded, try again"
+  // is a lie about a reason somebody wrote 900 characters into: trying again does nothing, and
+  // the page has to say what to change. Nothing was recorded either way.
+  const tooLong = url.searchParams.get('problem') === 'reason';
 
   const body = html`
     <main class="account-page">
@@ -2941,6 +2956,16 @@ async function entriesPage(
               <strong>That could not be recorded just now.</strong> Nothing has changed.
               Please try again in a moment, or email the club and somebody will sort it
               out.
+            </p>`
+          : null
+      }
+      ${
+        tooLong
+          ? html`<p class="account-note" role="alert">
+              <strong>That was too long to record.</strong> Nothing has changed. There is
+              room for ${String(ENTRY_REQUEST_REASON_MAX_LENGTH)} characters — shorten
+              what you wrote and ask again, and somebody will come back to you for the
+              rest.
             </p>`
           : null
       }
@@ -3067,6 +3092,18 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
                     ? 'The club has dealt with it.'
                     : 'Nothing has changed yet — your place is still yours until the club acts.'
                 }
+                ${
+                  /* **Read back rather than merely stored.** Somebody who has explained a
+                  broken ankle to a form has no other way of knowing the club received the
+                  explanation and not just the button press. */ null
+                }
+                ${
+                  entry.requestReason === null
+                    ? null
+                    : html`<br /><span class="account-quiet"
+                          >You told the club: ${entry.requestReason}</span
+                        >`
+                }
               </dd>`
       }
     </dl>
@@ -3079,7 +3116,12 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
 
       **Both are asks and the copy says so.** Cancelling has an answer in the admin surface;
       transferring does not — whether this club transfers a place at all is undecided, and a
-      button implying otherwise would be the page making a promise the committee has not. */ null
+      button implying otherwise would be the page making a promise the committee has not.
+
+      **The reason box is shared by both buttons and is one form.** Two forms would mean two
+      textareas, and somebody typing into one and pressing the other button would lose what they
+      wrote with nothing on screen explaining why. `name="action"` on the submit buttons is what
+      carries which of the two was pressed, and it needs no JavaScript to do it. */ null
     }
     ${
       csrfToken === null
@@ -3087,12 +3129,51 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
         : html`<form method="post" action="/account/entries/" class="account-actions">
             <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
             <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
-            <button type="submit" name="action" value="cancel" class="account-linkish">
-              Ask to cancel this entry
-            </button>
-            <button type="submit" name="action" value="transfer" class="account-linkish">
-              Ask about transferring it
-            </button>
+
+            <h3 class="account-actions-heading">Ask the club about this entry</h3>
+
+            ${
+              /* **Said before the box rather than after the button.** Somebody about to ask
+              for their money back should know what the club's position is while they are
+              deciding what to write, not on a confirmation page afterwards. It says the
+              honest thing — the club would rather not, and will look anyway — because a page
+              that promised refunds would be making a commitment nobody has made, and one that
+              refused them outright would be wrong about what the club actually does. */ null
+            }
+            <p class="account-note">
+              <strong>Refunds are not the club's first answer.</strong> The place is paid
+              for, the field has one fewer runner in it, and the card fee on the original
+              payment does not come back to the club. Every request is looked at on its
+              own facts and the club will do what is fair — so please say what has
+              happened.
+            </p>
+
+            <div class="field">
+              <label class="field-label" for="reason-${entry.purchaseId}">
+                Why are you asking? (optional)
+              </label>
+              <textarea
+                class="field-input"
+                id="reason-${entry.purchaseId}"
+                name="reason"
+                rows="3"
+                maxlength="${String(ENTRY_REQUEST_REASON_MAX_LENGTH)}"
+              ></textarea>
+            </div>
+
+            <div class="account-action-buttons">
+              <button type="submit" name="action" value="cancel" class="account-linkish">
+                Ask to cancel this entry
+              </button>
+              <button
+                type="submit"
+                name="action"
+                value="transfer"
+                class="account-linkish"
+              >
+                Ask about transferring it
+              </button>
+            </div>
           </form>`
     }
   </section>`;

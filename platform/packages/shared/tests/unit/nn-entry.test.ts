@@ -400,8 +400,79 @@ describe('the emergency contact', () => {
       'Enter a phone number with at least seven digits in it.',
     );
   });
+
+  it('refuses a box with no digits in it at all', () => {
+    // ⚠️ **The hole this test exists for.** The digit count read
+    // `digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS`, and that `> 0` was not a
+    // guard against an empty box — `min(1)` already catches those — it was an exemption for
+    // every string containing no digits whatsoever. `ask my mum`, `see above` and `n/a` were
+    // all accepted, on the one field whose entire purpose is to be dialled by somebody
+    // standing over a runner at the side of a course.
+    for (const phone of ['ask my mum', 'n/a', 'see above', '-']) {
+      expect(
+        errorOn(good({ emergencyPhone: phone }))?.emergencyPhone,
+        `${phone} is not a phone number`,
+      ).toBeDefined();
+    }
+  });
+
+  it('says which of the two things is wrong with it', () => {
+    // Too short and not-a-phone-number need different fixes, so they get different messages:
+    // one says add more digits, the other says use digits.
+    expect(errorOn(good({ emergencyPhone: 'ask my mum' }))?.emergencyPhone).toContain(
+      'using digits',
+    );
+    expect(errorOn(good({ emergencyPhone: '12345' }))?.emergencyPhone).toContain(
+      'at least seven',
+    );
+  });
+
+  it('still takes an extension, which is a real way people write a work number', () => {
+    expect(parseNnEntry(good({ emergencyPhone: '0117 496 0000 x214' }), RULES).ok).toBe(
+      true,
+    );
+    expect(
+      parseNnEntry(good({ emergencyPhone: '0117 496 0000 ext. 214' }), RULES).ok,
+    ).toBe(true);
+  });
 });
 
+describe('a name, and the one thing this form is willing to say about one', () => {
+  // **At least one letter, and nothing more opinionated than that.** A validator cleverer
+  // than this about names is one that eventually tells a real person they are not real: it
+  // has no length floor beyond a character, no ban on digits, apostrophes, hyphens or
+  // spaces, and no opinion about scripts.
+  it('refuses a box somebody filled in to get past a required field', () => {
+    expect(errorOn(good({ firstName: '.' }))?.firstName).toBeDefined();
+    expect(errorOn(good({ lastName: '123' }))?.lastName).toBeDefined();
+    expect(errorOn(good({ emergencyName: '-' }))?.emergencyName).toBeDefined();
+  });
+
+  it('accepts every real name it was shown', () => {
+    for (const [first, last] of [
+      ['Inés', "O'Rourke"],
+      ['Lena', 'Sørensen'],
+      ['Jean-Luc', 'de la Cruz'],
+      ['李', '雷'],
+      ['X', 'Æ'],
+    ]) {
+      expect(
+        parseNnEntry(good({ firstName: first, lastName: last }), RULES).ok,
+        `${first} ${last}`,
+      ).toBe(true);
+    }
+  });
+});
+
+/**
+ * The guide, and the whole of the visually impaired journey.
+ *
+ * **One runner, one entry, one fee.** The runner enters as anybody else does and ticks a box;
+ * the guide is asked about in the same words afterwards and is recorded beside them on the same
+ * purchase. What replaced it was a £0 `vi_guide` fee the guide bought for themselves, which
+ * **Stripe refuses outright** — a Checkout session cannot total zero — so its happy path was an
+ * apology and a race address.
+ */
 describe('medical information, and its own separate consent', () => {
   const NOTES = 'Type 1 diabetic. Carries glucose gel.';
 

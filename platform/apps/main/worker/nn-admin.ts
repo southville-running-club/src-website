@@ -1,7 +1,10 @@
 import {
+  AGE_CATEGORY_CODES,
+  EA_NUMBER_PATTERN,
   NN_ENTRY_GENDERS,
   transferEntry,
   ageCategoryFor,
+  ageCategoryLabel,
   cancelEntry,
   createAnonClient,
   createManualEntry,
@@ -27,10 +30,12 @@ import {
   type AdminInterestList,
   type AdminMedicalNote,
   type AdminResult,
+  type AgeCategoryCode,
   type ExportKind,
   type Gender,
   type ManualEntrant,
   type ManualEntryReason,
+  type MedicalExportRow,
   type StartListExportRow,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
@@ -73,12 +78,14 @@ const NN_SECTION = `${ADMIN_PREFIX}/nn`;
  *      attached to a person. It renders **only when there is something** — no empty state and no
  *      zero badge, because a panel that is usually empty is a panel nobody reads;
  *   4. where the race stands;
- *   5. **race morning**, which is what somebody actually opens under pressure;
- *   6. the medical notes and the affiliation check;
- *   7. the entries;
- *   8. the interest list.
+ *   5. **who has entered**, by category — the question the club is asked all autumn and had
+ *      to answer by counting the list by eye;
+ *   6. **race morning**, which is what somebody actually opens under pressure;
+ *   7. the medical notes and the affiliation check;
+ *   8. the entries;
+ *   9. the interest list.
  *
- * The ninth thing the design asks for — **the audit trail — is deliberately absent**, and it is
+ * The tenth thing the design asks for — **the audit trail — is deliberately absent**, and it is
  * not an oversight. `entries.admin_audit` has row-level security on, no policy and no grant, and
  * the anon role may execute thirteen functions of which none reads it. Rendering it needs a
  * fourteenth, and a fourteenth is a decision somebody takes in a diff rather than a side effect
@@ -205,6 +212,24 @@ export async function handleNnSection(
     return startListResponse(request, reader, viewer);
   }
 
+  // **The medical sheet on paper, and it is a POST for exactly the reason the start list is.**
+  // Rendering it takes a copy of every note out of the platform, so it goes through
+  // `entries.export()` and is recorded as `medical_export` — the same audit row the CSV writes,
+  // because it is the same disclosure in a different wrapper.
+  //
+  // **It exists because the CSV was the only way to read this sheet, and a CSV is not a
+  // document.** A volunteer downloading it got a file their machine opened in whatever it felt
+  // like — Quick Look renders one as a single mangled column — and the thing they wanted was a
+  // sheet to hand a first aider. The start list has had a printable page since it was written;
+  // this is the more sensitive of the two documents and had only the file.
+  if (
+    request.method === 'POST' &&
+    segments.length === 1 &&
+    segments[0] === 'medical-sheet'
+  ) {
+    return medicalSheetResponse(request, reader, viewer);
+  }
+
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'export') {
     return exportResponse(request, reader, viewer);
   }
@@ -273,16 +298,56 @@ const STATUS_FILTERS = ['all', ...ENTRY_STATUSES, 'attention', 'requested'] as c
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 /**
- * **The one entry type that is out of the default view, and why it is a default rather than a
- * rule.** A tester's place is a real place — the capacity predicate counts it, and #107 argues
- * that excluding it from the thing being tested makes the test worthless. It is simply not what
- * somebody opens this page to look at, and a race director scanning a field of 250 should not
- * have the club's own probes in the list unless they ask for them.
+ * **What is out of the default view, and why each of them is a default rather than a rule.**
  *
- * Expressed as a *hidden* code rather than by pre-selecting the other fee codes, because those
- * are not known here: they come from the rows, so a fourth fee is a migration and not a deploy.
+ * The page is opened to look at *the field* — who is running on 1 November. Everything here is
+ * a row about somebody who is not:
+ *
+ *   * `fee:tester` — a tester's place is a real place, and the capacity predicate counts it;
+ *     excluding it from the thing being tested would make the test worthless. It is simply not
+ *     what somebody opens this page to look at, and a race director scanning 250 names should
+ *     not have the club's own probes among them.
+ *   * `status:refunded` — a cancelled entry with its runner deleted, kept on the page so a
+ *     volunteer can see the place came back. Useful once; noise every other time.
+ *   * `status:expired` — a hold that lapsed. By the time it is on screen it has already
+ *     released its place and there is nothing to do about it.
+ *
+ * On a race that fills, the last two together are the majority of the rows and none of the
+ * work. **Nothing is filtered away permanently**: the line under the chips says what is being
+ * left out and links to the view that includes it, which is the rule this page follows about
+ * never hiding anything without saying so.
+ *
+ * Expressed as *hidden* codes rather than by pre-selecting the statuses and fees that remain,
+ * because those are not all known here: fee codes come from the rows, so a fourth fee is a
+ * migration and not a deploy.
  */
-const HIDDEN_BY_DEFAULT = 'fee:tester';
+const HIDDEN_BY_DEFAULT: readonly string[] = [
+  'fee:tester',
+  'status:refunded',
+  'status:expired',
+];
+
+/**
+ * The two things the note offers to put back, each toggled as a unit.
+ *
+ * **Two lines rather than three chips.** A chip row would have to show a selection nobody made
+ * in order to be honest about the default; a sentence says what is missing in the place
+ * somebody reads. The refunded and expired rows move together because they are one question —
+ * *do you want to see places that came back?* — and separating them would be two controls for
+ * one decision.
+ */
+const HIDE_GROUPS = [
+  {
+    values: ['fee:tester'] as const,
+    hidden: 'Test entries are not shown.',
+    shown: 'Test entries are shown.',
+  },
+  {
+    values: ['status:refunded', 'status:expired'] as const,
+    hidden: 'Refunded entries and lapsed holds are not shown.',
+    shown: 'Refunded entries and lapsed holds are shown.',
+  },
+] as const;
 
 /**
  * **Every filter is a set now, and an empty set means "all".**
@@ -307,6 +372,20 @@ interface EntryFilters {
   fee: ReadonlySet<string>;
   /** Namespaced `fee:` / `status:` values to leave out, whatever the include sets say. */
   hide: ReadonlySet<string>;
+  /**
+   * Whether `hide` is the default rather than something somebody asked for.
+   *
+   * ⚠️ **This distinction is a defect's worth of difference.** "Hidden beats included" is right
+   * for a hide somebody *chose* — a volunteer who has asked not to see test entries should not
+   * have a status chip quietly bring them back. It is wrong for the default: with `expired`
+   * hidden out of the box, pressing the **Hold expired** chip returned an empty table and "0 of
+   * 6 shown", which is a filter that can never match — the exact shape of #116, where the
+   * Refunded filter could not match a refunded row and a volunteer concluded there had been no
+   * refunds.
+   *
+   * So an *explicit* include overrules the default and never overrules a chosen hide.
+   */
+  hideIsDefault: boolean;
   sort: Sort;
 }
 
@@ -330,9 +409,10 @@ function readFilters(url: URL): EntryFilters {
   return {
     status,
     fee,
+    hideIsDefault: hidden.length === 0,
     hide: new Set(
       hidden.length === 0
-        ? [HIDDEN_BY_DEFAULT]
+        ? HIDDEN_BY_DEFAULT
         : hidden.filter((value) => value !== 'none'),
     ),
     sort: (SORTS as readonly string[]).includes(sort) ? (sort as Sort) : 'name',
@@ -369,11 +449,40 @@ export function viewEntries(entries: AdminEntry[], filters: EntryFilters): Admin
       return entry.status === wanted;
     });
 
-  // **Hidden beats included**, deliberately. Somebody who has asked not to see the club's own
-  // test entries has asked for that, and a status chip should not quietly bring them back.
-  const hidden = (entry: AdminEntry): boolean =>
-    filters.hide.has(`fee:${entry.feeCode}`) ||
-    filters.hide.has(`status:${entry.status}`);
+  // **Hidden beats included for a hide somebody chose, and never for the default.** See
+  // `hideIsDefault`: a volunteer who has asked not to see test entries should not have a chip
+  // quietly bring them back, but pressing **Hold expired** on a page that hides lapsed holds by
+  // default has to show lapsed holds — otherwise it is a filter that can never match, which is
+  // #116 in a new place.
+  //
+  // **A `pending` row whose hold has lapsed counts as expired here**, and that is not a
+  // shortcut. It *is* an expired hold — the place is already back in the pool — and it stays
+  // `pending` only until the five-minute sweep reaches it. Matching on the stored word alone
+  // would leave the page's busiest kind of dead row on screen for anybody who asked not to see
+  // dead rows, which is the whole of what this default is for.
+  const lapsed = (entry: AdminEntry): boolean =>
+    entry.status === 'pending' && (minutesLeft(entry.holdExpiresAt) ?? 1) <= 0;
+
+  const askedFor = (value: string, set: ReadonlySet<string>): boolean =>
+    filters.hideIsDefault && set.has(value);
+
+  const hidden = (entry: AdminEntry): boolean => {
+    if (askedFor(entry.feeCode, filters.fee) || askedFor(entry.status, filters.status)) {
+      return false;
+    }
+
+    // The same escape for a lapsed hold, which is `pending` in the column and `expired` to
+    // everybody looking at it.
+    if (lapsed(entry) && askedFor('expired', filters.status)) {
+      return false;
+    }
+
+    return (
+      filters.hide.has(`fee:${entry.feeCode}`) ||
+      filters.hide.has(`status:${entry.status}`) ||
+      (filters.hide.has('status:expired') && lapsed(entry))
+    );
+  };
 
   const kept = entries.filter(
     (entry) =>
@@ -559,6 +668,39 @@ async function startListResponse(
   return page('Start list', startListPage(viewer, taken.export), {});
 }
 
+/**
+ * The medical sheet, as a page built to be printed.
+ *
+ * Same function, same audit row and same rows as the CSV — this differs only in that it comes
+ * back as markup rather than as a file, because what a first aider needs at race HQ is a sheet
+ * of paper and what a browser does with a downloaded CSV is not the club's to control.
+ */
+async function medicalSheetResponse(
+  request: Request,
+  reader: NnAdminReader,
+  viewer: AdminViewer,
+): Promise<Response> {
+  const form = await readForm(request);
+  const event = form?.get('event');
+
+  if (typeof event !== 'string') {
+    return notFound();
+  }
+
+  const taken = await reader.takeExport(event, 'medical');
+
+  if (taken.status === 'unavailable') {
+    console.error(`entries.export unavailable — ${taken.error}`);
+    return page('Medical sheet', unavailablePage(viewer), { status: 503 });
+  }
+
+  if (taken.status !== 'ok' || taken.export.kind !== 'medical') {
+    return notFound();
+  }
+
+  return page('Medical sheet', medicalSheetPage(viewer, taken.export), {});
+}
+
 /** The three files, and the columns each one carries. */
 function csvResponse(taken: AdminExport): Response {
   const body =
@@ -657,9 +799,9 @@ function dashboardPage(
   return html`${masthead(viewer)} ${eventBar(list, figures)}
     <main class="admin-page" id="main">
       ${attentionSection(list, flagged)} ${raceStandsSection(list, figures, interest)}
-      ${raceMorningSection(list)} ${medicalAndAffiliationSection(list, figures)}
-      ${discountCodesSection(list)} ${entriesSection(list, filters, url, viewer)}
-      ${interestSection(interest)}
+      ${categoriesSection(list)} ${raceMorningSection(list)}
+      ${medicalAndAffiliationSection(list, figures)} ${discountCodesSection(list)}
+      ${entriesSection(list, filters, url, viewer)} ${interestSection(interest)}
     </main>`;
 }
 
@@ -938,7 +1080,132 @@ function legendItem(count: number, label: string): Html {
 }
 
 /**
- * 5. Race morning — the thing somebody opens under pressure.
+ * 5. Who has entered, by category.
+ *
+ * **Counted off the rows rather than asked of the database, and that is the one figure on this
+ * page that is.** Everything in "Where the race stands" is a `count(*)` in SQL, because those
+ * numbers are about the whole event and the row array is capped at the most recent 2,000. This
+ * panel is different: the band a runner falls in is named by
+ * `packages/shared/src/age-category.ts` and by nothing else — the database returns an age and a
+ * race category and deliberately does not know what a "Vet 40" is — so counting bands in SQL
+ * would be a second copy of the prize list living in a migration.
+ *
+ * **So the panel says what it counted.** Below the cap it is every paid entry; above it, it
+ * says so in words rather than presenting a partial total as a full one. At 250 places this
+ * cannot happen for Nightingale Nightmare, and stating it is what stops the panel quietly
+ * becoming wrong for a race that can.
+ *
+ * **Paid entries only, and guides counted apart.** A held place is somebody halfway through a
+ * payment page and a lapsed one is a place that came back; neither is a runner. A guide is a
+ * runner nobody will award anything to, and folding them into a band would put a number in
+ * front of a prize list that the prize list cannot honour.
+ *
+ * **`hide` and the status chips do not touch this.** It answers "who has entered", which is a
+ * question about the race rather than about the view somebody has filtered down to — a panel
+ * that moved when a filter moved would be read as the field changing.
+ */
+function categoriesSection(list: AdminEntryList): Html {
+  const paid = list.entries.filter((entry) => entry.status === 'paid');
+  const runners = paid.filter((entry) => entry.role !== 'guide');
+  const guides = paid.length - runners.length;
+  const capped = list.returned < list.total;
+
+  // The four bands in prize-list order, then the two honest non-answers, then anybody whose
+  // details a refund removed. Built as an array rather than a `Map` so the order on the page is
+  // the order it is written in here.
+  const rows: { label: string; count: number }[] = [
+    ...AGE_CATEGORY_CODES.map((code) => ({
+      label: ageCategoryLabel(code),
+      count: runners.filter((entry) => bandOf(entry) === code).length,
+    })),
+    {
+      // `ageCategoryFor()` answers `gender-has-no-categories` for a non-binary runner, because
+      // the club has no non-binary categories at any age. That is the club's own unfinished
+      // decision rather than anything the entrant did, and it is counted and named rather than
+      // dropped — a band nobody can be placed in is exactly the number that should be visible
+      // when somebody asks whether to make one.
+      label: 'No category yet',
+      count: runners.filter((entry) => bandOf(entry) === 'no-category').length,
+    },
+    {
+      label: 'Under 18',
+      count: runners.filter((entry) => bandOf(entry) === 'under-18').length,
+    },
+    {
+      label: 'No runner recorded',
+      count: runners.filter((entry) => bandOf(entry) === null).length,
+    },
+  ];
+
+  return html`<h2 class="admin-h2">Who has entered</h2>
+    <section class="admin-panel" aria-labelledby="categories">
+      <div class="admin-panel-head">
+        <h3 id="categories">By category</h3>
+        <p class="admin-panel-note">
+          Paid entries only${capped ? ', of the rows on this page' : ''}
+        </p>
+      </div>
+      <div class="admin-panel-body">
+        ${
+          capped
+            ? html`<p class="admin-banner">
+                This page holds the most recent
+                <span class="admin-mono">${list.returned}</span> of
+                <span class="admin-mono">${list.total}</span> entries, so these counts are
+                of those rather than of the whole field.
+              </p>`
+            : null
+        }
+        <ul class="admin-legend">
+          ${rows
+            .filter((row) => row.count > 0 || row.label !== 'No runner recorded')
+            .map((row) => legendItem(row.count, row.label))}
+          ${
+            /* **Beside the bands and never inside one.** A guide is on the course and takes a
+            place, and is not competing for anything. */ null
+          }
+          ${guides === 0 ? null : legendItem(guides, plural(guides, 'guide', 'guides'))}
+        </ul>
+        <p class="admin-quiet">
+          <span class="admin-mono">${runners.length}</span>
+          ${plural(runners.length, 'paid runner', 'paid runners')}${
+            guides === 0
+              ? ''
+              : html` and <span class="admin-mono">${guides}</span> ${plural(
+                    guides,
+                    'guide',
+                    'guides',
+                  )}`
+          }.
+          Categories are worked out from age on race day, exactly as the entry form shows
+          them.
+        </p>
+      </div>
+    </section>`;
+}
+
+/**
+ * Which line of the panel above a row belongs on.
+ *
+ * Null for a cancelled entry, whose age and race category were deleted with the entrant — it is
+ * a purchase with nobody on it, and counting it as a person would inflate the field.
+ */
+function bandOf(entry: AdminEntry): AgeCategoryCode | 'no-category' | 'under-18' | null {
+  if (entry.age === null || entry.gender === null) {
+    return null;
+  }
+
+  const category = ageCategoryFor(entry.age, entry.gender);
+
+  if (category.known) {
+    return category.code;
+  }
+
+  return category.reason === 'gender-has-no-categories' ? 'no-category' : 'under-18';
+}
+
+/**
+ * 6. Race morning — the thing somebody opens under pressure.
  *
  * Placed above the medical sheet and the affiliation check because it is the only panel here
  * with a fixed hour attached to it, and below the two panels about the state of the race because
@@ -980,7 +1247,7 @@ function raceMorningSection(list: AdminEntryList): Html {
 }
 
 /**
- * 6. The medical notes and the affiliation check, side by side.
+ * 7. The medical notes and the affiliation check, side by side.
  *
  * **The medical panel is deliberately heavier than everything else on the page** — its own
  * border, its own warning, and the deletion date stated. It is the most sensitive thing the club
@@ -1035,12 +1302,31 @@ function medicalAndAffiliationSection(
                   <a href="/nn/privacy/">the privacy notice</a> promises.
                 </p>`
           }
+          ${
+            /* **The page first and the file second**, which is the reverse of how this panel
+            read before there was a page. The thing a first aider is handed is paper; the CSV
+            exists for the volunteer who wants it in a spreadsheet, and it was doing both jobs
+            badly. Both take the same read and write the same `medical_export` audit row. */ null
+          }
           <div class="admin-actions">
+            ${postButton(
+              `${NN_SECTION}/medical-sheet/`,
+              list.event.slug,
+              'Print the medical sheet',
+              'admin-button admin-button-grave',
+            )}
+            ${
+              /* **Named differently from race morning's `Download as CSV`, and it is not
+              decoration.** Two buttons with the same accessible name on one page are two rows
+              a screen reader cannot tell apart, and one of these takes special category data.
+              The distinct label is also what makes an assertion about either of them
+              unambiguous. */ null
+            }
             ${exportButton(
               list.event.slug,
               'medical',
-              'Take the medical sheet',
-              'admin-button-grave',
+              'Download the notes as CSV',
+              'admin-button-quiet',
             )}
           </div>
         </div>
@@ -1106,7 +1392,7 @@ function retentionWords(interval: string): string {
 }
 
 /**
- * 7. The entries.
+ * 8. The entries.
  *
  * ## The filters are links
  *
@@ -1240,7 +1526,7 @@ function entriesSection(
               ? html`<tr>
                   <td colspan="10">Nothing matches that filter.</td>
                 </tr>`
-              : shown.map((entry) => entryRow(entry, viewer))
+              : shown.map((entry) => entryRow(entry, viewer, list.entries))
           }
         </tbody>
       </table>
@@ -1284,7 +1570,7 @@ function amountCell(entry: AdminEntry): string {
   return entry.role === 'guide' ? 'Guide — no charge' : formatPence(entry.amountPence);
 }
 
-function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
+function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Html {
   // Null together, for the same reason the name is: the category is computed from a date of
   // birth that was deleted with the entrant.
   // **A guide is in no category, so naming one would be inventing a result.** They are not
@@ -1296,7 +1582,13 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
       : entry.age === null || entry.gender === null
         ? null
         : categoryLabel(entry.age, entry.gender);
-  const ea = entry.requiresEaNumber ? entry.eaNumber : null;
+
+  // **A guide holds no England Athletics number whatever the fee says**, so the "missing"
+  // warning below must not fire on their row: the number belongs to the entry, the entry is
+  // the runner's, and one entry owes one levy. `entries.assert_entrant_rules()` refuses a
+  // number on a guide row, which is what makes this presentation rather than a guess.
+  const wantsEa = entry.requiresEaNumber && entry.role !== 'guide';
+  const ea = wantsEa ? entry.eaNumber : null;
 
   // **Only where there is something to cancel.** An `expired` hold has already released its
   // place and has no entrant to remove, and a `refunded` row is the outcome of having pressed
@@ -1305,6 +1597,17 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
   const cancellable =
     can(viewer, 'nn.entry.cancel') &&
     (entry.status === 'paid' || entry.status === 'pending');
+
+  // **Transfer is narrower than cancel, and the difference is the guide.**
+  // `entries.transfer_entry()` refuses a purchase with more than one entrant on it —
+  // "transfer it" does not say which of a visually impaired runner and their guide is leaving
+  // — so offering the button on such a row would be offering a refusal. A guide's own row is
+  // the same purchase seen from the other side, so it is not offered there either. Cancelling
+  // *is* offered on both, because cancelling the purchase is unambiguous: the place and both
+  // people on it go.
+  //
+  // The database refuses it regardless; this stops the page promising something it cannot do.
+  const transferable = cancellable && entry.role !== 'guide' && !hasGuide(entry, all);
 
   return html`<tr>
     <th scope="row">
@@ -1329,7 +1632,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
             : html`<span class="admin-mono">${entry.discountCode}</span>`
         }
         ${
-          entry.requiresEaNumber
+          wantsEa
             ? ea === null
               ? html`<strong class="admin-error">EA number missing</strong>`
               : html`<span class="admin-mono">EA ${ea}</span>`
@@ -1349,7 +1652,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
     <td class="admin-col-wide">${entry.feeLabel}</td>
     <td class="admin-col-wide admin-mono">
       ${
-        entry.requiresEaNumber
+        wantsEa
           ? ea === null
             ? html`<strong class="admin-error">missing</strong>`
             : ea
@@ -1402,7 +1705,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
         somebody paid for. Same two-step shape: this POST only asks. */ null
       }
       ${
-        cancellable
+        transferable
           ? html`<form method="post" action="${NN_SECTION}/transfer/">
               <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
               <button type="submit" class="admin-linkish">
@@ -1448,14 +1751,33 @@ function statusCell(entry: AdminEntry): Html {
       entry.requestedAction === null
         ? null
         : html` <span
-            class="admin-quiet ${entry.requestResolved ? 'admin-request-done' : ''}"
+              class="admin-quiet ${entry.requestResolved ? 'admin-request-done' : ''}"
+              >${
+                entry.requestedAction === 'cancel'
+                  ? 'cancellation asked for'
+                  : 'transfer asked for'
+              }${entry.requestResolved ? ' — dealt with' : ''}</span
             >${
-              entry.requestedAction === 'cancel'
-                ? 'cancellation asked for'
-                : 'transfer asked for'
-            }${entry.requestResolved ? ' — dealt with' : ''}</span
-          >`
+              /* **Their own words, and this is why the request is worth recording at all.**
+              "Cancellation asked for" is a word; "I broke my ankle on Tuesday" and "my friend
+              would like my place" are two different afternoons, and a volunteer deciding
+              between a refund and a transfer needs the second thing rather than the first.
+
+              Not struck through when resolved: what somebody said stays true after it has been
+              acted on, and it is what the row is evidence of. */ null
+            }${
+              entry.requestReason === null
+                ? null
+                : html` <span class="admin-sub">“${entry.requestReason}”</span>`
+            }`
     }`;
+}
+
+/** Whether this purchase has a guide on it as well as a runner. */
+function hasGuide(entry: AdminEntry, all: AdminEntry[]): boolean {
+  return all.some(
+    (other) => other.purchaseId === entry.purchaseId && other.role === 'guide',
+  );
 }
 
 function statusWords(entry: AdminEntry): string {
@@ -1518,7 +1840,7 @@ function chipClass(entry: AdminEntry): string {
 }
 
 /**
- * 8. The interest list.
+ * 9. The interest list.
  *
  * **A count and the promise, not the addresses.** The addresses are on their own page, one click
  * away, because a dashboard somebody leaves open at a registration desk is the wrong place for a
@@ -1692,6 +2014,91 @@ function startListRow(row: StartListExportRow): Html {
     <!-- A box to tick with a biro. The whole reason this is paper. The "Collected" column
          header is what names it; an aria-label here would say the same thing twice. -->
     <td class="admin-tick"></td>
+  </tr>`;
+}
+
+/**
+ * The medical sheet, printed.
+ *
+ * **Heavier than the start list on purpose, exactly as the panel that offers it is.** Every row
+ * is special category data under UK GDPR Article 9, on a page somebody is about to send to a
+ * printer in a hall full of people. The warning is not decoration; it is the last thing between
+ * a condition somebody wrote in confidence and a sheet left on a table.
+ *
+ * **It prints the warning too**, unlike the start list's, which is `admin-noprint`. A printed
+ * start list left somewhere is embarrassing; a printed medical sheet left somewhere is a
+ * disclosure the club has to report, and the paper itself should say what it is.
+ */
+function medicalSheetPage(
+  viewer: AdminViewer,
+  taken: Extract<AdminExport, { kind: 'medical' }>,
+): Html {
+  return html`${masthead(viewer)}
+    <main class="admin-page admin-print" id="main">
+      <h1>Medical notes — ${taken.event.displayName}</h1>
+      <p class="admin-quiet">
+        ${formatLondonDate(`${taken.event.eventDate}T00:00:00Z`)} ·
+        <span class="admin-mono">${taken.rows.length}</span>
+        ${plural(taken.rows.length, 'note', 'notes')}, sorted by surname
+      </p>
+      <p class="admin-noprint admin-quiet">
+        Print with your browser's print command — <span class="admin-mono">⌘P</span> or
+        <span class="admin-mono">Ctrl&nbsp;+&nbsp;P</span>. Taking this page has already
+        been recorded against your role.
+      </p>
+      <p class="admin-grave">
+        <strong>For the first aiders only.</strong> Everything on this sheet was written
+        in confidence by the person it is about. It goes to the medical team and nowhere
+        else, and it is destroyed after the race.
+      </p>
+      <table class="admin-table admin-table-print">
+        <caption class="admin-visually-hidden">
+          Medical notes for ${taken.event.displayName}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Runner</th>
+            <th scope="col" class="admin-col-wide">Club</th>
+            <th scope="col">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            taken.rows.length === 0
+              ? html`<tr>
+                  <td colspan="3">
+                    No paid entrant has written anything.
+                    <strong>That is not the same as the notes being unreadable</strong> —
+                    this page was built from a successful read.
+                  </td>
+                </tr>`
+              : taken.rows.map((row) => medicalSheetRow(row))
+          }
+        </tbody>
+      </table>
+      <p class="admin-noprint">
+        <a href="${NN_SECTION}/">Back to race admin</a>
+      </p>
+    </main>`;
+}
+
+/**
+ * One row of the medical sheet.
+ *
+ * Folds at narrow widths the way the start list's does and for the same measured reason — this
+ * one has three columns rather than five, and the note itself is the wide one, so only the club
+ * folds into the runner cell.
+ */
+function medicalSheetRow(row: MedicalExportRow): Html {
+  return html`<tr>
+    <th scope="row">
+      ${row.lastName}, ${row.firstName}
+      <span class="admin-stack">
+        <span>${row.club ?? 'No club'}</span>
+      </span>
+    </th>
+    <td class="admin-col-wide">${row.club ?? '—'}</td>
+    <td>${row.notes}</td>
   </tr>`;
 }
 
@@ -1944,33 +2351,38 @@ function sortLink(url: URL, value: string, label: string, selected: string): Htm
  * implied by an empty parameter, because empty and absent would otherwise mean opposite things.
  */
 function hideToggle(url: URL, filters: EntryFilters): Html {
-  const next = withoutParameter(url, 'hide');
-  const after = new Set(filters.hide);
-  const hidingTesters = after.has(HIDDEN_BY_DEFAULT);
+  return html`${HIDE_GROUPS.map((group) => {
+    const hiding = group.values.every((value) => filters.hide.has(value));
+    const after = new Set(filters.hide);
 
-  if (hidingTesters) {
-    after.delete(HIDDEN_BY_DEFAULT);
-  } else {
-    after.add(HIDDEN_BY_DEFAULT);
-  }
-
-  if (after.size === 0) {
-    next.searchParams.append('hide', 'none');
-  } else {
-    for (const kept of [...after].sort()) {
-      next.searchParams.append('hide', kept);
+    // **The group moves as a unit and the other group is carried forward untouched**, which is
+    // what makes two lines two independent controls rather than two ways of writing over each
+    // other. Same reasoning as `toggleLink`'s `append` over `set`.
+    for (const value of group.values) {
+      if (hiding) {
+        after.delete(value);
+      } else {
+        after.add(value);
+      }
     }
-  }
 
-  const href = `${next.pathname}${next.search}`;
+    const next = withoutParameter(url, 'hide');
 
-  return html`<p class="admin-filters-note">
-    ${
-      hidingTesters
-        ? html`Test entries are not shown. <a href="${href}">Show them</a>`
-        : html`Test entries are shown. <a href="${href}">Hide them</a>`
+    if (after.size === 0) {
+      next.searchParams.append('hide', 'none');
+    } else {
+      for (const kept of [...after].sort()) {
+        next.searchParams.append('hide', kept);
+      }
     }
-  </p>`;
+
+    const href = `${next.pathname}${next.search}`;
+
+    return html`<p class="admin-filters-note">
+      ${hiding ? group.hidden : group.shown}
+      <a href="${href}">${hiding ? 'Show them' : 'Hide them'}</a>
+    </p>`;
+  })}`;
 }
 
 function exportButton(
@@ -2160,6 +2572,8 @@ async function transferResponse(
   // inside `entries.transfer_entry()` — the permission, the minimum age, one-runner-one-place
   // — because this function is reachable only through a browser and that one is reachable
   // through PostgREST.
+  const eaNumber = read('eaNumber');
+
   if (
     read('email') === '' ||
     read('firstName') === '' ||
@@ -2167,7 +2581,12 @@ async function transferResponse(
     !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
     !(NN_ENTRY_GENDERS as readonly string[]).includes(gender) ||
     read('emergencyName') === '' ||
-    read('emergencyPhone') === ''
+    read('emergencyPhone') === '' ||
+    // **The same format check the entry form applies, and only when something was typed.**
+    // Whether the number is *needed* is the fee's business and is settled in the database; that
+    // what was typed looks like a number at all is this form's, and catching it here saves a
+    // round trip that would come back as a bare refusal.
+    (eaNumber !== '' && !EA_NUMBER_PATTERN.test(eaNumber))
   ) {
     const token = mintCsrfToken();
 
@@ -2195,12 +2614,32 @@ async function transferResponse(
       club: read('club') === '' ? null : read('club'),
       emergencyContactName: read('emergencyName'),
       emergencyContactPhone: read('emergencyPhone'),
+      eaNumber: eaNumber === '' ? null : eaNumber,
     },
   );
 
   if (outcome.status === 'unavailable') {
     console.error(`entries.transfer_entry unavailable — ${outcome.error}`);
     return page('Transfer entry', unavailablePage(viewer), { status: 503 });
+  }
+
+  // **Its own answer, and not a 404.** This place was bought at the affiliated price, so the
+  // new runner needs a number of their own — the England Athletics rule follows the entry
+  // rather than the person. It is the ordinary mistake on this form, and the form says what to
+  // do about it rather than pretending the entry does not exist.
+  if (outcome.status === 'ea-number-required') {
+    const token = mintCsrfToken();
+
+    return page(
+      'Transfer entry',
+      transferFormPage(
+        viewer,
+        purchaseId,
+        token,
+        'This place was bought at the affiliated price, so the new runner needs an England Athletics number of their own.',
+      ),
+      { cookies: [csrfCookie(token, secure)] },
+    );
   }
 
   if (outcome.status !== 'ok') {
@@ -2214,7 +2653,7 @@ async function transferResponse(
     cancelOutcomePage(
       viewer,
       'The place has a new runner',
-      `It was ${outcome.previousRunner}'s and is now recorded against the details you entered. No money moved, and the place never went back into the race. Any medical note the previous runner had written has been deleted, and their England Athletics number has been cleared.`,
+      `It was ${outcome.previousRunner}'s and is now recorded against the details you entered. No money moved, and the place never went back into the race. Any medical note the previous runner had written has been deleted, along with how they described their gender, and the England Athletics number on the entry is the new runner's.`,
     ),
     {},
   );
@@ -2268,8 +2707,9 @@ function transferFormPage(
 
       <p>
         <strong>The previous runner's medical note is deleted</strong>, along with their
-        England Athletics number. A note belongs to the person who wrote it, and the new
-        runner supplies their own or has none.
+        England Athletics number and how they described their gender. Each of those
+        belongs to the person who wrote it, and the new runner supplies their own or has
+        none.
       </p>
 
       <form method="post" action="${NN_SECTION}/transfer/" class="admin-form">
@@ -2363,6 +2803,35 @@ function transferFormPage(
             required
             autocomplete="off"
           />
+        </p>
+
+        ${
+          /* **Asked always, required by the fee, and this box is the whole of the transfer
+          defect.** `transfer_entry()` used to set `ea_number = null` unconditionally, which
+          `assert_entrant_rules()` refuses on an affiliated entry — so every affiliated
+          transfer raised a `check_violation` that arrived here as "That could not be read: the
+          club's database could not be reached". A healthy database, a rule working correctly,
+          and a message that named neither.
+
+          **Not marked `required` in the markup**, because this page does not know which fee the
+          purchase was on: the fee is read from the purchase inside the function, which is the
+          only place that cannot be lied to. An unaffiliated entry ignores whatever is typed
+          here; an affiliated one refuses without it, in words. */ null
+        }
+        <p>
+          <label for="transfer-ea">England Athletics number</label>
+          <input
+            type="text"
+            id="transfer-ea"
+            name="eaNumber"
+            inputmode="numeric"
+            autocomplete="off"
+            aria-describedby="transfer-ea-hint"
+          />
+        </p>
+        <p id="transfer-ea-hint" class="admin-quiet">
+          The new runner's own number, needed only if this place was bought at the
+          affiliated price. Leave it empty otherwise — it will be ignored.
         </p>
 
         <button type="submit" class="admin-button admin-button-grave">

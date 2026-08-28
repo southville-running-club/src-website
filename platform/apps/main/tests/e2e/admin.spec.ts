@@ -93,6 +93,19 @@ const PEOPLE = '/admin/people/';
 /** The oversold fixture — three paid, one flagged, one held, one expired, one refunded. */
 const OVERSOLD = `${NN}entries/${ADMIN_EVENT_SLUG}/`;
 
+/**
+ * The same page with nothing left out.
+ *
+ * **The default view hides the club's own test entries, refunded entries and lapsed holds** —
+ * three kinds of row about somebody who is not running, which on a race that fills are most of
+ * the rows and none of the work. `hide=none` is how "leave nothing out" is written, and it has
+ * to be written rather than implied by an absent parameter, because absent means the default.
+ *
+ * Most assertions below are about *rendering* a row of a particular kind, so they use this and
+ * the default is asserted on its own.
+ */
+const OVERSOLD_ALL = `${OVERSOLD}?hide=none`;
+
 /** The quiet fixture — two entries against ten places, nothing wrong with it. */
 const QUIET = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
 
@@ -588,7 +601,7 @@ test.describe('where the race stands', () => {
 test.describe('the entries table', () => {
   test.beforeEach(async ({ page }) => {
     await signInAs(page, NN_ADMIN_EMAIL);
-    await page.goto(OVERSOLD);
+    await page.goto(OVERSOLD_ALL);
   });
 
   /** The visible copy of a value that the narrow layout renders in two places. */
@@ -614,6 +627,72 @@ test.describe('the entries table', () => {
       }),
     ).toBeVisible();
     await expect(shown(page, 'Bristol & West AC, "the Bees"')).toBeVisible();
+  });
+
+  test('leaves out everybody who is not running, and says so', async ({ page }) => {
+    // **The default view, which this describe block deliberately opts out of.** Three kinds of
+    // row are hidden unless asked for — the club's own test entries, refunded entries and
+    // lapsed holds. On a race that fills those are most of the rows and none of the work.
+    //
+    // **Nothing is hidden without the page saying so**, which is the half that makes this
+    // honest rather than a trap: two lines name what is missing and link to the view that
+    // includes it.
+    await page.goto(OVERSOLD);
+
+    // **Scoped to the status chips in the table, not to the word.** `Refunded` and
+    // `Hold expired` are also the labels of two filter links, which are on the page whatever
+    // it is showing — an unscoped absence assertion would be about the controls rather than
+    // about the rows, and would fail on a page doing exactly the right thing.
+    await expect(
+      page.locator('.admin-chip', { hasText: /^Refunded/ }).filter({ visible: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('.admin-chip', { hasText: /^Hold expired/ }).filter({ visible: true }),
+    ).toHaveCount(0);
+
+    await expect(page.getByText('Test entries are not shown.')).toBeVisible();
+    await expect(
+      page.getByText('Refunded entries and lapsed holds are not shown.'),
+    ).toBeVisible();
+
+    // And the link puts them back, which is what stops the default being a way of losing rows.
+    // Scoped to its own note rather than to the page: there are two of these lines, one per
+    // group, and each has a link reading "Show them".
+    await page
+      .locator('.admin-filters-note', { hasText: 'Refunded entries' })
+      .getByRole('link', { name: 'Show them' })
+      .click();
+
+    await expect(
+      page
+        .locator('.admin-chip', { hasText: /^Refunded/ })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
+  });
+
+  test('counts the field by category, which is what the club is asked all autumn', async ({
+    page,
+  }) => {
+    await page.goto(OVERSOLD);
+
+    // The bands are named by `packages/shared/src/age-category.ts` and by nothing else, which
+    // is why they are counted in the Worker rather than in SQL: counting them in a migration
+    // would put a second copy of the prize list there.
+    // Scoped to the panel: race morning's note also begins "Paid entries only", and an
+    // unscoped locator is two elements that Playwright rightly refuses to choose between.
+    const categories = page.locator('section', {
+      has: page.getByRole('heading', { name: 'By category' }),
+    });
+
+    await expect(categories).toBeVisible();
+    await expect(categories.getByText('Paid entries only')).toBeVisible();
+
+    // A band nobody can be placed in is exactly the number that should be visible when
+    // somebody asks whether to make one — `ageCategoryFor()` answers
+    // `gender-has-no-categories` for a non-binary runner, and the panel names it rather than
+    // dropping the row.
+    await expect(categories.getByText('Vet 40')).toBeVisible();
   });
 
   test('gives every status its own word, not only a colour', async ({ page }) => {
@@ -815,7 +894,7 @@ test.describe('the exports', () => {
     for (const [button, kind] of [
       ['Download as CSV', 'start-list'],
       ['Download the check list', 'ea'],
-      ['Take the medical sheet', 'medical'],
+      ['Download the notes as CSV', 'medical'],
     ] as const) {
       await page.goto(OVERSOLD);
 
@@ -909,6 +988,45 @@ test.describe('the printable start list', () => {
     // **No print button, and that is deliberate**: it would need a script, and there is none on
     // any page this Worker builds. The browser's own command does the same job everywhere.
     await expect(page.getByText(/print command/)).toBeVisible();
+  });
+});
+
+test.describe('the printable medical sheet', () => {
+  test('is a page as well as a file, and it is the page a first aider is handed', async ({
+    page,
+  }) => {
+    // **The CSV was the only way to read this sheet, and a CSV is not a document.** What a
+    // machine does with a downloaded `.csv` is not the club's to control — one volunteer's
+    // opened it as a single mangled column. The start list has had a printable page since it
+    // was written; the more sensitive of the two documents had only the file.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(OVERSOLD);
+
+    await page.getByRole('button', { name: 'Print the medical sheet' }).click();
+
+    await expect(page.getByRole('heading', { name: /Medical notes/ })).toBeVisible();
+    await expect(page.getByText('inhaler')).toBeVisible();
+
+    // **The warning prints too**, unlike the start list's. A printed start list left somewhere
+    // is embarrassing; a printed medical sheet left somewhere is a disclosure the club has to
+    // report, so the paper itself says what it is.
+    await expect(page.getByText('For the first aiders only')).toBeVisible();
+
+    // A POST, so no event slug or entrant id is in an address that gets pasted around.
+    expect(page.url()).toContain('/admin/nn/medical-sheet/');
+  });
+
+  test('is audited exactly as the file is, because it is the same disclosure', async ({
+    page,
+  }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+
+    const sheet = await page.request.post(`${NN}medical-sheet/`, {
+      form: { event: ADMIN_EVENT_SLUG },
+    });
+
+    expect(sheet.status()).toBe(200);
+    expect(sheet.headers()['content-type']).toContain('text/html');
   });
 });
 
