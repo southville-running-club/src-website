@@ -282,6 +282,7 @@ export type Database = {
           person_id: string | null
           purchaser_email: string
           purchaser_name: string
+          request_reason: string | null
           request_resolved_at: string | null
           requested_action: string | null
           requested_at: string | null
@@ -309,6 +310,7 @@ export type Database = {
           person_id?: string | null
           purchaser_email: string
           purchaser_name: string
+          request_reason?: string | null
           request_resolved_at?: string | null
           requested_action?: string | null
           requested_at?: string | null
@@ -336,6 +338,7 @@ export type Database = {
           person_id?: string | null
           purchaser_email?: string
           purchaser_name?: string
+          request_reason?: string | null
           request_resolved_at?: string | null
           requested_action?: string | null
           requested_at?: string | null
@@ -615,24 +618,42 @@ export type Database = {
         }
         Returns: Json
       }
-      request_entry_action: {
-        Args: { p_action: string; p_purchase_id: string }
-        Returns: Json
-      }
-      transfer_entry: {
-        Args: {
-          p_club: string
-          p_date_of_birth: string
-          p_email: string
-          p_emergency_contact_name: string
-          p_emergency_contact_phone: string
-          p_first_name: string
-          p_gender: string
-          p_last_name: string
-          p_purchase_id: string
-        }
-        Returns: Json
-      }
+      request_entry_action:
+        | { Args: { p_action: string; p_purchase_id: string }; Returns: Json }
+        | {
+            Args: { p_action: string; p_purchase_id: string; p_reason: string }
+            Returns: Json
+          }
+      transfer_entry:
+        | {
+            Args: {
+              p_club: string
+              p_date_of_birth: string
+              p_email: string
+              p_emergency_contact_name: string
+              p_emergency_contact_phone: string
+              p_first_name: string
+              p_gender: string
+              p_last_name: string
+              p_purchase_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_club: string
+              p_date_of_birth: string
+              p_ea_number: string
+              p_email: string
+              p_emergency_contact_name: string
+              p_emergency_contact_phone: string
+              p_first_name: string
+              p_gender: string
+              p_last_name: string
+              p_purchase_id: string
+            }
+            Returns: Json
+          }
     }
     Enums: {
       [_ in never]: never
