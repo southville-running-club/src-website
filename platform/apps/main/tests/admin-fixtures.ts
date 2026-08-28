@@ -194,3 +194,18 @@ export const MEDICAL_NOTE =
 
 /** Format-checked, never verified — England Athletics publishes no verification API. */
 export const PAID_EA_NUMBER = '1234567';
+
+/**
+ * The one entrant in the run who answered the optional gender question, and the answer.
+ *
+ * **On a paid entrant on purpose, which is the opposite of the usual reason.** Everywhere else
+ * in this file "paid" means "reaches a CSV, so assert it survives the encoding". Here it means
+ * "reaches a CSV *if something is wrong*" — the exports carry paid entries only, so putting the
+ * value on a paid runner is what gives `nn-admin.spec.ts` a real chance to fail if
+ * `read_export()` ever starts carrying it. On a pending entrant the absence assertion would
+ * pass by the row not being in the file at all, which is the trap `AWKWARD_CLUB` above records.
+ *
+ * Deliberately a word that is on none of the three category options, because that is the whole
+ * point of the field — see ADR-020.
+ */
+export const PAID_GENDER_IDENTITY = 'Genderqueer';

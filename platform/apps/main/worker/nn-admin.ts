@@ -1251,6 +1251,15 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
       <span class="admin-stack">
         <span>${entry.club ?? 'No club'}</span>
         <span>${category ?? 'No category'}</span>
+        ${
+          /* **Under the category, and only here.** The gender somebody recorded is not the
+          category and must not read as one — it is a note about the runner, shown on this
+          page because a field the club collects and never surfaces is a field collected for
+          no purpose, and shown *nowhere else* because a start list or an export is read by
+          people who have no business with it. Absent for most entries: not answering is an
+          answer. See ADR-020. */ null
+        }
+        ${entry.genderIdentity === null ? null : html`<span>${entry.genderIdentity}</span>`}
         <span>${entry.feeLabel}</span>
         <span class="admin-mono">${formatPence(entry.amountPence)}</span>
         ${
@@ -1263,7 +1272,14 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
       </span>
     </th>
     <td class="admin-col-wide">${entry.club ?? '—'}</td>
-    <td class="admin-col-wide">${category}</td>
+    <td class="admin-col-wide">
+      ${category}
+      ${
+        entry.genderIdentity === null
+          ? null
+          : html`<span class="admin-sub">${entry.genderIdentity}</span>`
+      }
+    </td>
     <td class="admin-col-wide">${entry.feeLabel}</td>
     <td class="admin-col-wide admin-mono">
       ${
@@ -2214,8 +2230,15 @@ function transferFormPage(
           <input type="date" id="transfer-dob" name="dateOfBirth" required />
         </p>
 
+        ${
+          /* **"Race category", the same words the entry form uses — ADR-020.** This asks the
+          new runner's category because a results table has to place them. It deliberately does
+          **not** ask how they describe their gender: `transfer_entry()` clears the previous
+          runner's answer rather than carrying it across, and collecting the new one is its own
+          decision rather than something to add here quietly. */ null
+        }
         <fieldset>
-          <legend>Gender</legend>
+          <legend>Race category</legend>
           ${NN_ENTRY_GENDERS.map(
             (value: (typeof NN_ENTRY_GENDERS)[number]) =>
               html`<p>

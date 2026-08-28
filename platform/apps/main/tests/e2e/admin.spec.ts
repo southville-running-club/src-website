@@ -13,6 +13,7 @@ import {
   MISSING_EA_LAST_NAME,
   NN_ADMIN_EMAIL,
   PAID_EA_NUMBER,
+  PAID_GENDER_IDENTITY,
   PAID_NON_ASCII_LAST_NAME,
   PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
@@ -628,6 +629,26 @@ test.describe('the entries table', () => {
     await expect(shown(page, PAID_EA_NUMBER)).toBeVisible();
   });
 
+  test('shows the gender a runner recorded, under the category it is not', async ({
+    page,
+  }) => {
+    // **The one screen this field appears on — ADR-020.** Collecting an answer and surfacing
+    // it nowhere would be collecting it for no purpose; this is the page that gives it one.
+    // The other half of the decision is asserted against the exports and the start list below.
+    await expect(shown(page, PAID_GENDER_IDENTITY)).toBeVisible();
+  });
+
+  test('leaves the category alone for the eight entrants who did not answer', async ({
+    page,
+  }) => {
+    // Most people will not answer an optional question, and the row has to read correctly when
+    // they have not — no label, no placeholder, no "not given". One fixture in the run carries
+    // an answer, so exactly one copy of it is on the page at this width.
+    await expect(
+      page.getByText(PAID_GENDER_IDENTITY).filter({ visible: true }),
+    ).toHaveCount(1);
+  });
+
   test('shows no entrant’s email address, and only the reader’s own', async ({
     page,
   }) => {
@@ -835,6 +856,32 @@ test.describe('the exports', () => {
     expect(text.startsWith(BOM)).toBe(true);
     expect(text).toContain(PAID_NON_ASCII_LAST_NAME);
     expect(text).toContain('"Bristol & West AC, ""the Bees"""');
+  });
+
+  test('carry the race category and never the gender somebody recorded', async ({
+    page,
+  }) => {
+    // **ADR-020's other half, and the assertion is the negative one.** A start list is paper
+    // handed round a race HQ; publishing somebody's answer onto it would out them, in exchange
+    // for a question the form told them was optional and private.
+    //
+    // The value is on a **paid** entrant, which is what gives this a real chance to fail —
+    // exports carry paid entries only, so on a pending one it would pass by the row not being
+    // in the file at all. Same trap `AWKWARD_CLUB` in `admin-fixtures.ts` records.
+    await signInAs(page, NN_ADMIN_EMAIL);
+
+    for (const kind of ['start-list', 'ea', 'medical']) {
+      const csv = await page.request.post(`${NN}export/`, {
+        form: { event: ADMIN_EVENT_SLUG, kind },
+      });
+
+      expect(csv.status()).toBe(200);
+      const text = await csv.text();
+
+      // Present in the file, so the assertion below is about the field and not about the row.
+      expect(text).toContain('Nwosu');
+      expect(text).not.toContain(PAID_GENDER_IDENTITY);
+    }
   });
 });
 

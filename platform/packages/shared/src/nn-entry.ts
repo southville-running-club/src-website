@@ -32,9 +32,19 @@ import type { EntryState } from './entry-state';
  *
  * `intake.nn_interest` takes three fields and adding a fourth is a committee decision. That
  * rule has not been relaxed — the committee has *made* the decision, and this is the list it
- * made: name, email, date of birth, gender, club, entry type, England Athletics number,
- * emergency contact, and optional medical information under its own separate consent.
- * Anything not on that list is still a stop-and-ask.
+ * made: name, email, date of birth, race category, gender, club, entry type, England
+ * Athletics number, emergency contact, and optional medical information under its own
+ * separate consent. Anything not on that list is still a stop-and-ask.
+ *
+ * ## Race category and gender are two questions, and that is the fifteenth field
+ *
+ * They were one field until ADR-020. A required closed list is what the club can award prizes
+ * and publish results in, and reusing it as the whole of "what is your gender" made a
+ * three-item dropdown into a statement about how many genders there are. So `gender` is now
+ * the **race category** — three values, because three is how many categories exist — and
+ * `genderIdentity` is optional free text beside it that nothing groups, sorts or publishes
+ * by. It is the same shape `/account/details/` has collected since #61, and the split is what
+ * the GSS harmonised standard and HL7's Gender Harmony model both do.
  *
  * ## The England Athletics number is checked, not verified
  *
@@ -70,7 +80,20 @@ export const EA_NUMBER_PATTERN = /^[0-9]{6,8}$/;
 /** Enough digits to be a phone number, whatever spaces and brackets are around them. */
 const MINIMUM_PHONE_DIGITS = 7;
 
+/**
+ * The race categories — what the club awards prizes in and publishes results by, which is a
+ * different and much smaller question than a person's gender. Three because three is how many
+ * categories the club has, not because three is how many genders there are; `genderIdentity`
+ * below is where that question is actually asked. Adding a fourth here is a decision about
+ * prize lists and results, and it is the committee's.
+ */
 export const NN_ENTRY_GENDERS = ['female', 'male', 'non_binary'] as const;
+
+/** Matches `identity.people.gender`'s own ceiling, because it is the same question asked of
+ *  the same people in the other half of the platform — see `account.ts`. Free text and not a
+ *  closed list, for the reason recorded there: a closed list of genders is a decision about
+ *  people the club has not taken and does not need to take to record an answer. */
+export const NN_ENTRY_GENDER_IDENTITY_MAX_LENGTH = 60;
 
 // -----------------------------------------------------------------------------------------
 // The fields, in the order they appear on the page
@@ -87,6 +110,7 @@ export const NN_ENTRY_FIELDS = [
   'emailConfirm',
   'dateOfBirth',
   'gender',
+  'genderIdentity',
   'club',
   'feeCode',
   'eaNumber',
@@ -126,8 +150,10 @@ const MESSAGES = {
   dobInFuture: 'A date of birth cannot be in the future.',
   dobImplausible: `Check the year — the earliest this form takes is ${NN_ENTRY_EARLIEST_BIRTH_YEAR}.`,
 
-  genderMissing: 'Choose an option, so the club can work out your age category.',
-  genderUnknown: 'Choose one of the options listed.',
+  genderMissing: 'Choose a category, so the club can work out your age category.',
+  genderUnknown: 'Choose one of the categories listed.',
+
+  genderIdentityTooLong: `That is too long — ${NN_ENTRY_GENDER_IDENTITY_MAX_LENGTH} characters at most.`,
 
   clubTooLong: `That club name is too long — ${NN_ENTRY_CLUB_MAX_LENGTH} characters at most.`,
 
@@ -204,7 +230,12 @@ export interface NnEntry {
   lastName: string;
   email: string;
   dateOfBirth: CivilDate;
+  /** The race category, not the answer to "what is your gender" — see `genderIdentity`. */
   gender: Gender;
+  /** How this runner describes their gender, in their own words. Null when they did not say,
+   *  which is a real and common answer rather than a missing one. Never used to derive a
+   *  category, never published, never sorted on. */
+  genderIdentity: string | null;
   club: string | null;
   feeCode: string;
   /** Null unless the chosen fee requires one — see the dropping rule in `parseNnEntry`. */
@@ -260,6 +291,7 @@ const TEXT_KEYS = [
   'dobMonth',
   'dobYear',
   'gender',
+  'genderIdentity',
   'club',
   'feeCode',
   'eaNumber',
@@ -331,6 +363,17 @@ function nnEntryObject(rules: NnEntryRules) {
       dobYear: z.string().trim().catch(''),
 
       gender: z.string(MESSAGES.genderMissing).trim().min(1, MESSAGES.genderMissing),
+
+      // **Optional, and never required by any combination of the other fields.** A person who
+      // does not want to answer this has answered it. The only rule is a length ceiling, which
+      // is there because this is an endpoint anybody may post to and not because 60 characters
+      // is a judgement about what somebody may call themselves.
+      genderIdentity: optionalText.pipe(
+        z
+          .string()
+          .max(NN_ENTRY_GENDER_IDENTITY_MAX_LENGTH, MESSAGES.genderIdentityTooLong)
+          .optional(),
+      ),
 
       club: optionalText.pipe(
         z.string().max(NN_ENTRY_CLUB_MAX_LENGTH, MESSAGES.clubTooLong).optional(),
@@ -559,6 +602,7 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       email: values.email,
       dateOfBirth,
       gender: values.gender,
+      genderIdentity: values.genderIdentity ?? null,
       club: values.club ?? null,
       feeCode: values.feeCode,
       eaNumber: eaRequired ? (values.eaNumber ?? null) : null,

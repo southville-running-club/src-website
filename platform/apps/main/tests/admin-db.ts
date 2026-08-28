@@ -41,6 +41,7 @@ import {
   OVER_PURCHASE_ID,
   PAID_EA_NUMBER,
   PAID_ENTRANT_ID,
+  PAID_GENDER_IDENTITY,
   PAID_NON_ASCII_LAST_NAME,
   PAID_PURCHASE_ID,
   PENDING_ENTRANT_ID,
@@ -200,7 +201,12 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       club: string | null;
       eaNumber: string | null;
       dateOfBirth: string;
+      /** The race category. Three values, and what the prize list is grouped by. */
       gender: string;
+      /** What this runner typed when asked how they describe their gender. Left out on
+       *  every fixture but one, which is the honest ratio: most people will not answer an
+       *  optional question, and the page has to read correctly when they have not. */
+      genderIdentity?: string;
       holdMinutes: number;
       attention?: string;
       notes?: string;
@@ -264,9 +270,9 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       try {
         await db.query(
           `insert into entries.entrants (
-             id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
-             emergency_contact_name, emergency_contact_phone
-           ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
+             id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
+             club, ea_number, emergency_contact_name, emergency_contact_phone
+           ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10, $11)`,
           [
             purchase.entrantId,
             purchase.purchaseId,
@@ -274,6 +280,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
             purchase.lastName,
             purchase.dateOfBirth,
             purchase.gender,
+            purchase.genderIdentity ?? null,
             purchase.club,
             purchase.eaNumber,
             `Kin ${purchase.lastName}`,
@@ -308,6 +315,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       eaNumber: PAID_EA_NUMBER,
       dateOfBirth: '1986-12-06',
       gender: 'female',
+      genderIdentity: PAID_GENDER_IDENTITY,
       holdMinutes: 31,
       notes: MEDICAL_NOTE,
     });

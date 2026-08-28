@@ -227,6 +227,75 @@ describe('the minimum age, which is configuration and not a rule in this file', 
   });
 });
 
+describe('the race category, and the gender question beside it', () => {
+  // **Two fields, and the split is the whole point — ADR-020.** `gender` is the closed list
+  // the club awards prizes in; `genderIdentity` is the open question. These assertions are
+  // what stop the second one quietly acquiring the first one's rules.
+
+  it('still requires a category, because a results table has to place somebody', () => {
+    expect(errorOn(good({ gender: '' }))?.gender).toBe(
+      'Choose a category, so the club can work out your age category.',
+    );
+  });
+
+  it('refuses a category that is not one of the three', () => {
+    expect(errorOn(good({ gender: 'other' }))?.gender).toBe(
+      'Choose one of the categories listed.',
+    );
+  });
+
+  it('never requires the gender question, whatever else is on the form', () => {
+    // Not "accepts a blank". **Not answering is an answer**, and no combination of the other
+    // fourteen fields may turn this into a required one.
+    expect(errorOn(good())?.genderIdentity).toBeUndefined();
+    expect(errorOn(good({ genderIdentity: '' }))?.genderIdentity).toBeUndefined();
+    expect(errorOn(good({ genderIdentity: '   ' }))?.genderIdentity).toBeUndefined();
+  });
+
+  it('records an unanswered one as null rather than an empty string', () => {
+    const result = parseNnEntry(good({ genderIdentity: '   ' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.genderIdentity).toBeNull();
+  });
+
+  it('records what somebody typed, trimmed and otherwise untouched', () => {
+    // No normalising, no mapping onto a list, no title-casing. The answer is theirs.
+    const result = parseNnEntry(good({ genderIdentity: '  genderfluid  ' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.genderIdentity).toBe('genderfluid');
+  });
+
+  it('takes an answer that is on no list anywhere', () => {
+    const result = parseNnEntry(good({ genderIdentity: 'Two-spirit' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.genderIdentity).toBe('Two-spirit');
+  });
+
+  it('refuses one past the ceiling the column has', () => {
+    expect(errorOn(good({ genderIdentity: 'x'.repeat(61) }))?.genderIdentity).toBe(
+      'That is too long — 60 characters at most.',
+    );
+  });
+
+  it('never lets the gender question reach the category', () => {
+    // **The one property that has to hold.** The band comes from the date of birth and the
+    // category and from nothing else; if this ever stopped being true, somebody's answer to
+    // an optional question would decide which prize list they are on.
+    const plain = parseNnEntry(good(), RULES);
+    const answered = parseNnEntry(good({ genderIdentity: 'Non-binary woman' }), RULES);
+
+    expect(plain.ok && answered.ok).toBe(true);
+    if (!plain.ok || !answered.ok) return;
+    expect(answered.category).toEqual(plain.category);
+  });
+});
+
 describe('the entry type, and the number that hangs off it', () => {
   it('asks for a choice when none was made', () => {
     expect(errorOn(good({ feeCode: '' }))?.feeCode).toBe('Choose an entry type.');

@@ -186,6 +186,24 @@ test.describe('the privacy notice', () => {
     expect(body).toMatch(/date and time you asked/i);
   });
 
+  test('lists the race category and the gender question as two separate things', async ({
+    page,
+  }) => {
+    // **ADR-020's promise, and this is where it is enforced.** The notice makes two claims
+    // about the gender somebody records — that it is never published, and that it is not what
+    // the category is worked out from — and those two sentences are what keep the field out of
+    // the start list and the exports. A notice that collapsed them back into one row about
+    // "your gender" would be under-describing what the club holds and over-promising what it
+    // does with it.
+    await page.goto('/nn/privacy/');
+    const body = (await page.locator('.nn-prose').textContent()) ?? '';
+
+    expect(body).toMatch(/race category/i);
+    expect(body).toMatch(/how you describe your gender/i);
+    expect(body).toMatch(/never published/i);
+    expect(body).toMatch(/you do not have to answer/i);
+  });
+
   test('claims no card details and no confirmation email that does not exist', async ({
     page,
   }) => {

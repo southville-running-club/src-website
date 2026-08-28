@@ -18,6 +18,7 @@ const ENTRY: NnEntry = {
   email: 'grace@example.com',
   dateOfBirth: { year: 1986, month: 12, day: 9 },
   gender: 'female',
+  genderIdentity: 'Woman',
   club: "O'Sullivan Runners",
   feeCode: 'affiliated',
   eaNumber: '1234567',
@@ -37,6 +38,9 @@ describe('one runner, in the column names the database uses', () => {
       // is how somebody turns 18 a day early in one country and a day late in another.
       date_of_birth: '1986-12-09',
       gender: 'female',
+      // The race category and the recorded gender are two columns and two keys. A payload
+      // that carried only the first would silently drop what somebody typed.
+      gender_identity: 'Woman',
       club: "O'Sullivan Runners",
       ea_number: '1234567',
       emergency_contact_name: 'Margaret Hamilton',
@@ -62,6 +66,16 @@ describe('one runner, in the column names the database uses', () => {
     const unaffiliated: NnEntry = { ...ENTRY, feeCode: 'unaffiliated', eaNumber: null };
 
     expect(nnEntrantPayload(unaffiliated).ea_number).toBeNull();
+  });
+
+  it('states an unanswered gender as null rather than dropping the key', () => {
+    // **Not answering is an answer**, and it has to arrive as one. An omitted key and a null
+    // reach `create_pending_purchase()` as the same thing today, so this is not load-bearing
+    // for correctness — it is load-bearing for the next reader, who should not have to work
+    // out whether a missing key means "did not say" or "the payload forgot".
+    const unsaid: NnEntry = { ...ENTRY, genderIdentity: null };
+
+    expect(nnEntrantPayload(unsaid)).toHaveProperty('gender_identity', null);
   });
 
   it('states leg rather than omitting it', () => {

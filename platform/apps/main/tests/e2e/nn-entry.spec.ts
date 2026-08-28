@@ -102,7 +102,7 @@ async function fillEntry(
   await form.getByLabel('Day', { exact: true }).fill(values.dobDay!);
   await form.getByLabel('Month', { exact: true }).fill(values.dobMonth!);
   await form.getByLabel('Year', { exact: true }).fill(values.dobYear!);
-  await form.getByLabel('Gender', { exact: true }).selectOption('female');
+  await form.getByLabel('Race category', { exact: true }).selectOption('female');
   await form.getByLabel('Contact name', { exact: true }).fill(values.emergencyName!);
   await form
     .getByLabel('Contact phone number', { exact: true })
@@ -647,8 +647,18 @@ test.describe('once entries are open', () => {
       feeCode: 'unaffiliated',
       purchaserEmail: 'e2e-stripe@example.com',
     });
+    // **`toEqual` rather than `toMatchObject`, deliberately**: this is the assertion that says
+    // what an entrant row holds, so a field arriving that nobody asked for should fail here.
+    // `fillEntry` chooses the category and leaves the gender question alone, which is the
+    // ordinary path — most people will not answer an optional question.
     expect(held[0]?.entrants).toEqual([
-      { firstName: 'Grace', lastName: 'Hopper', club: null },
+      {
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        club: null,
+        gender: 'female',
+        genderIdentity: null,
+      },
     ]);
     // No medical consent was given, so there is nothing to hold — the absence of a row *is*
     // the record of the withheld consent.
@@ -720,6 +730,60 @@ test.describe('once entries are open', () => {
     // within 30 days with the entry list — so the club nets £18 either way. The number comes
     // from the fees table; nothing here or in `dist/` knows it.
     expect(held[0]?.amountPence).toBe(1800);
+  });
+
+  test('records the gender somebody typed, whatever it is, beside the category they chose', async ({
+    page,
+  }) => {
+    // **The whole of ADR-020, end to end.** Two questions, two columns: the category the
+    // results are grouped by, and an answer off no list anywhere. The point of the field is
+    // that this second value survives to the database exactly as typed — a form that quietly
+    // mapped it onto one of the three would be the defect the split exists to fix.
+    await clearPurchases();
+
+    await blockStripePage(page);
+    await page.goto(YEAR);
+
+    await fillEntry(page, { email: 'e2e-gender@example.com' });
+    await entry(page)
+      .getByLabel('Gender (optional)', { exact: true })
+      .fill('Genderfluid');
+    await entry(page)
+      .getByLabel(/^Unaffiliated/)
+      .check();
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
+
+    const held = await purchases();
+    expect(held[0]?.entrants[0]).toMatchObject({
+      gender: 'female',
+      genderIdentity: 'Genderfluid',
+    });
+  });
+
+  test('takes an entry from somebody who left the gender question alone', async ({
+    page,
+  }) => {
+    // **Not answering is an answer, and it has to be a completable one.** `fillEntry` never
+    // touches the field, so this is the ordinary path — the assertion is that it stores null
+    // rather than an empty string, because "did not say" must be one value in that column and
+    // not two.
+    await clearPurchases();
+
+    await blockStripePage(page);
+    await page.goto(YEAR);
+
+    await fillEntry(page, { email: 'e2e-gender-blank@example.com' });
+    await entry(page)
+      .getByLabel(/^Unaffiliated/)
+      .check();
+
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
+
+    const held = await purchases();
+    expect(held[0]?.entrants[0]?.genderIdentity).toBeNull();
   });
 
   test('keeps medical notes only where the consent was given', async ({ page }) => {
@@ -831,7 +895,9 @@ test.describe('once entries are open', () => {
     ).toHaveValue('wrong@example.com');
     await expect(entry(page).getByLabel('Day', { exact: true })).toHaveValue('9');
     await expect(entry(page).getByLabel('Year', { exact: true })).toHaveValue('1986');
-    await expect(entry(page).getByLabel('Gender', { exact: true })).toHaveValue('female');
+    await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
+      'female',
+    );
     await expect(entry(page).getByLabel(/^Running club/)).toHaveValue(
       "O'Sullivan Runners",
     );
@@ -1077,7 +1143,7 @@ test.describe('what JavaScript adds @requires-js', () => {
     await entry(page).getByLabel('Day', { exact: true }).fill('1');
     await entry(page).getByLabel('Month', { exact: true }).fill('11');
     await entry(page).getByLabel('Year', { exact: true }).fill('1986');
-    await entry(page).getByLabel('Gender', { exact: true }).selectOption('male');
+    await entry(page).getByLabel('Race category', { exact: true }).selectOption('male');
 
     // Born 1 November 1986, race day 1 November 2026 — forty **on** race day, which is the
     // boundary somebody will write in to argue about.
@@ -1093,7 +1159,9 @@ test.describe('what JavaScript adds @requires-js', () => {
     await entry(page).getByLabel('Day', { exact: true }).fill('9');
     await entry(page).getByLabel('Month', { exact: true }).fill('12');
     await entry(page).getByLabel('Year', { exact: true }).fill('1986');
-    await entry(page).getByLabel('Gender', { exact: true }).selectOption('non_binary');
+    await entry(page)
+      .getByLabel('Race category', { exact: true })
+      .selectOption('non_binary');
 
     const category = page.locator('[data-entry-category]');
     await expect(category).toContainText(
@@ -1257,7 +1325,9 @@ test.describe('when the race is full', () => {
     await expect(entry(page).getByLabel('Day', { exact: true })).toHaveValue('9');
     await expect(entry(page).getByLabel('Month', { exact: true })).toHaveValue('12');
     await expect(entry(page).getByLabel('Year', { exact: true })).toHaveValue('1986');
-    await expect(entry(page).getByLabel('Gender', { exact: true })).toHaveValue('female');
+    await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
+      'female',
+    );
     await expect(entry(page).getByLabel(/^Affiliated/)).toBeChecked();
     await expect(entry(page).getByLabel(/^England Athletics number/)).toHaveValue(
       '1234567',

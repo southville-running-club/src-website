@@ -109,7 +109,7 @@ personal-data incident and a financial one at once.
 | `fees` | What an entry costs, **in pence, and the only place a price exists**. Passed as `price_data` at Checkout, never as a Stripe Price object — a price held in two systems is a price that will disagree with itself |
 | `discount_codes` | Percentage discounts. **Deliberately empty**: the 2023 LHGRC code has not been confirmed for 2026 |
 | `entry_purchases` | One payment covering one or more entrants. **The Stripe reference, never the payment instrument** |
-| `entrants` | One runner. **No age column and no category column** — both are derived at read time from `date_of_birth` and `gender`, as the timing platform does |
+| `entrants` | One runner. **No age column and no category column** — both are derived at read time from `date_of_birth` and `gender`, as the timing platform does. `gender` is the **race category**, three values, and `gender_identity` beside it is the open question nothing derives from — [ADR-020](../../../docs/architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md) |
 | `entrant_medical` | Medical notes, **on their own** — see below |
 
 #### The anon role holds nothing here, and entries are written anyway

@@ -882,6 +882,23 @@ body.admin {
 }
 
 /*
+ * A second line inside a cell, for a value that qualifies the one above it rather than standing
+ * on its own — today, the gender a runner recorded, under the race category it is not the same
+ * question as. Muted and smaller because it is a note about a person, not a value this desk sorts,
+ * filters or acts on.
+ *
+ * No `color-mix`, so `admin-contrast.test.ts` does not need a new pair: `--colour-muted` on the
+ * panel is the pair `.admin-stack` already stands on.
+ */
+.admin-sub {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+/*
  * The narrow layout, and the two rules that are the whole of it.
  *
  * `display: none` rather than a clip, in both directions, so exactly one copy of every value is

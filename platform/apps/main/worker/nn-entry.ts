@@ -490,6 +490,7 @@ const TEXT_FIELDS = [
   'dobDay',
   'dobMonth',
   'dobYear',
+  'genderIdentity',
   'club',
   'eaNumber',
   'emergencyName',

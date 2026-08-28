@@ -72,7 +72,7 @@ open is exactly when a group of them submits at once. **If legitimate blocks are
 raise this before touching anything else**, and record the new number here.
 
 **Block, not a challenge.** A managed challenge on a `POST` interrupts the submission, and
-the entry form does not survive that: fourteen fields typed on a phone on bad signal are
+the entry form does not survive that: fifteen fields typed on a phone on bad signal are
 gone. The mitigation is 60 seconds for the same reason.
 
 **`/nn/stripe-webhook` is excluded.** Stripe's delivery volume is not a person's, and a block

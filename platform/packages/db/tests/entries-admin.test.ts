@@ -257,13 +257,18 @@ beforeAll(async () => {
   );
 
   await query(
+    // **One entrant answered the optional gender question and one did not**, which is the
+    // ratio to fabricate: most people will not answer it, and both the list and the exports
+    // have to be right either way. On the *paid* one deliberately — the exports carry paid
+    // entries only, so that is the row that gives the absence assertions below a real chance
+    // to fail.
     `insert into entries.entrants (
-       id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
-       emergency_contact_name, emergency_contact_phone
+       id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
+       club, ea_number, emergency_contact_name, emergency_contact_phone
      ) values
-       ($1::uuid, $2::uuid, 'Paid', 'Person', date '1986-12-06', 'female',
+       ($1::uuid, $2::uuid, 'Paid', 'Person', date '1986-12-06', 'female', 'Genderqueer',
         'Fixture AC', '1234567', 'Kin One', '0117 496 0001'),
-       ($3::uuid, $4::uuid, 'Pending', 'Person', date '1999-01-01', 'male',
+       ($3::uuid, $4::uuid, 'Pending', 'Person', date '1999-01-01', 'male', null,
         null, null, 'Kin Two', '0117 496 0002')
      on conflict (id) do nothing`,
     [ENTRANT_PAID, PURCHASE_PAID, ENTRANT_PENDING, PURCHASE_PENDING],
@@ -518,6 +523,26 @@ describe('entries.admin_entry_list()', () => {
     // Forty exactly: born 6 December 1986, race on 6 December 2026. A birthday **on** race day
     // counts, which is the same rule `create_pending_purchase()` enforces the minimum age with.
     expect(paid?.age).toBe(40);
+  });
+
+  it('carries the recorded gender, and null for whoever did not answer', async () => {
+    // **The one read of `gender_identity` anywhere — ADR-020.** This list is what gives the
+    // field a purpose; the three exports deliberately do not carry it, which the key-set
+    // assertions on `admin_export()` below already pin exactly.
+    const data = (await rpc('admin_entry_list', {
+      p_key: GATE_KEY,
+      p_event_slug: EVENT,
+    })) as {
+      entries: { first_name: string; gender: string; gender_identity: string | null }[];
+    };
+
+    const paid = data.entries.find((entry) => entry.first_name === 'Paid');
+    const pending = data.entries.find((entry) => entry.first_name === 'Pending');
+
+    // Two fields, two answers. The category is what the prize list is grouped by; the other
+    // is what the runner said, and it is on none of the three categories on purpose.
+    expect(paid).toMatchObject({ gender: 'female', gender_identity: 'Genderqueer' });
+    expect(pending).toMatchObject({ gender: 'male', gender_identity: null });
   });
 
   it('says a medical note exists and never what it says', async () => {
@@ -947,6 +972,31 @@ describe('entries.admin_export()', () => {
     // No emergency contact here. A first aider reading a note does not need one, and the
     // start list is where it belongs.
     expect(JSON.stringify(data.rows)).not.toContain('0117 496');
+  });
+
+  it('never carries the gender somebody recorded, in any of the three', async () => {
+    // **ADR-020's promise, and the assertion is the negative one.** A start list is paper
+    // handed round a race HQ and read by marshals and whoever picks it up off a table;
+    // publishing an answer somebody gave to a question the form called optional and private
+    // would out them. The key-set assertions above pin the shape; this pins the value, so a
+    // column added under a different name would still be caught.
+    //
+    // The fixture value is on the **paid** entrant, which is what makes this able to fail —
+    // exports carry paid entries only, so on the pending one it would pass by the row not
+    // being in the file at all.
+    for (const kind of ['ea', 'start-list', 'medical'] as const) {
+      const data = (await rpc('admin_export', {
+        p_key: GATE_KEY,
+        p_actor: ACTOR,
+        p_event_slug: EVENT,
+        p_kind: kind,
+      })) as { rows: Record<string, unknown>[] };
+
+      // The row is in the file, so what follows is about the field and not about the row.
+      expect(JSON.stringify(data.rows), kind).toContain('Person');
+      expect(JSON.stringify(data.rows), kind).not.toContain('Genderqueer');
+      expect(JSON.stringify(data.rows), kind).not.toContain('gender_identity');
+    }
   });
 
   it('exports only paid entries, in all three', async () => {

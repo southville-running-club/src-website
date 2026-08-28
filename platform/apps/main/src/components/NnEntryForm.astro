@@ -73,6 +73,7 @@ const SUMMARY_LINKS = [
   ['emailConfirm', 'entry-email-confirm'],
   ['dateOfBirth', 'entry-dob-day'],
   ['gender', 'entry-gender'],
+  ['genderIdentity', 'entry-gender-identity'],
   ['club', 'entry-club'],
   ['feeCode', 'entry-fee-affiliated'],
   ['eaNumber', 'entry-ea-number'],
@@ -510,10 +511,18 @@ const SUMMARY_LINKS = [
       </div>
     </fieldset>
 
+    {
+      /* **Two questions, and the split is the point — see ADR-020.** This one is the race
+      category: the closed list the club awards prizes in and publishes results by, which is
+      three because three is how many categories there are. "Gender" on its own over these
+      three options made a dropdown into a claim about how many genders exist, and the
+      question underneath is where that is actually asked. */
+    }
     <div class="field">
-      <label class="field-label" for="entry-gender">Gender</label>
+      <label class="field-label" for="entry-gender">Race category</label>
       <p class="field-hint" id="entry-gender-hint">
-        Used with your date of birth to work out your age category.
+        Results and prizes are grouped into these categories, and this is used with your
+        date of birth to work out your age category.
       </p>
       <p class="field-error" id="entry-gender-error" data-entry-error="gender" hidden></p>
       <select
@@ -543,6 +552,44 @@ const SUMMARY_LINKS = [
       saying nothing. */
     }
     <p class="nn-category" data-entry-category hidden aria-live="polite"></p>
+
+    {
+      /* **The open half of the question above, and it is optional in earnest.** Free text
+      rather than a longer list, because a closed list of genders is the club deciding which
+      ones exist — the same reasoning `/account/details/` was built on in #61, and the same
+      60-character ceiling. Nothing derives a category from it, nothing sorts or publishes by
+      it, and leaving it blank is an answer rather than an omission.
+
+      **After the category preview rather than before it.** The preview appears once a date of
+      birth and a category are both in, so anything above it would be pushed down by its own
+      arrival — the trap `nn-entry.spec.ts` guards on the entry-type cards. */
+    }
+    <div class="field">
+      <label class="field-label" for="entry-gender-identity">
+        Gender <span class="field-optional">(optional)</span>
+      </label>
+      <p class="field-hint" id="entry-gender-identity-hint">
+        If you would like to tell the club how you describe your gender, you can. It is
+        recorded with your entry, it does not affect your category or your result, and it
+        is never published.
+      </p>
+      <p
+        class="field-error"
+        id="entry-gender-identity-error"
+        data-entry-error="genderIdentity"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-gender-identity"
+        name="genderIdentity"
+        type="text"
+        maxlength="60"
+        aria-describedby="entry-gender-identity-hint entry-gender-identity-error"
+        data-entry-value="genderIdentity"
+      />
+    </div>
 
     <div class="field">
       <label class="field-label" for="entry-club">

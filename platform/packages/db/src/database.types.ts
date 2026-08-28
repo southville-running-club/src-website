@@ -148,6 +148,7 @@ export type Database = {
           emergency_contact_phone: string
           first_name: string
           gender: string
+          gender_identity: string | null
           id: string
           last_name: string
           leg: number | null
@@ -162,6 +163,7 @@ export type Database = {
           emergency_contact_phone: string
           first_name: string
           gender: string
+          gender_identity?: string | null
           id?: string
           last_name: string
           leg?: number | null
@@ -176,6 +178,7 @@ export type Database = {
           emergency_contact_phone?: string
           first_name?: string
           gender?: string
+          gender_identity?: string | null
           id?: string
           last_name?: string
           leg?: number | null

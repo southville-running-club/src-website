@@ -17,6 +17,15 @@
  * `packages/shared/src/london-time.ts` is for the other kind, where an instant really is
  * being displayed and Europe/London really is the zone.
  *
+ * ## `gender` here is the race category, and it is not the whole question
+ *
+ * The `Gender` below is the **closed set the club can award prizes and publish results in**,
+ * which is why it is three values and not more — it names the categories that exist, not the
+ * genders that do. The open question is `gender_identity` on the same table, free text and
+ * optional, which nothing in this module reads and no result is ever grouped by. Splitting
+ * the two is the recognised way round the trap of a closed list standing in for an identity —
+ * ADR-020 has the reasoning, and the entry form asks them as two separate questions.
+ *
  * ## What is confirmed, and what is not
  *
  * The four bands and their boundaries are the club's, from the prize list on `/nn/`:
@@ -46,6 +55,12 @@ export interface CivilDate {
   day: number;
 }
 
+/**
+ * The race categories, which is a smaller question than a person's gender and deliberately
+ * so. See the note at the top of this file and ADR-020: what somebody is asked to pick here
+ * decides which prize list and which results table they appear in, and `gender_identity`
+ * beside it is where the club records how they describe themselves.
+ */
 export type Gender = 'female' | 'male' | 'non_binary';
 
 /** The four bands, in the order the prize list gives them. */

@@ -23,6 +23,7 @@ Technical decisions the volunteers take themselves.
 | [**ADR-017**](adr-017-permissions-are-what-code-checks.md) | **A role is a bundle of permissions, and code checks the permission** — `identity.permissions`, `identity.role_permissions`, and one primitive in place of a role name at five call sites. *Supersedes what is left of ADR-015's Roles row, after ADR-016 renamed the role in it.* | 26 Aug 2026 |
 | [**ADR-018**](adr-018-cancelling-an-entry.md) | **An nn-admin may cancel and refund one entry, and nothing else about it** — Stripe first, the record second, because that ordering is the one a retry repairs | 26 Aug 2026 |
 | [**ADR-019**](adr-019-a-session-ends-on-its-own.md) | **A session ends on its own** — thirty minutes idle, twelve hours absolute, in place of the thirty days nobody chose. *Answers a question [ADR-015](adr-015-member-accounts-on-supabase-auth.md) built the session without asking.* | 28 Aug 2026 |
+| [**ADR-020**](adr-020-race-category-and-gender-are-two-questions.md) | **Race category and gender are two questions** — a required closed list of three for the prize table, and optional free text beside it for the question itself, because a longer closed list is the same defect with more rows | 28 Aug 2026 |
 
 ---
 
