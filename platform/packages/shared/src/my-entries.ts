@@ -35,6 +35,16 @@ import type { EntryStatus } from './admin';
  * `/nn/<year>/entry/complete/`'s rule and it governs here for the same reason.
  */
 
+/**
+ * How much somebody may write when they ask the club about their entry.
+ *
+ * **Mirrored from `entry_purchases.request_reason`'s own check constraint**, so the form can
+ * quote the number and the textarea can stop at it. The database is the control; a submission
+ * that passes here and fails there means the two have drifted, which is a defect rather than a
+ * bad submission.
+ */
+export const ENTRY_REQUEST_REASON_MAX_LENGTH = 500;
+
 export interface MyEntrant {
   firstName: string;
   lastName: string;
@@ -66,6 +76,14 @@ export interface MyEntry {
    * status, which the capacity predicate would not count.
    */
   requestedAction: 'cancel' | 'transfer' | null;
+  /**
+   * Why they asked, in the words they used, or null because they did not say.
+   *
+   * Read back to them on `/account/entries/` so the ask is visible as something the club has
+   * rather than something they hope arrived, and read by a volunteer on `/admin/nn/`. Nowhere
+   * else, and in no export.
+   */
+  requestReason: string | null;
   /** Whether a volunteer has marked the request above as dealt with. */
   requestResolved: boolean;
   entrants: MyEntrant[];
@@ -100,6 +118,7 @@ const entryShape = z.object({
   // A Worker newer than the database asks for columns that are not there yet and must render
   // the entry rather than fail the page.
   requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
+  request_reason: z.string().nullable().catch(null),
   request_resolved: z.boolean().catch(false),
   entrants: z.array(entrantShape),
 });
@@ -144,12 +163,27 @@ export type RequestEntryActionResult =
  */
 export async function requestEntryAction(
   client: UserClient,
-  input: { purchaseId: string; action: EntryActionRequest },
+  input: {
+    purchaseId: string;
+    action: EntryActionRequest;
+    /**
+     * Why they are asking, in their own words, or null because the box was left empty.
+     *
+     * **Optional here and optional in the database.** Somebody who has just broken an ankle
+     * should not be held at a required textarea; the box exists so a volunteer has something to
+     * act on, not so the club can interrogate somebody about their own entry.
+     */
+    reason: string | null;
+  },
 ): Promise<RequestEntryActionResult> {
   try {
     const { data, error } = await client.schema('entries').rpc('request_entry_action', {
       p_purchase_id: input.purchaseId,
       p_action: input.action,
+      // Empty string rather than null, for the reason the transfer path gives: the generated
+      // argument type is required and non-nullable, and the function normalises an empty string
+      // back to null with `nullif(btrim(coalesce(...)))`.
+      p_reason: input.reason ?? '',
     });
 
     if (error) {
@@ -211,6 +245,7 @@ export async function fetchMyEntries(client: UserClient): Promise<MyEntriesResul
         paidAt: row.paid_at,
         createdAt: row.created_at,
         requestedAction: row.requested_action,
+        requestReason: row.request_reason,
         requestResolved: row.request_resolved,
         entrants: row.entrants.map((entrant) => ({
           firstName: entrant.first_name,

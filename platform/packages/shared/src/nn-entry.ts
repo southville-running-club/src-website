@@ -84,6 +84,27 @@ export const EA_NUMBER_PATTERN = /^[0-9]{6,8}$/;
 const MINIMUM_PHONE_DIGITS = 7;
 
 /**
+ * What may appear in a phone number besides digits.
+ *
+ * Deliberately generous — spaces, brackets, dashes, dots, a leading `+` and the `x` or `ext`
+ * somebody writes before an extension are all real ways people write a number down, and a form
+ * that refuses one of them is wrong about the phone number rather than the number being wrong.
+ * What it refuses is a box with **no phone number in it at all**.
+ */
+const PHONE_SHAPE = /^[0-9+()\-.\s/]*(?:(?:x|ext\.?)\s*[0-9]+)?$/i;
+
+/**
+ * At least one letter, in any alphabet.
+ *
+ * The whole of what this repository is willing to say about a name. It refuses `.`, `123` and
+ * `-` — a box somebody filled in to get past a required field — and refuses nothing else: no
+ * length floor beyond one character, no ban on digits, apostrophes, hyphens or spaces, and no
+ * opinion about scripts. A validator cleverer than this about names is one that eventually
+ * tells a real person they are not real.
+ */
+const HAS_A_LETTER = /\p{L}/u;
+
+/**
  * The race categories — what the club awards prizes in and publishes results by, which is a
  * different and much smaller question than a person's gender. Three because three is how many
  * categories the club has, not because three is how many genders there are; `genderIdentity`
@@ -192,6 +213,10 @@ const MESSAGES = {
   emergencyNameTooLong: `That name is too long — ${NN_ENTRY_CONTACT_NAME_MAX_LENGTH} characters at most.`,
   emergencyPhoneMissing: 'Enter a phone number for your emergency contact.',
   emergencyPhoneTooShort: 'Enter a phone number with at least seven digits in it.',
+  phoneShape:
+    'Enter a phone number using digits, and if you need them spaces, brackets, dashes or a leading +.',
+  nameNoLetters: 'Enter the name as it should appear on the start list.',
+  contactNameNoLetters: 'Enter the name of a person the club can ring on race day.',
   emergencyPhoneTooLong: `That phone number is too long — ${NN_ENTRY_PHONE_MAX_LENGTH} characters at most.`,
 
   medicalTooLong: `That is too long — ${NN_ENTRY_MEDICAL_MAX_LENGTH} characters at most.`,
@@ -631,16 +656,30 @@ function nnEntryObject(rules: NnEntryRules) {
         }
       }
 
+      // --- the names ------------------------------------------------------------------------
+      // **At least one letter, and nothing more opinionated than that.** See `HAS_A_LETTER`:
+      // this refuses a full stop typed to get past a required field, and refuses nothing else.
+      for (const [field, value] of [
+        ['firstName', values.firstName],
+        ['lastName', values.lastName],
+      ] as const) {
+        if (value && !HAS_A_LETTER.test(value)) {
+          fail(field, MESSAGES.nameNoLetters);
+        }
+      }
+
+      if (values.emergencyName && !HAS_A_LETTER.test(values.emergencyName)) {
+        fail('emergencyName', MESSAGES.contactNameNoLetters);
+      }
+
       // --- the emergency phone ----------------------------------------------------------------
       // Digits are counted rather than the whole string being matched against a pattern.
       // Phone numbers are written with spaces, brackets, dashes and a leading `+` in every
       // combination, and a form that refuses one of them is wrong about the phone number
       // rather than the phone number being wrong.
-      if (values.emergencyPhone) {
-        const digits = values.emergencyPhone.replace(/\D/g, '');
-        if (digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS) {
-          fail('emergencyPhone', MESSAGES.emergencyPhoneTooShort);
-        }
+      const phoneIssue = phoneProblem(values.emergencyPhone);
+      if (phoneIssue !== null) {
+        fail('emergencyPhone', phoneIssue);
       }
 
       // --- medical information, and its own consent ------------------------------------------
@@ -693,14 +732,19 @@ function nnEntryObject(rules: NnEntryRules) {
 
         if (values.guideEmergencyName === undefined) {
           fail('guideEmergencyName', MESSAGES.guideEmergencyNameMissing);
+        } else if (!HAS_A_LETTER.test(values.guideEmergencyName)) {
+          fail('guideEmergencyName', MESSAGES.contactNameNoLetters);
         }
 
+        // **The same function the runner's number goes through**, rather than a second copy of
+        // the rule. The copy is how the two came to differ: this branch was written by
+        // duplicating the one above, and it duplicated the hole in it as well.
         if (values.guideEmergencyPhone === undefined) {
-          fail('guideEmergencyPhone', MESSAGES.guideEmergencyPhoneMissing);
+          fail('guideEmergencyPhone', MESSAGES.guideEmergencyPhoneTooShort);
         } else {
-          const digits = values.guideEmergencyPhone.replace(/\D/g, '');
-          if (digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS) {
-            fail('guideEmergencyPhone', MESSAGES.guideEmergencyPhoneTooShort);
+          const guidePhoneIssue = phoneProblem(values.guideEmergencyPhone);
+          if (guidePhoneIssue !== null) {
+            fail('guideEmergencyPhone', guidePhoneIssue);
           }
         }
 
@@ -769,6 +813,39 @@ const GUIDE_DOB_MESSAGES: DateOfBirthMessages = {
   implausible: MESSAGES.guideDobImplausible,
   tooYoung: guideMinimumAgeMessage,
 };
+
+/**
+ * Every rule about a phone number, in the order they should be reported. Null means it is fine.
+ *
+ * ⚠️ **The hole this closes.** Both callers read
+ * `digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS`, and that `> 0` was not a guard
+ * against an empty box — `min(1)` and the guide's own "missing" branch already catch those. It
+ * was an **exemption for every string containing no digits at all**: `ask my mum`, `n/a` and
+ * `see above` were accepted, on the one field whose entire purpose is to be dialled by somebody
+ * standing over a runner at the side of a course.
+ *
+ * Shared between the runner's contact and the guide's, because they are the same question asked
+ * twice — and a second copy of the rule is exactly how the hole came to exist in two places.
+ */
+function phoneProblem(value: string | undefined): string | null {
+  if (value === undefined || value === '') {
+    // Absence is somebody else's message: `min(1)` on the runner's box, and the guide's own
+    // "missing" branch. Saying it twice would put two entries in the summary for one empty box.
+    return null;
+  }
+
+  if (value.length > NN_ENTRY_PHONE_MAX_LENGTH) {
+    return MESSAGES.emergencyPhoneTooLong;
+  }
+
+  if (!PHONE_SHAPE.test(value)) {
+    return MESSAGES.phoneShape;
+  }
+
+  return value.replace(/\D/g, '').length < MINIMUM_PHONE_DIGITS
+    ? MESSAGES.emergencyPhoneTooShort
+    : null;
+}
 
 /** Every date-of-birth rule, in the order they should be reported. Null means it is fine. */
 function dateOfBirthIssue(

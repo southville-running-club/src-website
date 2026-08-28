@@ -748,12 +748,56 @@ describe('the race section, reached at its own address', () => {
 
 describe('the entries list', () => {
   it('shows every status, one row per entrant', async () => {
-    const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
+    // **`hide=none`, because the default view is not every status any more.** Test entries,
+    // refunded entries and lapsed holds are left out unless asked for — on a race that fills
+    // those are most of the rows and none of the work. This assertion is about *rendering* a
+    // row of each kind, so it asks for the view that has them all; the default has its own
+    // test below.
+    const body = await pageText(
+      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?hide=none`, nnAdmin),
+    );
 
     expect(body).toContain('Nwosu, Harriet');
     expect(body).toContain('Adjei, Kwame');
     expect(body).toContain(`${PAID_NON_ASCII_LAST_NAME}, Lena`);
     expect(body).toContain('Toms, Marek');
+  });
+
+  it('leaves out everybody who is not running, unless asked', async () => {
+    const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
+
+    // The lapsed hold is gone, the paid runner is not.
+    expect(body).toContain('Nwosu, Harriet');
+    expect(body).not.toContain('Adjei, Kwame');
+
+    // **And the page says so.** Hiding rows without saying which is the half that would turn
+    // a sensible default into a way of losing entries.
+    expect(body).toContain('Refunded entries and lapsed holds are not shown.');
+    expect(body).toContain('Test entries are not shown.');
+  });
+
+  it('lets an explicit status beat the default, so no chip is a dead end', async () => {
+    // ⚠️ **#116 in a new place, and the reason `hideIsDefault` exists.** "Hidden beats
+    // included" is right for a hide somebody *chose*; applied to the default it made the
+    // **Hold expired** chip return an empty table and "0 of 6 shown" — a filter that can never
+    // match, which is exactly how the Refunded filter convinced a volunteer there had been no
+    // refunds.
+    const body = await pageText(
+      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?status=expired`, nnAdmin),
+    );
+
+    expect(body).toContain('Adjei, Kwame');
+
+    // **And a hide somebody asked for still wins.** The default yields to a chip; a choice
+    // does not.
+    const chosen = await pageText(
+      await get(
+        `${NN}entries/${ADMIN_EVENT_SLUG}/?status=expired&hide=status:expired`,
+        nnAdmin,
+      ),
+    );
+
+    expect(chosen).not.toContain('Adjei, Kwame');
   });
 
   it('escapes a name and a club that would otherwise be markup', async () => {
@@ -882,6 +926,11 @@ describe('the entries list', () => {
         '/admin/nn/export/',
         // The printable start list, audited.
         '/admin/nn/start-list/',
+        // **The printable medical sheet, audited as `medical_export`** — the same row the CSV
+        // writes, because it is the same disclosure in a different wrapper. It takes a copy
+        // out; it changes nothing, which is why it sits with the three above rather than with
+        // the two below.
+        '/admin/nn/medical-sheet/',
         // **The fourth, and the first endpoint on this surface that changes a record.**
         // #107 and ADR-018. The three above take a copy of something out; this one refunds a
         // payment and deletes an entrant, which is why it posts to a confirmation page rather
@@ -1286,14 +1335,6 @@ describe('the exports', () => {
     expect(text).toContain('Kin Nwosu');
     expect(text).toContain('Vet 40');
     expect(text).not.toContain('inhaler');
-  });
-
-  it('gives the medical export the note, and nothing beyond a name and a club', async () => {
-    const { text } = await csv('medical');
-
-    expect(text.split('\r\n')[0]).toBe('﻿Last name,First name,Club,Medical note');
-    expect(text).toContain('inhaler');
-    expect(text).not.toContain('Kin Nwosu');
   });
 
   it('really sends the byte-order mark, asserted on the bytes', async () => {

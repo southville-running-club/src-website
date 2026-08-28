@@ -256,6 +256,14 @@ export interface AdminEntry {
    * its own field rather than a fifth `status`, invisible to the capacity predicate.
    */
   requestedAction: 'cancel' | 'transfer' | null;
+  /**
+   * Why they asked, in their own words, or null because they did not say.
+   *
+   * **Read here and nowhere else.** It is not on the start list, not in any export and never
+   * published — a free-text box is where somebody writes a medical fact without meaning to, and
+   * a document read by marshals is the wrong place for that to surface.
+   */
+  requestReason: string | null;
   requestResolved: boolean;
   /** Whether a medical note exists. **Never the note** — that is its own audited read. */
   hasMedical: boolean;
@@ -420,6 +428,7 @@ const entryShape = z.object({
   // Same `.catch` reasoning as every optional field on this shape: a Worker deployed ahead of
   // its migration renders the row rather than refusing the page.
   requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
+  request_reason: z.string().nullable().catch(null),
   request_resolved: z.boolean().catch(false),
   has_medical: z.boolean(),
   created_at: z.string(),
@@ -563,6 +572,7 @@ function parseEntryList(
       attention: entry.attention,
       attentionResolved: entry.attention_resolved,
       requestedAction: entry.requested_action,
+      requestReason: entry.request_reason,
       requestResolved: entry.request_resolved,
       hasMedical: entry.has_medical,
       createdAt: entry.created_at,
@@ -1097,7 +1107,19 @@ export interface CancellablePurchase {
  * twice is an ordinary thing to do, and "that does not exist" is a lie about what happened.
  */
 export type CancelResult<T> =
-  ({ status: 'ok' } & T) | { status: 'already-cancelled' } | AdminFailure;
+  | ({ status: 'ok' } & T)
+  | { status: 'already-cancelled' }
+  /**
+   * The fee this place was bought on requires an England Athletics number and the transfer
+   * form did not carry one.
+   *
+   * **Its own outcome for the same reason `already-cancelled` is.** Collapsed into `not-found`
+   * it is indistinguishable from "that entry does not exist" — and before it existed at all the
+   * refusal arrived as a raised `check_violation` that `readCancelEnvelope` could only report
+   * as `unavailable`, so every affiliated transfer told a volunteer the database was down.
+   */
+  | { status: 'ea-number-required' }
+  | AdminFailure;
 
 function readCancelEnvelope<T>(
   data: unknown,
@@ -1127,6 +1149,10 @@ function readCancelEnvelope<T>(
 
     if (envelope.data.reason === 'already_cancelled') {
       return { status: 'already-cancelled' };
+    }
+
+    if (envelope.data.reason === 'ea_number_required') {
+      return { status: 'ea-number-required' };
     }
 
     return { status: 'not-found' };
@@ -1200,6 +1226,15 @@ export interface TransferTo {
   club: string | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  /**
+   * **The new runner's own number, never the previous runner's.**
+   *
+   * Null when they did not give one, which the function refuses with `ea_number_required` if the
+   * fee this place was bought on needs one, and drops if it does not. The Worker cannot decide
+   * that for itself — the transfer form does not know which fee the purchase was on, and the fee
+   * is read from the purchase rather than from anything the caller passes.
+   */
+  eaNumber: string | null;
 }
 
 export interface TransferredEntry {
@@ -1238,6 +1273,10 @@ export async function transferEntry(
       p_club: to.club ?? '',
       p_emergency_contact_name: to.emergencyContactName,
       p_emergency_contact_phone: to.emergencyContactPhone,
+      // Empty string rather than null, for the reason `p_club` above gives: the generated
+      // argument type is required and non-nullable, and the function turns an empty string back
+      // into null with `nullif(btrim(coalesce(...)))`.
+      p_ea_number: to.eaNumber ?? '',
     });
 
     return readCancelEnvelope(data, error, 'transfer_entry', (value) => {

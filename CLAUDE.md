@@ -803,7 +803,37 @@ that ask turned into. **The email half is built now, and it is not this** — #7
 volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody
 by email; the message goes when somebody acts on it.
 
-**`/admin/nn/` filters on sets, and leaves test entries out by default.** Status and entry
+**`/admin/nn/` filters on sets, and by default leaves out everybody who is not running** —
+`fee:tester`, `status:refunded` and `status:expired`, which on a race that fills are most of the
+rows and none of the work. **An explicit `?status=` overrules the default and never overrules a
+`hide=` somebody chose**: without that split, pressing the **Hold expired** chip returned an
+empty table, which is a filter that can never match and is exactly how the Refunded filter once
+convinced a volunteer there had been no refunds. Two lines under the chips name what is missing
+and link to the view including it.
+
+**The page also counts the field by category** — the four bands, the two honest non-answers, and
+guides beside them rather than inside one. Counted off the rows rather than asked of the
+database, because the band a runner falls in is named by `packages/shared/src/age-category.ts`
+and by nothing else.
+
+**The medical sheet has a printable page as well as a CSV**, at `POST /admin/nn/medical-sheet/`
+— the same read and the same `medical_export` audit row. The start list has had one since it was
+written; the more sensitive of the two documents had only a file, and what a machine does with a
+downloaded `.csv` is not the club's to control.
+
+**A request carries the reason somebody gave**, in `entry_purchases.request_reason`: optional,
+capped at 500 characters, read on `/admin/nn/` and on the asker's own `/account/entries/` and
+**nowhere else** — never exported, for the reason `gender_identity` is not. `/account/entries/`
+states the club's position on refunds *above* the box rather than after the button: not the first
+answer, looked at case by case.
+
+⚠️ **`transfer_entry()` asks the new runner for their own England Athletics number.** It used to
+clear the column unconditionally, which `assert_entrant_rules()` refuses on an affiliated entry —
+so every affiliated transfer raised a `check_violation` that reached a volunteer as *"the club's
+database could not be reached"*, on a database that was perfectly healthy. The nine-argument form
+is kept as a wrapper; that is the expand step, and it has a contract step owing.
+
+The rest of the filtering: Status and entry
 type are multi-select, carried as repeated query parameters so a filtered view is a URL
 somebody can send to the other volunteer; an empty set means every value. Exclusion is
 `hide`, namespaced — `hide=fee:tester`, `hide=status:refunded` — and `hide=none` is how

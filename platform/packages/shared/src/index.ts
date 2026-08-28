@@ -193,6 +193,7 @@ export {
 } from './admin';
 
 export {
+  ENTRY_REQUEST_REASON_MAX_LENGTH,
   entryStatusWording,
   fetchMyEntries,
   requestEntryAction,

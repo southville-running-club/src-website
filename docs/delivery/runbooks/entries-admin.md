@@ -136,6 +136,7 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 | `GET /admin/nn/interest/` | The interest sign-ups, with their addresses |
 | `POST /admin/nn/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
 | `POST /admin/nn/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
+| `POST /admin/nn/medical-sheet/` | The medical notes as a printable page. Audited as `medical_export`, the same row the CSV writes, because it is the same disclosure in a different wrapper |
 | `POST /admin/nn/export/` | One of the three CSVs. Audited |
 | `GET`/`POST` `/admin/emails/` | The email queue — what the club has told people and what it still owes them. `POST` sends a failed message again, and needs `nn.entry.cancel`. [The email runbook](entries-email.md) is what to read beside it |
 | `GET`/`POST` `/admin/people/` | Who holds what, and the two acts that change it |
@@ -143,6 +144,24 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 **Every old `/nn/admin/*` address still resolves** — `301` for a GET, `308` for a POST so the
 method and the body survive. They were published in this runbook and a runbook that 404s is
 worse than one that is out of date.
+
+**The default view leaves out everybody who is not running.** Test entries, refunded entries and
+lapsed holds are hidden unless asked for — on a race that fills those are most of the rows and
+none of the work — and two lines under the chips say what is missing and link to the view that
+includes it. **Pressing a status chip overrules the default**, so no chip is ever a dead end;
+`?hide=none` is how *leave nothing out* is written, and a `hide=` somebody chose still wins.
+
+**Print the medical sheet rather than opening the CSV.** *Print the medical sheet* renders the
+notes as a document and is what a first aider should be handed; *Download the notes as CSV* is
+for the volunteer who wants a spreadsheet. Both take the same read and write the same
+`medical_export` audit row.
+
+⚠️ **Transferring an affiliated place asks for the new runner's own England Athletics number.**
+The box is on the form and is not marked required, because the page does not know which fee the
+purchase was on — the fee is read from the purchase inside the database, which is the only place
+that cannot be lied to. If the form ever said the database could not be reached, that was this
+defect and it is fixed: the number used to be cleared unconditionally, which the entrant rules
+refuse on an affiliated entry, so **every affiliated transfer failed and failed as an outage**.
 
 **Filters are links with query parameters, not a form and not a script.** Every filtered view is a
 URL somebody can send to the other volunteer, and **no filter carries personal data** — the values

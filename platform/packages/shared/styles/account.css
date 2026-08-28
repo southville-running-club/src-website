@@ -139,16 +139,39 @@
   border-style: dashed;
 }
 
-/* The two asks on a confirmed entry.
+/* The two asks on a confirmed entry, and the box that says why.
    **Buttons, not links**, because each one submits a POST that writes a record — a link that
    changes state is the thing prefetchers and crawlers fire by accident. They are styled to read
    as quiet controls rather than as calls to action: the page's subject is the entry above them,
-   and the club would rather somebody read the status than press something. */
+   and the club would rather somebody read the status than press something.
+
+   **A column, since the reason box joined them.** This was a wrapping flex row of two buttons;
+   with a heading, a paragraph and a textarea in it, a row would put the club's position on
+   refunds beside the box it is about at any width wide enough to fit them, and stack it in a
+   different order below that. The buttons keep the row, one level in. */
 .account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  margin-top: calc(var(--space) * 1.5);
+}
+
+.account-actions-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.account-action-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space);
-  margin-top: var(--space);
+}
+
+/* What somebody wrote when they asked, read back to them. Quieter than the status it sits
+   under, because it is a copy of their own words rather than a claim by the club — and with no
+   `color` on it, for the reason `.account-note` gives about `--colour-muted`. */
+.account-quiet {
+  font-size: 0.9375rem;
 }
 
 .account-linkish {
