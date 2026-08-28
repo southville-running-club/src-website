@@ -34,6 +34,39 @@
 -- page. A `sent` one is refused for a stronger reason — see `already_sent` below.
 
 -- -------------------------------------------------------------------------------------------
+-- The audit vocabulary gains a word
+-- -------------------------------------------------------------------------------------------
+-- **`entries.admin_audit.action` is a closed list, and every migration that adds an admin act
+-- widens it on purpose.** `cancel_entry` added one word, `transfer_entry` added another, and
+-- this adds `resend_email`.
+--
+-- ⚠️ **Forgetting this does not fail quietly, and it does not fail where you would look.** The
+-- audit row is written *before* the change, so a word missing from this list raises inside
+-- `admin_outbox_resend()` and the whole function aborts — the re-send silently does nothing and
+-- PostgREST answers with a null body. It reads as the function being unreachable rather than as
+-- a constraint refusing one value, which is exactly how it was found: four failing tests whose
+-- shape pointed at the grant rather than at this.
+--
+-- That the list is closed is the point. It is what makes a new kind of admin act a thing
+-- somebody writes down rather than a string that appears in the audit trail one day.
+alter table entries.admin_audit
+  drop constraint if exists admin_audit_action_check;
+
+alter table entries.admin_audit
+  add constraint admin_audit_action_check
+  check (
+    action in (
+      'sign_in',
+      'medical_note',
+      'medical_export',
+      'export',
+      'cancel_entry',
+      'transfer_entry',
+      'resend_email'
+    )
+  );
+
+-- -------------------------------------------------------------------------------------------
 -- entries.admin_outbox_list() — the queue, and the day's figures
 -- -------------------------------------------------------------------------------------------
 -- **The figures are computed in the same query that lists the rows**, which is the property

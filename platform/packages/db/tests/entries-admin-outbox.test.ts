@@ -189,14 +189,19 @@ afterAll(async () => {
 // -----------------------------------------------------------------------------------------
 
 describe('entries.admin_outbox_list(), and the four ways of being refused it', () => {
-  it('refuses an anonymous caller', async () => {
+  it('refuses an anonymous caller at the grant, before the function runs at all', async () => {
     const { data, error } = await anon.schema('entries').rpc('admin_outbox_list', {});
 
-    // **A refusal, not an error.** A broken function refuses everybody, which reads as every
-    // rule holding at once — so the specific answer is what is asserted.
-    expect(error).toBeNull();
-    expect(data).toMatchObject({ ok: false, reason: 'unauthorised' });
-    expect((data as { messages?: unknown }).messages).toBeUndefined();
+    // **`42501`, not an `unauthorised` envelope, and the difference is the point.** Neither
+    // of these functions is granted to `anon` — they are on `authenticated` only — so an
+    // anonymous caller is refused by Postgres before a line of the body executes. That is a
+    // stronger refusal than the one inside the function, and asserting the envelope here
+    // would have been asserting a weaker guarantee than the one that actually holds.
+    //
+    // The in-function check is what stops a *signed-in* caller, and the four tests below are
+    // where that is proved.
+    expect(error?.code).toBe('42501');
+    expect(data).toBeNull();
   });
 
   it('refuses a plain registered account', async () => {
@@ -291,7 +296,18 @@ describe('entries.admin_outbox_resend(), and what it refuses', () => {
     const purchaseId = await makePaidPurchase(4);
     const id = await messageFor(purchaseId, { status: 'failed', attempts: 3 });
 
-    for (const caller of [anon, plain.client, tester.client, peopleAdmin.client]) {
+    // **Anonymous is refused at the grant**, before the body runs — same as the read above.
+    const anonymously = await anon
+      .schema('entries')
+      .rpc('admin_outbox_resend', { p_id: id });
+
+    expect(anonymously.error?.code).toBe('42501');
+
+    // **Everybody else is refused inside the function**, which is the check that matters:
+    // each of these holds `authenticated`, so the grant lets them ask and only
+    // `identity.has_permission('nn.entry.cancel')` says no. `nn-tester` holds a permission
+    // and is deliberately not staff; `people-admin` opens a different page entirely.
+    for (const caller of [plain.client, tester.client, peopleAdmin.client]) {
       const { data } = await caller
         .schema('entries')
         .rpc('admin_outbox_resend', { p_id: id });
