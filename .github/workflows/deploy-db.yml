@@ -150,7 +150,30 @@ jobs:
         #
         # This repository owns `club` and `intake` and must never propose a change to
         # `public` or `private`.
-        run: npx supabase db push --linked
+        #
+        # ---------------------------------------------------------------------------------
+        # `--include-all`, and what it costs
+        # ---------------------------------------------------------------------------------
+        # **Without it, one out-of-order migration stops production receiving anything, for
+        # ever, silently.** That is not a theory: #134 authored migrations stamped 14:00–14:20
+        # on 28 August while #131's outbox migrations, stamped 17:00 and later, had already
+        # merged and deployed. `db push` then refuses the whole push — *before applying
+        # anything* — and every merge after it inherits the same refusal. Three pull requests
+        # landed on `main` and none of their schema reached production; the only signal was a
+        # red workflow on a branch nobody watches, while every pull request went green.
+        #
+        # **The hazard the guard is about is real, and rarer than the one it causes.**
+        # Applying a migration behind one already on the remote only matters when the two
+        # touch the same object, because the later-applied statement wins. That is worth
+        # catching — and what catches it is review and tests that exercise behaviour, which is
+        # how `20260828200000_entries_audit_actions_reunited` came to exist: two branches
+        # restated one closed list and the second silently dropped the first's value.
+        #
+        # **So this flag does not remove the ordering hazard, and pretending it does is the
+        # mistake to avoid.** What it removes is a guard that answers a naming accident by
+        # refusing every future deploy. A restated closed list — `admin_audit`'s actions,
+        # `fees.code`, `entry_purchases.status` — is still a merge conflict git cannot see.
+        run: npx supabase db push --linked --include-all
 
       - name: Apply project configuration
         # The exposed-schema list, and it belongs here rather than in a dashboard. A schema
