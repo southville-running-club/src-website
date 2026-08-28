@@ -112,10 +112,11 @@ async function pageText(response: Response): Promise<string> {
 /**
  * Every cookie a response sets, as `name=value`, with the cleared ones dropped.
  *
- * **All of them, which is why this is not `headers.get('set-cookie')`.** A sign-in sets two —
- * `src_at` and `src_rt` — and a single `get` returns whichever the runtime happens to join or
- * pick, so a session built from one of them would be refused the moment the access token was
- * near expiry and the refresh token was the half that had been dropped.
+ * **All of them, which is why this is not `headers.get('set-cookie')`.** A sign-in sets three —
+ * `src_at`, `src_rt` and, since ADR-019, `src_ax` — and a single `get` returns whichever the
+ * runtime happens to join or pick, so a session built from one of them would be refused: on
+ * sight if the deadline was the part dropped, or the moment the access token neared expiry if
+ * the refresh token was.
  */
 function setCookiePairs(response: Response): string[] {
   const headers = response.headers as Headers & { getSetCookie?: () => string[] };
@@ -192,6 +193,10 @@ async function signIn(email: string): Promise<string> {
   expect(
     cookies.some((pair) => pair.startsWith('src_rt=')),
     'no refresh cookie',
+  ).toBe(true);
+  expect(
+    cookies.some((pair) => pair.startsWith('src_ax=')),
+    'no absolute-deadline cookie',
   ).toBe(true);
 
   return jar(...cookies);
@@ -451,12 +456,16 @@ describe('the door', () => {
   });
 
   it('refuses a session cookie that is not a session', async () => {
-    // The two cookies are opaque to this Worker — `worker/session.ts` never checks a
+    // The token cookies are opaque to this Worker — `worker/session.ts` never checks a
     // signature itself, it asks Supabase Auth, which is what holds the signing key. Rubbish
     // in both must be the ordinary refusal rather than an error page.
+    //
+    // **The deadline is live on purpose.** An expired or missing `src_ax` is refused before
+    // Supabase is asked anything, so leaving it off would make this test pass without ever
+    // reaching the code it is about.
     const response = await get(
       `${NN}entries/${ADMIN_EVENT_SLUG}/`,
-      'src_at=not.a.jwt; src_rt=not-a-refresh-token',
+      `src_at=not.a.jwt; src_rt=not-a-refresh-token; src_ax=${Math.floor(Date.now() / 1000) + 3600}`,
     );
 
     expect(response.status).toBe(404);

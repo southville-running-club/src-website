@@ -173,6 +173,26 @@ interface Env {
   GOOGLE_SIGN_IN?: string;
 }
 
+/**
+ * The first segment of every `/account/` address that is *for* somebody who is not signed
+ * in — where a stale session cookie is beside the point rather than the subject.
+ *
+ * Written out rather than inferred from `session === null`, because the two questions are
+ * genuinely different: `/account/sign-in/` is reachable both by somebody who has never had
+ * an account and by somebody whose session just ran out, and only the second is owed an
+ * explanation. Everything not on this list needs a session, so everything not on this list
+ * gets one when a session ends underneath it.
+ */
+const SIGNED_OUT_ADDRESSES = new Set([
+  'sign-up',
+  'sign-in',
+  'link',
+  'google',
+  'confirm',
+  'callback',
+  'reset',
+]);
+
 export async function handleAccount(
   request: Request,
   env: Env,
@@ -183,14 +203,27 @@ export async function handleAccount(
   const cookieHeader = request.headers.get('cookie');
   const cfg = config(env);
 
-  const { session, setCookies: refreshedCookies } = await readSession(
-    cfg,
-    cookieHeader,
-    nowSeconds,
-    secure,
-  );
+  const {
+    session,
+    setCookies: refreshedCookies,
+    timedOut,
+  } = await readSession(cfg, cookieHeader, nowSeconds, secure);
 
   const segments = accountSegments(url.pathname);
+
+  // **Why a timed-out session is turned away here rather than at each address.** Every
+  // address that needs a session already redirects to `/account/sign-in/` when there is
+  // none, and that redirect is right — but arriving at a sign-in page with no explanation,
+  // having been signed in when the tab was left, reads as the site having lost something
+  // rather than as the thing ADR-019 deliberately did. So it is said once, in one place.
+  //
+  // The addresses that are *for* somebody signed out are left alone, and that is the whole
+  // reason this is a list rather than `session === null`: intercepting `/account/sign-in/`
+  // or a magic link's callback with a stale cookie would break the very flow somebody is on
+  // their way to when they arrive holding one.
+  if (timedOut && !SIGNED_OUT_ADDRESSES.has(segments[0] ?? '')) {
+    return redirectTo('/account/sign-in/?timed-out=ok', secure, refreshedCookies);
+  }
 
   if (request.method === 'GET' && segments.length === 0) {
     return accountHome(session, cfg, secure, refreshedCookies);
@@ -225,7 +258,9 @@ export async function handleAccount(
           ? 'link-sent'
           : url.searchParams.get('deleted') === 'ok'
             ? 'deleted'
-            : null,
+            : url.searchParams.get('timed-out') === 'ok'
+              ? 'timed-out'
+              : null,
       );
     }
     if (request.method === 'POST') {
@@ -699,7 +734,7 @@ async function handleSignIn(
       newSessionCookies(
         data.session.access_token,
         data.session.refresh_token,
-        data.session.expires_in,
+        Math.floor(Date.now() / 1000),
         secure,
       ),
     );
@@ -740,7 +775,7 @@ function signInPage(
   submitted: { email: string },
   extraCookies: string[],
   magicLinkErrors: AccountMagicLinkErrors = {},
-  notice: 'link-sent' | 'deleted' | null = null,
+  notice: 'link-sent' | 'deleted' | 'timed-out' | null = null,
 ): Response {
   const csrfToken = mintCsrfToken();
   const googleOn = env.GOOGLE_SIGN_IN === 'on';
@@ -775,6 +810,21 @@ function signInPage(
               <p>
                 Your account has been deleted. Any race entry you paid for is unaffected
                 and you are still on the start list.
+              </p>
+            </div>`
+          : null
+      }
+      ${
+        /* **It says what happened, not how long the window is.** Somebody who left a tab
+           open needs to know the club did this on purpose and that nothing is lost; the
+           thirty minutes and the twelve hours are in ADR-019, where they can be changed
+           without a copy edit. Naming them here would also tell anybody who asks exactly
+           how long a stolen laptop stays useful, which is worth nothing to a runner. */
+        notice === 'timed-out'
+          ? html`<div class="notice" role="status" tabindex="-1" autofocus>
+              <p>
+                You were signed out because your session had been open a while. Sign in
+                again to pick up where you left off — nothing has been lost.
               </p>
             </div>`
           : null
@@ -1270,7 +1320,7 @@ async function handleCallback(
       ...newSessionCookies(
         data.session.access_token,
         data.session.refresh_token,
-        data.session.expires_in,
+        Math.floor(Date.now() / 1000),
         secure,
       ),
       clearedPkceCookie(secure),
@@ -1555,7 +1605,7 @@ async function handleResetConfirm(
       newSessionCookies(
         parsed.value.accessToken,
         parsed.value.refreshToken,
-        3600,
+        Math.floor(Date.now() / 1000),
         secure,
       ),
     );
@@ -1781,7 +1831,7 @@ async function handleChangePassword(
       newSessionCookies(
         fresh.access_token,
         fresh.refresh_token,
-        fresh.expires_in,
+        Math.floor(Date.now() / 1000),
         secure,
       ),
     );

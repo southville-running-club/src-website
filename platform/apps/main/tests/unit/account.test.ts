@@ -133,6 +133,19 @@ const HEALTHY_ACCESS_TOKEN = `${toBase64Url('{"alg":"none"}')}.${toBase64Url(
   JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 }),
 )}.sig`;
 
+/**
+ * The `Cookie` header of somebody who is signed in — all three of ADR-019's cookies, since a
+ * session is no longer two things but three: the access token, the refresh token, and the
+ * moment it stops being extendable. A header carrying only the first two is exactly what a
+ * thirty-day session from before ADR-019 looks like, and `readSession` ends one of those on
+ * sight — so every test that means "signed in" has to say all three.
+ */
+const SIGNED_IN = [
+  `src_at=${HEALTHY_ACCESS_TOKEN}`,
+  'src_rt=zz-refresh-token',
+  `src_ax=${Math.floor(Date.now() / 1000) + 3600}`,
+].join('; ');
+
 beforeEach(() => {
   getUser.mockResolvedValue({ data: { user: null }, error: { message: 'no session' } });
   // A default, because a bare `vi.fn()` resolves to `undefined` and `/account/` destructures
@@ -287,7 +300,7 @@ describe('GET /account/, signed in', () => {
     });
 
     const response = await handleAccount(
-      get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/'),
     );
@@ -312,7 +325,7 @@ describe('GET /account/, signed in', () => {
     rpc.mockResolvedValue({ data: ['nn-admin', 'registered'], error: null });
 
     const response = await handleAccount(
-      get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/'),
     );
@@ -331,7 +344,7 @@ describe('GET /account/, signed in', () => {
     userGetUser.mockResolvedValue({ data: { user: null }, error: null });
 
     const response = await handleAccount(
-      get('/account/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/'),
     );
@@ -508,6 +521,9 @@ describe('POST /account/sign-in/', () => {
       : [response.headers.get('set-cookie') ?? ''];
     expect(setCookies.some((c) => c.includes('src_at=zz-access'))).toBe(true);
     expect(setCookies.some((c) => c.includes('src_rt=zz-refresh'))).toBe(true);
+    // The third is what makes this session end today rather than in thirty days —
+    // ADR-019. A sign-in is the only thing that mints one.
+    expect(setCookies.some((c) => /src_ax=\d{10}/.test(c))).toBe(true);
   });
 });
 
@@ -524,18 +540,14 @@ describe('POST /account/sign-out/', () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
-  it('signs out server-side and clears both session cookies when a session exists', async () => {
+  it('signs out server-side and clears every session cookie when a session exists', async () => {
     getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
     setSession.mockResolvedValue({ error: null });
     signOut.mockResolvedValue({ error: null });
 
     const { cookie, body } = withCsrf({});
     const response = await handleAccount(
-      post(
-        '/account/sign-out/',
-        body,
-        `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
-      ),
+      post('/account/sign-out/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/sign-out/'),
     );
@@ -547,6 +559,89 @@ describe('POST /account/sign-out/', () => {
       : [];
     expect(setCookies.some((c) => c.startsWith('src_at=;'))).toBe(true);
     expect(setCookies.some((c) => c.startsWith('src_rt=;'))).toBe(true);
+    expect(setCookies.some((c) => c.startsWith('src_ax=;'))).toBe(true);
+  });
+});
+
+/**
+ * ADR-019. The mechanism itself — the two windows, the deadline cookie, the signed
+ * authentication time — is `session.test.ts`'s; what is here is the half a runner meets:
+ * where a session that has run out puts them, and whether it says so.
+ */
+describe('a session that has timed out', () => {
+  /** Signed in this morning, back after lunch: the tokens are perfectly good and the
+   *  deadline they were issued under has gone. */
+  const STALE = [
+    `src_at=${HEALTHY_ACCESS_TOKEN}`,
+    'src_rt=zz-refresh-token',
+    `src_ax=${Math.floor(Date.now() / 1000) - 1}`,
+  ].join('; ');
+
+  it('sends somebody to the sign-in page, with the cookies cleared', async () => {
+    setSession.mockResolvedValue({ error: null });
+    signOut.mockResolvedValue({ error: null });
+
+    const response = await handleAccount(
+      get('/account/entries/', STALE),
+      ENV,
+      new URL('http://localhost:8787/account/entries/'),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/account/sign-in/?timed-out=ok');
+
+    const setCookies = response.headers.getSetCookie
+      ? response.headers.getSetCookie()
+      : [];
+    expect(setCookies.filter((c) => c.includes('Max-Age=0'))).toHaveLength(3);
+  });
+
+  it('revokes the refresh token rather than merely forgetting it', async () => {
+    setSession.mockResolvedValue({ error: null });
+    signOut.mockResolvedValue({ error: null });
+
+    await handleAccount(
+      get('/account/', STALE),
+      ENV,
+      new URL('http://localhost:8787/account/'),
+    );
+
+    // The difference between an expiry and an amnesia: a copy of this cookie jar taken
+    // before the deadline is refused after it too.
+    expect(signOut).toHaveBeenCalled();
+  });
+
+  it('leaves the pages that are for somebody signed out alone', async () => {
+    setSession.mockResolvedValue({ error: null });
+    signOut.mockResolvedValue({ error: null });
+
+    // The trap this list exists to avoid: intercepting `/account/sign-in/` with a stale
+    // cookie would bounce somebody off the very page they have been sent to.
+    const response = await handleAccount(
+      get('/account/sign-in/', STALE),
+      ENV,
+      new URL('http://localhost:8787/account/sign-in/'),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it('says what happened when the sign-in page is reached that way', async () => {
+    const response = await handleAccount(
+      get('/account/sign-in/?timed-out=ok'),
+      ENV,
+      new URL('http://localhost:8787/account/sign-in/?timed-out=ok'),
+    );
+
+    const html = (await response.text()).replace(/\s+/g, ' ');
+
+    expect(html).toContain('You were signed out because your session had been open');
+    expect(html).toContain('nothing has been lost');
+    // **Not how long the window is.** The numbers live in ADR-019 and in `session.ts`,
+    // where changing them is not a copy edit — and telling anybody who asks how long a
+    // borrowed laptop stays useful is worth nothing to a runner.
+    expect(html).not.toContain('30 minutes');
+    expect(html).not.toContain('12 hours');
   });
 });
 
@@ -816,7 +911,7 @@ describe('POST /account/password/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/password/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/password/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/password/'),
     );
@@ -853,7 +948,7 @@ describe('POST /account/password/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/password/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/password/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/password/'),
     );
@@ -883,7 +978,7 @@ describe('POST /account/password/', () => {
           current_password: 'x',
           new_password: 'a-perfectly-good-new-password',
         }),
-        `src_at=${HEALTHY_ACCESS_TOKEN}`,
+        SIGNED_IN,
       ),
       ENV,
       new URL('http://localhost:8787/account/password/'),
@@ -925,7 +1020,7 @@ describe('GET /account/details/, signed in', () => {
     });
 
     const response = await handleAccount(
-      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/details/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -958,7 +1053,7 @@ describe('GET /account/details/, signed in', () => {
     });
 
     const response = await handleAccount(
-      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/details/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -980,7 +1075,7 @@ describe('GET /account/details/, signed in', () => {
       .mockResolvedValueOnce({ data: { user: null }, error: { message: 'expired' } });
 
     const response = await handleAccount(
-      get('/account/details/', `src_at=${HEALTHY_ACCESS_TOKEN}`),
+      get('/account/details/', SIGNED_IN),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1021,7 +1116,7 @@ describe('POST /account/details/', () => {
       post(
         '/account/details/',
         new URLSearchParams({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL }),
-        `src_at=${HEALTHY_ACCESS_TOKEN}`,
+        SIGNED_IN,
       ),
       ENV,
       new URL('http://localhost:8787/account/details/'),
@@ -1039,7 +1134,7 @@ describe('POST /account/details/', () => {
     const { cookie, body } = withCsrf({ name: '', email: UNCHANGED_EMAIL });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1056,7 +1151,7 @@ describe('POST /account/details/', () => {
     const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: 'not-an-address' });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1079,7 +1174,7 @@ describe('POST /account/details/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1102,7 +1197,7 @@ describe('POST /account/details/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1125,7 +1220,7 @@ describe('POST /account/details/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1143,7 +1238,7 @@ describe('POST /account/details/', () => {
     const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1172,7 +1267,7 @@ describe('POST /account/details/', () => {
     const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: 'ADA@EXAMPLE.COM' });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1198,7 +1293,7 @@ describe('POST /account/details/', () => {
     });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1223,7 +1318,7 @@ describe('POST /account/details/', () => {
     const { cookie, body } = withCsrf({ name: 'Ada Lovelace', email: UNCHANGED_EMAIL });
 
     const response = await handleAccount(
-      post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+      post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
       ENV,
       new URL('http://localhost:8787/account/details/'),
     );
@@ -1246,11 +1341,7 @@ describe('POST /account/details/', () => {
       });
 
       const response = await handleAccount(
-        post(
-          '/account/details/',
-          body,
-          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
-        ),
+        post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
         ENV,
         new URL('http://localhost:8787/account/details/'),
       );
@@ -1283,11 +1374,7 @@ describe('POST /account/details/', () => {
       });
 
       await handleAccount(
-        post(
-          '/account/details/',
-          body,
-          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
-        ),
+        post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
         ENV,
         new URL('http://localhost:8787/account/details/'),
       );
@@ -1308,8 +1395,19 @@ describe('POST /account/details/', () => {
         email: 'new-address@example.com',
       });
 
+      // **Half a session, and since ADR-019 it is refused as a whole rather than only by
+      // the email path.** Changing an address needs `setSession()`, which needs both
+      // tokens — and a session that cannot be refreshed also cannot have its idle window
+      // slid, so `readSession` now ends it before this handler is reached. Either way the
+      // guarantee is the one this test is about: nobody's email is changed on a session
+      // that is not all there.
+      const halfASession = [
+        `src_at=${HEALTHY_ACCESS_TOKEN}`,
+        `src_ax=${Math.floor(Date.now() / 1000) + 3600}`,
+      ].join('; ');
+
       const response = await handleAccount(
-        post('/account/details/', body, `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}`),
+        post('/account/details/', body, `${cookie}; ${halfASession}`),
         ENV,
         new URL('http://localhost:8787/account/details/'),
       );
@@ -1336,11 +1434,7 @@ describe('POST /account/details/', () => {
       });
 
       const response = await handleAccount(
-        post(
-          '/account/details/',
-          body,
-          `${cookie}; src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`,
-        ),
+        post('/account/details/', body, `${cookie}; ${SIGNED_IN}`),
         ENV,
         new URL('http://localhost:8787/account/details/'),
       );
@@ -1718,7 +1812,7 @@ describe('POST /account/google/', () => {
 // #62 — /account/data/
 // -----------------------------------------------------------------------------------------
 
-const SIGNED_IN_COOKIE = `src_at=${HEALTHY_ACCESS_TOKEN}; src_rt=zz-refresh-token`;
+const SIGNED_IN_COOKIE = SIGNED_IN;
 
 function signedIn(): void {
   getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });

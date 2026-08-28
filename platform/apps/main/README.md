@@ -804,8 +804,35 @@ layer.
 ### Sessions and CSRF
 
 `worker/session.ts` (#52) is what a signed-in request carries; this is its first caller. A
-sign-in sets `src_at`/`src_rt`; a sign-out clears both **and** calls Supabase's own sign-out,
-so the refresh token is dead server-side rather than merely forgotten locally.
+sign-in sets `src_at`/`src_rt`/`src_ax`; a sign-out clears all three **and** calls Supabase's
+own sign-out, so the refresh token is dead server-side rather than merely forgotten locally.
+
+### A session ends on its own — ADR-019
+
+**Thirty minutes idle, twelve hours absolute**, which are NIST SP 800-63B's AAL2 numbers and
+sit inside OWASP's bands for a low-risk application. It used to be thirty days, which was
+Supabase's default rather than anybody's decision — and one cookie jar opens `/account/` and
+`/admin/` alike, where the entry list, every emergency contact and the medical notes are.
+
+| | Enforced by |
+| --- | --- |
+| **Idle** | The `Max-Age` on all three cookies, re-issued on every request that carries a live session — so `readSession` now returns `Set-Cookie` values on the *common* path, not only after a refresh |
+| **Absolute** | `src_ax`, the deadline minted at sign-in and carried unchanged through every refresh, checked against the authentication time GoTrue signs into the access token's `amr` claim — whichever of the two is stricter |
+
+**Only an authentication mints a deadline.** A refresh carries the existing one forward, which
+is what stops an hour of refreshing buying another twelve. Reaching either deadline calls
+Supabase's `/logout` on the way out, so the expiry revokes rather than merely forgets — and a
+session carrying no readable `src_ax` is ended rather than given one, because a missing
+deadline must not mean "no upper bound".
+
+**Somebody is told why**: every `/account/` address needing a session sends a timed-out visitor
+to `/account/sign-in/?timed-out=ok`, which says what happened without naming the durations. The
+addresses *for* somebody signed out — `SIGNED_OUT_ADDRESSES` in `worker/account.ts` — are
+deliberately not intercepted. `/admin/` is unchanged: the same ordinary 404.
+
+**GoTrue does both of these itself on a Pro plan** and would replace most of this; ADR-019 has
+why that is not reachable from the free tier, and why setting it in `[auth]` anyway would be
+worse than not having it.
 
 **`SameSite=Lax`, not `Strict`** — a magic link (#55) and an OAuth callback (#56) are both
 cross-site top-level navigations, which `Strict` would drop the session cookie on. Every

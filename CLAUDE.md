@@ -730,6 +730,19 @@ the caller's confirmed address. **An account is not required to enter and is nev
 entering**: auto-creating one would write an unconfirmed `auth.users` row and grant it the signup
 role, which is a false statement in the table whose job is to say who somebody is.
 
+**A session ends on its own — thirty minutes idle, twelve hours absolute** —
+[ADR-019](docs/architecture/decisions/adr-019-a-session-ends-on-its-own.md). It used to be
+thirty days, which was Supabase's default rather than a decision, and one cookie jar opens
+`/account/` and `/admin/` alike. **A session is three cookies now, not two**: `src_ax` carries
+the absolute deadline, and a session arriving without a readable one is ended rather than given
+one — so every fixture and every hand-built `Cookie` header that means "signed in" has to say
+all three. **Only an authentication mints a deadline**; a refresh carries the existing one
+forward, and the Worker cross-checks it against the authentication time GoTrue signs into the
+access token's `amr` claim, which is the half a stolen cookie jar cannot forge. Reaching either
+deadline calls Supabase's `/logout`, so an expiry revokes rather than forgets. **GoTrue does
+both of these itself on a Pro plan and the club is on the free tier** — putting them in
+`[auth]` anyway would be refused, and there is no partial apply.
+
 **A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
 zero-total Checkout session, so a visually impaired runner's guide is told so plainly and
 given the race address. Fixing it means deciding that an unpaid entry counts as paid, which
