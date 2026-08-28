@@ -137,6 +137,7 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 | `POST /admin/nn/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
 | `POST /admin/nn/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
 | `POST /admin/nn/export/` | One of the three CSVs. Audited |
+| `GET`/`POST` `/admin/emails/` | The email queue — what the club has told people and what it still owes them. `POST` sends a failed message again, and needs `nn.entry.cancel`. [The email runbook](entries-email.md) is what to read beside it |
 | `GET`/`POST` `/admin/people/` | Who holds what, and the two acts that change it |
 
 **Every old `/nn/admin/*` address still resolves** — `301` for a GET, `308` for a POST so the
