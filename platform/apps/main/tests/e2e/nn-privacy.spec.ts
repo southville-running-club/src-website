@@ -212,10 +212,15 @@ test.describe('the privacy notice', () => {
 
     expect(body).toMatch(/We never see your card details/i);
 
-    // **Resend is not wired up.** The draft carried the line with its own instruction to
-    // remove it if the confirmation email was not in place for 2026, and it is not. Naming a
-    // processor the club does not yet use is a claim about a data flow that does not happen.
-    expect(body).not.toMatch(/Resend/i);
+    // **Resend is wired up now — #73**, so the line the draft carried conditionally is here
+    // for real. The draft's instruction was to remove it *if the confirmation email was not
+    // in place for 2026*; it is, and entering, cancelling and transferring each send one.
+    //
+    // **This assertion reversed rather than being deleted**, which is the point of having
+    // written it in the negative first: naming a processor the club does not use and failing
+    // to name one it does are the same defect in opposite directions, and only a test that
+    // changes direction with the build catches both.
+    expect(body).toMatch(/Resend/i);
   });
 
   // -------------------------------------------------------------------------------------

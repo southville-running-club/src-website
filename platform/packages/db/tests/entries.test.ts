@@ -67,6 +67,10 @@ const TABLES = [
   'webhook_secrets',
   'admin_keys',
   'admin_audit',
+  // **The fourth table nothing may reach, and the reason is the plainest of the four.** It is
+  // a list of the club's email addresses beside what the club is about to tell each of them.
+  // RLS is on with no policy at all, and the drain reaches it only through a keyed function.
+  'email_outbox',
 ] as const;
 
 /**
@@ -83,6 +87,7 @@ const UPDATABLE_COLUMN: Record<(typeof TABLES)[number], string> = {
   webhook_secrets: 'updated_at',
   admin_keys: 'issued_at',
   admin_audit: 'at',
+  email_outbox: 'created_at',
 };
 
 /** Fabricated events, used to exercise the window states without touching the real row. */
@@ -271,9 +276,17 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'attach_checkout_session',
       'cancel_entry',
       'cancellable_purchase',
+      // **The outbox's two, and they take the webhook key** — #73. `claim_outbox_batch`
+      // returns real email addresses to the Worker's cron, which is why it is keyed rather
+      // than merely granted; `record_send_result` writes back what happened to each one.
+      'claim_outbox_batch',
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
+      // **The fourth trigger function, and like the other three it is callable by nobody.**
+      // It writes the row saying the club owes somebody an email, in the same transaction as
+      // the payment, refund or transfer that made it true.
+      'enqueue_entry_email',
       // **The four role counterparts, granted to `authenticated`.** Same reads, different
       // door: `identity.has_role('nn-admin')` rather than a key. There is deliberately no
       // counterpart to `admin_sign_in` — signing in is `/account/`'s job now.
@@ -295,12 +308,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'read_interest_list',
       'record_admin_action',
       'record_checkout_event',
+      'record_send_result',
       'request_entry_action',
       'transfer_entry',
     ]);
   });
 
-  it('lets anon execute exactly thirteen of the twenty-seven, and never PUBLIC', async () => {
+  it('lets anon execute exactly fifteen of the thirty, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument
@@ -326,6 +340,30 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // `authenticated` and asserted separately below; four are granted to nobody. The count in
     // this test's name moved and the list did not, which is the shape an expand-only change
     // should have.
+    //
+    // **#73 added the fourteenth and fifteenth, and they are the first two on this list that
+    // exist to send somebody an email.** CLAUDE.md names a fourteenth as a stop-and-ask; it
+    // was taken deliberately, and the argument is:
+    //
+    //   * **`claim_outbox_batch` returns real email addresses**, which is exactly the kind of
+    //     thing an unguarded `anon` grant must never do — the anon key is published in page
+    //     source. So it takes the **webhook key** and checks it before it reads anything, the
+    //     same second factor `record_checkout_event` uses and for the same reason. Without a
+    //     key it returns `unauthorised` and no rows at all.
+    //
+    //   * **`anon` is the only role a Worker's cron can reach Postgres as.** A scheduled
+    //     invocation has no session, so `authenticated` is not available to it, and the
+    //     service role key may never reach a Worker. This is `expire_pending_holds`'s
+    //     situation exactly, with the difference that this one returns personal data — which
+    //     is what the key is for.
+    //
+    //   * **`record_send_result` writes only to rows the caller was handed**, and takes the
+    //     same key. It cannot read an address, cannot see the queue, and cannot move a row
+    //     out of `pending` it was not given the id of.
+    //
+    // The trigger that *writes* the queue, `enqueue_entry_email`, is granted to nobody — like
+    // `raise_attention`, and for the same reason: a function that decides the club owes
+    // somebody a message is not one a caller may reach.
     const rows = await query<{ routine_name: string }>(
       `select distinct routine_name
          from information_schema.routine_privileges
@@ -340,6 +378,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'admin_interest_list',
       'admin_sign_in',
       'attach_checkout_session',
+      'claim_outbox_batch',
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
@@ -347,6 +386,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'entry_state',
       'expire_pending_holds',
       'record_checkout_event',
+      'record_send_result',
     ]);
 
     const publicly = await query(
@@ -616,6 +656,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       read_interest_list: 's',
       record_admin_action: 'v',
       record_checkout_event: 'v',
+      // **#73's three, and all volatile — including the one that looks like a read.**
+      // `claim_outbox_batch` increments `attempts` in the same statement that selects the
+      // rows, which is what makes a handed-out batch a counted one; a `stable` marking here
+      // would be a lie the planner is entitled to act on.
+      claim_outbox_batch: 'v',
+      enqueue_entry_email: 'v',
+      record_send_result: 'v',
     });
   });
 });

@@ -478,8 +478,27 @@ the tree a change was verified against is recorded rather than inferred.
 
 ## What is not built yet
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no confirmation
-email and no timing application code**.
+So you do not go looking for it, or assume it is missing by mistake: there is **no timing
+application code**.
+
+**The confirmation email is built — #73 and
+[ADR-021](docs/architecture/decisions/adr-021-the-club-tells-people-by-outbox.md).** The club
+sends four messages about an entry, and **the obligation to send one is written in the same
+transaction as the thing it is about**: an `after update` trigger on `entries.entry_purchases`
+writes a row into `entries.email_outbox` when a place is paid for, refunded, or transferred —
+two rows for a transfer, because the person it moved *away from* has an address that exists
+nowhere else once `purchaser_email` is overwritten. Delivery is separate and retryable: the
+five-minute cron claims a batch, sends it through Resend's REST API, and records each outcome.
+**Nothing can lose a message**; it can only be late. **The outbox holds one piece of personal
+data, an email address** — everything else a message needs is joined from the live tables at
+send time, so it is not a second copy of an entry for retention to chase.
+
+⚠️ **Resend's free tier is 100 emails a day, account-wide, against 250 places** — shared with
+every account email the site sends. On a busy entry day the queue will exceed it and the
+remainder arrives the next day. That is a **decision the club took deliberately** over roughly
+$20/month, not an oversight, and it is why the outbox exists at all.
+[The runbook](docs/delivery/runbooks/entries-email.md) is what a volunteer reads when somebody
+says they never heard anything. **`/admin/emails/`, with the re-send button, is not built yet.**
 
 **One rate-limiting rule is live, and it is the whole of the Cloudflare layer.**
 `[auth.rate_limit]` in `packages/db/supabase/config.toml` is chosen rather than defaulted, with
@@ -687,7 +706,9 @@ counts `status = 'paid'` — an entry somebody has asked to cancel still holds i
 a volunteer acts, and a new status would make that place invisible to the count and sellable
 twice. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
 no transfer button until the club asked for one — see the paragraph above, which is what
-that ask turned into. **The email half is not built** — there is no send path until #73.
+that ask turned into. **The email half is built now, and it is not this** — #73 sends on what a
+volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody
+by email; the message goes when somebody acts on it.
 
 **`/admin/nn/` filters on sets, and leaves test entries out by default.** Status and entry
 type are multi-select, carried as repeated query parameters so a filtered view is a URL
@@ -745,8 +766,8 @@ sloppy** — the only person who can reach Checkout before 1 September is somebo
 `nn-tester` to. Swapping `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to live keys is the last
 manual step before the window opens, and it is in the entries-open runbook.
 
-**`/account/entries/` is what tells a runner they have a place**, and until #73 it is the only
-thing that does besides Stripe's own receipt. It reads `entries.my_entries()`, which matches on
+**`/account/entries/` is what tells a runner they have a place**, alongside the confirmation
+email #73 sends and Stripe's own receipt. It reads `entries.my_entries()`, which matches on
 `person_id` — set when the buyer happened to be signed in — **or** on a `purchaser_email` equal to
 the caller's confirmed address. **An account is not required to enter and is never created by
 entering**: auto-creating one would write an unconfirmed `auth.users` row and grant it the signup

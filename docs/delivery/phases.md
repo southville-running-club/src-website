@@ -478,10 +478,16 @@ this removes.
   this database. That is what keeps the club out of PCI scope
 - **The webhook** — what confirms a payment, how it authenticates, and what privilege it
   writes with. **Not a licence for a service role key**
-- **The confirmation email** — nothing is sent yet, and `/nn/2026/entry/complete/` is worded as
-  what the club will do rather than what has happened. **`/account/entries/` is now the durable
-  record in the meantime**, alongside Stripe's own receipt — [#73](https://github.com/southville-running-club/src-website/issues/73)
-  is still the email
+- ~~**The confirmation email**~~ — **done**, in
+  [#73](https://github.com/southville-running-club/src-website/issues/73) and
+  [ADR-021](../architecture/decisions/adr-021-the-club-tells-people-by-outbox.md). Four
+  messages — paid, refunded, and both sides of a transfer — through an **outbox**: the
+  obligation is written in the same transaction as the payment, and delivery is a separate
+  retryable job on the existing five-minute cron. Nothing can be lost; it can only be late.
+  **`/account/entries/` remains the durable record** and Stripe's receipt still exists.
+  ⚠️ **Resend's free tier is 100 a day against 250 places** — an accepted risk, taken
+  deliberately over roughly $20/month, and the reason the outbox exists rather than a plain
+  send. **`/admin/emails/` — the queue, with a re-send button — is the remaining half**
 - ~~**A way to test the payment path without opening entries**~~ — **done**, in
   [#107](https://github.com/southville-running-club/src-website/issues/107). The `nn-tester`
   role and a permission-gated £1 fee, so the rehearsal in the entries-open runbook no longer

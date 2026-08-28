@@ -776,20 +776,32 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
     );
 
     expect(rows).toEqual([
+      // **The fourth is not a rule, and that is why it sorts first and reads oddly here.**
+      // #73's outbox trigger enforces nothing — it records that the club owes somebody an
+      // email, in the same transaction as the payment, refund or transfer that made it true.
+      // It is in this list because the list is every non-internal trigger in the schema, and
+      // a test that named only the rule triggers would stop noticing a fifth.
+      { tgname: 'enqueue_entry_email_after_update', relname: 'entry_purchases' },
       { tgname: 'entrant_medical_needs_consent', relname: 'entrant_medical' },
       { tgname: 'entrants_obey_their_event', relname: 'entrants' },
       { tgname: 'entry_purchases_have_their_consents', relname: 'entry_purchases' },
     ]);
   });
 
-  it('grants the three trigger functions to nobody at all', async () => {
+  it('grants the four trigger functions to nobody at all', async () => {
     // They are reached only by the triggers that fire them. A grant would make them callable
     // with a key that is published in page source, and two of them read a person.
+    //
+    // **`enqueue_entry_email` is the fourth, and it is here for a different reason than the
+    // other three.** It writes rather than reads: a caller who could reach it directly could
+    // make the club email anybody, about an entry that does not exist, from the club's own
+    // verified sending domain. Same treatment as `raise_attention`.
     const granted = await query(
       `select grantee from information_schema.routine_privileges
         where routine_schema = 'entries'
           and routine_name in (
-            'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents'
+            'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
+            'enqueue_entry_email'
           )
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );

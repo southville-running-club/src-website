@@ -225,20 +225,28 @@ test.describe("the club's privacy notice", () => {
 
   test('names only the processors the club actually uses today', async ({ page }) => {
     // **The judgement this page had to make, held as a test.** The issue that asked for this
-    // notice listed Resend and Google as processors; neither is wired up — the confirmation
-    // email and Google sign-in are both open issues — and naming a company that receives
-    // nothing today is a false statement about what the club does, in the over-claiming
-    // direction. `nn-privacy.spec.ts` already refuses Resend on the entry notice for exactly
-    // this reason, and this is the same assertion one page along.
+    // notice listed Resend and Google as processors; naming a company that receives nothing
+    // today is a false statement about what the club does, in the over-claiming direction.
     //
-    // **It fails the day either one is built**, which is the point: the notice is then
-    // updated in the same change that starts the data flowing, rather than afterwards.
+    // **It fails the day either one is built**, which is the point — and Resend has now been
+    // built twice over, which is why that half has reversed:
+    //
+    //   * **#50 routed GoTrue's own mail through Resend's SMTP in production**, so every
+    //     confirmation, reset and magic link this page describes has gone through them since
+    //     26 August 2026. This notice went on saying the account emails were sent by Supabase
+    //     for that whole window, which was the *under*-claiming version of the same defect —
+    //     and it was this assertion, written to catch the over-claiming one, that hid it.
+    //   * **#73 added the entry emails.** `nn-privacy.spec.ts` covers those; they are the
+    //     entry notice's business rather than this page's.
+    //
+    // **Google is still not built** — sign-in with Google is parked at #56 — so that half
+    // stays exactly as it was, and is the reason this test keeps both directions in one place.
     await page.goto('/privacy/');
     const body = (await page.locator(NOTICE).textContent()) ?? '';
 
     expect(body).toMatch(/Supabase/);
     expect(body).toMatch(/Cloudflare/);
-    expect(body).not.toMatch(/Resend/i);
+    expect(body).toMatch(/Resend/i);
     expect(body).not.toMatch(/\bGoogle\b/);
   });
 

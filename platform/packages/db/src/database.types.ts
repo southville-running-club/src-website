@@ -112,6 +112,59 @@ export type Database = {
           },
         ]
       }
+      email_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          provider_message_id: string | null
+          purchase_id: string
+          recipient: string
+          sent_at: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          purchase_id: string
+          recipient: string
+          sent_at?: string | null
+          status?: string
+          template: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          purchase_id?: string
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "entry_purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entrant_medical: {
         Row: {
           created_at: string
@@ -462,6 +515,10 @@ export type Database = {
         Returns: Json
       }
       cancellable_purchase: { Args: { p_purchase_id: string }; Returns: Json }
+      claim_outbox_batch: {
+        Args: { p_key: string; p_limit?: number }
+        Returns: Json
+      }
       create_pending_purchase: {
         Args: {
           p_consents: Json
@@ -513,6 +570,17 @@ export type Database = {
           p_payment_intent_id?: string
           p_session_id?: string
           p_stripe_event_id?: string
+        }
+        Returns: Json
+      }
+      record_send_result: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_key: string
+          p_ok: boolean
+          p_provider_message_id?: string
+          p_rate_limited?: boolean
         }
         Returns: Json
       }
