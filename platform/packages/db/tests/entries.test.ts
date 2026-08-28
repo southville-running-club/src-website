@@ -285,6 +285,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // returns real email addresses to the Worker's cron, which is why it is keyed rather
       // than merely granted; `record_send_result` writes back what happened to each one.
       'claim_outbox_batch',
+      // **The one function here that gives something away rather than recording something
+      // bought.** `create_manual_entry` writes a `paid` purchase at £0 on the `complimentary`
+      // fee, behind `nn.entry.create`, under the same per-event advisory lock the entry path
+      // takes — so a given place cannot oversell the course. ADR-021 records what that amends
+      // in ADR-010: the webhook is still the only thing that promotes a purchase somebody
+      // *paid* for, and this one nobody did.
+      'create_manual_entry',
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
@@ -319,7 +326,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     ]);
   });
 
-  it('lets anon execute exactly fifteen of the thirty, and never PUBLIC', async () => {
+  it('lets anon execute exactly fifteen of the thirty-one, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument
@@ -384,6 +391,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'admin_sign_in',
       'attach_checkout_session',
       'claim_outbox_batch',
+      // **`create_manual_entry` is deliberately not on this list**, and it was briefly added
+      // here by mistake — this test is what caught it. A function that writes a `paid`
+      // purchase at £0 must never be reachable with the anon key that is published in page
+      // source, or anybody could give themselves a free place. It is granted to
+      // `authenticated` only, and authorises on `nn.entry.create` inside itself.
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
@@ -402,7 +414,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets authenticated execute exactly fifteen, and still no table read', async () => {
+  it('lets authenticated execute exactly sixteen, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -479,6 +491,18 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'attach_checkout_session',
       'cancel_entry',
       'cancellable_purchase',
+      // **The fourteenth, and the first on this list that costs the club money rather than
+      // changing a record.** `create_manual_entry` gives somebody a place at no charge, and it
+      // is the one function here gated on `nn.entry.create` — the eighth permission, which
+      // exists rather than reusing `nn.entry.cancel` because undoing an entry somebody bought
+      // and adding a runner to a course with a hard limit are different powers. See ADR-021.
+      //
+      // The grant is safe on the same terms as every other one here: `authenticated` is a role
+      // anybody who registers holds, so the grant only says "you may ask" and
+      // `identity.has_permission('nn.entry.create')` inside says "you may". It re-checks
+      // capacity, the minimum age and one-runner-one-place, so a given place cannot be a way
+      // around any of them, and it writes `entries.admin_audit` before it writes the entry.
+      'create_manual_entry',
       'create_pending_purchase',
       'current_entry_state',
       'entrant_medical',
@@ -639,6 +663,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // above gives — a `stable` version would count places against a snapshot taken before the
       // transaction it had just waited behind committed. The other two only read.
       cancel_entry: 'v',
+      // **Volatile, and it is load-bearing for exactly the reason `cancel_entry` above is.**
+      // It counts places under the advisory lock, and a `stable` function's queries run
+      // against the *calling* statement's snapshot — so the count would be taken from before
+      // the transaction it had just waited behind committed, and the lock would protect
+      // nothing. A given place would oversell the course by exactly as many as were being
+      // given at once.
+      create_manual_entry: 'v',
       cancellable_purchase: 's',
       create_pending_purchase: 'v',
       current_entry_state: 's',
@@ -1197,7 +1228,7 @@ describe('the fees', () => {
     });
   });
 
-  it('leaves every other fee ungated, so nothing changed for a runner', async () => {
+  it('gates only the two fees a runner may not choose', async () => {
     const rows = await query<{ code: string }>(
       `select f.code
          from entries.fees f
@@ -1206,7 +1237,17 @@ describe('the fees', () => {
         order by f.code`,
     );
 
-    expect(rows.map((row) => row.code)).toEqual(['tester']);
+    // **`complimentary` is the second, and it is gated by the same mechanism for a different
+    // reason.** The tester fee is hidden because a £1 entry on a public page would be taken;
+    // this one is hidden because a £0 entry on a public page would be taken by everybody. It
+    // is a place the club *gives* from `/admin/nn/` behind `nn.entry.create`, so
+    // `entry_state()` never offers it and `create_pending_purchase()` refuses it with
+    // `invalid_fee` — which is what stops somebody reading the page source and posting the
+    // code straight at PostgREST with the published anon key. See ADR-021.
+    //
+    // The two are still the only ones. `affiliated`, `unaffiliated` and `vi_guide` are
+    // ungated, so nothing changed for a runner.
+    expect(rows.map((row) => row.code)).toEqual(['complimentary', 'tester']);
   });
 
   it('differ by exactly the levy the club has to remit to ARC', async () => {

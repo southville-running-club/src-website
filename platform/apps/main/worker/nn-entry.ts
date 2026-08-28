@@ -11,7 +11,9 @@ import {
   formatEventStartTime,
   formatPence,
   parseNnEntry,
+  priceNnEntry,
   toIsoDate,
+  NN_ENTRY_DISCOUNT_REFUSED_MESSAGE,
   NN_ENTRY_FIELDS,
   type DbClient,
   type EntryFee,
@@ -21,6 +23,8 @@ import {
   type MyEntry,
   type NnEntryErrors,
   type NnEntryField,
+  type PendingPurchaseReason,
+  type PricedNnEntry,
 } from '@src/shared';
 import {
   createCheckoutSession,
@@ -479,6 +483,7 @@ export interface NnEntrySubmission {
   feeCode: string;
   medicalConsent: boolean;
   entryTerms: boolean;
+  viGuide: boolean;
 }
 
 /** The keys echoed back as `value` attributes, and the one echoed as element content. */
@@ -493,11 +498,19 @@ const TEXT_FIELDS = [
   'genderIdentity',
   'club',
   'eaNumber',
+  'discountCode',
   'emergencyName',
   'emergencyPhone',
+  'guideFirstName',
+  'guideLastName',
+  'guideDobDay',
+  'guideDobMonth',
+  'guideDobYear',
+  'guideEmergencyName',
+  'guideEmergencyPhone',
 ] as const;
 
-const TEXTAREA_FIELDS = ['medicalNotes'] as const;
+const TEXTAREA_FIELDS = ['medicalNotes', 'guideMedicalNotes'] as const;
 
 function readString(form: FormData, field: string): string {
   const value = form.get(field);
@@ -507,7 +520,12 @@ function readString(form: FormData, field: string): string {
 function readSubmission(form: FormData): NnEntrySubmission {
   const text: Record<string, string> = {};
 
-  for (const field of [...TEXT_FIELDS, ...TEXTAREA_FIELDS, 'gender'] as const) {
+  for (const field of [
+    ...TEXT_FIELDS,
+    ...TEXTAREA_FIELDS,
+    'gender',
+    'guideGender',
+  ] as const) {
     text[field] = readString(form, field);
   }
 
@@ -517,6 +535,7 @@ function readSubmission(form: FormData): NnEntrySubmission {
     // An unticked checkbox posts nothing at all, so absence is the answer "no".
     medicalConsent: form.get('medicalConsent') !== null,
     entryTerms: form.get('entryTerms') !== null,
+    viGuide: form.get('viGuide') !== null,
   };
 }
 
@@ -528,7 +547,61 @@ export type NnEntryOutcome =
   | { status: 'closed' }
   | { status: 'invalid'; errors: NnEntryErrors; submitted: NnEntrySubmission }
   | { status: NnEntryStoppedStatus; submitted: NnEntrySubmission }
+  // **The discount code's confirm step.** Everything the person typed is intact and nothing
+  // has been held; `priced` is what the database said the entry would cost. Answered 200
+  // rather than 422, because nothing is wrong — see `nnEntryConfirmResponse`.
+  | { status: 'confirm'; priced: PricedNnEntry; submitted: NnEntrySubmission }
   | { status: 'redirect'; url: string };
+
+/**
+ * Turn a refusal from `create_pending_purchase()` into an outcome.
+ *
+ * **Shared between the preview and the real call, because they must answer identically.** The
+ * preview runs the same rules a moment earlier, so a person who is told "sold out" by one and
+ * "something went wrong" by the other has been told two different things about one fact.
+ */
+function refusalOutcome(
+  reason: PendingPurchaseReason,
+  submitted: NnEntrySubmission,
+): NnEntryOutcome {
+  if (reason === 'sold_out') {
+    return { status: 'sold-out', submitted };
+  }
+
+  if (reason === 'closed' || reason === 'no_such_event') {
+    return { status: 'closed' };
+  }
+
+  // **Not a defect, and one of the two refusals on this path that are somebody's ordinary
+  // mistake.** `create_pending_purchase()` refuses a runner who already holds a live place on
+  // this event, keyed on name and date of birth — and since the guide rides on the same
+  // entry, it refuses a guide who does too. It is deliberately *not* logged as an error: the
+  // form is allowed to be filled in twice, and the database saying so is the rule working
+  // rather than drift between the schema module and the tables.
+  if (reason === 'already_entered') {
+    return { status: 'already-entered', submitted };
+  }
+
+  // **The other ordinary mistake, and it was drift until there was a field to type it in.**
+  // Before the discount code had a box on the form, any `invalid_discount` meant the Worker
+  // had sent a code nobody could have entered, which is a defect. Now it means somebody
+  // mistyped one, or the twenty-two are gone — so it is answered beside the field rather than
+  // logged as a fault and turned into "your entry could not be completed".
+  if (reason === 'invalid_discount') {
+    return {
+      status: 'invalid',
+      errors: { discountCode: NN_ENTRY_DISCOUNT_REFUSED_MESSAGE },
+      submitted,
+    };
+  }
+
+  // Everything else — a fee the event is not offering, an entrant the tables refused, an age
+  // below the minimum — is something `parseNnEntry` should already have caught. That it did
+  // not means the schema module and the database have **drifted**, which is a defect rather
+  // than a bad submission, so it is logged as one and answered honestly.
+  console.error(`entries.create_pending_purchase refused — ${reason}`);
+  return { status: 'failed', submitted };
+}
 
 /**
  * Validate one entry, hold a place for it, and send it to Stripe.
@@ -580,6 +653,7 @@ export async function processNnEntry(
       feeCode: '',
       medicalConsent: false,
       entryTerms: false,
+      viGuide: false,
     };
     const parsed = parseNnEntry({}, entryRulesFrom(view.state));
     return {
@@ -631,6 +705,57 @@ export async function processNnEntry(
   // it disagreeing about who was asking, which is the worst shape this could take.
   const client = entriesClientFor(env, viewer);
 
+  // --- the discount code's confirm step ------------------------------------------------------
+  // **Somebody who typed a code is told what it took off before they are sent to a payment
+  // page, not after.** Stripe's own page shows the total, but by then the place is held, the
+  // use is spent and the only way to find out that the code did nothing is to read a number
+  // and work backwards from it.
+  //
+  // So a submission carrying a code is priced first and nothing is held. `priceNnEntry` runs
+  // every rule the real call runs and returns before the first write, so a refusal here is
+  // exactly the refusal the real call would have given — which is what makes it safe to show
+  // a total and then charge it.
+  //
+  // **The second submission carries `discountConfirmed` and skips this**, which is how the
+  // step terminates. It is an ordinary hidden field rather than anything signed: the worst it
+  // can do is skip a confirmation screen, and the price is still the database's on both
+  // passes. Nothing is trusted from it.
+  //
+  // **A person who typed no code never sees this.** The step exists because a discount is a
+  // claim about money that the form cannot verify; the standard price is on the page already.
+  // **The confirmation is tied to the code it was given for, not to the fact that a
+  // confirmation happened.** A bare "yes" would survive somebody reading the total, changing
+  // the code in the form below it and pressing the button again — and that second submission
+  // would skip the preview and hold a place priced by a code they had never been shown. The
+  // step exists precisely so that no code is charged before it has been quoted.
+  //
+  // **Trimmed on the way in, because the field carries what was typed.** `parseNnEntry` trims
+  // the code and this hidden input echoes the raw value, so `"  LHG-2026-…  "` would compare
+  // unequal to itself on every pass and the confirm step would never end — the person would
+  // press the button and be shown the same total for ever.
+  const confirmedFor = form.get('discountConfirmed');
+  const confirmedCode = typeof confirmedFor === 'string' ? confirmedFor.trim() : '';
+
+  if (parsed.value.discountCode !== null && confirmedCode !== parsed.value.discountCode) {
+    const priced = await priceNnEntry(client, { slug: eventSlug, entry: parsed.value });
+
+    if (priced.status === 'refused') {
+      return refusalOutcome(priced.reason, submitted);
+    }
+
+    if (priced.status === 'priced') {
+      return { status: 'confirm', priced: priced.priced, submitted };
+    }
+
+    // `unavailable` falls through to the ordinary one-step path. **Nothing was written** — a
+    // preview that could not be taken is a question that was not asked — and the call below
+    // will produce its own honest outcome rather than this becoming a second failure mode
+    // that only appears when somebody has a code.
+    console.error(
+      `entries.create_pending_purchase preview unavailable — ${priced.error}`,
+    );
+  }
+
   const outcome = await createNnPendingPurchase(client, {
     slug: eventSlug,
     entry: parsed.value,
@@ -644,29 +769,7 @@ export async function processNnEntry(
   }
 
   if (outcome.status === 'refused') {
-    if (outcome.reason === 'sold_out') {
-      return { status: 'sold-out', submitted };
-    }
-
-    if (outcome.reason === 'closed' || outcome.reason === 'no_such_event') {
-      return { status: 'closed' };
-    }
-
-    // **Not a defect, and the only refusal on this path that is somebody's ordinary
-    // mistake.** `create_pending_purchase()` refuses a runner who already holds a live place
-    // on this event, keyed on name and date of birth. It is deliberately *not* logged as an
-    // error: the form is allowed to be filled in twice, and the database saying so is the
-    // rule working rather than drift between the schema module and the tables.
-    if (outcome.reason === 'already_entered') {
-      return { status: 'already-entered', submitted };
-    }
-
-    // Everything else — a fee the event is not offering, an entrant the tables refused, an
-    // age below the minimum — is something `parseNnEntry` should already have caught. That
-    // it did not means the schema module and the database have **drifted**, which is a
-    // defect rather than a bad submission, so it is logged as one and answered honestly.
-    console.error(`entries.create_pending_purchase refused — ${outcome.reason}`);
-    return { status: 'failed', submitted };
+    return refusalOutcome(outcome.reason, submitted);
   }
 
   const { purchase } = outcome;
@@ -1332,13 +1435,18 @@ function restoreSubmission(
     );
   }
 
-  // The `<select>`: the chosen `<option>` gets `selected`, and the select itself is marked.
-  const gender = submitted.text.gender ?? '';
-  for (const option of ['', 'female', 'male', 'non_binary']) {
-    rewriter.on(
-      `[data-entry-selected="gender:${option}"]`,
-      new SelectedHandler(option === gender),
-    );
+  // The `<select>`s: the chosen `<option>` gets `selected`, and the select itself is marked.
+  // **The guide's is restored on the same terms as the runner's**, because a form that gives
+  // back thirteen of somebody's answers and loses the fourteenth is worse than one that loses
+  // all of them — they have to find which one it was.
+  for (const select of ['gender', 'guideGender'] as const) {
+    const chosen = submitted.text[select] ?? '';
+    for (const option of ['', 'female', 'male', 'non_binary']) {
+      rewriter.on(
+        `[data-entry-selected="${select}:${option}"]`,
+        new SelectedHandler(option === chosen),
+      );
+    }
   }
 
   // **Every fee radio, matched by prefix rather than by a list of codes.** See
@@ -1356,5 +1464,57 @@ function restoreSubmission(
     .on(
       '[data-entry-checked="entryTerms"]',
       new CheckedHandler(submitted.entryTerms, invalid('entryTerms')),
+    )
+    // **Restored like any other checkbox, and it has to be.** It is what reveals the guide's
+    // six fields with scripting on and what decides whether they were required with scripting
+    // off — a submission that came back with the box cleared would silently discard a guide
+    // somebody had already entered, and the entry would go through one place short.
+    .on(
+      '[data-entry-checked="viGuide"]',
+      new CheckedHandler(submitted.viGuide, invalid('viGuide')),
     );
+}
+
+/**
+ * Rewrites the year page to ask somebody to confirm a discounted total.
+ *
+ * **Answered 200, not 422.** Nothing is wrong with the submission — it is valid, it has been
+ * priced, and the person is being shown the number before it is charged. `renderNnEntryErrors`
+ * is the 422 path and this deliberately is not it.
+ *
+ * Everything typed is restored underneath, so somebody who reads the total and wants to
+ * change their entry type has a filled-in form to change rather than an empty one.
+ */
+export function renderNnEntryConfirm(
+  rewriter: HTMLRewriter,
+  outcome: Extract<NnEntryOutcome, { status: 'confirm' }>,
+): HTMLRewriter {
+  const { priced } = outcome;
+  const savingPence = priced.listPricePence - priced.amountPence;
+
+  rewriter
+    .on('[data-entry-confirm]', new RevealHandler(true))
+    .on('[data-entry-confirm-fee]', new TextHandler(priced.feeLabel))
+    .on('[data-entry-confirm-list]', new TextHandler(formatPence(priced.listPricePence)))
+    .on('[data-entry-confirm-saving]', new TextHandler(formatPence(savingPence)))
+    .on('[data-entry-confirm-total]', new TextHandler(formatPence(priced.amountPence)));
+
+  // **The hidden field that ends the step.** Written here rather than shipped in the markup,
+  // so a page served without a code cannot post it — the second submission is the only one
+  // that carries it, and it is the only one that skips the preview.
+  // **The hidden field that ends the step, and it carries the code rather than a flag.**
+  // Written here rather than shipped in the markup, so a page served without a code cannot
+  // post it — and written as the code itself, so it confirms *this* code rather than merely
+  // recording that some confirmation once happened. Change the code and press the button
+  // again and it is priced again, which is the whole point of the step.
+  //
+  // Nothing is trusted from it: the price is still `entries.fees`' on both passes and the
+  // code is still checked against the database on both. The worst it can do is skip a screen.
+  rewriter.on(
+    '[data-entry-confirmed]',
+    new AttributeHandler('value', outcome.submitted.text.discountCode ?? ''),
+  );
+
+  restoreSubmission(rewriter, outcome.submitted, {});
+  return rewriter;
 }

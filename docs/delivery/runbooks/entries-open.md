@@ -186,15 +186,36 @@ backup is configured" — a restore that somebody has actually carried out.
 
 > **🏁 Race pages**
 
-**[#22](https://github.com/southville-running-club/src-website/issues/22).** Stripe refuses a
-zero-total Checkout session, so a visually impaired runner's guide cannot complete online —
-and today they find that out *after* filling in fifteen fields.
+**[#22](https://github.com/southville-running-club/src-website/issues/22), and largely answered
+on 28 August 2026.** Stripe refuses a zero-total Checkout session, so nothing can be *sold* at
+£0 — but a free place can now be **given**, and a guide no longer needs one at all.
 
-- [ ] A guide learns the position **before** filling in the form, either by hiding the
-      `vi_guide` fee and saying in prose how a guide enters, or by moving the notice to the
-      point of selection
-- [ ] The stop in `worker/nn-entry.ts` is **unchanged**. It is the backstop, including for a
-      discount code that zeroes a fee that is not itself free
+- [x] **A visually impaired runner enters their guide on their own entry.** One payment, two
+      people, and the guide takes one of the 250 —
+      [ADR-022](../../architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md). The
+      `vi_guide` fee still exists and is still uncompletable on its own; nobody has to use it
+- [x] **Any other free place is assigned from `/admin/nn/`** by somebody holding
+      `nn.entry.create` —
+      [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md)
+- [ ] The stop in `worker/nn-entry.ts` is **unchanged**. It is still the backstop for any fee
+      that prices at zero on the public path, and nothing should be able to reach it now
+
+### 0.4a — the Long Ashton discount code is installed
+
+> **⚙️ Ops**
+
+**22 places at 10% off an unaffiliated entry**, confirmed 28 August 2026. The code is not in the
+repository — this one is public — so it is an `insert` somebody runs, and it has to be run
+**before** the window opens or the first Long Ashton member to try it is told it does not exist.
+
+- [ ] The code is generated, stored in the club's password manager, and inserted, following
+      [the discount-code runbook](entries-discount-codes.md)
+- [ ] It has been **used once on a tester entry** as far as the confirm screen, which shows what
+      it takes off without holding a place or spending a use
+- [ ] Long Ashton have been given the code, and told it is for the **unaffiliated** entry — it
+      is refused against the affiliated one, deliberately
+- [ ] The committee know the club nets **£16** rather than £18 on each of the 22, because the
+      10% is £2 and the ARC levy is still owed on an unattached runner
 
 ### 0.5 — the governance prerequisites
 

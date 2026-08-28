@@ -40,6 +40,7 @@ import {
   nnFormKind,
   processNnEntry,
   renderNnEntryClosed,
+  renderNnEntryConfirm,
   renderNnEntryErrors,
   renderNnEntryStopped,
   renderNnEntryView,
@@ -671,6 +672,15 @@ async function handleNnEntry(
   if (outcome.status === 'invalid') {
     renderNnEntryErrors(rewriter, outcome);
     return typedPage(rewriter.transform(page), 422);
+  }
+
+  // **200, and it is the only non-redirect outcome here that is one.** Nothing was rejected
+  // and nothing failed: a discount code was priced and the person is being shown the total
+  // before it is charged. 422 would tell a screen reader and a crawler that a valid
+  // submission was invalid, and 409 would say the world moved when it did not.
+  if (outcome.status === 'confirm') {
+    renderNnEntryConfirm(rewriter, outcome);
+    return typedPage(rewriter.transform(page), 200);
   }
 
   renderNnEntryStopped(rewriter, outcome);

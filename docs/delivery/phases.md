@@ -156,9 +156,16 @@ none of them blocks the rest:
 
 - [ ] **The entry terms.** Not written, and the form's checkbox says so rather than linking to
       a page that does not exist. **They have to land before entries open**
-- [ ] **How a free place is taken.** Stripe refuses a zero-total Checkout session outright, so
-      a guide's place cannot be completed online. The form says so and gives the race address;
-      completing it any other way means deciding that an unpaid entry counts as paid
+- [x] **How a free place is taken.** ~~Stripe refuses a zero-total Checkout session outright,
+      so a guide's place cannot be completed online.~~ **Settled 28 August 2026.** Stripe still
+      refuses one, so a free place is **given** rather than sold at a price of nothing:
+      `/admin/nn/` has an "Assign a place" form behind `nn.entry.create`, which writes a `paid`
+      purchase at £0 on a **Complimentary** fee, audited, re-checking capacity, the minimum age
+      and one-runner-one-place —
+      [ADR-021](../architecture/decisions/adr-021-a-place-can-be-given.md). It is what the two
+      Kinsi places use. **A visually impaired runner's guide no longer needs it at all**: the
+      guide rides on the runner's own entry and takes one of the 250 —
+      [ADR-022](../architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md)
 - [ ] **A rate-limiting rule on the race forms.** An anonymous caller can hold places, up to
       the whole field, for as long as a hold lasts. A Cloudflare WAF rule is the recommendation
       and it costs no code — a cap in the database would block a legitimate person retrying on

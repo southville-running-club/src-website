@@ -79,6 +79,7 @@ export type Database = {
           active: boolean
           code: string
           event_id: string
+          fee_id: string | null
           id: string
           max_uses: number | null
           percent_off: number
@@ -88,6 +89,7 @@ export type Database = {
           active?: boolean
           code: string
           event_id: string
+          fee_id?: string | null
           id?: string
           max_uses?: number | null
           percent_off: number
@@ -97,6 +99,7 @@ export type Database = {
           active?: boolean
           code?: string
           event_id?: string
+          fee_id?: string | null
           id?: string
           max_uses?: number | null
           percent_off?: number
@@ -108,6 +111,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_codes_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "fees"
             referencedColumns: ["id"]
           },
         ]
@@ -206,6 +216,7 @@ export type Database = {
           last_name: string
           leg: number | null
           purchase_id: string
+          role: string
         }
         Insert: {
           club?: string | null
@@ -221,6 +232,7 @@ export type Database = {
           last_name: string
           leg?: number | null
           purchase_id: string
+          role?: string
         }
         Update: {
           club?: string | null
@@ -236,6 +248,7 @@ export type Database = {
           last_name?: string
           leg?: number | null
           purchase_id?: string
+          role?: string
         }
         Relationships: [
           {
@@ -521,6 +534,18 @@ export type Database = {
         Args: { p_key: string; p_limit?: number }
         Returns: Json
       }
+      create_manual_entry: {
+        Args: {
+          p_consents: Json
+          p_entrants: Json
+          p_medical: Json
+          p_purchaser_email: string
+          p_purchaser_name: string
+          p_reason?: string
+          p_slug: string
+        }
+        Returns: Json
+      }
       create_pending_purchase: {
         Args: {
           p_consents: Json
@@ -528,6 +553,7 @@ export type Database = {
           p_entrants: Json
           p_fee_code: string
           p_medical: Json
+          p_preview?: boolean
           p_purchaser_email: string
           p_purchaser_name: string
           p_slug: string

@@ -66,7 +66,19 @@ re-run.
   non-binary gap is still open and `ageCategoryFor()` still answers
   `gender-has-no-categories`. `gender_identity` is on `/admin/nn/` and **nowhere else** — not
   the start list, not the three exports, never published — and `admin.spec.ts` asserts that
-  absence against a *paid* fixture, which is the only kind an export carries.
+  absence against a *paid* fixture, which is the only kind an export carries. **The sixteenth
+  was taken on 28 August 2026 and it is a person rather than a field**: a visually impaired
+  runner may declare so and enter their **guide** on the same entry —
+  [ADR-022](docs/architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md). The
+  declaration is a `vi` **consent** rather than a column, because it is data about disability
+  and Article 9 puts it on the medical note's footing; the guide is a second row in
+  `entries.entrants` with `role = 'guide'`, and they **take one of the 250**, which is what the
+  club actually needed and is why nothing is reserved. A guide pays nothing, carries no England
+  Athletics number, is in no prize category, is **excluded from the England Athletics export**
+  and is **marked on the start list**. The `vi` declaration itself is rendered **nowhere** — no
+  read returns a purchase's `consents`, so it is stored as the lawful basis for holding the
+  guide's data and never as a fact on a screen; what a volunteer sees is the guide's row, which
+  is the operational fact anyway. **A seventeenth is a new decision.**
 - **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
   there: who somebody writes to about their data, how long an entry record is kept, whether
   an email address is kept to tell people about next year's race, and what is true about
@@ -91,18 +103,24 @@ re-run.
   [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) and its
   amendment: originally a Worker secret plus a key per person, and **since #57 and #58 the
   `nn-admin` role**, checked by `identity.has_permission()` since #107 and by
-  `identity.has_role()` before it. Eleven functions are granted to `authenticated` now, and
+  `identity.has_role()` before it. Fourteen functions are granted to `authenticated` now, and
   `entries.test.ts` names them with the argument for each. **Cancelling an entry is settled and
   nothing else about editing one is.** Somebody holding `nn.entry.cancel` — which `nn-admin`
   carries and `super-admin` deliberately does not — may refund one purchase in full, which
   deletes its entrants and returns the place —
-  [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Transfers,
-  corrections, manual entries, resends and partial refunds are each still a stop-and-ask**, and
-  each is a decision about changing a record somebody paid for.
-- **A sixth role, or an eighth permission.** Since #107 a role is a bundle of permissions and
+  [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Giving a place away
+  is settled too, and it came off this list on 28 August 2026** —
+  [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md). Somebody holding
+  `nn.entry.create` may assign a **complimentary** place from `/admin/nn/`: a `paid` purchase at
+  £0 on a £0 fee, audited, under the same advisory lock, re-checking capacity, the minimum age
+  and one-runner-one-place. It is the answer to the two Kinsi places and to the visually
+  impaired guide's free place, both of which Stripe refuses to charge for. **Transfers beyond
+  the one that exists, corrections, resends and partial refunds are each still a
+  stop-and-ask**, and each is a decision about changing a record somebody paid for.
+- **A sixth role, or a ninth permission.** Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
   [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). The five
-  roles and the seven permissions are asserted exactly in
+  roles and the eight permissions are asserted exactly in
   `packages/db/tests/identity-permissions.test.ts`, which is what replaced `identity.roles`'
   check constraint and does the same job: it makes an addition a decision somebody takes in a
   diff. Adding a role is a migration and no deploy — `/admin/people/` reads
@@ -341,6 +359,37 @@ engine agrees on them; for the bytes use `page.request`, which shares the contex
 hands back a readable body everywhere. Reproduced in
 `mcr.microsoft.com/playwright:v1.62.1-noble`. `nn-admin.spec.ts`'s two export tests are the
 shape to copy.
+
+**A restated closed list is a merge conflict git cannot see.** `entries.admin_audit.action`,
+`entries.fees.code` and the status checks are widened by `drop constraint if exists` followed by
+`add constraint` **restating the whole list** — which is right for reviewability and is a trap
+for two branches in flight at once. Both merge cleanly, both pass review, and the one applied
+second silently drops whatever the first added. It happened on 28 August 2026:
+`entries_complimentary_places` added `create_manual_entry` and `entries_admin_outbox` added
+`resend_email`, and after both, giving a place **failed on the audit row it writes before
+writing the entry** — the transaction rolled back, so nothing was half-created, but the feature
+was dead and the error said nothing about why.
+`20260828200000_entries_audit_actions_reunited.sql` is the third statement of that list and
+exists only because of this. **Neither earlier migration is wrong and neither may be edited** —
+both are applied, and editing an applied migration changes what a fresh `db reset` produces
+without changing what any existing database holds. **What caught it was a test that gives a
+place and asserts it exists**, not one asserting the constraint's text: a test that restated the
+list would have gone stale in exactly the same way. So when you widen one of these, grep for
+every other migration that names the same constraint before assuming your list is complete.
+
+**A `case` expression inside a PL/pgSQL `if` condition does not compile, and the error names
+the wrong thing.** PL/pgSQL ends an `if` condition at the **first `then` token it meets**, so
+`if x <> case when y then 'a' else 'b' end then` is read as the expression `x <> case when y` —
+which is incomplete, and Postgres says `syntax error at end of input` while pointing at the
+`case`. Nothing in that message mentions `if`, `then`, or the fact that the condition was
+truncated, and the statement reads as perfectly ordinary SQL. It cost a full apply-and-bisect
+cycle in `20260828140000_entries_discounts_and_guides.sql`, where the whole 800-line migration
+failed on one line in the middle of a function body. **Assign it to a variable first** —
+`v_expected := case when … end;` then `if x <> v_expected then` — which is what that migration
+does and says why. Parenthesising works too, because the scanner tracks paren depth, but the
+variable is what a reader can see the reason for. `check_function_bodies` catches this at
+`create function` time, so a migration will not deploy half-applied; what it costs is the
+minutes spent believing the `case` is wrong.
 
 **A CSV's byte-order mark is invisible to `Response.text()`.** `TextDecoder` strips a leading
 U+FEFF by default, so a test that decodes the body reports a mark that is on the wire as missing —
@@ -602,6 +651,24 @@ per-event advisory lock: re-check the window, count the places gone, price it fr
 `entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
 exactly that amount and a 303 to it.
 
+**A discount code is priced before anything is held, and the code itself is never in this
+repository.** `entries.discount_codes` was built in Slice A and left empty; it takes rows now,
+and `fee_id` is new — *"10% off an unaffiliated entry"* is two facts and `percent_off` was only
+one of them, so a code scoped to a fee is refused against any other. **This repository is
+public**, so a code in a migration is a published code: rows are inserted by hand from
+[the runbook](docs/delivery/runbooks/entries-discount-codes.md), twelve characters from a
+32-letter alphabet, and **the entropy is the only control** because no rate limiting is live
+anywhere yet. A submission carrying a code is priced by `create_pending_purchase(p_preview =>
+true)`, which runs every rule and **returns before the first write** — no place held, no use
+spent — and the person confirms the total before Stripe. That is a ninth argument rather than a
+fourteenth anon-callable function, and it is why this is **the one migration that drops a
+function**: an extra defaulted parameter creates a second overload, and PostgREST would refuse
+every call naming the original eight as ambiguous. **A use is returned when the place is** —
+`expire_pending_holds()` on a lapsed hold, `cancel_entry()` on a refund — because it only ever
+incremented before, so 22 abandoned checkouts would have exhausted a 22-place allocation with
+nobody entered. **A 100% code is not the way to give a free place**: Stripe refuses a zero-total
+session and will not charge below £0.30, which is what ADR-021 is the answer to.
+
 **Every rule is enforced in the database, and Zod is never the only place one lives.** Slice E
 found `create_pending_purchase` writing `ea_number` without ever consulting
 `fees.requires_ea_number` — so two PostgREST calls with the published anon key bought an
@@ -678,7 +745,7 @@ test is what forces it to be made in a diff** — it has happened twice: `curren
 which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
 [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
 
-**`authenticated` is a second list: six, then eleven in #107, then twelve.** It is a role
+**`authenticated` is a second list: six, then eleven in #107, then twelve, then fourteen.** It is a role
 anybody who registers holds, so every function on it authorises inside itself and the grant only
 says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` are there because
 a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a
@@ -704,8 +771,12 @@ to the pool and cannot be taken by somebody else in between. It **deletes the pr
 runner's medical note and clears their England Athletics number**: a note belongs to whoever
 wrote it, and carrying one across would file a stranger's condition under a new name. And it
 **re-applies the minimum age and one-runner-one-place**, so a transfer cannot be the way round
-either. It reuses `nn.entry.cancel` rather than adding an eighth permission, which would be a
-stop-and-ask; a dedicated `nn.entry.transfer` is the cleaner answer and is a decision.
+either. It reuses `nn.entry.cancel` rather than adding a permission of its own; a dedicated
+`nn.entry.transfer` is the cleaner answer and is still a decision nobody has taken. **The
+eighth permission exists now and it is not this one** — `nn.entry.create`, which gives a place
+away rather than moving one, and which was argued as its own permission precisely because
+adding a runner to a course with a hard limit is a different power from undoing an entry
+somebody bought. See [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md).
 
 **A request is not a status, and that is load-bearing.** `requested_action` is its own column
 beside `attention` rather than a sixth value of `status`, because the capacity predicate

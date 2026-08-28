@@ -7,6 +7,11 @@ import {
   waitOnExecutionContext,
 } from 'cloudflare:test';
 import worker from '../../../worker/index';
+// **The fixture code, from a module of its own rather than from the setup that installs it.**
+// Imported so the string in the assertions and the string in the database cannot come apart —
+// and from `fixture-discount.ts` rather than `global-setup.ts`, because that one imports `pg`,
+// which cannot load inside `workerd`. See the note in that file.
+import { FIXTURE_DISCOUNT } from './fixture-discount';
 
 /**
  * `/nn/` **with entries open**, in the real Workers runtime, against the real build output.
@@ -593,5 +598,132 @@ describe('what must never reach the HTML unescaped', () => {
     const html = await response.text();
 
     expect(html).toContain('value="Bath & Wells AC"');
+  });
+});
+
+describe('a discount code is priced before anything is held', () => {
+  /**
+   * **The two-step, in the real runtime against the real build.**
+   *
+   * `packages/db/tests/entries-discounts.test.ts` proves the pricing, that a preview holds no
+   * place and spends no use, and that a use comes back when a hold lapses.
+   * `packages/shared/tests/unit/nn-entry.test.ts` proves the field. **Neither can prove that
+   * any of it reaches a page**: that depends on the preview being called before the purchase,
+   * on every `data-entry-confirm-*` selector matching something in `dist/`, and on the hidden
+   * field being written back with the code rather than a flag. A mistyped hook leaves both of
+   * those suites green and the confirm screen blank.
+   *
+   * **No database assertions here, because there cannot be any** — `pg` does not run inside
+   * `workerd`, which is why the window and the fixture code are moved by `global-setup.ts`
+   * before the run rather than by a `beforeAll`. What this layer can see is the status and the
+   * HTML, and a **200 with the confirm card** is itself the proof that nothing went to Stripe:
+   * the alternative is the 303 the last test here asserts.
+   */
+  it('shows what the code takes off, and does not go to Stripe', async () => {
+    const response = await submit(goodEntry({ discountCode: FIXTURE_DISCOUNT }));
+
+    // **200, and deliberately not 422.** Nothing was rejected: a valid entry was priced and
+    // the person is being shown the number before it is charged. A 422 would tell a screen
+    // reader and a crawler that a valid submission was invalid.
+    expect(response.status).toBe(200);
+
+    const html = await response.text();
+
+    // £20.00 unaffiliated, 10% off — so £2.00 off and £18.00 to pay. Every figure is painted
+    // from what the database returned rather than worked out here, which is the whole reason
+    // `list_price_pence` is on the preview result at all.
+    expect(html).toContain('£20.00');
+    expect(html).toContain('£2.00');
+    expect(html).toContain('£18.00');
+    expect(html).toContain('Your discount code has been applied');
+  });
+
+  it('writes the code into the hidden field, so the second submission goes through', async () => {
+    const first = await submit(goodEntry({ discountCode: FIXTURE_DISCOUNT }));
+
+    // **The code itself, not a flag.** This is what ties the confirmation to the thing that
+    // was quoted, and the next test is what it buys.
+    expect(await first.text()).toContain(
+      `name="discountConfirmed" value="${FIXTURE_DISCOUNT}"`,
+    );
+
+    const second = await submit(
+      goodEntry({
+        discountCode: FIXTURE_DISCOUNT,
+        discountConfirmed: FIXTURE_DISCOUNT,
+      }),
+    );
+
+    // Straight to Stripe this time, and the amount is the database's on both passes.
+    expect(second.status).toBe(303);
+  });
+
+  it('prices it again when the code is changed after a total has been shown', async () => {
+    // **The hole a bare "yes" would have left.** Somebody reads the total, changes the code in
+    // the form below it and presses the button again — and that submission would have skipped
+    // the preview and held a place priced by a code they had never been shown.
+    const response = await submit(
+      goodEntry({
+        discountCode: FIXTURE_DISCOUNT,
+        discountConfirmed: 'ZZ-FIXTURE-SOMETHING-ELSE',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it('accepts a confirmation whose spacing differs from what was typed', async () => {
+    // **The infinite-loop guard.** The hidden field echoes what was typed and `parseNnEntry`
+    // trims it, so comparing the two untrimmed would never match — and somebody who pasted a
+    // code with a space on the end would press the button and be shown the same total for
+    // ever, with no error and nothing to do about it.
+    const response = await submit(
+      goodEntry({
+        discountCode: `  ${FIXTURE_DISCOUNT}  `,
+        discountConfirmed: `  ${FIXTURE_DISCOUNT}  `,
+      }),
+    );
+
+    expect(response.status).toBe(303);
+  });
+
+  it('says so beside the field when the code is not one', async () => {
+    // **An ordinary mistake rather than a defect.** Before the code had a box on the form, any
+    // `invalid_discount` meant the Worker had sent something nobody could have typed, which is
+    // drift. Now it means somebody mistyped one, so it is answered in the field's own error
+    // slot with the form intact rather than logged as a fault and turned into "your entry
+    // could not be completed".
+    const response = await submit(goodEntry({ discountCode: 'ZZ-NOT-A-REAL-CODE' }));
+
+    expect(response.status).toBe(422);
+    expect(await response.text()).toContain(
+      'That discount code cannot be used with this entry',
+    );
+  });
+
+  it('refuses a code scoped to another fee, in exactly the same words', async () => {
+    // The fixture code is for the unaffiliated entry. Telling "not for this fee" apart from
+    // "no such code" would tell somebody guessing codes a great deal and tell somebody who
+    // mistyped one nothing they can use, so the two answer identically.
+    const response = await submit(
+      goodEntry({
+        feeCode: 'affiliated',
+        eaNumber: '1234567',
+        discountCode: FIXTURE_DISCOUNT,
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.text()).toContain(
+      'That discount code cannot be used with this entry',
+    );
+  });
+
+  it('leaves an entry with no code on the one-step path it has always had', async () => {
+    // **The 99% case, unchanged.** Somebody who types no code never meets the confirm screen:
+    // there is nothing to verify, and the standard price is on the page already.
+    const response = await submit(goodEntry());
+
+    expect(response.status).toBe(303);
   });
 });

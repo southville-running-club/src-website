@@ -191,6 +191,72 @@ export async function restoreCapacity(): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------------------
+// What the discount-code run needs
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Put one discount code on the real event for the length of a run, and take it out again.
+ *
+ * **Against `nn-2026` rather than a fabricated event**, for the reason the entry window is:
+ * this run exists to exercise the switch production will actually use, and the code path it
+ * exercises reads the event the Worker resolves from the URL. Removed in teardown **even when
+ * the run failed**, so a laptop is never left holding a working discount against the real
+ * running.
+ *
+ * `feeCode` is what makes the row like the club's actual Long Ashton code — scoped to one fee,
+ * so applying it to another is refused. Pass null for a code that applies to any.
+ */
+export async function installDiscountCode(options: {
+  code: string;
+  percentOff: number;
+  maxUses: number | null;
+  feeCode: string | null;
+}): Promise<void> {
+  await withClient(async (db) => {
+    await db.query(
+      `insert into entries.discount_codes (event_id, code, percent_off, max_uses, fee_id)
+       select event.id,
+              $2,
+              $3,
+              $4,
+              case
+                when $5::text is null then null
+                else (
+                  select fee.id from entries.fees as fee
+                   where fee.event_id = event.id and fee.code = $5::text
+                )
+              end
+         from entries.events as event
+        where event.slug = $1`,
+      [SLUG, options.code, options.percentOff, options.maxUses, options.feeCode],
+    );
+  });
+}
+
+/** Every code on the event, gone. Called in teardown whatever happened. */
+export async function clearDiscountCodes(): Promise<void> {
+  await withClient(async (db) => {
+    await db.query(
+      `delete from entries.discount_codes
+        where event_id in (select id from entries.events where slug = $1)`,
+      [SLUG],
+    );
+  });
+}
+
+/** How many times the code has been spent, so a test can watch it go and come back. */
+export async function discountUses(code: string): Promise<number | null> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<{ uses: number }>(
+      'select uses from entries.discount_codes where code = $1',
+      [code],
+    );
+
+    return rows[0]?.uses ?? null;
+  });
+}
+
+// -----------------------------------------------------------------------------------------
 // What the webhook run needs
 // -----------------------------------------------------------------------------------------
 

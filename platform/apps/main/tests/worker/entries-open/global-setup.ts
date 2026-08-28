@@ -1,7 +1,16 @@
 import type { ChildProcess } from 'node:child_process';
 import { closeEntries, openEntries } from '../../entries-window';
-import { clearPurchases } from '../../entries-db';
+import {
+  clearDiscountCodes,
+  clearPurchases,
+  installDiscountCode,
+} from '../../entries-db';
 import { startStripeStub, stopStripeStub } from '../../stripe-stub';
+// **The code this run exercises**: the shape of the club's actual Long Ashton one — 10% off,
+// capped, and scoped to the unaffiliated fee, so applying it to the affiliated entry is refused.
+// It lives in a module of its own because the test that asserts on it runs inside `workerd`,
+// where this file's `pg` import cannot load.
+import { FIXTURE_DISCOUNT } from './fixture-discount';
 
 /**
  * Opens the entry window and starts the fake Stripe for the duration of this run, then puts
@@ -25,6 +34,13 @@ let stub: ChildProcess | null = null;
 
 export async function setup(): Promise<void> {
   await clearPurchases();
+  await clearDiscountCodes();
+  await installDiscountCode({
+    code: FIXTURE_DISCOUNT,
+    percentOff: 10,
+    maxUses: 5,
+    feeCode: 'unaffiliated',
+  });
   await openEntries();
   stub = await startStripeStub();
 }
@@ -36,5 +52,6 @@ export async function setup(): Promise<void> {
 export async function teardown(): Promise<void> {
   await stopStripeStub(stub);
   await clearPurchases();
+  await clearDiscountCodes();
   await closeEntries();
 }
