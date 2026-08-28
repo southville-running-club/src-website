@@ -475,6 +475,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_outbox_batch: { Args: { p_key: string; p_limit?: number }; Returns: Json }
       current_entry_state: { Args: { p_race_slug: string }; Returns: Json }
       delete_expired_medical_notes: { Args: never; Returns: Json }
       entrant_medical: { Args: { p_entrant_id: string }; Returns: Json }
@@ -513,6 +514,17 @@ export type Database = {
           p_payment_intent_id?: string
           p_session_id?: string
           p_stripe_event_id?: string
+        }
+        Returns: Json
+      }
+      record_send_result: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_key: string
+          p_ok: boolean
+          p_provider_message_id?: string
+          p_rate_limited?: boolean
         }
         Returns: Json
       }

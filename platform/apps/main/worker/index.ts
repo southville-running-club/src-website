@@ -5,6 +5,7 @@ import {
   healthReportFromFailure,
   healthResponse,
 } from '@src/shared';
+import { drainEmailOutbox } from './email-outbox';
 import {
   adminPathForNnAdminPath,
   isAccountPath,
@@ -135,6 +136,22 @@ interface Env {
    * that window is answered **503 and retried**, never 400 — see `stripe-webhook.ts`.
    */
   STRIPE_WEBHOOK_SECRET?: string;
+  /**
+   * **A Worker secret**, and what lets the five-minute cron send the club's outgoing mail.
+   * Set 25 August 2026, scoped to Sending access only in Resend's dashboard so a leak can
+   * only send mail as the club rather than reconfigure the account or read its logs.
+   *
+   * Optional, and its absence is a real, safe state: with no key the outbox fills and nothing
+   * drains, which is visible on `/admin/emails/` and loses nothing. That is the whole point of
+   * writing the row before attempting the send.
+   */
+  RESEND_API_KEY?: string;
+  /**
+   * Where the Resend API is. Unset everywhere that matters; the acceptance suite points it at
+   * a stub so the site runs end to end without a Resend account. Passed on the `wrangler dev`
+   * command line, exactly like `STRIPE_API_BASE`, so no deployed Worker can inherit it.
+   */
+  RESEND_API_BASE?: string;
   /**
    * **A second Worker secret**, and the least obvious thing in this file.
    *
@@ -422,6 +439,22 @@ export default {
     // nothing else, so neither may decide whether the other runs. On all but a handful of days
     // a year this deletes nothing and says nothing.
     await sweepExpiredMedicalNotes(env);
+
+    // **The outbox, drained on the schedule that already exists — #73.**
+    //
+    // The ask was for a sweep "every ~00:01 for any unsent". This runs every five minutes
+    // instead, and that is more than a convenience: Resend's daily cap is documented as
+    // resetting on a **rolling** basis rather than at midnight, and the exact boundary is
+    // recorded as unconfirmed in `docs/solutions/resend-programmatic-email.md`. A single
+    // nightly sweep aimed at a boundary nobody has verified would sit a whole day's overflow
+    // behind one guess; a drain that runs continuously and stops on `429` starts delivering
+    // the moment capacity comes back, whenever that turns out to be, and covers 00:01 on the
+    // way past. It needs no new trigger to configure and no second thing to notice has
+    // stopped.
+    //
+    // Third rather than first, and for the same reason the medical sweep is second: a job
+    // that talks to a third party must not decide whether a legal retention obligation runs.
+    await drainEmailOutbox(env);
   },
 } satisfies ExportedHandler<Env>;
 

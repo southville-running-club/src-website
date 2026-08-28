@@ -115,6 +115,8 @@ export {
   type PendingPurchaseReason,
 } from './entry-purchase';
 
+export { claimOutboxBatch, recordSendResult, type OutboxMessage } from './email-outbox';
+
 export {
   CHECKOUT_EVENT_OUTCOMES,
   ENTRY_COMPLETION_STATES,

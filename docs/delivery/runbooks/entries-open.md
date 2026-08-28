@@ -222,6 +222,47 @@ not the build's, and they sit on the critical path.
 
 ---
 
+### 0.7 — the confirmation email actually leaves the building
+
+> **⚙️ Ops**
+
+**[#73](https://github.com/southville-running-club/src-website/issues/73).** Entering now sends a
+confirmation, and cancelling or transferring sends one too. **The failure is not silent and
+nothing is lost** — an undeliverable message stays queued — but a runner who pays £18 and hears
+nothing will email the club, and on the morning entries open that is the mail nobody has time
+for.
+
+- [ ] **A real confirmation has arrived at a real inbox**, from the £1 Tester entry in
+      [step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). This is the only
+      proof that counts — the same rule as `accounts-open.md` step 0.2, for the same reason:
+      no local check can tell you the Worker secrets are right
+- [ ] It came from **`nn@send.southvillerunningclub.co.uk`** and **pressing Reply reaches
+      `nightingalenightmare@gmail.com`**. Unlike the account emails, these have a working
+      `Reply-To`, and it is worth confirming once that it goes where it should
+- [ ] **Cancelling that Tester entry produced a second email** saying it was refunded. Step 2
+      cancels it anyway, so this costs nothing extra to check
+- [ ] ⚠️ **Somebody understands the daily cap before the window opens.** Resend's free tier is
+      **100 emails a day for the whole club account**, shared with every account confirmation
+      and password reset, against **250 places**. On a busy first day the queue exceeds it and
+      the rest arrive the following day — **late, never lost**. See
+      [ADR-021](../../architecture/decisions/adr-021-the-club-tells-people-by-outbox.md), and
+      [the email runbook](entries-email.md) is what to read when somebody asks
+- [ ] **The plan the club is actually on is written down here, on the day.** The stated
+      intention as of 28 August 2026 is **to pay for the first month and monitor** — around
+      $20, priced in USD, not sterling. Nothing in the repository knows or cares which plan is
+      live, so this checkbox is the only place it is recorded:
+
+      Plan on 1 September 2026: ______________  Checked by: ______________
+
+- [ ] ⚠️ **If the plan is paid, somebody owns the question of when it stops.** **There are two
+      rushes and one month covers one of them**: entries close **17:00, Friday 30 October**,
+      and a deadline is its own spike — as is a cluster of transfers in the fortnight before
+      the race. Reverting to free in early October puts both back under 100/day. Either put a
+      reminder in the calendar for the week of 26 October, or decide now to keep it paid
+      through race day
+
+---
+
 ## Step 1 — decide the window, from the committee
 
 > **🏛️ Committee**
