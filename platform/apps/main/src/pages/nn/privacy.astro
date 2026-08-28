@@ -284,6 +284,22 @@ const { privacy } = race;
               changes later
             </td>
           </tr>
+          {
+            /* **Free text somebody writes about their own entry, and it is still collected.**
+            The rule the four rows above exist for applies to it exactly: what this notice says
+            is collected comes from the schema rather than from the entry form, and a column
+            holding a sentence a person typed is one of the more sensitive things on the row —
+            it is where somebody mentions an injury without being asked to. */
+          }
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              What you write if you ask us to cancel or transfer your entry
+            </th>
+            <td role="cell" data-label="Why we need it">
+              So a volunteer has something to act on rather than having to write back and
+              ask. It is optional, it is never published, and it goes when your entry does
+            </td>
+          </tr>
           <tr role="row">
             <th scope="row" role="rowheader">
               When you entered, and when your payment was confirmed
