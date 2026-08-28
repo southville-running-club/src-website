@@ -152,28 +152,37 @@ jobs:
         # `public` or `private`.
         #
         # ---------------------------------------------------------------------------------
-        # `--include-all`, and what it costs
+        # **No `--include-all`, and it was removed on purpose once — read this before adding
+        # it back.**
         # ---------------------------------------------------------------------------------
-        # **Without it, one out-of-order migration stops production receiving anything, for
-        # ever, silently.** That is not a theory: #134 authored migrations stamped 14:00–14:20
-        # on 28 August while #131's outbox migrations, stamped 17:00 and later, had already
-        # merged and deployed. `db push` then refuses the whole push — *before applying
-        # anything* — and every merge after it inherits the same refusal. Three pull requests
-        # landed on `main` and none of their schema reached production; the only signal was a
-        # red workflow on a branch nobody watches, while every pull request went green.
+        # `db push` refuses the whole push, *before applying anything*, when it finds a local
+        # migration sequenced behind the last one already on the remote. On 28 August 2026 that
+        # refusal cost three merges: #134 authored migrations stamped 14:00–14:20 while #131's
+        # outbox migrations, stamped 17:00 and later, had already merged and deployed at 16:13.
+        # Every merge after it inherited the same refusal, so #134, #135 and #136 all landed on
+        # `main` with none of their schema reaching production — and the only signal was a red
+        # workflow on a branch nobody watches, while every pull request went green.
         #
-        # **The hazard the guard is about is real, and rarer than the one it causes.**
-        # Applying a migration behind one already on the remote only matters when the two
-        # touch the same object, because the later-applied statement wins. That is worth
-        # catching — and what catches it is review and tests that exercise behaviour, which is
-        # how `20260828200000_entries_audit_actions_reunited` came to exist: two branches
-        # restated one closed list and the second silently dropped the first's value.
+        # **#137 drained that backlog with `--include-all` and #138 took the flag away again.**
+        # The nine pending migrations applied in version order, and the one object touched both
+        # by the late three and by what was already deployed — `admin_audit.action` — was
+        # reconciled by `20260828200000_entries_audit_actions_reunited`, which restates the
+        # union and sorts after both. That was checked before the flag went in; it was not a
+        # property to rely on twice.
         #
-        # **So this flag does not remove the ordering hazard, and pretending it does is the
-        # mistake to avoid.** What it removes is a guard that answers a naming accident by
-        # refusing every future deploy. A restated closed list — `admin_audit`'s actions,
-        # `fees.code`, `entry_purchases.status` — is still a merge conflict git cannot see.
-        run: npx supabase db push --linked --include-all
+        # **The guard is back because the thing it refuses is worth refusing.** Applying a
+        # migration behind one already on the remote matters whenever the two touch the same
+        # object, because the later-applied statement wins — silently, and in production. With
+        # the flag on, that lands. With it off, the deploy stops and somebody looks.
+        #
+        # **The failure mode to watch for is the one that cost three merges: a stopped deploy
+        # reads as nothing happening.** If this step ever fails with "Found local migration
+        # files to be inserted before the last migration on remote database", the fix is to
+        # renumber the offending migration ahead of the remote's last one — not to add the flag
+        # — and the durable fix is a check at pull-request time that a new migration's
+        # timestamp is later than every one already on `main`. Issue #26 covers the related
+        # hole in `workflow_dispatch`.
+        run: npx supabase db push --linked
 
       - name: Apply project configuration
         # The exposed-schema list, and it belongs here rather than in a dashboard. A schema
