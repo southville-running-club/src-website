@@ -278,11 +278,13 @@ describe('transferring an affiliated place', () => {
   async function paidPurchase(
     feeCode: string,
     entrants: Record<string, unknown>[] = [person({ ea_number: '1234567' })],
+    consents?: Record<string, boolean>,
   ): Promise<string> {
     const purchaseId = await acceptedPurchaseId({
       feeCode,
       entrants,
       medical: entrants.map(() => null),
+      ...(consents === undefined ? {} : { consents }),
     });
 
     await query(
@@ -352,7 +354,14 @@ describe('transferring an affiliated place', () => {
   });
 
   it('refuses a purchase with a guide on it, rather than guessing who is leaving', async () => {
-    const purchaseId = await paidPurchase('unaffiliated', [person(), guide()]);
+    // **The `vi` consent is what makes a two-entrant list legal**, and it is a consent rather
+    // than a column because it is a statement somebody makes about themselves — see the guide
+    // migration. Without it `create_pending_purchase()` refuses the *length* of the list.
+    const purchaseId = await paidPurchase('unaffiliated', [person(), guide()], {
+      entryTerms: true,
+      medical: false,
+      vi: true,
+    });
 
     expect(await transfer(purchaseId, { p_ea_number: '' })).toEqual({
       ok: false,

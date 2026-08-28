@@ -722,10 +722,6 @@ function csvResponse(taken: AdminExport): Response {
               'Last name',
               'First name',
               'Club',
-              // **Its own column rather than a word inside the category.** A spreadsheet is
-              // sorted and filtered, and "Guide" buried in the category cell cannot be filtered
-              // on without also losing the four real bands.
-              'Runner or guide',
               'Category',
               'Emergency contact',
               'Emergency phone',
