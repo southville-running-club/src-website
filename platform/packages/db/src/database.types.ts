@@ -502,6 +502,8 @@ export type Database = {
       }
       admin_interest_list: { Args: { p_key: string }; Returns: Json }
       admin_key_ok: { Args: { p_key: string }; Returns: boolean }
+      admin_outbox_list: { Args: { p_limit?: number }; Returns: Json }
+      admin_outbox_resend: { Args: { p_id: string }; Returns: Json }
       admin_sign_in: {
         Args: { p_key: string; p_person_key: string }
         Returns: Json

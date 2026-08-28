@@ -265,6 +265,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'admin_export',
       'admin_interest_list',
       'admin_key_ok',
+      // **#73's second half, both on `authenticated` and neither on `anon`.** The queue is
+      // read behind `nn.entry.read` and re-sent behind `nn.entry.cancel`, each checked
+      // inside the function rather than by the grant.
+      'admin_outbox_list',
+      'admin_outbox_resend',
       'admin_sign_in',
       // **The three trigger functions, and none of them is callable by anybody.** They enforce
       // the rules that span more than one table — the England Athletics number against the
@@ -397,7 +402,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
-  it('lets authenticated execute exactly thirteen, and still no table read', async () => {
+  it('lets authenticated execute exactly fifteen, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -463,6 +468,14 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.routine_name)).toEqual([
+      // **The fourteenth and fifteenth are `/admin/emails/`'s** — #73's second half. Reading
+      // the queue is `nn.entry.read`, which already opens the entry list where every one of
+      // these addresses appears beside a name and an emergency contact, so it needs no
+      // permission of its own. Re-sending is `nn.entry.cancel`, reused rather than adding an
+      // eighth permission — the same trade `transfer_entry` made, and a dedicated
+      // `nn.email.resend` is still the cleaner answer.
+      'admin_outbox_list',
+      'admin_outbox_resend',
       'attach_checkout_session',
       'cancel_entry',
       'cancellable_purchase',
@@ -660,6 +673,10 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // `claim_outbox_batch` increments `attempts` in the same statement that selects the
       // rows, which is what makes a handed-out batch a counted one; a `stable` marking here
       // would be a lie the planner is entitled to act on.
+      // **`admin_outbox_list` is stable and `admin_outbox_resend` is not**, which is the
+      // same split every read/act pair in this schema has.
+      admin_outbox_list: 's',
+      admin_outbox_resend: 'v',
       claim_outbox_batch: 'v',
       enqueue_entry_email: 'v',
       record_send_result: 'v',

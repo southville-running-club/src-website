@@ -118,6 +118,15 @@ export {
 export { claimOutboxBatch, recordSendResult, type OutboxMessage } from './email-outbox';
 
 export {
+  fetchOutboxList,
+  resendOutboxMessage,
+  type OutboxFigures,
+  type OutboxListResult,
+  type OutboxRow,
+  type ResendResult,
+} from './admin-outbox';
+
+export {
   CHECKOUT_EVENT_OUTCOMES,
   ENTRY_COMPLETION_STATES,
   fetchEntryCompletionState,

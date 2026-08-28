@@ -11,6 +11,7 @@ import {
 } from './admin-shell';
 import { handleNnSection } from './nn-admin';
 import { handlePeopleSection } from './admin-people';
+import { handleEmailsSection } from './admin-emails';
 import { readSession } from './session';
 import { adminSegments } from './routing';
 import type { StripeEnv } from './stripe';
@@ -184,6 +185,13 @@ export async function handleAdmin(
     response = can(viewer, 'nn.entry.read')
       ? await handleNnSection(request, viewer, cfg, env, path.slice(1), url, secure)
       : notFound();
+  } else if (path[0] === 'emails') {
+    // **The read opens the section; `nn.entry.cancel` opens the buttons inside it.** Same
+    // split as `people` below, and the same reasoning: reading the queue is strictly less
+    // than the entry list already shows, and re-sending is an act with an outside effect.
+    response = can(viewer, 'nn.entry.read')
+      ? await handleEmailsSection(request, viewer, cfg, path.slice(1), secure)
+      : notFound();
   } else if (path[0] === 'people') {
     // **The read opens the section; the grant opens the buttons inside it.** `people-admin`
     // reaches this page and gets a table with no controls on it, and `handlePeopleSection`
@@ -216,6 +224,14 @@ function dashboard(viewer: AdminViewer): Response {
           can(viewer, 'nn.entry.read')
             ? html`<a href="/admin/nn/">Nightingale Nightmare</a> — the entries, the
                 interest list, the medical notes and the exports.`
+            : null
+        }
+      </p>
+      <p>
+        ${
+          can(viewer, 'nn.entry.read')
+            ? html`<a href="/admin/emails/">Emails</a> — what the club has told people,
+                and what it still owes them.`
             : null
         }
       </p>

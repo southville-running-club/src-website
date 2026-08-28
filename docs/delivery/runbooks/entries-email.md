@@ -17,6 +17,28 @@ same provider, and [`accounts-open.md`](accounts-open.md) owns those.
 
 ---
 
+## Start at `/admin/emails/`
+
+**It answers almost every version of this question without a credential or a log.** The queue,
+newest first, with what each message is about, whether it has gone, and how many times the club
+has tried. Anybody holding `nn-admin` can read it; the re-send button needs `nn.entry.cancel`,
+which `nn-admin` also carries.
+
+Find the person's address in the list. What you see decides the rest of this page:
+
+| What the row says | What it means |
+| --- | --- |
+| **Sent** | The club sent it. **Ask them to check their spam folder** — this is the usual answer, and there is no button because a second identical copy is not the fix |
+| **Waiting** | Owed and not gone yet. Nothing to do; it sends within about five minutes unless the cap is reached |
+| **Failed** | Tried three times and stopped. This is the one with a **Send again** button |
+| **Not in the list at all** | The club never owed it. That is not an email problem — go to [`entries-attention.md`](entries-attention.md), because it means the payment was not recorded |
+
+⚠️ **"Sent today" on that page counts entry emails only.** Account emails — confirming an
+address, resetting a password — go through the same Resend account and are not in this queue, so
+the club's real usage against the daily cap is higher than the number shown.
+
+---
+
 ## The one thing worth understanding
 
 **Deciding to send and actually sending are separate, on purpose.** When somebody pays, the
@@ -97,8 +119,10 @@ Check the Worker's logs in the Cloudflare dashboard for a line naming
 
 ## What you cannot do from here
 
-- **Re-send from the site.** Not built yet — it is the admin dashboard at `/admin/emails/`, and
-  it is the follow-up to the change that added this page.
+- **Re-send a message that has already gone.** `/admin/emails/` refuses it, deliberately: the
+  club cannot un-send an email, and the usual cause of "I never got it" is a spam folder. If
+  somebody genuinely needs a second copy, forward it from the race mailbox — where it is
+  obvious to them that a human did it.
 - **Change what a message says.** The wording lives in `apps/main/worker/email.ts` and is a
   pull request.
 - **Send somebody a message the club does not owe.** There is deliberately no way to compose

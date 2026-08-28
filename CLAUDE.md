@@ -498,7 +498,14 @@ every account email the site sends. On a busy entry day the queue will exceed it
 remainder arrives the next day. That is a **decision the club took deliberately** over roughly
 $20/month, not an oversight, and it is why the outbox exists at all.
 [The runbook](docs/delivery/runbooks/entries-email.md) is what a volunteer reads when somebody
-says they never heard anything. **`/admin/emails/`, with the re-send button, is not built yet.**
+says they never heard anything, and **`/admin/emails/` is where they look** — the queue, the
+figures, and a re-send button on a failed message. It is gated the way `/admin/people/` is:
+`nn.entry.read` opens the page and `nn.entry.cancel` opens the buttons, reusing that permission
+rather than adding an eighth, exactly as `transfer_entry()` did. **A message that has already
+been sent cannot be re-sent** — the club cannot un-send an email, and "I never got it" is far
+more often a spam folder. ⚠️ **"Sent today" on that page counts entry emails only**: account
+mail shares the Resend account and is not in the outbox, so the club's real usage against the
+daily cap is higher than the figure shown, and the page says so.
 
 **One rate-limiting rule is live, and it is the whole of the Cloudflare layer.**
 `[auth.rate_limit]` in `packages/db/supabase/config.toml` is chosen rather than defaulted, with
