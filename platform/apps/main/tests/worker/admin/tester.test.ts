@@ -92,7 +92,7 @@ async function signIn(email: string): Promise<string> {
   expect(response.status, `signing in as ${email} was refused`).toBe(303);
 
   return setCookiePairs(response)
-    .filter((pair) => pair.startsWith('src_at=') || pair.startsWith('src_rt='))
+    .filter((pair) => pair.startsWith('src_'))
     .join('; ');
 }
 
