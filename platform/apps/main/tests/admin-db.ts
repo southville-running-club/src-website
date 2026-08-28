@@ -34,12 +34,11 @@ import {
   EXPIRED_ENTRANT_ID,
   EXPIRED_PURCHASE_ID,
   MEDICAL_NOTE,
-  MISSING_EA_ENTRANT_ID,
-  MISSING_EA_LAST_NAME,
-  MISSING_EA_PURCHASE_ID,
+  SECOND_AFFILIATED_ENTRANT_ID,
+  SECOND_AFFILIATED_LAST_NAME,
+  SECOND_AFFILIATED_PURCHASE_ID,
   OVER_ENTRANT_ID,
   OVER_PURCHASE_ID,
-  PAID_EA_NUMBER,
   PAID_ENTRANT_ID,
   PAID_GENDER_IDENTITY,
   PAID_NON_ASCII_LAST_NAME,
@@ -156,12 +155,16 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       );
 
       await db.query(
-        `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-         select e.id, f.code, f.label, f.price, f.ea
+        // **`affiliated`, not `requires_ea_number`.** The two were one column until 29 August
+        // 2026 and were never one fact: which fee is the affiliated price is what the figures
+        // panel and the England Athletics export count, and asking for a number is a thing the
+        // club stopped doing. `fees_ea_number_not_collected` refuses `requires_ea_number` true.
+        `insert into entries.fees (event_id, code, label, price_pence, affiliated)
+         select e.id, f.code, f.label, f.price, f.affiliated
            from entries.events e
            cross join (values ('affiliated', 'Affiliated', 1500, true),
                               ('unaffiliated', 'Unaffiliated', 1700, false))
-                      as f (code, label, price, ea)
+                      as f (code, label, price, affiliated)
           where e.slug = $1
          on conflict (event_id, code) do nothing`,
         [slug],
@@ -199,7 +202,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: string;
       lastName: string;
       club: string | null;
-      eaNumber: string | null;
       dateOfBirth: string;
       /** The race category. Three values, and what the prize list is grouped by. */
       gender: string;
@@ -212,21 +214,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       notes?: string;
       /** Which fabricated running this purchase belongs to. Defaults to the oversold one. */
       eventSlug?: string;
-      /**
-       * Write the entrant as a row that **predates Slice G's rules**, with user triggers
-       * suppressed for this connection.
-       *
-       * Only one fixture needs it, and it is the one modelling an affiliated entry with no
-       * England Athletics number. `entries.assert_entrant_rules()` refuses that now, so the
-       * state the affiliation panel exists to surface can no longer be created the ordinary
-       * way — but it can still *exist*, because the panel's whole remaining purpose is rows
-       * written before the rule landed and the check constraints are `NOT VALID` for exactly
-       * that reason.
-       *
-       * `session_replication_role` is a session setting, restored immediately, and it does
-       * not touch check constraints — so nothing else in the fixture is weakened by it.
-       */
-      preEnforcement?: boolean;
     }): Promise<void> => {
       const eventSlug = purchase.eventSlug ?? ADMIN_EVENT_SLUG;
 
@@ -263,35 +250,31 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
         ],
       );
 
-      if (purchase.preEnforcement === true) {
-        await db.query('set session_replication_role = replica');
-      }
-
-      try {
-        await db.query(
-          `insert into entries.entrants (
-             id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
-             club, ea_number, emergency_contact_name, emergency_contact_phone
-           ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10, $11)`,
-          [
-            purchase.entrantId,
-            purchase.purchaseId,
-            purchase.firstName,
-            purchase.lastName,
-            purchase.dateOfBirth,
-            purchase.gender,
-            purchase.genderIdentity ?? null,
-            purchase.club,
-            purchase.eaNumber,
-            `Kin ${purchase.lastName}`,
-            '0117 496 0000',
-          ],
-        );
-      } finally {
-        if (purchase.preEnforcement === true) {
-          await db.query('set session_replication_role = origin');
-        }
-      }
+      // **No `ea_number` column, and there is no way to write one.** A `preEnforcement` flag
+      // lived here until 29 August 2026, suppressing the entrant triggers so that one fixture
+      // could model an affiliated entry with no number — the state the affiliation panel
+      // existed to surface. The club stopped asking for numbers, so that state is now every
+      // affiliated entry and is correct; and `entrants_ea_number_not_collected` is a check
+      // constraint, which `session_replication_role` does not suppress, so the escape hatch
+      // would not work even if there were something to model.
+      await db.query(
+        `insert into entries.entrants (
+           id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
+           club, emergency_contact_name, emergency_contact_phone
+         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
+        [
+          purchase.entrantId,
+          purchase.purchaseId,
+          purchase.firstName,
+          purchase.lastName,
+          purchase.dateOfBirth,
+          purchase.gender,
+          purchase.genderIdentity ?? null,
+          purchase.club,
+          `Kin ${purchase.lastName}`,
+          '0117 496 0000',
+        ],
+      );
 
       if (purchase.notes !== undefined) {
         await db.query(
@@ -301,8 +284,8 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       }
     };
 
-    // Paid, affiliated, with an England Athletics number and the only medical note in the run.
-    // Born on race day forty years earlier, so the category is the Vet 40 boundary.
+    // Paid, affiliated, and the only medical note in the run. Born on race day forty years
+    // earlier, so the category is the Vet 40 boundary.
     await seed({
       purchaseId: PAID_PURCHASE_ID,
       entrantId: PAID_ENTRANT_ID,
@@ -312,7 +295,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: 'Harriet',
       lastName: 'Nwosu',
       club: 'Southville Running Club',
-      eaNumber: PAID_EA_NUMBER,
       dateOfBirth: '1986-12-06',
       gender: 'female',
       genderIdentity: PAID_GENDER_IDENTITY,
@@ -332,7 +314,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       // A plain club here: the CSV hazard belongs on a paid entrant, because an export carries
       // paid entries only. See the note in `admin-fixtures.ts`.
       club: 'Bristol & West AC',
-      eaNumber: null,
       dateOfBirth: '2000-12-07',
       gender: 'female',
       holdMinutes: 31,
@@ -348,7 +329,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: 'Kwame',
       lastName: 'Adjei',
       club: 'Left Handed Giant RC',
-      eaNumber: null,
       dateOfBirth: '1975-06-30',
       gender: 'male',
       holdMinutes: -40,
@@ -367,7 +347,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       // **The CSV hazard, on the one entrant that reaches every export.** A comma and a double
       // quote in one field, and a non-ASCII surname to go with the byte-order mark.
       club: AWKWARD_CLUB,
-      eaNumber: '7654321',
       dateOfBirth: '1960-01-15',
       gender: 'female',
       holdMinutes: -60,
@@ -384,35 +363,32 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: 'Marek',
       lastName: 'Toms',
       club: null,
-      eaNumber: null,
       dateOfBirth: '1999-02-28',
       gender: 'male',
       holdMinutes: -90,
     });
 
-    // **Paid, affiliated, and no England Athletics number** — the state the affiliation panel
-    // exists to surface. `create_pending_purchase()` used to permit it; since Slice G neither
-    // it nor the table will, so this is seeded as a row that predates the rule, which is the
-    // only way it can still exist and the only reason the panel is still on the page.
+    // **A second paid affiliated entry**, so the Affiliated entries figure counts past one.
+    // It modelled an affiliated entry with no England Athletics number until 29 August 2026;
+    // every affiliated entry is that now, and correctly, so what is left worth fixturing is
+    // simply a second one of them. See the note on the constant.
     await seed({
-      purchaseId: MISSING_EA_PURCHASE_ID,
-      entrantId: MISSING_EA_ENTRANT_ID,
+      purchaseId: SECOND_AFFILIATED_PURCHASE_ID,
+      entrantId: SECOND_AFFILIATED_ENTRANT_ID,
       status: 'paid',
       feeCode: 'affiliated',
       amountPence: 1500,
       firstName: 'Nadia',
-      lastName: MISSING_EA_LAST_NAME,
+      lastName: SECOND_AFFILIATED_LAST_NAME,
       club: 'Westbury Harriers',
-      eaNumber: null,
       dateOfBirth: '1994-03-09',
       gender: 'female',
       holdMinutes: 31,
-      preEnforcement: true,
     });
 
     // --- the quiet event, with nothing flagged on it ------------------------------------------
-    // Two entries against ten places: not full, not over, nothing needing a human, no medical
-    // note and no missing number. It is what proves the attention panel *stays away*.
+    // Two entries against ten places: not full, not over, nothing needing a human and no
+    // medical note. It is what proves the attention panel *stays away*.
     await seed({
       eventSlug: CLEAN_EVENT_SLUG,
       purchaseId: CLEAN_PAID_PURCHASE_ID,
@@ -423,7 +399,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: 'Tomas',
       lastName: CLEAN_PAID_LAST_NAME,
       club: 'Chew Valley RC',
-      eaNumber: null,
       dateOfBirth: '1991-05-02',
       gender: 'male',
       holdMinutes: 31,
@@ -439,7 +414,6 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       firstName: 'Bea',
       lastName: CLEAN_HELD_LAST_NAME,
       club: null,
-      eaNumber: null,
       dateOfBirth: '1979-08-19',
       gender: 'female',
       // A live hold, so this event has one place held and one paid.

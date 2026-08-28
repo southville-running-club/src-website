@@ -111,34 +111,31 @@ export const PENDING_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000002';
 export const EXPIRED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000003';
 export const OVER_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000004';
 export const REFUNDED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000005';
-export const MISSING_EA_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000006';
+export const SECOND_AFFILIATED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000006';
 
 export const PAID_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000011';
 export const PENDING_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000012';
 export const EXPIRED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000013';
 export const OVER_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000014';
 export const REFUNDED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000015';
-export const MISSING_EA_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000016';
+export const SECOND_AFFILIATED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000016';
 
 /**
- * The state the affiliation panel exists to catch: **paid, on a fee that requires an England
- * Athletics number, with no number.**
+ * A second paid affiliated entry, so the **Affiliated entries** figure counts past one.
  *
- * It is written directly here for the same reason every other row is. **It used to be reachable
- * in production and no longer is.** `packages/shared/src/nn-entry.ts` required the number whenever
- * the chosen fee did — but that was the *form's* control, and
- * `entries.create_pending_purchase()` wrote `ea_number` straight through with no reference to
- * `fees.requires_ea_number` while being granted to `anon`, so two ordinary PostgREST calls with
- * the published anon key produced exactly this row. Slice G closed it, in the function and again
- * in `entries.assert_entrant_rules()`.
+ * **This row modelled something else until 29 August 2026** and the change is worth recording,
+ * because the row survived the thing it was written for. It was *paid, on a fee requiring an
+ * England Athletics number, with no number* — a state `create_pending_purchase()` once permitted
+ * through the published anon key and Slice G closed, so it had to be seeded with the entrant
+ * triggers suppressed. The panel above it existed to surface exactly that.
  *
- * **So this row is now seeded as history**, with `preEnforcement: true` suppressing the trigger —
- * and that is precisely why the count stays on the page. A trigger only ever sees a write, and
- * Slice G's check constraints are `NOT VALID` because nobody could see production's existing rows.
- * A pre-enforcement affiliated entry with no number is a state that can still *exist*, and this
- * count is the only thing that would surface it.
+ * The club then stopped asking for numbers altogether, so there is no such state to model: every
+ * affiliated entry has no number and that is now correct rather than a defect. The row is kept
+ * as an ordinary second affiliated entry, written the ordinary way, because what the panel
+ * counts — how many entries owe no Unattached Runner Levy under ARC Rule 21(2)(b) — still needs
+ * a count that is not one.
  */
-export const MISSING_EA_LAST_NAME = 'Pemberton';
+export const SECOND_AFFILIATED_LAST_NAME = 'Pemberton';
 
 /**
  * A second event, with **nothing wrong with it**.
@@ -192,8 +189,15 @@ export const PAID_NON_ASCII_LAST_NAME = 'Sørensen';
 export const MEDICAL_NOTE =
   'Asthma — blue inhaler in a waist belt. Allergic to ibuprofen.';
 
-/** Format-checked, never verified — England Athletics publishes no verification API. */
-export const PAID_EA_NUMBER = '1234567';
+/**
+ * A well-formed England Athletics number that **must not appear anywhere**.
+ *
+ * It is not seeded — `entrants_ea_number_not_collected` refuses a value in that column, so it
+ * cannot be. It is here so the assertions that the club neither asks for nor holds one have a
+ * concrete string to look for, on the entry form and in every export, rather than asserting the
+ * absence of a column name and calling that coverage.
+ */
+export const NEVER_STORED_EA_NUMBER = '1234567';
 
 /**
  * The one entrant in the run who answered the optional gender question, and the answer.

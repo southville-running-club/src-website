@@ -451,7 +451,6 @@ describe('an entry the server refuses', () => {
       goodEntry({
         firstName: '   ',
         feeCode: 'affiliated',
-        eaNumber: '1234567',
         medicalNotes: 'Type 1 diabetic.',
         medicalConsent: 'on',
       }),
@@ -459,7 +458,6 @@ describe('an entry the server refuses', () => {
     const html = await response.text();
 
     expect(html).toContain('data-entry-value="firstName" value="   "');
-    expect(html).toContain('data-entry-value="eaNumber" value="1234567"');
     expect(html).toMatch(/data-entry-text="medicalNotes">Type 1 diabetic\./);
     expect(html).toMatch(/data-entry-checked="medicalConsent" checked/);
     expect(html).toMatch(/data-entry-checked="entryTerms" checked/);
@@ -486,14 +484,29 @@ describe('an entry the server refuses', () => {
     }
   });
 
-  it('asks for an England Athletics number only when affiliated was chosen', async () => {
-    const affiliated = await submit(goodEntry({ feeCode: 'affiliated' }));
-    expect(await affiliated.text()).toContain('Enter your England Athletics number');
+  it('asks the affiliated entry for nothing beyond the entry type', async () => {
+    // **This used to refuse an affiliated entry with no England Athletics number**, and
+    // refusing one is the defect now: the club stopped asking on 29 August 2026 and a runner's
+    // word is what the affiliated price is sold on. Both fees answer alike, and neither page
+    // has a box to type a number into.
+    for (const feeCode of ['affiliated', 'unaffiliated']) {
+      const html = await (await submit(goodEntry({ feeCode }))).text();
 
-    const unaffiliated = await submit(goodEntry({ feeCode: 'unaffiliated' }));
-    expect(await unaffiliated.text()).not.toContain(
-      'Enter your England Athletics number',
+      expect(html).not.toContain('England Athletics number');
+      expect(html).not.toContain('data-entry-error="eaNumber"');
+    }
+  });
+
+  it('stores nothing when an England Athletics number is posted at it anyway', async () => {
+    // **The endpoint is public and anybody may post anything to it.** The field is gone from
+    // the form, so the only remaining way a number reaches the Worker is somebody sending one
+    // — and what has to be true is that it goes nowhere. Asserting the submission succeeds
+    // would pass just as well if the value were quietly written.
+    const response = await submit(
+      goodEntry({ feeCode: 'affiliated', eaNumber: '1234567' }),
     );
+
+    expect(await response.text()).not.toContain('1234567');
   });
 
   it('refuses a fee code the event is not offering', async () => {
@@ -719,7 +732,6 @@ describe('a discount code is priced before anything is held', () => {
     const response = await submit(
       goodEntry({
         feeCode: 'affiliated',
-        eaNumber: '1234567',
         discountCode: FIXTURE_DISCOUNT,
       }),
     );

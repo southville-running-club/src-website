@@ -128,8 +128,8 @@ beforeAll(async () => {
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-     values ($1, 'unaffiliated', 'Unaffiliated', 2000, false)
+    `insert into entries.fees (event_id, code, label, price_pence)
+     values ($1, 'unaffiliated', 'Unaffiliated', 2000)
      on conflict do nothing`,
     [EVENT_ID],
   );

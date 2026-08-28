@@ -121,8 +121,8 @@ async function seedEvent(slug: string, options: EventOptions = {}): Promise<stri
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-     values ($1, 'unaffiliated', 'Unaffiliated', 1700, false)`,
+    `insert into entries.fees (event_id, code, label, price_pence)
+     values ($1, 'unaffiliated', 'Unaffiliated', 1700)`,
     [rows[0]!.id],
   );
 
@@ -162,7 +162,6 @@ function entrant(overrides: Record<string, unknown> = {}): Record<string, unknow
     date_of_birth: '1986-12-09',
     gender: 'female',
     club: null,
-    ea_number: null,
     emergency_contact_name: 'Margaret Hamilton',
     emergency_contact_phone: '0117 496 0000',
     ...overrides,
@@ -728,12 +727,12 @@ describe('how many people one entry may cover', () => {
     // behind with no runner on it.** Every write happens inside one subtransaction, so it all
     // goes back together.
     //
-    // **This used to use a malformed England Athletics number and no longer can.** Slice G made
-    // the number conditional on the fee, and this fixture's only fee is `unaffiliated` — so the
-    // number is now *dropped* at the boundary rather than passed down to the format constraint,
-    // which is the minimisation rule `parseNnEntry` has always applied one floor up. An
+    // **This used to use a malformed England Athletics number and no longer can**, twice over.
+    // Slice G made the number conditional on the fee, so it was dropped at the boundary rather
+    // than reaching the format constraint; then on 29 August 2026 the club stopped asking for
+    // one at all and `entrants_ea_number_not_collected` refuses any value in that column. An
     // over-long name is a value the tables still will not take, which is what this test is
-    // actually about. `entries-rules.test.ts` covers the number against its fee.
+    // actually about.
     const eventId = await seedEvent(`${FIXTURE_PREFIX}bad`, { capacity: 5 });
 
     expect(

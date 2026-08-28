@@ -73,9 +73,11 @@ re-run.
   declaration is a `vi` **consent** rather than a column, because it is data about disability
   and Article 9 puts it on the medical note's footing; the guide is a second row in
   `entries.entrants` with `role = 'guide'`, and they **take one of the 250**, which is what the
-  club actually needed and is why nothing is reserved. A guide pays nothing, carries no England
-  Athletics number, is in no prize category, is **excluded from the England Athletics export**
-  and is **marked on the start list**. The `vi` declaration itself is rendered **nowhere** — no
+  club actually needed and is why nothing is reserved. A guide pays nothing, is in no prize
+  category, is **excluded from the affiliated export** — because they pay nothing, so counting
+  them would overstate how many affiliated entries were sold — and is **marked on the start
+  list**. (Nobody carries an England Athletics number any more; see the entry below.) The `vi`
+  declaration itself is rendered **nowhere** — no
   read returns a purchase's `consents`, so it is stored as the lawful basis for holding the
   guide's data and never as a fact on a screen; what a volunteer sees is the guide's row, which
   is the operational fact anyway. **Amended 28 August 2026**, and both halves are decisions: a
@@ -86,6 +88,24 @@ re-run.
   guide and for nothing else, and a runner without one is refused as loudly as ever. **The VI
   guide entry type is off the form**; the `vi_guide` fee row survives as the backstop's
   subject. **An eighteenth field is a new decision.**
+- **One field has come off the list, which had never happened before — the England Athletics
+  number, on 29 August 2026.** The club asks for none and holds none: a runner states that they
+  are affiliated and the club takes their word for it —
+  [decision 007](docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
+  and [ADR-023](docs/architecture/decisions/adr-023-no-england-athletics-numbers.md). **The
+  £18/£20 split and the £2 levy are untouched**; only the number stopped being asked for. Under
+  ARC Rule 21(2)(b) the club has no record of *who* claimed affiliation, only that they paid the
+  affiliated £18 — put to the committee and accepted — and what replaces the check is a sentence
+  on **both** privacy notices reserving the club's right to ask somebody to produce their number
+  or other evidence of affiliation. **Which fee is the affiliated price is
+  `entries.fees.affiliated` now**, a column that says only that; `requires_ea_number` was
+  carrying both facts and is false everywhere behind `fees_ea_number_not_collected`.
+  `entrants.ea_number` is null everywhere behind `entrants_ea_number_not_collected`. **Both
+  columns are still there and that is the expand step** — the deployed Worker parses those keys
+  as required, so dropping them mid-deploy would take `/admin/nn/` down. **The contract step is
+  owed**, and it is
+  [the contract runbook](docs/delivery/runbooks/entries-ea-number-contract.md). **Asking for a
+  number again is a new decision**, not a revert.
 - **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
   there: who somebody writes to about their data, how long an entry record is kept, whether
   an email address is kept to tell people about next year's race, and what is true about
@@ -418,7 +438,9 @@ what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the
 about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
 
 **A message that appears on `focusout` can swallow the click that caused it.** The England
-Athletics box is a `.field` *inside* the affiliated `.nn-fee` card, so `fieldOf` — which took
+Athletics box **is off the form since 29 August 2026** and the rule it cost is not — the next
+conditional field re-creates the shape exactly, which is why this stays. It was a `.field`
+*inside* the affiliated `.nn-fee` card, so `fieldOf` — which took
 `closest(container)` and then the first `[data-entry-error]` beneath it — answered `eaNumber`
 for the affiliated **radio**. Leaving that radio made the England Athletics box complain about
 a number nobody had been asked for, and it did so *between the press and the release of the
@@ -430,11 +452,13 @@ runner focuses it, so `focusout` never fires on a laptop. Chromium at 1280px sur
 the shift is small enough that the release still lands on the card's own `<label>`, which
 forwards the click. Reproduced on Linux WebKit in `mcr.microsoft.com/playwright:v1.62.1-noble`
 and in Chromium at 320px. `nn-entry.spec.ts`'s "shows a running total once an entry type is
-chosen" is the guard, and the rule is the general one: **a container's message belongs to that
-container, not to a field nested inside it.**
+chosen" is the guard — it asserts that leaving a fee radio produces no message anywhere now
+that there is no box to complain — and the rule is the general one: **a container's message
+belongs to that container, not to a field nested inside it.**
 
 **A conditional field that collapses moves the control that revealed it.** The same England
-Athletics box, the same nesting, one layer up: it sat *inside* the affiliated card, so changing
+Athletics box — likewise gone, likewise still the rule — the same nesting, one layer up: it sat
+*inside* the affiliated card, so changing
 to another entry type collapsed 277px from **above** the two cards below it. At 320px the card
 somebody had just chosen went from y=271 to y=-7 — they tapped it, and the feedback for their
 own tap was the page throwing them somewhere else. It is a plain `.field` under all three cards
@@ -444,7 +468,9 @@ measured Δ0 in WebKit and Δ1px in Chromium — a pre-existing sub-pixel border
 the group it is a condition of, rather than inside it.** The adjacency that buys is worth less
 than the stability it costs, and the field's own hint can say what the nesting was saying.
 `nn-entry.spec.ts`'s "keeps the entry type that was chosen in view when the fee changes" is the
-guard, and it runs in all three projects.
+guard, and it runs in all three projects. **The guide's six fields are the shape's third
+outing** and are built the way this paragraph says: after the checkbox that reveals them, never
+around it.
 
 **A navigation label is not free text, because the bar's height is what pays for a defect.** The
 Nightingale Nightmare bar was unstuck by [ADR-012](docs/architecture/decisions/adr-012-one-navigation-bar.md)
@@ -692,7 +718,10 @@ form's control, not the system's**. Slice G audited every rule by *attempting th
 an anonymous client and found eight more, the worst being that the entry terms were not
 enforced at all: `p_consents = {}` was accepted and stored as `{}`. All nine are closed — a
 check constraint where the rule is static, a trigger where it spans tables, and the function
-for the two a person needs words about (`ea_number_required`, `consents_missing`).
+where a person needs words about it (`consents_missing`). **The England Athletics rule that
+started all of this no longer exists**: the club stopped asking on 29 August 2026, so what
+`entries-rules.test.ts` attempts there is the opposite bypass — post a number straight at
+PostgREST with the published key and assert it reaches no column.
 `packages/db/tests/entries-rules.test.ts` re-attempts each bypass and asserts the **specific**
 refusal, because a Postgres error is not a refusal: a broken function refuses everything, which
 reads as every rule holding at once. **The tenth rule is "one entry per runner", and it is the
@@ -783,8 +812,8 @@ person and sets `person_id` **null** — the state a signed-out purchase sits in
 appears on their account the moment that address registers and confirms. **No account is
 created**, for the reason the entry path gives. **No money moves**, so the place never returns
 to the pool and cannot be taken by somebody else in between. It **deletes the previous
-runner's medical note and clears their England Athletics number**: a note belongs to whoever
-wrote it, and carrying one across would file a stranger's condition under a new name. And it
+runner's medical note**: a note belongs to whoever wrote it, and carrying one across would file
+a stranger's condition under a new name. And it
 **re-applies the minimum age and one-runner-one-place**, so a transfer cannot be the way round
 either. It reuses `nn.entry.cancel` rather than adding a permission of its own; a dedicated
 `nn.entry.transfer` is the cleaner answer and is still a decision nobody has taken. **The
@@ -827,11 +856,14 @@ capped at 500 characters, read on `/admin/nn/` and on the asker's own `/account/
 states the club's position on refunds *above* the box rather than after the button: not the first
 answer, looked at case by case.
 
-⚠️ **`transfer_entry()` asks the new runner for their own England Athletics number.** It used to
-clear the column unconditionally, which `assert_entrant_rules()` refuses on an affiliated entry —
-so every affiliated transfer raised a `check_violation` that reached a volunteer as *"the club's
-database could not be reached"*, on a database that was perfectly healthy. The nine-argument form
-is kept as a wrapper; that is the expand step, and it has a contract step owing.
+**An affiliated place transfers like any other now, and it could not before.**
+`transfer_entry()` cleared the previous runner's England Athletics number unconditionally, which
+`assert_entrant_rules()` refused on an affiliated entry — so **every affiliated transfer raised a
+`check_violation` that reached a volunteer as *"the club's database could not be reached"***, on a
+database that was perfectly healthy. Asking the new runner for a number of their own was what
+closed that, as a tenth argument with the nine-argument form kept as a wrapper. The club then
+stopped asking for numbers at all, so no fee requires one, the refusal is unreachable and the
+argument is dead weight — **both go at the contract step**, which is the one still owing.
 
 The rest of the filtering: Status and entry
 type are multi-select, carried as repeated query parameters so a filtered view is a URL

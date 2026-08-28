@@ -435,6 +435,7 @@ export type Database = {
       fees: {
         Row: {
           active: boolean
+          affiliated: boolean
           code: string
           event_id: string
           id: string
@@ -447,6 +448,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          affiliated?: boolean
           code: string
           event_id: string
           id?: string
@@ -459,6 +461,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          affiliated?: boolean
           code?: string
           event_id?: string
           id?: string

@@ -143,10 +143,13 @@ All four `convalidated` must be `true`.
 
 ## What this runbook does not cover
 
-**The triggers need nothing.** The five contextual rules — the England Athletics number against
-its fee, the medical note against its consent, the consents against the event, the date of birth
-against the race date, the leg against the event's size — are enforced by triggers, and a trigger
-only ever sees a write. There is nothing to scan, nothing that can fail on deploy, and nothing to
+**The triggers need nothing.** The contextual rules — the medical note against its consent, the
+consents against the event, the date of birth against the race date, the entrant against the
+event's minimum age, the leg against the event's size — are enforced by triggers, and a trigger
+only ever sees a write. (There was a sixth, the England Athletics number against its fee. The
+club [stopped asking for numbers](../../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
+on 29 August 2026, and what replaced it is a plain check constraint that ships **validated** —
+the migration empties the column immediately above it, so there is nothing here to scan.) There is nothing to scan, nothing that can fail on deploy, and nothing to
 validate afterwards.
 
 It is also their limitation, and it is precisely why the four constraints exist alongside them:

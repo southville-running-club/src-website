@@ -1,6 +1,5 @@
 import {
   AGE_CATEGORY_CODES,
-  EA_NUMBER_PATTERN,
   NN_ENTRY_GENDERS,
   transferEntry,
   ageCategoryFor,
@@ -705,13 +704,17 @@ async function medicalSheetResponse(
 function csvResponse(taken: AdminExport): Response {
   const body =
     taken.kind === 'ea'
-      ? csvDocument(
-          ['Last name', 'First name', 'Club', 'EA number', 'Entry type', 'Paid (pence)'],
+      ? // **No number column since 29 August 2026, and the file is still worth downloading.**
+        // The club stopped asking for England Athletics numbers, so there is nothing to check
+        // a runner against — but this is the only document that says how many entries took
+        // the affiliated price, which is the count ARC Rule 21(2)(b)'s Unattached Runner Levy
+        // is assessed against. A treasurer needs that; nobody needs an empty column.
+        csvDocument(
+          ['Last name', 'First name', 'Club', 'Entry type', 'Paid (pence)'],
           taken.rows.map((row) => [
             row.lastName,
             row.firstName,
             row.club,
-            row.eaNumber,
             row.feeLabel,
             row.amountPence,
           ]),
@@ -1332,9 +1335,18 @@ function medicalAndAffiliationSection(
         </div>
       </section>
 
+      ${
+        /* **"Affiliated entries" rather than "Affiliation check", since 29 August 2026.** The
+           club stopped asking for England Athletics numbers, so there is nothing here to
+           check — a runner says they are affiliated and the club takes their word for it. The
+           count is not decoration though, and it is why the panel survives: it is how many
+           entries the club owes no Unattached Runner Levy on under ARC Rule 21(2)(b), which
+           is a figure a treasurer has to be able to produce. The file below it is the same
+           count as a document, without the number column it used to carry. */ null
+      }
       <section class="admin-panel" aria-labelledby="affiliation">
         <div class="admin-panel-head">
-          <h3 id="affiliation">Affiliation check</h3>
+          <h3 id="affiliation">Affiliated entries</h3>
         </div>
         <div class="admin-panel-body">
           ${
@@ -1343,37 +1355,19 @@ function medicalAndAffiliationSection(
                   The affiliated count could not be read from this database.
                 </p>`
               : html`<p>
-                    <span class="admin-mono">${figures.affiliated}</span>
-                    ${plural(
-                      figures.affiliated,
-                      'paid entry claims',
-                      'paid entries claim',
-                    )}
-                    the affiliated price. Nothing verifies a number automatically —
-                    <strong>England Athletics publishes no verification API</strong> — so
-                    this is the list to work through against the club's own myAthletics
-                    access.
-                  </p>
-                  ${
-                    figures.affiliatedMissingEa === 0
-                      ? null
-                      : html`<p class="admin-error">
-                          <strong class="admin-mono"
-                            >${figures.affiliatedMissingEa}</strong
-                          >
-                          claimed the affiliated price
-                          <strong>without giving a number.</strong> Neither the form nor
-                          the database will accept one like this any more, so these were
-                          recorded before that rule landed — which makes them exactly the
-                          rows this check is for.
-                        </p>`
-                  }`
+                  <span class="admin-mono">${figures.affiliated}</span>
+                  ${plural(figures.affiliated, 'paid entry took', 'paid entries took')}
+                  the affiliated price. The club does not ask for an England Athletics
+                  number and holds none — a runner states that they are affiliated and the
+                  club takes their word for it. The privacy notice reserves the club's
+                  right to ask somebody to produce theirs.
+                </p>`
           }
           <div class="admin-actions">
             ${exportButton(
               list.event.slug,
               'ea',
-              'Download the check list',
+              'Download the affiliated list',
               'admin-button-quiet',
             )}
           </div>
@@ -1500,13 +1494,12 @@ function entriesSection(
             <th scope="col" class="admin-col-wide">Club</th>
             <th scope="col" class="admin-col-wide">Category</th>
             <th scope="col" class="admin-col-wide">Entry</th>
-            <th scope="col" class="admin-col-wide">EA number</th>
             <th scope="col" class="admin-col-wide">Code</th>
             <th scope="col" class="admin-col-wide">Paid</th>
             <th scope="col">Status</th>
             <th scope="col">Note</th>
             ${
-              /* **`admin-col-wide`, so it folds away with Club, Category, Entry, EA number
+              /* **`admin-col-wide`, so it folds away with Club, Category, Entry, Code
                  and Paid at 320px.** The phone layout keeps three columns on purpose — a
                  fourth is what starts the table scrolling sideways, and an absolutely
                  positioned visually-hidden span inside a scroller drags the whole page with
@@ -1583,12 +1576,11 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
         ? null
         : categoryLabel(entry.age, entry.gender);
 
-  // **A guide holds no England Athletics number whatever the fee says**, so the "missing"
-  // warning below must not fire on their row: the number belongs to the entry, the entry is
-  // the runner's, and one entry owes one levy. `entries.assert_entrant_rules()` refuses a
-  // number on a guide row, which is what makes this presentation rather than a guess.
-  const wantsEa = entry.requiresEaNumber && entry.role !== 'guide';
-  const ea = wantsEa ? entry.eaNumber : null;
+  // **The England Athletics number was rendered here until 29 August 2026**, as a cell and as
+  // a loud "EA number missing" in the stacked phone summary. The club stopped asking for it,
+  // so there is nothing to render and nothing to warn about: every affiliated entry is a
+  // runner's word, which is what the committee decided it should be. The entry type column
+  // still says which price was paid, which is the part a volunteer actually acts on.
 
   // **Only where there is something to cancel.** An `expired` hold has already released its
   // place and has no entrant to remove, and a `refunded` row is the outcome of having pressed
@@ -1631,13 +1623,6 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
             ? null
             : html`<span class="admin-mono">${entry.discountCode}</span>`
         }
-        ${
-          wantsEa
-            ? ea === null
-              ? html`<strong class="admin-error">EA number missing</strong>`
-              : html`<span class="admin-mono">EA ${ea}</span>`
-            : null
-        }
       </span>
     </th>
     <td class="admin-col-wide">${entry.club ?? '—'}</td>
@@ -1650,15 +1635,6 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
       }
     </td>
     <td class="admin-col-wide">${entry.feeLabel}</td>
-    <td class="admin-col-wide admin-mono">
-      ${
-        wantsEa
-          ? ea === null
-            ? html`<strong class="admin-error">missing</strong>`
-            : ea
-          : '—'
-      }
-    </td>
     ${
       /* **The code this entry was bought with, and a dash for the many that used none.**
       Beside the amount rather than in the stacked summary alone, because the question a
@@ -2572,8 +2548,6 @@ async function transferResponse(
   // inside `entries.transfer_entry()` — the permission, the minimum age, one-runner-one-place
   // — because this function is reachable only through a browser and that one is reachable
   // through PostgREST.
-  const eaNumber = read('eaNumber');
-
   if (
     read('email') === '' ||
     read('firstName') === '' ||
@@ -2581,12 +2555,7 @@ async function transferResponse(
     !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
     !(NN_ENTRY_GENDERS as readonly string[]).includes(gender) ||
     read('emergencyName') === '' ||
-    read('emergencyPhone') === '' ||
-    // **The same format check the entry form applies, and only when something was typed.**
-    // Whether the number is *needed* is the fee's business and is settled in the database; that
-    // what was typed looks like a number at all is this form's, and catching it here saves a
-    // round trip that would come back as a bare refusal.
-    (eaNumber !== '' && !EA_NUMBER_PATTERN.test(eaNumber))
+    read('emergencyPhone') === ''
   ) {
     const token = mintCsrfToken();
 
@@ -2614,7 +2583,6 @@ async function transferResponse(
       club: read('club') === '' ? null : read('club'),
       emergencyContactName: read('emergencyName'),
       emergencyContactPhone: read('emergencyPhone'),
-      eaNumber: eaNumber === '' ? null : eaNumber,
     },
   );
 
@@ -2623,24 +2591,12 @@ async function transferResponse(
     return page('Transfer entry', unavailablePage(viewer), { status: 503 });
   }
 
-  // **Its own answer, and not a 404.** This place was bought at the affiliated price, so the
-  // new runner needs a number of their own — the England Athletics rule follows the entry
-  // rather than the person. It is the ordinary mistake on this form, and the form says what to
-  // do about it rather than pretending the entry does not exist.
-  if (outcome.status === 'ea-number-required') {
-    const token = mintCsrfToken();
-
-    return page(
-      'Transfer entry',
-      transferFormPage(
-        viewer,
-        purchaseId,
-        token,
-        'This place was bought at the affiliated price, so the new runner needs an England Athletics number of their own.',
-      ),
-      { cookies: [csrfCookie(token, secure)] },
-    );
-  }
+  // **There is no `ea-number-required` branch here any more, and its absence is a fix.**
+  // An affiliated place could not be transferred at all: `transfer_entry()` cleared the
+  // previous runner's number, `assert_entrant_rules()` refused the fee without one, and a
+  // volunteer was told the club's database could not be reached. Asking the new runner for a
+  // number of their own was what closed that; the club stopped asking for numbers on 29 August
+  // 2026, so no fee requires one and an affiliated transfer is now an ordinary transfer.
 
   if (outcome.status !== 'ok') {
     // `unauthorised` and `not-found` answer identically, exactly as every other read and write
@@ -2653,7 +2609,7 @@ async function transferResponse(
     cancelOutcomePage(
       viewer,
       'The place has a new runner',
-      `It was ${outcome.previousRunner}'s and is now recorded against the details you entered. No money moved, and the place never went back into the race. Any medical note the previous runner had written has been deleted, along with how they described their gender, and the England Athletics number on the entry is the new runner's.`,
+      `It was ${outcome.previousRunner}'s and is now recorded against the details you entered. No money moved, and the place never went back into the race. Any medical note the previous runner had written has been deleted, along with how they described their gender.`,
     ),
     {},
   );
@@ -2706,10 +2662,9 @@ function transferFormPage(
       </p>
 
       <p>
-        <strong>The previous runner's medical note is deleted</strong>, along with their
-        England Athletics number and how they described their gender. Each of those
-        belongs to the person who wrote it, and the new runner supplies their own or has
-        none.
+        <strong>The previous runner's medical note is deleted</strong>, along with how
+        they described their gender. Each of those belongs to the person who wrote it, and
+        the new runner supplies their own or has none.
       </p>
 
       <form method="post" action="${NN_SECTION}/transfer/" class="admin-form">
@@ -2806,34 +2761,15 @@ function transferFormPage(
         </p>
 
         ${
-          /* **Asked always, required by the fee, and this box is the whole of the transfer
-          defect.** `transfer_entry()` used to set `ea_number = null` unconditionally, which
-          `assert_entrant_rules()` refuses on an affiliated entry — so every affiliated
+          /* **An England Athletics box was here, and it was the whole of the transfer
+          defect.** `transfer_entry()` used to clear the previous runner's number, which
+          `assert_entrant_rules()` refused on an affiliated entry — so every affiliated
           transfer raised a `check_violation` that arrived here as "That could not be read: the
           club's database could not be reached". A healthy database, a rule working correctly,
-          and a message that named neither.
-
-          **Not marked `required` in the markup**, because this page does not know which fee the
-          purchase was on: the fee is read from the purchase inside the function, which is the
-          only place that cannot be lied to. An unaffiliated entry ignores whatever is typed
-          here; an affiliated one refuses without it, in words. */ null
+          and a message that named neither. Asking the new runner for their own number was the
+          fix; the club stopped asking for numbers on 29 August 2026, so the box is gone and an
+          affiliated place transfers like any other. */ null
         }
-        <p>
-          <label for="transfer-ea">England Athletics number</label>
-          <input
-            type="text"
-            id="transfer-ea"
-            name="eaNumber"
-            inputmode="numeric"
-            autocomplete="off"
-            aria-describedby="transfer-ea-hint"
-          />
-        </p>
-        <p id="transfer-ea-hint" class="admin-quiet">
-          The new runner's own number, needed only if this place was bought at the
-          affiliated price. Leave it empty otherwise — it will be ignored.
-        </p>
-
         <button type="submit" class="admin-button admin-button-grave">
           Move the place to this runner
         </button>
@@ -3081,9 +3017,8 @@ function cancelOutcomePage(viewer: AdminViewer, heading: string, detail: string)
  * for the guide, which is the whole of the difference.
  *
  * **The same fields the public entry form collects, minus the ones that are about money.** No
- * England Athletics number, because nothing is being charged and that number exists to justify
- * the affiliated rebate; no discount code, for the same reason; no medical information, for
- * the reason `createManualEntry` gives at length.
+ * discount code, because nothing is being charged; no medical information, for the reason
+ * `createManualEntry` gives at length.
  */
 function readAssignPerson(
   read: (name: string) => string,

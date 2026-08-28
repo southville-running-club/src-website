@@ -213,19 +213,23 @@ beforeAll(async () => {
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-     select e.id, f.code, f.label, f.price, f.ea
+    // **`affiliated`, not `requires_ea_number`.** The two were one column until 29 August 2026
+    // and were never one fact: which fee is the affiliated price is what the figures panel and
+    // the England Athletics export count, and asking for a number is a thing the club stopped
+    // doing. `fees_ea_number_not_collected` refuses `requires_ea_number` true.
+    `insert into entries.fees (event_id, code, label, price_pence, affiliated)
+     select e.id, f.code, f.label, f.price, f.affiliated
        from entries.events e
        cross join (values ('affiliated', 'Affiliated', 1500, true),
                           ('unaffiliated', 'Unaffiliated', 1700, false))
-                  as f (code, label, price, ea)
+                  as f (code, label, price, affiliated)
       where e.slug = $1
      on conflict (event_id, code) do nothing`,
     [EVENT],
   );
 
-  // One paid entry with a medical note and an England Athletics number, and one live pending
-  // hold without either. Two purchases against a capacity of two, so `taken` is exercised.
+  // One paid entry with a medical note on it, and one live pending hold without one. Two
+  // purchases against a capacity of two, so `taken` is exercised.
   await query(
     `insert into entries.entry_purchases (
        id, event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
@@ -264,12 +268,12 @@ beforeAll(async () => {
     // to fail.
     `insert into entries.entrants (
        id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
-       club, ea_number, emergency_contact_name, emergency_contact_phone
+       club, emergency_contact_name, emergency_contact_phone
      ) values
        ($1::uuid, $2::uuid, 'Paid', 'Person', date '1986-12-06', 'female', 'Genderqueer',
-        'Fixture AC', '1234567', 'Kin One', '0117 496 0001'),
+        'Fixture AC', 'Kin One', '0117 496 0001'),
        ($3::uuid, $4::uuid, 'Pending', 'Person', date '1999-01-01', 'male', null,
-        null, null, 'Kin Two', '0117 496 0002')
+        null, 'Kin Two', '0117 496 0002')
      on conflict (id) do nothing`,
     [ENTRANT_PAID, PURCHASE_PAID, ENTRANT_PENDING, PURCHASE_PENDING],
   );
@@ -556,9 +560,9 @@ describe('entries.admin_entry_list()', () => {
   });
 
   it('carries no email address at all', async () => {
-    // Not the entrant's, not the purchaser's. An organiser checking England Athletics numbers
-    // or setting out bibs does not need one, and the entries-attention runbook has the query
-    // for the rare case somebody must be contacted.
+    // Not the entrant's, not the purchaser's. An organiser counting affiliated entries or
+    // setting out bibs does not need one, and the entries-attention runbook has the query for
+    // the rare case somebody must be contacted.
     const data = await rpc('admin_entry_list', { p_key: GATE_KEY, p_event_slug: EVENT });
 
     expect(JSON.stringify(data)).not.toContain('@example.com');
@@ -649,27 +653,27 @@ describe('the figures on entries.admin_entry_list()', () => {
   });
 
   /**
-   * **The state the affiliation panel exists to catch — and it is no longer reachable, which is
-   * what this test now says.**
+   * **The state the affiliation panel existed to catch, and there is no such state any more.**
    *
-   * It used to read: *"this insert succeeding is the assertion… this test is what will fail if
-   * somebody later adds the check that makes it unreachable, which is the moment to take the
-   * panel off."* Slice G added that check. The row two ordinary PostgREST calls with the
-   * published anon key used to produce is now refused, in the function and again by
-   * `entrants_obey_their_event`.
+   * This test has been rewritten twice and the history is the point. It first read *"this
+   * insert succeeding is the assertion… this test is what will fail if somebody later adds the
+   * check that makes it unreachable, which is the moment to take the panel off."* Slice G added
+   * that check, and it became a test that the insert is refused and that a row written as
+   * *history* — triggers suppressed — is still counted, because a trigger says nothing about
+   * rows that were already there.
    *
-   * **The panel stays, and the reason is the one thing a trigger cannot do.** A trigger only ever
-   * sees a write, so it says nothing about the rows that were already there — and the four check
-   * constraints Slice G added shipped `NOT VALID` precisely because nobody could see production's.
-   * Until [the constraints runbook](../../../../docs/delivery/runbooks/entries-constraints.md) has
-   * been run, a pre-enforcement row is exactly the thing this count would find, and it is the only
-   * thing that would find it.
+   * Then on 29 August 2026 the club stopped asking for England Athletics numbers altogether. An
+   * affiliated entry with no number is now **every** affiliated entry, and correct; the figure
+   * that counted them is a literal zero, and `affiliated` counts the fee instead. So what is
+   * left to assert is the thing that replaced all of it: nothing can write a number, by any
+   * route, including the one that used to work.
    *
-   * So the test does both halves: the insert is refused the ordinary way, and then the row is
-   * written the *only* way it can still exist — as history, with triggers suppressed — to prove
-   * the panel still counts it.
+   * **The history escape hatch is gone too, and not because it was tidied away.**
+   * `session_replication_role = replica` suppresses user triggers and does **not** touch check
+   * constraints — and `entrants_ea_number_not_collected` is a check constraint, which is
+   * precisely why it was chosen over relying on the trigger's biconditional.
    */
-  it('refuses an affiliated entry with no number, where the schema once permitted it', async () => {
+  it('refuses an England Athletics number by every route, including the one that once worked', async () => {
     const purchase = '0d0d0d0d-0000-4000-8000-0000000000a1';
     const entrant = '0d0d0d0d-0000-4000-8000-0000000000b1';
 
@@ -686,34 +690,46 @@ describe('the figures on entries.admin_entry_list()', () => {
       [EVENT, purchase],
     );
 
-    const insertEntrant = `insert into entries.entrants (
+    const insertWithNumber = `insert into entries.entrants (
          id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
          emergency_contact_name, emergency_contact_phone
        ) values ($1::uuid, $2::uuid, 'No', 'Number', date '1990-01-01', 'female',
-                 null, null, 'Kin Three', '0117 496 0003')`;
+                 null, '1234567', 'Kin Three', '0117 496 0003')`;
 
     try {
-      // **This insert being refused is the assertion now.** The trigger ties the number to the
-      // fee, so the state the panel counts can no longer be created.
-      await expect(query(insertEntrant, [entrant, purchase])).rejects.toMatchObject({
+      // The ordinary route: refused by the check constraint. `23514` rather than merely
+      // "something failed" — a broken table refuses everything, which reads as every rule
+      // holding at once.
+      await expect(query(insertWithNumber, [entrant, purchase])).rejects.toMatchObject({
         code: '23514',
       });
 
-      // Then the same row as *history*. `session_replication_role = replica` suppresses user
-      // triggers for this connection only — it is how Postgres replays rows that were written
-      // under older rules, which is exactly what a pre-enforcement entry is. It cannot leak: it
-      // is a session setting, restored below, and it does not touch the check constraints.
+      // And with the triggers out of the way, which is how a row written under older rules
+      // used to be replayed. A check constraint does not care.
       await query('set session_replication_role = replica');
       try {
-        await query(insertEntrant, [entrant, purchase]);
+        await expect(query(insertWithNumber, [entrant, purchase])).rejects.toMatchObject({
+          code: '23514',
+        });
       } finally {
         await query('set session_replication_role = origin');
       }
 
-      // **The panel still finds it**, which is why the panel is still on the page.
+      // **And the fee cannot be marked as wanting one either**, which is the other half: a fee
+      // that required a number would be a fee nobody could enter on, discovered by a runner at
+      // the payment page rather than by whoever wrote the migration.
+      await expect(
+        query(
+          `update entries.fees set requires_ea_number = true
+            where event_id = (select id from entries.events where slug = $1)`,
+          [EVENT],
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+
+      // The affiliated count is the fee's, and is unchanged by any of the above.
       expect(await figures()).toMatchObject({
-        affiliated: 2,
-        affiliated_missing_ea: 1,
+        affiliated: 1,
+        affiliated_missing_ea: 0,
       });
     } finally {
       // Scoped to the row this test wrote, so the figures above stay true for every other test in
@@ -911,7 +927,7 @@ describe('entries.admin_entrant_medical()', () => {
 // -----------------------------------------------------------------------------------------
 
 describe('entries.admin_export()', () => {
-  it('gives the England Athletics check numbers and no contact details', async () => {
+  it('gives the affiliated list its fees, no number and no contact details', async () => {
     const data = (await rpc('admin_export', {
       p_key: GATE_KEY,
       p_actor: ACTOR,
@@ -920,6 +936,11 @@ describe('entries.admin_export()', () => {
     })) as { rows: Record<string, unknown>[] };
 
     expect(data.rows).toHaveLength(1);
+    // **`ea_number` is still a key and is null on every row**, which is the expand step rather
+    // than an oversight: the Worker deployed alongside this migration parses it as required,
+    // and a missing key would fail that parse and take the export down. The contract step drops
+    // the key, the column and this line together — see
+    // docs/delivery/runbooks/entries-ea-number-contract.md.
     expect(Object.keys(data.rows[0] ?? {}).sort()).toEqual([
       'amount_pence',
       'club',
@@ -928,6 +949,7 @@ describe('entries.admin_export()', () => {
       'first_name',
       'last_name',
     ]);
+    expect(data.rows[0]?.ea_number).toBeNull();
   });
 
   it('gives the start list an emergency contact and no medical note', async () => {

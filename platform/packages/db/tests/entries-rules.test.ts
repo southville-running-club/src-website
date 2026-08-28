@@ -12,6 +12,10 @@ import { createClient } from '@supabase/supabase-js';
  * less, unverifiable. The Zod schema did require it. **Zod is the form's control, not the
  * system's**, and a rule that lives only there is a rule about the page.
  *
+ * **That particular rule is gone**, because on 29 August 2026 the club stopped asking for the
+ * number at all — see section 1 below, which now tests the opposite thing by the same method.
+ * The method is what this file is for and it is unchanged.
+ *
  * The audit that followed asked what else was like it, and the answer was eight more. This
  * file is what stops all nine coming back. Every test below is a *bypass attempt*: an
  * anonymous client, no browser, no Worker, no Zod — the shape a script with the page's own key
@@ -141,7 +145,7 @@ async function makeEvent(
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
+    `insert into entries.fees (event_id, code, label, price_pence, affiliated)
      values ($1, 'affiliated', 'Affiliated', 1500, true),
             ($1, 'unaffiliated', 'Unaffiliated', 1700, false)`,
     [event.id],
@@ -176,6 +180,9 @@ interface EntrantOverrides {
   /** The open question beside it. Optional, free text, on no list. See ADR-020. */
   gender_identity?: string | null;
   club?: string | null;
+  /** **Not a field anybody is asked for.** Kept so a test can post one and prove it is
+   *  refused — this file's whole method is attempting the bypass, and `create_pending_purchase`
+   *  is granted to `anon`. See section 1. */
   ea_number?: string | null;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
@@ -211,7 +218,6 @@ function entrant(overrides: EntrantOverrides = {}): Record<string, unknown> {
     date_of_birth: '1990-01-01',
     gender: 'female',
     club: null,
-    ea_number: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
     leg: null,
@@ -271,53 +277,46 @@ async function acceptedPurchaseId(
 }
 
 // =========================================================================================
-// 1. The England Athletics number — the rule that prompted the slice
+// 1. The England Athletics number — the rule that prompted the slice, and the rule that ended
 // =========================================================================================
+// **This section used to assert the number was required, and it now asserts it cannot exist.**
+// The club decided on 29 August 2026 to stop asking for and holding England Athletics numbers:
+// a runner states that they are affiliated and the club takes their word for it. Under ARC
+// Rule 21(2)(b) that leaves no record of *who* claimed affiliation, only that they paid the
+// affiliated £18, and the committee accepted it. The privacy notice reserves the club's right
+// to ask somebody to produce a number instead.
+//
+// The tests are inverted rather than deleted, because the bypass they attempt is the same one:
+// `create_pending_purchase()` is granted to `anon`, so "the form has no box" says nothing. What
+// has to be true is that a number posted straight at PostgREST with the published key reaches
+// no column.
 
-describe('the England Athletics number, against the fee that was chosen', () => {
-  it('refuses an affiliated entry with no number, which is the Slice E finding', async () => {
-    // **The bypass, exactly as it was found.** Before this slice it returned `ok: true` and
-    // wrote a £15 affiliated entry with `ea_number` null.
-    expect(await refusalFor(OPEN, { feeCode: 'affiliated' })).toBe('ea_number_required');
+describe('the England Athletics number, which is no longer asked for or held', () => {
+  it('accepts an affiliated entry with no number, which used to be the refusal', async () => {
+    // The exact submission that answered `ea_number_required` before the decision. Refusing it
+    // is the defect now — the affiliated price is sold on a runner's word.
+    // `acceptedPurchaseId` fails loudly on any refusal, which is the assertion.
+    expect(await acceptedPurchaseId(OPEN, { feeCode: 'affiliated' })).toBeTruthy();
   });
 
-  it('refuses one whose number is only whitespace', async () => {
-    expect(
-      await refusalFor(OPEN, {
-        feeCode: 'affiliated',
-        entrants: [entrant({ ea_number: '   ' })],
-      }),
-    ).toBe('ea_number_required');
-  });
-
-  it('accepts an affiliated entry that has one, and stores it', async () => {
+  it('drops a number posted at the affiliated fee, and stores nothing', async () => {
+    // **The affiliated fee, because it is the one that used to keep the value.** Accepted
+    // rather than refused, which is the same minimisation the boundary has always applied —
+    // and then the column is read back, because "the call succeeded" would pass just as well
+    // on a call that wrote it.
     const id = await acceptedPurchaseId(OPEN, {
       feeCode: 'affiliated',
       entrants: [entrant({ ea_number: '1234567' })],
     });
 
-    const row = await single<{ ea_number: string }>(
+    const row = await single<{ ea_number: string | null }>(
       'select ea_number from entries.entrants where purchase_id = $1',
       [id],
     );
-    expect(row.ea_number).toBe('1234567');
+    expect(row.ea_number).toBeNull();
   });
 
-  it('still refuses a number that is not six to eight digits', async () => {
-    // The check constraint, reached through the function's own handler. This held before the
-    // slice and must keep holding.
-    expect(
-      await refusalFor(OPEN, {
-        feeCode: 'affiliated',
-        entrants: [entrant({ ea_number: 'NOTANUMBER' })],
-      }),
-    ).toBe('invalid_entrants');
-  });
-
-  it('drops a number sent against a fee that does not want one', async () => {
-    // **Dropped rather than refused, because minimisation happens at the boundary here.** An
-    // England Athletics number identifies a person and has no purpose against an unaffiliated
-    // entry, so it does not travel — the same thing `parseNnEntry` does one floor up.
+  it('drops one posted at the unaffiliated fee too', async () => {
     const id = await acceptedPurchaseId(OPEN, {
       feeCode: 'unaffiliated',
       entrants: [entrant({ ea_number: '1234567' })],
@@ -331,8 +330,10 @@ describe('the England Athletics number, against the fee that was chosen', () => 
   });
 
   it('refuses one written into the table by any other route', async () => {
-    // The trigger, tested directly. A privileged insert stands in for every write path that
-    // is not `create_pending_purchase` — which is what the function's own check cannot cover.
+    // **The constraint, tested directly**, standing in for every write path that is not
+    // `create_pending_purchase` — which is what the function's own dropping cannot cover. It is
+    // a check constraint rather than the trigger's biconditional precisely so that suppressing
+    // triggers does not open it; `entries-admin.test.ts` asserts that half.
     const id = await acceptedPurchaseId(OPEN, { feeCode: 'unaffiliated' });
     const row = await single<{ id: string }>(
       'select id from entries.entrants where purchase_id = $1',
@@ -344,6 +345,19 @@ describe('the England Athletics number, against the fee that was chosen', () => 
         '7654321',
         row.id,
       ]),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('refuses a fee that says it requires one', async () => {
+    // The other half, and it is what stops the first half being re-opened by a migration
+    // nobody read twice: a fee marked `requires_ea_number` would demand a number that
+    // `entrants_ea_number_not_collected` forbids, so it would be a fee nobody could enter on.
+    await expect(
+      query(
+        `update entries.fees set requires_ea_number = true
+          where event_id = (select id from entries.events where slug = $1)`,
+        [OPEN],
+      ),
     ).rejects.toMatchObject({ code: '23514' });
   });
 });

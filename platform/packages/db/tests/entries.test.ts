@@ -279,9 +279,9 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'admin_outbox_resend',
       'admin_sign_in',
       // **The three trigger functions, and none of them is callable by anybody.** They enforce
-      // the rules that span more than one table — the England Athletics number against the
-      // fee, the medical note against its consent, the consents against the event — which a
-      // check constraint cannot see. `entries-rules.test.ts` covers what they do.
+      // the rules that span more than one table — the entrant against the event's minimum age,
+      // the medical note against its consent, the consents against the event — which a check
+      // constraint cannot see. `entries-rules.test.ts` covers what they do.
       'assert_entrant_rules',
       'assert_medical_consent',
       'assert_purchase_consents',
@@ -476,7 +476,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //   * `my_entries` is the runner-facing read behind `/account/entries/`. It is scoped to
     //     the caller inside the function — `person_id = auth.uid()`, or a `purchaser_email`
     //     matching their **confirmed** address — and returns no medical note, no emergency
-    //     contact, no date of birth, no England Athletics number and no Stripe reference.
+    //     contact, no date of birth and no Stripe reference.
     //
     //   * `cancellable_purchase` and `cancel_entry` both refuse unless the caller holds
     //     `nn.entry.cancel`, which only `super-admin` carries. Same shape as the four reads:
@@ -616,8 +616,8 @@ describe('exactly which functions exist here, and exactly who may call them', ()
 
     // **And the doorless read, tried the way somebody would actually try it.** `read_entry_list`
     // is the single most valuable function in this schema to an attacker — it answers with every
-    // entrant's name, club, age and England Athletics number, and it asks nothing in return. If
-    // this ever returns rows, the grant assertion above has been quietly undone.
+    // entrant's name, club and age, and it asks nothing in return. If this ever returns rows,
+    // the grant assertion above has been quietly undone.
     const doorless = await anon
       .schema('entries')
       .rpc('read_entry_list', { p_event_slug: 'nn-2026' });
@@ -1196,13 +1196,17 @@ describe('the fees', () => {
       code: string;
       label: string;
       price_pence: number;
-      requires_ea_number: boolean;
+      affiliated: boolean;
     }>(
       // **Ungated only, which is what "what the club charges" means.** The £1 tester fee is a
       // fourth row on this event and is nobody's price — it is asserted on its own below, so a
       // repricing diff cannot be confused with a change to it, and so this list goes on saying
       // exactly what a runner pays.
-      `select f.code, f.label, f.price_pence, f.requires_ea_number
+      // **`affiliated` rather than `requires_ea_number` since 29 August 2026.** They were one
+      // column and were never one fact: which fee is the affiliated price is what the club owes
+      // no Unattached Runner Levy on, and asking the runner for a number is a thing the club
+      // stopped doing. The £2 gap is unchanged and is still ARC's.
+      `select f.code, f.label, f.price_pence, f.affiliated
          from entries.fees f
          join entries.events e on e.id = f.event_id
         where e.slug = 'nn-2026'
@@ -1215,15 +1219,15 @@ describe('the fees', () => {
         code: 'affiliated',
         label: 'Affiliated',
         price_pence: 1800,
-        requires_ea_number: true,
+        affiliated: true,
       },
       {
         code: 'unaffiliated',
         label: 'Unaffiliated',
         price_pence: 2000,
-        requires_ea_number: false,
+        affiliated: false,
       },
-      { code: 'vi_guide', label: 'VI guide', price_pence: 0, requires_ea_number: false },
+      { code: 'vi_guide', label: 'VI guide', price_pence: 0, affiliated: false },
     ]);
   });
 
@@ -1502,7 +1506,7 @@ describe('what the tables refuse regardless of who is asking', () => {
     expect(names).not.toContain('category');
   });
 
-  it('refuses an England Athletics number that is not the right shape', async () => {
+  it('refuses an England Athletics number of any shape at all', async () => {
     const purchase = await query<{ id: string }>(
       `insert into entries.entry_purchases (
          event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
@@ -1521,10 +1525,16 @@ describe('what the tables refuse regardless of who is asking', () => {
         `insert into entries.entrants (
            purchase_id, first_name, last_name, date_of_birth, gender, ea_number,
            emergency_contact_name, emergency_contact_phone
-         ) values ($1, 'Zed', 'Ea', date '1986-03-07', 'male', 'ABC123', 'Kin', '0117 496 0000')`,
+         ) values ($1, 'Zed', 'Ea', date '1986-03-07', 'male', '1234567', 'Kin', '0117 496 0000')`,
         [purchase[0]!.id],
       ),
-    ).rejects.toThrow(/entrants_ea_number_check/);
+      // **A well-formed number, which is the change.** This used to post `ABC123` and assert
+      // `entrants_ea_number_check` — the format constraint. The club stopped asking for numbers
+      // on 29 August 2026, so the shape is no longer the question: a number that is exactly
+      // right is refused by `entrants_ea_number_not_collected`, which is the constraint that
+      // makes "not held" true rather than merely intended. Asserting the constraint by name is
+      // what stops a broken table passing this as though the rule held.
+    ).rejects.toThrow(/entrants_ea_number_not_collected/);
 
     await query('delete from entries.entry_purchases where id = $1', [purchase[0]!.id]);
   });

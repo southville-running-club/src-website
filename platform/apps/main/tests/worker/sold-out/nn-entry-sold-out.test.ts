@@ -84,7 +84,6 @@ describe('a valid entry for a race that has just filled up', () => {
       goodEntry({
         club: "O'Sullivan Runners",
         feeCode: 'affiliated',
-        eaNumber: '1234567',
         medicalNotes: 'Type 1 diabetic.',
         medicalConsent: 'on',
       }),
@@ -96,7 +95,6 @@ describe('a valid entry for a race that has just filled up', () => {
     expect(html).toContain('data-entry-value="dobDay" value="9"');
     expect(html).toContain('data-entry-value="dobMonth" value="12"');
     expect(html).toContain('data-entry-value="dobYear" value="1986"');
-    expect(html).toContain('data-entry-value="eaNumber" value="1234567"');
     expect(html).toMatch(/data-entry-checked="feeCode:affiliated" checked/);
     expect(html).toMatch(/data-entry-text="medicalNotes">Type 1 diabetic\./);
     expect(html).toMatch(/data-entry-checked="medicalConsent" checked/);

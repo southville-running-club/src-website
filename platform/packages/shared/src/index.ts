@@ -209,7 +209,6 @@ export { BOM, csvDocument, csvField, csvRow } from './csv';
 export { medicalRetentionWording } from './medical-retention';
 
 export {
-  EA_NUMBER_PATTERN,
   NN_ENTRY_CLUB_MAX_LENGTH,
   NN_ENTRY_CONTACT_NAME_MAX_LENGTH,
   NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH,

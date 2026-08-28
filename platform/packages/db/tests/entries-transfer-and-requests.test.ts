@@ -7,13 +7,19 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *
  * ## What is being proved
  *
- * ⚠️ **The transfer.** `transfer_entry()` sets `ea_number = null` unconditionally. On an
- * affiliated entry `assert_entrant_rules()` refuses that, so the update raises
- * `check_violation`, PostgREST returns an *error* rather than a refusal envelope, and the admin
- * surface renders **"That could not be read — the club's database could not be reached"** on a
- * database that is perfectly healthy, doing exactly what it was told. **Every affiliated
- * transfer fails, and it fails as an outage** — nothing to act on, and an on-call reflex that
- * can never help.
+ * ⚠️ **The transfer.** `transfer_entry()` set `ea_number = null` unconditionally. On an
+ * affiliated entry `assert_entrant_rules()` refused that, so the update raised
+ * `check_violation`, PostgREST returned an *error* rather than a refusal envelope, and the admin
+ * surface rendered **"That could not be read — the club's database could not be reached"** on a
+ * database that was perfectly healthy, doing exactly what it was told. **Every affiliated
+ * transfer failed, and it failed as an outage** — nothing to act on, and an on-call reflex that
+ * could never help.
+ *
+ * It was fixed by asking the new runner for a number of their own, refused in words as
+ * `ea_number_required`. **That refusal is gone since 29 August 2026**, when the club stopped
+ * asking for England Athletics numbers at all: no fee requires one, so the branch cannot fire
+ * and an affiliated place transfers like any other. The tests below are what say so — the
+ * outage assertion is unchanged, because it is the thing that must never come back.
  *
  * **The reason.** `request_entry_action()` has recorded which of two words somebody asked for
  * and never why. "I have broken my ankle" and "my friend wants my place" are the same word on
@@ -96,7 +102,7 @@ async function makeEvent(slug: string, capacity: number): Promise<string> {
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
+    `insert into entries.fees (event_id, code, label, price_pence, affiliated)
      values ($1, 'affiliated', 'Affiliated', 1800, true),
             ($1, 'unaffiliated', 'Unaffiliated', 2000, false)`,
     [event.id],
@@ -205,7 +211,6 @@ function person(overrides: Record<string, unknown> = {}): Record<string, unknown
     date_of_birth: '1990-01-01',
     gender: 'female',
     club: null,
-    ea_number: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
     leg: null,
@@ -277,7 +282,7 @@ describe('transferring an affiliated place', () => {
   /** A paid purchase on the named fee, with one entrant, owned by nobody in particular. */
   async function paidPurchase(
     feeCode: string,
-    entrants: Record<string, unknown>[] = [person({ ea_number: '1234567' })],
+    entrants: Record<string, unknown>[] = [person()],
     consents?: Record<string, boolean>,
   ): Promise<string> {
     const purchaseId = await acceptedPurchaseId({
@@ -322,35 +327,34 @@ describe('transferring an affiliated place', () => {
     return data as Record<string, unknown>;
   }
 
-  it('refuses in words when no England Athletics number is given', async () => {
+  it('moves an affiliated place with no number anywhere in it', async () => {
+    // **The whole of the original defect, and then the whole of its fix.** This transfer used
+    // to raise `check_violation` and reach a volunteer as an outage; it was then made to refuse
+    // in words with `ea_number_required` unless the new runner supplied a number of their own.
+    // The club stopped asking for numbers on 29 August 2026, so it is simply a transfer.
     const purchaseId = await paidPurchase('affiliated');
 
-    expect(await transfer(purchaseId)).toEqual({
-      ok: false,
-      reason: 'ea_number_required',
-    });
-  });
-
-  it('moves the place when one is, and it is the new runner’s own', async () => {
-    const purchaseId = await paidPurchase('affiliated');
-
-    const result = await transfer(purchaseId, { p_ea_number: '9998887' });
+    const result = await transfer(purchaseId);
 
     expect(result.ok).toBe(true);
 
     const [entrant] = await entrantsOf(purchaseId);
 
     expect(entrant?.first_name).toBe('Nell');
-    expect(entrant?.ea_number).toBe('9998887');
+    expect(entrant?.ea_number).toBeNull();
   });
 
-  it('ignores a number on a fee that does not take one', async () => {
-    // The volunteer filling the form in cannot be expected to know which fee the purchase was
-    // on, so a number supplied against an unaffiliated place is dropped rather than refused.
-    const purchaseId = await paidPurchase('unaffiliated', [person()]);
+  it('drops a number supplied to the ten-argument form, on either fee', async () => {
+    // **The argument survives until the contract step**, so a Worker deployed before the
+    // decision goes on calling the same signature. What it may not do is write one — the fee no
+    // longer requires it, so the function's own `else` branch nulls it, and
+    // `entrants_ea_number_not_collected` is behind that.
+    for (const feeCode of ['affiliated', 'unaffiliated']) {
+      const purchaseId = await paidPurchase(feeCode, [person()]);
 
-    expect((await transfer(purchaseId, { p_ea_number: '9998887' })).ok).toBe(true);
-    expect((await entrantsOf(purchaseId))[0]?.ea_number).toBeNull();
+      expect((await transfer(purchaseId, { p_ea_number: '9998887' })).ok).toBe(true);
+      expect((await entrantsOf(purchaseId))[0]?.ea_number).toBeNull();
+    }
   });
 
   it('refuses a purchase with a guide on it, rather than guessing who is leaving', async () => {
