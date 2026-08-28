@@ -109,8 +109,14 @@ every deployed reader use them — expand, migrate, contract.
 **Resolution is a fact about the entry rather than about one ask.** There is no act that answers
 one ask and leaves another open: a volunteer who cancels or transfers an entry has dealt with
 everything outstanding on it. So every open row is closed at once, by a trigger watching
-`entry_purchases.request_resolved_at` — which is what lets `cancel_entry()` and
-`transfer_entry()` stay exactly as they are.
+`entry_purchases.request_resolved_at` — which states the rule against the transition rather than
+against whichever function happens to perform it, and so covers any future path too.
+
+Building on that column surfaced a defect older than it. **`transfer_entry()` set
+`request_resolved_at` and `cancel_entry()` never did**, so a refunded entry went on saying
+*"cancellation asked for"* for ever — the one act that most obviously answers a request was the
+one act that did not record having answered it. It is fixed in its own migration, because the
+applied migration that last defined `cancel_entry()` may not be edited.
 
 ## Consequences
 

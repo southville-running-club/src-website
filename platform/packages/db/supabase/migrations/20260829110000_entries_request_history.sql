@@ -33,11 +33,17 @@
 -- transfers an entry has dealt with everything outstanding on it. So `resolved_at` is set on
 -- every open row at once by a trigger watching `entry_purchases.request_resolved_at`.
 --
--- **That is what lets `cancel_entry()` and `transfer_entry()` stay exactly as they are.** Both
--- already set `request_resolved_at`; neither is re-pasted here, which matters because both are
--- long, both have been re-created by later migrations than the one that introduced them, and
--- every unnecessary re-paste is a chance to lose a line. Same reasoning `enqueue_entry_email()`
--- used for being a trigger rather than three edits.
+-- **That is what keeps the rule in one place rather than in every function that resolves an
+-- ask.** Same reasoning `enqueue_entry_email()` used for being a trigger rather than three
+-- edits: it states the rule against the *transition* rather than against whichever function
+-- happens to perform it, which is also what makes it correct for any future path.
+--
+-- ⚠️ **`transfer_entry()` sets `request_resolved_at` and `cancel_entry()` did not**, which is a
+-- defect older than this table: a refunded entry went on saying "cancellation asked for" for
+-- ever, and the one act that most obviously answers a request was the one act that did not
+-- record having answered it. `20260829130000_entries_cancel_resolves_the_request.sql` closes it,
+-- and it is a separate migration because the applied migration that last defined `cancel_entry()`
+-- may not be edited.
 
 -- -----------------------------------------------------------------------------------------
 -- The table

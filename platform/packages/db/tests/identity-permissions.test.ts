@@ -415,6 +415,8 @@ describe('my_permissions', () => {
     expect(data).toEqual([
       'identity.person.read',
       'identity.role.grant',
+      'nn.email.read',
+      'nn.email.resend',
       'nn.entry.cancel',
       'nn.entry.create',
       'nn.entry.export',
