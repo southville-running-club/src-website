@@ -63,6 +63,13 @@ read it separately.
 | `nightingalenightmare@` | `info@` | **Every `/nn` page**, from `race.contact` in `race.json` |
 | `nn@` | `info@` | Nowhere. It exists so that a guess, or a reply to a Resend `nn@send.` message read carelessly, still arrives |
 
+**`nightingalenightmare@` was last confirmed live on 28 August 2026** — sent to from
+outside the club's mail, and observed arriving at `info@`. The trace is the runbook's
+[record of execution](../../delivery/runbooks/nn-email-aliases.md#record-of-execution),
+which is also where the check is written down for anybody repeating it. Dated here because
+this table said the alias existed for twelve days while that record said it did not, and
+there was no way to tell from either document which one to believe.
+
 ### Why the race publishes an alias rather than `info@` itself
 
 `info@` would work and would be one fewer thing to configure. It is not what the pages
@@ -122,9 +129,13 @@ Worth stating, because a change to an email address invites the assumption that 
   need the runbook that governs those.
 - **DMARC is still `p=none`.** Tightening it is the reward for getting off forwarding
   entirely, and is its own change with its own observation window.
-- **The Gmail account still exists.** Retiring it is a separate step, and it should be
-  *forwarded* into `info@` before it is closed rather than closed outright — see the
-  [runbook](../../delivery/runbooks/nn-email-aliases.md#stage-3--the-old-gmail-address).
+- **The Gmail account still exists**, and **whether it forwards into `info@` yet is not
+  known** — the runbook's
+  [stage 3](../../delivery/runbooks/nn-email-aliases.md#stage-3--the-old-gmail-address) is
+  unconfirmed rather than done. Retiring it is a separate step, and it should be
+  *forwarded* before it is closed rather than closed outright. Until somebody checks, the
+  continuity argument above holds only for the half of it this club controls: the new
+  address is proven to arrive, and the old one is not proven to be caught.
 
 ---
 

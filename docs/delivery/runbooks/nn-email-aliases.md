@@ -95,6 +95,21 @@ mail to an address that does not exist is simply rejected at the far end.
 
 ## Stage 3 — the old Gmail address
 
+> ⚠️ **Status: unconfirmed.** #36 merged on 16 August 2026, so the precondition below has
+> been met since then — but whether the forward was ever set up is recorded nowhere, and
+> nobody has checked. **This is not a record that it was not done.** It is a record that
+> nobody knows, which is the state this runbook exists to prevent.
+>
+> **What turns on it:** the 2023 Full On Sport listing, and any paperwork outside this
+> repository — flyers, race numbers, three years of email threads — still name
+> `nightingalenightmare@gmail.com`. If the forward does not exist, whoever holds that Gmail
+> account is receiving 2026 entry queries the club never sees, and the sender gets no bounce
+> to tell them so. That is the same silent failure the stop condition above exists to
+> prevent, pointed at the old address instead of the new one.
+>
+> **Check it before entries open.** Stage 2 proves the new address arrives; it proves
+> nothing at all about the old one.
+
 **Do this after the pull request has merged and the new address is live**, not before.
 Until then the Gmail address is still the one on the website.
 
@@ -124,13 +139,36 @@ prevent.
 
 ## Record of execution
 
-Fill this in when it is run, per
+Kept per
 [ADR-005](../../architecture/decisions/adr-005-manual-with-a-reviewable-artefact.md) — a
 manual step is legitimate only when it leaves a trace.
 
 | | |
 | --- | --- |
-| **Stage 1 — aliases created** | *Not yet run* |
-| **Stage 2 — delivery verified** | *Not yet run* |
-| **Stage 3 — Gmail forwarded** | *Not yet run* |
-| **By whom** | |
+| **Stage 1 — aliases created** | **Run.** Both aliases exist at Fasthosts |
+| **Stage 2 — delivery verified** | **Run, and passed — 28 August 2026.** Mail sent to `nightingalenightmare@southvillerunningclub.co.uk` arrived at `info@southvillerunningclub.co.uk` |
+| **Stage 3 — Gmail forwarded** | **Status unconfirmed.** Not a record that it was not done — see [stage 3](#stage-3--the-old-gmail-address) |
+| **By whom** | *Not recorded* |
+
+### Why this table said "not yet run" for twelve days
+
+The table above shipped in [#36](https://github.com/southville-running-club/src-website/pull/36),
+the same commit that added this runbook *and* changed `race.contact` — with all three
+stages reading *Not yet run*. It was never revisited. So for twelve days this file said the
+aliases did not exist while every `/nn` page published one, which is the contradiction that
+sent somebody to test the address by hand on 28 August 2026.
+
+**The stop condition held**, and it is worth saying which of the two possible failures this
+was, because it is not the alarming one. #36's pull request body carries the checklist, with
+*Stage 1 — both aliases created* and *Stage 2 — test mail delivered to `info@`, inbox not
+spam, and a reply sent from the club address* both ticked, above a ticked *Then land this*.
+The repository is squash-only, so that body is the commit message on `main` and the evidence
+is durable. The gate was not bypassed. The trace was written in the pull request and never
+copied into the artefact this runbook nominates for it.
+
+**That is the part worth generalising**, because documentation-as-gate is used elsewhere —
+[entries-open](entries-open.md)'s step 0 and the
+[constraints](entries-constraints.md) runbook both work this way. A checklist in a pull
+request body is reviewable exactly once, by the two people already looking at it. The runbook
+is what somebody reads a month later, and an unfilled record there is indistinguishable from
+a step nobody did. **Fill the record in the same pull request that ticks the box.**
