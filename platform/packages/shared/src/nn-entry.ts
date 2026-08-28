@@ -74,6 +74,9 @@ export const NN_ENTRY_MEDICAL_MAX_LENGTH = 2000;
 /** The earliest birth year the form will take. Below it, a typo is far likelier than a life. */
 export const NN_ENTRY_EARLIEST_BIRTH_YEAR = 1900;
 
+/** What `entries.discount_codes.code`'s own check constraint allows. */
+export const NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH = 40;
+
 /** What the `entrants.ea_number` check constraint allows. Format only — see the note above. */
 export const EA_NUMBER_PATTERN = /^[0-9]{6,8}$/;
 
@@ -114,9 +117,22 @@ export const NN_ENTRY_FIELDS = [
   'club',
   'feeCode',
   'eaNumber',
+  'discountCode',
   'emergencyName',
   'emergencyPhone',
+  // **The guide's block sits after everything about the runner and before the medical
+  // section**, which is where it is on the page. A person answers about themselves, then says
+  // whether somebody is running with them, and only then meets one medical section covering
+  // both — because there is one medical consent and it has to be below everything it covers.
+  'viGuide',
+  'guideFirstName',
+  'guideLastName',
+  'guideDateOfBirth',
+  'guideGender',
+  'guideEmergencyName',
+  'guideEmergencyPhone',
   'medicalNotes',
+  'guideMedicalNotes',
   'medicalConsent',
   'entryTerms',
 ] as const;
@@ -182,8 +198,56 @@ const MESSAGES = {
   medicalConsentMissing:
     'You have written medical information. Tick the box to let the club hold it, or clear the box above.',
 
+  discountCodeTooLong: `That is not a discount code — ${NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH} characters at most.`,
+
+  // **The guide's messages say "your guide" rather than repeating the runner's wording.**
+  // Two sets of near-identical fields are the easiest thing on this form to lose your place
+  // in, and the message beside the box is the cheapest way of saying which half you are in.
+  guideFirstNameMissing: "Enter your guide's first name.",
+  guideLastNameMissing: "Enter your guide's last name.",
+  guideNameTooLong: `That name is too long — ${NN_ENTRY_NAME_MAX_LENGTH} characters at most.`,
+  guideDobMissing: "Enter your guide's date of birth as a day, a month and a year.",
+  guideDobNotADate: 'That is not a date. Check the day, the month and the year.',
+  guideDobInFuture: 'A date of birth cannot be in the future.',
+  guideDobImplausible: `Check the year — the earliest this form takes is ${NN_ENTRY_EARLIEST_BIRTH_YEAR}.`,
+  guideGenderMissing: "Choose your guide's category.",
+  guideGenderUnknown: 'Choose one of the categories listed.',
+  guideEmergencyNameMissing:
+    'Enter the name of somebody the club can contact about your guide in an emergency.',
+  guideEmergencyPhoneMissing: "Enter a phone number for your guide's emergency contact.",
+  guideEmergencyPhoneTooShort: 'Enter a phone number with at least seven digits in it.',
+  // **The two must be different people, and this is the only place that can say so.**
+  // `create_pending_purchase()` refuses somebody who already holds a place, but both halves
+  // of one submission are written in the same transaction, so nothing in the database sees
+  // the first when it checks the second. Enforced there too, within the payload; this is the
+  // message a person actually reads.
+  guideIsTheRunner:
+    'Your guide cannot be you. Enter the details of the person running with you.',
+
   entryTermsMissing: 'Tick the box to accept the entry terms.',
 } as const;
+
+/** The message shown when a guide is too young for the course they would be on. */
+export function guideMinimumAgeMessage(minimumAge: number): string {
+  return `Your guide must be ${minimumAge} or over on race day.`;
+}
+
+/**
+ * What a person is told when the database refuses their discount code.
+ *
+ * **One sentence for four different refusals, and that is deliberate rather than lazy.**
+ * `entries.create_pending_purchase()` answers `invalid_discount` for a code that does not
+ * exist, one that has been withdrawn, one whose places are gone, and one that is not for the
+ * entry type chosen — because telling those four apart tells somebody who is guessing codes a
+ * great deal and tells somebody who mistyped one nothing they can use. The message names the
+ * two things a person can actually do about it.
+ *
+ * **Not a Zod rule**, because none of the four is knowable from the submission. This is a
+ * refusal that arrives from the database and is rendered in the field's own error slot, which
+ * is why it is a message rather than a validation.
+ */
+export const NN_ENTRY_DISCOUNT_REFUSED_MESSAGE =
+  'That discount code cannot be used with this entry. Check it, or clear the box to enter at the standard price.';
 
 /** The message shown when a minimum age is configured and the entrant does not meet it. */
 export function minimumAgeMessage(minimumAge: number): string {
@@ -225,6 +289,28 @@ export function entryRulesFrom(state: EntryState): NnEntryRules {
 // What a valid entry is, once it has been read
 // -----------------------------------------------------------------------------------------
 
+/**
+ * The person running with a visually impaired entrant.
+ *
+ * **Everything a runner gives, minus the two things that are about money.** No England
+ * Athletics number, because that exists to justify the £2 affiliated rebate and a guide is not
+ * paying anything; no club, because nothing derives from it for somebody who is in no
+ * category. What is left is what the club needs about anybody who is on a road in the dark:
+ * who they are, how old they are, and who to ring.
+ */
+export interface NnEntryGuide {
+  firstName: string;
+  lastName: string;
+  dateOfBirth: CivilDate;
+  /** The race category. A guide is in no prize category; this is here because
+   *  `entrants.gender` is not null and the column is the same question for the same reason. */
+  gender: Gender;
+  emergencyName: string;
+  emergencyPhone: string;
+  /** Null whenever the runner's medical consent was not given — the same consent covers both. */
+  medicalNotes: string | null;
+}
+
 export interface NnEntry {
   firstName: string;
   lastName: string;
@@ -244,9 +330,24 @@ export interface NnEntry {
   emergencyPhone: string;
   /** Null whenever the separate medical consent was not given. Never stored otherwise. */
   medicalNotes: string | null;
+  /** As typed, or null. Whether it is a real code is the database's to say, not this file's. */
+  discountCode: string | null;
+  /** The person running with them, or null. A guide takes one of the event's places. */
+  guide: NnEntryGuide | null;
   consents: {
     entryTerms: true;
     medical: boolean;
+    /**
+     * That this entrant is visually impaired and is running with the guide above.
+     *
+     * **A consent rather than a column, and that is the decision.** It is a declaration about
+     * disability — special category data under Article 9 — so it sits where the medical
+     * consent sits, recorded as ticked under the event's own `consent_version`, rather than
+     * becoming a boolean on `entrants` that every read would have to remember to omit. It is
+     * also what `entries.create_pending_purchase()` reads to decide whether a second entrant
+     * is allowed on the entry at all.
+     */
+    vi: boolean;
   };
 }
 
@@ -295,9 +396,21 @@ const TEXT_KEYS = [
   'club',
   'feeCode',
   'eaNumber',
+  'discountCode',
   'emergencyName',
   'emergencyPhone',
   'medicalNotes',
+  // The guide's, for the same reason: these inputs are in the DOM whatever the declaration
+  // says, because JavaScript is what hides them and the form has to work without it.
+  'guideFirstName',
+  'guideLastName',
+  'guideDobDay',
+  'guideDobMonth',
+  'guideDobYear',
+  'guideGender',
+  'guideEmergencyName',
+  'guideEmergencyPhone',
+  'guideMedicalNotes',
 ] as const;
 
 function absentTextAsEmpty(value: unknown): unknown {
@@ -385,6 +498,19 @@ function nnEntryObject(rules: NnEntryRules) {
       // chosen, which is a cross-field rule and is applied below.
       eaNumber: optionalText,
 
+      // **Never required, and never checked for existence here.** Whether a code is real,
+      // whether it has been withdrawn, whether its twenty-two places are gone and whether it
+      // is even for the entry type chosen are four questions only
+      // `entries.create_pending_purchase()` can answer, and it answers all four as one
+      // refusal on purpose. What this can say is that forty-one characters is not a code —
+      // a ceiling, because this is an endpoint anybody may post to.
+      discountCode: optionalText.pipe(
+        z
+          .string()
+          .max(NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH, MESSAGES.discountCodeTooLong)
+          .optional(),
+      ),
+
       emergencyName: z
         .string(MESSAGES.emergencyNameMissing)
         .trim()
@@ -402,6 +528,52 @@ function nnEntryObject(rules: NnEntryRules) {
       ),
 
       medicalConsent: checkbox,
+
+      // --- the guide, and the declaration that asks for one ---------------------------------
+      // **`viGuide` is a declaration and not a fee.** A visually impaired runner pays the same
+      // affiliated or unaffiliated price everybody else pays; what ticking this says is that a
+      // second person will be on the course with them, and the club needs to know who, for the
+      // same reasons it needs to know who anybody on the course is.
+      //
+      // **Every guide field is optional here and conditional below.** They are in the DOM
+      // whatever the box says — JavaScript only hides them — so a browser with scripting off
+      // posts them empty, and requiring them at this level would refuse every entry from
+      // everybody who is not bringing a guide.
+      viGuide: checkbox,
+
+      guideFirstName: optionalText.pipe(
+        z.string().max(NN_ENTRY_NAME_MAX_LENGTH, MESSAGES.guideNameTooLong).optional(),
+      ),
+      guideLastName: optionalText.pipe(
+        z.string().max(NN_ENTRY_NAME_MAX_LENGTH, MESSAGES.guideNameTooLong).optional(),
+      ),
+
+      guideDobDay: z.string().trim().catch(''),
+      guideDobMonth: z.string().trim().catch(''),
+      guideDobYear: z.string().trim().catch(''),
+
+      guideGender: z.string().trim().catch(''),
+
+      guideEmergencyName: optionalText.pipe(
+        z
+          .string()
+          .max(NN_ENTRY_CONTACT_NAME_MAX_LENGTH, MESSAGES.emergencyNameTooLong)
+          .optional(),
+      ),
+      guideEmergencyPhone: optionalText.pipe(
+        z
+          .string()
+          .max(NN_ENTRY_PHONE_MAX_LENGTH, MESSAGES.emergencyPhoneTooLong)
+          .optional(),
+      ),
+
+      // Under the runner's own medical consent rather than a second one. It is the same
+      // question, asked of the second person on the same entry, kept for the same month and
+      // deleted by the same cron.
+      guideMedicalNotes: optionalText.pipe(
+        z.string().max(NN_ENTRY_MEDICAL_MAX_LENGTH, MESSAGES.medicalTooLong).optional(),
+      ),
+
       entryTerms: checkbox,
     })
     .superRefine((values, ctx) => {
@@ -466,8 +638,85 @@ function nnEntryObject(rules: NnEntryRules) {
       // something they expect a first-aider to see, and the form would have thrown it away
       // without saying so. The message names both ways out. `parseNnEntry` drops them as well,
       // so no caller can reach a state where unconsented notes exist.
-      if (values.medicalNotes !== undefined && !values.medicalConsent) {
+      // **Either box of notes trips it.** The consent covers both people on the entry, so
+      // notes written about a guide and no consent is the same refusal, said in the same
+      // place, as notes written about the runner.
+      if (
+        (values.medicalNotes !== undefined || values.guideMedicalNotes !== undefined) &&
+        !values.medicalConsent
+      ) {
         fail('medicalConsent', MESSAGES.medicalConsentMissing);
+      }
+
+      // --- the guide, when one has been declared ---------------------------------------------
+      // **Nothing below runs unless the box is ticked**, which is what makes six required
+      // fields safe to leave in the DOM for a browser with no JavaScript to hide them.
+      if (values.viGuide) {
+        if (values.guideFirstName === undefined) {
+          fail('guideFirstName', MESSAGES.guideFirstNameMissing);
+        }
+
+        if (values.guideLastName === undefined) {
+          fail('guideLastName', MESSAGES.guideLastNameMissing);
+        }
+
+        const guideDobIssue = dateOfBirthIssue(
+          {
+            dobDay: values.guideDobDay,
+            dobMonth: values.guideDobMonth,
+            dobYear: values.guideDobYear,
+          },
+          rules,
+          GUIDE_DOB_MESSAGES,
+        );
+
+        if (guideDobIssue !== null) {
+          fail('guideDateOfBirth', guideDobIssue);
+        }
+
+        if (values.guideGender === '') {
+          fail('guideGender', MESSAGES.guideGenderMissing);
+        } else if (!isGender(values.guideGender)) {
+          fail('guideGender', MESSAGES.guideGenderUnknown);
+        }
+
+        if (values.guideEmergencyName === undefined) {
+          fail('guideEmergencyName', MESSAGES.guideEmergencyNameMissing);
+        }
+
+        if (values.guideEmergencyPhone === undefined) {
+          fail('guideEmergencyPhone', MESSAGES.guideEmergencyPhoneMissing);
+        } else {
+          const digits = values.guideEmergencyPhone.replace(/\D/g, '');
+          if (digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS) {
+            fail('guideEmergencyPhone', MESSAGES.guideEmergencyPhoneTooShort);
+          }
+        }
+
+        // **The guide and the runner cannot be the same person**, and this is the only layer
+        // that can see both halves at once. `create_pending_purchase()` refuses an entrant who
+        // already holds a live place, but both of these are written inside one transaction, so
+        // the database checking the second against what is committed cannot see the first.
+        // It is enforced within the payload there as well — this is the half that produces a
+        // sentence somebody can act on.
+        //
+        // Keyed on the same three things the database keys on, and compared the same way:
+        // case-insensitively, trimmed, name and date of birth. Anything looser would refuse a
+        // father and son with the same name, who are two people and two places.
+        const sameName =
+          values.guideFirstName !== undefined &&
+          values.guideLastName !== undefined &&
+          values.guideFirstName.toLowerCase() === values.firstName.toLowerCase() &&
+          values.guideLastName.toLowerCase() === values.lastName.toLowerCase();
+
+        const sameDob =
+          values.guideDobDay === values.dobDay &&
+          values.guideDobMonth === values.dobMonth &&
+          values.guideDobYear === values.dobYear;
+
+        if (sameName && sameDob) {
+          fail('guideFirstName', MESSAGES.guideIsTheRunner);
+        }
       }
 
       // --- the entry terms -------------------------------------------------------------------
@@ -477,21 +726,55 @@ function nnEntryObject(rules: NnEntryRules) {
     });
 }
 
+/**
+ * The four messages a date of birth can produce, so the same rules can be applied to the
+ * runner's and to the guide's without a second copy of them.
+ *
+ * **A copy is what this exists to avoid.** The runner's date of birth and the guide's are
+ * judged against the same calendar, the same earliest year and the same minimum age, and two
+ * implementations of that would be two things to keep in step — with the one that drifts
+ * being the one nobody is looking at.
+ */
+interface DateOfBirthMessages {
+  missing: string;
+  notADate: string;
+  inFuture: string;
+  implausible: string;
+  tooYoung: (minimumAge: number) => string;
+}
+
+const RUNNER_DOB_MESSAGES: DateOfBirthMessages = {
+  missing: MESSAGES.dobMissing,
+  notADate: MESSAGES.dobNotADate,
+  inFuture: MESSAGES.dobInFuture,
+  implausible: MESSAGES.dobImplausible,
+  tooYoung: minimumAgeMessage,
+};
+
+const GUIDE_DOB_MESSAGES: DateOfBirthMessages = {
+  missing: MESSAGES.guideDobMissing,
+  notADate: MESSAGES.guideDobNotADate,
+  inFuture: MESSAGES.guideDobInFuture,
+  implausible: MESSAGES.guideDobImplausible,
+  tooYoung: guideMinimumAgeMessage,
+};
+
 /** Every date-of-birth rule, in the order they should be reported. Null means it is fine. */
 function dateOfBirthIssue(
   values: { dobDay: string; dobMonth: string; dobYear: string },
   rules: NnEntryRules,
+  messages: DateOfBirthMessages = RUNNER_DOB_MESSAGES,
 ): string | null {
   const { dobDay, dobMonth, dobYear } = values;
 
   if (dobDay === '' || dobMonth === '' || dobYear === '') {
-    return MESSAGES.dobMissing;
+    return messages.missing;
   }
 
   // `Number('12abc')` is `NaN` but `Number(' 12 ')` is 12, and both arrive here as strings
   // from a form. A digits-only test is the honest one — `parseInt` would read "12abc" as 12.
   if (!/^\d+$/.test(dobDay) || !/^\d+$/.test(dobMonth) || !/^\d{4}$/.test(dobYear)) {
-    return MESSAGES.dobNotADate;
+    return messages.notADate;
   }
 
   const date: CivilDate = {
@@ -501,17 +784,17 @@ function dateOfBirthIssue(
   };
 
   if (date.year < NN_ENTRY_EARLIEST_BIRTH_YEAR) {
-    return MESSAGES.dobImplausible;
+    return messages.implausible;
   }
 
   // Rolls over rather than refusing is what `new Date(y, m, d)` would do — 31 February
   // becoming 3 March. `isRealDate` refuses. See age-category.ts.
   if (!isRealDate(date)) {
-    return MESSAGES.dobNotADate;
+    return messages.notADate;
   }
 
   if (compareCivilDates(date, rules.eventDate) > 0) {
-    return MESSAGES.dobInFuture;
+    return messages.inFuture;
   }
 
   // **Null still means no check; Nightingale Nightmare's is now 18.** The value arrived as
@@ -520,7 +803,7 @@ function dateOfBirthIssue(
   // same `event_date` before it holds a place, because this one is a convenience and that one
   // is the control — a boundary test on each side of exactly 18 is what says the two agree.
   if (rules.minimumAge !== null && ageOn(date, rules.eventDate) < rules.minimumAge) {
-    return minimumAgeMessage(rules.minimumAge);
+    return messages.tooYoung(rules.minimumAge);
   }
 
   return null;
@@ -594,6 +877,38 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
   //     that combination, so this is the second of two locks rather than the only one.
   const eaRequired = rules.eaRequiredForFeeCodes.includes(values.feeCode);
 
+  // **Built only when the declaration was made, so an untouched set of guide inputs cannot
+  // become a second person on the entry.** `superRefine` has already refused a ticked box with
+  // anything missing, so every field here is present by the time this runs — the narrowing
+  // below is what makes that visible to the type system rather than a second opinion about it.
+  let guide: NnEntryGuide | null = null;
+
+  if (values.viGuide) {
+    if (
+      values.guideFirstName === undefined ||
+      values.guideLastName === undefined ||
+      values.guideEmergencyName === undefined ||
+      values.guideEmergencyPhone === undefined ||
+      !isGender(values.guideGender)
+    ) {
+      return { ok: false, errors: { guideFirstName: MESSAGES.guideFirstNameMissing } };
+    }
+
+    guide = {
+      firstName: values.guideFirstName,
+      lastName: values.guideLastName,
+      dateOfBirth: {
+        year: Number(values.guideDobYear),
+        month: Number(values.guideDobMonth),
+        day: Number(values.guideDobDay),
+      },
+      gender: values.guideGender,
+      emergencyName: values.guideEmergencyName,
+      emergencyPhone: values.guideEmergencyPhone,
+      medicalNotes: values.medicalConsent ? (values.guideMedicalNotes ?? null) : null,
+    };
+  }
+
   return {
     ok: true,
     value: {
@@ -609,9 +924,16 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       emergencyName: values.emergencyName,
       emergencyPhone: values.emergencyPhone,
       medicalNotes: values.medicalConsent ? (values.medicalNotes ?? null) : null,
+      discountCode: values.discountCode ?? null,
+      guide,
       consents: {
         entryTerms: true,
         medical: values.medicalConsent,
+        // **False rather than absent when the box was not ticked.** The database reads this
+        // key to decide how many entrants the payload is allowed to carry, and `is distinct
+        // from 'true'` treats absent and false alike — but a consents object that records the
+        // question having been asked is a better record than one that is silent about it.
+        vi: values.viGuide,
       },
     },
     category: deriveAgeCategory(dateOfBirth, values.gender, rules.eventDate),

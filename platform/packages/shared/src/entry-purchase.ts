@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import type { Database } from '@src/db';
 import type { AnonClient, DbClient } from './supabase';
 import { toIsoDate } from './age-category';
-import type { NnEntry } from './nn-entry';
+import type { NnEntry, NnEntryGuide } from './nn-entry';
 
 /**
  * Holding a place, and writing back the Stripe reference once there is one.
@@ -134,6 +135,93 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
     emergency_contact_name: entry.emergencyName,
     emergency_contact_phone: entry.emergencyPhone,
     leg: null,
+    // **Stated rather than left to the column default**, because the function checks the role
+    // against the position and a payload that says nothing would be agreeing by accident.
+    role: 'runner',
+  };
+}
+
+/**
+ * The guide, in the same column names.
+ *
+ * **Four keys are null and each is null for a reason**, rather than because the guide's form
+ * did not ask. `gender_identity` and `club` are questions nothing derives anything from for
+ * somebody in no category; `ea_number` justifies the affiliated rebate and a guide is not
+ * paying; `leg` is a paired-race field on a solo race.
+ */
+export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | null> {
+  return {
+    first_name: guide.firstName,
+    last_name: guide.lastName,
+    date_of_birth: toIsoDate(guide.dateOfBirth),
+    gender: guide.gender,
+    gender_identity: null,
+    club: null,
+    ea_number: null,
+    emergency_contact_name: guide.emergencyName,
+    emergency_contact_phone: guide.emergencyPhone,
+    leg: null,
+    // **The last element, and it must say so.** `create_pending_purchase()` refuses a payload
+    // whose roles and positions disagree rather than reordering it, because a silently
+    // reordered entry records a place against somebody nobody meant.
+    role: 'guide',
+  };
+}
+
+export interface NnPendingPurchaseInput {
+  slug: string;
+  entry: NnEntry;
+  /**
+   * Overrides the code on the entry itself. Present because the preview and the real call
+   * must send **the same** code — a page that priced one code and charged against another
+   * would be a page that lied about the total.
+   */
+  discountCode?: string | null;
+}
+
+/**
+ * The arguments for `entries.create_pending_purchase`, built once and used twice.
+ *
+ * **Shared between the preview and the real call deliberately.** They differ in exactly one
+ * flag, and any second difference would mean the amount somebody was shown was computed from
+ * something other than the entry they went on to buy.
+ *
+ * One entrant, or two when a guide has been declared. A paired race gets its own builder
+ * alongside this one rather than a third case here — the shape of "who is entering" is
+ * exactly the thing that differs between races, and a guide is not a second competitor.
+ */
+type CreatePendingPurchaseArgs =
+  Database['entries']['Functions']['create_pending_purchase']['Args'];
+
+function nnPendingPurchaseArgs(input: NnPendingPurchaseInput): CreatePendingPurchaseArgs {
+  const { entry } = input;
+  const discountCode = (input.discountCode ?? entry.discountCode)?.trim();
+  const guide = entry.guide;
+
+  return {
+    p_slug: input.slug,
+    p_fee_code: entry.feeCode,
+    p_purchaser_name: `${entry.firstName} ${entry.lastName}`,
+    p_purchaser_email: entry.email,
+    p_entrants: guide
+      ? [nnEntrantPayload(entry), nnGuidePayload(guide)]
+      : [nnEntrantPayload(entry)],
+    // **Aligned with `p_entrants` by position, and already null unless consent was given.**
+    // `parseNnEntry` drops the notes at the boundary when the box is unticked, and the
+    // function drops them again — two locks, and neither depends on the other.
+    p_medical: guide ? [entry.medicalNotes, guide.medicalNotes] : [entry.medicalNotes],
+    p_consents: {
+      entryTerms: entry.consents.entryTerms,
+      medical: entry.consents.medical,
+      // **What decides whether a second entrant is allowed at all**, which is why it is sent
+      // whether or not it is true rather than only when it is.
+      vi: entry.consents.vi,
+    },
+    // **Omitted rather than passed as `undefined`.** `exactOptionalPropertyTypes` is on, and
+    // the generated argument type says `p_discount_code?: string` — so the key has to be
+    // absent when there is no code, which is also what lets the function's own `default null`
+    // apply.
+    ...(discountCode ? { p_discount_code: discountCode } : {}),
   };
 }
 
@@ -142,46 +230,15 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
  *
  * **Never throws.** Every failure it can meet is one of the three outcomes, because there is
  * a person on a phone waiting for a page rather than a caller who can retry.
- *
- * One entrant, because Nightingale Nightmare is one runner per entry and the event row says
- * so. A paired race gets its own builder alongside this one rather than an optional argument
- * here — the shape of "who is entering" is exactly the thing that differs between races.
  */
 export async function createNnPendingPurchase(
   client: DbClient,
-  input: {
-    slug: string;
-    entry: NnEntry;
-    /** Null unless somebody typed one. The seeded table is empty, so this is unused today. */
-    discountCode?: string | null;
-  },
+  input: NnPendingPurchaseInput,
 ): Promise<PendingPurchaseOutcome> {
-  const { entry } = input;
-  const discountCode = input.discountCode?.trim();
-
   try {
     const { data, error } = await client
       .schema('entries')
-      .rpc('create_pending_purchase', {
-        p_slug: input.slug,
-        p_fee_code: entry.feeCode,
-        p_purchaser_name: `${entry.firstName} ${entry.lastName}`,
-        p_purchaser_email: entry.email,
-        p_entrants: [nnEntrantPayload(entry)],
-        // **Aligned with `p_entrants` by position, and already null unless consent was
-        // given.** `parseNnEntry` drops the notes at the boundary when the box is unticked,
-        // and the function drops them again — two locks, and neither depends on the other.
-        p_medical: [entry.medicalNotes],
-        p_consents: {
-          entryTerms: entry.consents.entryTerms,
-          medical: entry.consents.medical,
-        },
-        // **Omitted rather than passed as `undefined`.** `exactOptionalPropertyTypes` is on,
-        // and the generated argument type says `p_discount_code?: string` — so the key has
-        // to be absent when there is no code, which is also what lets the function's own
-        // `default null` apply.
-        ...(discountCode ? { p_discount_code: discountCode } : {}),
-      });
+      .rpc('create_pending_purchase', nnPendingPurchaseArgs(input));
 
     if (error) {
       // **The code and the message, and neither can carry personal data**: PostgREST reports
@@ -227,6 +284,104 @@ export async function createNnPendingPurchase(
     // A network failure, or `createAnonClient` refusing a key that looks like a service role
     // key. Neither can carry personal data, and neither is worth a 500 at a person who has
     // just filled in fourteen fields.
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
+}
+
+/**
+ * What an entry would cost, established without holding anything.
+ *
+ * `listPricePence` is the fee's own price and `amountPence` is what would be charged. The
+ * saving is the difference, and it comes from the database rather than being recomputed here
+ * — a saving worked out in the Worker from a price the Worker assumed is how the number on
+ * the page and the number on the card start disagreeing.
+ */
+export interface PricedNnEntry {
+  amountPence: number;
+  listPricePence: number;
+  feeLabel: string;
+  /** Whether a code was actually applied, as opposed to none having been typed. */
+  discountApplied: boolean;
+}
+
+export type NnEntryPriceOutcome =
+  | { status: 'priced'; priced: PricedNnEntry }
+  | { status: 'refused'; reason: PendingPurchaseReason }
+  | { status: 'unavailable'; error: string };
+
+const pricedShape = z.object({
+  ok: z.literal(true),
+  preview: z.literal(true),
+  amount_pence: z.number().int().min(0),
+  list_price_pence: z.number().int().min(0),
+  fee_label: z.string().min(1),
+  discount_applied: z.boolean(),
+});
+
+/**
+ * Price an entry without holding a place or spending a discount code use.
+ *
+ * **The same function, the same arguments, one flag different.** It runs every rule the real
+ * call runs — the window, the entrants, the consents, the capacity, the fee, the England
+ * Athletics number, the age, one-runner-one-place — and returns immediately before the first
+ * write. So a `refused` here is exactly the refusal the real call would have given, which is
+ * what makes it safe to show somebody a total and then charge it.
+ *
+ * **It is not a code-checking endpoint and must not become one.** Reaching a `priced` result
+ * costs a complete, valid submission; that is what keeps it from being a cheaper oracle for
+ * guessing codes than the entry path already is. See the header of
+ * `20260828140000_entries_discounts_and_guides.sql`.
+ */
+export async function priceNnEntry(
+  client: DbClient,
+  input: NnPendingPurchaseInput,
+): Promise<NnEntryPriceOutcome> {
+  try {
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('create_pending_purchase', {
+        ...nnPendingPurchaseArgs(input),
+        p_preview: true,
+      });
+
+    if (error) {
+      return {
+        status: 'unavailable',
+        error: `${error.code ?? 'unknown'}: ${error.message}`,
+      };
+    }
+
+    const refused = refusedShape.safeParse(data);
+    if (refused.success) {
+      return { status: 'refused', reason: refused.data.reason };
+    }
+
+    const priced = pricedShape.safeParse(data);
+    if (!priced.success) {
+      // **Including the case where an older database answered with a real purchase.** A
+      // deployment in which this Worker is ahead of the migration would have `p_preview`
+      // ignored and a place actually held — so anything that is not the preview shape is
+      // treated as the question not having been asked, and the caller falls back to the
+      // one-step path rather than showing a total it cannot vouch for.
+      return {
+        status: 'unavailable',
+        error: 'create_pending_purchase did not return a preview',
+      };
+    }
+
+    return {
+      status: 'priced',
+      priced: {
+        amountPence: priced.data.amount_pence,
+        listPricePence: priced.data.list_price_pence,
+        feeLabel: priced.data.fee_label,
+        discountApplied: priced.data.discount_applied,
+      },
+    };
+  } catch (cause) {
     return {
       status: 'unavailable',
       error: cause instanceof Error ? cause.name : 'unknown',

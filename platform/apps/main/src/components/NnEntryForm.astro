@@ -7,19 +7,25 @@ import race from '../content/race.json';
  * **One page, not a wizard.** A multi-step flow needs either JavaScript or somewhere on the
  * server to keep a half-finished entry, and this site has neither by design: the form works
  * with scripting off as its primary path, and there is no session store to add. So it is one
- * page, grouped into six `<fieldset>`s, and everything is visible at once.
+ * page, grouped into seven `<fieldset>`s, and everything is visible at once.
  *
  * **Nothing here knows a price.** The three fee cards ship with their labels and prices
  * empty and `hidden`; the Worker fills in whichever the event is actually offering, from
  * `entries.fees` via `entries.entry_state()`. A price written into this markup would be a
  * second copy of a number that lives in one place on purpose — see the migration.
  *
- * **The three fee codes are known here, and that is deliberate rather than sloppy.** The
- * `entries.fees.code` check constraint allows exactly these three, so adding a fourth is
- * already a reviewed migration; it costing a deploy as well is the honest price of the
- * Worker painting values onto one static page rather than assembling markup from data.
+ * **The fee codes are known here, and that is deliberate rather than sloppy.** The
+ * `entries.fees.code` check constraint is a closed list, so adding one is already a reviewed
+ * migration; it costing a deploy as well is the honest price of the Worker painting values
+ * onto one static page rather than assembling markup from data.
  * `setInnerContent(..., { html: true })` is what the alternative would need, and there is
  * deliberately no such call anywhere in this repository to audit.
+ *
+ * **`complimentary` is on that list and deliberately has no card here.** It is a £0 fee
+ * gated by `requires_permission = 'nn.entry.create'`, so `entry_state()` never returns it to
+ * a runner and `create_pending_purchase()` refuses it — a place on it is *given* from
+ * `/admin/nn/` rather than bought from this page. Adding a card for it would be offering
+ * everybody a free entry that the database would then refuse.
  *
  * Every `data-entry-*` hook is read by `worker/nn-entry.ts`. See that file for what is
  * painted onto which.
@@ -77,9 +83,18 @@ const SUMMARY_LINKS = [
   ['club', 'entry-club'],
   ['feeCode', 'entry-fee-affiliated'],
   ['eaNumber', 'entry-ea-number'],
+  ['discountCode', 'entry-discount-code'],
   ['emergencyName', 'entry-emergency-name'],
   ['emergencyPhone', 'entry-emergency-phone'],
+  ['viGuide', 'entry-vi-guide'],
+  ['guideFirstName', 'entry-guide-first-name'],
+  ['guideLastName', 'entry-guide-last-name'],
+  ['guideDateOfBirth', 'entry-guide-dob-day'],
+  ['guideGender', 'entry-guide-gender'],
+  ['guideEmergencyName', 'entry-guide-emergency-name'],
+  ['guideEmergencyPhone', 'entry-guide-emergency-phone'],
   ['medicalNotes', 'entry-medical-notes'],
+  ['guideMedicalNotes', 'entry-guide-medical-notes'],
   ['medicalConsent', 'entry-medical-consent'],
   ['entryTerms', 'entry-terms'],
 ] as const;
@@ -246,6 +261,65 @@ const SUMMARY_LINKS = [
 </div>
 
 {
+  /* **The only notice here that is not bad news**, which is why it is a plain card rather
+  than a `notice-bad` one and why the Worker answers it 200.
+
+  A discount code is a claim about money that this page cannot check: whether it is real,
+  whether it has been withdrawn, whether its places are gone and whether it is even for the
+  entry type chosen are four questions only the database can answer, and it answers all four
+  as one refusal. So a submission carrying a code is **priced first and nothing is held** —
+  `create_pending_purchase(p_preview => true)` runs every rule and returns before the first
+  write — and this is where the answer is shown.
+
+  **The four figures are painted by the Worker from that answer**, never computed here. A
+  saving worked out in markup from a price the markup assumed is how the number on the page
+  and the number on the card start disagreeing.
+
+  Pressing "Continue" posts the whole form again with `discountConfirmed` set, which is what
+  ends the step. Nothing is trusted from that field — the worst it can do is skip this
+  screen, and the price is still the database's on both passes. */
+}
+<div class="notice nn-card" data-entry-confirm hidden tabindex="-1" role="status">
+  <p><strong>Your discount code has been applied.</strong></p>
+  {
+    /* **A `<div>` around each pair, which is valid inside a `<dl>` and is what makes a pair a
+    flex row at all.** The same arrangement the race-day schedule uses, and for the reason
+    recorded there: a `<dl>` of loose `<dt>`/`<dd>` siblings cannot do this without a
+    subgrid. Axe allows the wrapper. */
+  }
+  <dl class="nn-confirm-total">
+    <div class="nn-confirm-row">
+      <dt>Entry type</dt>
+      <dd data-entry-confirm-fee></dd>
+    </div>
+    <div class="nn-confirm-row">
+      <dt>Standard price</dt>
+      <dd data-entry-confirm-list></dd>
+    </div>
+    <div class="nn-confirm-row">
+      <dt>Your code takes off</dt>
+      <dd data-entry-confirm-saving></dd>
+    </div>
+    <div class="nn-confirm-row">
+      <dt>Total to pay</dt>
+      <dd><strong data-entry-confirm-total></strong></dd>
+    </div>
+  </dl>
+  <p>
+    <strong>Nothing has been charged and no place has been held yet.</strong> Check the total,
+    then continue to the payment page. If it is not what you expected, change your entry type
+    or clear the code in the form below.
+  </p>
+  {
+    /* **`form` rather than nesting**, because this notice sits with the other outcome
+    notices above the form and the form's own submit button is at the foot of seven
+    fieldsets. Somebody shown a total should not have to scroll past every field they have
+    already filled in to accept it. */
+  }
+  <button class="button" type="submit" form="nn-entry-form">Continue to payment</button>
+</div>
+
+{
   /* Entries closing between this page loading and the form being sent is a real sequence,
   not a hypothetical one: somebody opens the page at 6:59 and presses the button at 7:01 on
   the last day. The Worker checks the window again when the form arrives. */
@@ -319,6 +393,7 @@ const SUMMARY_LINKS = [
 }
 <form
   class="signup nn-card nn-entry"
+  id="nn-entry-form"
   method="post"
   action={Astro.url.pathname}
   data-entry-form
@@ -338,6 +413,23 @@ const SUMMARY_LINKS = [
     page with no field is read as the interest form, which is the harmless side. */
   }
   <input type="hidden" name="form" value="entry" />
+
+  {
+    /* **What ends the discount code's confirm step.** Ships empty, so a first submission
+    posts `discountConfirmed=""` and is priced rather than charged; the Worker writes `yes`
+    into it when it renders the confirm notice, so the *second* submission skips the preview
+    and holds the place.
+
+    **Presence is not the test — the value is.** An empty hidden input still posts its name,
+    so `form.get(...) !== null` would read every first submission as already confirmed and
+    the step would never happen at all.
+
+    Nothing is trusted from this field. The worst somebody can do by posting `yes` themselves
+    is skip a confirmation screen they were being shown for their own benefit; the price is
+    still `entries.fees`' on both passes and the code is still checked on both. */
+  }
+  <input type="hidden" name="discountConfirmed" value="" data-entry-confirmed />
+
   <!-- 1 — Your details ------------------------------------------------------------- -->
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Your details</legend>
@@ -702,6 +794,53 @@ const SUMMARY_LINKS = [
         data-entry-value="eaNumber"
       />
     </div>
+
+    {
+      /* **The discount code, below the cards for the same reason the England Athletics box
+      is.** It is not a condition of any one entry type — a code decides for itself which fee
+      it applies to, and the database is the only thing that knows — so nesting it inside a
+      card would be a claim this file is not entitled to make, on top of moving the other two
+      whenever it collapsed.
+
+      **Always visible, never revealed.** Unlike the fee cards and the England Athletics box,
+      nothing about this field depends on the event row: an event with no codes at all simply
+      refuses whatever is typed. Hiding it until a code exists would mean the Worker
+      disclosing that one does, which is most of what somebody guessing wants to know.
+
+      **`autocapitalize` and `autocorrect` off.** A code read off a newsletter, typed on a
+      phone, would otherwise arrive title-cased with a helpful correction applied to it. The
+      matching is case-insensitive at both ends — `citext` in the column and `lower()` in the
+      function — so the capitalisation is harmless; the autocorrect is not. */
+    }
+    <div class="field">
+      <label class="field-label" for="entry-discount-code">
+        Discount code <span class="field-optional">(optional)</span>
+      </label>
+      <p class="field-hint" id="entry-discount-hint">
+        If your club or a partner gave you a code, enter it here. You will be shown what
+        it takes off before anything is charged.
+      </p>
+      <p
+        class="field-error"
+        id="entry-discount-error"
+        data-entry-error="discountCode"
+        hidden
+      >
+      </p>
+      <input
+        class="field-input"
+        id="entry-discount-code"
+        name="discountCode"
+        type="text"
+        maxlength="40"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        aria-describedby="entry-discount-hint entry-discount-error"
+        data-entry-value="discountCode"
+      />
+    </div>
   </fieldset>
 
   <!-- 4 — In case of emergency ---------------------------------------------------- -->
@@ -757,7 +896,241 @@ const SUMMARY_LINKS = [
     </div>
   </fieldset>
 
-  <!-- 5 — Medical information ----------------------------------------------------- -->
+  <!-- 5 — Running with a guide ------------------------------------------------------ -->
+  {
+    /* **A visually impaired runner and their guide are one entry, and this is where the
+    second person is entered.** The guide takes one of the 250 places — they are on the same
+    road on the same night — and they pay nothing.
+
+    **The declaration is a consent, not a fee.** Ticking this says the runner is visually
+    impaired, which is data about disability and special category under Article 9, so it is
+    recorded the way the medical consent is: as something ticked, under the event's own
+    consent version. It reaches `/admin/nn/` and no export and no published list.
+
+    **The six fields below are always in the DOM.** JavaScript hides them and the checkbox
+    reveals them; with scripting off they are simply visible, and the server decides whether
+    they had to be filled in. `data-entry-guide-fields` is the whole of what the enhancement
+    needs — a `hidden` attribute it toggles — and it wraps the fields rather than sitting
+    inside them, so revealing them moves only what is below. That is the same rule the
+    England Athletics box was moved out of the affiliated card to obey. */
+  }
+  <fieldset class="nn-fieldset">
+    <legend class="nn-legend">Running with a guide</legend>
+
+    <div class="field">
+      <p class="field-error" id="entry-vi-guide-error" data-entry-error="viGuide" hidden>
+      </p>
+      <div class="field-check">
+        <input
+          class="field-checkbox"
+          id="entry-vi-guide"
+          name="viGuide"
+          type="checkbox"
+          aria-describedby="entry-vi-guide-hint entry-vi-guide-error"
+          data-entry-checked="viGuide"
+        />
+        <label class="field-label" for="entry-vi-guide">
+          I am a visually impaired runner and a guide will run with me
+        </label>
+      </div>
+      <p class="field-hint" id="entry-vi-guide-hint">
+        There is <strong>no charge</strong> for your guide, and you do not need a second entry
+        for them — enter their details below.{' '}
+        <strong>Your guide takes one of the race's 250 places</strong>, so the club needs
+        the same details about them as about you.
+      </p>
+    </div>
+
+    <div data-entry-guide-fields hidden>
+      <div class="field">
+        <label class="field-label" for="entry-guide-first-name">Guide's first name</label>
+        <p
+          class="field-error"
+          id="entry-guide-first-name-error"
+          data-entry-error="guideFirstName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-guide-first-name"
+          name="guideFirstName"
+          type="text"
+          maxlength="60"
+          autocomplete="off"
+          aria-describedby="entry-guide-first-name-error"
+          data-entry-value="guideFirstName"
+        />
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="entry-guide-last-name">Guide's last name</label>
+        <p
+          class="field-error"
+          id="entry-guide-last-name-error"
+          data-entry-error="guideLastName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-guide-last-name"
+          name="guideLastName"
+          type="text"
+          maxlength="60"
+          autocomplete="off"
+          aria-describedby="entry-guide-last-name-error"
+          data-entry-value="guideLastName"
+        />
+      </div>
+
+      {
+        /* Three inputs rather than a date picker, for the reason the runner's own date of
+        birth gives. One nested `<fieldset>` because the three are one question and one
+        error message. */
+      }
+      <fieldset class="field nn-dob">
+        <legend class="field-label">Guide's date of birth</legend>
+        <p class="field-hint" id="entry-guide-dob-hint">
+          Your guide must be 18 or over on race day, the same as every runner.
+        </p>
+        <p
+          class="field-error"
+          id="entry-guide-dob-error"
+          data-entry-error="guideDateOfBirth"
+          hidden
+        >
+        </p>
+        <div class="nn-dob-parts">
+          <div class="nn-dob-part">
+            <label class="field-label" for="entry-guide-dob-day">Day</label>
+            <input
+              class="field-input"
+              id="entry-guide-dob-day"
+              name="guideDobDay"
+              type="text"
+              inputmode="numeric"
+              maxlength="2"
+              autocomplete="off"
+              aria-describedby="entry-guide-dob-hint entry-guide-dob-error"
+              data-entry-value="guideDobDay"
+            />
+          </div>
+          <div class="nn-dob-part">
+            <label class="field-label" for="entry-guide-dob-month">Month</label>
+            <input
+              class="field-input"
+              id="entry-guide-dob-month"
+              name="guideDobMonth"
+              type="text"
+              inputmode="numeric"
+              maxlength="2"
+              autocomplete="off"
+              aria-describedby="entry-guide-dob-hint entry-guide-dob-error"
+              data-entry-value="guideDobMonth"
+            />
+          </div>
+          <div class="nn-dob-part">
+            <label class="field-label" for="entry-guide-dob-year">Year</label>
+            <input
+              class="field-input"
+              id="entry-guide-dob-year"
+              name="guideDobYear"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              aria-describedby="entry-guide-dob-hint entry-guide-dob-error"
+              data-entry-value="guideDobYear"
+            />
+          </div>
+        </div>
+      </fieldset>
+
+      {
+        /* **The race category, and a guide is in none of them.** The column is not null and
+        the question is the same question, so it is asked — but nothing derives a prize
+        category for somebody whose job is to run beside another runner. The hint says so
+        rather than leaving somebody to wonder what they are being entered for. */
+      }
+      <div class="field">
+        <label class="field-label" for="entry-guide-gender">Guide's race category</label>
+        <p class="field-hint" id="entry-guide-gender-hint">
+          Guides are not placed and are in no age category. The club records this for the
+          same reasons it records it for every runner.
+        </p>
+        <p
+          class="field-error"
+          id="entry-guide-gender-error"
+          data-entry-error="guideGender"
+          hidden
+        >
+        </p>
+        <select
+          class="field-input"
+          id="entry-guide-gender"
+          name="guideGender"
+          aria-describedby="entry-guide-gender-hint entry-guide-gender-error"
+        >
+          <option value="" data-entry-selected="guideGender:">Choose one</option>
+          <option value="female" data-entry-selected="guideGender:female">Female</option>
+          <option value="male" data-entry-selected="guideGender:male">Male</option>
+          <option value="non_binary" data-entry-selected="guideGender:non_binary">
+            Non-binary
+          </option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="entry-guide-emergency-name">
+          Guide's emergency contact
+        </label>
+        <p
+          class="field-error"
+          id="entry-guide-emergency-name-error"
+          data-entry-error="guideEmergencyName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-guide-emergency-name"
+          name="guideEmergencyName"
+          type="text"
+          maxlength="120"
+          autocomplete="off"
+          aria-describedby="entry-guide-emergency-name-error"
+          data-entry-value="guideEmergencyName"
+        />
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="entry-guide-emergency-phone">
+          Guide's emergency contact phone
+        </label>
+        <p
+          class="field-error"
+          id="entry-guide-emergency-phone-error"
+          data-entry-error="guideEmergencyPhone"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-guide-emergency-phone"
+          name="guideEmergencyPhone"
+          type="tel"
+          inputmode="tel"
+          maxlength="40"
+          autocomplete="off"
+          aria-describedby="entry-guide-emergency-phone-error"
+          data-entry-value="guideEmergencyPhone"
+        />
+      </div>
+    </div>
+  </fieldset>
+
+  <!-- 6 — Medical information ----------------------------------------------------- -->
   {
     /* **A muted panel inside the card**, because this section is more sensitive than the
     others and should look it — without alarm, and without red. Free-text medical
@@ -808,6 +1181,36 @@ const SUMMARY_LINKS = [
     </div>
 
     {
+      /* **The guide's notes, under the same consent and in the same section.** One medical
+      consent covering both people is why this box is here rather than up in the guide's own
+      fieldset: the checkbox below says "the medical information I have written above", and
+      that sentence has to be below everything it covers or it is not true.
+
+      Same table, same month's retention, same cron. A guide on the course at night with a
+      condition the first aiders should know about is the same fact as a runner with one. */
+    }
+    <div class="field" data-entry-guide-fields hidden>
+      <label class="field-label" for="entry-guide-medical-notes">
+        Guide's medical information <span class="field-optional">(optional)</span>
+      </label>
+      <p
+        class="field-error"
+        id="entry-guide-medical-notes-error"
+        data-entry-error="guideMedicalNotes"
+        hidden
+      >
+      </p>
+      <textarea
+        class="field-input nn-textarea"
+        id="entry-guide-medical-notes"
+        name="guideMedicalNotes"
+        rows="3"
+        maxlength="2000"
+        aria-describedby="entry-guide-medical-notes-error"
+        data-entry-text="guideMedicalNotes"></textarea>
+    </div>
+
+    {
       /* **Its own checkbox, with its own wording, and deliberately not bundled with the
       entry terms.** Consent to hold special category data has to be separate to be consent
       at all — a single box covering both would mean nobody ever declined one without
@@ -838,7 +1241,7 @@ const SUMMARY_LINKS = [
     </div>
   </fieldset>
 
-  <!-- 6 — Agreements -------------------------------------------------------------- -->
+  <!-- 7 — Agreements -------------------------------------------------------------- -->
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Agreements</legend>
 
@@ -1007,11 +1410,13 @@ const SUMMARY_LINKS = [
 
     updateCategory(entryForm, rules);
     updateEaVisibility(entryForm);
+    updateGuideVisibility(entryForm);
     updateTotal(entryForm);
 
     entryForm.addEventListener('change', () => {
       updateCategory(entryForm, rules);
       updateEaVisibility(entryForm);
+      updateGuideVisibility(entryForm);
       updateTotal(entryForm);
       revalidate(entryForm, rules, shown);
     });
@@ -1210,6 +1615,34 @@ const SUMMARY_LINKS = [
     }
 
     field.hidden = !radio.checked;
+  }
+
+  /**
+   * Show the guide's fields once somebody says a guide is running with them.
+   *
+   * **The same arrangement as the England Athletics box, and for the same two reasons.** The
+   * Worker validates them conditionally whatever the browser did, so somebody without this
+   * script sees the fields, leaves them empty, and is never asked about them — and the
+   * wrappers sit *after* the checkbox rather than around it, so revealing them moves only
+   * what is below and never the control that was just pressed.
+   *
+   * `querySelectorAll`, because there are two wrappers: the guide's own fields, and their
+   * medical notes down in the medical section under the one consent that covers both.
+   */
+  function updateGuideVisibility(entryForm: HTMLFormElement): void {
+    const declared = entryForm.querySelector<HTMLInputElement>(
+      '[data-entry-checked="viGuide"]',
+    );
+
+    if (!declared) {
+      return;
+    }
+
+    for (const block of entryForm.querySelectorAll<HTMLElement>(
+      '[data-entry-guide-fields]',
+    )) {
+      block.hidden = !declared.checked;
+    }
   }
 
   /** The running total. Pence, so a percentage discount cannot introduce a rounding bug. */

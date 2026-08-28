@@ -176,6 +176,13 @@ describe('the shape of the model', () => {
       'identity.role.grant',
       'nn.entry.before_open',
       'nn.entry.cancel',
+      // **The eighth, and the only one that costs the club money rather than changing a
+      // record.** `nn.entry.create` opens the "Assign a place" form at `/admin/nn/`, which
+      // gives somebody an entry at no charge. It did not reuse `nn.entry.cancel` — the way
+      // transferring did — because undoing an entry somebody bought and adding a runner to a
+      // course with a hard limit are different powers, and this is the one you would want to
+      // withhold on its own. See ADR-021.
+      'nn.entry.create',
       'nn.entry.export',
       'nn.entry.read',
       'nn.entry.read_medical',
@@ -207,6 +214,12 @@ describe('the shape of the model', () => {
     // and the line to look at if somebody ever reports that a reader can hand out `nn-admin`.
     expect(held).toEqual([
       'nn-admin → nn.entry.cancel',
+      // **On `nn-admin` and deliberately not on `super-admin`**, for exactly the reason the
+      // paragraph above gives about `nn.entry.read`: a super-admin cannot see the entry list,
+      // so giving them this would have meant giving them the list too — which is the
+      // inheritance this table exists to refuse. A super-admin who needs to give a place
+      // grants themselves `nn-admin`, and that writes a row in `identity.audit`.
+      'nn-admin → nn.entry.create',
       'nn-admin → nn.entry.export',
       'nn-admin → nn.entry.read',
       'nn-admin → nn.entry.read_medical',
@@ -386,6 +399,7 @@ describe('my_permissions', () => {
       'identity.person.read',
       'identity.role.grant',
       'nn.entry.cancel',
+      'nn.entry.create',
       'nn.entry.export',
       'nn.entry.read',
       'nn.entry.read_medical',

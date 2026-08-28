@@ -99,9 +99,14 @@ async function fillEntry(
   await form
     .getByLabel('Confirm your email address', { exact: true })
     .fill(values.emailConfirm!);
-  await form.getByLabel('Day', { exact: true }).fill(values.dobDay!);
-  await form.getByLabel('Month', { exact: true }).fill(values.dobMonth!);
-  await form.getByLabel('Year', { exact: true }).fill(values.dobYear!);
+  // **By id, and not by label, because there are two of each of these now.** The guide's
+  // date of birth is three boxes labelled Day, Month and Year under a legend that says whose
+  // they are — which is right for a screen reader and ambiguous for `getByLabel`, since it
+  // matches the label alone and not the legend above it. Every other field on the guide's
+  // half is prefixed ("Guide's first name"), so only these three needed pinning down.
+  await form.locator('#entry-dob-day').fill(values.dobDay!);
+  await form.locator('#entry-dob-month').fill(values.dobMonth!);
+  await form.locator('#entry-dob-year').fill(values.dobYear!);
   await form.getByLabel('Race category', { exact: true }).selectOption('female');
   await form.getByLabel('Contact name', { exact: true }).fill(values.emergencyName!);
   await form
@@ -893,8 +898,8 @@ test.describe('once entries are open', () => {
     await expect(
       entry(page).getByLabel('Confirm your email address', { exact: true }),
     ).toHaveValue('wrong@example.com');
-    await expect(entry(page).getByLabel('Day', { exact: true })).toHaveValue('9');
-    await expect(entry(page).getByLabel('Year', { exact: true })).toHaveValue('1986');
+    await expect(entry(page).locator('#entry-dob-day')).toHaveValue('9');
+    await expect(entry(page).locator('#entry-dob-year')).toHaveValue('1986');
     await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
       'female',
     );
@@ -958,8 +963,12 @@ test.describe('once entries are open', () => {
     );
 
     // All three boxes are marked, because the question is wrong rather than one third of it.
-    for (const part of ['Day', 'Month', 'Year']) {
-      await expect(entry(page).getByLabel(part, { exact: true })).toHaveAttribute(
+    //
+    // **By id, because the guide's date of birth is three boxes with the same three labels.**
+    // That is the right markup — a legend saying whose it is, over Day, Month and Year — and
+    // it makes `getByLabel('Day')` ambiguous, since the accessible name is the label alone.
+    for (const part of ['day', 'month', 'year']) {
+      await expect(entry(page).locator(`#entry-dob-${part}`)).toHaveAttribute(
         'aria-invalid',
         'true',
       );
@@ -1092,6 +1101,73 @@ test.describe('once entries are open', () => {
     expect(Math.abs(after.top - before.top)).toBeLessThan(24);
   });
 
+  test('keeps the guide box in view when the guide fields appear', async ({ page }) => {
+    // **The third time this shape has been built and the second recorded defect it caused.**
+    // The England Athletics box lived inside the affiliated card and threw the chosen card off
+    // the screen when it collapsed; the guide's six fields are a far larger block — a name, a
+    // date of birth in three parts, a category, and two emergency contact fields — so getting
+    // it wrong here is worth more pixels than either earlier case.
+    //
+    // The block sits **after** the checkbox that reveals it, so showing it moves only what is
+    // below and the checkbox does not move at all. This is the assertion that says so, at the
+    // width where it would hurt most.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(YEAR);
+
+    const box = entry(page).getByLabel(/I am a visually impaired runner/);
+    await box.scrollIntoViewIfNeeded();
+
+    const positionOf = () =>
+      page.evaluate(() => {
+        const input = document.querySelector('[data-entry-checked="viGuide"]');
+
+        if (input === null) {
+          throw new Error('the visually impaired declaration is not in the page');
+        }
+
+        const { top, bottom } = input.getBoundingClientRect();
+        return { top, bottom, viewport: window.innerHeight };
+      });
+
+    const before = await positionOf();
+    await box.check();
+    const after = await positionOf();
+
+    // Still on the screen, both edges of it.
+    expect(after.top).toBeGreaterThanOrEqual(0);
+    expect(after.bottom).toBeLessThanOrEqual(after.viewport);
+    // And within a line of where it was, rather than merely somewhere on the page. A
+    // sub-pixel border swap is tolerated; a row of movement is not.
+    expect(Math.abs(after.top - before.top)).toBeLessThan(24);
+  });
+
+  test("asks for the guide's details only once one is declared @requires-js", async ({
+    page,
+  }) => {
+    // **The conditional half, and the reason the fields are in the DOM regardless.** With
+    // scripting off they are simply visible and the server decides whether they had to be
+    // filled in — which is why this test is scoped to the JavaScript projects rather than
+    // asserted everywhere.
+    await page.goto(YEAR);
+
+    const guideName = entry(page).getByLabel("Guide's first name", { exact: true });
+    await expect(guideName).toBeHidden();
+
+    await entry(page)
+      .getByLabel(/I am a visually impaired runner/)
+      .check();
+
+    await expect(guideName).toBeVisible();
+
+    // And back again, because somebody who ticks it by mistake must not be left with six
+    // required-looking boxes they cannot get rid of.
+    await entry(page)
+      .getByLabel(/I am a visually impaired runner/)
+      .uncheck();
+
+    await expect(guideName).toBeHidden();
+  });
+
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(YEAR);
 
@@ -1140,9 +1216,9 @@ test.describe('what JavaScript adds @requires-js', () => {
     const category = page.locator('[data-entry-category]');
     await expect(category).toBeHidden();
 
-    await entry(page).getByLabel('Day', { exact: true }).fill('1');
-    await entry(page).getByLabel('Month', { exact: true }).fill('11');
-    await entry(page).getByLabel('Year', { exact: true }).fill('1986');
+    await entry(page).locator('#entry-dob-day').fill('1');
+    await entry(page).locator('#entry-dob-month').fill('11');
+    await entry(page).locator('#entry-dob-year').fill('1986');
     await entry(page).getByLabel('Race category', { exact: true }).selectOption('male');
 
     // Born 1 November 1986, race day 1 November 2026 — forty **on** race day, which is the
@@ -1156,9 +1232,9 @@ test.describe('what JavaScript adds @requires-js', () => {
   }) => {
     await page.goto(YEAR);
 
-    await entry(page).getByLabel('Day', { exact: true }).fill('9');
-    await entry(page).getByLabel('Month', { exact: true }).fill('12');
-    await entry(page).getByLabel('Year', { exact: true }).fill('1986');
+    await entry(page).locator('#entry-dob-day').fill('9');
+    await entry(page).locator('#entry-dob-month').fill('12');
+    await entry(page).locator('#entry-dob-year').fill('1986');
     await entry(page)
       .getByLabel('Race category', { exact: true })
       .selectOption('non_binary');
@@ -1322,9 +1398,9 @@ test.describe('when the race is full', () => {
     await expect(entry(page).getByLabel('First name', { exact: true })).toHaveValue(
       'Grace',
     );
-    await expect(entry(page).getByLabel('Day', { exact: true })).toHaveValue('9');
-    await expect(entry(page).getByLabel('Month', { exact: true })).toHaveValue('12');
-    await expect(entry(page).getByLabel('Year', { exact: true })).toHaveValue('1986');
+    await expect(entry(page).locator('#entry-dob-day')).toHaveValue('9');
+    await expect(entry(page).locator('#entry-dob-month')).toHaveValue('12');
+    await expect(entry(page).locator('#entry-dob-year')).toHaveValue('1986');
     await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
       'female',
     );

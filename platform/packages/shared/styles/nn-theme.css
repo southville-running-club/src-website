@@ -1443,6 +1443,60 @@ html:has(body.theme-nn) {
 }
 
 /* -------------------------------------------------------------------------------------
+ * The discounted total, shown before anything is charged
+ * -------------------------------------------------------------------------------------
+ * The same `<dl>` treatment the schedule below gets, and for the same reason: a short term
+ * and a short detail, read carefully, on a white card. **Every value here is money**, so the
+ * detail is mono rather than the term — which is the one difference from the schedule, where
+ * the mono column is the time.
+ *
+ * No new colours. Every token here is already used elsewhere in this file and has already
+ * been through the contrast check at the head of it.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-confirm-total {
+  margin: 0 0 1rem;
+}
+
+.theme-nn .nn-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 10px 0;
+  /* Decorative, exactly as the schedule's rule is. */
+  border-bottom: 1.5px solid var(--nn-card-muted);
+}
+
+.theme-nn .nn-confirm-row:first-child {
+  padding-top: 0;
+}
+
+.theme-nn .nn-confirm-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.theme-nn .nn-confirm-total dt {
+  /* Wider than the schedule's 82px, because "Your code takes off" is four words rather than
+     a time. Below about 250px of usable width the detail drops to its own row, which is the
+     stacked layout a 320px screen wants — worked out by flexbox rather than by a breakpoint. */
+  flex: 0 0 150px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.theme-nn .nn-confirm-total dd {
+  flex: 1 1 90px;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--nn-mono);
+  font-size: 15px;
+  font-weight: 700;
+  /* 9.01:1 on the card — the same token the schedule's term uses. */
+  color: var(--nn-blood);
+  overflow-wrap: break-word;
+}
+
+/* -------------------------------------------------------------------------------------
  * The schedule, and the prize list
  * -------------------------------------------------------------------------------------
  * Both are a `<dl>` of short term and longer detail, so both get the same treatment. On a

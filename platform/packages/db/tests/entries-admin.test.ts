@@ -946,6 +946,12 @@ describe('entries.admin_export()', () => {
       'first_name',
       'gender',
       'last_name',
+      // **The eighth, and it is on the sheet a marshal reads rather than a fact about the
+      // entry.** A guide is on the road and has to be accounted for, but is not timed and is
+      // in no category — so the printed list and the CSV both say `Guide` where a category
+      // would go. Not personal data beyond what the row already carries: it says what this
+      // person is doing, which is why they are on the sheet at all. See ADR-022.
+      'role',
     ]);
 
     // **The column shape is the minimisation.** A start list does not carry a medical note,

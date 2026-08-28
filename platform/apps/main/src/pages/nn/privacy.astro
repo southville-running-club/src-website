@@ -222,6 +222,37 @@ const { privacy } = race;
             </td>
           </tr>
           {
+            /* **Two rows for the guide, and they are here because the schema holds them.**
+            A visually impaired runner enters their guide on the same entry, so
+            `entries.entrants` holds a second person's name, date of birth, category and
+            emergency contact, and `entries.entrant_medical` may hold their note. A notice
+            that listed only the runner would under-list what the club processes about a real
+            person who never filled anything in themselves.
+
+            **The declaration is data about disability**, which is special category under
+            Article 9 exactly as the medical box is — so it is named separately rather than
+            folded into "your entry", and section 4's consent is what makes it lawful. See
+            ADR-022. */
+          }
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              That you are a visually impaired runner, if you tell us
+            </th>
+            <td role="cell" data-label="Why we need it">
+              So we know a guide is running with you and can plan for both of you. This is
+              optional, and it is special category data — see section 4
+            </td>
+          </tr>
+          <tr role="row">
+            <th scope="row" role="rowheader">
+              Your guide's name, date of birth, category and emergency contact
+            </th>
+            <td role="cell" data-label="Why we need it">
+              Your guide is on the course, so we need the same details about them as about
+              you — including someone to contact if something happens to them
+            </td>
+          </tr>
+          {
             /* **The four rows below were derived from the schema rather than approved.** The
             approved draft listed what somebody types; these are the rest of what the tables
             hold, and a notice that omits them under-lists what the club processes. They go to
@@ -401,6 +432,33 @@ const { privacy } = race;
         </li>
       </ul>
 
+      {
+        /* **The same protection, said in the same section, for the same legal reason.** A
+        declaration that somebody is visually impaired is data about disability, which is
+        special category under Article 9 exactly as a medical note is — so it is consented to
+        explicitly, seen only by the volunteers who need it, and never published. See
+        ADR-022. */
+      }
+      <p>
+        <strong
+          >Telling us you are a visually impaired runner is special category data too</strong
+        >, for the same reason, and it is handled the same way.
+      </p>
+
+      <ul>
+        <li><strong>It is optional.</strong> You can enter without telling us.</li>
+        <li>
+          <strong>Who sees it:</strong> the race organisers, so they can plan for you and your
+          guide. It is not on the results, it is not on any list we publish, and it is not in
+          anything we export.
+        </li>
+        <li>
+          <strong>Your guide's details are part of your entry</strong>, and are kept for
+          as long as it is. Anything your guide tells us in the medical box is held and
+          deleted on exactly the same terms as yours.
+        </li>
+      </ul>
+
       <h2>5. Who else sees your information</h2>
 
       <p>
@@ -520,8 +578,9 @@ const { privacy } = race;
       </p>
 
       <p>
-        Where we rely on your consent — the interest list, and the medical box — you can
-        withdraw it at any time, and we will act on that.
+        Where we rely on your consent — the interest list, the medical box, and telling us
+        you are a visually impaired runner — you can withdraw it at any time, and we will
+        act on that.
       </p>
 
       <p>

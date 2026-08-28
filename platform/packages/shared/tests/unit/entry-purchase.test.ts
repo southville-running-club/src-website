@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { nnEntrantPayload, PENDING_PURCHASE_REASONS } from '../../src/entry-purchase';
-import type { NnEntry } from '../../src/nn-entry';
+import {
+  nnEntrantPayload,
+  nnGuidePayload,
+  PENDING_PURCHASE_REASONS,
+} from '../../src/entry-purchase';
+import type { NnEntry, NnEntryGuide } from '../../src/nn-entry';
 
 /**
  * The mapping from a validated entry to the arguments `entries.create_pending_purchase()`
@@ -25,7 +29,9 @@ const ENTRY: NnEntry = {
   emergencyName: 'Margaret Hamilton',
   emergencyPhone: '0117 496 0000',
   medicalNotes: 'Type 1 diabetic.',
-  consents: { entryTerms: true, medical: true },
+  discountCode: null,
+  guide: null,
+  consents: { entryTerms: true, medical: true, vi: false },
 };
 
 describe('one runner, in the column names the database uses', () => {
@@ -46,6 +52,10 @@ describe('one runner, in the column names the database uses', () => {
       emergency_contact_name: 'Margaret Hamilton',
       emergency_contact_phone: '0117 496 0000',
       leg: null,
+      // **Stated rather than left to the column default.** `create_pending_purchase()` checks
+      // the role against the entrant's position and refuses a payload where the two disagree,
+      // so a runner that said nothing would be agreeing by accident.
+      role: 'runner',
     });
   });
 
@@ -82,6 +92,58 @@ describe('one runner, in the column names the database uses', () => {
     // Null because Nightingale Nightmare is a solo race. Stated so that the first paired race
     // meets a field to fill in rather than a field to discover.
     expect(nnEntrantPayload(ENTRY)).toHaveProperty('leg', null);
+  });
+});
+
+const GUIDE: NnEntryGuide = {
+  firstName: 'Katherine',
+  lastName: 'Johnson',
+  dateOfBirth: { year: 1988, month: 8, day: 26 },
+  gender: 'female',
+  emergencyName: 'Dorothy Vaughan',
+  emergencyPhone: '0117 496 0001',
+  medicalNotes: 'Asthmatic.',
+};
+
+describe('the guide, in the same column names', () => {
+  it('maps every field the club needs about somebody on the course', () => {
+    expect(nnGuidePayload(GUIDE)).toEqual({
+      first_name: 'Katherine',
+      last_name: 'Johnson',
+      date_of_birth: '1988-08-26',
+      gender: 'female',
+      // **Four nulls, and each is null for a reason rather than because the form did not
+      // ask.** `gender_identity` and `club` derive nothing for somebody in no category;
+      // `ea_number` justifies the affiliated rebate and a guide is not paying; `leg` is a
+      // paired-race field on a solo race.
+      gender_identity: null,
+      club: null,
+      ea_number: null,
+      leg: null,
+      emergency_contact_name: 'Dorothy Vaughan',
+      emergency_contact_phone: '0117 496 0001',
+      // **The last element, and it must say so.** `create_pending_purchase()` refuses a
+      // payload whose roles and positions disagree rather than reordering it, because a
+      // silently reordered entry records a place against somebody nobody meant.
+      role: 'guide',
+    });
+  });
+
+  it('never carries an England Athletics number, whatever else changes', () => {
+    // The trigger refuses a guide that has one — it is an identifier held for no purpose —
+    // so this is the boundary keeping the payload on the right side of that rule rather than
+    // finding out from a `check_violation`.
+    expect(nnGuidePayload(GUIDE).ea_number).toBeNull();
+  });
+
+  it('carries no medical information at all', () => {
+    // Special category data does not travel inside the entrant, for the runner or the guide.
+    // It is its own positional argument, so a reviewer can see in one line which parameter
+    // carries it.
+    const payload = JSON.stringify(nnGuidePayload(GUIDE));
+
+    expect(payload).not.toContain('Asthmatic');
+    expect(payload).not.toContain('medical');
   });
 });
 

@@ -72,7 +72,14 @@ describe('a submission with nothing wrong with it', () => {
       eaNumber: null,
       medicalNotes: null,
     });
-    expect(result.value.consents).toEqual({ entryTerms: true, medical: false });
+    // **`vi` is present and false rather than absent.** The database reads this key to decide
+    // how many entrants the payload may carry, and a consents object that records the question
+    // having been asked is a better record than one that is silent about it.
+    expect(result.value.consents).toEqual({
+      entryTerms: true,
+      medical: false,
+      vi: false,
+    });
   });
 
   it('derives the category alongside it, rather than leaving it to be asked twice', () => {
@@ -440,6 +447,7 @@ describe('medical information, and its own separate consent', () => {
     expect(result.ok && result.value.consents).toEqual({
       entryTerms: true,
       medical: false,
+      vi: false,
     });
   });
 });

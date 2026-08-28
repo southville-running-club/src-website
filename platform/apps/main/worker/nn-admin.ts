@@ -4,6 +4,7 @@ import {
   ageCategoryFor,
   cancelEntry,
   createAnonClient,
+  createManualEntry,
   createUserClient,
   csvDocument,
   fetchCancellablePurchase,
@@ -27,6 +28,8 @@ import {
   type AdminResult,
   type ExportKind,
   type Gender,
+  type ManualEntrant,
+  type ManualEntryReason,
   type StartListExportRow,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
@@ -217,17 +220,29 @@ export async function handleNnSection(
       : notFound();
   }
 
-  // **Transferring, and it shares `nn.entry.cancel` rather than adding a permission.** An
-  // eighth permission is a stop-and-ask, so this reuses the one that already means "may undo an
-  // entry somebody paid for". A dedicated `nn.entry.transfer` is the cleaner answer and is a
-  // decision somebody should take on purpose — see the migration.
+  // **Transferring, and it shares `nn.entry.cancel` rather than adding a permission.** It
+  // reuses the one that already means "may undo an entry somebody paid for", because changing
+  // who holds an existing place is within a hair of that. A dedicated `nn.entry.transfer` is
+  // the cleaner answer and is a decision somebody should take on purpose — see the migration.
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'transfer') {
     return can(viewer, 'nn.entry.cancel')
       ? transferResponse(request, cfg, viewer, secure)
       : notFound();
   }
 
-  // An address under the prefix that is not one of the six. Answered here rather than fallen
+  // **Giving a place away, and it is the one thing here with a permission of its own.**
+  // `nn.entry.create` is the eighth, and it did not reuse `nn.entry.cancel` for the reason
+  // ADR-021 gives: undoing an entry somebody bought and adding a runner to a course with a
+  // hard limit are different powers, and this is the only one on the surface that costs the
+  // club money rather than changing a record. Checked here and again inside
+  // `entries.create_manual_entry()`, which is the control.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'assign') {
+    return can(viewer, 'nn.entry.create')
+      ? assignResponse(request, reader, cfg, viewer, secure)
+      : notFound();
+  }
+
+  // An address under the prefix that is not one of the seven. Answered here rather than fallen
   // through, because falling through would hand it to the assets binding and the 404 page would
   // arrive without the `noindex` header this surface sets on everything.
   return notFound();
@@ -568,11 +583,15 @@ function csvResponse(taken: AdminExport): Response {
               'Emergency contact',
               'Emergency phone',
             ],
+            // **The same column the printed sheet shows, and it has to be the same.** The CSV
+            // and the paper start list are two renderings of one export; a guide marked on
+            // one and given an age category on the other is how two documents about the same
+            // 250 people start disagreeing on race morning.
             taken.rows.map((row) => [
               row.lastName,
               row.firstName,
               row.club,
-              categoryLabel(row.age, row.gender),
+              startListCategory(row),
               row.emergencyContactName,
               row.emergencyContactPhone,
             ]),
@@ -1131,6 +1150,24 @@ function entriesSection(
         </p>
       </div>
 
+      ${
+        /* **Rendered only for somebody who may actually use it.** `nn.entry.create` is the
+        eighth permission and `nn-admin` is the only role carrying it, so a future read-only
+        role meets no button — and the route answers 404 to them regardless, which is the
+        control. A button that 404s is worse than no button: it reads as a broken page rather
+        than as a thing this person cannot do. */ null
+      }
+      ${
+        can(viewer, 'nn.entry.create')
+          ? postButton(
+              `${NN_SECTION}/assign/`,
+              list.event.slug,
+              'Assign a place',
+              'admin-button-quiet',
+            )
+          : null
+      }
+
       <nav class="admin-filters" aria-label="Filter the entries">
         <p class="admin-filters-label" id="filter-status">Status</p>
         <ul aria-labelledby="filter-status">
@@ -1228,13 +1265,34 @@ function runnerName(entry: AdminEntry): string {
   return `${entry.lastName}, ${entry.firstName}`;
 }
 
+/**
+ * What the money column says for one row.
+ *
+ * **`amountPence` belongs to the purchase, and a purchase can be two rows.** A visually
+ * impaired runner and their guide are one entry and two people, so printing the amount on
+ * both would show £20.00 twice — while the figures panel above, which sums over purchases,
+ * showed £20. The page would have disagreed with itself, and the total would have been the
+ * half that was right.
+ *
+ * So the amount is rendered against the runner and the guide's row says what it is. Nothing
+ * is subtracted or divided: the number is still exactly what `entries.fees` charged.
+ */
+function amountCell(entry: AdminEntry): string {
+  return entry.role === 'guide' ? 'Guide — no charge' : formatPence(entry.amountPence);
+}
+
 function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
   // Null together, for the same reason the name is: the category is computed from a date of
   // birth that was deleted with the entrant.
+  // **A guide is in no category, so naming one would be inventing a result.** They are not
+  // timed and are not placed; the row says what they are instead of what band they would be
+  // in if they were. Null stays null for a cancelled entry, for the reason below.
   const category =
-    entry.age === null || entry.gender === null
-      ? null
-      : categoryLabel(entry.age, entry.gender);
+    entry.role === 'guide'
+      ? 'Guide'
+      : entry.age === null || entry.gender === null
+        ? null
+        : categoryLabel(entry.age, entry.gender);
   const ea = entry.requiresEaNumber ? entry.eaNumber : null;
 
   // **Only where there is something to cancel.** An `expired` hold has already released its
@@ -1261,7 +1319,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
         }
         ${entry.genderIdentity === null ? null : html`<span>${entry.genderIdentity}</span>`}
         <span>${entry.feeLabel}</span>
-        <span class="admin-mono">${formatPence(entry.amountPence)}</span>
+        <span class="admin-mono">${amountCell(entry)}</span>
         ${
           entry.requiresEaNumber
             ? ea === null
@@ -1290,7 +1348,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer): Html {
           : '—'
       }
     </td>
-    <td class="admin-col-wide admin-mono">${formatPence(entry.amountPence)}</td>
+    <td class="admin-col-wide admin-mono">${amountCell(entry)}</td>
     <td>${statusCell(entry)}</td>
     <td>
       ${
@@ -1585,13 +1643,25 @@ function startListPage(
  * restores all five columns and suppresses the stack — a printed sheet is wide, and the duplicated
  * values must not print twice.
  */
+/**
+ * What the category column says on the printed sheet.
+ *
+ * **A guide is not being timed and is in no category**, so printing one against them would put
+ * a result category on somebody who will not have a result. The sheet is what a marshal reads
+ * at two in the morning to account for everybody on the road, and "Guide" is the fact that
+ * matters there.
+ */
+function startListCategory(row: StartListExportRow): string {
+  return row.role === 'guide' ? 'Guide' : categoryLabel(row.age, row.gender);
+}
+
 function startListRow(row: StartListExportRow): Html {
   return html`<tr>
     <th scope="row">
       ${row.lastName}, ${row.firstName}
       <span class="admin-stack">
         <span>${row.club ?? 'No club'}</span>
-        <span>${categoryLabel(row.age, row.gender)}</span>
+        <span>${startListCategory(row)}</span>
         <span>
           ${row.emergencyContactName}
           <span class="admin-mono admin-nowrap">${row.emergencyContactPhone}</span>
@@ -1599,7 +1669,7 @@ function startListRow(row: StartListExportRow): Html {
       </span>
     </th>
     <td class="admin-col-wide">${row.club ?? '—'}</td>
-    <td class="admin-col-wide">${categoryLabel(row.age, row.gender)}</td>
+    <td class="admin-col-wide">${startListCategory(row)}</td>
     <td class="admin-col-wide">
       ${row.emergencyContactName}
       <span class="admin-mono admin-nowrap">${row.emergencyContactPhone}</span>
@@ -2484,8 +2554,18 @@ function cancelConfirmPage(
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
         <input type="hidden" name="purchaseId" value="${purchaseId}" />
         <input type="hidden" name="confirm" value="yes" />
+        ${
+          /* **The button says what will actually happen.** A complimentary place has no
+          payment intent, so nothing is refunded — and offering to refund one is how a
+          volunteer ends up looking for money that was never taken. The paragraph above
+          already made the distinction; the control has to make it too. */ null
+        }
         <button type="submit" class="admin-button admin-button-grave">
-          Cancel this entry and refund it
+          ${
+            paymentIntentId === null
+              ? 'Cancel this entry'
+              : 'Cancel this entry and refund it'
+          }
         </button>
       </form>
 
@@ -2500,5 +2580,399 @@ function cancelOutcomePage(viewer: AdminViewer, heading: string, detail: string)
       <h1>${heading}</h1>
       <p>${detail}</p>
       <p><a href="${NN_SECTION}/">Back to the entries</a></p>
+    </main>`;
+}
+
+// -----------------------------------------------------------------------------------------
+// Assigning a complimentary place
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Read one person out of the form, or null when a field is missing.
+ *
+ * **The runner's block and the guide's are one function on purpose.** They collect the same
+ * facts about two people who will be on the same road at the same time, and two copies of
+ * that would be two things to keep in step — with the one that drifts being the guide's,
+ * because it is the one nobody tests by hand. `prefix` is `''` for the runner and `'guide'`
+ * for the guide, which is the whole of the difference.
+ *
+ * **The same fields the public entry form collects, minus the ones that are about money.** No
+ * England Athletics number, because nothing is being charged and that number exists to justify
+ * the affiliated rebate; no discount code, for the same reason; no medical information, for
+ * the reason `createManualEntry` gives at length.
+ */
+function readAssignPerson(
+  read: (name: string) => string,
+  prefix: '' | 'guide',
+): ManualEntrant | null {
+  const field = (name: string): string =>
+    prefix === '' ? name : `${prefix}${name[0]?.toUpperCase() ?? ''}${name.slice(1)}`;
+
+  const firstName = read(field('firstName'));
+  const lastName = read(field('lastName'));
+  const dateOfBirth = read(field('dateOfBirth'));
+  const gender = read(field('gender'));
+  const emergencyName = read(field('emergencyName'));
+  const emergencyPhone = read(field('emergencyPhone'));
+  const club = read(field('club'));
+
+  if (
+    firstName === '' ||
+    lastName === '' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
+    !(NN_ENTRY_GENDERS as readonly string[]).includes(gender) ||
+    emergencyName === '' ||
+    emergencyPhone === ''
+  ) {
+    return null;
+  }
+
+  return {
+    firstName,
+    lastName,
+    dateOfBirth,
+    gender: gender as (typeof NN_ENTRY_GENDERS)[number],
+    club: club === '' ? null : club,
+    emergencyContactName: emergencyName,
+    emergencyContactPhone: emergencyPhone,
+  };
+}
+
+/**
+ * What each refusal from `create_manual_entry()` reads as on the page.
+ *
+ * **Named individually rather than collapsed into one message**, which is the opposite of what
+ * the entry form does with `invalid_discount` — and the difference is who is reading. Out
+ * there, telling four refusals apart helps somebody guessing codes; in here, every fact
+ * concerned was typed by this volunteer a moment ago, and "the race is full" and "this runner
+ * already has a place" ask for completely different things next.
+ */
+function assignRefusalWords(reason: ManualEntryReason): string {
+  if (reason === 'sold_out') {
+    return 'The race is full. A place that is given still takes one of the 250, so there is nothing to give until one comes back.';
+  }
+
+  if (reason === 'already_entered') {
+    return 'That runner already has a place in this race — the club has an entry against that name and date of birth. Nothing has been given.';
+  }
+
+  if (reason === 'under_minimum_age') {
+    return 'That date of birth is under the minimum age for race day. The age rule applies to a place that is given exactly as it does to one that is bought.';
+  }
+
+  if (reason === 'no_complimentary_fee') {
+    // Not the volunteer's fault: the fee row is missing from this running, which is a
+    // deployment state rather than a bad submission, and the words say so.
+    return 'This running has no complimentary fee set up, so there is nothing to record a free place against. Nothing has been given — this one is for whoever looks after the database.';
+  }
+
+  if (reason === 'closed') {
+    return 'This running is not taking entries of any kind. Nothing has been given.';
+  }
+
+  return 'The club could not record that place. Nothing has been given. Check every box and try again.';
+}
+
+/**
+ * Assign a complimentary place — the form, then the place.
+ *
+ * **Two passes through one handler**, exactly as `transferResponse` is: a POST without
+ * `confirm` renders the form and mints a CSRF token, and the form posts back with it. There
+ * is deliberately no GET — a page that gives away places should not be reachable by a link
+ * somebody can be sent, prefetched, or scanned.
+ *
+ * **The running is the current one, read rather than named.** Hardcoding `nn-2026` here would
+ * be the one place on this surface that had to be edited to publish 2027, and it would be
+ * silent when it was wrong.
+ */
+async function assignResponse(
+  request: Request,
+  reader: NnAdminReader,
+  cfg: SupabaseConfig,
+  viewer: AdminViewer,
+  secure: boolean,
+): Promise<Response> {
+  const form = await readForm(request);
+
+  const again = (problem: string | null): Response => {
+    const token = mintCsrfToken();
+
+    return page('Assign a place', assignFormPage(viewer, token, problem), {
+      cookies: [csrfCookie(token, secure)],
+    });
+  };
+
+  if (form?.get('confirm') !== 'yes') {
+    return again(null);
+  }
+
+  const csrfCookieToken = cookieValue(request.headers.get('cookie'), CSRF_COOKIE);
+  const fieldToken =
+    typeof form.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
+
+  if (!csrfOk(csrfCookieToken, fieldToken)) {
+    return again('That form had expired. Please try again.');
+  }
+
+  const read = (name: string): string => {
+    const value = form.get(name);
+    return typeof value === 'string' ? value.trim() : '';
+  };
+
+  const email = read('email');
+  const runner = readAssignPerson(read, '');
+
+  // **The form's own control, and it is not the system's.** Everything here is re-checked
+  // inside `entries.create_manual_entry()` — the permission, capacity, the minimum age,
+  // one-runner-one-place — because this function is reachable only through a browser and that
+  // one is reachable through PostgREST with the published anon key.
+  if (email === '' || runner === null) {
+    return again(
+      'Every box except the club is needed, and the date of birth has to be a real date.',
+    );
+  }
+
+  // **Ticked explicitly, and it is the whole reason the stored consents are marked
+  // `recorded_by_admin`.** The volunteer is stating that they hold this person's agreement,
+  // which is a different fact from the person having clicked something — and a record that
+  // cannot tell the two apart says something false about somebody.
+  if (form.get('entryTerms') !== 'yes') {
+    return again(
+      'Confirm that the runner has agreed to the entry terms. A place cannot be recorded without it.',
+    );
+  }
+
+  const wantsGuide = form.get('withGuide') === 'yes';
+  const guide = wantsGuide ? readAssignPerson(read, 'guide') : null;
+
+  if (wantsGuide && guide === null) {
+    return again(
+      'Every box except the club is needed for the guide too, and their date of birth has to be a real date.',
+    );
+  }
+
+  const current = await reader.currentSlug();
+
+  if (!current.ok) {
+    console.error(`entries.current_entry_state unavailable — ${current.error}`);
+    return page('Assign a place', unavailablePage(viewer), { status: 503 });
+  }
+
+  const outcome = await createManualEntry(createUserClient(cfg, viewer.accessToken), {
+    slug: current.value.slug,
+    // **The runner is the purchaser, because there is no purchaser.** Nobody paid, so the
+    // only honest name to put on the transaction is the person the place is for — and it is
+    // their address that makes the entry appear on their account if they ever register.
+    purchaserName: `${runner.firstName} ${runner.lastName}`,
+    purchaserEmail: email,
+    runner,
+    guide,
+    reason: read('reason') === '' ? null : read('reason'),
+  });
+
+  if (outcome.status === 'unavailable') {
+    console.error(`entries.create_manual_entry unavailable — ${outcome.error}`);
+    return page('Assign a place', unavailablePage(viewer), { status: 503 });
+  }
+
+  if (outcome.status === 'refused') {
+    // `unauthorised` answers 404, like every other refusal of the right to be here — a 403
+    // would disclose that the address exists. The rest are things this volunteer needs told,
+    // and are said in words on the form they came from.
+    if (outcome.reason === 'unauthorised') {
+      return notFound();
+    }
+
+    return again(assignRefusalWords(outcome.reason));
+  }
+
+  const one = outcome.entrants === 1;
+
+  return page(
+    'Assign a place',
+    cancelOutcomePage(
+      viewer,
+      one ? 'The place is recorded' : 'Both places are recorded',
+      `${one ? 'It is' : 'They are'} in the entries now, at no charge, and ${one ? 'it counts' : 'they count'} towards the 250. The entry will appear on ${email}'s account if that address ever registers and confirms. Nothing has been emailed to them — tell them yourself.`,
+    ),
+    {},
+  );
+}
+
+/** The boxes for one person, runner or guide, so the two cannot drift apart. */
+function assignPersonFields(prefix: '' | 'guide', idPrefix: string): Html {
+  const name = (field: string): string =>
+    prefix === '' ? field : `${prefix}${field[0]?.toUpperCase() ?? ''}${field.slice(1)}`;
+
+  return html`<p>
+      <label for="${idPrefix}-first">First name</label>
+      <input
+        type="text"
+        id="${idPrefix}-first"
+        name="${raw(name('firstName'))}"
+        autocomplete="off"
+      />
+    </p>
+
+    <p>
+      <label for="${idPrefix}-last">Last name</label>
+      <input
+        type="text"
+        id="${idPrefix}-last"
+        name="${raw(name('lastName'))}"
+        autocomplete="off"
+      />
+    </p>
+
+    <p>
+      <label for="${idPrefix}-dob">Date of birth</label>
+      <input type="date" id="${idPrefix}-dob" name="${raw(name('dateOfBirth'))}" />
+    </p>
+
+    <fieldset>
+      <legend>Race category</legend>
+      ${NN_ENTRY_GENDERS.map(
+        (value: (typeof NN_ENTRY_GENDERS)[number]) =>
+          html`<p>
+            <input
+              type="radio"
+              id="${idPrefix}-gender-${value}"
+              name="${raw(name('gender'))}"
+              value="${value}"
+            />
+            <label for="${idPrefix}-gender-${value}">${genderLabel(value)}</label>
+          </p>`,
+      )}
+    </fieldset>
+
+    <p>
+      <label for="${idPrefix}-club">Running club (optional)</label>
+      <input
+        type="text"
+        id="${idPrefix}-club"
+        name="${raw(name('club'))}"
+        autocomplete="off"
+      />
+    </p>
+
+    <p>
+      <label for="${idPrefix}-emergency-name">Emergency contact name</label>
+      <input
+        type="text"
+        id="${idPrefix}-emergency-name"
+        name="${raw(name('emergencyName'))}"
+        autocomplete="off"
+      />
+    </p>
+
+    <p>
+      <label for="${idPrefix}-emergency-phone">Emergency contact number</label>
+      <input
+        type="tel"
+        id="${idPrefix}-emergency-phone"
+        name="${raw(name('emergencyPhone'))}"
+        autocomplete="off"
+      />
+    </p>`;
+}
+
+function assignFormPage(
+  viewer: AdminViewer,
+  token: string,
+  problem: string | null,
+): Html {
+  return html`${masthead(viewer)}
+    <main class="admin-page" id="main">
+      <h1>Assign a place</h1>
+
+      ${
+        problem === null
+          ? null
+          : html`<p class="admin-error" role="alert"><strong>${problem}</strong></p>`
+      }
+
+      <p>
+        This gives somebody a place <strong>at no charge</strong>. It is recorded as a
+        complimentary entry, it appears in the entries, the exports and the start list
+        like any other, and <strong>it takes one of the 250</strong>.
+      </p>
+
+      <p>
+        <strong>Nothing is emailed to them.</strong> The club's outbox only sends when a
+        purchase is paid for, and a place that is given never goes through that — so tell
+        them yourself, and use the address below if they want it on an account later.
+      </p>
+
+      <p>
+        <strong>Do not type anybody's medical information here.</strong> This form does
+        not collect it and it is not stored. If they have something the first aiders
+        should know, ask them to email the race organisers directly.
+      </p>
+
+      <form method="post" action="${NN_SECTION}/assign/" class="admin-form">
+        <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
+        <input type="hidden" name="confirm" value="yes" />
+
+        <p>
+          <label for="assign-email">Their email address</label>
+          <input type="email" id="assign-email" name="email" autocomplete="off" />
+        </p>
+
+        <fieldset>
+          <legend>The runner</legend>
+          ${assignPersonFields('', 'assign')}
+        </fieldset>
+
+        ${
+          /* **The guide's block is always in the page, and the checkbox is only a statement.**
+          There is no JavaScript on this surface at all, so nothing hides it — `withGuide` is
+          what the handler reads, the boxes below are ignored entirely when it is unticked,
+          and a volunteer who ticks it and leaves them empty is told so. That is the same
+          arrangement the public form falls back to with scripting off. */ null
+        }
+        <fieldset>
+          <legend>A guide, if one is running with them</legend>
+          <p>
+            <input type="checkbox" id="assign-with-guide" name="withGuide" value="yes" />
+            <label for="assign-with-guide">
+              This runner is visually impaired and a guide runs with them
+            </label>
+          </p>
+          <p>
+            The guide pays nothing and <strong>takes a second one of the 250</strong>.
+            Leave the boxes below empty unless the box above is ticked.
+          </p>
+          ${assignPersonFields('guide', 'assign-guide')}
+        </fieldset>
+
+        <fieldset>
+          <legend>Before you record it</legend>
+          <p>
+            <input type="checkbox" id="assign-terms" name="entryTerms" value="yes" />
+            <label for="assign-terms">
+              I have this runner's agreement to the entry terms
+            </label>
+          </p>
+          <p>
+            It is recorded as agreed <em>on their behalf</em> — marked as entered by a
+            volunteer rather than clicked by them. Get the agreement first.
+          </p>
+
+          <p>
+            <label for="assign-reason">Why this place is being given (optional)</label>
+            <input type="text" id="assign-reason" name="reason" autocomplete="off" />
+          </p>
+          <p>
+            Goes in the audit trail, and never to the runner. "Kinsi partnership place",
+            say.
+          </p>
+        </fieldset>
+
+        <button type="submit" class="admin-button admin-button-grave">
+          Give this place
+        </button>
+      </form>
+
+      <p><a href="${NN_SECTION}/">Go back to the entries without giving one</a></p>
     </main>`;
 }

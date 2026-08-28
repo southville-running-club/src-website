@@ -339,21 +339,66 @@ deleted and the place is still taken** in both cases. Check the payment in the S
 
 ---
 
+## Assigning a complimentary place
+
+**"Assign a place" on `/admin/nn/`, and it needs `nn.entry.create`** — the eighth permission,
+carried by `nn-admin` and deliberately not by `super-admin`.
+[ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md) is why it exists.
+
+It is for a place the club **gives**: the two Kinsi places, and any other partnership place the
+committee agrees. It is not a discount — a 100% code cannot work, because Stripe refuses a
+zero-total Checkout session and will not charge below £0.30 at all.
+
+**Before you use it:**
+
+1. **Get the person's agreement to the entry terms**, out of band — an email or a message you
+   can point at afterwards. The form makes you tick a box saying you have it, and the record
+   stores `recorded_by_admin` beside the consent so it never claims they clicked something
+   themselves.
+2. **Check there is room.** A given place takes one of the 250 like any other, and the form
+   will refuse with "the race is full" rather than oversell the course.
+
+**What it does:** writes one `paid` purchase at £0 on the **Complimentary** fee, with the
+entrants, and an audit row naming you and the reason. It shows in the entries, the exports and
+the start list like any other entry.
+
+**Two things it deliberately does not do:**
+
+- **It does not email anybody.** The club has an outbox now (#73), but it fires on a purchase
+  being *updated* into `paid` and a given place is inserted straight into it — so no confirmation
+  is queued. **Tell the person yourself.** Whether it should send one is an open decision, in
+  [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md).
+- **It does not collect medical information.** If they have something the first aiders should
+  know, ask them to email the race organisers directly — a volunteer typing somebody's condition
+  into a form on their behalf would be recording an Article 9 consent nobody gave.
+
+**A visually impaired runner and their guide** are one assignment: tick the guide box and fill in
+their details too. **The guide takes a second one of the 250.** Most guided entries do not need
+this page at all — a runner entering normally enters their own guide on the public form.
+
+**To undo one**, use the cancel button as usual. There is no payment intent, so nothing is
+refunded and the button says "Cancel this entry" rather than offering to refund money nobody
+paid.
+
+---
+
 ## What the admin surface still cannot do
 
-**Cancelling is the only change it makes.** There is no transfer, no correction, no manual entry
-and no resend, because each of those has to agree with Stripe and with what somebody consented
-to. They are deliberately left for a change that can think about them together.
+**Cancelling, transferring and giving a place are the changes it makes.** There is still no
+correction and no resend, because each of those has to agree with Stripe and with what somebody
+consented to. They are deliberately left for a change that can think about them together.
 
 Until then:
 
 | Wanted | Where |
 | --- | --- |
 | Cancel and refund one entry | **Here**, above. Needs `nn-admin` |
+| Give somebody a place at no charge | **Here**, above. Needs `nn.entry.create`, which `nn-admin` carries |
 | Refund part of an entry | Nowhere. Partial refunds are their own decision |
-| Move an entry to somebody else | Nowhere yet |
+| Move an entry to somebody else | **Here** — the transfer button. The runner changes and nothing else does |
 | Raise the capacity by one | [The attention runbook](entries-attention.md#the-two-ways-out) |
 | Clear an attention flag | [The attention runbook](entries-attention.md#the-query) |
+| Issue a discount code | [The discount-code runbook](entries-discount-codes.md). It is a database `insert`, not a page |
 | Correct a misspelled name | Nowhere yet. Write it down; it is the awkward-cases change's first customer |
 
 ---

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Json } from '@src/db';
 import type { AnonClient, UserClient } from './supabase';
 import { NN_ENTRY_GENDERS } from './nn-entry';
 
@@ -220,6 +221,16 @@ export interface AdminEntry {
    * any wider would out somebody. See ADR-020.
    */
   genderIdentity: string | null;
+  /**
+   * Which of the people on this purchase the row is, or null for a cancelled entry.
+   *
+   * **`amountPence` below belongs to the purchase, not to this row.** A visually impaired
+   * runner and their guide are two rows of one entry, so rendering the amount on both would
+   * show £20.00 twice while the figures panel — which sums over purchases — showed £20. The
+   * page reads this to render the amount against the runner and the guide's row as the free
+   * place it is.
+   */
+  role: 'runner' | 'guide' | null;
   eaNumber: string | null;
   feeCode: string;
   feeLabel: string;
@@ -356,6 +367,9 @@ const entryShape = z.object({
   // `.catch` for the same reason every optional field on this shape has one: a Worker deployed
   // ahead of its migration renders the row rather than refusing the page.
   gender_identity: z.string().nullable().catch(null),
+  // Same `.catch` reasoning: a Worker deployed ahead of its migration finds no `role` and
+  // renders every row as a runner, which is what every row was before guides existed.
+  role: z.enum(['runner', 'guide']).nullable().catch(null),
   ea_number: z.string().nullable(),
   fee_code: z.string(),
   fee_label: z.string(),
@@ -479,6 +493,7 @@ function parseEntryList(
       age: entry.age,
       gender: entry.gender,
       genderIdentity: entry.gender_identity,
+      role: entry.role,
       eaNumber: entry.ea_number,
       feeCode: entry.fee_code,
       feeLabel: entry.fee_label,
@@ -741,6 +756,16 @@ export interface StartListExportRow {
   club: string | null;
   age: number;
   gender: (typeof NN_ENTRY_GENDERS)[number];
+  /**
+   * `guide` for somebody running with a visually impaired entrant, `runner` for everybody
+   * else — and null only from a database that predates guides.
+   *
+   * **A guide is on the start list and is marked on it.** They are on the road, so a marshal
+   * has to be able to account for them; they are not being timed and are in no age category,
+   * so a row that looks like every other row is misleading in the one document nobody has
+   * time to read carefully.
+   */
+  role: 'runner' | 'guide' | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
 }
@@ -778,6 +803,9 @@ const startListRowShape = z.object({
   club: z.string().nullable(),
   age: z.number().int(),
   gender: z.enum(NN_ENTRY_GENDERS),
+  // `.catch` for the reason every optional field here has one: a Worker deployed ahead of its
+  // migration prints the sheet rather than refusing it.
+  role: z.enum(['runner', 'guide']).nullable().catch(null),
   emergency_contact_name: z.string(),
   emergency_contact_phone: z.string(),
 });
@@ -856,6 +884,7 @@ function parseExport(
               club: row.club,
               age: row.age,
               gender: row.gender,
+              role: row.role,
               emergencyContactName: row.emergency_contact_name,
               emergencyContactPhone: row.emergency_contact_phone,
             })),
@@ -1163,6 +1192,172 @@ export async function transferEntry(
           }
         : { status: 'unavailable', error: 'transfer_entry returned an unexpected shape' };
     });
+  } catch (cause) {
+    return {
+      status: 'unavailable',
+      error: cause instanceof Error ? cause.name : 'unknown',
+    };
+  }
+}
+
+/**
+ * Why `entries.create_manual_entry()` refused, in its own words.
+ *
+ * **Not folded into `CancelResult`'s three, and that is the point.** `readCancelEnvelope`
+ * collapses everything that is not "unauthorised" into "not found", which is right for a
+ * surface where disclosing that a purchase exists is itself a disclosure. Nothing here is
+ * about somebody else's record: the volunteer typed these details a moment ago and needs to
+ * be told *which* rule stopped them, because "the race is full" and "this runner already has
+ * a place" ask for completely different things next.
+ */
+export const MANUAL_ENTRY_REASONS = [
+  'unauthorised',
+  'no_such_event',
+  'closed',
+  'no_complimentary_fee',
+  'sold_out',
+  'invalid_entrants',
+  'under_minimum_age',
+  'consents_missing',
+  'already_entered',
+  'unknown',
+] as const;
+
+export type ManualEntryReason = (typeof MANUAL_ENTRY_REASONS)[number];
+
+/** One person on a complimentary entry — the runner, or the guide running with them. */
+export interface ManualEntrant {
+  firstName: string;
+  lastName: string;
+  /** `YYYY-MM-DD`, already validated by the form. */
+  dateOfBirth: string;
+  gender: (typeof NN_ENTRY_GENDERS)[number];
+  club: string | null;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+}
+
+export interface ManualEntryInput {
+  slug: string;
+  purchaserName: string;
+  purchaserEmail: string;
+  runner: ManualEntrant;
+  /** The person running with a visually impaired entrant. Takes a second place, pays nothing. */
+  guide: ManualEntrant | null;
+  /** Why this place was given. Goes to the audit trail, and is never shown to the runner. */
+  reason: string | null;
+}
+
+export type ManualEntryResult =
+  | { status: 'ok'; purchaseId: string; entrants: number }
+  | { status: 'refused'; reason: ManualEntryReason }
+  | { status: 'unavailable'; error: string };
+
+/**
+ * Assign a complimentary place: one paid purchase at £0, with its entrants.
+ *
+ * **No medical information travels on this path, and that is deliberate rather than an
+ * omission.** The public form asks the runner and stores it under their own consent; a
+ * volunteer typing somebody's medical condition into a form on their behalf is a worse
+ * arrangement than that person telling the first aiders directly, and it would mean recording
+ * an Article 9 consent that the person never gave. So `p_medical` is nulls, and a
+ * complimentary entrant who has something to declare is told to email the club.
+ *
+ * `entryTerms` is ticked by the volunteer, which is why `entries.create_manual_entry()` marks
+ * the stored consents `recorded_by_admin`. The agreement itself is the club's to obtain out
+ * of band, before the place is given.
+ *
+ * Every rule that matters is re-applied inside the function rather than here: the permission,
+ * capacity, the minimum age and one-runner-one-place. This is the form's control; that is the
+ * system's.
+ */
+export async function createManualEntry(
+  client: UserClient,
+  input: ManualEntryInput,
+): Promise<ManualEntryResult> {
+  const asPayload = (person: ManualEntrant, role: 'runner' | 'guide'): Json => ({
+    first_name: person.firstName,
+    last_name: person.lastName,
+    date_of_birth: person.dateOfBirth,
+    gender: person.gender,
+    gender_identity: null,
+    club: person.club,
+    // Never on a complimentary place: the number justifies the affiliated rebate and nothing
+    // here was charged.
+    ea_number: null,
+    leg: null,
+    emergency_contact_name: person.emergencyContactName,
+    emergency_contact_phone: person.emergencyContactPhone,
+    role,
+  });
+
+  const entrants: Json[] = [asPayload(input.runner, 'runner')];
+  if (input.guide) {
+    entrants.push(asPayload(input.guide, 'guide'));
+  }
+
+  try {
+    const params = {
+      p_slug: input.slug,
+      p_purchaser_name: input.purchaserName,
+      p_purchaser_email: input.purchaserEmail,
+      p_entrants: entrants as unknown as Json,
+      p_medical: entrants.map(() => null) as unknown as Json,
+      p_consents: {
+        entryTerms: true,
+        medical: false,
+        // What lets the function accept a second entrant at all.
+        vi: input.guide !== null,
+      } as unknown as Json,
+      // Omitted rather than set to `undefined` — `p_reason` has a SQL default, so
+      // `exactOptionalPropertyTypes` makes the two different types and PostgREST applies the
+      // Postgres default only for an absent key. Same rule as `cancelEntry` below.
+      ...(input.reason === null ? {} : { p_reason: input.reason }),
+    };
+
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('create_manual_entry', params);
+
+    if (error) {
+      return {
+        status: 'unavailable',
+        error: `${error.code ?? 'unknown'}: ${error.message}`,
+      };
+    }
+
+    const envelope = z
+      .object({
+        ok: z.boolean(),
+        reason: z.enum(MANUAL_ENTRY_REASONS).catch('unknown').optional(),
+        purchase_id: z.uuid().optional(),
+        entrants: z.number().int().min(1).optional(),
+      })
+      .safeParse(data);
+
+    if (!envelope.success) {
+      return {
+        status: 'unavailable',
+        error: 'create_manual_entry returned an unexpected shape',
+      };
+    }
+
+    if (!envelope.data.ok) {
+      return { status: 'refused', reason: envelope.data.reason ?? 'unknown' };
+    }
+
+    if (envelope.data.purchase_id === undefined || envelope.data.entrants === undefined) {
+      return {
+        status: 'unavailable',
+        error: 'create_manual_entry reported success without a purchase',
+      };
+    }
+
+    return {
+      status: 'ok',
+      purchaseId: envelope.data.purchase_id,
+      entrants: envelope.data.entrants,
+    };
   } catch (cause) {
     return {
       status: 'unavailable',

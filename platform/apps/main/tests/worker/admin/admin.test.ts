@@ -530,6 +530,25 @@ describe('the door', () => {
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
   });
 
+  it('refuses assigning a place to anybody who does not hold nn.entry.create', async () => {
+    // **The route is the control and the button is the courtesy.** `super-admin` cannot even
+    // read this section, so it stands in here for "signed in, staff, and without this
+    // permission" — the shape a future read-only role would take. A 403 would disclose that
+    // the address exists, so it is the same 404 as everything else.
+    //
+    // Asserted on the POST rather than on the absence of a button, because a button is markup
+    // and this is the thing that gives away places.
+    const response = await post(`${NN}assign/`, { event: ADMIN_EVENT_SLUG }, superAdmin);
+
+    expect(response.status).toBe(404);
+
+    // And nothing was written on the way to refusing.
+    const listing = await (
+      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)
+    ).text();
+    expect(listing).not.toContain('Complimentary');
+  });
+
   it('gives every refusal the same body, byte for byte', async () => {
     // **The non-disclosure assertion, and the reason all of this is a 404.** A stranger, a
     // member, the wrong staff role, an event that never existed and an address nobody built
@@ -829,7 +848,7 @@ describe('the entries list', () => {
     expect(await pageText(response)).toContain('Nwosu, Harriet');
   });
 
-  it('offers exactly two ways to change anything: cancel and transfer', async () => {
+  it('offers exactly three ways to write anything: cancel, transfer and assign', async () => {
     /**
      * **Nothing on this surface writes to an entry, and the page is built so that is visible
      * rather than hidden.**
@@ -843,10 +862,11 @@ describe('the entries list', () => {
      * **Three endpoints now rather than four**: the sign-out form has gone with the key
      * scheme, and the way out of the surface is the masthead's plain link to `/account/`.
      *
-     * **And two of the five change a record rather than one.** This assertion is the reason
-     * that sentence had to be written down: adding transfer made this test fail, which is
-     * exactly what it is for. A second way to alter an entry somebody paid for should cost
-     * somebody a deliberate edit here, not arrive unremarked.
+     * **And three of the six write rather than one.** This assertion is the reason that
+     * sentence had to be written down: adding transfer made this test fail, and adding assign
+     * made it fail again — which is exactly what it is for. A new way to alter, or now to
+     * create, an entry should cost somebody a deliberate edit here rather than arrive
+     * unremarked.
      */
     const body = await (await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)).text();
 
@@ -872,6 +892,15 @@ describe('the entries list', () => {
         // to echo — but it takes no money and gives none back: the runner changes and the
         // place stays exactly where it is.
         '/admin/nn/transfer/',
+        // **The sixth, and the only one that *creates* rather than alters.** It gives somebody
+        // a place at no charge — ADR-021 — and it is the only endpoint here behind a
+        // permission of its own, `nn.entry.create`, rather than behind `nn.entry.cancel`.
+        //
+        // **It appears here because this viewer holds `nn-admin`**, which is the only role
+        // carrying `nn.entry.create`. Anybody else meets the same 404 the whole section gives
+        // them — asserted just below — and the button is rendered behind `can()` as well, so
+        // a future read-only role would meet no control rather than one that 404s.
+        '/admin/nn/assign/',
       ]),
     );
 
