@@ -2619,12 +2619,12 @@ function entrantFacts(entrant: AdminEntryDetailEntrant): Html {
       }
       ${fact('Gender identity', entrant.genderIdentity)}
       ${fact('Club', entrant.club ?? 'Unattached')}
-      ${fact(
-        'England Athletics number',
-        entrant.eaNumber === null
-          ? null
-          : html`<span class="admin-mono">${entrant.eaNumber}</span>`,
-      )}
+      ${
+        /* **No England Athletics number here, and there never was one.** The club stopped
+        asking for and holding them on 29 August 2026 — ADR-023 — so this page would have
+        rendered an empty row for ever. Which fee was the affiliated price is the fee's own
+        label, on the payment panel above. */ null
+      }
       ${
         /* A guide's own address. Null for a runner, who is reached at the address that paid —
            which is on the panel above rather than repeated here. */ null

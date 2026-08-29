@@ -1163,7 +1163,6 @@ export interface AdminEntryDetailPurchase {
   amountPence: number;
   feeCode: string;
   feeLabel: string;
-  requiresEaNumber: boolean;
   discountCode: string | null;
   purchaserName: string;
   /** The address that paid, and the one every message about this entry goes to. */
@@ -1205,7 +1204,6 @@ export interface AdminEntryDetailEntrant {
   gender: (typeof NN_ENTRY_GENDERS)[number] | null;
   genderIdentity: string | null;
   club: string | null;
-  eaNumber: string | null;
   role: 'runner' | 'guide';
   /** A guide's own address. Null for a runner, who is reached at the address that paid. */
   email: string | null;
@@ -1266,7 +1264,6 @@ const detailEntrantShape = z.object({
   gender: z.enum(NN_ENTRY_GENDERS).nullable(),
   gender_identity: z.string().nullable().catch(null),
   club: z.string().nullable(),
-  ea_number: z.string().nullable(),
   role: z.enum(['runner', 'guide']).catch('runner'),
   email: z.string().nullable().catch(null),
   emergency_contact_name: z.string(),
@@ -1308,7 +1305,6 @@ const entryDetailShape = z.object({
     amount_pence: z.number().int().min(0),
     fee_code: z.string(),
     fee_label: z.string(),
-    requires_ea_number: z.boolean(),
     discount_code: z.string().nullable(),
     purchaser_name: z.string(),
     purchaser_email: z.string(),
@@ -1370,7 +1366,6 @@ export async function fetchEntryDetail(
           amountPence: purchase.amount_pence,
           feeCode: purchase.fee_code,
           feeLabel: purchase.fee_label,
-          requiresEaNumber: purchase.requires_ea_number,
           discountCode: purchase.discount_code,
           purchaserName: purchase.purchaser_name,
           purchaserEmail: purchase.purchaser_email,
@@ -1396,7 +1391,6 @@ export async function fetchEntryDetail(
           gender: entrant.gender,
           genderIdentity: entrant.gender_identity,
           club: entrant.club,
-          eaNumber: entrant.ea_number,
           role: entrant.role,
           email: entrant.email,
           emergencyContactName: entrant.emergency_contact_name,

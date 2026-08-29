@@ -357,9 +357,20 @@ comment on function entries.my_entries() is
 -- -----------------------------------------------------------------------------------------
 -- entries.read_entry_list() — so /admin/nn/ shows every ask rather than the last one
 -- -----------------------------------------------------------------------------------------
--- Re-pasted whole from `20260829092000_entries_admin_sees_requests.sql`, because Postgres
--- replaces a function body entire. **One key added and nothing else touched** — no join
--- changed, no CTE altered, no figure recomputed.
+-- Re-pasted whole because Postgres replaces a function body entire. **One key added and
+-- nothing else touched** — no join changed, no CTE altered, no figure recomputed.
+--
+-- ⚠️ **Re-pasted from `20260829120000_entries_no_ea_numbers.sql` rather than from
+-- `20260829092000_entries_admin_sees_requests.sql`, and that is not a detail.** Both that
+-- migration and this one restate this function whole, they were in flight on the same day, and
+-- **git merges them cleanly** — which is the trap CLAUDE.md names about a restated closed list,
+-- one object along. Whichever applies second wins outright.
+--
+-- This one is versioned later, so it wins. Had it been pasted from the version it was written
+-- against, it would have silently reverted the England Athletics work — `fees.affiliated`, the
+-- two figures that moved onto it — with nothing failing and nothing in either diff saying so.
+-- **Before restating a function, grep for every other migration that creates it and paste from
+-- the newest.**
 --
 -- The three summary keys that migration added stay exactly as they are, because the **Asked
 -- about** filter and the wording beside the status are built on them and a Worker deployed
@@ -583,25 +594,32 @@ as $$
               join entries.entrant_medical as medical on medical.entrant_id = entrant.id
              where purchase.status = 'paid'
           ),
+          -- **Counted off `fee.affiliated` now, not off `fee.requires_ea_number`.** They were
+          -- the same column until this migration and they were never the same fact: one is
+          -- "this is the price for somebody registered with England Athletics", which the club
+          -- still sells and still needs a count of, and the other was "ask them for their
+          -- number", which the club has stopped doing. Freezing the second to false would have
+          -- taken this figure to zero with it, and a volunteer would have read that as nobody
+          -- having entered affiliated.
           'affiliated', (
             select pg_catalog.count(*)::int
               from purchase
               join entries.entrants as entrant on entrant.purchase_id = purchase.id
               join entries.fees as fee on fee.id = purchase.fee_id
              where purchase.status = 'paid'
-               and fee.requires_ea_number
+               and fee.affiliated
           ),
-          -- The state described in this migration's header: a fee that requires a number, and no
-          -- number. Reachable through `create_pending_purchase()`, which does not check it.
-          'affiliated_missing_ea', (
-            select pg_catalog.count(*)::int
-              from purchase
-              join entries.entrants as entrant on entrant.purchase_id = purchase.id
-              join entries.fees as fee on fee.id = purchase.fee_id
-             where purchase.status = 'paid'
-               and fee.requires_ea_number
-               and entrant.ea_number is null
-          ),
+          -- **Zero by construction, and the key survives only for the deploy window.** It
+          -- counted affiliated entries carrying no England Athletics number. No entry carries
+          -- one any more — `entrants_ea_number_not_collected` forbids it — so the honest answer
+          -- to the question is zero for every event, for ever. It is a literal rather than a
+          -- count so nobody reads the query and thinks the figure still means something.
+          --
+          -- It is still emitted because `packages/shared/src/admin.ts` parses it as a required
+          -- key, and the Worker deployed when this migration lands is the one that still does.
+          -- The contract step drops the key and the parse together; see
+          -- docs/delivery/runbooks/entries-ea-number-contract.md.
+          'affiliated_missing_ea', 0,
 
           -- ---------------------------------------------------------------------------------
           -- Retention — the mechanism, not the published sentence

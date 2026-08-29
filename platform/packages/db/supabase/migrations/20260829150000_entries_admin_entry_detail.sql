@@ -133,7 +133,13 @@ begin
                'gender', entrant.gender,
                'gender_identity', entrant.gender_identity,
                'club', entrant.club,
-               'ea_number', entrant.ea_number,
+               -- **No England Athletics number, and this function never had one.** The club
+               -- stopped asking for and holding them on 29 August 2026 — ADR-023 — and the
+               -- column survives only until the contract step, always null. A new read has no
+               -- business selecting a dead column: it would render an empty row on the page
+               -- for ever, and would have to be found and removed again when the column goes.
+               -- Which fee was the affiliated price is `fees.affiliated`, and it is on the
+               -- payment panel as the fee's own label.
                'role', entrant.role,
                'email', entrant.email::text,
                'emergency_contact_name', entrant.emergency_contact_name,
@@ -243,7 +249,6 @@ begin
       'amount_pence', v_purchase.amount_pence,
       'fee_code', v_fee.code,
       'fee_label', v_fee.label,
-      'requires_ea_number', v_fee.requires_ea_number,
       'discount_code', v_discount,
       'purchaser_name', v_purchase.purchaser_name,
       'purchaser_email', v_purchase.purchaser_email::text,
