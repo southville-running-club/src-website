@@ -2961,9 +2961,33 @@ body.theme-nn:has(.nn-layout) [data-nn-closed] {
    from the one that was asked for. */
 .theme-nn .nn-closing {
   margin: 56px 0 0;
-  padding: 48px 24px;
+  /* No bottom padding: the artwork below supplies the space, and it supplies rather a lot. */
+  padding: 48px 24px 0;
   color: var(--nn-bone);
   text-align: center;
+}
+
+/* **The closing line sits closer to the hands, and only on the page where it needs to.**
+ *
+ * `.nn-hands` is on seven campaign pages. On the other six a page footer sits between it and
+ * whatever precedes it, so the gap reads as breathing room. On the consolidated page that
+ * footer is gone — its two lines moved into the club footer — and the artwork now follows the
+ * closing line directly, which turned the same gap into a hole a couple of hundred pixels deep.
+ *
+ * **A percentage, because the gap is one.** `.nn-hands` takes its height from `aspect-ratio`,
+ * so the element is 23.7% of the width tall and the top 45% of it is masked to transparent —
+ * 10.7% of the width of nothing at all, growing with the viewport, which is why this looked
+ * worse the wider the screen. A percentage margin resolves against the containing block's width
+ * too, so this tracks it instead of being right at one size.
+ *
+ * **6% pulls back most of it and cannot collide.** That leaves 4.7% of the width still clear
+ * between the closing line and the first visible pixel of the artwork, so the overlap is
+ * entirely within the masked region no matter how the sentence wraps.
+ *
+ * Scoped by `:has(.nn-closing)` — the closing block exists on this page and nowhere else — so
+ * the other six render exactly as they did. */
+body.theme-nn:has(.nn-closing) .nn-hands {
+  margin-top: -6%;
 }
 
 /* **The display face, at half the hero's size.** It is permitted here by the theme's own rule
