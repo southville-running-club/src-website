@@ -150,6 +150,74 @@ describe('the race-morning schedule', () => {
 });
 
 /**
+ * The consolidated year page's own surfaces.
+ *
+ * Everything here is new colour work, so all of it is computed rather than asserted from a
+ * comment. Two of these pairings changed *because* of this test rather than after it: the
+ * jump-nav's links were going to be dimmed with a `color-mix` that measured 5.64:1, and the
+ * copy placeholders were going to be gold text at 5.44:1. Both are AA against a bar this
+ * repository sets at AAA, and both were redesigned before they were written — the links kept
+ * full `bone`, and the placeholder moved its signal to a border, which is non-text and has a
+ * 3:1 floor rather than a 7:1 one.
+ *
+ * That is the whole argument for computing first: neither would have been caught by looking,
+ * because both look fine.
+ */
+describe('the consolidated year page', () => {
+  const card = colourOf(rule('.theme-nn .nn-card'), 'background');
+  const gradient = tokens.get('--nn-blood') ?? '';
+
+  it('states the entry label in the accent that works on a card', () => {
+    const label = colourOf(rule('.theme-nn .nn-entry-card-label'), 'color');
+    expect(contrastRatio(label, card)).toBeGreaterThanOrEqual(AAA);
+  });
+
+  it('states the fee, which is the number somebody compares', () => {
+    const fee = colourOf(rule('.theme-nn .nn-entry-card-fee'), 'color');
+    expect(contrastRatio(fee, card)).toBeGreaterThanOrEqual(AAA);
+  });
+
+  it('states the entry window quietly but not faintly', () => {
+    const term = colourOf(rule('.theme-nn .nn-entry-card-when dt'), 'color');
+    expect(contrastRatio(term, card)).toBeGreaterThanOrEqual(AAA);
+  });
+
+  /**
+   * **The pairing that decided the jump-nav's design.** Dimming these links to subordinate
+   * them to the masthead measured 5.64:1 against the gradient's centre stop, so the
+   * subordination is carried by size, weight and the absence of a background band instead.
+   * Asserting full brightness here is what stops somebody reintroducing the dim for looks.
+   */
+  it('keeps the jump-nav links at full brightness on the gradient', () => {
+    const link = colourOf(rule('.theme-nn .nn-jump-links a'), 'color');
+    expect(contrastRatio(link, gradient)).toBeGreaterThanOrEqual(AAA);
+  });
+
+  /**
+   * The placeholder's text is what has to be readable; its border is what has to be
+   * unmissable. They are held to different floors on purpose — 7:1 for the words, WCAG's 3:1
+   * for a non-text indicator — which is exactly why the signal moved to the border.
+   */
+  it('marks unwritten copy legibly, and its border loudly', () => {
+    const declarations = rule('.theme-nn .nn-placeholder');
+    expect(
+      contrastRatio(colourOf(declarations, 'color'), gradient),
+    ).toBeGreaterThanOrEqual(AAA);
+    expect(
+      contrastRatio(colourOf(declarations, 'border'), gradient),
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('reverses cleanly on the closing block, where yellow is the surface', () => {
+    const declarations = rule('.theme-nn .nn-closing');
+    const surface = colourOf(declarations, 'background');
+    expect(
+      contrastRatio(colourOf(declarations, 'color'), surface),
+    ).toBeGreaterThanOrEqual(AAA);
+  });
+});
+
+/**
  * The mono class exists so that a number can never be given the face without the figures.
  * `nn-admin.css`'s `.admin-mono` is its opposite number on the club surface.
  */

@@ -2606,3 +2606,333 @@ html:has(body.theme-nn) {
     animation: none;
   }
 }
+
+/* -------------------------------------------------------------------------------------
+ * The consolidated year page — its layout, its jump-nav, and its entry rail
+ * -------------------------------------------------------------------------------------
+ * Everything below is `/nn/2026/` only. Nothing here is reached by the evergreen race page,
+ * the course page or the two content pages beneath the running.
+ *
+ * **Every colour was computed before it was written**, which changed two of them. The
+ * numbers, against the surface each actually sits on:
+ *
+ *   entry label     blood on card        9.01:1   AAA
+ *   entry fee       ink on card         18.09:1   AAA
+ *   entry note      slate on card        8.30:1   AAA
+ *   jump link       bone on blood        8.43:1   AAA  (12.69:1 over blood-deep)
+ *   placeholder     bone on blood        8.43:1   AAA
+ *   placeholder rule pus on blood        5.44:1   — non-text, 3:1 floor, clears
+ *   closing block   ink on pus          10.93:1   AAA
+ *
+ * `nn-contrast.test.ts` recomputes these from the stylesheet rather than trusting this
+ * table, which is the half the table at the head of this file has never had.
+ * ------------------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------------------
+ * The two-column layout
+ * -------------------------------------------------------------------------------------
+ * **Explicit grid placement rather than `order`.** The entry rail is second in the DOM,
+ * directly after the hero, because that is where the page's primary action belongs for a
+ * keyboard and for a screen reader. On a phone the grid collapses and DOM order *is* visual
+ * order, so nothing is reordered at the width where reordering hurts most — a card moved
+ * above content it follows in the DOM leaves somebody tabbing through four sections to reach
+ * the button they can see at the top.
+ *
+ * On desktop the two are placed into columns by line rather than by source order, which
+ * diverges visually from the DOM in the mild direction: both are on screen together.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 44px;
+  align-items: start;
+}
+
+.theme-nn .nn-layout-content {
+  grid-column: 1;
+  grid-row: 1;
+  /* So a long word or a wide table shrinks the column rather than pushing the grid open. */
+  min-width: 0;
+}
+
+.theme-nn .nn-entry-rail {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.theme-nn .nn-layout-content > section + section {
+  margin-top: 52px;
+}
+
+/* **Every anchor target clears the bar, and the token is the bar's own measured height.**
+   Without this each jump lands underneath a header that is 64px, 112px or 136px tall
+   depending on width — nothing looks broken, the page simply stops scrolling to the thing it
+   was asked to scroll to. `scroll-padding-top` on the scrollport does the same job for the
+   keyboard; it is declared at the head of this file on `html:has(body.theme-nn)`, because a
+   custom property on `body` cannot be read by `body`'s own parent. */
+.theme-nn .nn-layout-content > section,
+.theme-nn .nn-hero {
+  scroll-margin-top: calc(var(--nn-masthead-height) + 8px);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The jump-nav
+ * -------------------------------------------------------------------------------------
+ * **A contents list, not a second bar, and ADR-014 is why the distinction is load-bearing.**
+ * That record sticks the masthead back down after ADR-012 unstuck it over three defects, and
+ * the defect it exists to answer is two things that read alike competing for the top of the
+ * page. So this is everything the masthead is not: no background band, not sticky, no
+ * wordmark, no call to action, inset inside the content measure, smaller, lighter.
+ *
+ * **Subordinated by size, weight and the absence of a band — deliberately not by colour.**
+ * The first draft dimmed the links with `color-mix(in srgb, var(--nn-bone) 78%, var(--nn-blood))`.
+ * Computed, that is 5.64:1 against the gradient's centre stop: AA, and this repository's bar
+ * for text is AAA. Even an 85% mix only reaches 6.44:1. So the links keep full `--nn-bone` at
+ * 8.43:1 and the hierarchy is carried by everything else — which is the better answer anyway,
+ * because the masthead's own `opacity: 0.78` on text is already on the ticket list as the
+ * thing this theme should stop doing, and reproducing it in solid form would be repeating a
+ * mistake one element along.
+ *
+ * **`display: contents` is what lets one list serve both presentations.** Above 860px the
+ * `<summary>` is hidden and the links show inline whether or not the `<details>` is open;
+ * below it, the same element is a real disclosure menu. No JavaScript in either direction.
+ * That behaviour is a browser quirk rather than a specified one, so `site.spec.ts` checks it
+ * in all three engines rather than trusting it. If any engine hides the list when closed, the
+ * fallback is a plain wrapping list and the `<details>` comes out.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-jump {
+  margin: 0 0 12px;
+}
+
+.theme-nn .nn-jump-menu {
+  display: contents;
+}
+
+.theme-nn .nn-jump-menu > summary {
+  display: none;
+}
+
+.theme-nn .nn-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--colour-rule);
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+/* 44px stated rather than arrived at by padding arithmetic. 13px text at 1.7 is ~22px, so the
+   remainder would have been 11px a side — close enough to be broken by a font-size change
+   nobody connected to it. */
+.theme-nn .nn-jump-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--nn-bone);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.theme-nn .nn-jump-links a:hover {
+  border-bottom-color: var(--nn-bone);
+}
+
+/* **The current section is marked by weight and a rule, and the rule is bone rather than
+   pus.** The masthead marks its current page with a `pus` underline; using the same device
+   here would make the two bars read as siblings, which is the one thing this element must not
+   do. Set by the enhancement script, so it is absent with JavaScript off — which costs
+   nothing, because the anchors work regardless and this only ever said "you are here". */
+.theme-nn .nn-jump-links a[aria-current='true'] {
+  border-bottom-color: var(--nn-bone);
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry rail
+ * -------------------------------------------------------------------------------------
+ * **A white card, because this is where money happens.** The surface rule this theme follows
+ * is that the gradient is the poster and a card is where somebody has to concentrate — prose
+ * they read at length, anything they fill in, anything they must not misread. An entry price
+ * and the control that acts on it are the second of those.
+ *
+ * It carries `nn-card` in the markup rather than restating that surface here, so it inherits
+ * the card's token overrides — inside a card, "muted" means slate on white and "rule" means
+ * the field border — and cannot drift from every other card on the site.
+ *
+ * **The rail is a summary and a way in, not the form.** The form is lifted unchanged and does
+ * not fit a 300px column, and a sticky element taller than the viewport cannot be scrolled to
+ * the bottom of — so a card that contained the form would make `position: sticky` a dead
+ * letter in every state.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-entry-card {
+  margin: 0;
+}
+
+/* The label, in the accent that works on white. `pus` is the campaign's accent on the
+   gradient and is unusable on a card — 1.5:1 — so the card's accent is `blood`, which is the
+   same substitution `.nn-schedule dt` and `.nn-prize dt` already make. */
+.theme-nn .nn-entry-card-label {
+  margin: 0 0 10px;
+  color: var(--nn-blood);
+  font-family: var(--nn-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* **The fee, and the largest thing on the card.** Tabular figures come from `.nn-figures` in
+   the markup, which carries the face with them — two prices have to line up on their decimal
+   points when the Worker paints them, and this is the one number on the page somebody
+   compares against another. Weight stated because JetBrains Mono's axis starts at 500. */
+.theme-nn .nn-entry-card-fee {
+  margin: 0 0 16px;
+  color: var(--nn-ink);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.theme-nn .nn-entry-card-when {
+  margin: 0 0 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--colour-rule);
+  font-size: 14px;
+}
+
+.theme-nn .nn-entry-card-when dt {
+  color: var(--nn-slate);
+  font-weight: 600;
+}
+
+.theme-nn .nn-entry-card-when dd {
+  margin: 2px 0 0;
+  color: var(--nn-ink);
+}
+
+/* Full width, because a call to action in a 300px rail that is not full width is a button
+   with dead space beside it that reads as an alignment mistake. */
+.theme-nn .nn-entry-card-cta {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Copy that has not been written yet
+ * -------------------------------------------------------------------------------------
+ * **Unmistakable is the whole requirement**, and the first draft of this was gold text, which
+ * computes to 5.44:1 on the gradient — AA against an AAA bar. So the signal moved to the
+ * border, which is non-text and clears its 3:1 floor at the same 5.44, and the text stayed
+ * bone at 8.43:1. It also reads better: a bordered block says "scaffolding" in a way that
+ * coloured prose does not, and prose is exactly what this must never be mistaken for.
+ *
+ * Dashed rather than solid on purpose. Every other rule on this page is solid; a dashed one
+ * appears nowhere else in the theme and is therefore unambiguous.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-placeholder {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 2px dashed var(--nn-pus);
+  border-radius: var(--nn-r-btn);
+  color: var(--nn-bone);
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The closing call to action
+ * -------------------------------------------------------------------------------------
+ * A full-bleed band of `pus` with `ink` on it — 10.93:1, and the only place on the page where
+ * the campaign's yellow is a surface rather than an accent. It is the last thing before the
+ * footer and it is meant to stop the page rather than trail off.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-closing {
+  margin: 56px 0 0;
+  padding: 48px 24px;
+  background: var(--nn-pus);
+  color: var(--nn-ink);
+  text-align: center;
+}
+
+.theme-nn .nn-closing .nn-placeholder {
+  /* On yellow the bone text and pus border of the standard placeholder both vanish. Ink on
+     pus is 10.93:1 and the border becomes ink at the same ratio. */
+  color: var(--nn-ink);
+  border-color: var(--nn-ink);
+  display: inline-block;
+  margin: 0 0 24px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Narrow — one column, and one call to action
+ * -------------------------------------------------------------------------------------
+ * **The hero's button goes and the rail's stays.** Below this width the two sit about 250px
+ * apart with the same words and the same destination, which reads as a rendering fault rather
+ * than as emphasis. The rail's is the one that survives, for a reason that is about the reader
+ * rather than the code: it sits beside the fee, and it is the only place on this page where a
+ * price and an action are adjacent. A card that states £18 and offers nothing is a question
+ * with no answer under it, and the fixed bar — which continues this button once it scrolls
+ * away — is keyed to a card that has to have something in it to continue.
+ *
+ * The hero keeps its ghost "Race instructions", so it is not left without a control.
+ *
+ * `display: none` rather than the `hidden` attribute: the Worker paints this element on every
+ * render and an attribute would make the state differ per response. Neither acceptance test
+ * that locates it clicks it or gates on visibility.
+ * ------------------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  .theme-nn .nn-layout {
+    display: block;
+  }
+
+  .theme-nn .nn-entry-rail {
+    margin: 0 0 40px;
+  }
+
+  .theme-nn .nn-herobtns .nn-cta {
+    display: none;
+  }
+
+  /* The disclosure becomes real: the summary shows and the list is hidden until it is opened.
+     44px stated, for the same reason it is stated on the links. */
+  .theme-nn .nn-jump-menu {
+    display: block;
+    border-top: 1px solid var(--colour-rule);
+    border-bottom: 1px solid var(--colour-rule);
+  }
+
+  .theme-nn .nn-jump-menu > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--nn-bone);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .theme-nn .nn-jump-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .theme-nn .nn-jump-links {
+    flex-direction: column;
+    gap: 0;
+    padding: 0 0 8px;
+    border-top: 0;
+    border-bottom: 0;
+  }
+
+  .theme-nn .nn-closing {
+    margin-top: 40px;
+    padding: 36px 20px;
+  }
+}
