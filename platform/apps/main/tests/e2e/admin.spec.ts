@@ -1726,15 +1726,29 @@ test.describe('acting on an entry somebody paid for', () => {
     await expect(page.getByRole('heading', { name: /cancel/i })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel this entry' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`${ACTIONS_EVENT_SLUG}/`));
+    // **It renders an outcome rather than redirecting.** Asserting a redirect to the list would
+    // be asserting a flow this surface deliberately does not have.
+    //
+    // **The shared half of both outcomes**, deliberately: the copy differs on whether there was
+    // a card payment to give back, and these fixtures are rows written straight into the table
+    // with no payment intent, so they take the "no card payment to refund" branch. Pinning that
+    // wording would pin a fact about the fixture rather than about cancelling.
+    await expect(page.getByText(/the place released/i)).toBeVisible();
 
     // **The purchase stays and the runner goes.** `cancel_entry()` deletes the entrants so the
     // club stops holding personal data for a race nobody is running, and #116 made the list
     // purchase-driven precisely so the row does not vanish with them — a Refunded filter that
     // can never match is how a volunteer once concluded there had been no refunds.
+    // **By row header, not by text.** Every row repeats the runner's name inside the accessible
+    // name of each of its buttons, so a bare `getByText` matches the header and the controls and
+    // fails strict mode — on a page that is perfectly correct.
     await page.goto(`${ACTIONS}?status=refunded`);
-    await expect(page.getByText('No runner recorded')).toBeVisible();
-    await expect(page.getByText(CANCELLABLE_LAST_NAME)).toBeHidden();
+    await expect(
+      page.getByRole('rowheader', { name: 'No runner recorded' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(CANCELLABLE_LAST_NAME) }),
+    ).toBeHidden();
   });
 
   test('transfers a place, and the previous runner’s medical note does not go with it', async ({
@@ -1762,14 +1776,19 @@ test.describe('acting on an entry somebody paid for', () => {
     await page.getByLabel('Last name').fill(TRANSFER_TO_LAST_NAME);
     await page.getByLabel(/date of birth/i).fill('1990-02-17');
     await page.getByLabel(/email address of the new runner/i).fill(TRANSFER_TO_EMAIL);
-    await page.getByLabel(/race category/i).selectOption('female');
-    await page.getByLabel(/contact name/i).fill('Ada Okonkwo');
-    await page.getByLabel(/contact phone/i).fill('07700 900123');
+    // **Radios under a `Race category` legend**, not a select — `selectOption` finds nothing.
+    await page.getByRole('radio', { name: 'Female' }).check();
+    await page.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
+    await page.getByLabel(/emergency contact number/i).fill('07700 900123');
     await page.getByRole('button', { name: 'Move the place to this runner' }).click();
 
     await page.goto(ACTIONS);
-    await expect(page.getByText(TRANSFER_TO_LAST_NAME)).toBeVisible();
-    await expect(page.getByText(TRANSFERABLE_LAST_NAME)).toBeHidden();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFER_TO_LAST_NAME) }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFERABLE_LAST_NAME) }),
+    ).toBeHidden();
 
     // **The note belonged to whoever wrote it.** Carrying one across would file a stranger's
     // condition under a new name, so the new runner has none until they write one.
@@ -1796,14 +1815,26 @@ test.describe('acting on an entry somebody paid for', () => {
     await runner.getByLabel('First name').fill(ASSIGN_TO_FIRST_NAME);
     await runner.getByLabel('Last name').fill(ASSIGN_TO_LAST_NAME);
     await runner.getByLabel(/date of birth/i).fill('1986-09-01');
-    await runner.getByLabel(/race category/i).selectOption('female');
-    await runner.getByLabel(/contact name/i).fill('Ada Okonkwo');
-    await runner.getByLabel(/contact phone/i).fill('07700 900123');
-    await page.getByLabel(/email/i).first().fill(ASSIGN_TO_EMAIL);
+    await runner.getByRole('radio', { name: 'Female' }).check();
+    await runner.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
+    await runner.getByLabel(/emergency contact number/i).fill('07700 900123');
+    await page.getByLabel('Their email address').fill(ASSIGN_TO_EMAIL);
+
+    // **The consent is not decoration.** `assert_purchase_consents()` refuses a purchase whose
+    // consents are empty — Slice G closed that bypass — so a complimentary place needs the same
+    // agreement a paid one does, recorded by whoever is giving it away.
+    await page.getByLabel(/agreement to the entry terms/i).check();
     await page.getByRole('button', { name: 'Give this place' }).click();
 
-    await page.goto(ACTIONS);
-    await expect(page.getByText(ASSIGN_TO_LAST_NAME)).toBeVisible();
+    // **It lands on the current running, not on the page it was pressed from.**
+    // `assignResponse` resolves the event through `reader.currentSlug()` rather than the slug in
+    // the address, so giving a place away from a past running's page files it against whichever
+    // running is current. Worth pinning precisely because it is surprising: the button is
+    // offered on every event's page and only ever means one of them.
+    await page.goto(NN);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(ASSIGN_TO_LAST_NAME) }),
+    ).toBeVisible();
   });
 
   /**
