@@ -1145,6 +1145,23 @@ html:has(body.theme-nn) {
   letter-spacing: -0.01em;
 }
 
+/* **A heading in the display face, for the headings that carry no instruction.**
+ *
+ * `400` because Nosifer has one weight and asking for the `h2`'s 700 would synthesise a bold
+ * that does not exist. `letter-spacing` back to normal because the base rule's -0.01em was
+ * chosen for Inter and closes up a face whose whole character is the gap the drips fall
+ * through. `line-height` generous for the same reason: those drips descend well below the
+ * baseline and a tight line clips them against whatever is underneath.
+ *
+ * Bone on the gradient, 8.43:1 — the pair `nn-contrast.test.ts` already holds. */
+.theme-nn .nn-display-heading {
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(20px, 2.6vw, 26px);
+  line-height: 1.75;
+  letter-spacing: normal;
+}
+
 /* Underlined, so the link is not carried by colour alone — bone on bone would be nothing
    but a shade. */
 .theme-nn a {
