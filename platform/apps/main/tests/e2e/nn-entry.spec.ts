@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 import AxeBuilder from '@axe-core/playwright';
 import { closeEntries, openEntries } from '../entries-window';
 import { clearPurchases, purchases, restoreCapacity, sellOut } from '../entries-db';
@@ -1053,10 +1054,7 @@ test.describe('once entries are open', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    await expectNoSidewaysScroll(page, 'the entry form at 320px');
   });
 
   test('is still operable at 320px with every error showing', async ({ page }) => {
@@ -1072,10 +1070,13 @@ test.describe('once entries are open', () => {
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page.locator('[data-entry-summary]')).toBeVisible();
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    // **This is the assertion that was failing, and it was not finding a layout defect.**
+    // `toBeVisible()` on a Worker-revealed block resolves at `readyState: interactive`, which
+    // is before `<link rel="stylesheet">` has been applied — so the measurement laid out a
+    // document with no CSS and reported the absence of `overflow-wrap: anywhere` on the club's
+    // `mailto:` address as 19px of sideways scroll. `expectNoSidewaysScroll` waits for the
+    // stylesheets, the fonts and a stable frame before it reads anything.
+    await expectNoSidewaysScroll(page, 'the entry form with every error at 320px');
   });
 
   test('keeps the entry type that was chosen in view when the fee changes', async ({
@@ -1474,10 +1475,10 @@ test.describe('when the race is full', () => {
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page.locator('[data-entry-soldout]')).toBeVisible();
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    // Revealed by the Worker like the error summary above, so it carries the same race and
+    // the same answer — and the sold-out card is the one that puts the club's address on the
+    // page in the first place.
+    await expectNoSidewaysScroll(page, 'the sold-out notice at 320px');
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {
@@ -1567,10 +1568,7 @@ test.describe('the return page', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    await expectNoSidewaysScroll(page, 'the return page at 320px');
   });
 
   test('has zero axe violations @requires-js', async ({ page }) => {

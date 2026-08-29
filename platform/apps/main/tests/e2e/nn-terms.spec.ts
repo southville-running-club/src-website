@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+import { expectNoSidewaysScroll } from '../sideways-scroll';
+
 /**
  * `/nn/2026/terms/` — the entry terms and race rules.
  *
@@ -233,10 +235,7 @@ test.describe('the entry terms page', () => {
     // page slide left under a thumb because an absolutely positioned span inside a scroller
     // took the page as its containing block. The assertion is on the document, not on a
     // component, because that is where the symptom appeared.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expectNoSidewaysScroll(page, 'the entry terms at 320px');
 
     // The two facts somebody skims for on a phone are both visible without interaction.
     await expect(page.getByText(RACE.permit)).toBeVisible();

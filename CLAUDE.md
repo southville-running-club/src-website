@@ -394,6 +394,34 @@ looked wrong; the page just slid left under a thumb. `position: relative` on `.a
 makes it the containing block, measured 783 → 320. The same is waiting for any absolutely
 positioned thing inside any scroller.
 
+**A 320px overflow check that measures straight off `toBeVisible()` is measuring a page with no
+CSS on it.** `document.documentElement.scrollWidth > clientWidth` was asserted directly, once, in
+eight places, and it failed about one run in three across `nn-signup.spec.ts` and
+`nn-entry.spec.ts` — two files, one assertion, and a re-run of the identical build always green.
+**DOMContentLoaded waits for scripts, not for `<link rel="stylesheet">`**, so on a page with no
+blocking script — every page here in the `no-javascript` project, and the deferred-module case
+everywhere else — `readyState` reaches `interactive` with both sheets still in flight. An outcome
+block the Worker has revealed is *visible* at that moment, so `toBeVisible()` resolves; and
+**reading a layout property is not gated on render-blocking**, so `page.evaluate` then forces a
+synchronous layout of a bare document. Caught in the act it reads `overflow=19 client=320
+ready=interactive sheets=[]`, with one offender: `a left=8 right=339.13` holding the club's
+47-character address, because `a[href^='mailto:'] { overflow-wrap: anywhere }` lives in `base.css`
+and `base.css` has not arrived. `left=8` is the browser's default `body { margin }`, which is the
+tell — **`sheets=[]` and a left edge of 8 mean the measurement is the defect rather than the
+layout.** The styled page does not overflow at any width from 300 to 320, with or without the
+fonts. **This repository had already met it and paid for it twice**: `nn-privacy.spec.ts` and
+`privacy.spec.ts` each carried a two-pass reload loop naming *"an element laying out at its
+intrinsic width before the stylesheet applied, about one run in four"* — the right diagnosis and
+a re-run for a fix. All eight go through `apps/main/tests/sideways-scroll.ts` now, which waits
+for a **defined state** — every render-blocking stylesheet applied, `document.fonts.status`
+settled, and the width unchanged across three samples — and never for the assertion to come
+good. **The polling has to be on Playwright's side**: `page.waitForFunction` installs its loop
+*in the page*, so with
+`javaScriptEnabled: false` it never runs and every call times out at ten seconds, which is how the
+first version of this fix failed. `page.evaluate` works there; `requestAnimationFrame` callbacks
+do not. The helper names the offending element on failure, which is what turned this from three
+runs and an afternoon into four minutes.
+
 **The three browser engines do not agree on what an attachment is, and one of them only
 disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
 Chromium downloads it — the `download` event fires and `response.body()` is *unreadable*, because
