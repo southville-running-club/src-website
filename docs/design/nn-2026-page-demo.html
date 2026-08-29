@@ -1,0 +1,514 @@
+<!doctype html>
+<!--
+  Nightingale Nightmare 2026 — the agreed layout for the consolidated race page.
+
+  **This is a design reference. Nothing builds it and nothing imports it.** It lives here
+  beside the other two mockups so the layout spec is in the repository rather than in a chat
+  thread, which is the whole reason it is committed: a specification somebody has to be sent
+  is a specification that goes missing.
+
+  **Its font `<link>` must not be copied.** Lines 8-10 fetch all three faces from
+  `fonts.googleapis.com`. The shipped pages self-host them from `/fonts/`, declared once in
+  `packages/shared/styles/nn-theme.css` — a third-party request on the page that collects
+  personal data and takes payment is a dependency nobody has assessed, and it is one more
+  thing to fail on the signal a runner actually reads this page on. `nn-entry-mockup.html`
+  and `nn-admin-mockup.html` carry the same tag, so a repository-wide grep for
+  `fonts.googleapis.com` answers with three files under `docs/` and none under `platform/`.
+  **That is the expected result rather than a leak**, and it is written down here so nobody
+  has to work it out twice.
+
+  **What is already settled against this file is in `README.md`**, under "The page demo, and
+  what is settled against it". Read it before building from anything below: the schedule, the
+  places counter, the prices and the closed accordions are each wrong in a way that looks
+  entirely reasonable on screen.
+-->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nightingale Nightmare 2026 — layout demo</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nosifer&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* ---------------------------------------------------------------------------
+   Campaign theme tokens. Contrast against --bg, measured:
+     --cream      10.3:1    --cream-dim 7.1:1    --gold 6.9:1
+     --ink on --gold        10.3:1
+   All pass WCAG 2.2 AA for normal text. Verify again if any value moves.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #6B1C0D;
+  --bg-deep: #4A0F07;
+  --bg-raised: #54120A;
+  --cream: #F5EFE4;
+  --cream-body: #EDE0D2;
+  --cream-dim: #D9C6B6;
+  --gold: #E9C247;
+  --ink: #2B1105;
+  --rule: rgba(245, 239, 228, 0.22);
+  --font-display: 'Nosifer', fantasy;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --header-h: 76px;
+  --measure: 60ch;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  /* Anchor targets must clear the sticky header, or every jump link lands
+     underneath it. This is the single most-missed line in a sticky layout. */
+  scroll-padding-top: calc(var(--header-h) + 16px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--cream-body);
+  background: var(--bg);
+  background-image: radial-gradient(120% 80% at 20% 0%, #7E2716 0%, #5C1408 70%);
+  background-attachment: fixed;
+}
+
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 100;
+  background: var(--gold); color: var(--ink); padding: 12px 18px;
+  border-radius: 10px; font-weight: 500; text-decoration: none;
+}
+.skip-link:focus { top: 8px; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- Header --------------------------------------------------------- */
+.site-header {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--bg-deep);
+  border-bottom: 1px solid transparent;
+  transition: padding 160ms ease-out, border-color 160ms ease-out;
+}
+.site-header.is-condensed { border-bottom-color: rgba(233, 194, 71, 0.45); }
+
+.header-inner { display: flex; align-items: center; gap: 26px; padding: 14px 0; }
+.site-header.is-condensed .header-inner { padding: 8px 0; }
+
+.wordmark { line-height: 1; text-decoration: none; flex-shrink: 0; }
+.wordmark b { display: block; font-size: 18px; font-weight: 600; color: var(--cream); letter-spacing: .02em; }
+.wordmark span { display: block; font-size: 9px; font-weight: 500; color: var(--cream); letter-spacing: .19em; margin-top: 3px; }
+
+.nav { display: flex; gap: 4px; }
+.nav a {
+  display: flex; align-items: center; min-height: 44px; padding: 0 10px;
+  font-size: 15px; color: var(--cream); text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.nav a:hover { color: var(--gold); }
+.nav a.is-current { border-bottom-color: var(--gold); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 11px 22px; border-radius: 10px;
+  font-family: var(--font-body); font-size: 16px; font-weight: 500;
+  text-decoration: none; cursor: pointer; border: 1px solid transparent;
+}
+.btn-primary { background: var(--gold); color: var(--ink); }
+.btn-primary:hover { background: #F2D169; }
+.btn-secondary { background: transparent; color: var(--cream); border-color: var(--cream); }
+.btn-secondary:hover { background: rgba(245, 239, 228, 0.1); }
+.btn-dark { background: var(--ink); color: var(--cream); }
+.btn-pill { border-radius: 999px; padding: 9px 20px; font-size: 15px; }
+.btn-block { display: flex; width: 100%; }
+
+/* One nav, two presentations. `display: contents` lets the desktop header treat
+   the nav as a direct flex child, while on a phone the same <details> becomes a
+   menu — working with JavaScript off in both cases. */
+.menu-toggle { display: contents; }
+.menu-toggle > summary { display: none; }
+
+/* ---------- Hero ----------------------------------------------------------- */
+.hero { padding: 56px 0 40px; }
+.presents { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 17px; color: var(--cream-dim); margin: 0 0 14px; }
+.hero h1 {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(28px, 6.5vw, 62px); line-height: 1.5;
+  color: var(--cream); margin: 0; letter-spacing: .01em;
+}
+.hero h1 .year { display: block; }
+.hero-when { font-size: clamp(20px, 3vw, 27px); font-weight: 600; color: var(--gold); margin: 26px 0 0; line-height: 1.35; }
+.hero-meta { font-family: var(--font-mono); font-size: 15px; color: var(--cream-dim); margin: 14px 0 0; }
+
+/* ---------- Layout --------------------------------------------------------- */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 44px; padding-bottom: 56px; align-items: start; }
+.content > section { scroll-margin-top: calc(var(--header-h) + 16px); }
+.content > section + section { margin-top: 52px; }
+
+h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 600; color: var(--cream); margin: 0 0 14px; line-height: 1.25; }
+h3 { font-size: 19px; font-weight: 600; color: var(--cream); margin: 0; }
+p { max-width: var(--measure); margin: 0 0 16px; }
+a { color: var(--gold); }
+
+.placeholder { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--gold); margin: 0 0 20px; }
+
+/* ---------- Facts list ----------------------------------------------------- */
+.facts { margin: 26px 0 0; }
+.fact { display: flex; gap: 22px; border-top: 1px solid var(--rule); padding: 13px 0; }
+.facts .fact:last-child { border-bottom: 1px solid var(--rule); }
+.fact dt { font-family: var(--font-mono); font-size: 13px; letter-spacing: .09em; color: var(--gold); width: 128px; flex-shrink: 0; padding-top: 2px; }
+.fact dd { font-family: var(--font-mono); font-size: 16px; color: var(--cream); margin: 0; line-height: 1.6; }
+.tbc { color: var(--cream-dim); font-style: italic; }
+.fact .note { display: block; font-family: var(--font-body); font-size: 15px; color: var(--cream-body); margin-top: 6px; font-style: normal; }
+
+/* ---------- Race morning --------------------------------------------------- */
+.schedule { border: 1px solid var(--gold); border-radius: 12px; background: var(--bg-raised); padding: 6px 20px; margin: 20px 0 0; }
+.slot { display: flex; gap: 20px; padding: 14px 0; border-top: 1px solid var(--rule); }
+.slot:first-child { border-top: 0; }
+/* Tabular figures keep the times in a rigid column — they must never reflow. */
+.slot time { font-family: var(--font-mono); font-size: 17px; font-variant-numeric: tabular-nums; color: var(--gold); width: 62px; flex-shrink: 0; }
+.slot span { color: var(--cream); }
+.slot.is-start span { font-weight: 600; }
+
+/* ---------- Accordions ----------------------------------------------------- */
+.accordion { margin-top: 26px; }
+.accordion details { border-top: 1px solid var(--rule); }
+.accordion details:last-of-type { border-bottom: 1px solid var(--rule); }
+.accordion summary {
+  display: flex; align-items: center; gap: 16px;
+  min-height: 44px; padding: 15px 0; cursor: pointer; list-style: none;
+}
+.accordion summary::-webkit-details-marker { display: none; }
+.accordion summary::after {
+  content: ''; margin-left: auto; flex-shrink: 0;
+  width: 11px; height: 11px; border-right: 2px solid var(--gold); border-bottom: 2px solid var(--gold);
+  transform: rotate(45deg) translate(-3px, -3px); transition: transform 160ms ease-out;
+}
+.accordion details[open] summary::after { transform: rotate(-135deg) translate(-3px, -3px); }
+.accordion .panel { padding: 0 0 20px; }
+.accordion .panel p:last-child { margin-bottom: 0; }
+.rule-note { color: var(--cream); font-weight: 500; }
+
+.course-map {
+  border: 1px solid var(--rule); border-radius: 12px; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: .08em; color: var(--cream-dim);
+  margin-bottom: 18px;
+}
+
+/* ---------- Entry card ----------------------------------------------------- */
+.entry { position: sticky; top: calc(var(--header-h) + 20px); }
+.entry-card { border: 1px solid var(--gold); border-radius: 12px; background: var(--bg-raised); padding: 22px; }
+.entry-card .label { font-family: var(--font-mono); font-size: 13px; letter-spacing: .1em; color: var(--gold); }
+.price { font-family: var(--font-mono); font-size: 38px; font-weight: 500; color: var(--cream); line-height: 1.1; margin: 10px 0 2px; }
+.price-alt { font-family: var(--font-mono); font-size: 20px; font-weight: 500; color: var(--cream-body); }
+.entry-card .qual { font-size: 15px; color: var(--cream-dim); }
+.entry-card hr { border: 0; border-top: 1px solid var(--rule); margin: 18px 0; }
+.entry-card .stat { font-family: var(--font-mono); font-size: 15px; color: var(--cream-dim); margin: 0 0 6px; }
+.entry-card .stat b { color: var(--cream); font-weight: 500; }
+.entry-card .btn { margin-top: 8px; }
+.terms { font-size: 14px; color: var(--cream-dim); margin: 16px 0 0; line-height: 1.6; }
+
+/* ---------- Closing + footer ----------------------------------------------- */
+.closing { background: var(--gold); color: var(--ink); text-align: center; padding: 56px 24px; }
+.closing p { max-width: none; margin: 0 0 22px; font-size: clamp(20px, 3vw, 28px); font-weight: 600; }
+.closing .placeholder { color: #5A3A08; margin-top: -14px; margin-bottom: 22px; }
+
+.site-footer { background: var(--bg-deep); padding: 34px 0 44px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 18px; }
+.footer-links a { min-height: 44px; display: inline-flex; align-items: center; font-size: 16px; }
+.site-footer small { font-family: var(--font-mono); font-size: 13px; color: var(--cream-dim); line-height: 1.8; display: block; }
+
+/* ---------- Mobile entry bar ----------------------------------------------- */
+.entry-bar { display: none; }
+
+/* ---------- Narrow ---------------------------------------------------------- */
+@media (max-width: 860px) {
+  :root { --header-h: 62px; }
+  body { font-size: 16px; }
+
+  /* Header stops being sticky. On a phone the pinned bottom bar owns the CTA,
+     and two pinned strips eat a fifth of the viewport between them. */
+  .site-header { position: relative; }
+  .header-inner { padding: 12px 0; }
+  .header-inner .btn-pill { display: none; }
+
+  .menu-toggle { display: block; margin-left: auto; }
+  .menu-toggle > summary {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; cursor: pointer; list-style: none;
+    font-size: 24px; color: var(--cream); line-height: 1;
+  }
+  .menu-toggle > summary::-webkit-details-marker { display: none; }
+  .nav {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 39;
+    flex-direction: column; gap: 0; background: var(--bg-deep);
+    border-top: 1px solid var(--rule); padding: 4px 24px 12px;
+  }
+  .nav a { border-bottom: 1px solid var(--rule); }
+  .nav a.is-current { border-bottom-color: var(--rule); color: var(--gold); }
+
+  .hero { padding: 30px 0 24px; }
+  .hero h1 .year { display: none; }  /* the drip face closes up at this size */
+
+  .layout { grid-template-columns: 1fr; gap: 0; padding-bottom: 40px; }
+  .entry { position: static; order: -1; margin-bottom: 40px; }
+  .entry-card { border-radius: 12px; }
+
+  .fact { flex-direction: column; gap: 4px; }
+  .fact dt { width: auto; }
+
+  .entry-bar {
+    display: flex; align-items: center; gap: 14px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    background: var(--bg-deep); border-top: 1px solid rgba(233, 194, 71, 0.45);
+    padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
+    transform: translateY(110%); transition: transform 200ms ease-out;
+  }
+  .entry-bar.is-visible { transform: translateY(0); }
+  .entry-bar .price { font-size: 22px; margin: 0; }
+  .entry-bar .stat { font-family: var(--font-mono); font-size: 13px; color: var(--cream-dim); margin: 0; }
+  .entry-bar .btn { margin-left: auto; }
+  body.has-bar { padding-bottom: 84px; }
+}
+
+/* A pinned strip on a short viewport — landscape phone, or 400% zoom — fails
+   WCAG reflow. Both unpin rather than eating the screen. */
+@media (max-height: 400px) {
+  .site-header { position: static; }
+  .entry-bar { position: static; transform: none; }
+  body.has-bar { padding-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-bar, .accordion summary::after, .site-header { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header" id="header">
+  <div class="wrap header-inner">
+    <a class="wordmark" href="#top"><b>SOUTHVILLE</b><span>RUNNING CLUB</span></a>
+    <a class="btn btn-primary btn-pill" href="#entry" style="order:3; margin-left:auto">Enter the race</a>
+    <details class="menu-toggle" id="menu">
+      <summary aria-label="Menu">&#9776;</summary>
+      <nav class="nav" aria-label="Sections of this page">
+        <a href="#race">Race</a>
+        <a href="#course">Course</a>
+        <a href="#race-info">Race info</a>
+        <a href="#spooktators">Spooktators</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="main">
+
+  <div class="wrap hero" id="top">
+    <p class="presents">presents&hellip;</p>
+    <h1>Nightingale<br>Nightmare<span class="year">2026</span></h1>
+    <p class="hero-when">Sunday 1 November 2026 &middot; 11:00</p>
+    <p class="hero-meta">10&nbsp;km, off-road &middot; 250 places &middot; fancy dress encouraged</p>
+  </div>
+
+  <div class="wrap layout">
+
+    <div class="content">
+
+      <section id="race">
+        <h2>The race</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+        incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+        exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+        <p class="placeholder">[ COPY TO COME &mdash; KAYLEIGH ]</p>
+
+        <dl class="facts">
+          <div class="fact"><dt>DATE</dt><dd>Sunday 1 November 2026</dd></div>
+          <div class="fact"><dt>START TIME</dt><dd>11:00</dd></div>
+          <div class="fact"><dt>DISTANCE</dt><dd>10&nbsp;km, off-road</dd></div>
+          <div class="fact"><dt>EVENT HQ</dt><dd>Ashton Park School<br>Blackmoors Lane<br>Bristol<br>BS3 2JL</dd></div>
+          <div class="fact"><dt>START LINE</dt><dd><span class="tbc">To be confirmed</span>
+            <span class="note">The start is not at HQ. We walk there together at 10:30.</span></dd></div>
+        </dl>
+      </section>
+
+      <section id="course">
+        <h2>The course</h2>
+        <div class="course-map">COURSE MAP</div>
+        <p>Towpath, up Nightingale Valley, and through Leigh Woods. A tough off-road run with
+        plenty of elevation &mdash; uneven ground, rocks and roots, and slippery after rain.</p>
+        <p class="placeholder">[ COPY TO COME &mdash; KAYLEIGH ]</p>
+      </section>
+
+      <section id="race-info">
+        <h2>Race information</h2>
+
+        <h3>Race morning</h3>
+        <div class="schedule">
+          <div class="slot"><time>09:15</time><span>Registration opens. Numbers are collected at HQ.</span></div>
+          <div class="slot"><time>10:15</time><span>Race briefing at HQ.</span></div>
+          <div class="slot"><time>10:30</time><span>We leave on foot and walk to the start together.</span></div>
+          <div class="slot is-start"><time>11:00</time><span>Race starts.</span></div>
+        </div>
+
+        <div class="accordion">
+          <details>
+            <summary><h3>Getting there and parking</h3></summary>
+            <div class="panel">
+              <p>Free parking on site, and toilets and shelter at HQ. The car park is large but
+              not infinite &mdash; share lifts where you can. There is no on-street parking in the
+              area, so please respect our neighbours.</p>
+              <p class="placeholder">[ COPY TO COME &mdash; KAYLEIGH ]</p>
+            </div>
+          </details>
+          <details>
+            <summary><h3>What to wear</h3></summary>
+            <div class="panel">
+              <p>Trail shoes are a good option if you have them. Road shoes are fine, just take
+              extra care. Flip-flops would be disastrous. Changing areas and a bag drop are at
+              HQ, and there is a second bag drop at the start.</p>
+              <p class="rule-note">No headphones of any type during the race.</p>
+            </div>
+          </details>
+          <details>
+            <summary><h3>On the day</h3></summary>
+            <div class="panel">
+              <p>There is a group warm-up at the start. One water station on the route and
+              another at the finish, with marshals throughout. Pack something warm for after
+              &mdash; it is worth staying to cheer the rest of the field in.</p>
+            </div>
+          </details>
+          <details>
+            <summary><h3>Prizes and fancy dress</h3></summary>
+            <div class="panel">
+              <p>First, second and third female and male. First Vet 40, Vet 50 and Vet 60,
+              female and male. Three prizes for best fancy dress, and one for the best
+              marshalling station as voted by runners. A medal for every finisher.</p>
+              <p>For the fancy dress competition, collect your number and then find the
+              photographers upstairs at HQ. Prizegiving is at HQ once the last runner is in.</p>
+            </div>
+          </details>
+          <details>
+            <summary><h3>Cake</h3></summary>
+            <div class="panel">
+              <p>Free tea, coffee and hot chocolate back at HQ, and cake baked by club
+              volunteers. There is a donation tin &mdash; past years have funded some very good
+              local causes.</p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section id="spooktators">
+        <h2>Spooktators</h2>
+        <p>Friends and family are very welcome. The start and finish area is the best spot, and
+        the top of Nightingale Valley is easy to reach through the gate on North Road, BS8 3PL.
+        Park on Brunel Lock Road and walk over Ashton Avenue Bridge.</p>
+        <p class="placeholder">[ START/FINISH MAP PIN &mdash; TO BE CONFIRMED ]</p>
+      </section>
+
+    </div>
+
+    <aside class="entry" id="entry" aria-label="Entry">
+      <div class="entry-card">
+        <p class="label">ENTRY</p>
+        <p class="price">£18</p>
+        <p class="qual">EA-affiliated</p>
+        <p class="price-alt">£20 <span class="qual">unaffiliated</span></p>
+        <hr>
+        <p class="stat"><b>184</b> of 246 places left</p>
+        <p class="stat">Closes Friday 30 October, 17:00</p>
+        <a class="btn btn-primary btn-block" href="#entry">Enter the race</a>
+        <a class="btn btn-secondary btn-block" href="#race-info">Race instructions</a>
+        <p class="terms">Entering means you accept the <a href="#footer">entry terms</a>.</p>
+      </div>
+    </aside>
+
+  </div>
+
+  <div class="closing">
+    <p>Lorem ipsum dolor sit amet</p>
+    <p class="placeholder">[ CLOSING LINE &mdash; KAYLEIGH ]</p>
+    <a class="btn btn-dark" href="#entry">Enter the race</a>
+  </div>
+
+</main>
+
+<footer class="site-footer" id="footer">
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="#footer">Entry terms</a>
+      <a href="#footer">Privacy notice</a>
+      <a href="#footer">Contact the race director</a>
+    </div>
+    <small>Southville Running Club &middot; Bristol<br>Entries and timing run by the club</small>
+  </div>
+</footer>
+
+<div class="entry-bar" id="bar" aria-hidden="true">
+  <div>
+    <p class="price">£18</p>
+    <p class="stat">184 of 246 left</p>
+  </div>
+  <a class="btn btn-primary" href="#entry" tabindex="-1">Enter</a>
+</div>
+
+<script>
+/* Everything below is enhancement. With JavaScript off the page still works:
+   the anchors jump, the accordions open, and the inline entry card is present. */
+(function () {
+  var header = document.getElementById('header');
+  var hero = document.getElementById('top');
+  var entry = document.getElementById('entry');
+  var bar = document.getElementById('bar');
+  var barLink = bar.querySelector('a');
+  var links = Array.prototype.slice.call(document.querySelectorAll('.nav a'));
+
+  // Condense the header once the hero has gone.
+  new IntersectionObserver(function (e) {
+    header.classList.toggle('is-condensed', !e[0].isIntersecting);
+  }, { rootMargin: '-80px 0px 0px 0px' }).observe(hero);
+
+  // The pinned bar only appears once the inline entry card has scrolled off,
+  // so the two never say the same thing at the same time.
+  new IntersectionObserver(function (e) {
+    var show = !e[0].isIntersecting && e[0].boundingClientRect.top < 0;
+    bar.classList.toggle('is-visible', show);
+    bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+    barLink.tabIndex = show ? 0 : -1;
+    document.body.classList.toggle('has-bar', show);
+  }, { threshold: 0 }).observe(entry);
+
+  // Mark whichever section is currently in view.
+  var spy = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var href = '#' + en.target.id;
+      links.forEach(function (a) {
+        a.classList.toggle('is-current', a.getAttribute('href') === href);
+      });
+    });
+  }, { rootMargin: '-25% 0px -65% 0px' });
+  links.forEach(function (a) {
+    var section = document.querySelector(a.getAttribute('href'));
+    if (section) spy.observe(section);
+  });
+
+  // Close the mobile menu after a jump.
+  var menu = document.getElementById('menu');
+  menu.addEventListener('click', function (ev) {
+    if (ev.target.tagName === 'A') menu.removeAttribute('open');
+  });
+}());
+</script>
+
+</body>
+</html>
