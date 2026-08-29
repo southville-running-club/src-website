@@ -46,6 +46,21 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
 // what somebody deciding whether to come back next week actually needs to know.
 const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
 
+// **The start and finish, as a pin and as a link — and never as a shortlink.**
+//
+// Built exactly as `2026/race-day.astro` builds it, from the same two numbers, because the
+// spooktators copy points at the same place and two spellings of one location is how they start
+// disagreeing. Printed as text as well as linked: a coordinate pair is usable in any map
+// application, offline, and read aloud down a phone, and a link that fails should not take the
+// answer with it.
+//
+// **The race director's copy supplied a `goo.gl` shortlink.** `site.spec.ts`'s "a shortened map
+// link never reaches a page" forbids that on this page by name — its comment says the failure it
+// guards is "a later edit pasting the convenient thing back in" — and separately, Google stopped
+// resolving `goo.gl` links in August 2025, so it had probably already gone dead.
+const startFinish = `${race.startFinish.lat}, ${race.startFinish.lng}`;
+const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.startFinish.lat},${race.startFinish.lng}`;
+
 // **The one sentence about when this race happens.**
 //
 // The start time joins the date now that both are confirmed, which is what the campaign
@@ -453,7 +468,34 @@ const dateLine = race.date
       <section id="spooktators" tabindex="-1">
         <h2>Spooktators</h2>
 
-        <p class="nn-placeholder">[ COPY TO COME — KAYLEIGH ]</p>
+        {
+          /* **The race director's words, and only the facts inside them are interpolated.**
+          `BS8 3PL`, `Brunel Lock Road` and `Ashton Avenue Bridge` are in `race.json` as those
+          exact strings, so this renders character for character what she wrote while leaving one
+          copy of each fact on the site. Her shortlink is the one thing that changed shape — see
+          the note at the head of this file.
+
+          **It summarises two of the spectators page's four sections** and leaves the fancy dress
+          and the afterwards to it, which is what keeps this a summary and that page worth
+          opening. */
+        }
+        <p>
+          Friends and family are welcome to come and cheer you on. The start/finish area
+          is a good place, and another easy spectator spot is the top of Nightingale
+          Valley, accessed by a gate on North Road,{' '}
+          <span class="nn-mono">{race.spectating.viewpointPostcode}</span>.
+        </p>
+
+        <p>
+          Start/finish (not race HQ!): <span class="nn-mono">{startFinish}</span> —{' '}
+          <a href={startFinishMap} rel="noopener">show it on a map</a>.
+        </p>
+
+        <p>
+          Those just coming to the start/finish to cheer could park on{' '}
+          {race.spectating.parking} and then walk over {race.spectating.footbridge} to get there
+          by foot, if indeed they have feet.
+        </p>
 
         <p>
           <a href="/nn/2026/spectators/">Spooktators, in full</a>.
@@ -777,13 +819,24 @@ const dateLine = race.date
     }
 
     {
-      /* **The closing line is Kayleigh's and is not written here.** The demo's is lorem, and
-      a plausible-sounding sentence in her voice is exactly the thing this repository keeps out
-      of markup — it would read as approved copy to everybody who came after. The placeholder is
-      deliberately unmissable for the same reason. */
+      /* **Chosen from a shortlist by the club, not written by the race director**, and that
+      provenance is worth recording on a page whose rule is that the prose is hers. It is the one
+      sentence here she did not write.
+
+      **The line that was first offered for this slot went elsewhere.** "Commiserations on
+      entering the Nightingale Nightmare 10k" is the opening of the 2023 pre-race email — written
+      to people who had *already* entered — and `site.spec.ts` bans that string from three pages
+      for exactly that reason. Above a button that reads "Register your interest" for every month
+      until the window opens, it commiserates somebody for doing a thing they cannot yet do. It
+      belongs on `/nn/2026/entry/complete/`, which is the only page reached by somebody who has
+      entered, and it is still available for it.
+
+      This sentence makes no date claim — the race is 1 November and Halloween is the day before
+      — and no claim about the light, which two of the other candidates did against an 11:00
+      start. */
     }
     <div class="nn-closing">
-      <p class="nn-placeholder">[ CLOSING LINE — KAYLEIGH ]</p>
+      <p>Whether you sprint, jog, or creep, a frightfully fun finish awaits.</p>
 
       <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
     </div>

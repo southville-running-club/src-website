@@ -2894,6 +2894,17 @@ html:has(body.theme-nn) {
   text-align: center;
 }
 
+/* The closing line itself. Large enough to be the last thing read rather than the last thing
+   skipped, and the only place on the page where a sentence is set on the campaign's yellow —
+   ink on pus, 10.93:1. */
+.theme-nn .nn-closing p {
+  max-width: 32ch;
+  margin: 0 auto 24px;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 .theme-nn .nn-closing .nn-placeholder {
   /* On yellow the bone text and pus border of the standard placeholder both vanish. Ink on
      pus is 10.93:1 and the border becomes ink at the same ratio. */
