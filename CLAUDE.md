@@ -431,6 +431,22 @@ not arrive. **`--include-all` is what applies the stranded migrations**, and it 
 after checking that nothing already applied is re-created by one of them — a migration versioned
 earlier but applied later silently reverts whatever a later-versioned one already changed.
 
+⚠️ **Rebasing onto a merged migration means renumbering past it — every time, and whatever the
+migration contains.** This happened again on 29 August 2026, in the pull request that added the
+paragraph above. Four migrations were rebased onto a branch that had landed `20260829120000`;
+three were renumbered past it and the fourth was left at `20260829100000`, on the reasoning that
+it clobbered nothing — which was true, and irrelevant. **`db push` refuses on version order
+alone**, it refuses the *whole push*, and every deploy after it fails identically until somebody
+renumbers. There are two questions and they are not the same one:
+
+  * *Will `db push` accept it?* — is every version later than the remote's newest. Nothing else.
+  * *Will applying it revert something?* — does it re-create an object a later-versioned
+    migration already changed. This is the one that needs reading the diffs.
+
+Answering the second and skipping the first is what a clean-looking rebase invites, because the
+second is the interesting question and the first feels like bookkeeping. **`ls` the migrations
+directory after any rebase and check the branch's own files sort last.**
+
 **A restated closed list is a merge conflict git cannot see.** `entries.admin_audit.action`,
 `entries.fees.code` and the status checks are widened by `drop constraint if exists` followed by
 `add constraint` **restating the whole list** — which is right for reviewability and is a trap

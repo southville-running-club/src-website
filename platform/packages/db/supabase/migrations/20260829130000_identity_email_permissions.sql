@@ -37,6 +37,24 @@
 --
 -- Nothing is revoked here. `nn.entry.read` and `nn.entry.cancel` go on meaning what they mean
 -- on the entry list; they simply stop being asked about email.
+--
+-- =========================================================================================
+-- Why this is `130000` and not `100000`
+-- =========================================================================================
+-- It was written as `20260829100000`, before `20260829120000_entries_no_ea_numbers.sql` had
+-- merged. When that landed first, the three migrations beside this one were renumbered past
+-- it and **this one was not** — on the reasoning that it clobbers nothing of that migration's.
+-- It does not: it re-creates `admin_outbox_list()` and `admin_outbox_resend()`, which the
+-- England Athletics work never touches.
+--
+-- **That reasoning was sound and beside the point.** `supabase db push` refuses *any*
+-- migration versioned before the last one already on the remote, whatever it contains — and
+-- it refuses by aborting the whole push, so the nine migrations after it went nowhere either.
+-- The rule is about version order alone.
+--
+-- Checking what a migration touches answers a different question: whether applying it out of
+-- order would silently revert somebody else's work. **Both have to be asked, and only one of
+-- them was.**
 
 insert into identity.permissions (slug, description) values
   ('nn.email.read',
