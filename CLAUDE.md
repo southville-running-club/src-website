@@ -35,9 +35,9 @@ re-run.
   markup. ARC require it on entry forms and advertising material, so it is quoted **three
   times**: the facts list on `/nn/2026/`, the foot of the entry form, and — since #142 —
   `/nn/2026/terms/`, where it is part of the race director's own copy. The first two are the
-  two ARC ask for. It is **year-scoped like the date** and may not appear on `/nn/`,
-  `/nn/course/` or `/nn/privacy/`. **`site.spec.ts` asserts that only for `/nn/`**, not for
-  the other two — the rule is real and the guard is narrower than it reads. Note also that
+  two ARC ask for. It is **year-scoped like the date** and may not appear on `/nn/` or
+  `/nn/privacy/`. **`site.spec.ts` asserts that only for `/nn/`**, not for `/nn/privacy/` —
+  the rule is real and the guard is narrower than it reads. Note also that
   `/nn/privacy/` says the words *"ARC permit"* in prose, deliberately, so it is the *number*
   that is year-scoped rather than the phrase. The 2023 number is still not a substitute for any future year's. **Still
   unconfirmed, and it may not appear anywhere:** the 2026 race director's name. **The
@@ -702,7 +702,8 @@ another.
 
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
-`/nn/` (the race, and the interest form), `/nn/course/`, `/nn/privacy/`. The 2026 running:
+`/nn/` (the race, and the interest form), `/nn/privacy/` — and `/nn/course/`, whose
+content is on `/nn/` now and whose address 301s there. The 2026 running:
 `/nn/2026/` (the date, the facts, the entry form), `/nn/2026/race-day/`,
 `/nn/2026/spectators/`, `/nn/2026/entry/complete/`. Plus a column-scoped anonymous-insert
 policy on `intake.nn_interest`.

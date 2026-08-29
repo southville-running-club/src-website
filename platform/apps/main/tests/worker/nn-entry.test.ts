@@ -83,15 +83,21 @@ describe('the race page, while entries are not open', () => {
 
   it('still links to this year’s running, painted from the event row', async () => {
     // **A front door, not a dead end.** The panel is revealed whether or not entries are
-    // open — somebody wants the date and the race-day plan either way — and none of its links
-    // is written into the markup, which is what makes 2027 a row rather than an edit.
+    // open — somebody wants the date either way — and its one link is not written into the
+    // markup, which is what makes 2027 a row rather than an edit.
+    //
+    // **It used to assert three hrefs and asserts one.** "Race instructions" and "Spooktators"
+    // were removed from the panel on request; both destinations are reached from `/nn/2026/`,
+    // which is where the surviving link goes. The Worker is unchanged and still registers their
+    // selectors, so the absence below is what would notice the markup coming back — see the
+    // note in `nn-panel.test.ts`, which guards the same pair from the panel's own side.
     const html = await racePage();
 
     expect(html).not.toMatch(/data-nn-panel[^-][^>]*hidden/);
     expect(html).toContain('The 2026 race');
     expect(html).toContain('href="/nn/2026/" data-nn-panel-action');
-    expect(html).toContain('href="/nn/2026/race-day/"');
-    expect(html).toContain('href="/nn/2026/spectators/"');
+    expect(html).not.toContain('href="/nn/2026/race-day/"');
+    expect(html).not.toContain('href="/nn/2026/spectators/"');
   });
 
   it('links to no year except through the ones the Worker paints', async () => {
@@ -102,6 +108,20 @@ describe('the race page, while entries are not open', () => {
     //
     // Scoped to `<main>`: the navigation bar sits outside it and carries three year links of
     // its own, which `nn-nav.test.ts` owns.
+    //
+    // **There is one now, and it is the panel's button.** This was three — the button plus
+    // "Race instructions" and "Spooktators" beneath it — and briefly four, when a closing
+    // call-to-action card repeated the button's destination at the foot of the page. Both the
+    // card and the two links have since been taken out on request: the card said the same thing
+    // as the panel a screen below it, and the two links are in the bar at the top of every
+    // campaign page anyway.
+    //
+    // **The Worker still registers all three selectors and that is deliberate**, so this
+    // assertion is about the markup rather than about `renderNnRaceView`. `/nn/2026/` paints
+    // `race-day` and `spectators` from the same handlers; deleting them would have taken that
+    // page's links out too. `HTMLRewriter` simply finds nothing to paint here.
+    //
+    // A second year link appearing in `<main>` means somebody wrote a route into the markup.
     const html = await (await SELF.fetch(`${SITE}/nn/`)).text();
     const body = html.slice(html.indexOf('<main id="main">'));
 
@@ -109,11 +129,7 @@ describe('the race page, while entries are not open', () => {
       .map((match) => match[1]!)
       .filter((href) => /\/nn\/\d{4}\b/.test(href));
 
-    expect(yearLinks).toEqual([
-      '/nn/2026/',
-      '/nn/2026/race-day/',
-      '/nn/2026/spectators/',
-    ]);
+    expect(yearLinks).toEqual(['/nn/2026/']);
   });
 
   it('paints the action with the year it is pointing at', async () => {

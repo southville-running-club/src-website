@@ -131,8 +131,9 @@ describe('Nightingale Nightmare', () => {
   });
 
   it.each([
-    // The race — evergreen, and none of these names a year.
-    '/nn/course/',
+    // The race — evergreen, and it names no year. `/nn/` itself is asserted above, and
+    // `/nn/course/` is no longer a page at all: the course and terrain are on `/nn/`, and
+    // that address is a redirect now. See the block below, which is where it is asserted.
     '/nn/privacy/',
     // One running of it, and everything only true of that running.
     '/nn/2026/',
@@ -159,6 +160,116 @@ describe('Nightingale Nightmare', () => {
     const response = await SELF.fetch(`${SITE}${path}`);
 
     expect(response.status).toBe(404);
+  });
+
+  /**
+   * `/nn/course/`, which is nothing but a redirect now.
+   *
+   * **The opposite case to the three 404s above, and what separates them is whether anybody
+   * ever had the address.** Those three were never published. This one was: it was in the
+   * navigation bar, linked from `/nn/`, and printed on things the club does not control. So it
+   * keeps resolving, and it resolves to `/nn/` — which carries this page's copy **in full**
+   * rather than a summary of it. The club supplied the whole of it as the wording `/nn/` should
+   * say, so every section the old address answered is answered at the new one, in the same
+   * words: where it goes, what it is like underfoot, and what is on the route.
+   *
+   * **Every request here passes `redirect: 'manual'`, and that is the whole reason this block
+   * is worth anything.** `SELF.fetch` follows a redirect by default, so without it the response
+   * under test is `/nn/`'s own 200: every assertion below would be about the destination, the
+   * status assertions would fail loudly enough to be "fixed" to 200, and what remained would be
+   * a block named after an address it had stopped visiting. That is the vacuous-guard shape
+   * `CLAUDE.md` records, arriving through a redirect rather than through a bad matcher.
+   *
+   * **301 for a GET and a HEAD, 308 for anything else.** Nothing has ever posted to this
+   * address, so on its own the 308 is theoretical — but `movedPermanently()` is shared with the
+   * `/nn/admin/*` redirect, where three of the addresses do carry a body, and an edit made for
+   * one of them lands on both. Asserting both statuses here is what makes that sharing safe.
+   */
+  describe('the address the course page used to live at', () => {
+    // Both spellings, and here that is not the usual "somebody typed it either way". With
+    // `dist/nn/course/index.html` gone, the 307 the assets binding used to give the unslashed
+    // form is gone with it, so the Worker has to claim both or `/nn/course` 404s.
+    const spellings = ['/nn/course/', '/nn/course'];
+
+    for (const from of spellings) {
+      it(`sends a GET of ${from} to /nn/, permanently`, async () => {
+        const response = await SELF.fetch(`${SITE}${from}`, { redirect: 'manual' });
+
+        expect(response.status, from).toBe(301);
+        // `/nn/` and never `/nn` — `trailingSlash` is `'always'`, so the short form would
+        // cost a second hop off the assets binding on the way.
+        expect(response.headers.get('location'), from).toBe('/nn/');
+        // A redirect for an address the club has retired is exactly the thing that should not
+        // be pinned in an intermediary for a year.
+        expect(response.headers.get('cache-control'), from).toBe('no-store');
+        // The old address has no business competing with `/nn/` in a search result.
+        expect(response.headers.get('x-robots-tag'), from).toBe('noindex, nofollow');
+      });
+
+      it(`treats a HEAD of ${from} as the GET it is`, async () => {
+        // A HEAD is a GET without the body, so it takes the GET's 301. Getting this wrong is
+        // invisible until a link checker reports the address broken.
+        const response = await SELF.fetch(`${SITE}${from}`, {
+          method: 'HEAD',
+          redirect: 'manual',
+        });
+
+        expect(response.status, from).toBe(301);
+        expect(response.headers.get('location'), from).toBe('/nn/');
+      });
+
+      it(`sends a POST of ${from} on without letting it become a GET`, async () => {
+        // 308 rather than 301: a 301 permits a client to rewrite the method and drop the body,
+        // and 301 does not promise otherwise.
+        const response = await SELF.fetch(`${SITE}${from}`, {
+          method: 'POST',
+          redirect: 'manual',
+        });
+
+        expect(response.status, from).toBe(308);
+        expect(response.headers.get('location'), from).toBe('/nn/');
+      });
+    }
+
+    it('keeps the query string, so a poster campaign still arrives tagged', async () => {
+      const response = await SELF.fetch(`${SITE}/nn/course/?from=poster`, {
+        redirect: 'manual',
+      });
+
+      expect(response.status).toBe(301);
+      expect(response.headers.get('location')).toBe('/nn/?from=poster');
+    });
+
+    it('sends people to a page that answers what the old address answered', async () => {
+      // **The half a status code cannot prove.** A redirect to an address that 404s, or to one
+      // that no longer says anything about the course, is a redirect that has lost the reader
+      // just as thoroughly as a 404 would have. Followed by hand rather than by letting the
+      // runtime follow it, so the two hops stay separately visible.
+      const redirected = await SELF.fetch(`${SITE}/nn/course/`, { redirect: 'manual' });
+      const location = redirected.headers.get('location');
+      // Asserted before it is used: a missing header would otherwise be fetched as the string
+      // "null", and the assets binding's 404 for that would read as the destination failing.
+      expect(location, 'the redirect named no destination').toBe('/nn/');
+
+      const destination = await SELF.fetch(`${SITE}${location!}`);
+
+      expect(destination.status).toBe(200);
+      await expect(destination.text()).resolves.toContain('The course and terrain');
+    });
+
+    it('is exactly those two addresses and not a prefix', async () => {
+      // `/nn/course-records/` is a page the club could legitimately want one day, and a
+      // `startsWith` in `isNnCoursePath` would swallow it — silently, because a 301 to `/nn/`
+      // looks like a working link. Nothing is built there, so the honest answer is the assets
+      // binding's 404, and `redirect: 'manual'` is what makes a redirect visible instead of
+      // followed.
+      const response = await SELF.fetch(`${SITE}/nn/course-records/`, {
+        redirect: 'manual',
+      });
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get('location')).toBeNull();
+    });
   });
 
   it("keeps the event theme off the club's own pages", async () => {

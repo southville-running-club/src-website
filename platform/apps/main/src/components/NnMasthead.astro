@@ -29,7 +29,7 @@ import ClubLogo from './ClubLogo.astro';
 //
 // ## No JavaScript, and no hamburger
 //
-// Six controls fit. A menu behind a toggle would need a script to open, and every form on
+// Three controls fit. A menu behind a toggle would need a script to open, and every form on
 // this site is built to work without one — a navigation that fails with JavaScript off
 // while the entry form beneath it still works would be an odd place to draw the line.
 //
@@ -47,18 +47,18 @@ import ClubLogo from './ClubLogo.astro';
 //
 // ## The button lives here rather than in the navigation, and why
 //
-// At 320px the bar is three rows: the wordmark and the button on the first, the five links
+// At 320px the bar was three rows: the wordmark and the button on the first, the campaign links
 // over the next two. Getting the button onto the wordmark's row means it has to be the
 // wordmark's **sibling** — inside `<nav>` it could only ever be on the links' rows. So it is a
 // child of this header, and `nn-theme.css` reorders it with one `order` at that width.
 //
 // The semantic cost is that it is not inside the navigation landmark. It is a call to action
 // rather than a place to go, it is still inside the banner, and it is announced immediately
-// after the five links — which is what somebody jumping by landmark would want anyway.
+// after the campaign links — which is what somebody jumping by landmark would want anyway.
 
 interface Props {
   /**
-   * Whether the five campaign links appear beside the wordmark.
+   * Whether the campaign links appear beside the wordmark.
    *
    * `false` on `/nn/<year>/entry/complete/`, which somebody reaches having just paid. Five ways to
    * wander off before reading what the club has recorded is not what that page is for, so it
@@ -100,7 +100,7 @@ interface Props {
 const { nav = true, sticky = true } = Astro.props;
 
 // **The button is a destination too, so it carries the marker on its own page.** Matched on
-// the *shape* of the path rather than on the painted href, exactly as the five links are:
+// the *shape* of the path rather than on the painted href, exactly as the bar's links are:
 // `/nn/2027/` is the running's own page whatever the year, and the marker is therefore right
 // before the Worker has painted anything.
 const path = Astro.url.pathname.endsWith('/')

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { contrastRatio } from '../../src/contrast.js';
+import { contrastRatio, parseHex } from '../../src/contrast.js';
 
 /**
  * The first contrast guard the campaign theme has ever had.
@@ -279,5 +279,130 @@ describe('the campaign mono class', () => {
    */
   it('leaves the weight to the call site, because the axis starts at 500', () => {
     expect(figures).not.toMatch(/font-weight/);
+  });
+});
+
+/**
+ * The year panel, which moved from a white card onto the campaign's aubergine.
+ *
+ * ## Why this block exists at all
+ *
+ * The panel was `.nn-card` — white — and every colour inside it was chosen against white. The
+ * club asked for it in aubergine, and that request is a colour change to **every line in it**
+ * rather than one background declaration. What the old colours became on the new surface:
+ *
+ *   the date and the facts   `--nn-ink`     18.09:1 on white  ->  **1.17:1**
+ *   the label and the note   `--nn-slate`    8.30:1 on white  ->  **1.87:1**
+ *   the two year links       `--nn-blood`    9.01:1 on white  ->  **1.72:1**
+ *
+ * 1.17:1 is not "hard to read". It is the date of the race — the largest thing on the panel and
+ * the one question somebody arrives with — rendered in a colour that cannot be resolved from the
+ * panel behind it. **This is `NnSchedule`'s defect exactly**, one component along, and it is the
+ * third time this stylesheet has met it. So it is guarded the same way, by resolving both sides
+ * out of the CSS rather than restating a number: change the surface, change a colour, or delete
+ * either declaration and this recomputes and fails.
+ */
+describe('the year panel on aubergine', () => {
+  const surface = colourOf(rule('.theme-nn .nn-panel'), 'background');
+
+  const pairs = [
+    ['the date', '.theme-nn .nn-panel-year .nn-panel-date'],
+    ['the facts line', '.theme-nn .nn-panel-year .nn-panel-facts'],
+    ['the label', '.theme-nn .nn-panel-year .nn-panel-label'],
+    ['the entries note', '.theme-nn .nn-panel.nn-panel-year .nn-panel-note'],
+    ['the two year links', '.theme-nn .nn-panel-links a'],
+    ['the action while entries are shut', '.theme-nn .nn-panel-year .nn-ghost'],
+  ] as const;
+
+  for (const [what, selector] of pairs) {
+    it(`states ${what} against the surface the panel carries`, () => {
+      expect(
+        contrastRatio(colourOf(rule(selector), 'color'), surface),
+      ).toBeGreaterThanOrEqual(AAA);
+    });
+  }
+
+  /**
+   * The negative case, and the one that explains why the block above is not arithmetic.
+   *
+   * `--nn-ink` and `--nn-blood` are what these lines used to be, and both are still declared and
+   * still correct **on white**. Pinned as thresholds rather than identities: they are not near
+   * misses to be tightened, they are the measurements that say why every colour above had to
+   * change. If somebody restores one of them here, the block above goes red — this says what
+   * they would be restoring.
+   */
+  it('would lose the date entirely in the colour it used to be', () => {
+    const ink = tokens.get('--nn-ink');
+    expect(ink).toBeDefined();
+    expect(contrastRatio(ink ?? '', surface)).toBeLessThan(1.5);
+  });
+
+  it('would lose the year links in the colour they used to be', () => {
+    const blood = tokens.get('--nn-blood');
+    expect(blood).toBeDefined();
+    expect(contrastRatio(blood ?? '', surface)).toBeLessThan(2);
+  });
+
+  /**
+   * The action's border, which is a control rather than text and carries the lower bar.
+   *
+   * **It is the same token as its label**, so this is not a second colour to keep in step — it
+   * is the assertion that the button still has an edge at all. `.nn-ghost` is `background:
+   * transparent` by design, and the border is the only thing that says it is a button; the note
+   * over the base rule records that a bone edge on a white card computes to 1.06:1 and loses
+   * exactly that. Pinned at the 3:1 that WCAG asks of a non-text control rather than at AAA,
+   * because that is what it is.
+   */
+  it('keeps an edge on the action, which is all that says it is a button', () => {
+    const declarations = rule('.theme-nn .nn-panel-year .nn-ghost');
+    const border = colourOf(declarations, 'border-color');
+    expect(contrastRatio(border, surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  /**
+   * **The fill is what separates the two states, so it is asserted as absent.**
+   *
+   * Entries shut is this outline; entries open swaps the class to `.nn-cta`, which is the same
+   * pus *filled* with ink on it. Giving the shut state a fill would make it read as "enter" on
+   * a page where entries are not open — the dishonesty `site.spec.ts` guards in the browser and
+   * this guards in the stylesheet. Recolouring the button was asked for; refilling it was not.
+   */
+  it('leaves the fill to the state that has something to offer', () => {
+    expect(rule('.theme-nn .nn-panel-year .nn-ghost')).not.toMatch(/background/);
+  });
+
+  /**
+   * The divider is the one line under 4.5:1 and it is deliberate, so it is pinned from both
+   * sides. A rule is decoration rather than "non-text content required to understand" — the same
+   * argument this file already makes for the panel's own fill — but it still has to be *seen*,
+   * and `--colour-rule`'s 35% computes to 2.94:1 on this surface because it was measured against
+   * the gradient. The floor stops it being dimmed back to invisible; the ceiling stops somebody
+   * "fixing" it into the loudest thing on the panel, which is precisely what happened to the
+   * schedule's divider the first time this defect appeared.
+   */
+  it('keeps its divider visible without letting it shout', () => {
+    const declarations = rule('.theme-nn .nn-panel-year .nn-panel-rule');
+    const found = /border-top:[^;]*rgba\(([^)]*)\)/.exec(declarations);
+    expect(found?.[1], 'the divider should state its own translucent bone').toBeDefined();
+
+    const [r, g, b, alpha] = (found?.[1] ?? '')
+      .split(',')
+      .map((part) => Number(part.trim()));
+    expect(alpha, 'the divider should be translucent').toBeGreaterThan(0);
+
+    // **Composited by hand, because `contrastRatio` takes hex and a translucent border is not
+    // one.** A ratio computed against the border's own colour rather than what a reader sees
+    // through it would be a number about nothing — the whole point of the value is the surface
+    // showing through, so it is flattened onto that surface first.
+    const over = (channel: number, base: number): number =>
+      Math.round(channel * (alpha ?? 1) + base * (1 - (alpha ?? 1)));
+    const [sr, sg, sb] = parseHex(surface);
+    const flattened = [over(r ?? 0, sr), over(g ?? 0, sg), over(b ?? 0, sb)]
+      .map((channel) => channel.toString(16).padStart(2, '0'))
+      .join('');
+
+    const ratio = contrastRatio(`#${flattened}`, surface);
+    expect(ratio).toBeGreaterThanOrEqual(3);
+    expect(ratio).toBeLessThan(6);
   });
 });

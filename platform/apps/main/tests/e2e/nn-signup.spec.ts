@@ -62,7 +62,7 @@ test.describe('registering interest', () => {
       name: 'Grace Hopper',
       email: addressFor(testInfo.project.name),
     });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     // POST/Redirect/GET: the address changes, so a refresh does not re-post.
     await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
@@ -88,7 +88,7 @@ test.describe('registering interest', () => {
     for (const attempt of [1, 2]) {
       await page.goto(YEAR);
       await fillIn(page, { name: `Grace Hopper ${attempt}`, email });
-      await page.getByRole('button', { name: 'Register my interest' }).click();
+      await page.getByRole('button', { name: 'Register interest' }).click();
 
       await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
       await expect(page.locator('[data-signup-ack]')).toBeVisible();
@@ -103,7 +103,7 @@ test.describe('a submission the server refuses', () => {
     // server-side validation never being optional.
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     const summary = page.locator('[data-signup-summary]');
     await expect(summary).toBeVisible();
@@ -135,7 +135,7 @@ test.describe('a submission the server refuses', () => {
   test('links from the summary to the field it is about', async ({ page }) => {
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await page.locator('[data-signup-summary-link="name"]').click();
 
@@ -153,7 +153,7 @@ test.describe('accessibility of the form', () => {
     // page and there is no error state to check.
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-axe@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 
@@ -186,7 +186,7 @@ test.describe('accessibility of the form', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 

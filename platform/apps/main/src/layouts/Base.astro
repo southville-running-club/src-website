@@ -33,7 +33,8 @@ interface Props {
    */
   race?: {
     name: string;
-    terms: string;
+    /** Optional: `/nn/` is about the race rather than a running, so it has no year to point at. */
+    terms?: string;
     privacy: string;
     contact: string;
   };

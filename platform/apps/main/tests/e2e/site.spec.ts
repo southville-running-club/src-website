@@ -313,7 +313,7 @@ test.describe('the bar between the parts of this site', () => {
     // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
     // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
     // hand-written constant, so every anchor on the page lands behind it.
-    for (const path of ['/nn/', '/nn/course/', '/nn/2026/']) {
+    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/']) {
       await page.goto(path);
 
       await expect(page.locator('.site-nav')).toHaveCount(0);
@@ -537,44 +537,68 @@ test.describe('Nightingale Nightmare, at /nn', () => {
 
 test.describe('the Nightingale Nightmare content pages', () => {
   /**
-   * **One bar, six controls, identical on every page that carries it.**
+   * **One bar, three controls, identical on every page that carries it.**
    *
    * The first version of this nav had two rows, the second appearing only beneath a year —
    * which was the *routes* leaking into the interface. A runner does not care that race day
-   * lives inside a year directory; they care where race day is. So the bar is the same six
-   * things wherever they are standing, and only the current-page marker moves.
+   * lives inside a year directory; they care where race day is. So the bar is the same things
+   * wherever they are standing, and only the current-page marker moves.
    *
-   * **Two of the six are painted by the Worker** from `entries.current_entry_state('nn')`,
-   * on every one of these pages rather than only on `/nn/`. The years below are literals:
-   * reading them from `race.json` or from the database would make the expectation and the
-   * page read the same source, which asserts nothing.
+   * **It was six, then five, and it is three.** `Course` came out with the page it pointed at;
+   * `Race info` and `Spooktators` came out on request. What is left inside the `<nav>` is the
+   * two evergreen links below, plus the masthead's button — which is now the **only** painted
+   * control in the header and the only one anywhere in it that names a year.
    *
-   * **`Privacy` is the sixth and the newest — ADR-014.** It is last rather than beside
-   * `Course`: the four before it read as a set about the race, and a legal notice dropped into
-   * the middle of that set breaks it. `NAV_LINKS` is order-sensitive, so that is asserted here
-   * rather than merely intended.
+   * **So this array no longer says anything about the Worker's painting, and that is a loss
+   * rather than a simplification.** It used to hold two hrefs that ship empty and are filled in
+   * from `entries.current_entry_state('nn')`, so an unpainted year link failed here loudly. Both
+   * hard-coded links survive a database that cannot be reached, which means everything below
+   * would pass with the painting broken. What still covers it: `nn-nav.test.ts` walks every href
+   * in the bar looking for a year that arrived without being painted, and the button's own href
+   * is asserted in the round trip below. `NnNav.astro`'s `running` list is still there and still
+   * empty, so putting a link back is one entry there and one row here.
+   *
+   * **A `Course` entry put back into this list would *pass* everything below it.** The course
+   * and terrain are on `/nn/` itself now and `/nn/course/` 301s there, and Playwright follows
+   * redirects: the href fetched at the foot of the round-trip test would answer 200, and the bar
+   * would simply be offering `/nn/` twice under two labels. The test that refuses it is "the bar
+   * no longer offers the course page", which matches on the label and the href rather than on a
+   * status.
+   *
+   * **`Privacy` is the last of them and the newest — ADR-014.** It is last rather than first
+   * because the race links read as a set and a legal notice dropped into the middle of that set
+   * breaks it. That set is one link now, so the ordering argument has less to bite on than it
+   * did — but the order is still the decision, and `NAV_LINKS` is order-sensitive so it is
+   * asserted here rather than merely intended.
    */
-  const NAV_LINKS = [
-    '/nn/',
-    '/nn/course/',
-    '/nn/2026/race-day/',
-    '/nn/2026/spectators/',
-    '/nn/privacy/',
-  ];
+  const NAV_LINKS = ['/nn/', '/nn/privacy/'];
 
   const NN_PAGES = [
     ['/nn/', 'Race', 'Nightingale Nightmare'],
-    ['/nn/course/', 'Course', 'Course and terrain'],
     ['/nn/2026/', null, 'Nightingale Nightmare 2026'],
-    // **Three strings apiece, not one: a bar label, a heading and a slug.** The race director
-    // renamed both pages and neither address moved — moving one would cost a redirect this site
-    // has no mechanism for. `spectators` is "Spooktators" in both the bar and the heading.
-    // `race-day` is **"Race info" in the bar and "Race instructions" as the heading**, because
-    // the longer label adds a whole row to a sticky bar whose height is what `scroll-padding-top`
-    // has to clear — the fix that made the bar sticky at all. See the note in `NnNav.astro`.
-    // This pair is what stops the three drifting apart.
-    ['/nn/2026/race-day/', 'Race info', 'Race instructions'],
-    ['/nn/2026/spectators/', 'Spooktators', 'Spooktators'],
+    // **A `null` label means the bar has no entry for this page**, and three of these five rows
+    // are that now. `Race info` and `Spooktators` came out of the bar on request, so
+    // `/nn/2026/race-day/` and `/nn/2026/spectators/` are pages the bar cannot mark: there is no
+    // link in it for `aria-current` to sit on, and putting one on `Race` would be marking a page
+    // the reader is not on.
+    //
+    // **The rows stay rather than coming out**, because what they buy is not the marker. Both
+    // pages still answer 200, both still carry the bar, and both are still rendered here and
+    // swept by axe below. Dropping them would have stopped exercising the two pages whose chrome
+    // changed most, on the argument that the chrome stopped naming them.
+    //
+    // **`/nn/2026/spectators/` is linked from nowhere at all now** — its content was absorbed
+    // into `/nn/2026/` as an on-page `#spooktators` section — so this row and the axe row are
+    // the only things that open the page. The address still resolves and is still the one
+    // anybody has linked to; that it has no inbound link is recorded in `NnNav.astro` as a
+    // decision somebody should take deliberately rather than a defect to fix here.
+    //
+    // The heading is still worth pinning on both: the race director renamed the pages and
+    // neither address moved, so `race-day` is headed **"Race instructions"** and `spectators`
+    // **"Spooktators"**. The bar/heading split that used to be asserted by the middle column is
+    // documented in `NnNav.astro`, and there is no bar label left here to drift from it.
+    ['/nn/2026/race-day/', null, 'Race instructions'],
+    ['/nn/2026/spectators/', null, 'Spooktators'],
     // **The notice is a content page of the campaign now, and it is tested as one.** It was
     // absent from this list for as long as the bar did not link to it — so the one page whose
     // header could not say where you were was also the one page whose header nothing here
@@ -583,9 +607,15 @@ test.describe('the Nightingale Nightmare content pages', () => {
   ] as const;
 
   for (const [path, navLabel, heading] of NN_PAGES) {
-    test(`${path} renders, and its nav marks it as the current page`, async ({
-      page,
-    }) => {
+    // **The title names which of the two cases this row is.** Three of the five are now the
+    // case where nothing is marked, and one title claiming otherwise for all five would read
+    // as three failures somebody had not got round to.
+    const title =
+      navLabel === null
+        ? `${path} renders, and its nav marks nothing`
+        : `${path} renders, and its nav marks it as the current page`;
+
+    test(title, async ({ page }) => {
       const response = await page.goto(path);
       expect(response?.status()).toBe(200);
 
@@ -595,8 +625,12 @@ test.describe('the Nightingale Nightmare content pages', () => {
       await expect(nav).toBeVisible();
 
       if (navLabel === null) {
-        // **The year page is reached by the button, which is not in the list.** So the four
-        // links carry no marker there, and that is the one page where none is right.
+        // **Nothing in the bar is about this page, so nothing in it may be marked.** For
+        // `/nn/2026/` that has always been true — it is reached by the button, which is not in
+        // the list. For the two pages after it, it is true since `Race info` and `Spooktators`
+        // came out: the pages are still here and still carry the bar, and the bar simply no
+        // longer names them. A marker appearing on any of the three would be a link about
+        // somewhere else claiming to be where the reader is standing.
         await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
         return;
       }
@@ -606,9 +640,11 @@ test.describe('the Nightingale Nightmare content pages', () => {
       // after a rename, and neither shows up as anything a person would notice.
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 
-      // `exact` matters here: an accessible name is matched as a substring by default, so
-      // "Race" also selects "Race info" and the assertion fails on a strict-mode violation
-      // rather than on anything being wrong with the page.
+      // `exact` is kept although nothing left in the bar collides with either name. An
+      // accessible name is matched as a substring by default, and "Race" selected "Race info"
+      // for as long as that label was here — the assertion then failed on a strict-mode
+      // violation rather than on anything being wrong with the page. A label put back beside
+      // "Race" would re-create that, and this is the line that would report it.
       await expect(
         nav.getByRole('link', { name: navLabel, exact: true }),
       ).toHaveAttribute('aria-current', 'page');
@@ -618,7 +654,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
   test('one navigation landmark, and one list inside it', async ({ page }) => {
     // Two `<nav>` elements would be two landmarks a screen-reader user has to tell apart, for
     // one navigation that happens to wrap onto two rows at 320px.
-    for (const path of ['/nn/2026/race-day/', '/nn/course/']) {
+    for (const path of ['/nn/2026/race-day/', '/nn/privacy/']) {
       await page.goto(path);
 
       await expect(
@@ -629,7 +665,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
   });
 
-  test('the bar offers the same six things from every page', async ({
+  test('the bar offers the same three things from every page', async ({
     page,
     request,
   }) => {
@@ -644,9 +680,11 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
       expect(hrefs, from).toEqual(NAV_LINKS);
 
-      // The sixth control. It is outside the navigation landmark because at 320px it shares
-      // the wordmark's row, which means it has to be the wordmark's sibling — see the note in
-      // `NnMasthead.astro`.
+      // The third control, and since the two year links came out it is the only one in the
+      // header that is painted and the only one that names a year — so this is the whole of
+      // what the round trip still proves about the Worker. It is outside the navigation
+      // landmark because at 320px it shares the wordmark's row, which means it has to be the
+      // wordmark's sibling — see the note in `NnMasthead.astro`.
       const cta = page.locator('[data-nn-nav-cta]');
       await expect(cta, from).toBeVisible();
       await expect(cta, from).toHaveAttribute('href', '/nn/2026/');
@@ -655,6 +693,52 @@ test.describe('the Nightingale Nightmare content pages', () => {
         expect((await request.get(href)).status(), `${from} -> ${href}`).toBe(200);
       }
     }
+
+    // **And the plainest statement of what the bar now is, said once and by name.** The loop
+    // above is about hrefs and proves they are the same everywhere; nothing in it says what a
+    // reader is actually offered, which is two links called Race and Privacy. Asserted on
+    // `/nn/` because the loop is what proves the bar is one component rendered identically.
+    //
+    // **By accessible name and by position, not by `href`.** The names are what a reader hears
+    // and are the half `NAV_LINKS` cannot see, and the count is what refuses a third link
+    // arriving without anybody arguing for the row it might cost — the bar's height is
+    // `scroll-padding-top`'s problem, and that inset is a hand-written number per breakpoint.
+    await page.goto('/nn/');
+
+    const bar = page
+      .getByRole('navigation', { name: 'Nightingale Nightmare' })
+      .getByRole('link');
+
+    await expect(bar).toHaveCount(2);
+    await expect(bar.nth(0)).toHaveAccessibleName('Race');
+    await expect(bar.nth(1)).toHaveAccessibleName('Privacy');
+  });
+
+  test('the bar no longer offers the course page', async ({ page }) => {
+    // **The assertion the round trip above cannot make.** `/nn/course/` answers 301 to `/nn/`,
+    // and every check in this file that follows an href follows that redirect: the fetch at the
+    // foot of the test above would report 200, `toEqual(NAV_LINKS)` would only notice because
+    // the array is written out by hand, and a browser sent there would land on a page that
+    // renders perfectly. A `Course` entry put back into the bar is therefore not a broken link —
+    // it is a second door to the page you are already on, which is exactly the kind of defect
+    // nothing goes red for.
+    //
+    // So this matches on the two things the redirect cannot launder: the label a reader sees and
+    // the href in the markup. Scoped to the bar and asserted on `/nn/` alone because the bar is
+    // the same component everywhere and the test above is what proves that.
+    await page.goto('/nn/');
+
+    const nav = page.getByRole('navigation', { name: 'Nightingale Nightmare' });
+
+    await expect(nav.getByRole('link', { name: 'Course', exact: true })).toHaveCount(0);
+    await expect(nav.locator('a[href="/nn/course/"]')).toHaveCount(0);
+
+    // And not from the masthead's button either, which is the one control in the header that is
+    // outside the navigation landmark.
+    await expect(page.locator('[data-nn-nav-cta]')).not.toHaveAttribute(
+      'href',
+      '/nn/course/',
+    );
   });
 
   test('the button says what the destination can actually do', async ({ page }) => {
@@ -845,15 +929,15 @@ test.describe('the Nightingale Nightmare content pages', () => {
   // rather than the ones that were easy to assert.
   // -------------------------------------------------------------------------------------
 
-  test('the masthead is on the six pages that get it, and not the seventh', async ({
+  test('the masthead is on the five pages that get it, and not the sixth', async ({
     page,
   }) => {
     // **`/nn/entry/complete/` keeps the wordmark and loses the links**, deliberately:
-    // somebody has just paid and wants to know whether the club knows it, and four ways to
-    // wander off is not what that page is for.
+    // somebody has just paid and wants to know whether the club knows it, and a row of ways to
+    // wander off is not what that page is for. The bar is two links and a button now rather
+    // than the five this was written against, and the argument is unchanged by the count.
     for (const path of [
       '/nn/',
-      '/nn/course/',
       '/nn/privacy/',
       '/nn/2026/',
       '/nn/2026/race-day/',
@@ -881,12 +965,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
   }) => {
     // It moved out of the hero rather than being copied into the header. Two would mean
     // every page announced the club's name twice to anybody listening to it.
-    for (const path of [
-      '/nn/',
-      '/nn/course/',
-      '/nn/privacy/',
-      '/nn/2026/entry/complete/',
-    ]) {
+    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/entry/complete/']) {
       await page.goto(path);
 
       const mark = page.getByRole('link', { name: 'Southville Running Club' });
@@ -923,7 +1002,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // the one control that exists to jump past the links landing in front of them, and
     // nothing already here would have noticed. The header is rendered into a slot outside
     // `<main>` for exactly this reason — see `Base.astro`.
-    for (const path of ['/nn/', '/nn/course/', '/nn/privacy/']) {
+    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/']) {
       await page.goto(path);
 
       const first = page.locator('a').first();
@@ -980,26 +1059,32 @@ test.describe('the Nightingale Nightmare content pages', () => {
     }
   });
 
-  test('the panel’s action looks like a button on the white card', async ({ page }) => {
-    // **A ghost button has no fill, so its border is the whole of what identifies it — and this
-    // one was drawing that border in bone on a white card at 1.06:1.** `.nn-ghost` was written
-    // for the hero, where bone on the gradient is 8.43:1; the year panel is a `.nn-card`, so
-    // while entries are shut the front door's one action was a legible label with no visible
-    // edge. WCAG 1.4.11, and the same pairing at the same ratio that `.lede` was caught at.
+  test('the panel’s action looks like a button on the aubergine', async ({ page }) => {
+    // **A ghost button has no fill, so its border is the whole of what identifies it.** This
+    // test was written when the year panel was a white `.nn-card` and the button was drawing
+    // that border in bone at 1.06:1 — a legible label with no visible edge, WCAG 1.4.11.
+    //
+    // **The card is the campaign's aubergine now and the button is pus**, asked for as a colour
+    // that complements the purple. So the pairing this pins has changed twice and the reason has
+    // not: bone was wrong on white at 1.06:1, blood is wrong on aubergine at 1.72:1, and pus is
+    // 9.37:1 on it — the same measured token the panel's note already uses. `.nn-ghost`'s own
+    // rule stays bone, because it is drawn on the gradient for the hero; this is scoped to
+    // `.nn-panel-year` so recolouring one cannot break the other, which is the trap the
+    // stylesheet records beside both.
     //
     // **This is here rather than in the accessibility sweep because axe cannot see it.**
-    // `color-contrast` inspects text, and the text was never the problem: `.nn-card a` repaints
-    // it ink at 18.09:1. `/nn/` reported zero violations for as long as the button was
-    // invisible, so zero violations is not the guard — this is.
+    // `color-contrast` inspects text, and the text was never the problem. `/nn/` reported zero
+    // violations for as long as the button was invisible, so zero violations is not the guard —
+    // this is. `nn-contrast.test.ts` guards the same pairing from the stylesheet's side.
     await page.goto('/nn/');
 
     const action = page.locator('[data-nn-panel-action]');
 
-    // `#8f1b0f` — the campaign's blood, at 9.01:1 on white for the edge and the label alike.
-    // The literal is pinned rather than read from the stylesheet the page already loaded,
+    // `#f2c41d` — the campaign's pus, at 9.37:1 on the aubergine for the edge and the label
+    // alike. The literal is pinned rather than read from the stylesheet the page already loaded,
     // because an expectation that reads its own subject asserts nothing.
-    await expect(action).toHaveCSS('border-top-color', 'rgb(143, 27, 15)');
-    await expect(action).toHaveCSS('color', 'rgb(143, 27, 15)');
+    await expect(action).toHaveCSS('border-top-color', 'rgb(242, 196, 29)');
+    await expect(action).toHaveCSS('color', 'rgb(242, 196, 29)');
 
     // And it is still an *outline* rather than a fill, which is what keeps the two states of
     // this panel different in weight. A filled action here would say "enter" on a page where
@@ -1021,10 +1106,11 @@ test.describe('the Nightingale Nightmare content pages', () => {
 
     // **Scoped to the hero, and left scoped deliberately.** The button read "Race-day plan" and
     // was unique on this page; it is "Race instructions" since the rename, which is also the
-    // race-day page's heading. It happens to be unique here again — the bar says "Race info" —
-    // but this test is about the gradient behind *this* button, and a locator that only works
-    // while two labels happen to differ is one an unrelated copy edit turns into a strict-mode
-    // failure that reads as a styling bug.
+    // race-day page's heading. It happens to be unique here again — the bar used to say "Race
+    // info" beside it and says nothing about race day at all now — but this test is about the
+    // gradient behind *this* button, and a locator that only works while nothing else on the
+    // page carries the same name is one an unrelated copy edit turns into a strict-mode failure
+    // that reads as a styling bug.
     const ghost = page
       .locator('.nn-herobtns')
       .getByRole('link', { name: 'Race instructions' });
@@ -1035,16 +1121,18 @@ test.describe('the Nightingale Nightmare content pages', () => {
   test('the content pages end with a call to action, and /nn/ does not', async ({
     page,
   }) => {
-    // The panel exists because course, race day and spectators otherwise end with nothing
-    // to do. `/nn/` has the form on it, so a panel there would only scroll somebody back
-    // up to something they already walked past.
-    // **Each panel points up one level, and none of them says whether entries are open.**
-    // That sentence used to be printed into all three, and it becomes false the morning
+    // The panel exists because race day and spectators otherwise end with nothing to do.
+    // **Each panel points up one level, and neither of them says whether entries are open.**
+    // That sentence used to be printed into both, and it becomes false the morning
     // entries open — silently, on a static page somebody is reading to decide whether to
     // enter. Whether they are open is answered at serve time, on the page each of these
     // points at.
+    //
+    // **There were three, and the course page was the one that pointed at `/nn/`.** Its panel
+    // went with it: the course and terrain are a section of `/nn/` now, and a call to action at
+    // the foot of a page inviting somebody up to the page they are already on is the "anchor to
+    // nothing" defect one step along.
     for (const [path, target] of [
-      ['/nn/course/', '/nn/'],
       ['/nn/2026/race-day/', '/nn/2026/'],
       ['/nn/2026/spectators/', '/nn/2026/'],
     ] as const) {
@@ -1059,8 +1147,20 @@ test.describe('the Nightingale Nightmare content pages', () => {
       expect(text, path).not.toMatch(/dare to enter/i);
     }
 
+    // **`/nn/` has no closing panel, and it can no longer be asserted by counting `.nn-panel`.**
+    // A card at the foot of this page briefly existed and was taken out again: the year panel
+    // answers the same question with the date attached, so the two were one destination twice
+    // on one page, in one colour, a screen apart.
+    //
+    // **The count is one rather than zero because the year panel now carries `.nn-panel`
+    // itself.** It moved off the white `.nn-card` onto the campaign's aubergine, which is the
+    // same surface these closing panels use — so `toHaveCount(0)`, which is what this test
+    // asserted for most of its life, would now fail on a page that is correct. What is actually
+    // meant is "the only panel here is the year panel", and that is what is asserted: one
+    // `.nn-panel`, and it is the one carrying `.nn-panel-year`.
     await page.goto('/nn/');
-    await expect(page.locator('.nn-panel')).toHaveCount(0);
+    await expect(page.locator('.nn-panel')).toHaveCount(1);
+    await expect(page.locator('.nn-panel')).toHaveClass(/nn-panel-year/);
   });
 
   test('the prize grid highlights whatever race.json says to @requires-js', async ({
@@ -1157,15 +1257,23 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(spectators).toContain('BS8 3PL');
     expect(spectators).toContain('Brunel Lock Road');
 
-    await page.goto('/nn/course/');
-    const course = (await page.locator('body').textContent()) ?? '';
-    expect(course).toContain('No headphones of any type');
-    expect(course).toContain('Trail shoes are recommended');
+    // **There was a third page here and it was the course page**, asserted on the headphone
+    // rule and on "Trail shoes are recommended". Both sentences moved to `/nn/` on 29 August
+    // 2026 and both assertions moved with them — the club supplied that page's copy in full as
+    // the wording `/nn/` should carry, so nothing was summarised and nothing was left behind.
+    // They are below, in "the safety facts survive the race director's copy" and "the course
+    // page's copy is on /nn/ in full, and each sentence once".
+    //
+    // **The shoe line is the one worth naming here.** `NnRaceSummary`'s bullet said "Trail
+    // shoes recommended" and the course page said "Trail shoes are recommended" — one word
+    // apart, and while both pages existed the component was what stopped them meeting. The
+    // supplied copy is the course page's spelling, the summary is rendered on no page at all
+    // now, and the guard below is that the bullet's spelling has not come back beside it.
 
-    // **The 2023 lines that are false for 2026, on every one of the three.** The clocks go
-    // back on 25 October and this race is 1 November, a week later; the transfer deadline
-    // and the entry-opening time are the entries application's and are unconfirmed anyway.
-    for (const text of [raceDay, spectators, course]) {
+    // **The 2023 lines that are false for 2026, on both of them.** The clocks go back on
+    // 25 October and this race is 1 November, a week later; the transfer deadline and the
+    // entry-opening time are the entries application's and are unconfirmed anyway.
+    for (const text of [raceDay, spectators]) {
       expect(text).not.toMatch(/clocks change/i);
       expect(text).not.toMatch(/£\s?\d/);
       expect(text).not.toMatch(/transfer/i);
@@ -1176,7 +1284,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // entering" and signs off "next Sunday morning" — written to people who had already
     // entered, days out. These pages are read months out by somebody deciding whether to
     // enter at all, so nothing may assume either.
-    for (const text of [raceDay, spectators, course]) {
+    for (const text of [raceDay, spectators]) {
       expect(text).not.toMatch(/commiserations/i);
       expect(text).not.toMatch(/next sunday/i);
       expect(text).not.toMatch(/\bwitching hour\b/i);
@@ -1196,15 +1304,19 @@ test.describe('the Nightingale Nightmare content pages', () => {
     return ((await page.locator('body').textContent()) ?? '').replace(/\s+/g, ' ');
   };
 
-  test('the safety summary survives the race director’s copy, and sits under it', async ({
+  test('the safety facts survive the race director’s copy, and sit under it', async ({
     page,
   }) => {
     // **This is the assertion the copy slice was written around.** The brief it came from asked
-    // for two paragraphs of the race director's prose *instead of* the "Know what you are in
-    // for" section — and that section is `NnRaceSummary`, which is where the headphone rule, the
-    // trail-shoe advice, the climb, the water station and "the start is not at race HQ" live on
-    // this page. Replacing it would have stripped five safety-relevant lines off `/nn/` silently
-    // and left them on `/nn/2026/` alone.
+    // for two paragraphs of the race director's prose *instead of* the section that carries the
+    // headphone rule, the trail-shoe advice, the climb, the water station and "the start is not
+    // at race HQ". Doing that would have stripped five safety-relevant facts off `/nn/` silently.
+    //
+    // **The section under her copy has changed twice and the five facts have not.** It was
+    // "Know what you are in for" and `NnRaceSummary`'s five bullets; since 29 August 2026 it is
+    // "The course and terrain", the course page's own prose in full. So this test no longer
+    // knows or cares which of the two is rendering — it asserts the facts, in the wording the
+    // page actually carries, which is what it was always for.
     //
     // **The headphone rule is not decoration.** ARC's rules carry no headphone provision, but
     // Rule 81 lets an organiser make additional rules binding on competitors as though they were
@@ -1218,8 +1330,11 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(body).toContain('tricked & treated');
     expect(body).toContain('Halloween fancy dress is strongly encouraged!');
 
-    // And all five bullets, four of which the brief would have taken with the heading.
-    expect(body).toContain('Trail shoes recommended');
+    // And all five facts, four of which the brief would have taken with the heading. The shoe
+    // line is the course page's "Trail shoes are recommended" now rather than the bullet's
+    // "Trail shoes recommended", and the water station's own sentence ends at the finish rather
+    // than running on into the marshals — so both are matched at the length the page states.
+    expect(body).toContain('Trail shoes are recommended.');
     expect(body).toContain('Nightingale Valley is the climb.');
     expect(body).toContain('No headphones of any type during the race.');
     expect(body).toContain('One water station on the route at approximately halfway');
@@ -1231,6 +1346,81 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(body.indexOf('is back!')).toBeLessThan(body.indexOf('No headphones'));
   });
 
+  test("the course page's copy is on /nn/ in full, and each sentence once", async ({
+    page,
+  }) => {
+    // **`/nn/course/` was absorbed into this page on 29 August 2026, and the club then supplied
+    // the whole of it as the wording `/nn/` should carry.** This test asserted the opposite
+    // earlier on this same branch, and the history is worth keeping straight: the page was first
+    // folded in as the *remainder* — the three claims `NnRaceSummary`'s five bullets did not
+    // already make — on the argument that the bullets were extracted from that page and a second
+    // copy of the rest would be drift. The club asked for the full prose instead. So the summary
+    // came off this page, its bullets are superseded rather than duplicated, and every sentence
+    // below is the course page's own.
+    //
+    // **Which means the wordings moved, and that is what most of the rewriting was.** The shoe
+    // line is "Trail shoes are recommended" rather than the bullet's "Trail shoes recommended";
+    // the water station and the marshals are two items rather than one sentence; the marshals'
+    // prize is "the station the runners vote the best" rather than "the marshalling station".
+    // None of that is a copy edit anybody made — it is the difference between a summary of the
+    // course page and the course page, and the summary is what stopped being rendered.
+    //
+    // **The counting stays, and it is the part to keep if anything here is ever trimmed.** The
+    // page prints the headphone rule, the climb and the Bristol line exactly once each today.
+    // Putting `NnRaceSummary` back above this section — which is one line, and would look like
+    // restoring a summary rather than duplicating a warning — prints all three a second time,
+    // ten lines apart, and every `toContain` in this file goes on passing. A duplicate satisfies
+    // a `toContain`; it is only ever visible to a count.
+    const body = await squashed(page, '/nn/');
+
+    const occurrences = (text: string): number => body.split(text).length - 1;
+
+    // The opening claim. `race.distance` is interpolated ahead of it, so it is matched from the
+    // dash rather than pinned to a spelling `race.json` owns.
+    expect(body).toContain(
+      '— and not a fast one. This is a race you finish rather than a race you set a time on.',
+    );
+
+    // The ground, the shoes, and the marshals' prize, each in the supplied wording.
+    expect(body).toContain('rocky in places and rooty in others');
+    expect(body).toContain(
+      'Road shoes are acceptable, and people run it in them every year. They are working harder than they need to.',
+    );
+    expect(body).toContain(
+      'a prize afterwards for the station the runners vote the best',
+    );
+
+    // **The one line here that was `NnRaceSummary`'s and not the course page's.** The supplied
+    // copy does not restate it, and it is the fact that stops somebody driving to the wrong
+    // place on the morning, so it is carried into "What is on the route" rather than dropped.
+    expect(body).toContain('The start and the finish are not at race HQ');
+
+    // And the three that a restored summary would print a second copy of.
+    expect(occurrences('No headphones of any type during the race.')).toBe(1);
+    expect(occurrences('Nightingale Valley is the climb.')).toBe(1);
+    expect(occurrences('It is Bristol, in November')).toBe(1);
+
+    // **The shoe line is the near miss, and the two spellings are one word apart.** The page
+    // carries the course page's "Trail shoes are recommended."; the bullet's is "Trail shoes
+    // recommended, road shoes acceptable." Matching the bullet's comma is what tells the two
+    // apart — a bare "Trail shoes recommended" is not a substring of the sentence on the page,
+    // so it would read as a guard and assert nothing about which wording is there.
+    expect(occurrences('Trail shoes are recommended.')).toBe(1);
+    expect(body).not.toContain('Trail shoes recommended,');
+
+    // **The 2023 provenance guards, inherited from the course page's leg of "the content pages
+    // state the facts they were given, and no others".** That copy is on this page now, so the
+    // assertions that kept its assumptions off follow it here rather than being dropped with the
+    // page. The clocks go back a week before this race; the transfer deadline and the entry
+    // window belong to one running and to the entries application.
+    expect(body).not.toMatch(/clocks change/i);
+    expect(body).not.toMatch(/transfer/i);
+    expect(body).not.toMatch(/sells out/i);
+    expect(body).not.toMatch(/commiserations/i);
+    expect(body).not.toMatch(/next sunday/i);
+    expect(body).not.toMatch(/\bwitching hour\b/i);
+  });
+
   test('the climb is stated to somebody about to enter, not one tap away', async ({
     page,
   }) => {
@@ -1239,90 +1429,142 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // form, said what the ground is like and what shoes to wear and nothing about the hill. So
     // somebody could read every word in front of the form and not know the race climbs a valley.
     //
-    // **Two paths now, and `/nn/2026/` left on 29 August 2026.** It was here because the
-    // summary card on that page carried `NnRaceSummary`'s bullets; the race director's full
-    // instructions replaced that card, and her copy describes a tough course with plenty of
-    // elevation without naming the valley as the climb. **So the page with the entry form on it
-    // no longer says the race climbs a valley** — which is the gap this test was written to
-    // close, reopened deliberately rather than by accident. Two sentences from her would shut
-    // it again and the path comes back.
-    for (const path of ['/nn/', '/nn/course/']) {
+    // **`/nn/2026/` left on 29 August 2026.** It was here because the summary card on that page
+    // carried `NnRaceSummary`'s bullets; the race director's full instructions replaced that
+    // card, and her copy describes a tough course with plenty of elevation without naming the
+    // valley as the climb. **So the page with the entry form on it no longer says the race
+    // climbs a valley** — which is the gap this test was written to close, reopened deliberately
+    // rather than by accident. Two sentences from her would shut it again and the path comes
+    // back.
+    //
+    // **And `/nn/course/` left the same day, because it is not a page any more.** It 301s here,
+    // so leaving it in this list would have run every assertion below against `/nn/` twice under
+    // a name that says otherwise — which is the vacuous kind of green, not the red kind. A list
+    // of one is kept rather than unrolled because what left and when is the readable part.
+    //
+    // **What reaches `/nn/` is the course page's own paragraph now rather than a bullet.** The
+    // sentences below are the ones it always asserted, and they read the same either way; the
+    // section around them is "Where it goes" instead of "Know what you are in for".
+    for (const path of ['/nn/']) {
       const body = await squashed(page, path);
 
       expect(body, path).toContain('Nightingale Valley is the climb.');
       expect(body, path).toContain('There is no clever way to run it — go up steadily');
 
-      // **The sentence that makes the trail-shoe line advice rather than trivia.** It was on
-      // the course page alone too, and it is the reason the shoe bullet exists at all.
+      // **The sentence that makes the trail-shoe line advice rather than trivia**, and the
+      // reason the shoes are mentioned at all. It was on the course page alone; it is the last
+      // line of "What it is like underfoot", immediately above the shoe advice it is the
+      // argument for.
       expect(body, path).toContain('It is Bristol, in November. Plan for wet.');
     }
   });
 
-  test('the page somebody pays from says where the race goes', async ({ page }) => {
-    // **A gap in what was already published rather than fallout from anything.** `/nn/2026/`
-    // described the ground, the shoes, the water and the start, and never the route — that
-    // sentence lived on `/nn/` in the race director's words and on `/nn/course/` in the club's,
-    // and neither of those is the page with the entry form on it.
+  test('/nn/ says where the race goes, in both the wordings it was given', async ({
+    page,
+  }) => {
+    // **This guard has been inverted, and the inversion is the decision rather than a repair.**
     //
-    // **The club's wording, because hers carries the distance.** "A 10km off road run along the
-    // towpath…" would be a second spelling of a distance the `<dl>` on that page already states
-    // from `race.json`, and which spelling the site settles on is with the race director.
+    // It used to assert that the second of these two sentences was *absent* from `/nn/`. The
+    // rule behind it was "one route, one spelling per page": the race director's own paragraph
+    // already names the towpath, Nightingale Valley and Leigh Woods, so when `/nn/course/` was
+    // absorbed on 29 August 2026 its "Where it goes" sentence was the one line chosen not to
+    // come, and this line was what stopped a later paste putting it back.
     //
-    // **`/nn/2026/` left this loop on 29 August 2026**, with the summary card it lived in. The
-    // gap the test names is therefore open again on the page somebody pays from: it describes
-    // the ground, the shoes, the water and the start, and not the route. Recorded here rather
-    // than deleted, because the test's own first line is still the argument for closing it.
-    for (const path of ['/nn/course/']) {
-      const body = await squashed(page, path);
-
-      expect(body, path).toContain(
-        'The route runs along the towpath, turns up Nightingale Valley, and carries on through Leigh Woods.',
-      );
-    }
-
-    // **And `/nn/` keeps hers rather than gaining a second copy**, which is why the sentence is
-    // page-local instead of in `NnRaceSummary`. One route, one spelling per page.
+    // **The club then supplied the course page's copy in full and asked for it as it stands**,
+    // route sentence included. So `/nn/` states where the race goes twice, in two wordings, on
+    // purpose. That is not the rule being forgotten — it is the rule being **overruled by the
+    // people whose copy it is**, which is the only thing that may overrule it. The race
+    // director's spelling and the club's are both quoted below, and asserting both is what makes
+    // the duplication a recorded decision rather than something that crept in: deleting either
+    // one now goes red, and whoever does it has to read this note first.
+    //
+    // **The old reasoning is left standing above rather than tidied away**, because a guard that
+    // reversed is worth more with its argument attached — the next person to notice two
+    // wordings of one route on one page should find out why before improving it.
+    // `/nn/index.astro`'s note above the course section points here by name.
+    //
+    // **The gap the old note named is still open.** `/nn/2026/` carries the entry form and
+    // states the ground, the shoes, the water and the start, and not the route — so the page
+    // somebody pays from still does not say where the race goes.
     const race = await squashed(page, '/nn/');
 
+    // Hers, in her spelling: "10km off road" unhyphenated, no comma before "up".
     expect(race).toContain(
       'A 10km off road run along the towpath, up Nightingale Valley and through Leigh Woods.',
     );
-    expect(race).not.toContain('The route runs along the towpath');
+
+    // And the club's, under "Where it goes".
+    expect(race).toContain(
+      'The route runs along the towpath, turns up Nightingale Valley, and carries on through Leigh Woods.',
+    );
   });
 
   test('the water station says where it is, wherever it is mentioned', async ({
     page,
   }) => {
     // **The fact somebody rations a bottle against.** It read "one water station on the route"
-    // with no location on both pages that state it; approximately halfway is the race director's
-    // confirmation. The sentence lives in two places — `NnRaceSummary`, which reaches `/nn/` and
-    // `/nn/2026/`, and the course page — so all three are asserted rather than one. That is what
-    // stops the pair drifting for as long as the course page still exists.
+    // with no location on every page that stated it; approximately halfway is the race
+    // director's confirmation. It was on three pages and this asserted all three at once, which
+    // is what stopped them drifting.
     //
     // **`/nn/2026/` left on 29 August 2026.** The race director's copy says there is one water
     // station on the route and another at the finish; it does not say where. "Approximately
     // halfway" was her own confirmation and it is the number somebody rations a bottle against,
     // so its absence from the entry page is a loss rather than a tidy-up.
-    for (const path of ['/nn/', '/nn/course/']) {
+    //
+    // **The course page left the same day, and it is the reason there is nothing left to drift
+    // against.** Its copy is a section of `/nn/` now, so that section is the only place on the
+    // site this sentence is stated and the one page below is every page that states it. Left as
+    // a list because the shrinking is the history — and `/nn/course/` could not stay in it: it
+    // 301s to `/nn/`, so it would have asserted this page twice.
+    //
+    // **Matched to "halfway" and no further, which is deliberate.** `NnRaceSummary`'s bullet ran
+    // the finish and the marshals into this sentence; the supplied copy stops at the finish and
+    // gives the marshals an item of their own. The location is the fact this test is named for,
+    // and it is the half both wordings share.
+    for (const path of ['/nn/']) {
       const body = await squashed(page, path);
 
       expect(body, path).toContain('water station on the route at approximately halfway');
     }
   });
 
-  test('/nn/ no longer promises a link its panel may not render', async ({ page }) => {
-    // The footer read "each year's running has its own, linked above", and the link it meant is
-    // the year panel — which ships `hidden` and is revealed only when the Worker can reach the
-    // database. On the failure path the sentence pointed at nothing, in prose, on the front
-    // door. **The panel is the wayfinding**, and prose describing a link that may not be there
-    // is worse than no prose: a reader who cannot find it assumes the fault is theirs.
+  test('/nn/ has one footer, and it is the club’s', async ({ page }) => {
+    // The page's own footer read "each year's running has its own, linked above", and the link
+    // it meant is the year panel — which ships `hidden` and is revealed only when the Worker can
+    // reach the database. On the failure path the sentence pointed at nothing, in prose, on the
+    // front door. **The panel is the wayfinding**, and prose describing a link that may not be
+    // there is worse than no prose: a reader who cannot find it assumes the fault is theirs.
     const body = await squashed(page, '/nn/');
-
     expect(body).not.toContain('linked above');
 
-    // **The attribution stays.** It is what every footer on this site opens with, and `/nn/` is
-    // not the page to become the exception.
-    expect(body).toContain('Southville Running Club.');
+    // **The rest of that footer has gone into the club's, which reverses the line below it.**
+    // This asserted `toContain('Southville Running Club.')` on the argument that the attribution
+    // is what every footer on this site opens with. `/nn/2026/` made the same move first and the
+    // same argument went with it: the club's name is the masthead's wordmark above and the club
+    // footer's own subject below, so a third statement of it sat between two others. The page
+    // now has exactly one `<footer>` — it had two stacked, which is the thing that move removed.
+    await expect(page.locator('footer')).toHaveCount(1);
+    await expect(page.locator('footer.site-footer')).toBeVisible();
+
+    // The race's own links, grouped under its name so the race's privacy notice is not a second
+    // link called almost the same thing as the club's.
+    const group = page.locator('.site-footer-links');
+    await expect(
+      group.getByRole('link', { name: 'What the club does with your details' }),
+    ).toHaveAttribute('href', '/nn/privacy/');
+    await expect(group.getByRole('link', { name: /@/ })).toHaveAttribute(
+      'href',
+      /^mailto:/,
+    );
+
+    // **Two links here where `/nn/2026/` has three, and that is the point of the optional
+    // prop.** The entry terms are at `/nn/<year>/terms/` and this page may not name a year, so
+    // it passes no `terms` and the row renders without it. A year reaching this markup is the
+    // failure `nn-nav.test.ts` and `nn-entry.test.ts` guard from their own angles.
+    await expect(
+      group.getByRole('link', { name: 'Entry terms and race rules' }),
+    ).toHaveCount(0);
   });
 
   test('the start is given as a place of its own, distinct from HQ', async ({ page }) => {
@@ -1355,7 +1597,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // The failure this guards is a later edit pasting the convenient thing back in.
     for (const path of [
       '/nn/',
-      '/nn/course/',
+      '/nn/privacy/',
       '/nn/2026/',
       '/nn/2026/race-day/',
       '/nn/2026/spectators/',
@@ -1396,6 +1638,49 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(body).toMatch(/baked\s+by club volunteers/i);
     expect(body).toMatch(/donation tin/i);
     expect(body).toMatch(/warm and dry/i);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Where the course page used to live
+// -------------------------------------------------------------------------------------------
+
+/**
+ * **`/nn/course/` has been published since the race pages were written, and a printed address
+ * that 404s is worse than one that is out of date.** The course and terrain are a section of
+ * `/nn/` now — the club supplied that page's copy in full as the wording `/nn/` should carry,
+ * so the reader arrives at the whole of what they clicked for rather than a summary of it — and
+ * the address keeps resolving, as a 301.
+ *
+ * The status, both spellings, the headers and the query string are the Worker suite's, in
+ * `tests/worker/serves.test.ts`, and the predicate's letters are `tests/unit/routing.test.ts`'s.
+ * **What only a browser can say is that the journey ends somewhere useful**: that a reader who
+ * followed a link off a poster lands on a page with the course on it, rather than on a redirect
+ * that resolves and drops them somewhere that no longer answers what they clicked for.
+ *
+ * The same shape as `admin.spec.ts`'s "the addresses that moved", for the same reason.
+ */
+test.describe('the address the course page used to live at', () => {
+  test('follows an old link through to the section it moved into', async ({ page }) => {
+    const response = await page.goto('/nn/course/');
+
+    // **The final URL, and it is `/nn/` rather than `/nn`.** `trailingSlash` is `'always'`, so a
+    // redirect to the unslashed form would resolve too — via a second hop from the assets
+    // binding, which is a hop this Worker can spend nothing on and a reader pays for.
+    await expect(page).toHaveURL(/\/nn\/$/);
+
+    // **That it redirected rather than answered**, which is the assertion the URL alone cannot
+    // make: a `dist/nn/course/index.html` that quietly came back would satisfy everything else
+    // here and put a second copy of this content on the site.
+    const before = response?.request().redirectedFrom();
+    expect(before, 'the old address must redirect rather than answer').toBeTruthy();
+    expect((await before!.response())?.status()).toBe(301);
+
+    // And it lands on the content, not merely on a page that renders. A redirect to `/nn/` from
+    // which the course section had been dropped would be a reader delivered to nothing.
+    await expect(
+      page.getByRole('heading', { name: 'The course and terrain' }),
+    ).toBeVisible();
   });
 });
 
@@ -1474,10 +1759,14 @@ test.describe('the health endpoints', () => {
 });
 
 test.describe('accessibility', () => {
+  // **The course page was here and is not replaced.** It 301s to `/nn/` since 29 August 2026, so
+  // a row for it would run axe against `/nn/` a second time under a name that says otherwise —
+  // and the page it now redirects to is the row above. Every other Nightingale Nightmare page
+  // that carries the campaign chrome is still in this list, and `/nn/2026/terms/` has the same
+  // two checks in `nn-terms.spec.ts`.
   for (const [name, path] of [
     ['the website', '/'],
     ['Nightingale Nightmare', '/nn/'],
-    ['the course page', '/nn/course/'],
     ['the club privacy notice', '/privacy/'],
     ['the race privacy notice', '/nn/privacy/'],
     ['the 2026 race', '/nn/2026/'],

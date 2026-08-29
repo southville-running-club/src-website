@@ -56,11 +56,21 @@ describe('the panel answers the two questions in the order they are asked', () =
     expect(html).toContain('250 places');
   });
 
-  it('links to the rest of this running from inside the panel', async () => {
+  it('links to this running and to nothing else beside it', async () => {
+    // **The panel held three year links and holds one.** "Race instructions" and "Spooktators"
+    // sat under the action in a `<ul class="nn-panel-links">`; both came out on request, and
+    // this asserted their hrefs.
+    //
+    // **Inverted rather than deleted, because the Worker still offers to paint them.**
+    // `renderNnRaceView` registers `[data-nn-panel-link="race-day"]` and
+    // `[data-nn-panel-link="spectators"]` and always will — `/nn/2026/` uses the same hooks — so
+    // nothing in the Worker would go red if the markup came back. Asserting the absence is what
+    // notices, and it is the same shape as the bar's own guard one file along.
     const html = panel(await front());
 
-    expect(html).toContain('href="/nn/2026/race-day/"');
-    expect(html).toContain('href="/nn/2026/spectators/"');
+    expect(html).toContain('href="/nn/2026/"');
+    expect(html).not.toContain('href="/nn/2026/race-day/"');
+    expect(html).not.toContain('href="/nn/2026/spectators/"');
   });
 });
 
@@ -295,7 +305,7 @@ describe('the entry fee on the year page', () => {
  */
 describe('which of the three states the year page renders', () => {
   const PAGE = [
-    '<a data-nn-cta href="#register">Register your interest</a>',
+    '<a data-nn-cta href="#register">Register interest</a>',
     '<dl data-nn-entries-open><dt>Entries open</dt><dd>Tuesday 1 September</dd></dl>',
     '<div data-nn-interest><h2 id="register">Register your interest</h2></div>',
     '<div data-nn-closed hidden><h2>Entries have closed</h2></div>',

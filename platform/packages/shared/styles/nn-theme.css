@@ -1002,25 +1002,106 @@ html:has(body.theme-nn) {
  * sweep reported zero violations on this page for as long as the button was invisible. 1.4.11 is
  * a pairing a person has to compute, which is what this table is for.
  * ------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------
+ * The year panel, on aubergine — every colour in it recomputed, not re-picked
+ * -------------------------------------------------------------------------------------
+ * **This panel was white and is the campaign's aubergine now**, at the club's request, and
+ * that is a colour change to every line inside it rather than one background declaration.
+ * The markup dropped `nn-card` for `nn-panel`; what follows is the arithmetic.
+ *
+ * **What the old colours became on the new surface**, which is why none of them survived:
+ *
+ *   line                  token             on white   on aubergine
+ *   date, facts           `--nn-ink`         18.09:1    **1.17:1**
+ *   label, note           `--nn-slate`        8.30:1    **1.87:1**
+ *   the two year links    `--nn-blood`        9.01:1    **1.72:1**
+ *
+ * Every one of them inverts. 1.17:1 is not "hard to read", it is the date of the race
+ * rendered in a colour a reader cannot resolve from the panel behind it — and **axe would
+ * have reported zero violations the whole time**, because `color-contrast` compares text
+ * against the background it computes, and it computes this one correctly and reports a fail
+ * only for text. This table exists because the same defect is documented twice already in
+ * this file: `NnSchedule` moved onto the gradient and lost its divider and its time, and
+ * `.nn-arrows` is still latent. **A surface is not a property of a component; it is a
+ * property of where the component is standing.**
+ *
+ * **What they became, and the two the panel already had:**
+ *
+ *   date                  `--nn-bone`        14.51:1
+ *   facts                 `--nn-bone`        14.51:1
+ *   label                 `--nn-pus`          9.37:1
+ *   note                  `--nn-pus`          9.37:1   (inherited from `.nn-panel`)
+ *   the two year links    `--nn-bone`        14.51:1
+ *   action, shut          `.nn-ghost`        14.51:1   bone border and text
+ *   action, open          `.nn-cta`          10.93:1   ink on pus
+ *   focus ring            `--nn-pus`          9.37:1   on aubergine
+ *
+ * All clear 7:1, so they hold at any weight and any size.
+ *
+ * **The rule is the one thing under 4.5:1 and it is deliberate.** Bone at 45% over aubergine
+ * is **3.98:1** — a divider is decoration rather than "non-text content required to
+ * understand", the same argument this file already makes for the panel's own 1.72:1 fill.
+ * 45% rather than `--colour-rule`'s 35%, which computes to 2.94:1 here: that token was
+ * measured against the *gradient*, where it reads 3.78:1 falling to 3.04:1, and reusing it
+ * on a darker surface without recomputing is the exact mistake this note is about.
+ *
+ * **Every selector below is scoped to `.nn-panel-year` for specificity, not for tidiness.**
+ * `.theme-nn .nn-panel p` is (0,2,1) and sets `font-size: 15px`; an unscoped
+ * `.theme-nn .nn-panel-date` is (0,2,0) and would lose to it, rendering the date — the
+ * largest thing on the panel and the one question somebody arrives with — at the size of a
+ * paragraph. The note goes further and needs `.nn-panel.nn-panel-year` (0,4,0), because
+ * `.theme-nn .nn-panel .nn-panel-note` is (0,3,0) and declared later in this file.
+ * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-panel-year {
   margin-top: 26px;
   text-align: center;
 }
 
 /* Quiet, small, and above the thing it labels. It is a label rather than a heading in the
-   visual sense — the panel's accessible name, which `aria-labelledby` points at. */
-.theme-nn .nn-panel-label {
+   visual sense — the panel's accessible name, which `aria-labelledby` points at. **Quiet by
+   size and letterspacing rather than by dimming**: on white it stepped down from ink to
+   slate, and every dimmed bone on aubergine that still clears 4.5:1 starts at 55% opacity,
+   which is a translucent colour for a stylesheet test to resolve. Pus is the panel's
+   established accent and is measured. */
+/* **The one thing on this card set in the display face**, and it is allowed to be for the
+   reason stated at the head of this file: Nosifer is only ever used for a heading that carries
+   no instruction, and "The next race" names the block and asks nothing of anybody. The date
+   below it is a fact somebody acts on and stays in the text face — the note over
+   `.nn-panel-date` calls that out as the one place the rule would be most tempting to break.
+
+   **Capped below the date rather than taking `.nn-panel h2`'s clamp.** That rule tops out at
+   26px, which would put the heading above the date's 24px and answer "what is this block
+   called" more loudly than "when is it". The ceiling here is 20px, so the date stays the
+   biggest thing on the card at every width — the ordering that block's own note argues for.
+
+   Bone rather than the pus it was: at 14.51:1 this is the same measured pairing the date uses,
+   and it leaves pus as the one coloured thing in the panel, which is what `.nn-panel`'s own
+   note says it is for. `letter-spacing` and `text-transform` come off because Nosifer is a
+   poster face with its own spacing, and tracking it out at display size opens gaps mid-word. */
+.theme-nn .nn-panel-year .nn-panel-label {
   margin: 0;
-  color: var(--nn-slate);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--nn-bone);
+  font-family: var(--nn-display);
+  font-size: clamp(16px, 3.6vw, 20px);
+  font-weight: 400;
+  line-height: 1.7;
 }
 
-.theme-nn .nn-panel-date {
-  margin: 6px 0 0;
-  color: var(--nn-ink);
+/* **`auto` on the side margins, and it is the whole of a real alignment defect.**
+   `.theme-nn .nn-panel p` sets `margin: 0 auto 18px` **and** `max-width: 34rem` together — the
+   auto is what centres a block narrower than the card it sits in. Every scoped rule below
+   overrides `margin` for its own top spacing, and writing the sides as `0` kept the max-width
+   while throwing away the centring: each paragraph became a 34rem block pinned to the **left**
+   of a wider card, with its own text centred inside that narrower block.
+
+   **It looked almost right, which is why it needs the note.** The heading is an `<h2>` and the
+   divider an `<hr>`, so neither takes `.nn-panel p`'s max-width and both stayed truly centred —
+   while the date, the facts, the button and the note sat about 70px to their left. Two centres
+   on one card, one of them wrong, and nothing failing. `.nn-panel-rule` above already had
+   `18px auto` and was never affected, which is the shape the rest of these now match. */
+.theme-nn .nn-panel-year .nn-panel-date {
+  margin: 6px auto 0;
+  color: var(--nn-bone);
   font-size: 24px;
   font-weight: 700;
   line-height: 1.25;
@@ -1028,27 +1109,59 @@ html:has(body.theme-nn) {
 
 /* The start time, the distance and the field size, in one line under the date. Mono for the
    same reason the hero's fact row is: these are values, and a value set in the text face
-   reads as prose. */
-.theme-nn .nn-panel-facts {
-  margin: 6px 0 0;
-  color: var(--nn-ink);
+   reads as prose. **Bone rather than pus**, because on white this line and the date were the
+   same colour and that relationship is the hierarchy — the label is the accent, not the
+   facts. */
+.theme-nn .nn-panel-year .nn-panel-facts {
+  margin: 6px auto 0;
+  color: var(--nn-bone);
   font-size: 14px;
 }
 
-.theme-nn .nn-panel-rule {
+.theme-nn .nn-panel-year .nn-panel-rule {
   margin: 18px auto;
   border: 0;
-  border-top: 1px solid var(--nn-field-border);
+  border-top: 1px solid rgba(255, 246, 236, 0.45);
 }
 
-.theme-nn .nn-panel-actions {
-  margin: 0;
+/* Scoped like its siblings above, and for the same reason: unscoped this is (0,2,0) and loses
+   its margin to `.theme-nn .nn-panel p` at (0,2,1), which would push the note 18px further down
+   than the panel was drawn with. A silent spacing change rather than a colour one, but the same
+   accident. */
+.theme-nn .nn-panel-year .nn-panel-actions {
+  margin: 0 auto;
 }
 
-.theme-nn .nn-panel-year .nn-panel-note {
-  margin: 12px 0 0;
-  color: var(--nn-slate);
+.theme-nn .nn-panel.nn-panel-year .nn-panel-note {
+  margin: 12px auto 0;
+  color: var(--nn-pus);
   font-size: 14px;
+}
+
+/* **The action in the campaign's yellow, and it stays an outline.**
+ *
+ * Asked for as "yellow, or another colour that complements the purple", and pus is that colour
+ * without inventing one: it is already the panel's accent, and **9.37:1 on aubergine** — a
+ * pairing measured elsewhere in this file rather than a new one to argue about. The border
+ * clears 3:1 for a non-text control comfortably on the same number.
+ *
+ * **`background` is deliberately untouched.** This button has two states and the fill is what
+ * separates them: while entries are shut it is this outline, and the moment they open
+ * `PanelActionHandler` swaps the class to `.nn-cta`, which is pus *filled* with ink on top at
+ * 10.93:1. The note over the year panel calls that difference in weight "the message" — a
+ * filled action here would read as "enter" on a page where entries are not open, and
+ * `site.spec.ts` asserts the shut state has a transparent background for exactly that reason.
+ * So this changes the colour and leaves the weight alone; open and shut are still outline
+ * versus fill, one difference rather than the two they had.
+ *
+ * **Scoped to the panel, and that is not tidiness.** `.theme-nn .nn-ghost` is bone because it
+ * is drawn on the page gradient, and the note above it records that recolouring the class
+ * outright would make `/nn/2026/`'s hero ghost the wrong thing — the same defect facing the
+ * other way, which `site.spec.ts` pins at `rgb(255, 246, 236)`. Three classes beat two, so this
+ * wins here and reaches nothing else. */
+.theme-nn .nn-panel-year .nn-ghost {
+  border-color: var(--nn-pus);
+  color: var(--nn-pus);
 }
 
 /* The two links to the rest of this year's running. A real list, laid out as a row — a
@@ -1063,8 +1176,11 @@ html:has(body.theme-nn) {
   list-style: none;
 }
 
+/* **Bone, because blood is 1.72:1 here.** These two were 9.01:1 as blood on the white card and
+   are the third line in the table above — the one easiest to miss, because a link that has lost
+   its contrast still looks like a link from its weight and its position in a row. */
 .theme-nn .nn-panel-links a {
-  color: var(--nn-blood);
+  color: var(--nn-bone);
   font-size: 14px;
   font-weight: 600;
 }
@@ -2215,7 +2331,7 @@ html:has(body.theme-nn) {
  * factual row, and `flex-wrap` so they stack rather than push at 320px.
  *
  * **The primary button says whichever of the two things this page can actually deliver**, and
- * the Worker decides which on every request: "Register your interest" while the event row
+ * the Worker decides which on every request: "Register interest" while the event row
  * says entries are shut, "Enter the race" when it says they are open. That is a row edit and
  * not a deploy. The mockup's "Enter the race — from £15" bakes a price into a button; the
  * price is painted on from `entries.fees` instead, and the label with it.

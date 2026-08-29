@@ -25,15 +25,15 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 ```
 src/content/race.json          Every race fact, as data. See below
 src/content/privacy.json       The club notice's own values. Three keys, two of them null
-src/components/NnNav.astro     The five Nightingale Nightmare links
+src/components/NnNav.astro     The two Nightingale Nightmare links
 src/components/NnMasthead.astro   The header they sit in, and the button beside them
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
 src/pages/index.astro          The holding page — new.<apex>/
 src/pages/privacy.astro        The club's privacy notice — the account, and everything
                                that is not about a race
 src/pages/404.astro
-src/pages/nn/index.astro       The race — evergreen, the year panel, no year in it
-src/pages/nn/course.astro      Course and terrain — evergreen
+src/pages/nn/index.astro       The race — evergreen, the year panel, the course and
+                               terrain, no year in it
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
 src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
 src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
@@ -61,13 +61,13 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 
 | | |
 | --- | --- |
-| `/nn/` | **The race — evergreen, and it names no year.** No form posts here; a POST gets 405 from the assets binding, as `/nn/privacy/` always has. The Worker paints on which running is current, its date and its links, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
-| `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
+| `/nn/` | **The race — evergreen, and it names no year.** No form posts here; a POST gets 405 from the assets binding, as `/nn/privacy/` always has. The Worker paints on which running is current, its date and its links, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one. **It carries the course and terrain in full**, one `<h2>` and three `<h3>`s inside the race director's card: where it goes, what it is like underfoot, and what is on the route |
+| `/nn/course/` | **Not a page any more.** The course and terrain are on `/nn/` itself — they were always the race's rather than one running's — and what moved is the **whole** of this page's copy rather than a summary of it: the club supplied all of it as the wording `/nn/` should carry. The address **redirects**: 301 for a GET or a HEAD, 308 for anything else, because it was published and linked to. `worker/routing.ts` owns the predicate |
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
-| `/nn/2026/` | **The 2026 running, and the campaign's one entry point.** The hero, a sticky entry rail, the facts, the race-morning schedule in full, and a summary of each of the three pages below with a link to it — see [the consolidated page](#the-consolidated-page). It carries **both forms**: interest before entries open, entry after. Both post here, and a hidden `form` field says which |
+| `/nn/2026/` | **The 2026 running, and the campaign's one entry point.** The hero, a sticky entry rail, the facts, the race-morning schedule in full, and a summary of each of the two pages below it — see [the consolidated page](#the-consolidated-page). **It carries no course section** — that came off in 1b15cce, and the course and terrain are on `/nn/`. It carries **both forms**: interest before entries open, entry after. Both post here, and a hidden `form` field says which |
 | `/nn/2026/terms/` | **The entry terms and race rules**, and what the entry form's checkbox commits somebody to. **The race director's copy, published verbatim** — see [the entry terms](#the-entry-terms). **With the year**, because it names this running's date, permit and transfer deadline; 2027's terms are a new file beside it, not an edit to this one |
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
-| `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
+| `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ. **Nothing on the site links to it any more**: its content is on `/nn/2026/` as the `#spooktators` section, and the bar's `Spooktators` item was the last inbound link. The page is live and answers 200 to anybody holding the address — which is exactly the shape `/nn/course/` was in before it was retired with a 301, and it is a decision somebody should take rather than a side effect to leave standing |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 | `/privacy/` | **The club's notice, and not the race's** — the account, its columns, the lawful basis for each purpose, who else sees it and what can be asked for. In the club's brand, with no event theme anywhere near it. Written from `identity`'s columns and Supabase Auth's own, which is a good deal more than the sign-up form asks for. Linked from the footer of every page on both front doors, and from `/nn/privacy/`, which it links back down to |
@@ -92,22 +92,35 @@ page-local jump-nav links to:
 | 1 | Hero | `top` | — |
 | 2 | Entry rail | `entry` | — |
 | 3 | The race, and its facts | `race` | Race |
-| 4 | The course — a summary, and a link out | `course` | Course |
-| 5 | Race information — the schedule in full, a summary, a link out | `race-info` | Race info |
-| 6 | Spooktators — a summary, and a link out | `spooktators` | Spooktators |
-| 7 | Closing call to action | — | — |
+| 4 | Race information — the schedule in full, a summary, a link out | `race-info` | Race info |
+| 5 | Spooktators — a summary, and no link out | `spooktators` | Spooktators |
+| 6 | Closing call to action | — | — |
+
+**There is no course section on this page, and there is no `course` anchor.** It
+summarised `/nn/course/` and linked out to it, and it came off in 1b15cce at the club's
+request — with `NnRaceSummary`, whose only consumer here it was. That component now renders
+on **no** page: `/nn/` dropped it too when the club supplied the course copy in full, so
+the short form of the course exists nowhere and the long form is on `/nn/`. The head of
+`NnRaceSummary.astro` records the open question of whether it is deleted or brought back.
 
 **There is no page footer any more.** Its two lines — the race's privacy notice and the contact address — moved into `SiteFooter`'s race group, beside the entry terms, so the page carries one footer instead of two stacked. `SiteFooter` takes them as a `race` prop rather than naming them itself, because it renders on every page of this app including `/nn/`, which ADR-011 requires to name no year anywhere in its markup.
 
-**One entry point rather than one page.** `/nn/course/`, `/nn/2026/race-day/` and
-`/nn/2026/spectators/` stay live and linked; sections 4, 5 and 6 summarise them rather than
-absorb them. Absorbing them would retire three URLs, which is a decision with its own record.
+**One entry point rather than one page.** `/nn/2026/race-day/` and `/nn/2026/spectators/` both
+stay live; sections 4 and 5 summarise them rather than absorb them. Absorbing them would
+retire two URLs, which is a decision with its own record.
 See [ADR-024](../../../docs/architecture/decisions/adr-024-one-entry-point-for-a-running.md).
+**Only the first of the two is still reachable by a link, though** — the hero's second button
+and the entries-closed notice both point at the race instructions, and nothing anywhere points
+at `/nn/2026/spectators/` since the bar's `Spooktators` item came out.
+**`/nn/course/` was a third and it is gone** — absorbed into `/nn/` rather than into this page,
+with the address left redirecting there.
 
-**The jump-nav is page-local and additive.** `NnNav` is untouched and paints the same seven
-hrefs on all eight campaign pages. These four anchors exist only here, so they point at nothing
-nowhere — and the jump-nav is deliberately not a second masthead: unpinned, no band, no
-wordmark, no call to action, and a bone current-marker where the bar uses `pus`.
+**The jump-nav is page-local and additive.** The masthead is a separate bar, carrying the same
+four hrefs — the wordmark, `Race`, `Privacy` and the painted button — on six of the seven
+campaign pages, with `/nn/2026/entry/complete/` keeping the wordmark alone. These three anchors
+exist only here, so they point at nothing nowhere — and the jump-nav is deliberately not a
+second masthead: unpinned, no band, no wordmark, no call to action, and a bone current-marker
+where the bar uses `pus`.
 
 **Below 860px this is the one page whose masthead releases.** It is the only page with a fixed
 bar at the bottom, and 136px of masthead plus a 64px entry bar is 35% of a 568px phone — within
@@ -120,14 +133,15 @@ view, and move focus to a section when its jump link is followed. That last one 
 until somebody needs it — a bare fragment link scrolls the page and leaves the keyboard at the
 top, so the next Tab returns them to where they started, and axe passes either way.
 
-### The navigation — one bar, six controls, and it stays on screen
+### The navigation — one bar, three controls, and it stays on screen
 
 ```
-[wordmark]  Race  Course  Race day  Spectators  Privacy      [ Enter the race ]
+[wordmark]  Race  Privacy      [ Enter the race ]
 ```
 
-`src/components/NnNav.astro` (the five links) and `src/components/NnMasthead.astro` (the
-button) — [ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md), as
+`src/components/NnNav.astro` (the two links) and `src/components/NnMasthead.astro` (the
+wordmark and the button) —
+[ADR-012](../../../docs/architecture/decisions/adr-012-one-navigation-bar.md), as
 amended by
 [ADR-014](../../../docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md),
 which added `Privacy` and made the bar sticky again.
@@ -136,12 +150,16 @@ which added `Privacy` and made the bar sticky again.
 never colour alone: `aria-current="page"`, a 2px rule under the label, and full brightness
 against the 0.78 the others rest at.
 
-**The year is never in the bar and never in `dist/`.** Race day, Spectators and the button ship
-`hidden` with `href=""`, and the Worker paints them from `entries.current_entry_state('nn')` on
-**every** page that renders the masthead — including `/nn/course/` and `/nn/privacy/`, which it
-previously did nothing to. That is one database round trip on those pages, resolved once per
-request and shared. `tests/unit/nn-nav.test.ts` greps the components for a hand-typed year,
-because a Worker test only ever sees the painted result.
+**The year is never in the bar and never in `dist/`.** Neither link can name one — `/nn/` and
+`/nn/privacy/` are evergreen addresses written straight into the component — so the button is
+the only thing left to paint. It ships `hidden` with `href=""`, and the Worker fills it in from
+`entries.current_entry_state('nn')` on **every** page that renders the masthead, including
+`/nn/privacy/`, which it previously did nothing to. That is one database round trip on that
+page, resolved once per request and shared. **`Race info` and `Spooktators` were the two painted
+links and they came out on request**; the array they lived in is still in `NnNav.astro` and still
+mapped, empty, so putting a year link back is one entry there and no Worker change.
+`tests/unit/nn-nav.test.ts` greps the components for a hand-typed year, because a Worker test
+only ever sees the painted result.
 
 **The button's label is the entry window's**, because "Enter" on a button that does not let you
 enter is a small dishonesty on a site that is about to ask for money:
@@ -155,10 +173,14 @@ enter is a small dishonesty on a site that is about to ask for money:
 Each short label is a substring of its long one and the `aria-label` carries the long one at
 both widths — WCAG 2.5.3.
 
-**At 320px it is three rows**: wordmark and button, then the five links over two. 134.8px, with
-the paddings compact at that width to buy back most of the row the sixth control costs — and at
-400–480px, where five compact labels still fit one row, the bar is **97.3px, about 10px shorter
-than the four-link bar was**. No hamburger, no dropdown, no script.
+**Every height on this page was measured on a longer bar and none has been taken again.** At
+320px it was three rows — wordmark and button, then five links over two — at 134.8px, with
+the paddings compact at that width to buy back most of the row the sixth control cost, and
+**97.3px at 400–480px**, about 10px shorter than the pre-ADR-014 bar. That was with `Course`
+still in the list, and `Race info` and `Spooktators` have come out since, so two links and a
+button is shorter than any figure written here. **Shorter is the safe direction against the
+scroll inset**, which is why nothing has gone red — and the reason to re-measure rather than to
+quote these. No hamburger, no dropdown, no script.
 
 **It is sticky**, and the three defects ADR-012 gave for unsticking it are each paid for rather
 than disputed — the accounting is at the head of the masthead section in
@@ -173,7 +195,7 @@ knowing without reading either:
   focus moving onto a radio as well as a link to an id. The height is a token with three values,
   and `site.spec.ts` sweeps nine widths to check each tracks the bar.
 
-**`/nn/privacy/` is the fifth link**, added by ADR-014. It was the one page in the campaign whose
+**`/nn/privacy/` is the last link**, added by ADR-014. It was the one page in the campaign whose
 header linked everywhere except where you were standing; the notice describes fifteen fields, a
 payment and a special category of data, and the person most likely to want it is filling in the
 form that collects them. It stays at `/nn/privacy/`, and now links up to `/privacy/` — the
@@ -195,13 +217,17 @@ shared link actually has, in the order they have them:
         ────────────────────────────────────
                 [ The 2026 race ]            ← outline while entries are shut
      Entries are not open yet. Leave your…      filled, "Enter the race", once open
-              Race day · Watching the race
 ```
 
 **Two states, one shape.** The layout does not move when entries open — only the action's
 weight changes and the fee line appears. **The difference in prominence is the message**: there
 is deliberately no badge and no banner saying "open", because the button already says it and a
 page that said it twice would be shouting.
+
+**It carries one way in, and it used to carry three.** A painted pair beneath the button —
+`Race instructions` and `Spooktators` — came out on request with the bar's, so the panel is the
+date, the facts and the one action now. Their `[data-nn-panel-link]` handlers are still
+registered in `worker/nn-entry.ts` and match nothing, exactly as the bar's two do.
 
 **Everything year-specific in it is painted**, from the same `entries.current_entry_state('nn')`
 read the navigation uses. The date comes through `packages/shared`'s one date formatter — see
@@ -293,12 +319,12 @@ moving.
 ### Which of its keys belong to the race, and which to one running
 
 **The file describes the 2026 running, and it always has.** Since the routes split, that
-matters: `/nn/` and `/nn/course/` are about the race and may read only the keys that are true
-of it whichever year it is run.
+matters: `/nn/` is about the race and may read only the keys that are true of it whichever
+year it is run.
 
 | | |
 | --- | --- |
-| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/`. **`privacy.*` is read by `/privacy/` too**, which is not a race page at all: the controller, the registered office, the company number and the data contact are the club's facts that happen to live in this file, and both notices lifting them from one place is what stops the two disagreeing |
+| **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/` and `/nn/privacy/`. **`privacy.*` is read by `/privacy/` too**, which is not a race page at all: the controller, the registered office, the company number and the data contact are the club's facts that happen to live in this file, and both notices lifting them from one place is what stops the two disagreeing |
 | **One running's** | `date`, `dateShort`, `startTime`, `location`, `hqName`, `price`, `entriesOpen`, `entriesClose`, `transferDeadline`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
 
 **`dateShort` and `hqName` are narrow forms of `date` and `location`, and the duplication is
@@ -356,7 +382,7 @@ quoted, not made prominent. The printed-form convention of putting it at the top
 because paper detaches from its context; a web form does not.
 
 **It is year-scoped, like the date.** A permit is issued for one running, so it may not reach
-`/nn/`, `/nn/course/` or `/nn/privacy/` — see
+`/nn/` or `/nn/privacy/` — see
 [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md).
 `site.spec.ts` asserts the number renders on `/nn/2026/` **and** that neither the label nor the
 number appears on `/nn/`; the number half of that is new, because until there was a number

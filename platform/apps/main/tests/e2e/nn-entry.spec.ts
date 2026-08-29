@@ -211,9 +211,7 @@ test.describe('before entries open', () => {
     await expect(
       page.getByRole('heading', { name: 'Register your interest' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Register my interest' }),
-    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Register interest' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Enter the race' })).toBeHidden();
     await expect(page.getByRole('button', { name: 'Continue to payment' })).toBeHidden();
   });
@@ -276,7 +274,7 @@ test.describe('before entries open', () => {
     // ambiguous at three matches and would fail for a reason unrelated to what this asserts —
     // and the scoped selector says which button it is about, which the bare one never did.
     const cta = page.locator('.nn-herobtns [data-nn-cta]');
-    await expect(cta).toHaveText('Register your interest');
+    await expect(cta).toHaveText('Register interest');
     await expect(cta).toHaveAttribute('href', '#register');
 
     // **The rail's button is the one that matters on a phone**, where the hero's is hidden and
@@ -284,7 +282,7 @@ test.describe('before entries open', () => {
     // place on the page a price and an action are adjacent. Painted from the same hook, and
     // asserted here so the widening is tested rather than taken on trust.
     const rail = page.locator('.nn-entry-card [data-nn-cta]');
-    await expect(rail).toHaveText('Register your interest');
+    await expect(rail).toHaveText('Register interest');
     await expect(rail).toHaveAttribute('href', '#register');
   });
 
@@ -346,9 +344,15 @@ test.describe('before entries open', () => {
     page,
     request,
   }) => {
-    // **A front door, not a dead end.** The links are there whether or not entries are open,
-    // and not one of them is written into the markup — which is what makes 2027 a row in
-    // `entries.events` rather than an edit to a page.
+    // **A front door, not a dead end.** The link is there whether or not entries are open, and
+    // it is not written into the markup — which is what makes 2027 a row in `entries.events`
+    // rather than an edit to a page.
+    //
+    // **There were three and there is one.** "Race instructions" and "Spooktators" sat under the
+    // action and came out of the panel on request; both destinations are reached from
+    // `/nn/2026/`, which is where the surviving link goes. The exact array is kept rather than
+    // relaxed to a `toContain`, because it is the assertion that would notice a year being
+    // written into the markup — and `getByRole('link')` over the panel is what makes it total.
     await page.goto('/nn/');
 
     const panel = page.locator('[data-nn-panel]');
@@ -358,7 +362,7 @@ test.describe('before entries open', () => {
       .getByRole('link')
       .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
 
-    expect(hrefs).toEqual(['/nn/2026/', '/nn/2026/race-day/', '/nn/2026/spectators/']);
+    expect(hrefs).toEqual(['/nn/2026/']);
 
     for (const href of hrefs) {
       expect((await request.get(href)).status()).toBe(200);
@@ -529,15 +533,25 @@ test.describe('once entries are open', () => {
 
   test('the panel keeps its shape across the two states', async ({ page }) => {
     // **The layout must not move when entries open**, so nobody has to relearn the page at the
-    // one moment they are trying to do something. The date, the fact line and the two links
-    // are where they were; only the action's weight and the note under it differ.
+    // one moment they are trying to do something. The date and the fact line are where they
+    // were; only the action's weight and the note under it differ.
+    //
+    // **The two links this used to assert are gone from the panel**, on request — so what is
+    // left to prove is that the shape is the same in both states rather than that a particular
+    // row survived. The heading and the divider are asserted alongside the painted values for
+    // that reason: they are the panel's structure, and a state change that dropped one would be
+    // the layout moving under somebody mid-decision, which is the whole subject of this test.
     await page.goto('/nn/');
 
     const panel = page.locator('[data-nn-panel]');
     await expect(panel.locator('[data-nn-panel-date]')).toHaveText('1 November 2026');
     await expect(panel.locator('[data-nn-panel-time]')).toHaveText('11:00');
-    await expect(panel.getByRole('link', { name: 'Race instructions' })).toBeVisible();
-    await expect(panel.getByRole('link', { name: 'Spooktators' })).toBeVisible();
+    await expect(panel.locator('.nn-panel-label')).toBeVisible();
+    await expect(panel.locator('.nn-panel-rule')).toBeVisible();
+    await expect(panel.locator('[data-nn-panel-action]')).toBeVisible();
+
+    // And nothing else has quietly reappeared beside them: one link in the panel, the action.
+    await expect(panel.getByRole('link')).toHaveCount(1);
   });
 
   test('the panel’s action leads to the form, on the other page', async ({ page }) => {

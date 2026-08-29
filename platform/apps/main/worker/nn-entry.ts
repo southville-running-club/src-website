@@ -1185,7 +1185,11 @@ export const NN_PREVIOUS_SLOTS = 4;
 /**
  * The navigation bar, on every page that carries it.
  *
- * **Two links and a button, and none of them may name a year in `dist/`.** They ship hidden
+ * **A button, and two registrations that now match nothing — and none may name a year in
+ * `dist/`.** `running` in `NnNav.astro` is empty since `Race info` and `Spooktators` came out
+ * of the bar, so the two item selectors below find no element on any page. They are kept
+ * because `/nn/2026/` uses the same hooks, and because putting a link back should be one entry
+ * in that array and no change here. What still ships hidden
  * with `href=""`; this is the only thing that fills them in, on every Nightingale Nightmare
  * page rather than only on `/nn/`, because the bar is the same bar everywhere.
  *
