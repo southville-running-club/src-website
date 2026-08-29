@@ -760,20 +760,33 @@ describe('reading one entry in full', () => {
     return purchaseId;
   }
 
-  it('refuses an anonymous caller, and says so rather than erroring', async () => {
+  it('is not callable by an anonymous client at all', async () => {
+    // **The outer of two independent locks, and it is the one that matters here.**
+    // `admin_entry_detail` is granted to `authenticated` and to nobody else, so an anonymous
+    // PostgREST call is refused by Postgres **before the function runs** — `42501 permission
+    // denied`, not a refusal envelope.
+    //
+    // **That is why this asserts an error where the rest of this file asserts a refusal.** The
+    // "a Postgres error is never a refusal" rule applies to functions `anon` may legitimately
+    // call, where an error means the rule is broken rather than holding. This one `anon` may
+    // not call, and the error *is* the answer. The thirteen anon-callable functions are named
+    // in `entries.test.ts`; a fourteenth would be a decision, and this is not it.
     const purchaseId = await paidOwnedPurchase();
 
-    const { data, errorCode } = await detailAs(anon, purchaseId);
+    const { errorCode } = await detailAs(anon, purchaseId);
 
-    // **A Postgres error is not a refusal.** A broken function refuses everybody, which reads
-    // as the rule holding when it has stopped being tested at all.
-    expect(errorCode).toBeUndefined();
-    expect(data).toEqual({ ok: false, reason: 'unauthorised' });
+    expect(errorCode).toBe('42501');
   });
 
-  it('refuses somebody signed in who holds no permission', async () => {
-    // The case a naive "is this person signed in" check would pass. `runner` holds an account
-    // and nothing else, which is what everybody who registers holds.
+  it('refuses somebody signed in who holds no permission, and says so rather than erroring', async () => {
+    // **The inner lock, and the case a naive "is this person signed in" check would pass.**
+    // `runner` holds an account and nothing else, which is what everybody who registers holds
+    // — so they reach PostgREST as `authenticated`, the grant lets them ask, and
+    // `identity.has_permission('nn.entry.read')` inside is what says no.
+    //
+    // Here the "a Postgres error is never a refusal" rule does apply: a `42501` would mean the
+    // grant was wrong, and any other error would mean a broken function refusing everybody,
+    // which reads as the rule holding when it has stopped being tested at all.
     const purchaseId = await paidOwnedPurchase();
 
     const { data, errorCode } = await detailAs(runner.client, purchaseId);
