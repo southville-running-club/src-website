@@ -237,11 +237,23 @@ describe('the consolidated year page', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
-  it('reverses cleanly on the closing block, where yellow is the surface', () => {
+  /**
+   * **The closing line was asked for in white, and that is why the yellow band went.**
+   *
+   * `--nn-bone` on `--nn-pus` measures **1.55:1** — not a near miss, and the same shape as the
+   * schedule that rendered invisible on the gradient. So the band was removed rather than the
+   * colour refused, and the line sits on the page background the way the hero does.
+   *
+   * Asserted against the gradient because it no longer has a surface of its own, and the
+   * absence of a background is asserted alongside it — re-introducing a band under white text
+   * would put 1.55:1 back, and it should fail here rather than in somebody's eyes.
+   */
+  it('states the closing line against the page, now that it has no band', () => {
     const declarations = rule('.theme-nn .nn-closing');
-    const surface = colourOf(declarations, 'background');
+
+    expect(declarations).not.toMatch(/background/);
     expect(
-      contrastRatio(colourOf(declarations, 'color'), surface),
+      contrastRatio(colourOf(declarations, 'color'), gradient),
     ).toBeGreaterThanOrEqual(AAA);
   });
 });
