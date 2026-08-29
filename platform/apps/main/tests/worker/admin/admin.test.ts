@@ -911,11 +911,16 @@ describe('the entries list', () => {
      * **Three endpoints now rather than four**: the sign-out form has gone with the key
      * scheme, and the way out of the surface is the masthead's plain link to `/account/`.
      *
-     * **And three of the six write rather than one.** This assertion is the reason that
-     * sentence had to be written down: adding transfer made this test fail, and adding assign
-     * made it fail again — which is exactly what it is for. A new way to alter, or now to
-     * create, an entry should cost somebody a deliberate edit here rather than arrive
-     * unremarked.
+     * **And three of the seven write rather than one.** This assertion is the reason that
+     * sentence had to be written down: adding transfer made this test fail, adding assign made
+     * it fail again, and adding the detail page made it fail a third time — which is exactly
+     * what it is for. A new way to alter, or to create, an entry should cost somebody a
+     * deliberate edit here rather than arrive unremarked.
+     *
+     * **The count of *writes* is unchanged at three, and that is the point of keeping the
+     * title.** Four of these seven endpoints only read; a `POST` is not a write, and the reason
+     * four reads are POSTs at all is that no personal data may travel in a URL or a query
+     * string. Somebody adding an eighth has to decide which half it belongs in and say so here.
      */
     const body = await (await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)).text();
 
@@ -955,10 +960,24 @@ describe('the entries list', () => {
         // them — asserted just below — and the button is rendered behind `can()` as well, so
         // a future read-only role would meet no control rather than one that 404s.
         '/admin/nn/assign/',
+        // **The seventh, and it reads.** ADR-023's page for one entry, reached from a Details
+        // button on every row — the payment, the people, every ask, the emails owed and the
+        // audit rows that name it.
+        //
+        // **A `POST` for the reason `/admin/nn/medical/` is one**, and it belongs in the top
+        // half of this list rather than the bottom: no personal data goes in a URL or a query
+        // string, ever, so the purchase id travels in the body. It changes nothing, mints no
+        // CSRF token and writes no audit row — unlike the four reads above it, which each take
+        // a copy of something out of the platform and are audited for it.
+        //
+        // It is offered on **every** row including a refunded one, because reading is the safe
+        // act and a cancelled entry is exactly the row somebody most often needs the history
+        // of. It needs only `nn.entry.read`, which is what opens this whole section.
+        '/admin/nn/entry/',
       ]),
     );
 
-    // And nothing that takes input beyond the hidden fields those three need.
+    // And nothing that takes input beyond the hidden fields those seven need.
     expect(body).not.toContain('type="checkbox"');
     expect(body).not.toContain('type="text"');
     expect(body.toLowerCase()).not.toContain('<textarea');
