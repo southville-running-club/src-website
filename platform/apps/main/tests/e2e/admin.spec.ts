@@ -1711,6 +1711,13 @@ test.describe('acting on an entry somebody paid for', () => {
   test('cancels an entry, refunds it, and leaves the row with no runner on it', async ({
     page,
   }) => {
+    // **A desktop width, because the row's actions are a desktop-only control today.**
+    // Details, Cancel and Transfer sit in an `.admin-col-wide` cell, which is `display: none`
+    // below 768px, and the stacked mobile row carries only the club and the category — so on a
+    // phone there is no way to reach any of them. That is issue #145, defect 5; pinning the
+    // width here keeps these tests about cancelling and transferring rather than about the
+    // breakpoint, and they will keep passing once the defect is fixed.
+    await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ACTIONS);
 
@@ -1754,6 +1761,8 @@ test.describe('acting on an entry somebody paid for', () => {
   test('transfers a place, and the previous runner’s medical note does not go with it', async ({
     page,
   }) => {
+    // A desktop width, for the reason the cancel test above gives — issue #145, defect 5.
+    await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ACTIONS);
 
