@@ -220,7 +220,14 @@ const dateLine = race.date
 
         <p class="nn-entry-card-fee nn-figures" data-nn-fee>{orTbc(race.price)}</p>
 
-        <dl class="nn-entry-card-when">
+        {
+          /* **A fact about a window that has not opened, so it goes when the window opens.**
+          This is a static string from `race.json` — nothing reads `entries_open_at` to paint
+          it. Left alone it becomes a past-tense date sitting directly above the primary call to
+          action, at seven o'clock on the morning of the first of September. The Worker hides it
+          when the form is on offer and when the window has ended. */
+        }
+        <dl class="nn-entry-card-when" data-nn-entries-open>
           <dt>Entries open</dt>
           <dd>{orTbc(race.entriesOpen)}</dd>
         </dl>
@@ -489,6 +496,38 @@ const dateLine = race.date
       It ships **visible** and the entry form ships hidden, which is the safe default: a page
       that cannot tell whether entries are open must not offer to take one. */
     }
+    {
+      /* **The third state, and the only one that makes a negative claim.** It ships hidden and
+      the Worker reveals it when `entry_state()` says the window has ended — and *only* then. A
+      database this Worker could not reach falls to the interest form above instead, because
+      "entries have closed" is a false statement about a race somebody may still be able to
+      enter, and a reader cannot tell it apart from a decision the club took.
+
+      **The wording is functional rather than the race director's**, in the same register as the
+      notices the entry form already carries. If she wants it in her own words it is a one-line
+      edit here and nothing else moves.
+
+      No call to action beside it: every `[data-nn-cta]` on the page is hidden in this state, so
+      there is no button left looking live next to a shut door. The link out is to the race
+      instructions, which is what somebody who already holds a place still needs. */
+    }
+    <div class="notice nn-card" data-nn-closed hidden>
+      <h2>Entries have closed</h2>
+
+      {
+        /* The year is a literal, exactly as it is in this page's `<h1>` and its canonical.
+        `race.date` is a pre-formatted display string — "Sunday 1 November 2026" — so parsing a
+        year out of it would be deriving a fact from prose, on a page whose whole discipline is
+        that facts come from `race.json` unaltered. This directory *is* the year. */
+      }
+      <p>Entries for the {race.name} 2026 are no longer open.</p>
+
+      <p>
+        If you already have a place,{' '}
+        <a href="/nn/2026/race-day/">the race instructions</a> have everything for the day.
+      </p>
+    </div>
+
     <div data-nn-interest>
       <h2 id="register">Register your interest</h2>
 
