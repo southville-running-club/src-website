@@ -174,10 +174,8 @@ const dateLine = race.date
     destinations with different scopes; the visual subordination is what distinguishes them.
     See the ADR.
 
-    **`display: contents` is what makes one list serve both presentations** — the summary is
-    hidden and the links show inline above 860px, and the same `<details>` is a menu below it,
-    with no JavaScript either way. That behaviour is a browser quirk rather than a specified
-    one, so `site.spec.ts` checks it in all three engines rather than trusting it. */
+    **One list is visible at each width.** The inline list is shown above 860px and the
+    `<details>` menu below it, with no JavaScript either way. */
   }
   <nav class="nn-jump" aria-label="Sections of this page">
     {
@@ -189,6 +187,11 @@ const dateLine = race.date
       rather than as part of the page. */
     }
     <div class="nn-wrap">
+      <ul class="nn-jump-desktop-links">
+        <li><a href="#race">Race</a></li>
+        <li><a href="#race-info">Race info</a></li>
+        <li><a href="#spooktators">Spooktators</a></li>
+      </ul>
       <details class="nn-jump-menu">
         <summary>Sections</summary>
         <ul class="nn-jump-links">

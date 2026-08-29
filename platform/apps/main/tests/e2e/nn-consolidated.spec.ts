@@ -60,7 +60,7 @@ test.describe('the shape of the page', () => {
   }) => {
     await page.goto(YEAR);
 
-    const links = page.locator('.nn-jump-links a');
+    const links = page.locator('.nn-jump-desktop-links a');
     await expect(links).toHaveCount(SECTIONS.length);
 
     for (const [index, [label, id]] of SECTIONS.entries()) {
@@ -143,13 +143,10 @@ test.describe('what survives without the script', () => {
 
   /**
    * **The jump-nav's menu opens without JavaScript**, because it is a `<details>` and nothing
-   * else. Asserted by opening it rather than by reading the markup: `display: contents` on the
-   * `<details>` is what makes the same element inline links on a wide screen and a menu on a
-   * narrow one, and that is a browser behaviour rather than a specified one.
+   * else. Asserted by opening it rather than by reading the markup.
    */
-  test('opens its section menu, whatever the engine does with display: contents', async ({
-    page,
-  }) => {
+  test('opens its section menu without JavaScript', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
 
     const menu = page.locator('.nn-jump-menu');
@@ -252,7 +249,10 @@ test.describe('what the script adds', () => {
     }) => {
       await page.goto(YEAR);
 
-      await page.locator('.nn-jump-links a', { hasText: label }).click();
+      await page
+        .getByRole('navigation', { name: 'Sections of this page' })
+        .getByRole('link', { name: label, exact: true })
+        .click();
 
       await expect(page.locator(`#${id}`)).toBeFocused();
     });
@@ -262,13 +262,14 @@ test.describe('what the script adds', () => {
    * **The bar is not in the tab order while it is off screen.** A fixed control that is
    * visually gone but still tabbable is a focus stop that lands nowhere.
    */
-  test('keeps the entry bar out of reach until it is shown @requires-js', async ({
+  test('shows the entry bar when no inline call to action is visible @requires-js', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
 
     const bar = page.locator('[data-nn-entry-bar]');
-    await expect(bar).toHaveAttribute('aria-hidden', 'true');
-    await expect(bar.getByRole('link')).toHaveAttribute('tabindex', '-1');
+    await expect(bar).toHaveAttribute('aria-hidden', 'false');
+    await expect(bar.getByRole('link')).toHaveAttribute('tabindex', '0');
   });
 });

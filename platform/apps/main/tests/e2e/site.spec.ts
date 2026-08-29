@@ -843,7 +843,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // labels fit on one row at 400px and wrap at 320px. Both were found by this sweep failing.
     const TIGHT = new Set([1280, 900, 640, 560, 320]);
 
-    await page.goto('/nn/2026/');
+    await page.goto('/nn/2026/race-day/');
 
     for (const width of [1280, 900, 768, 700, 640, 560, 480, 400, 320]) {
       await page.setViewportSize({ width, height: 640 });

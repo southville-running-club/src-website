@@ -2907,25 +2907,19 @@ body.theme-nn:has(.nn-layout) [data-nn-closed] {
  * thing this theme should stop doing, and reproducing it in solid form would be repeating a
  * mistake one element along.
  *
- * **`display: contents` is what lets one list serve both presentations.** Above 860px the
- * `<summary>` is hidden and the links show inline whether or not the `<details>` is open;
- * below it, the same element is a real disclosure menu. No JavaScript in either direction.
- * That behaviour is a browser quirk rather than a specified one, so `site.spec.ts` checks it
- * in all three engines rather than trusting it. If any engine hides the list when closed, the
- * fallback is a plain wrapping list and the `<details>` comes out.
+ * **One list is visible at each width.** Above 860px the plain list is shown; below it,
+ * `<details>` is a real disclosure menu. This avoids depending on how an engine renders a
+ * closed `<details>` with `display: contents`. No JavaScript in either direction.
  * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-jump {
   margin: 0 0 12px;
 }
 
 .theme-nn .nn-jump-menu {
-  display: contents;
-}
-
-.theme-nn .nn-jump-menu > summary {
   display: none;
 }
 
+.theme-nn .nn-jump-desktop-links,
 .theme-nn .nn-jump-links {
   display: flex;
   flex-wrap: wrap;
@@ -3166,6 +3160,10 @@ body.theme-nn:has(.nn-closing) .nn-hands {
     display: block;
     border-top: 1px solid var(--colour-rule);
     border-bottom: 1px solid var(--colour-rule);
+  }
+
+  .theme-nn .nn-jump-desktop-links {
+    display: none;
   }
 
   .theme-nn .nn-jump-menu > summary {
