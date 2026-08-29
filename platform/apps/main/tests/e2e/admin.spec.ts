@@ -895,9 +895,13 @@ test.describe('one entry in full', () => {
 
     expect(markup).toContain(CLEAN_PAID_PURCHASE_ID);
     expect(markup).toContain(`Kin ${CLEAN_PAID_LAST_NAME}`);
-    await expect(page.getByText('Who paid')).toBeVisible();
-    await expect(page.getByText('What they have asked for')).toBeVisible();
-    await expect(page.getByText('What has been done to it')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'What they have asked for' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'What has been done to it' }),
+    ).toBeVisible();
   });
 
   test('shows whether there is a medical note and never the note itself', async ({
@@ -908,9 +912,16 @@ test.describe('one entry in full', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
 
+    // **The row that actually has a note, found by the control rather than by position.**
+    // Only one fixture entrant has one, the table sorts by surname, and theirs is not first —
+    // so `.first()` would open somebody else's entry and then assert the absence of a button
+    // that was never going to be there. A test that picks a row by index is a test that breaks
+    // when somebody adds a fixture whose name sorts earlier.
     await page
-      .getByRole('button', { name: /Details/ })
+      .getByRole('row')
+      .filter({ has: page.getByRole('button', { name: /Show note/ }) })
       .first()
+      .getByRole('button', { name: /Details/ })
       .click();
 
     expect(await undecoratedMarkup(page)).not.toContain('inhaler');
@@ -1374,7 +1385,7 @@ test.describe('accessibility and small screens', () => {
       .getByRole('button', { name: /Details/ })
       .first()
       .click();
-    await expect(page.getByText('Who paid')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
 
     expect((await axe(page)).violations).toEqual([]);
   });
