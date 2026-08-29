@@ -1,0 +1,38 @@
+---
+import race from '../content/race.json';
+
+// **The morning, in order — one copy, because two pages need exactly these rows.**
+//
+// `/nn/2026/race-day/` shows it as the running order somebody reads on the morning.
+// `/nn/2026/` shows it as what the day looks like before they decide to enter. It is the same
+// six rows either way, and six rows written out twice is six rows that drift — which has
+// already happened once here in a shape worth remembering: #121 found three hardcoded `10:30`s
+// in `race-day.astro`'s prose that `race.json` could not correct, and by then 10:30 had become
+// the *briefing* rather than the walk. A stale time that names a real thing ten minutes early
+// is worse than no time at all, because it reads as right.
+//
+// So the array is the only source and this is the only renderer of it. `terms.astro` reads one
+// row by `id` for a different purpose and states no time of its own.
+//
+// **The row `<div>` is deliberate and is valid inside a `<dl>`.** It is what lets a row be a
+// grid — the time in its own column, wrapping to a stacked row on a narrow screen — without
+// the two halves of a pair drifting apart in the markup.
+//
+// **A description list rather than a table**, because each row is one time and one thing with
+// no second column of data to line up, and because it is what degrades best at 320px, where a
+// two-column table either scrolls sideways or squeezes the words to one per line.
+//
+// Nothing here styles the times. `nn-theme.css` owns that, and the tabular figures it sets are
+// what keep the column rigid — see the type rules at the head of that file.
+---
+
+<dl class="nn-schedule">
+  {
+    race.schedule.map(({ time, what }) => (
+      <div class="nn-schedule-row">
+        <dt>{time}</dt>
+        <dd>{what}</dd>
+      </div>
+    ))
+  }
+</dl>
