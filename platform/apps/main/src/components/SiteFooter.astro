@@ -1,4 +1,23 @@
 ---
+interface Props {
+  /**
+   * A race's entry terms, beside the club's privacy notice — and **passed in rather than
+   * written here, because this footer is on every page of this app.**
+   *
+   * The terms are year-scoped: `entry_purchases.consents_version` records which wording
+   * somebody ticked against, so `/nn/2026/terms/` belongs to one running the way the date and
+   * the permit do. A link to it hard-coded in this file would appear on `/account/sign-in/`, on
+   * `/admin/`, and — worse — on `/nn/`, which
+   * [ADR-011](../../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md)
+   * requires to name no year anywhere in its markup.
+   *
+   * So the pages that are already about one running pass it, and nothing else does.
+   */
+  entryTerms?: string;
+}
+
+const { entryTerms } = Astro.props;
+
 // The one footer, rendered on every page from `Base.astro`.
 //
 // Just the club's social profiles for now — the old site carried these as a row of icon
@@ -45,5 +64,14 @@ import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
       ))
     }
   </ul>
-  <p class="site-footer-legal"><a href="/privacy/">Privacy notice</a></p>
+  <p class="site-footer-legal">
+    <a href="/privacy/">Privacy notice</a>{
+      entryTerms !== undefined && (
+        <>
+          {' · '}
+          <a href={entryTerms}>Entry T&amp;C</a>
+        </>
+      )
+    }
+  </p>
 </footer>
