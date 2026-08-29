@@ -22,15 +22,30 @@ import race from '../content/race.json';
 // no second column of data to line up, and because it is what degrades best at 320px, where a
 // two-column table either scrolls sideways or squeezes the words to one per line.
 //
-// Nothing here styles the times. `nn-theme.css` owns that, and the tabular figures it sets are
-// what keep the column rigid — see the type rules at the head of that file.
+// **`nn-theme.css` owns the appearance, and the correction below is worth reading before
+// editing either.** An earlier version of this comment said tabular figures were what kept the
+// time column rigid. They were not, because there were none — `.nn-schedule` set no
+// `font-variant-numeric` anywhere. What actually holds the column is `flex: 0 0 82px` fixing
+// the track and JetBrains Mono being monospaced, and those would have gone on holding it while
+// the stated reason stayed false.
+//
+// The figures are real now, and they arrive through `.nn-figures` on the `<dt>` — one class
+// carrying the face and its figures together, the same shape `nn-admin.css` uses as
+// `.admin-mono`. Asking for the family and forgetting the figures is the mistake that class
+// exists to make impossible.
+//
+// **The block carries its own white surface**, so this renders identically wherever it is put.
+// Its colours were computed against white — the time is 9.01:1 there and 1:1 against the page
+// gradient's centre stop, which is invisible rather than merely poor. See the schedule section
+// of `nn-theme.css`, and `nn-contrast.test.ts`, which asserts the pairing rather than
+// describing it.
 ---
 
 <dl class="nn-schedule">
   {
     race.schedule.map(({ time, what }) => (
       <div class="nn-schedule-row">
-        <dt>{time}</dt>
+        <dt class="nn-figures">{time}</dt>
         <dd>{what}</dd>
       </div>
     ))

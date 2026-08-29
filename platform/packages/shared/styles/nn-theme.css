@@ -1442,6 +1442,26 @@ html:has(body.theme-nn) {
   white-space: nowrap;
 }
 
+/* **The face and its figures, in one class, because they are one decision.**
+ *
+ * `nn-admin.css`'s `.admin-mono` is the same class for the club surface and the same
+ * argument: a column of numbers set in a proportional face, or in a monospaced face with
+ * proportional figures, does not line up on its decimal point — and the defect is invisible
+ * until the digits happen to differ in width, which on a schedule is the one morning it
+ * matters. Asking for the family and forgetting the figures is the mistake this prevents,
+ * so it is not possible to ask for one here.
+ *
+ * **`font-weight` is deliberately absent.** JetBrains Mono is declared `500 700`, so a rule
+ * that sets the family and omits the weight lands on 400 — outside the declared axis, where
+ * the browser clamps rather than renders what was asked for. Five existing rules in this file
+ * do that. Leaving the weight out of this class keeps it a decision each call site takes
+ * explicitly rather than one this class makes silently on their behalf. */
+.theme-nn .nn-figures {
+  font-family: var(--nn-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
 /* -------------------------------------------------------------------------------------
  * The discounted total, shown before anything is charged
  * -------------------------------------------------------------------------------------
@@ -1513,8 +1533,46 @@ html:has(body.theme-nn) {
  * row at all. Axe allows it; a `<dl>` of loose `<dt>`/`<dd>` siblings could not do this
  * without a subgrid.
  * ------------------------------------------------------------------------------------- */
+/* **The schedule carries its own white surface, because its colours were computed against
+ * one.** It was written inside `race-day.astro`'s `.nn-card` and every colour in this block
+ * assumes that: the term is `--nn-blood` at 9.01:1 *on white*, and the row divider is
+ * `--nn-card-muted` chosen to be an almost-invisible 1.12:1 line *on white*. Put the same
+ * markup on the page gradient and both invert — the divider becomes the loudest thing in the
+ * block and the time becomes `#8f1b0f` on a `#8f1b0f` radial centre stop, which is 1:1 by
+ * identity. Not hard to read: absent. And `background-attachment: fixed` means the block
+ * scrolls through the gradient's whole range rather than sitting at one value, so it passes
+ * through identity rather than merely near it.
+ *
+ * **A surface the component owns, rather than a variant its call site passes.** A prop the
+ * caller has to get right is exactly how this arrived — the component was lifted out of a
+ * white context and dropped onto a dark one, and nothing anywhere could notice. Owning the
+ * surface means the two call sites cannot disagree, because neither is asked.
+ *
+ * **The pairing is neutralised where a card already exists**, immediately below, so
+ * `/nn/2026/race-day/` — which wraps its whole article body in `.nn-card` — renders exactly
+ * as it did rather than gaining a white box inside a white box.
+ *
+ * `NnRaceSummary`'s `.nn-arrows` has the same latent defect from the same cause and is
+ * deliberately not fixed here: both of its call sites happen to sit inside cards, so it is a
+ * ticket rather than a bug. The pattern is the thing worth remembering — a component whose
+ * colours were computed against a surface it does not carry. */
 .theme-nn .nn-schedule {
   margin: 0 0 1rem;
+  padding: 20px 22px;
+  border-radius: var(--nn-r-card);
+  background: var(--nn-card);
+  color: var(--nn-ink);
+}
+
+/* Already on a card: take the surface back off, to exactly what it was before the block
+   above existed. Every property the base rule introduces is reset here and `margin` is
+   untouched, so a card ancestor restores the previous rendering rather than approximating
+   it. */
+.theme-nn .nn-card .nn-schedule {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
 }
 
 .theme-nn .nn-schedule-row {
@@ -1535,13 +1593,16 @@ html:has(body.theme-nn) {
   border-bottom: 0;
 }
 
+/* The family comes from `.nn-figures` in the markup, which carries the tabular figures with
+   it. `font-weight` is stated here rather than there because JetBrains Mono's declared axis
+   starts at 500 and an unstated weight lands at 400, outside it. */
 .theme-nn .nn-schedule dt {
   flex: 0 0 82px;
-  font-family: var(--nn-mono);
   font-weight: 700;
   font-size: 13px;
   line-height: 1.7;
-  /* 9.01:1 on the card — computed, not assumed. */
+  /* 9.01:1 against the surface this block now carries — asserted by nn-contrast.test.ts
+     rather than by this comment, which is the half that had never been true. */
   color: var(--nn-blood);
 }
 
