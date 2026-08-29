@@ -5,6 +5,7 @@ import {
   ADMIN_PASSWORD,
   FIXTURE_PEOPLE_EMAILS,
   REGISTERED_EMAIL,
+  ENTRANT_EMAIL,
   NN_ADMIN_EMAIL,
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
@@ -473,7 +474,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       dateOfBirth: '1994-07-08',
       gender: 'male',
       holdMinutes: 31,
-      purchaserEmail: REGISTERED_EMAIL,
+      purchaserEmail: ENTRANT_EMAIL,
     });
 
     await seed({
@@ -552,6 +553,7 @@ async function seedFixturePeople(): Promise<void> {
     [SUPER_ADMIN_EMAIL]: 'super-admin',
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
+    [ENTRANT_EMAIL]: null,
   };
 
   // Sequential, not parallel — each round trip is cheap, and running them concurrently would

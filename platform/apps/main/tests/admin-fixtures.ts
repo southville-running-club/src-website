@@ -81,12 +81,25 @@ export const NN_TESTER_EMAIL = 'zz-admin-worker-tester@example.com';
  */
 export const PEOPLE_ADMIN_EMAIL = 'zz-admin-worker-people@example.com';
 
+/**
+ * Somebody who holds an **entry**, and no role beyond `registered`.
+ *
+ * **Not `REGISTERED_EMAIL`, and the distinction is load-bearing.** That person's defining
+ * property is that they hold *nothing*: `tests/worker/admin/tester.test.ts` signs in as them
+ * and asserts `/account/entries/` shows the honest empty state. Hanging an entry off them to
+ * save a fixture broke that test's premise while every assertion inside it still read as
+ * correct — which is the expensive kind of fixture reuse, and is how this constant came to
+ * exist. A person who holds an entry and a person who holds nothing are two fixtures.
+ */
+export const ENTRANT_EMAIL = 'zz-admin-worker-entrant@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
   SUPER_ADMIN_EMAIL,
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
+  ENTRANT_EMAIL,
 ] as const;
 
 /**
@@ -193,10 +206,10 @@ export const TRANSFERABLE_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000052';
 export const TRANSFERABLE_LAST_NAME = 'Lindqvist';
 
 /**
- * Paid, and **bought with `REGISTERED_EMAIL`'s address**, which is what puts it on that
- * person's `/account/entries/`. `my_entries()` matches on `person_id` *or* on a
- * `purchaser_email` equal to the caller's confirmed address, and this fixture is the second
- * of those — the state a purchase sits in when somebody entered without being signed in.
+ * Paid, and **bought with `ENTRANT_EMAIL`'s address**, which is what puts it on that person's
+ * `/account/entries/`. `my_entries()` matches on `person_id` *or* on a `purchaser_email` equal
+ * to the caller's confirmed address, and this fixture is the second of those — the state a
+ * purchase sits in when somebody entered without being signed in, which is most of them.
  */
 export const OWNED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000043';
 export const OWNED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000053';

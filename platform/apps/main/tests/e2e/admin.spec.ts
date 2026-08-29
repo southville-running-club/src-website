@@ -8,6 +8,7 @@ import {
   ASSIGN_TO_LAST_NAME,
   ASSIGN_TO_EMAIL,
   CANCELLABLE_LAST_NAME,
+  ENTRANT_EMAIL,
   OWNED_LAST_NAME,
   TRANSFERABLE_LAST_NAME,
   TRANSFER_TO_EMAIL,
@@ -1833,7 +1834,7 @@ test.describe('acting on an entry somebody paid for', () => {
  */
 test.describe('a runner asking the club about their own entry', () => {
   test('records the ask without changing the entry’s status', async ({ page }) => {
-    await signInAs(page, REGISTERED_EMAIL);
+    await signInAs(page, ENTRANT_EMAIL);
     await page.goto('/account/entries/');
 
     // The entry reaches this page by `purchaser_email` rather than `person_id` — the state a
