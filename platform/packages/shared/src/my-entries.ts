@@ -9,8 +9,8 @@ import type { EntryStatus } from './admin';
  * ## Why this is not a filtered version of the admin read
  *
  * `entries.admin_entry_list()` and its role-checked counterpart return everything the club
- * holds about an entrant — the date of birth, the England Athletics number, the emergency
- * contact, the age category, the Stripe references. `/account/entries/` is reached by
+ * holds about an entrant — the date of birth, the emergency contact, the age category, the
+ * Stripe references. `/account/entries/` is reached by
  * anybody with an account, so the read behind it is a **different function returning a
  * different, smaller shape**, not the same one with fields dropped on the way out.
  *

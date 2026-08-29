@@ -717,7 +717,7 @@ put anybody on a list that does not exist.
 | **One page, not a wizard** | A multi-step flow needs JavaScript or server-held state. This site has neither by design |
 | **Six `<fieldset>`s** | Your details, about you, entry type, emergency contact, medical information, agreements |
 | **Date of birth is three number boxes** | Not a date picker. A picker opens on this month and asks somebody to page back forty years on a phone |
-| **The England Athletics box is always in the DOM** | A plain field after all three cards, not inside one. JavaScript hides it when another type is chosen; the *server* decides whether it had to be filled in |
+| **Nothing on the form is conditional on the entry type** | The England Athletics box was, until [decision 007](../../../docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers). The two layout rules it cost are kept as comments where it was — a conditional field goes *after* the group it is a condition of, never inside it, and a container's message belongs to that container rather than to a field nested in it |
 | **Medical information has its own consent** | Special category data under UK GDPR Article 9, its own table, and a shorter retention. Never bundled with the entry terms |
 | **Prices are painted on** | Nothing in `dist/` knows a number. `entries.fees.price_pence` is the only place a price exists, and `tests/worker/nn-entry.test.ts` asserts the page carries no `£` at all while entries are shut |
 
@@ -785,19 +785,27 @@ The 2023 form offered the option and there were no categories to receive it. The
 the answer and says plainly that the categories are undecided. That is still not the same
 question as the minimum age, even though both numbers happen to be 18.
 
-**The England Athletics number is format-checked and never verified** — England Athletics
-publishes no way to. It is spot-checked by a human afterwards, and nothing here should be read
-as confirming a number is real.
+**The England Athletics number is not asked for and not held**, since 29 August 2026 —
+[decision 007](../../../docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
+and [ADR-023](../../../docs/architecture/decisions/adr-023-no-england-athletics-numbers.md).
+A runner states that they are affiliated and the club takes their word for it.
 
-**The check allows six to eight digits and the message says seven, and the gap is the
-decision.** Every number the club has seen is seven; what the national range is below that is
-unknown. So the field stays permissive and the words point somebody at their registration
-email — a false reject here would block a paying entrant at the worst possible moment.
+**The number never bought what it looked like it bought.** England Athletics publishes no
+verification API, so it was collected, its format was checked, and that was the whole of it — a
+seven-digit string held against every affiliated runner, doing no work, against a human
+spot-check nobody had time to run. Under ARC Rule 21(2)(b) the club now has no record of *who*
+claimed affiliation, only that they paid the affiliated £18; the committee accepted that, and
+what replaces the check is a sentence on both privacy notices reserving the club's right to ask
+somebody to produce their number or other evidence of affiliation.
+
+**The £18/£20 split is untouched** and the £2 gap is still ARC's Unattached Runner Levy. Which
+fee is the affiliated price is `entries.fees.affiliated` — a column that says only that, and
+asks the runner nothing.
 
 ### The progressive enhancement, and what it costs
 
-Three things, none load-bearing: the live age category, hiding the England Athletics box, and
-a running total plus inline validation. **With scripting off every one degrades to the field
+Three things, none load-bearing: the live age category, revealing the guide's fields, and a
+running total plus inline validation. **With scripting off every one degrades to the fields
 being visible and the server deciding** — which is the path the `no-javascript` project
 tests.
 

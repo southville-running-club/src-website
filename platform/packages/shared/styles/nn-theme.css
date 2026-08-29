@@ -1763,10 +1763,10 @@ html:has(body.theme-nn) {
 /* -------------------------------------------------------------------------------------
  * The entry-type cards
  * -------------------------------------------------------------------------------------
- * One column at every width. The mockup lays two side by side; here the affiliated card
- * carries the England Athletics box inside it, so a two-column grid would put a text input
- * in half a phone screen. Stacked, every card is the full width of the card and every
- * target is far past the 44px the brief asks for.
+ * One column at every width. The mockup lays two side by side; here a card is a whole
+ * tappable target with a label, a price and a description in it, so a two-column grid would
+ * halve it on a phone. Stacked, every card is the full width of the form and every target is
+ * far past the 44px the brief asks for.
  *
  * **The chosen state is carried three ways and colour is not one of them on its own** —
  * the native radio is checked, the border goes from 1.5px `field border` to 2px `blood`,
@@ -1849,18 +1849,17 @@ html:has(body.theme-nn) {
   color: var(--nn-ink);
 }
 
-/* **The England Athletics box, under the cards rather than inside one.** It is a condition of
-   the affiliated entry and it used to sit in that card to say so, separated by a rule. That
-   cost more than it bought: collapsing it there moved the two cards below it, and at 320px it
-   threw whichever card had just been chosen off the top of the screen. Under all three, it
-   moves only what is below it and the cards never move. The adjacency it used to carry is
-   carried by its hint instead — the full note is in `NnEntryForm.astro`.
-
-   An ordinary `.field`, because that is now exactly what it is. The only rule it needs of its
-   own is the gap from the cards above, which `.nn-fees`' grid gap used to give it. */
-.theme-nn .nn-ea-field {
-  margin-top: 16px;
-}
+/* **`.nn-ea-field` was here until 29 August 2026**, and the two defects it cost are worth
+   keeping written down, because the shape that caused them is not specific to that field. It
+   was the England Athletics box, and it sat *inside* the affiliated fee card, which meant
+   collapsing it moved the two cards below — at 320px it threw whichever card had just been
+   chosen off the top of the screen — and a `focusout` message belonging to the card was
+   answered for the field nested in it, which made the entry type unchangeable in WebKit. Both
+   were fixed by moving it below all three cards, where showing and hiding it moved only what
+   was under it. **A conditional field goes after the group it is a condition of, never inside
+   it**; the club has since stopped asking for the number, so nothing on this form is
+   conditional on a fee any more and the rule is here for the next one that is. The full notes
+   are in `NnEntryForm.astro` and in CLAUDE.md. */
 
 /* -------------------------------------------------------------------------------------
  * The medical section

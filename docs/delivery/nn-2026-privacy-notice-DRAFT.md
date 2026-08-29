@@ -27,6 +27,16 @@ building it, all of them checked against the schema rather than decided:
 | **The Resend line removed**, section 5 | On this draft's own instruction. There is no confirmation email, and naming a processor the club does not use is a claim about a data flow that does not happen |
 | **"We keep everything inside the UK and the European Economic Area" cut**, section 5 | Nothing in the repository supports it, and it is in tension with the same section naming Stripe. Cut rather than asserted. **Worth raising with whoever checks this professionally** — it is the one gap the build could not close |
 
+**Changed since, by a committee decision rather than by the build — 29 August 2026.** The club
+[stopped asking for and holding England Athletics numbers](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
+So section 2's row *"Your England Athletics number, if you claim the affiliated entry"* is gone
+from the published page, and section 3's *"Check an England Athletics number against the club's
+records"* is replaced by a reservation: the club takes a runner's word for their affiliation and
+**reserves the right to ask them to produce their number or other evidence of it**. That
+sentence is a requirement of the decision rather than a nicety — it is what makes the honesty
+box a term. **This draft is not edited to match**; it is the record of what was approved on 14
+August 2026, and this note is how it stays readable beside a page that has moved on.
+
 **Added rather than changed:** the interest form's `created_at`. This draft dropped it and
 the page it replaced disclosed it, so leaving it out would have been a regression against
 what the club had already published.

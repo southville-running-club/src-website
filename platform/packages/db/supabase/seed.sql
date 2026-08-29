@@ -116,7 +116,12 @@ insert into entries.events (
 )
 on conflict (slug) do nothing;
 
-insert into entries.fees (id, event_id, code, label, price_pence, requires_ea_number) values
+-- **`affiliated` rather than `requires_ea_number`, since 29 August 2026.** The club stopped
+-- asking for England Athletics numbers; what survives is which fee is the affiliated price,
+-- which is what the figures panel and the England Athletics export count. Every fee here is
+-- requires_ea_number = false by the column's own default, and fees_ea_number_not_collected
+-- refuses anything else.
+insert into entries.fees (id, event_id, code, label, price_pence, affiliated) values
   ('0e0e0e0e-0000-4000-8000-000000000011', '0e0e0e0e-0000-4000-8000-000000000001',
    'affiliated',   'Affiliated',   1500, true),
   ('0e0e0e0e-0000-4000-8000-000000000012', '0e0e0e0e-0000-4000-8000-000000000001',
@@ -187,37 +192,41 @@ insert into entries.entry_purchases (
    '2026-08-05T13:00:00Z')
 on conflict (id) do nothing;
 
+-- **No ea_number column here since 29 August 2026**, and not because the fixtures were
+-- tidied: entrants_ea_number_not_collected refuses a value in it, so a seed that named one
+-- would fail to load. The affiliated entry below is still affiliated — it is the fee that says
+-- so, and nothing about the runner.
 insert into entries.entrants (
-  id, purchase_id, first_name, last_name, date_of_birth, gender, club, ea_number,
+  id, purchase_id, first_name, last_name, date_of_birth, gender, club,
   emergency_contact_name, emergency_contact_phone, created_at
 ) values
   -- 40 on race day: the boundary of Vet 40, and the birthday-on-race-day rule with it.
   ('0e0e0e0e-0000-4000-8000-000000000201', '0e0e0e0e-0000-4000-8000-000000000101',
-   'Harriet', 'Nwosu', date '1986-12-06', 'female', 'Southville Running Club', '1234567',
+   'Harriet', 'Nwosu', date '1986-12-06', 'female', 'Southville Running Club',
    'Ada Nwosu', '0117 496 0001', '2026-08-01T09:00:00Z'),
 
   -- The awkward one. The club name carries a comma **and** a double quote on purpose.
   ('0e0e0e0e-0000-4000-8000-000000000202', '0e0e0e0e-0000-4000-8000-000000000102',
    'Inés', 'O''Rourke', date '2000-12-07', 'female',
-   'Bristol & West AC, "the Bees"', null,
+   'Bristol & West AC, "the Bees"',
    'Séamus O''Rourke', '0117 496 0002', '2026-08-02T10:00:00Z'),
 
   -- Non-binary: the club has no category at any age, and the page has to say that rather
   -- than guess one.
   ('0e0e0e0e-0000-4000-8000-000000000203', '0e0e0e0e-0000-4000-8000-000000000103',
-   'Jonah', 'Pike', date '1994-04-02', 'non_binary', null, null,
+   'Jonah', 'Pike', date '1994-04-02', 'non_binary', null,
    'Rae Pike', '0117 496 0003', now()),
 
   ('0e0e0e0e-0000-4000-8000-000000000204', '0e0e0e0e-0000-4000-8000-000000000104',
-   'Kwame', 'Adjei', date '1975-06-30', 'male', 'Left Handed Giant RC', null,
+   'Kwame', 'Adjei', date '1975-06-30', 'male', 'Left Handed Giant RC',
    'Afua Adjei', '0117 496 0004', '2026-08-03T11:00:00Z'),
 
   ('0e0e0e0e-0000-4000-8000-000000000205', '0e0e0e0e-0000-4000-8000-000000000105',
-   'Lena', 'Sørensen', date '1960-01-15', 'female', null, '7654321',
+   'Lena', 'Sørensen', date '1960-01-15', 'female', null,
    'Nils Sørensen', '0117 496 0005', '2026-08-04T12:00:00Z'),
 
   ('0e0e0e0e-0000-4000-8000-000000000206', '0e0e0e0e-0000-4000-8000-000000000106',
-   'Marek', 'Toms', date '1999-02-28', 'male', null, null,
+   'Marek', 'Toms', date '1999-02-28', 'male', null,
    'Eva Toms', '0117 496 0006', '2026-08-05T13:00:00Z')
 on conflict (id) do nothing;
 

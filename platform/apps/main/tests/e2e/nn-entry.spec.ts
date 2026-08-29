@@ -750,9 +750,6 @@ test.describe('once entries are open', () => {
     await entry(page)
       .getByLabel(/^Affiliated/)
       .check();
-    await entry(page)
-      .getByLabel(/^England Athletics number/)
-      .fill('1234567');
 
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
@@ -991,22 +988,32 @@ test.describe('once entries are open', () => {
     }
   });
 
-  test('asks for an England Athletics number only when affiliated is chosen', async ({
+  test('asks the affiliated entry for no England Athletics number, and has no box for one', async ({
     page,
   }) => {
-    // **The England Athletics box is in the DOM whatever is selected**, so this works with
-    // scripting off: the server is what decides whether it had to be filled in.
+    // **The club stopped asking on 29 August 2026** — a runner states that they are affiliated
+    // and the club takes their word for it. This used to assert the opposite.
+    //
+    // **Two halves, and the second is the one that cannot go vacuous.** That there is no box
+    // is the collection stopping. That an affiliated entry with nothing in place of it reaches
+    // Stripe is the refusal being gone — and it has to be asserted as *leaving this page*,
+    // because "no error is shown" would pass just as well on a page that never rendered.
+    // Asserted in `no-javascript` too, where nothing hides anything and the server is the only
+    // thing deciding.
+    await clearPurchases();
+    await blockStripePage(page);
     await page.goto(YEAR);
 
-    await fillEntry(page);
+    await expect(page.locator('[data-entry-ea-field]')).toHaveCount(0);
+    await expect(entry(page).getByLabel(/England Athletics number/)).toHaveCount(0);
+
+    await fillEntry(page, { email: 'e2e-affiliated@example.com' });
     await entry(page)
       .getByLabel(/^Affiliated/)
       .check();
     await page.getByRole('button', { name: 'Continue to payment' }).click();
 
-    await expect(page.locator('[data-entry-error="eaNumber"]')).toContainText(
-      'Enter your England Athletics number',
-    );
+    await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
   });
 
   test('refuses medical notes written without the separate consent', async ({ page }) => {
@@ -1078,10 +1085,13 @@ test.describe('once entries are open', () => {
     // to live *inside* the affiliated card, so picking anything else collapsed 277px from
     // above the other two cards: at 320px the card that had just been chosen went from y=271
     // to y=-7, and the feedback for somebody's own tap was the page jumping somewhere else.
-    // The box sits under all three cards now, where hiding it moves only what is below.
+    // Moving the box below all three cards fixed it; the club then stopped asking for the
+    // number and the box is gone entirely.
     //
-    // Asserted in every project, including `no-javascript` — where the box never collapses at
-    // all, so the card must not move by so much as a pixel.
+    // **The test stays, and it is not vacuous.** The cards are still a group somebody chooses
+    // in, the discount field and the fee prices still render around them, and the next
+    // conditional field put near them re-creates the shape exactly. Asserted in every project,
+    // including `no-javascript`.
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
 
@@ -1105,9 +1115,8 @@ test.describe('once entries are open', () => {
     const before = await cardPosition();
 
     // **Unaffiliated rather than the VI guide card this used to choose**, which no longer
-    // exists. The rule under test is unchanged and so is the collapse that threatens it:
-    // leaving the affiliated entry hides the England Athletics box, which is the 277px that
-    // once threw the chosen card off a 320px screen.
+    // exists. The rule under test is unchanged: changing the chosen entry type must not move
+    // the card that was chosen.
     await entry(page)
       .getByLabel(/^Unaffiliated/)
       .check();
@@ -1128,7 +1137,8 @@ test.describe('once entries are open', () => {
   test('keeps the guide box in view when the guide fields appear', async ({ page }) => {
     // **The third time this shape has been built and the second recorded defect it caused.**
     // The England Athletics box lived inside the affiliated card and threw the chosen card off
-    // the screen when it collapsed; the guide's six fields are a far larger block — a name, a
+    // the screen when it collapsed — that box is gone with the number, and this is now the only
+    // conditional block on the page. The guide's six fields are a far larger block — a name, a
     // date of birth in three parts, a category, and two emergency contact fields — so getting
     // it wrong here is worth more pixels than either earlier case.
     //
@@ -1269,24 +1279,6 @@ test.describe('what JavaScript adds @requires-js', () => {
     );
   });
 
-  test('hides the England Athletics box unless affiliated is chosen', async ({
-    page,
-  }) => {
-    await page.goto(YEAR);
-
-    const eaField = page.locator('[data-entry-ea-field]');
-
-    await entry(page)
-      .getByLabel(/^Unaffiliated/)
-      .check();
-    await expect(eaField).toBeHidden();
-
-    await entry(page)
-      .getByLabel(/^Affiliated/)
-      .check();
-    await expect(eaField).toBeVisible();
-  });
-
   test('shows a running total once an entry type is chosen', async ({ page }) => {
     await page.goto(YEAR);
 
@@ -1342,14 +1334,17 @@ test.describe('what JavaScript adds @requires-js', () => {
     await expect(page.locator('[data-entry-error="entryTerms"]')).toBeHidden();
   });
 
-  test('choosing an entry type says nothing about the England Athletics box', async ({
-    page,
-  }) => {
+  test('choosing an entry type complains about nothing at all', async ({ page }) => {
     // The specific path behind the test above, and the one that got through it. Leaving the
-    // entry-type radio is not leaving the England Athletics box, and it was read as exactly
-    // that: the box complained about a number nobody had reached, and because the message
-    // appeared between the press and the release of the click that caused it, it moved the
-    // other two cards out from under the pointer and the entry type could not be changed.
+    // entry-type radio was read as leaving the England Athletics box nested inside the
+    // affiliated card: the box complained about a number nobody had reached, and because the
+    // message appeared between the press and the release of the click that caused it, it moved
+    // the other two cards out from under the pointer and **the entry type could not be changed
+    // at all**.
+    //
+    // That box is gone with the number, so this asserts the general rule instead: leaving a fee
+    // radio produces no message anywhere on the form. It is the assertion that would catch the
+    // same defect the next time a field is put near the cards.
     await page.goto(YEAR);
 
     await entry(page)
@@ -1364,7 +1359,7 @@ test.describe('what JavaScript adds @requires-js', () => {
       .focus();
     await page.keyboard.press('Tab');
 
-    await expect(page.locator('[data-entry-error="eaNumber"]')).toBeHidden();
+    await expect(page.locator('[data-entry-error]:not([hidden])')).toHaveCount(0);
   });
 });
 
@@ -1399,9 +1394,6 @@ test.describe('when the race is full', () => {
       .getByLabel(/^Affiliated/)
       .check();
     await entry(page)
-      .getByLabel(/^England Athletics number/)
-      .fill('1234567');
-    await entry(page)
       .getByLabel(/^Running club/)
       .fill("O'Sullivan Runners");
     await entry(page)
@@ -1432,9 +1424,6 @@ test.describe('when the race is full', () => {
       'female',
     );
     await expect(entry(page).getByLabel(/^Affiliated/)).toBeChecked();
-    await expect(entry(page).getByLabel(/^England Athletics number/)).toHaveValue(
-      '1234567',
-    );
     await expect(entry(page).getByLabel(/^Running club/)).toHaveValue(
       "O'Sullivan Runners",
     );

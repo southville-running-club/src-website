@@ -156,12 +156,13 @@ notes as a document and is what a first aider should be handed; *Download the no
 for the volunteer who wants a spreadsheet. Both take the same read and write the same
 `medical_export` audit row.
 
-⚠️ **Transferring an affiliated place asks for the new runner's own England Athletics number.**
-The box is on the form and is not marked required, because the page does not know which fee the
-purchase was on — the fee is read from the purchase inside the database, which is the only place
-that cannot be lied to. If the form ever said the database could not be reached, that was this
-defect and it is fixed: the number used to be cleared unconditionally, which the entrant rules
-refuse on an affiliated entry, so **every affiliated transfer failed and failed as an outage**.
+**Transferring an affiliated place is an ordinary transfer, and it was not always.** The form
+asked the new runner for their own England Athletics number until 29 August 2026, when the club
+[stopped asking for numbers altogether](../../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
+Before *that* it cleared the previous runner's number unconditionally, which the entrant rules
+refuse on an affiliated entry — so **every affiliated transfer failed, and failed as an outage**:
+the form said the club's database could not be reached, on a database that was perfectly healthy.
+If you ever see that message again it is a real outage rather than this defect.
 
 **Filters are links with query parameters, not a form and not a script.** Every filtered view is a
 URL somebody can send to the other volunteer, and **no filter carries personal data** — the values
@@ -186,7 +187,7 @@ contents.
 
 | | Columns | For | Deliberately absent |
 | --- | --- | --- | --- |
-| **England Athletics check** | Last name, first name, club, EA number, entry type, amount paid | The £2 check against the EA register, which nobody has been able to do since 2018 | Emergency contacts, medical notes, email addresses |
+| **Affiliated entries** | Last name, first name, club, entry type, amount paid | **How many entries took the affiliated price**, which is the count the club owes no Unattached Runner Levy on under ARC Rule 21(2)(b). The button says *Download the affiliated list* | England Athletics numbers — the club holds none — emergency contacts, medical notes, email addresses |
 | **Start list** | Last name, first name, club, category, **emergency contact name and phone** | Race day | Medical notes, email addresses, dates of birth |
 | **Medical notes** | Last name, first name, club, **the note** | First aiders, on the day | Everything else, including the emergency contact |
 
@@ -204,9 +205,9 @@ audit row says who decided to.
 
 ### Why no email address appears in any of them
 
-An organiser checking England Athletics numbers or setting out bibs does not need one, and a
-column of two hundred and fifty addresses in a file that gets emailed around is the kind of thing
-that is hard to take back. For the rare case where somebody must be contacted, the query in
+An organiser counting affiliated entries or setting out bibs does not need one, and a column of
+two hundred and fifty addresses in a file that gets emailed around is the kind of thing that is
+hard to take back. For the rare case where somebody must be contacted, the query in
 [the attention runbook](entries-attention.md#the-query) returns the purchaser's address for the
 rows that need one.
 

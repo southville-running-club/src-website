@@ -67,6 +67,15 @@ interface Person {
   emergency_contact_name: string;
   emergency_contact_phone: string;
   role: string;
+  /**
+   * **Not a field anybody is asked for — a value posted at the function anyway.**
+   *
+   * The club stopped asking for England Athletics numbers on 29 August 2026 and
+   * `entrants_ea_number_not_collected` refuses one in the column, so this exists only so a
+   * test can send one and prove it goes nowhere. `create_pending_purchase()` is granted to
+   * `anon` and reachable through PostgREST with the published key, so "the form no longer has
+   * the box" is not an answer on its own.
+   */
   ea_number?: string;
 }
 
@@ -136,7 +145,7 @@ beforeAll(async () => {
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
+    `insert into entries.fees (event_id, code, label, price_pence, affiliated)
      values ($1, 'unaffiliated', 'Unaffiliated', 2000, false),
             ($1, 'affiliated', 'Affiliated', 1800, true)`,
     [event.id],
@@ -158,8 +167,8 @@ describe('a guide is a second entrant on one purchase', () => {
     // **One fee for the entry, not one per person.** The guide adds nobody to the bill.
     expect(result.amount_pence).toBe(2000);
 
-    const rows = await query<{ role: string; ea_number: string | null }>(
-      `select role, ea_number from entries.entrants
+    const rows = await query<{ role: string }>(
+      `select role from entries.entrants
         where purchase_id = $1 order by role`,
       [result.purchase_id],
     );
@@ -273,10 +282,17 @@ describe('every rule about a runner is a rule about their guide', () => {
     ).toEqual({ ok: false, reason: 'already_entered' });
   });
 
-  it('does not ask a guide for an England Athletics number', async () => {
-    // **The affiliated fee has to stay usable by a visually impaired runner.** Requiring a
-    // number from somebody who is not buying the affiliated price and is not claiming the
-    // rebate would refuse the entry for the absence of a number nobody needed.
+  it('stores no England Athletics number for anybody on the entry, posted or not', async () => {
+    // **This asserted the guide's number was null and the runner's was kept.** Since 29 August
+    // 2026 the club asks nobody for one, so both are null and the interesting half is the
+    // runner's: `create_pending_purchase()` is granted to `anon`, so a number posted straight
+    // at PostgREST with the published key is the only route a number could still take. It is
+    // dropped by the fee normalisation and refused by `entrants_ea_number_not_collected`
+    // behind it.
+    //
+    // **On the affiliated fee**, because that is the one that used to require it — and the
+    // entry going through at all is the other half of what changed: requiring a number from a
+    // guide once made the affiliated price the one a visually impaired runner could not use.
     const result = (await enter(
       [person('runner', { ea_number: '1234567' }), person('guide')],
       { vi: true },
@@ -285,13 +301,12 @@ describe('every rule about a runner is a rule about their guide', () => {
 
     expect(result.ok).toBe(true);
 
-    const guide = await single<{ ea_number: string | null }>(
-      `select ea_number from entries.entrants
-        where purchase_id = $1 and role = 'guide'`,
+    const rows = await query<{ role: string; ea_number: string | null }>(
+      `select role, ea_number from entries.entrants
+        where purchase_id = $1 order by role`,
       [result.purchase_id],
     );
 
-    // Not merely unasked — never stored, even if one were posted.
-    expect(guide.ea_number).toBeNull();
+    expect(rows.map((row) => row.ea_number)).toEqual([null, null]);
   });
 });

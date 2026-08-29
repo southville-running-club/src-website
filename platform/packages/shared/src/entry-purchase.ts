@@ -52,12 +52,18 @@ export const PENDING_PURCHASE_REASONS = [
   'invalid_discount',
   'invalid_entrants',
   'under_minimum_age',
-  // **Both are drift if they ever reach the deployed form**, because `parseNnEntry` refuses
-  // each of them first — which is exactly why they are named rather than folded into
-  // `invalid_entrants`. A log line saying `consents_missing` says the form and the database
-  // disagree about what was agreed; one saying `invalid_entrants` says something, somewhere,
-  // in the entrant block. Only the first is actionable at four in the morning.
-  'ea_number_required',
+  // **Drift if it ever reaches the deployed form**, because `parseNnEntry` refuses it first —
+  // which is exactly why it is named rather than folded into `invalid_entrants`. A log line
+  // saying `consents_missing` says the form and the database disagree about what was agreed;
+  // one saying `invalid_entrants` says something, somewhere, in the entrant block. Only the
+  // first is actionable at four in the morning.
+  //
+  // **`ea_number_required` was here until 29 August 2026**, when the club stopped asking for
+  // England Athletics numbers. `create_pending_purchase()` still carries the branch and no fee
+  // can reach it — `fees_ea_number_not_collected` sees to that — so a reason nothing can
+  // return has no place on a list whose whole job is to make a log line actionable. If one
+  // ever arrives it lands on `unknown`, which is the right answer to a refusal this build has
+  // never heard of.
   'consents_missing',
   // **The one reason on this list that a person is meant to meet.** Everything above it is
   // either drift or a race the club lost; this is the ordinary case of somebody who already
@@ -129,9 +135,10 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
     gender: entry.gender,
     gender_identity: entry.genderIdentity,
     club: entry.club,
-    // Already null unless the chosen fee wanted one — `parseNnEntry` drops it at the
-    // boundary. This carries whatever survived that, and never re-derives it.
-    ea_number: entry.eaNumber,
+    // **No `ea_number` key at all since 29 August 2026.** The column is still there and
+    // `create_pending_purchase()` still reads for it; sending nothing is the same as sending
+    // null to `coalesce(v_entrant ->> 'ea_number', '')`, and it says plainly that this build
+    // has no such thing to send.
     emergency_contact_name: entry.emergencyName,
     emergency_contact_phone: entry.emergencyPhone,
     leg: null,
@@ -144,10 +151,9 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
 /**
  * The guide, in the same column names.
  *
- * **Four keys are null and each is null for a reason**, rather than because the guide's form
+ * **Three keys are null and each is null for a reason**, rather than because the guide's form
  * did not ask. `gender_identity` and `club` are questions nothing derives anything from for
- * somebody in no category; `ea_number` justifies the affiliated rebate and a guide is not
- * paying; `leg` is a paired-race field on a solo race.
+ * somebody in no category; `leg` is a paired-race field on a solo race.
  */
 export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | null> {
   return {
@@ -165,7 +171,6 @@ export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | nul
     gender: null,
     gender_identity: null,
     club: null,
-    ea_number: null,
     emergency_contact_name: guide.emergencyName,
     emergency_contact_phone: guide.emergencyPhone,
     leg: null,

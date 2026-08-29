@@ -10,9 +10,8 @@ import {
   CLEAN_EVENT_SLUG,
   CLEAN_PAID_LAST_NAME,
   REGISTERED_EMAIL,
-  MISSING_EA_LAST_NAME,
+  NEVER_STORED_EA_NUMBER,
   NN_ADMIN_EMAIL,
-  PAID_EA_NUMBER,
   PAID_GENDER_IDENTITY,
   PAID_NON_ASCII_LAST_NAME,
   PEOPLE_ADMIN_EMAIL,
@@ -575,10 +574,18 @@ test.describe('where the race stands', () => {
     await expect(page.getByText('6 January 2027')).toBeVisible();
   });
 
-  test('names the affiliated claim that gave no number', async ({ page }) => {
-    await expect(page.getByText('without giving a number')).toBeVisible();
+  test('counts the affiliated entries and claims nothing about checking them', async ({
+    page,
+  }) => {
+    // **The panel used to name affiliated entries that gave no number.** The club stopped
+    // asking for numbers on 29 August 2026, so every affiliated entry is one of those and the
+    // warning would be the whole column. What is left is the count — how many entries owe no
+    // Unattached Runner Levy under ARC Rule 21(2)(b) — and a sentence saying the club takes a
+    // runner's word for it.
+    await expect(page.getByRole('heading', { name: 'Affiliated entries' })).toBeVisible();
+    await expect(page.getByText('without giving a number')).toHaveCount(0);
     await expect(
-      page.getByRole('rowheader', { name: new RegExp(MISSING_EA_LAST_NAME) }),
+      page.getByText('The club does not ask for an England Athletics'),
     ).toBeVisible();
   });
 });
@@ -704,8 +711,15 @@ test.describe('the entries table', () => {
     }
   });
 
-  test('shows the England Athletics number for the £2 check', async ({ page }) => {
-    await expect(shown(page, PAID_EA_NUMBER)).toBeVisible();
+  test('shows no England Athletics number, and no column that would hold one', async ({
+    page,
+  }) => {
+    // **The negative case is the one that matters.** Asserting the header is gone would pass
+    // on a page that still printed the numbers in the stacked phone summary, and asserting
+    // the numbers are gone would pass on a page that kept an empty column somebody would fill
+    // in again. Both, and the number is a value nothing can store — see the constant.
+    await expect(page.getByRole('columnheader', { name: 'EA number' })).toHaveCount(0);
+    await expect(page.getByText(NEVER_STORED_EA_NUMBER)).toHaveCount(0);
   });
 
   test('shows the gender a runner recorded, under the category it is not', async ({
@@ -795,7 +809,6 @@ test.describe('the filters', () => {
         AWKWARD_FIRST_NAME,
         'Nwosu',
         'example.com',
-        PAID_EA_NUMBER,
       ]) {
         expect(value, `${personal} must not be in ${value}`).not.toContain(personal);
       }
@@ -889,11 +902,11 @@ test.describe('the exports', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
 
     // **All three, each behind its own button on its own panel**, because each is a different
-    // disclosure: the England Athletics check list, race morning's start list, and the medical
-    // sheet, which is special category data and is taken on purpose.
+    // disclosure: the affiliated list, race morning's start list, and the medical sheet, which
+    // is special category data and is taken on purpose.
     for (const [button, kind] of [
       ['Download as CSV', 'start-list'],
-      ['Download the check list', 'ea'],
+      ['Download the affiliated list', 'ea'],
       ['Download the notes as CSV', 'medical'],
     ] as const) {
       await page.goto(OVERSOLD);
@@ -1400,10 +1413,10 @@ test.describe('accessibility and small screens', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
 
-    // The five wide columns are gone rather than clipped — `display: none`, so they are out of
-    // the accessibility tree too and nothing is announced twice.
+    // The wide columns are gone rather than clipped — `display: none`, so they are out of the
+    // accessibility tree too and nothing is announced twice.
     await expect(page.getByRole('columnheader', { name: 'Club' })).toBeHidden();
-    await expect(page.getByRole('columnheader', { name: 'EA number' })).toBeHidden();
+    await expect(page.getByRole('columnheader', { name: 'Code' })).toBeHidden();
 
     // The three that remain, and the runner cell now carrying what the others dropped. Filtered to
     // the visible copy for the reason the table's own describe block explains — at this width the
@@ -1493,7 +1506,7 @@ test.describe('accessibility and small screens', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
 
-    for (const column of ['Club', 'Category', 'Entry', 'EA number', 'Paid']) {
+    for (const column of ['Club', 'Category', 'Entry', 'Code', 'Paid']) {
       await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
     }
   });

@@ -25,7 +25,6 @@ const ENTRY: NnEntry = {
   genderIdentity: 'Woman',
   club: "O'Sullivan Runners",
   feeCode: 'affiliated',
-  eaNumber: '1234567',
   emergencyName: 'Margaret Hamilton',
   emergencyPhone: '0117 496 0000',
   medicalNotes: 'Type 1 diabetic.',
@@ -48,7 +47,6 @@ describe('one runner, in the column names the database uses', () => {
       // that carried only the first would silently drop what somebody typed.
       gender_identity: 'Woman',
       club: "O'Sullivan Runners",
-      ea_number: '1234567',
       emergency_contact_name: 'Margaret Hamilton',
       emergency_contact_phone: '0117 496 0000',
       leg: null,
@@ -69,13 +67,16 @@ describe('one runner, in the column names the database uses', () => {
     expect(payload).not.toContain('medical');
   });
 
-  it('passes a dropped England Athletics number through as null rather than re-deriving it', () => {
-    // `parseNnEntry` drops the number when the chosen fee does not want one. Re-deciding that
-    // here would be a second rule about the same thing, and the second one is always the one
-    // that drifts.
-    const unaffiliated: NnEntry = { ...ENTRY, feeCode: 'unaffiliated', eaNumber: null };
+  it('sends no England Athletics key at all, on any fee', () => {
+    // **The club stopped asking for the number on 29 August 2026**, so there is none to send
+    // and no key to send it under. `toEqual` above would catch an extra key on the affiliated
+    // entry; this says the same thing about the fee that most nearly had a reason to carry
+    // one, and says it as the absence it is rather than as a null that reads like a value
+    // somebody decided to blank.
+    const unaffiliated: NnEntry = { ...ENTRY, feeCode: 'unaffiliated' };
 
-    expect(nnEntrantPayload(unaffiliated).ea_number).toBeNull();
+    expect(nnEntrantPayload(unaffiliated)).not.toHaveProperty('ea_number');
+    expect(nnEntrantPayload(ENTRY)).not.toHaveProperty('ea_number');
   });
 
   it('states an unanswered gender as null rather than dropping the key', () => {
@@ -115,15 +116,13 @@ describe('the guide, in the same column names', () => {
       // this person without it: a runner is reachable through the address that paid, and a
       // guide has no purchase of their own.
       email: 'katherine@example.com',
-      // **Five nulls, and each is null for a reason rather than because the form did not
+      // **Four nulls, and each is null for a reason rather than because the form did not
       // ask.** `gender` is the race category and a guide is in none — asking was collecting an
       // answer nothing could use; `gender_identity` and `club` derive nothing for somebody in
-      // no category either; `ea_number` justifies the affiliated rebate and a guide is not
-      // paying; `leg` is a paired-race field on a solo race.
+      // no category either; `leg` is a paired-race field on a solo race.
       gender: null,
       gender_identity: null,
       club: null,
-      ea_number: null,
       leg: null,
       emergency_contact_name: 'Dorothy Vaughan',
       emergency_contact_phone: '0117 496 0001',
@@ -135,10 +134,11 @@ describe('the guide, in the same column names', () => {
   });
 
   it('never carries an England Athletics number, whatever else changes', () => {
-    // The trigger refuses a guide that has one — it is an identifier held for no purpose —
-    // so this is the boundary keeping the payload on the right side of that rule rather than
-    // finding out from a `check_violation`.
-    expect(nnGuidePayload(GUIDE).ea_number).toBeNull();
+    // A guide never had one and now nobody does: the club stopped asking on 29 August 2026,
+    // and `entrants_ea_number_not_collected` refuses a value in the column. This is the
+    // boundary keeping the payload on the right side of that rather than finding out from a
+    // `check_violation`.
+    expect(nnGuidePayload(GUIDE)).not.toHaveProperty('ea_number');
   });
 
   it('carries no medical information at all', () => {
