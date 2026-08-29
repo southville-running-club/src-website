@@ -1266,14 +1266,34 @@ const SUMMARY_LINKS = [
         </label>
       </div>
       {
-        /* **The entry terms have not been written, and this says so rather than linking to a
-        page that does not exist or inventing a deadline.** The 2023 transfer deadline is on
-        record and belongs to 2023; the 2026 one is not decided. Nobody meets this form in
-        production — the event is `pre_open` — and the terms have to land before it opens. */
+        /* **The terms exist now, and this is the link the placeholder was holding open.** It
+        used to say they were "still to be confirmed by the committee, and will be linked here
+        before entries open" — a sentence that goes false the moment the page exists, on the
+        one control whose whole job is to be a truthful statement of what somebody is agreeing
+        to.
+
+        **It claims no committee involvement, because there is none.** The race director
+        supplied the copy on 28 August 2026 and the committee has not ratified it; the version
+        line at the foot of `/nn/2026/terms/` says exactly that, and this sentence says nothing
+        about provenance at all rather than repeating a claim that would have to be kept in
+        step with it.
+
+        **The checkbox and its label are untouched**, and `id="entry-terms-hint"` is unchanged
+        so `aria-describedby` on the input still resolves — the hint is read out after the
+        label, which is what puts the link in front of somebody using a screen reader before
+        they tick rather than after.
+
+        **The year is derived, not written.** `${Astro.url.pathname}terms/` is the same idiom
+        the form's own `action` uses a few lines down, and for the same reason: this component
+        is rendered from `/nn/<year>/`, and a literal `/nn/2026/terms/` here would be a second
+        place the year is stated — one that keeps building, keeps passing, and quietly points
+        2027's entry form at 2026's terms. `trailingSlash: 'always'` is what makes the join
+        exactly one address. */
       }
       <p class="field-hint" id="entry-terms-hint">
-        The full entry terms are still to be confirmed by the committee, and will be
-        linked here before entries open.
+        <a href={`${Astro.url.pathname}terms/`}>
+          Read the full entry terms and race rules.
+        </a>
       </p>
     </div>
 

@@ -36,8 +36,12 @@ re-run.
   facts list on `/nn/2026/` and the foot of the entry form. It is **year-scoped like the
   date** and may not appear on `/nn/`, `/nn/course/` or `/nn/privacy/`; `site.spec.ts` asserts
   both halves. The 2023 number is still not a substitute for any future year's. **Still
-  unconfirmed, and neither may appear anywhere:** the 2026 race director's name, and the
-  transfer deadline. **The entry window is ratified now** — agreed by the committee over
+  unconfirmed, and it may not appear anywhere:** the 2026 race director's name. **The
+  transfer deadline is confirmed** — **3pm on 16th October** — supplied by the race director
+  on 28 August 2026 with the entry terms, and it lives in `race.json`'s `transferDeadline`,
+  read only by `/nn/2026/terms/`. It is a *date*, not a mechanism: `transfer_entry()`
+  enforces nothing about it, and no code anywhere reads it.
+  **The entry window is ratified now** — agreed by the committee over
   WhatsApp on **Monday 24 August 2026**, the same day the race director proposed it —
   **opens Tuesday 1 September 2026
   07:00 BST, closes Friday 30 October 2026 17:00 GMT** — and it is published on `/nn/2026/`
@@ -250,6 +254,19 @@ the branch.** Settings and the full trade are in
 **Documentation ships with the change it describes**, not afterwards. If you change
 behaviour that a README or ADR describes, change it in the same commit. A document that is
 wrong is worse than one that is missing, because it is trusted.
+
+**The race director's copy is transcribed verbatim, and `/nn/2026/terms/` is the strictest
+case.** Her prose is already published on `/nn/`, on the two renamed pages and in front of the
+entry form, and it keeps her spelling — "10km off road" unhyphenated, "spooktators" lower case,
+an ampersand. **The entry terms and race rules go further: nothing on that page may be edited
+for style at all.** The capitalisation is inconsistent, the ordinals and the 24-hour clock
+disagree with the rest of the site, and one clause slips into the third person mid-sentence.
+It stays. That page is the document somebody agrees to be bound by when they tick the box on
+`/nn/2026/`, so a tidy-up is a silent amendment to a legal instrument rather than a copy edit —
+and `entry_purchases.consents_version` records which wording a person ticked against. Spotted
+problems go back to her as a batch and return as new copy with a new version line at the foot
+of the page. **The committee has not ratified those terms**, which is why the line reads
+"Supplied by the race director" and why two tests assert that no ratification is claimed.
 
 **Never edit an accepted ADR to change its answer.** Write a new one that supersedes it and
 say what it replaces. The history of a choice that turned out badly is worth more than a

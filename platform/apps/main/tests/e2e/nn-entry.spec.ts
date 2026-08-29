@@ -595,25 +595,53 @@ test.describe('once entries are open', () => {
     expect(body).toMatch(/medical box/i);
   });
 
-  test('leaves the entry terms unlinked, and says why', async ({ page }) => {
-    // **The entry terms are a separate document and still do not exist.** A consent control
-    // pointing at a page that is not there is worse than an honest absence, so the box has a
-    // hint instead of a link — and the agreements section has exactly one link in it, which
-    // is the privacy notice above. This fails the moment somebody links the terms to
-    // something plausible rather than to something written.
+  test('links the entry terms beside the box that accepts them', async ({
+    page,
+    request,
+  }) => {
+    // **This test used to assert the opposite, and the inversion is the point of it.** Until
+    // 28 August 2026 the entry terms did not exist, and this asserted that the box said so
+    // rather than pointing at a plausible-looking page that was not there — "this fails the
+    // moment somebody links the terms to something written" was the note on it. They are
+    // written now, published at `/nn/2026/terms/`, so the assertion becomes what it was always
+    // really about: **the control that takes somebody's agreement links to the thing they are
+    // agreeing to, and that thing is actually served.**
+    //
+    // The old wording is asserted absent as hard as the new one is asserted present. It
+    // claimed the terms were "still to be confirmed by the committee", which is false twice
+    // over now — they exist, and the committee has still not ratified them.
     await page.goto(YEAR);
 
     const agreements = entry(page).getByRole('group', { name: 'Agreements' });
 
-    await expect(
-      agreements.getByText(/full entry terms are still to be confirmed/i),
-    ).toBeVisible();
+    await expect(agreements).not.toContainText(/still to be confirmed/i);
 
+    // **The hint is the link, and it is the input's `aria-describedby` target.** So it is read
+    // out after the label and before the box is ticked, rather than being something a screen
+    // reader user finds afterwards. That pairing is the accessibility claim, and it is why the
+    // id is asserted rather than just the href.
+    const terms = agreements.locator('#entry-terms-hint a');
+    await expect(terms).toHaveAttribute('href', '/nn/2026/terms/');
+    await expect(terms).toHaveText('Read the full entry terms and race rules.');
+    await expect(page.locator('#entry-terms')).toHaveAttribute(
+      'aria-describedby',
+      /entry-terms-hint/,
+    );
+
+    // **Both links, in the order somebody meets them.** The terms above the privacy notice,
+    // because one is what you are agreeing to and the other is what happens to your details
+    // afterwards. Pinning the array rather than each href is what catches a third link being
+    // added to this section without anybody deciding it should be there.
     const hrefs = await agreements
       .getByRole('link')
       .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
 
-    expect(hrefs).toEqual(['/nn/privacy/']);
+    expect(hrefs).toEqual(['/nn/2026/terms/', '/nn/privacy/']);
+
+    // **A link to a 404 is the failure this whole test exists to prevent**, and asserting the
+    // href alone would not catch it — that is exactly the state the old assertion was
+    // protecting against, one step further along.
+    expect((await request.get('/nn/2026/terms/')).status()).toBe(200);
   });
 
   test('is completable with JavaScript disabled, and hands over to Stripe', async ({

@@ -1,9 +1,11 @@
 {
   "name": "Nightingale Nightmare",
   "date": "Sunday 1 November 2026",
+  "dateShort": "1 November",
   "startTime": "11:00",
   "distance": "10 km, off-road",
   "location": "Ashton Park School, Blackmoors Lane, Bower Ashton, Bristol BS3 2JL",
+  "hqName": "Ashton Park School",
   "startFinish": {
     "lat": 51.4468588,
     "lng": -2.6250503
@@ -11,16 +13,22 @@
   "price": null,
   "entriesOpen": "Tuesday 1 September 2026, 07:00",
   "entriesClose": "Friday 30 October 2026, 17:00",
+  "transferDeadline": "3pm on 16th October",
   "permit": "ARC/26/0842",
   "places": 250,
   "contact": "nightingalenightmare@southvillerunningclub.co.uk",
   "schedule": [
-    { "time": "09:15", "what": "Registration opens at HQ. Collect your number." },
-    { "time": "10:30", "what": "Race briefing at HQ." },
-    { "time": "10:40", "what": "Walk to the start together." },
-    { "time": "10:50", "what": "Group warm-up at the start." },
-    { "time": "11:00", "what": "The race starts." },
     {
+      "id": "registration",
+      "time": "09:15",
+      "what": "Registration opens at HQ. Collect your number."
+    },
+    { "id": "briefing", "time": "10:30", "what": "Race briefing at HQ." },
+    { "id": "walk-down", "time": "10:40", "what": "Walk to the start together." },
+    { "id": "warm-up", "time": "10:50", "what": "Group warm-up at the start." },
+    { "id": "start", "time": "11:00", "what": "The race starts." },
+    {
+      "id": "afterwards",
       "time": "Afterwards",
       "what": "Tea, coffee, hot chocolate and cake back at HQ, with a donation tin out for a local charity. Prizegiving at HQ once the last finisher is in."
     }
