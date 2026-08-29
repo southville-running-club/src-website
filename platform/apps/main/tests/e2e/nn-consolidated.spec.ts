@@ -31,7 +31,6 @@ const YEAR = '/nn/2026/';
 /** The four the jump-nav offers, and the sections each points at. */
 const SECTIONS = [
   ['Race', 'race'],
-  ['Course', 'course'],
   ['Race info', 'race-info'],
   ['Spooktators', 'spooktators'],
 ] as const;
@@ -190,23 +189,26 @@ test.describe('what survives without the script', () => {
   });
 
   /**
-   * The consolidation is of one *entry point*, not one page — so each summary section has to
-   * actually lead somewhere. A summary with no link out is a page that has absorbed its
-   * subject without saying so.
+   * **The page carries its subjects rather than pointing at them.**
+   *
+   * It started as three summary sections with a link out each. The race director's full
+   * instructions and spooktators copy replaced two of those, and the course summary was removed
+   * — so the only link out left is the course page's, from the facts the entry form sits beside.
+   *
+   * Asserted as a count rather than by absence: "no links to race-day" would pass on a page
+   * that had lost its content as well as its link, which is the failure this whole change is
+   * one edit away from at any time.
    */
-  test('links each summary section to the page it summarises', async ({ page }) => {
+  test('states its own content instead of linking away for it', async ({ page }) => {
     await page.goto(YEAR);
 
-    for (const [id, href] of [
-      ['course', '/nn/course/'],
-      ['race-info', '/nn/2026/race-day/'],
-      ['spooktators', '/nn/2026/spectators/'],
-    ] as const) {
-      await expect(
-        page.locator(`#${id}`).getByRole('link', { name: /in full/i }),
-        id,
-      ).toHaveAttribute('href', href);
-    }
+    // Six schedule rows and seven subsections of race instructions, on the page itself.
+    await expect(page.locator('#race-info .nn-schedule-row')).toHaveCount(6);
+    await expect(page.locator('#race-info h3')).toHaveCount(6);
+
+    // The spooktators section states the start's coordinates rather than sending somebody
+    // to another page for them.
+    await expect(page.locator('#spooktators')).toContainText('51.4468588');
   });
 });
 

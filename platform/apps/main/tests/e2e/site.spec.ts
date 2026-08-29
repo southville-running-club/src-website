@@ -1239,11 +1239,14 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // form, said what the ground is like and what shoes to wear and nothing about the hill. So
     // somebody could read every word in front of the form and not know the race climbs a valley.
     //
-    // **Three paths, which is the shape the water station already uses.** The words are
-    // `NnRaceSummary`'s on the first two and `course.astro`'s on the third, and they are the
-    // same words deliberately — a paraphrase would have made this assertion impossible and left
-    // three pages to drift. It drops to two when the course page goes.
-    for (const path of ['/nn/', '/nn/2026/', '/nn/course/']) {
+    // **Two paths now, and `/nn/2026/` left on 29 August 2026.** It was here because the
+    // summary card on that page carried `NnRaceSummary`'s bullets; the race director's full
+    // instructions replaced that card, and her copy describes a tough course with plenty of
+    // elevation without naming the valley as the climb. **So the page with the entry form on it
+    // no longer says the race climbs a valley** — which is the gap this test was written to
+    // close, reopened deliberately rather than by accident. Two sentences from her would shut
+    // it again and the path comes back.
+    for (const path of ['/nn/', '/nn/course/']) {
       const body = await squashed(page, path);
 
       expect(body, path).toContain('Nightingale Valley is the climb.');
@@ -1264,7 +1267,12 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // **The club's wording, because hers carries the distance.** "A 10km off road run along the
     // towpath…" would be a second spelling of a distance the `<dl>` on that page already states
     // from `race.json`, and which spelling the site settles on is with the race director.
-    for (const path of ['/nn/2026/', '/nn/course/']) {
+    //
+    // **`/nn/2026/` left this loop on 29 August 2026**, with the summary card it lived in. The
+    // gap the test names is therefore open again on the page somebody pays from: it describes
+    // the ground, the shoes, the water and the start, and not the route. Recorded here rather
+    // than deleted, because the test's own first line is still the argument for closing it.
+    for (const path of ['/nn/course/']) {
       const body = await squashed(page, path);
 
       expect(body, path).toContain(
@@ -1290,7 +1298,12 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // confirmation. The sentence lives in two places — `NnRaceSummary`, which reaches `/nn/` and
     // `/nn/2026/`, and the course page — so all three are asserted rather than one. That is what
     // stops the pair drifting for as long as the course page still exists.
-    for (const path of ['/nn/', '/nn/2026/', '/nn/course/']) {
+    //
+    // **`/nn/2026/` left on 29 August 2026.** The race director's copy says there is one water
+    // station on the route and another at the finish; it does not say where. "Approximately
+    // halfway" was her own confirmation and it is the number somebody rations a bottle against,
+    // so its absence from the entry page is a loss rather than a tidy-up.
+    for (const path of ['/nn/', '/nn/course/']) {
       const body = await squashed(page, path);
 
       expect(body, path).toContain('water station on the route at approximately halfway');

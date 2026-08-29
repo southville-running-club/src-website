@@ -2,7 +2,6 @@
 import Base from '../../../layouts/Base.astro';
 import NnMasthead from '../../../components/NnMasthead.astro';
 import NnEntryForm from '../../../components/NnEntryForm.astro';
-import NnRaceSummary from '../../../components/NnRaceSummary.astro';
 import NnSchedule from '../../../components/NnSchedule.astro';
 import race from '../../../content/race.json';
 
@@ -188,7 +187,6 @@ const dateLine = race.date
         <summary>Sections</summary>
         <ul class="nn-jump-links">
           <li><a href="#race">Race</a></li>
-          <li><a href="#course">Course</a></li>
           <li><a href="#race-info">Race info</a></li>
           <li><a href="#spooktators">Spooktators</a></li>
         </ul>
@@ -381,58 +379,6 @@ const dateLine = race.date
           <dt>ARC permit</dt>
           <dd>{orTbc(race.permit)}</dd>
         </dl>
-      </section>
-
-      <section id="course" tabindex="-1">
-        <h2>The course</h2>
-
-        {
-          /* **A summary that ends in a link, not a second copy of the course page.** The same
-          five things `/nn/` shows above the interest form, from the same component — read there
-          as what this race is, and here as what you are about to enter. Two copies of five
-          safety-relevant bullets is two copies that drift. See `NnRaceSummary.astro`.
-
-          **This is the pattern the whole consolidation follows**, and it is why the page is one
-          entry point rather than one page: `/nn/course/`, `/nn/2026/race-day/` and
-          `/nn/2026/spectators/` are live, linked, tested pages that no decision record proposes
-          removing. Three subsidiary pages, three summary sections, three links. Absorbing them
-          would retire three URLs, which is a decision with its own ADR and not this one. */
-        }
-        <div class="nn-card nn-prose">
-          <h3>Know what you are in for</h3>
-
-          {
-            /* **This page did not say where the race goes, and it is the page somebody pays from.**
-        The card below it stated what the ground is like, what to put on your feet, where the
-        water is and that the start is not at race HQ — and never the route. That sentence was
-        on `/nn/` in the race director's words and on `/nn/course/` in the club's, and neither
-        of those is this page. Somebody could read every word in front of the entry form, hand
-        over an entry fee, and not know the race runs along a towpath, up a valley and through
-        woods.
-
-        **It is `/nn/course/`'s wording rather than the race director's, and only because hers
-        carries the distance.** "A 10km off road run along the towpath…" would put a second
-        spelling of the distance on a page whose `<dl>` above already states it from
-        `race.json`. Which spelling the site settles on is with her, and this sentence stays
-        out of that question rather than adding to it.
-
-        **Here rather than in `NnRaceSummary`**, because the component reaches `/nn/` too and
-        that page already has her sentence — one route, two spellings, one page. So this is
-        page-local, and verbatim, so `site.spec.ts` can hold it against the course page's copy
-        for as long as both exist. */
-          }
-          <p>
-            The route runs along the towpath, turns up Nightingale Valley, and carries on
-            through Leigh Woods.
-          </p>
-
-          <NnRaceSummary />
-
-          <p>
-            <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
-            <a href="/nn/2026/race-day/">the whole running order for the day</a>.
-          </p>
-        </div>
       </section>
 
       <section id="race-info" tabindex="-1">
