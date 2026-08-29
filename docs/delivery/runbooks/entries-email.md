@@ -21,8 +21,14 @@ same provider, and [`accounts-open.md`](accounts-open.md) owns those.
 
 **It answers almost every version of this question without a credential or a log.** The queue,
 newest first, with what each message is about, whether it has gone, and how many times the club
-has tried. Anybody holding `nn-admin` can read it; the re-send button needs `nn.entry.cancel`,
-which `nn-admin` also carries.
+has tried. **It is in the navigation bar** — *Emails*, beside Nightingale Nightmare — so it is
+one click from the entry list rather than a link on the dashboard.
+
+Reading it needs `nn.email.read`; the re-send button needs `nn.email.resend`. **`nn-admin`
+carries both**, so in practice anybody who can read the entry list can read this. The two are
+separate permissions as of 29 August 2026: the page used to ask `nn.entry.read` and
+`nn.entry.cancel`, which meant a volunteer had to be trusted with refunds before they could
+answer *"I never got my confirmation"*.
 
 Find the person's address in the list. What you see decides the rest of this page:
 

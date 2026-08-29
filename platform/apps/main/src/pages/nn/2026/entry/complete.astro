@@ -132,10 +132,31 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/entry/complet
       <p class="lede">
         <strong>Your payment is confirmed and your place is booked.</strong>
       </p>
+      {
+        /* **What the club can honestly promise about the email, which is not "immediately".**
+        The confirmation is written into an outbox in the same transaction as the payment, so
+        it cannot be lost — but delivery is a job that runs every five minutes, and the club's
+        mail allowance is 100 messages a day against 250 places. On a busy entry day the
+        remainder genuinely arrives the next day. That is a decision the club took over roughly
+        $20 a month, and this paragraph is the honest version of it: a few minutes usually, the
+        next day at worst, and the place is booked either way.
+
+        Saying "check tomorrow" here is what stops the other thing happening — somebody who
+        waits an hour, decides it failed, and enters again. */
+      }
       <p>
-        There is nothing else to do now. Confirmation emails are still being set up, so
-        you may not receive one — your place is booked either way, and this page is the
-        record.
+        There is nothing else to do now. <strong
+          >A confirmation email is on its way.</strong
+        >
+        It usually arrives within a few minutes, but the club sends these in batches and on
+        a busy day yours may not go out until the following one. <strong
+          >If it has not arrived by tomorrow</strong
+        >, check your spam folder first, then email{' '}
+        <a href={`mailto:${race.contact}`}>{race.contact}</a>.
+      </p>
+      <p>
+        Your place is booked either way — the email is a receipt rather than the booking,
+        and this page is the record.
       </p>
       <p>
         Keep this page's address if you would like to check again later. What to do on the

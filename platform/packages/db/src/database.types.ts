@@ -372,6 +372,41 @@ export type Database = {
           },
         ]
       }
+      entry_requests: {
+        Row: {
+          action: string
+          id: string
+          purchase_id: string
+          reason: string | null
+          requested_at: string
+          resolved_at: string | null
+        }
+        Insert: {
+          action: string
+          id?: string
+          purchase_id: string
+          reason?: string | null
+          requested_at?: string
+          resolved_at?: string | null
+        }
+        Update: {
+          action?: string
+          id?: string
+          purchase_id?: string
+          reason?: string | null
+          requested_at?: string
+          resolved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_requests_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "entry_purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           active: boolean
@@ -509,6 +544,7 @@ export type Database = {
         Args: { p_actor: string; p_entrant_id: string; p_key: string }
         Returns: Json
       }
+      admin_entry_detail: { Args: { p_purchase_id: string }; Returns: Json }
       admin_entry_list: {
         Args: { p_event_slug: string; p_key: string }
         Returns: Json

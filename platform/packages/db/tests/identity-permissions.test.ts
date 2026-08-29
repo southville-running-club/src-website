@@ -174,6 +174,18 @@ describe('the shape of the model', () => {
     expect(rows.map((row) => row.slug)).toEqual([
       'identity.person.read',
       'identity.role.grant',
+      // **The ninth and tenth, and they are a borrow being paid back.** `/admin/emails/` was
+      // built behind `nn.entry.read` and `nn.entry.cancel` because a ninth permission was a
+      // stop-and-ask; the club took that decision on 29 August 2026. The write half was the
+      // worse of the two — `nn.entry.cancel` means "may refund an entry somebody paid for and
+      // move money", so a volunteer trusted to answer *"I never got my confirmation"* had to be
+      // trusted with refunds first, which is how a permission quietly widens until it means
+      // nothing.
+      //
+      // Nobody gained or lost anything on the day: `nn-admin` carries all four. What changed is
+      // that the two can now be granted apart, which is what a sixth role would need.
+      'nn.email.read',
+      'nn.email.resend',
       'nn.entry.before_open',
       'nn.entry.cancel',
       // **The eighth, and the only one that costs the club money rather than changing a
@@ -213,6 +225,11 @@ describe('the shape of the model', () => {
     // **`people-admin` holds the first without the second**, which is the whole of that role
     // and the line to look at if somebody ever reports that a reader can hand out `nn-admin`.
     expect(held).toEqual([
+      // Both on `nn-admin` and neither on `super-admin`, for the reason every `nn.*` permission
+      // is: a super-admin cannot read the entry list, and the queue is a list of the same
+      // people's email addresses. Granting it here would be the inheritance this table refuses.
+      'nn-admin → nn.email.read',
+      'nn-admin → nn.email.resend',
       'nn-admin → nn.entry.cancel',
       // **On `nn-admin` and deliberately not on `super-admin`**, for exactly the reason the
       // paragraph above gives about `nn.entry.read`: a super-admin cannot see the entry list,
@@ -398,6 +415,8 @@ describe('my_permissions', () => {
     expect(data).toEqual([
       'identity.person.read',
       'identity.role.grant',
+      'nn.email.read',
+      'nn.email.resend',
       'nn.entry.cancel',
       'nn.entry.create',
       'nn.entry.export',

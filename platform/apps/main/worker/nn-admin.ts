@@ -11,10 +11,12 @@ import {
   csvDocument,
   fetchCancellablePurchase,
   fetchCurrentEntryState,
+  fetchEntryDetail,
   fetchEntryList,
   fetchExport,
   fetchInterestList,
   fetchMedicalNote,
+  entryRequestWords,
   formatLondon,
   formatLondonDate,
   formatPence,
@@ -23,6 +25,8 @@ import {
   ENTRY_STATUSES,
   type AdminDiscountCode,
   type AdminEntry,
+  type AdminEntryDetail,
+  type AdminEntryDetailEntrant,
   type AdminEntryList,
   type AdminEventFigures,
   type AdminExport,
@@ -30,12 +34,14 @@ import {
   type AdminMedicalNote,
   type AdminResult,
   type AgeCategoryCode,
+  type EntryRequest,
   type ExportKind,
   type Gender,
   type ManualEntrant,
   type ManualEntryReason,
   type MedicalExportRow,
   type StartListExportRow,
+  type UnavailableCause,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
 import { html, raw, type Html } from './html';
@@ -231,6 +237,19 @@ export async function handleNnSection(
 
   if (request.method === 'POST' && segments.length === 1 && segments[0] === 'export') {
     return exportResponse(request, reader, viewer);
+  }
+
+  // **One entry, in full, and it is a POST for the reason the medical note is.** No personal
+  // data in a URL or a query string, ever — the purchase id travels in the body, exactly as
+  // the entrant id does for `medical` and as the purchase id already does for `cancel` and
+  // `transfer`. It reads and changes nothing, so it needs no CSRF token and mints none.
+  //
+  // Behind `nn.entry.read`, checked in `admin.ts` before this file runs and again inside
+  // `entries.admin_entry_detail()`, which is the control. It discloses what the entry list and
+  // the three exports already disclose to the same permission, which is why it needs no
+  // permission of its own and writes no audit row — see ADR-024.
+  if (request.method === 'POST' && segments.length === 1 && segments[0] === 'entry') {
+    return entryDetailResponse(request, cfg, viewer);
   }
 
   // **Cancelling, and it is the only thing under this prefix that changes a record.**
@@ -765,7 +784,41 @@ function csvResponse(taken: AdminExport): Response {
 // The shell
 // -----------------------------------------------------------------------------------------
 
-function unavailablePage(viewer: AdminViewer): Html {
+/**
+ * What this surface says when it could not ask its question.
+ *
+ * **`cause` exists because one of these is not an outage and telling somebody it is has cost
+ * real hours, twice.** PostgREST answers `PGRST202` when the function a caller named is not in
+ * its schema cache and `PGRST203` when it cannot choose between two candidates; both mean the
+ * database has not got the thing this build of the Worker is asking for. That is a state this
+ * repository deliberately tolerates — expand, migrate, contract, with nothing sequencing a
+ * migration against the Cloudflare deploy — and therefore a state it will keep entering.
+ *
+ * Said as *"the database could not be reached — try again in a moment"* it is **false in both
+ * halves**: the database is perfectly healthy, and trying again can never help. Somebody on
+ * call retries, waits, retries, and eventually reads a Cloudflare log to find a code the page
+ * never mentioned. Both halves of that happened here on 29 August 2026, on a deploy whose
+ * migrations had not applied at all.
+ */
+function unavailablePage(viewer: AdminViewer, cause?: UnavailableCause): Html {
+  if (cause === 'missing-function') {
+    return html`${masthead(viewer)}
+      <main class="admin-page" id="main">
+        <h1>The site is ahead of its database</h1>
+        <p>
+          This page asked the database for something it has not got yet, so it cannot say
+          what is in it. <strong>It is not saying the list is empty</strong>, and nothing
+          is wrong with any entry.
+        </p>
+        <p>
+          <strong>Trying again will not help.</strong> It means a change to the site went
+          live before the database change it needs — so the fix is to apply the waiting
+          migrations, not to wait. Whoever looks after deploys will find it in the
+          <span class="admin-mono">deploy-db</span> workflow.
+        </p>
+      </main>`;
+  }
+
   return html`${masthead(viewer)}
     <main class="admin-page" id="main">
       <h1>That could not be read</h1>
@@ -1659,6 +1712,19 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
     </td>
     <td class="admin-col-wide">
       ${
+        /* **Offered on every row without exception, including a cancelled one.** The page
+        behind it is a read, it needs only `nn.entry.read`, and a refunded purchase is exactly
+        the row somebody most often needs the history of. It is first in the cell because it is
+        the safe one: reading before acting is the order these three belong in. */ null
+      }
+      <form method="post" action="${NN_SECTION}/entry/">
+        <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+        <button type="submit" class="admin-linkish">
+          Details
+          <span class="admin-visually-hidden">of the entry for ${runnerName(entry)}</span>
+        </button>
+      </form>
+      ${
         cancellable
           ? html`<form method="post" action="${NN_SECTION}/cancel/">
               <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
@@ -1673,7 +1739,10 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
                 </span>
               </button>
             </form>`
-          : '—'
+          : /* **Null rather than a dash, since Details arrived.** The dash was there because
+               the cell would otherwise have been empty, and it never is now — a row with a
+               dash beside a working control reads as something broken rather than as
+               something absent. */ null
       }
       ${
         /* **Transfer sits beside Cancel and only where Cancel does.** Both need a place that
@@ -1723,30 +1792,66 @@ function statusCell(entry: AdminEntry): Html {
 
       Struck through once dealt with rather than removed, because "somebody asked and it was
       handled" is what a volunteer needs to see on the row they are about to touch. */ null
-    }${
-      entry.requestedAction === null
-        ? null
-        : html` <span
-              class="admin-quiet ${entry.requestResolved ? 'admin-request-done' : ''}"
-              >${
-                entry.requestedAction === 'cancel'
-                  ? 'cancellation asked for'
-                  : 'transfer asked for'
-              }${entry.requestResolved ? ' — dealt with' : ''}</span
-            >${
-              /* **Their own words, and this is why the request is worth recording at all.**
-              "Cancellation asked for" is a word; "I broke my ankle on Tuesday" and "my friend
-              would like my place" are two different afternoons, and a volunteer deciding
-              between a refund and a transfer needs the second thing rather than the first.
+    }${requestWording(entry)}`;
+}
 
-              Not struck through when resolved: what somebody said stays true after it has been
-              acted on, and it is what the row is evidence of. */ null
-            }${
-              entry.requestReason === null
-                ? null
-                : html` <span class="admin-sub">“${entry.requestReason}”</span>`
-            }`
-    }`;
+/**
+ * Every ask on one row, beside the status and not instead of it.
+ *
+ * **A paid entry with a cancellation request against it is still paid and still holds a
+ * place.** The request changes nothing until a volunteer acts, and showing it as a status would
+ * be a fifth value the capacity predicate cannot see.
+ *
+ * **Every outstanding one, and this is the defect it closes.** `requested_action` holds one
+ * word, so somebody who pressed *Transfer* and then thought better of it and pressed *Cancel*
+ * left a row saying only the second — and the two want opposite things. A volunteer who can
+ * see one of two disagreeing asks acts on the wrong one about half the time.
+ *
+ * **Falls back to the summary fields when the history is empty**, which is what a database
+ * deployed ahead of the history migration answers. Nothing sequences a migration against the
+ * Cloudflare deploy, and this row has to render either way.
+ *
+ * Struck through once dealt with rather than removed, because "somebody asked and it was
+ * handled" is what a volunteer needs to see on the row they are about to touch. The reason
+ * itself is never struck through: what somebody said stays true after it has been acted on.
+ */
+function requestWording(entry: AdminEntry): Html | null {
+  const asks: EntryRequest[] =
+    entry.requests.length > 0
+      ? entry.requests
+      : entry.requestedAction === null
+        ? []
+        : [
+            {
+              action: entry.requestedAction,
+              reason: entry.requestReason,
+              requestedAt: entry.createdAt,
+              resolvedAt: entry.requestResolved ? entry.createdAt : null,
+            },
+          ];
+
+  if (asks.length === 0) {
+    return null;
+  }
+
+  return html`${asks.map(
+    (ask) =>
+      html` <span
+          class="admin-quiet ${ask.resolvedAt === null ? '' : 'admin-request-done'}"
+          >${entryRequestWords(ask.action)}${
+            ask.resolvedAt === null ? '' : ' — dealt with'
+          }</span
+        >${
+          /* **Their own words, and this is why an ask is worth recording at all.**
+        "Cancellation asked for" is a word; "I broke my ankle on Tuesday" and "my friend
+        would like my place" are two different afternoons, and a volunteer deciding between
+        a refund and a transfer needs the second thing rather than the first. */ null
+        }${
+          ask.reason === null
+            ? null
+            : html` <span class="admin-sub">“${ask.reason}”</span>`
+        }`,
+  )}`;
 }
 
 /** Whether this purchase has a guide on it as well as a runner. */
@@ -2184,6 +2289,639 @@ function medicalPage(viewer: AdminViewer, note: AdminMedicalNote): Html {
 }
 
 // -----------------------------------------------------------------------------------------
+// One entry, in full
+// -----------------------------------------------------------------------------------------
+
+/**
+ * `POST /admin/nn/entry/` — everything the club holds about one purchase.
+ *
+ * **The list is a table, and a table can only carry what fits in a column.** The facts a
+ * volunteer needs when somebody rings up are the ones that did not fit: which address paid,
+ * when the payment settled, Stripe's references, the emergency contact, what the club still
+ * owes them by email, every ask that has been made about it, and what has already been done to
+ * the record. Before this, the answer was three browser tabs and two more credentials.
+ *
+ * **A purchase and not an entrant**, for the reason #116 made the list purchase-driven: the
+ * thing with a status, an amount, a payment and a history is the purchase, and it is the only
+ * shape that can render a cancelled entry at all — `cancel_entry()` deletes the runner.
+ *
+ * It reads and changes nothing, so there is no CSRF token and none is minted. See ADR-024.
+ */
+async function entryDetailResponse(
+  request: Request,
+  cfg: SupabaseConfig,
+  viewer: AdminViewer,
+): Promise<Response> {
+  const form = await readForm(request);
+  const purchaseId = form?.get('purchaseId');
+
+  if (typeof purchaseId !== 'string' || !isUuid(purchaseId)) {
+    return notFound();
+  }
+
+  const detail = await fetchEntryDetail(
+    createUserClient(cfg, viewer.accessToken),
+    purchaseId,
+  );
+
+  if (detail.status === 'unavailable') {
+    // A code and a message, never a row — the property the whole surface depends on.
+    console.error(`entries.admin_entry_detail unavailable — ${detail.error}`);
+    return page('Entry', unavailablePage(viewer, detail.cause), { status: 503 });
+  }
+
+  if (detail.status !== 'ok') {
+    // `unauthorised` and `not-found` answer identically, exactly as every other read here does.
+    return notFound();
+  }
+
+  return page('Entry', entryDetailPage(viewer, detail), {});
+}
+
+/** A fact and its label, or nothing at all when there is nothing to say. */
+function fact(label: string, value: Html | string | null): Html | null {
+  return value === null
+    ? null
+    : html`<dt>${label}</dt>
+        <dd>${value}</dd>`;
+}
+
+/** A timestamp in the club's words, or a dash. `formatLondon` and nothing else, ever. */
+function when(value: string | null): string {
+  return value === null ? '—' : formatLondon(value);
+}
+
+function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
+  const purchase = detail.purchase;
+  const runner = detail.entrants.find((entrant) => entrant.role === 'runner') ?? null;
+
+  // **The same two controls the row offers, and offered on the same conditions.** A page that
+  // showed a Transfer button where the list does not would be a page promising something
+  // `entries.transfer_entry()` refuses — see `entryRow` for why a guide narrows it.
+  const cancellable =
+    can(viewer, 'nn.entry.cancel') &&
+    (purchase.status === 'paid' || purchase.status === 'pending');
+  const transferable = cancellable && detail.entrants.length === 1;
+
+  const open = detail.requests.filter((request) => request.resolvedAt === null);
+
+  return html`${masthead(viewer)}
+    <main class="admin-page" id="main">
+      <h1>
+        ${
+          runner === null
+            ? 'No runner recorded'
+            : `${runner.firstName} ${runner.lastName}`
+        }
+      </h1>
+      <p class="admin-quiet">
+        ${purchase.eventName} ·
+        <span class="admin-mono">${purchase.purchaseId}</span>
+      </p>
+
+      ${
+        /* **The reference in full, and it is the one thing on this page somebody reads out
+        loud.** `/account/entries/` and the confirmation page both print it, so it is what a
+        runner emailing the club has to name their entry by — and the list only ever shows its
+        last four characters. */ null
+      }
+      ${
+        open.length === 0
+          ? null
+          : html`<p class="admin-warn" role="status">
+              <strong
+                >${plural(open.length, 'One ask', `${open.length} asks`)} outstanding on
+                this entry.</strong
+              >
+              ${
+                /* **Keyed on whether the asks disagree, not on how many there are.** Two
+                cancellations are one person pressing twice and want the same thing; a
+                cancellation and a transfer want opposite things — a refund and deliberately no
+                refund — and that is the pair a volunteer has to read before touching either.
+                Counting instead would say "read both" about three asks and about two identical
+                ones, which is the sentence that teaches somebody to skip it. */ null
+              }
+              ${
+                disagree(open)
+                  ? 'They do not agree with each other — read them before acting.'
+                  : null
+              }
+            </p>`
+      }
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><h3>The payment</h3></div>
+        <div class="admin-panel-body">
+          <dl class="admin-facts">
+            ${fact('Status', purchaseStatusWords(purchase))}
+            ${fact('Fee', purchase.feeLabel)}
+            ${fact(
+              'Amount',
+              html`<span class="admin-mono">${formatPence(purchase.amountPence)}</span>`,
+            )}
+            ${fact(
+              'Discount code',
+              purchase.discountCode === null
+                ? null
+                : html`<span class="admin-mono">${purchase.discountCode}</span>`,
+            )}
+            ${fact('Entered', when(purchase.createdAt))}
+            ${fact('Paid', when(purchase.paidAt))}
+            ${fact(
+              'Hold ran out',
+              purchase.holdExpiresAt === null ? null : when(purchase.holdExpiresAt),
+            )}
+            ${fact(
+              'Paid late',
+              purchase.revivedAt === null
+                ? null
+                : `${when(purchase.revivedAt)} — after the hold had lapsed`,
+            )}
+            ${fact(
+              'Needs a human',
+              purchase.attention === null
+                ? null
+                : html`<strong class="admin-error"
+                      >${attentionWords(purchase.attention)}</strong
+                    >${
+                      purchase.attentionResolvedAt === null
+                        ? null
+                        : html` — cleared ${when(purchase.attentionResolvedAt)}`
+                    }`,
+            )}
+            ${fact(
+              'Stripe checkout session',
+              purchase.stripeCheckoutSessionId === null
+                ? null
+                : html`<span class="admin-mono"
+                    >${purchase.stripeCheckoutSessionId}</span
+                  >`,
+            )}
+            ${fact(
+              'Stripe payment',
+              purchase.stripePaymentIntentId === null
+                ? null
+                : html`<span class="admin-mono">${purchase.stripePaymentIntentId}</span>`,
+            )}
+            ${fact('Terms agreed to', purchase.consentVersion)}
+          </dl>
+          ${
+            /* **What was agreed to is deliberately not here, and only the version is.** ADR-022
+            put the visually impaired declaration in `entry_purchases.consents` rather than in a
+            column precisely so that no read would return it: it is data about disability, held
+            as the lawful basis for a guide's row, and never a fact on a screen. No read has ever
+            returned that column and this page does not become the first. */ null
+          }
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <h3>Who paid</h3>
+          <p class="admin-panel-note">
+            Every message about this entry goes to this address.
+          </p>
+        </div>
+        <div class="admin-panel-body">
+          <dl class="admin-facts">
+            ${fact('Name', purchase.purchaserName)}
+            ${fact(
+              'Email',
+              html`<span class="admin-mono">${purchase.purchaserEmail}</span>`,
+            )}
+            ${fact(
+              'Account',
+              purchase.linkedToAccount
+                ? 'Claimed — they can see this at /account/entries/'
+                : /* **Not a fault, and the page says so.** An account is not required to enter
+                     and is never created by entering, so most paid entries sit like this until
+                     somebody registers with the same address and claims them. */
+                  'No account yet. It appears on their account the moment they register with this address and confirm it.',
+            )}
+          </dl>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <h3>${plural(detail.entrants.length, 'The runner', 'On this entry')}</h3>
+        </div>
+        <div class="admin-panel-body">
+          ${
+            detail.entrants.length === 0
+              ? html`<p>
+                  No runner is recorded against this entry. That is what a cancelled entry
+                  looks like: the refund deleted the entrant, deliberately, so the club
+                  stops holding somebody's details for a race they are not running.
+                </p>`
+              : detail.entrants.map((entrant) =>
+                  entrantFacts(entrant, detail.entrants.length > 1),
+                )
+          }
+        </div>
+      </div>
+
+      ${requestsPanel(detail.requests)} ${emailsPanel(detail)} ${auditPanel(detail)}
+      ${
+        /* **A `div` rather than a `p`, and it matters.** A `<form>` is flow content and a
+        paragraph may hold only phrasing content, so a browser closes the `<p>` at the first
+        form and reopens one after — which is a different tree from the one this code reads
+        like, and the sort of thing that renders fine until a stylesheet depends on it. Every
+        other `.admin-actions` on this surface is a `div` for the same reason. */ null
+      }
+      <div class="admin-actions">
+        ${
+          cancellable
+            ? html`<form method="post" action="${NN_SECTION}/cancel/">
+                <input type="hidden" name="purchaseId" value="${purchase.purchaseId}" />
+                <button type="submit" class="admin-button">Cancel this entry</button>
+              </form>`
+            : null
+        }
+        ${
+          transferable
+            ? html`<form method="post" action="${NN_SECTION}/transfer/">
+                <input type="hidden" name="purchaseId" value="${purchase.purchaseId}" />
+                <button type="submit" class="admin-button admin-button-quiet">
+                  Transfer this entry
+                </button>
+              </form>`
+            : null
+        }
+      </div>
+
+      <p>
+        <a href="${NN_SECTION}/entries/${purchase.eventSlug}/">Back to the entries</a>
+      </p>
+    </main>`;
+}
+
+/**
+ * Whether the outstanding asks on an entry want different things.
+ *
+ * **The pair that matters is a cancellation and a transfer**: one wants a refund and the other
+ * deliberately does not, so acting on the wrong one either takes a place off somebody who
+ * wanted to hand it to a friend, or hands on a place somebody wanted their money back for.
+ * Two of the same word are one person pressing twice, and need no warning at all.
+ */
+function disagree(asks: EntryRequest[]): boolean {
+  return new Set(asks.map((ask) => ask.action)).size > 1;
+}
+
+/**
+ * The status of one purchase in words.
+ *
+ * **Its own function rather than `statusWords`**, which takes an `AdminEntry` off the list and
+ * carries filter state this page has none of. Same vocabulary, so the two pages agree — and a
+ * little more of it, because a page with room can say what a chip in a column cannot.
+ */
+function purchaseStatusWords(purchase: AdminEntryDetail['purchase']): string {
+  if (purchase.attention === 'over_capacity' && purchase.attentionResolvedAt === null) {
+    return 'Over capacity';
+  }
+
+  if (purchase.status === 'paid') return 'Paid';
+  if (purchase.status === 'refunded') return 'Refunded — the place went back';
+  if (purchase.status === 'expired') return 'Hold expired — the place went back';
+
+  return 'Held, part way through paying';
+}
+
+/**
+ * One person on the entry, and everything recorded about them.
+ *
+ * **`named` is false for a solo entry, and that is not a cosmetic choice.** The heading at the
+ * top of the page is already this person's name, and the panel this sits in is already headed
+ * "The runner" — so repeating it here gave the page two headings with the same accessible name
+ * and nothing to tell them apart. A reader moving by heading hears the same words twice and
+ * learns nothing the second time.
+ *
+ * It earns its place the moment there are two people: a visually impaired runner and their
+ * guide are one entry and two sets of facts, and each set needs saying whose it is.
+ */
+function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
+  const category =
+    entrant.role === 'guide'
+      ? 'Guide — in no category, not timed and not placed'
+      : entrant.gender === null
+        ? 'No category — no race category recorded'
+        : categoryLabel(entrant.age, entrant.gender);
+
+  return html`<section class="admin-entrant">
+    ${
+      named
+        ? html`<h4>
+            ${entrant.firstName} ${entrant.lastName}
+            ${
+              entrant.role === 'guide'
+                ? html`<span class="admin-chip">Guide</span>`
+                : /* Said only on the guide, because "runner" on every other entry is a word
+                     that carries nothing. */ null
+            }
+          </h4>`
+        : null
+    }
+    <dl class="admin-facts">
+      ${fact('Date of birth', entrant.dateOfBirth)}
+      ${fact('Age on race day', String(entrant.age))} ${fact('Category', category)}
+      ${fact(
+        'Race category',
+        entrant.gender === null ? null : genderLabel(entrant.gender),
+      )}
+      ${
+        /* **The open question beside the closed one, and it is not a category** — ADR-020. It
+        is shown here for the reason it is shown on the list: a field the club collects and
+        never surfaces is a field collected for no purpose. It is on this surface and nowhere
+        else, and never in an export. */ null
+      }
+      ${fact('Gender identity', entrant.genderIdentity)}
+      ${fact('Club', entrant.club ?? 'Unattached')}
+      ${
+        /* **No England Athletics number here, and there never was one.** The club stopped
+        asking for and holding them on 29 August 2026 — ADR-023 — so this page would have
+        rendered an empty row for ever. Which fee was the affiliated price is the fee's own
+        label, on the payment panel above. */ null
+      }
+      ${
+        /* A guide's own address. Null for a runner, who is reached at the address that paid —
+           which is on the panel above rather than repeated here. */ null
+      }
+      ${fact(
+        'Their own email',
+        entrant.email === null
+          ? null
+          : html`<span class="admin-mono">${entrant.email}</span>`,
+      )}
+      ${fact('Emergency contact', entrant.emergencyContactName)}
+      ${fact(
+        'Emergency number',
+        html`<span class="admin-mono">${entrant.emergencyContactPhone}</span>`,
+      )}
+      ${fact('Added', when(entrant.createdAt))}
+      <dt>Medical note</dt>
+      <dd>
+        ${
+          entrant.hasMedical
+            ? html`<form method="post" action="${NN_SECTION}/medical/">
+                <input type="hidden" name="entrantId" value="${entrant.entrantId}" />
+                <button type="submit" class="admin-linkish">
+                  Show note
+                  <span class="admin-visually-hidden">
+                    for ${entrant.firstName} ${entrant.lastName}
+                  </span>
+                </button>
+              </form>`
+            : 'None'
+        }
+        ${
+          /* **Whether, and never what.** The note has one door and that door writes an audit
+          row every time it opens. Rendering the text here would be a second, unaudited read of
+          special category data, which is the one thing this page must not become. */ null
+        }
+      </dd>
+    </dl>
+  </section>`;
+}
+
+/**
+ * Every ask somebody has made about this entry.
+ *
+ * **This panel is the whole reason the history table exists.** `requested_action` held one
+ * word, so somebody who pressed *Transfer* and then thought better of it and pressed *Cancel*
+ * left a record saying only the second — and read the other way round, a volunteer looking at
+ * *"transfer asked for"* had no way to know a cancellation had been asked for afterwards. The
+ * two want opposite things, so acting on the wrong one either takes a place off somebody who
+ * wanted to hand it to a friend, or hands on a place somebody wanted their money back for.
+ */
+function requestsPanel(requests: EntryRequest[]): Html {
+  return html`<div class="admin-panel">
+    <div class="admin-panel-head">
+      <h3>What they have asked for</h3>
+      <p class="admin-panel-note">
+        Newest first. Asking changes nothing on its own — the entry still holds its place.
+      </p>
+    </div>
+    <div class="admin-panel-body">
+      ${
+        requests.length === 0
+          ? html`<p>Nothing has been asked about this entry.</p>`
+          : html`<ol class="admin-timeline">
+              ${requests.map(
+                (request) =>
+                  html`<li>
+                    <strong>${entryRequestWords(request.action)}</strong>
+                    <span class="admin-sub">${when(request.requestedAt)}</span>
+                    ${
+                      request.resolvedAt === null
+                        ? html`<span class="admin-chip admin-chip-flag"
+                            >Outstanding</span
+                          >`
+                        : html`<span class="admin-chip admin-chip-gone"
+                            >Dealt with ${when(request.resolvedAt)}</span
+                          >`
+                    }
+                    ${
+                      /* **Their own words, and this is why an ask is worth recording at all.**
+                    "Cancellation asked for" is a word; "I broke my ankle on Tuesday" and "my
+                    friend would like my place" are two different afternoons. Never exported,
+                    for the reason `gender_identity` is not. */ null
+                    }
+                    ${
+                      request.reason === null
+                        ? null
+                        : html`<blockquote class="admin-note">
+                            ${request.reason}
+                          </blockquote>`
+                    }
+                  </li>`,
+              )}
+            </ol>`
+      }
+    </div>
+  </div>`;
+}
+
+/**
+ * What the club has told this person, and what it still owes them.
+ *
+ * **The same rows `/admin/emails/` shows, filtered to this entry.** Somebody looking at an
+ * entry because a runner said they never heard anything should not have to go and find it in a
+ * queue of every message the club has ever sent.
+ */
+function emailsPanel(detail: AdminEntryDetail): Html {
+  return html`<div class="admin-panel">
+    <div class="admin-panel-head">
+      <h3>Emails about this entry</h3>
+      <p class="admin-panel-note">
+        <a href="${ADMIN_PREFIX}/emails/">The whole queue</a> is where a failed message is
+        sent again.
+      </p>
+    </div>
+    <div class="admin-panel-body">
+      ${
+        detail.emails.length === 0
+          ? html`<p>
+              The club owes no message about this entry. Only four things are written: an
+              entry confirmed, an entry refunded, and the two halves of a transfer.
+            </p>`
+          : html`<ol class="admin-timeline">
+              ${detail.emails.map(
+                (message) =>
+                  html`<li>
+                    <strong>${emailTemplateWords(message.template)}</strong>
+                    <span class="admin-sub admin-mono">${message.recipient}</span>
+                    <span class="admin-chip">${emailStatusWords(message)}</span>
+                    <span class="admin-sub">
+                      Written
+                      ${when(message.createdAt)}${
+                        message.sentAt === null
+                          ? null
+                          : `, sent ${formatLondon(message.sentAt)}`
+                      }
+                    </span>
+                    ${
+                      /* **A code, never the provider's own message.** Resend's error text can
+                    quote the address it rejected, which is how an email address ends up
+                    somewhere that was never assessed to hold one. */ null
+                    }
+                    ${
+                      message.lastError === null
+                        ? null
+                        : html`<span class="admin-sub admin-error"
+                            >${message.lastError}</span
+                          >`
+                    }
+                  </li>`,
+              )}
+            </ol>`
+      }
+    </div>
+  </div>`;
+}
+
+/** What each template is, in the club's words rather than as a slug. */
+function emailTemplateWords(template: string): string {
+  if (template === 'entry_confirmed') return 'Entry confirmed';
+  if (template === 'entry_refunded') return 'Entry cancelled and refunded';
+  if (template === 'entry_transferred_out') return 'Place transferred away';
+  if (template === 'entry_transferred_in') return 'Place transferred to them';
+
+  // A row this build has not heard of is a database ahead of this Worker, and the slug is more
+  // use than a word that says nothing.
+  return template;
+}
+
+function emailStatusWords(message: AdminEntryDetail['emails'][number]): string {
+  if (message.status === 'sent') return 'Sent';
+  if (message.status === 'failed') {
+    return `Failed after ${plural(message.attempts, '1 try', `${message.attempts} tries`)}`;
+  }
+
+  return 'Waiting to go';
+}
+
+/**
+ * What has been done to this entry, and by whom.
+ *
+ * **This is a change of position and it was taken deliberately** — see ADR-024. The audit trail
+ * was kept off this surface on the argument that reading `entries.admin_audit` would need
+ * another function granted to `anon`; half that argument expired with the two-key scheme, and
+ * the other half was that it is a decision, which this is.
+ *
+ * **Scoped to one entry, never the whole trail.** It is a history of a record rather than a log
+ * of what each volunteer has been doing, and there is still no way to read the table as a list.
+ *
+ * **The actor is a pseudonym and stays one.** `auth.uid()`, which maps to a human only through
+ * `identity.people` — ADR-013's amendment, which this does not reopen. What it can do is say
+ * when the person reading is the person who acted.
+ */
+function auditPanel(detail: AdminEntryDetail): Html {
+  return html`<div class="admin-panel">
+    <div class="admin-panel-head">
+      <h3>What has been done to it</h3>
+      <p class="admin-panel-note">
+        Newest first. Who did it is recorded as an account reference rather than a name.
+      </p>
+    </div>
+    <div class="admin-panel-body">
+      ${
+        detail.audit.length === 0
+          ? html`<p>
+              Nothing has been done to this entry by anybody at the club. Entering, paying
+              and asking for something are the runner's own acts and are not recorded here
+              — they are above.
+            </p>`
+          : html`<ol class="admin-timeline">
+              ${detail.audit.map(
+                (row) =>
+                  html`<li>
+                    <strong>${auditWords(row.action)}</strong>
+                    <span class="admin-sub">${when(row.at)}</span>
+                    <span class="admin-sub admin-mono">${shortId(row.actor)}</span>
+                    ${auditDetailWords(row.detail)}
+                  </li>`,
+              )}
+            </ol>`
+      }
+      ${
+        /* ⚠️ **One gap, and it is the price of a promise worth keeping.** A medical note read
+        against an entrant who has since been deleted cannot be matched back to this purchase,
+        because the id it names no longer joins to anything. `cancel_entry()` deleting the
+        runner is the more important half of that trade. */ null
+      }
+    </div>
+  </div>`;
+}
+
+function auditWords(action: string): string {
+  if (action === 'cancel_entry') return 'Cancelled and refunded';
+  if (action === 'transfer_entry') return 'Transferred to a new runner';
+  if (action === 'create_manual_entry') return 'Given as a complimentary place';
+  if (action === 'medical_note') return 'Medical note read';
+  if (action === 'medical_export') return 'Medical sheet taken';
+  if (action === 'export') return 'Exported';
+  if (action === 'resend_email') return 'A message was sent again';
+  if (action === 'sign_in') return 'Signed in';
+
+  return action;
+}
+
+/**
+ * The few keys from an audit row worth reading, in words.
+ *
+ * **Not the whole `detail` object.** It is written by the database for the database, and
+ * rendering it raw would put ids and shapes on a page a volunteer reads — and would quietly
+ * become the way a future key ends up on screen without anybody deciding it should.
+ */
+function auditDetailWords(detail: Record<string, unknown>): Html | null {
+  const parts: string[] = [];
+
+  if (typeof detail.previous_runner === 'string') {
+    parts.push(`was ${detail.previous_runner}'s`);
+  }
+
+  if (typeof detail.amount_pence === 'number') {
+    parts.push(formatPence(detail.amount_pence));
+  }
+
+  if (typeof detail.refund_reference === 'string') {
+    parts.push(`refund ${detail.refund_reference}`);
+  }
+
+  if (typeof detail.kind === 'string') {
+    parts.push(detail.kind);
+  }
+
+  if (typeof detail.reason === 'string') {
+    parts.push(detail.reason);
+  }
+
+  return parts.length === 0
+    ? null
+    : html`<span class="admin-sub">${parts.join(' · ')}</span>`;
+}
+
+// -----------------------------------------------------------------------------------------
 // Small pieces
 // -----------------------------------------------------------------------------------------
 
@@ -2588,7 +3326,9 @@ async function transferResponse(
 
   if (outcome.status === 'unavailable') {
     console.error(`entries.transfer_entry unavailable — ${outcome.error}`);
-    return page('Transfer entry', unavailablePage(viewer), { status: 503 });
+    return page('Transfer entry', unavailablePage(viewer, outcome.cause), {
+      status: 503,
+    });
   }
 
   // **There is no `ea-number-required` branch here any more, and its absence is a fix.**

@@ -9,6 +9,7 @@ import {
   AWKWARD_LAST_NAME,
   CLEAN_EVENT_SLUG,
   CLEAN_PAID_LAST_NAME,
+  CLEAN_PAID_PURCHASE_ID,
   REGISTERED_EMAIL,
   NEVER_STORED_EA_NUMBER,
   NN_ADMIN_EMAIL,
@@ -301,6 +302,7 @@ test.describe('the door', () => {
       'Nightingale Nightmare',
       'People and roles',
       'permission',
+      'Emails',
       'Forbidden',
       'not authorised',
       REGISTERED_EMAIL,
@@ -364,7 +366,15 @@ test.describe('the navigation', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ADMIN);
 
-    await expect(sections(page)).toHaveText(['Dashboard', 'Nightingale Nightmare']);
+    // **Emails is in the bar as of 29 August 2026.** It had been reachable since #133 and had
+    // never been linked from anywhere but the dashboard — so the only way to the queue was to
+    // go back to `/admin/` first, from a page whose whole purpose is answering *"did this
+    // runner get their email"*.
+    await expect(sections(page)).toHaveText([
+      'Dashboard',
+      'Nightingale Nightmare',
+      'Emails',
+    ]);
 
     // **A link to a page that 404s is worse than no link**: it tells somebody the page exists
     // and refuses them, which is the exact disclosure the 404 rule exists to avoid.
@@ -385,6 +395,10 @@ test.describe('the navigation', () => {
     await expect(page.getByRole('link', { name: 'Nightingale Nightmare' })).toHaveCount(
       0,
     );
+    // **`nn.email.read` is on `nn-admin` and deliberately not on `super-admin`**, for the
+    // reason every `nn.*` permission is: the queue is a list of the same people's email
+    // addresses, and a super-admin cannot read the entry list they appear on.
+    await expect(page.getByRole('link', { name: 'Emails' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'My account' })).toBeVisible();
   });
 
@@ -841,6 +855,118 @@ test.describe('a medical note', () => {
   });
 });
 
+test.describe('one entry in full', () => {
+  const CLEAN = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
+
+  /**
+   * **Not on a phone, because the control that opens this page is not on a phone.**
+   *
+   * *Details* sits in the actions column with *Cancel* and *Transfer*, and that column is
+   * `admin-col-wide` — folded away below 48rem, deliberately. The table's own header says why:
+   * the narrow layout keeps three columns on purpose, a fourth is what starts it scrolling
+   * sideways, and an absolutely positioned visually-hidden span inside a scroller drags the
+   * whole page with it. Cancelling is a desk task with the Stripe dashboard open in another
+   * tab; the medical note, which *is* wanted on race morning, is what keeps its column.
+   *
+   * So this is a documented decision rather than a gap, and the page is unreachable at this
+   * width by design. **Skipped rather than worked around**: setting a desktop viewport here
+   * would test a layout no phone ever sees, and clicking a hidden control through the DOM
+   * would assert that something works when a volunteer cannot reach it.
+   */
+  test.skip(
+    ({ isMobile }) => isMobile === true,
+    'Details folds away with the actions column below 48rem — see the table header',
+  );
+
+  test('is behind a deliberate action from the row, and puts no id in the address bar', async ({
+    page,
+  }) => {
+    // **A POST for the reason the medical note is one**: no personal data in a URL or a query
+    // string, ever. The purchase id travels in the body.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    // **Level 1 rather than any heading with that name.** The page heads itself with the
+    // runner's name; asking for "a heading called Ferreira" is asking a question the page can
+    // legitimately answer more than once — a guided entry names each person again inside the
+    // panel — and a locator that breaks when a second person is added is testing the fixture
+    // rather than the page.
+    await expect(
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+    ).toBeVisible();
+
+    expect(page.url()).toContain('/admin/nn/entry/');
+    expect(page.url()).not.toContain('purchaseId');
+    expect(page.url()).not.toContain(CLEAN_PAID_PURCHASE_ID);
+  });
+
+  test('says the things the table had no column for', async ({ page }) => {
+    // The whole reason the page exists: the reference somebody quotes on the phone, the address
+    // that paid, and the emergency contact.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    const markup = await undecoratedMarkup(page);
+
+    expect(markup).toContain(CLEAN_PAID_PURCHASE_ID);
+    expect(markup).toContain(`Kin ${CLEAN_PAID_LAST_NAME}`);
+    await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'What they have asked for' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'What has been done to it' }),
+    ).toBeVisible();
+  });
+
+  test('shows whether there is a medical note and never the note itself', async ({
+    page,
+  }) => {
+    // **The note keeps its single audited door.** This page links to it and never renders it —
+    // a second, unaudited read of Article 9 data is the one thing it must not become.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(OVERSOLD);
+
+    // **The row that actually has a note, found by the control rather than by position.**
+    // Only one fixture entrant has one, the table sorts by surname, and theirs is not first —
+    // so `.first()` would open somebody else's entry and then assert the absence of a button
+    // that was never going to be there. A test that picks a row by index is a test that breaks
+    // when somebody adds a fixture whose name sorts earlier.
+    await page
+      .getByRole('row')
+      .filter({ has: page.getByRole('button', { name: /Show note/ }) })
+      .first()
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    expect(await undecoratedMarkup(page)).not.toContain('inhaler');
+    await expect(page.getByRole('button', { name: /Show note/ })).toBeVisible();
+  });
+
+  test('is a 404 for a plain registered account, like every other address here', async ({
+    page,
+  }) => {
+    await signInAs(page, REGISTERED_EMAIL);
+
+    const response = await page.request.post(`${NN}entry/`, {
+      form: { purchaseId: CLEAN_PAID_PURCHASE_ID },
+    });
+
+    expect(response.status()).toBe(404);
+    expect(await response.text()).not.toContain(CLEAN_PAID_LAST_NAME);
+  });
+});
+
 test.describe('the interest list', () => {
   test('is a count on the dashboard and addresses only on its own page', async ({
     page,
@@ -1266,6 +1392,41 @@ test.describe('accessibility and small screens', () => {
     await page.goto(OVERSOLD);
     await page.getByRole('button', { name: 'Print the start list' }).click();
     await expect(page.getByRole('heading', { name: /Start list/ })).toBeVisible();
+
+    expect((await axe(page)).violations).toEqual([]);
+  });
+
+  test('has no axe violations on one entry in full @requires-js', async ({
+    page,
+    isMobile,
+  }) => {
+    // Same reason the rest of this page's tests skip on a phone: the control that opens it
+    // folds away with the actions column below 48rem, by decision. See `one entry in full`.
+    test.skip(isMobile === true, 'the Details control is desktop-only by decision');
+
+    // **Its own pass, because it is a different document.** Panels, a definition list per
+    // person, three timelines and two buttons — none of which axe has seen on the table this
+    // page is reached from. Zero, not few: a threshold above zero becomes the new normal
+    // within a month.
+    //
+    // The oversold fixture deliberately, because it is the entry with a medical note, an
+    // attention flag and the awkward strings on it — the most markup this page can hold.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(OVERSOLD);
+    await page
+      .getByRole('button', { name: /Details/ })
+      .first()
+      .click();
+    await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
+
+    expect((await axe(page)).violations).toEqual([]);
+  });
+
+  test('has no axe violations on the email queue @requires-js', async ({ page }) => {
+    // Reachable since #133 and never in this sweep, because it was never in the navigation
+    // bar either. Both are fixed together.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto('/admin/emails/');
 
     expect((await axe(page)).violations).toEqual([]);
   });

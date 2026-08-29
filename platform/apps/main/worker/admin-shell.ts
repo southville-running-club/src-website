@@ -74,6 +74,21 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
   {
     /**
+     * **The queue has been reachable since #133 and has never been in this bar.** It was built
+     * with a link on the dashboard and nothing else, so the only way to it was to go back to
+     * `/admin/` first — from a page whose whole purpose is answering *"did this runner get
+     * their email"*, which is a question somebody asks while looking at the entry list.
+     *
+     * `nn.email.read` rather than `nn.entry.read`, since the permission the door asks became
+     * one of its own. The link and the door have to name the same permission, which is what
+     * `permission`'s own comment above is about.
+     */
+    href: `${ADMIN_PREFIX}/emails/`,
+    label: 'Emails',
+    permission: 'nn.email.read',
+  },
+  {
+    /**
      * **The read, not the grant.** The page is a list of people that some of its readers may
      * also change, and `people-admin` may only read it — so the permission that opens the
      * link has to be the one that opens the table. Naming `identity.role.grant` here would

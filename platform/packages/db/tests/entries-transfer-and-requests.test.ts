@@ -500,3 +500,451 @@ describe('asking the club to cancel or transfer, and saying why', () => {
     expect(await reasonOn(someoneElses)).toBeNull();
   });
 });
+
+// =========================================================================================
+// Asking twice
+// =========================================================================================
+
+/**
+ * **The column held one word and somebody can press two buttons.**
+ *
+ * A runner who asked about a transfer, thought better of it and asked to cancel left a record
+ * saying only the second — and read the other way round, a volunteer looking at *"transfer asked
+ * for"* had no way to know a cancellation had been asked for afterwards. The two want opposite
+ * things: one wants a refund and one deliberately does not, so acting on the wrong one either
+ * takes a place off somebody who wanted to hand it to a friend, or hands on a place somebody
+ * wanted their money back for.
+ *
+ * These assert the **history**, not the summary. The summary columns keep working exactly as
+ * they did — that is the expand step, and the second test here is what proves it.
+ */
+describe('a second ask does not erase the first', () => {
+  async function ownedPurchase(): Promise<string> {
+    const purchaseId = await acceptedPurchaseId({ email: RUNNER_EMAIL });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    return purchaseId;
+  }
+
+  interface RequestRow {
+    action: string;
+    reason: string | null;
+    resolved_at: string | null;
+  }
+
+  async function historyOf(purchaseId: string): Promise<RequestRow[]> {
+    return query<RequestRow>(
+      `select action, reason, resolved_at
+         from entries.entry_requests
+        where purchase_id = $1
+        order by requested_at, id`,
+      [purchaseId],
+    );
+  }
+
+  async function ask(purchaseId: string, action: string, reason: string): Promise<void> {
+    const { data, error } = await runner.client
+      .schema('entries')
+      .rpc('request_entry_action', {
+        p_purchase_id: purchaseId,
+        p_action: action,
+        p_reason: reason,
+      });
+
+    // **A Postgres error is never a refusal.** Asserted on every call here, for the reason
+    // `entries-rules.test.ts` gives: a broken function refuses everything, which reads as every
+    // rule holding at once.
+    expect(error).toBeNull();
+    expect(data).toEqual({ ok: true, action });
+  }
+
+  it('keeps both asks, in order, with the words used for each', async () => {
+    const purchaseId = await ownedPurchase();
+
+    await ask(purchaseId, 'transfer', 'My friend would like my place.');
+    await ask(purchaseId, 'cancel', 'Actually I have broken my ankle.');
+
+    expect(await historyOf(purchaseId)).toEqual([
+      {
+        action: 'transfer',
+        reason: 'My friend would like my place.',
+        resolved_at: null,
+      },
+      {
+        action: 'cancel',
+        reason: 'Actually I have broken my ankle.',
+        resolved_at: null,
+      },
+    ]);
+  });
+
+  it('still puts the most recent one on the purchase, so every deployed reader works', async () => {
+    // **The expand step, asserted rather than assumed.** `read_entry_list()`'s **Asked about**
+    // filter and `/account/entries/`'s summary line are both built on these columns, and a
+    // Worker deployed before the history table has nothing else to read.
+    const purchaseId = await ownedPurchase();
+
+    await ask(purchaseId, 'transfer', 'My friend would like my place.');
+    await ask(purchaseId, 'cancel', 'Actually I have broken my ankle.');
+
+    const row = await single<{
+      requested_action: string;
+      request_reason: string;
+      request_resolved_at: string | null;
+    }>(
+      `select requested_action, request_reason, request_resolved_at
+         from entries.entry_purchases where id = $1`,
+      [purchaseId],
+    );
+
+    expect(row.requested_action).toBe('cancel');
+    expect(row.request_reason).toBe('Actually I have broken my ankle.');
+    expect(row.request_resolved_at).toBeNull();
+  });
+
+  it('closes every outstanding ask when a volunteer deals with the entry', async () => {
+    // **Resolution is a fact about the entry rather than about one ask.** There is no act that
+    // answers one and leaves another open, so both close together — and that is what lets
+    // `cancel_entry()` and `transfer_entry()` stay exactly as they are.
+    const purchaseId = await ownedPurchase();
+
+    await ask(purchaseId, 'transfer', 'My friend would like my place.');
+    await ask(purchaseId, 'cancel', 'Actually I have broken my ankle.');
+
+    const { data, error } = await nnAdmin.client.schema('entries').rpc('cancel_entry', {
+      p_purchase_id: purchaseId,
+      p_refund_reference: null,
+    });
+
+    expect(error).toBeNull();
+    expect((data as Record<string, unknown>)?.ok).toBe(true);
+
+    const history = await historyOf(purchaseId);
+    expect(history).toHaveLength(2);
+    expect(history.every((row) => row.resolved_at !== null)).toBe(true);
+  });
+
+  it('a fresh ask after one was dealt with does not re-open the old one', async () => {
+    // `request_entry_action()` sets `request_resolved_at` back to null, which is a new ask
+    // rather than a resolution. The trigger fires only on the transition *into* resolved, so
+    // the row that was dealt with stays dealt with and the new one is outstanding on its own.
+    const purchaseId = await ownedPurchase();
+
+    await ask(purchaseId, 'transfer', 'My friend would like my place.');
+
+    await query(
+      `update entries.entry_purchases set request_resolved_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    await ask(purchaseId, 'cancel', 'Changed my mind.');
+
+    const history = await historyOf(purchaseId);
+    expect(history.map((row) => [row.action, row.resolved_at === null])).toEqual([
+      ['transfer', false],
+      ['cancel', true],
+    ]);
+  });
+
+  it('records nothing at all for an entry that is not the caller’s', async () => {
+    // **The history row is written after the update and only when it matched.** Writing it
+    // first would record an ask against an entry the caller may have no claim to, which is
+    // exactly the oracle the single `no_such_entry` refusal exists to prevent.
+    const someoneElses = await acceptedPurchaseId({ email: 'stranger2@example.com' });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [someoneElses],
+    );
+
+    const { data } = await runner.client.schema('entries').rpc('request_entry_action', {
+      p_purchase_id: someoneElses,
+      p_action: 'cancel',
+      p_reason: 'let me in',
+    });
+
+    expect(data).toEqual({ ok: false, reason: 'no_such_entry' });
+    expect(await historyOf(someoneElses)).toEqual([]);
+  });
+
+  it('is on the entry list and on the runner’s own page, both times in full', async () => {
+    const purchaseId = await ownedPurchase();
+
+    await ask(purchaseId, 'transfer', 'My friend would like my place.');
+    await ask(purchaseId, 'cancel', 'Actually I have broken my ankle.');
+
+    const { data: list } = await nnAdmin.client
+      .schema('entries')
+      .rpc('entry_list', { p_event_slug: EVENT });
+
+    const listed = (
+      (list as { entries?: { purchase_id: string; requests?: { action: string }[] }[] })
+        .entries ?? []
+    ).find((row) => row.purchase_id === purchaseId);
+
+    // Newest first on both, which is the order somebody reading either page wants.
+    expect(listed?.requests?.map((request) => request.action)).toEqual([
+      'cancel',
+      'transfer',
+    ]);
+
+    const { data: mine } = await runner.client.schema('entries').rpc('my_entries');
+
+    const own = (
+      (mine as { entries?: { purchase_id: string; requests?: { action: string }[] }[] })
+        .entries ?? []
+    ).find((row) => row.purchase_id === purchaseId);
+
+    expect(own?.requests?.map((request) => request.action)).toEqual([
+      'cancel',
+      'transfer',
+    ]);
+  });
+});
+
+// =========================================================================================
+// One entry, in full
+// =========================================================================================
+
+/**
+ * `entries.admin_entry_detail()` — ADR-024.
+ *
+ * **The negative cases are most of this block**, for the reason the whole directory gives: that
+ * an anonymous client *cannot* read an entry proves more than that a volunteer can. And two of
+ * them are about what the function must **not** return even to somebody who may call it —
+ * `entry_purchases.consents` and the medical note itself — because both are absences that
+ * nothing else in the system would notice going missing.
+ */
+describe('reading one entry in full', () => {
+  interface Detail {
+    ok?: boolean;
+    reason?: string;
+    purchase?: Record<string, unknown>;
+    entrants?: Record<string, unknown>[];
+    emails?: Record<string, unknown>[];
+    requests?: Record<string, unknown>[];
+    audit?: Record<string, unknown>[];
+  }
+
+  async function detailAs(
+    client: SupabaseClient,
+    purchaseId: string,
+  ): Promise<{ data: Detail; errorCode: string | undefined }> {
+    const { data, error } = await client
+      .schema('entries')
+      .rpc('admin_entry_detail', { p_purchase_id: purchaseId });
+
+    return { data: (data ?? {}) as Detail, errorCode: error?.code };
+  }
+
+  async function paidOwnedPurchase(
+    entrants: Record<string, unknown>[] = [person()],
+    consents?: Record<string, boolean>,
+  ): Promise<string> {
+    const purchaseId = await acceptedPurchaseId({
+      email: RUNNER_EMAIL,
+      entrants,
+      medical: entrants.map(() => null),
+      ...(consents === undefined ? {} : { consents }),
+    });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    return purchaseId;
+  }
+
+  it('is not callable by an anonymous client at all', async () => {
+    // **The outer of two independent locks, and it is the one that matters here.**
+    // `admin_entry_detail` is granted to `authenticated` and to nobody else, so an anonymous
+    // PostgREST call is refused by Postgres **before the function runs** — `42501 permission
+    // denied`, not a refusal envelope.
+    //
+    // **That is why this asserts an error where the rest of this file asserts a refusal.** The
+    // "a Postgres error is never a refusal" rule applies to functions `anon` may legitimately
+    // call, where an error means the rule is broken rather than holding. This one `anon` may
+    // not call, and the error *is* the answer. The thirteen anon-callable functions are named
+    // in `entries.test.ts`; a fourteenth would be a decision, and this is not it.
+    const purchaseId = await paidOwnedPurchase();
+
+    const { errorCode } = await detailAs(anon, purchaseId);
+
+    expect(errorCode).toBe('42501');
+  });
+
+  it('refuses somebody signed in who holds no permission, and says so rather than erroring', async () => {
+    // **The inner lock, and the case a naive "is this person signed in" check would pass.**
+    // `runner` holds an account and nothing else, which is what everybody who registers holds
+    // — so they reach PostgREST as `authenticated`, the grant lets them ask, and
+    // `identity.has_permission('nn.entry.read')` inside is what says no.
+    //
+    // Here the "a Postgres error is never a refusal" rule does apply: a `42501` would mean the
+    // grant was wrong, and any other error would mean a broken function refusing everybody,
+    // which reads as the rule holding when it has stopped being tested at all.
+    const purchaseId = await paidOwnedPurchase();
+
+    const { data, errorCode } = await detailAs(runner.client, purchaseId);
+
+    expect(errorCode).toBeUndefined();
+    expect(data).toEqual({ ok: false, reason: 'unauthorised' });
+  });
+
+  it('answers no_such_entry for an id nobody has, without saying which it is', async () => {
+    const { data } = await detailAs(
+      nnAdmin.client,
+      '00000000-0000-4000-8000-000000000000',
+    );
+
+    expect(data).toEqual({ ok: false, reason: 'no_such_entry' });
+  });
+
+  it('gives a volunteer the payment, the address that paid, and the person on it', async () => {
+    const purchaseId = await paidOwnedPurchase();
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.ok).toBe(true);
+    expect(data.purchase?.purchase_id).toBe(purchaseId);
+    expect(data.purchase?.status).toBe('paid');
+    expect(data.purchase?.fee_code).toBe('unaffiliated');
+    expect(data.purchase?.purchaser_email).toBe(RUNNER_EMAIL);
+    expect(data.purchase?.event_slug).toBe(EVENT);
+    expect(data.entrants).toHaveLength(1);
+    expect(data.entrants?.[0]?.emergency_contact_name).toBe('Mary Somerville');
+  });
+
+  it('never returns what was consented to, only which version was in force', async () => {
+    // **ADR-022 put the visually impaired declaration in `consents` precisely so that no read
+    // would return it**: it is data about disability, held as the lawful basis for a guide's
+    // row, and never a fact on a screen. No read has ever returned this column and this test is
+    // what stops the next one becoming the first.
+    const purchaseId = await paidOwnedPurchase();
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.purchase).not.toHaveProperty('consents');
+    expect(data.purchase?.consent_version).toBe('zztransfer-v1');
+    expect(JSON.stringify(data)).not.toContain('entryTerms');
+  });
+
+  it('says whether there is a medical note and never what it says', async () => {
+    // The note keeps its single door — `entries.entrant_medical()` — which writes an audit row
+    // every time it opens. A second, unaudited read of Article 9 data is the one thing this
+    // page must not become.
+    const purchaseId = await acceptedPurchaseId({
+      email: RUNNER_EMAIL,
+      entrants: [person()],
+      medical: ['Asthma — carries an inhaler'],
+      consents: { entryTerms: true, medical: true },
+    });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.entrants?.[0]?.has_medical).toBe(true);
+    expect(JSON.stringify(data)).not.toContain('Asthma');
+    expect(JSON.stringify(data)).not.toContain('inhaler');
+  });
+
+  it('says whether an account has claimed the entry, and never whose', async () => {
+    // A uuid on a page is a fact nobody can act on; "they can see this at /account/entries/" is
+    // one they can.
+    const purchaseId = await paidOwnedPurchase();
+
+    await query('update entries.entry_purchases set person_id = $1 where id = $2', [
+      runner.id,
+      purchaseId,
+    ]);
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.purchase?.linked_to_account).toBe(true);
+    expect(data.purchase).not.toHaveProperty('person_id');
+    expect(JSON.stringify(data)).not.toContain(runner.id);
+  });
+
+  it('puts the runner before the guide, whatever their names are', async () => {
+    // `role` sorts `guide` before `runner` alphabetically, which is the wrong way round on a
+    // page whose subject is the runner.
+    // **The `vi` consent is what makes a two-entrant list legal** — see the guide migration.
+    // Without it `create_pending_purchase()` refuses the length of the list.
+    const purchaseId = await paidOwnedPurchase(
+      [person({ first_name: 'Zoe' }), guide({ first_name: 'Aaron' })],
+      { entryTerms: true, medical: false, vi: true },
+    );
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.entrants?.map((entrant) => entrant.role)).toEqual(['runner', 'guide']);
+  });
+
+  it('carries every ask that was made about it', async () => {
+    const purchaseId = await paidOwnedPurchase();
+
+    await runner.client.schema('entries').rpc('request_entry_action', {
+      p_purchase_id: purchaseId,
+      p_action: 'transfer',
+      p_reason: 'My friend would like my place.',
+    });
+    await runner.client.schema('entries').rpc('request_entry_action', {
+      p_purchase_id: purchaseId,
+      p_action: 'cancel',
+      p_reason: 'Actually I have broken my ankle.',
+    });
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.requests?.map((request) => request.action)).toEqual([
+      'cancel',
+      'transfer',
+    ]);
+  });
+
+  it('shows what has been done to this entry, and nothing done to any other', async () => {
+    // **The audit trail comes onto the surface here and this is the line it is held to.** It is
+    // the history of a record rather than a log of what a volunteer has been doing, so a row
+    // naming a different purchase must not appear on this one.
+    const mine = await paidOwnedPurchase();
+    const theirs = await paidOwnedPurchase();
+
+    await nnAdmin.client.schema('entries').rpc('cancel_entry', {
+      p_purchase_id: theirs,
+      p_refund_reference: null,
+    });
+
+    const before = await detailAs(nnAdmin.client, mine);
+    expect(before.data.audit).toEqual([]);
+
+    await nnAdmin.client.schema('entries').rpc('cancel_entry', {
+      p_purchase_id: mine,
+      p_refund_reference: null,
+    });
+
+    const after = await detailAs(nnAdmin.client, mine);
+    expect(after.data.audit?.map((row) => row.action)).toEqual(['cancel_entry']);
+    // The actor is `auth.uid()` and stays a pseudonym — ADR-013's amendment, which ADR-024
+    // deliberately does not reopen.
+    expect(after.data.audit?.[0]?.actor).toBe(nnAdmin.id);
+  });
+
+  it('carries the emails the club owes about this entry', async () => {
+    const purchaseId = await paidOwnedPurchase();
+
+    // The confirmation is written by a trigger on the move into `paid`, so a purchase forced
+    // straight to `paid` by a fixture has one exactly as a real one does.
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.emails?.map((message) => message.template)).toContain('entry_confirmed');
+    expect(data.emails?.[0]?.recipient).toBe(RUNNER_EMAIL);
+  });
+});
