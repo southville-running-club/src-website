@@ -2514,7 +2514,9 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
                   looks like: the refund deleted the entrant, deliberately, so the club
                   stops holding somebody's details for a race they are not running.
                 </p>`
-              : detail.entrants.map((entrant) => entrantFacts(entrant))
+              : detail.entrants.map((entrant) =>
+                  entrantFacts(entrant, detail.entrants.length > 1),
+                )
           }
         </div>
       </div>
@@ -2585,8 +2587,19 @@ function purchaseStatusWords(purchase: AdminEntryDetail['purchase']): string {
   return 'Held, part way through paying';
 }
 
-/** One person on the entry, and everything recorded about them. */
-function entrantFacts(entrant: AdminEntryDetailEntrant): Html {
+/**
+ * One person on the entry, and everything recorded about them.
+ *
+ * **`named` is false for a solo entry, and that is not a cosmetic choice.** The heading at the
+ * top of the page is already this person's name, and the panel this sits in is already headed
+ * "The runner" — so repeating it here gave the page two headings with the same accessible name
+ * and nothing to tell them apart. A reader moving by heading hears the same words twice and
+ * learns nothing the second time.
+ *
+ * It earns its place the moment there are two people: a visually impaired runner and their
+ * guide are one entry and two sets of facts, and each set needs saying whose it is.
+ */
+function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
   const category =
     entrant.role === 'guide'
       ? 'Guide — in no category, not timed and not placed'
@@ -2595,15 +2608,19 @@ function entrantFacts(entrant: AdminEntryDetailEntrant): Html {
         : categoryLabel(entrant.age, entrant.gender);
 
   return html`<section class="admin-entrant">
-    <h4>
-      ${entrant.firstName} ${entrant.lastName}
-      ${
-        entrant.role === 'guide'
-          ? html`<span class="admin-chip">Guide</span>`
-          : /* Said only on the guide, because "runner" on every other entry is a word that
-               carries nothing. */ null
-      }
-    </h4>
+    ${
+      named
+        ? html`<h4>
+            ${entrant.firstName} ${entrant.lastName}
+            ${
+              entrant.role === 'guide'
+                ? html`<span class="admin-chip">Guide</span>`
+                : /* Said only on the guide, because "runner" on every other entry is a word
+                     that carries nothing. */ null
+            }
+          </h4>`
+        : null
+    }
     <dl class="admin-facts">
       ${fact('Date of birth', entrant.dateOfBirth)}
       ${fact('Age on race day', String(entrant.age))} ${fact('Category', category)}

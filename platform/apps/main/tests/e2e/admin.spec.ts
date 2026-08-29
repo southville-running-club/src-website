@@ -871,8 +871,13 @@ test.describe('one entry in full', () => {
       .getByRole('button', { name: /Details/ })
       .click();
 
+    // **Level 1 rather than any heading with that name.** The page heads itself with the
+    // runner's name; asking for "a heading called Ferreira" is asking a question the page can
+    // legitimately answer more than once — a guided entry names each person again inside the
+    // panel — and a locator that breaks when a second person is added is testing the fixture
+    // rather than the page.
     await expect(
-      page.getByRole('heading', { name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
     ).toBeVisible();
 
     expect(page.url()).toContain('/admin/nn/entry/');
