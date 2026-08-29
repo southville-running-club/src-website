@@ -1,0 +1,277 @@
+---
+import Base from '../../../layouts/Base.astro';
+import NnMasthead from '../../../components/NnMasthead.astro';
+import race from '../../../content/race.json';
+
+// The same event theme as every other page under /nn/ — see packages/shared/styles/nn-theme.css.
+//
+// **The horror stops at the edge of the card**, exactly as it does on the privacy notice and
+// the course page. The hero is the campaign's; the document itself is ink on white, because
+// this is the page somebody reads before agreeing to be bound by it.
+import '@src/shared/styles/nn-theme.css';
+
+// **This page is the race director's copy, transcribed verbatim, and it is not ours to edit.**
+//
+// Kayleigh supplied the entry terms and race rules on 28 August 2026 and they are published
+// here word for word — her capitalisation, her punctuation, her "will"/"shall", her ordinals.
+// Where the words read oddly they are still hers: this is the document a runner agrees to be
+// bound by when they tick the box on `/nn/2026/`, so a tidy-up here is a silent change to a
+// legal instrument. Suggested corrections go to her as a batch and come back as new copy with
+// a new version line at the foot of this page. **Do not edit this text for style.**
+//
+// The one exception is the ARC permit number, which is rendered from `race.json` rather than
+// from the supplied copy — see the note at the bullet itself.
+//
+// ## Facts come from `race.json`; only the prose is here
+//
+// Every fact on this page that also appears somewhere else on the site is interpolated from
+// the race-facts file: the date, the short date, the permit, race HQ's name, the transfer
+// deadline, the number-collection time and the contact address. A fact that drifts between
+// the entry page and this one is the failure this rule exists to prevent, and it is a worse
+// failure here than anywhere else — the entry page and the terms page disagreeing about a
+// deadline is a dispute with a runner who has paid.
+//
+// **The contact address appears twice and is one value.** Two literals that could diverge is
+// precisely what is being avoided; both bullets read `race.contact`.
+//
+// **`hqName` and `dateShort` are narrow forms of facts this file already states in full**, and
+// they exist because the supplied sentences use the short form: "the Race HQ at Ashton Park
+// School", not the full postal address, and "on 1 November", not "on Sunday 1 November 2026".
+// Deriving either by splitting the long form — an address on its first comma, a date on its
+// weekday — is a templating scheme cleverer than the one in use here and it is fragile in a
+// way nothing would catch. Two adjacent keys in one file are honest about the cost instead.
+//
+// ## The clock is not converted, deliberately
+//
+// **Every time on this page is a pre-formatted civil-time string, interpolated raw**, which is
+// the same treatment `entriesOpen` and `entriesClose` get on `/nn/2026/`. It is not an
+// oversight and it is not a route around the London-time helpers: turning "3pm on 16th
+// October" into an instant means *choosing an offset*, and the choice is the bug — the
+// transfer deadline falls in BST and the race falls in GMT, eight days after the clocks go
+// back. `packages/shared/src/entry-state.ts` states the same rule for the same reason. There
+// is nothing here to convert because nothing here is an instant.
+//
+// See docs/architecture/principles.md#stop-and-ask
+const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/terms/';
+
+// **The number-collection time is the schedule's, not a second copy of it.**
+//
+// `09:15` is stated once in this repository — the registration row of `race.json`'s schedule,
+// which `/nn/2026/race-day/` renders as the morning's running order. This page asks that row
+// for it by name rather than by position, because the schedule has been reordered once
+// already and an index would have gone quietly wrong; and by `id` rather than by matching the
+// prose, because a copy edit to "Collect your number" would otherwise break this page with
+// nothing to say why.
+const registration = race.schedule.find((row) => row.id === 'registration');
+
+// **A missing row fails the build rather than rendering a hole.** `registration?.time` would
+// print "from  onwards on 1 November" — a sentence with a gap in it, on a legal document,
+// with nothing failing anywhere. This runs at build time, so removing or renaming that row
+// stops the deploy and says why.
+if (registration === undefined) {
+  throw new Error(
+    "race.json has no schedule row with id 'registration', so the terms page cannot state " +
+      'when race numbers are collected. Restore the row or update this page.',
+  );
+}
+---
+
+<Base
+  title="Entry terms and race rules — Nightingale Nightmare 2026"
+  description="The entry terms and conditions and race rules for the 2026 Nightingale Nightmare, as supplied by the race director."
+  canonical={canonical}
+  theme="nn"
+>
+  {
+    /* The campaign navigation, as on every other page under /nn/. Somebody who opens the terms
+    from the entry form to check the transfer deadline should not have to retrace their steps
+    to carry on entering. */
+  }
+  <NnMasthead slot="masthead" />
+
+  <header class="nn-hero nn-hero-compact">
+    <div class="nn-wrap">
+      <h1>Nightingale Nightmare Entry Terms and Conditions</h1>
+    </div>
+  </header>
+
+  <div class="nn-wrap">
+    <div class="nn-card nn-prose">
+      {
+        /* **Two sections, two real lists.** A legal document read on a phone is skimmed, and a
+        `<ul>` is what lets somebody skim it — a screen reader says "list, thirteen items" and
+        a sighted reader gets the same shape from the bullets. Paragraphs with dashes in front
+        of them would give neither. */
+      }
+      <h2>Entry Terms and Conditions</h2>
+
+      <ul>
+        {
+          /* **`{' '}` is a real space and a line break is not.** Prettier moves a bare
+          `{expression}` onto its own line, and `compressHTML` collapses the newline either
+          side of it rather than keeping it as a space — so this renders
+          "held onSunday 1 November 2026" without the explicit space. The same trap is
+          documented at the head of `nn/privacy.astro`, in `NnRaceSummary.astro` and in
+          CLAUDE.md, and it has been hit in this repository three times. */
+        }
+        <li>
+          By completing this registration process you acknowledge that you are entering
+          the Nightingale Nightmare, to be held on {race.date}.
+        </li>
+        <li>The event is organised by {race.privacy.controller}.</li>
+        {
+          /* **The permit number is the repository's, not the supplied copy's.** The copy reads
+          "ARC/26/ 0842" with an internal space; the number issued on 27 August 2026 is
+          `ARC/26/0842`, and it is stated once in `race.json` and quoted on `/nn/2026/` and at
+          the foot of the entry form because ARC require it on entry forms and advertising
+          material. Rendering the space here would mean changing `race.json`, which would move
+          the number on both of those surfaces and fail `site.spec.ts`. Confirmed with the race
+          director as a transcription slip, and it is the one character on this page that is
+          not hers.
+
+          **`<strong>` because this is a number somebody skims for**, along with the transfer
+          deadline below. It is emphasis on a fact, not a change to the words. */
+        }
+        <li>
+          This race is run under an ARC permit and under ARC's rules of competition.
+          Permit number <strong>{race.permit}</strong>
+        </li>
+        <li>
+          You confirm that the email address and personal details you provide to us are
+          all accurate, correct and up to date.
+        </li>
+        <li>
+          Participation in/attendance at the Event is personal to you and you thereby
+          declare yourself medically fit to participate.
+        </li>
+        {
+          /* **Both contact bullets read the same value.** `race.contact` is the address the
+          entry form, the sold-out notice, the guide notice and the return page already use;
+          two literals here would be two chances for one to be corrected on its own.
+
+          **The address is its own link text**, on both. Somebody reading this on a phone at
+          the point of entry taps it, and somebody hearing it through a screen reader is read
+          the address rather than the word "here". */
+        }
+        <li>
+          Entries can be transferred up to <strong>{race.transferDeadline}</strong>,
+          please contact us at{' '}
+          <a href={`mailto:${race.contact}`}>{race.contact}</a> prior to the deadline to arrange
+          the transfer.
+        </li>
+        <li>
+          Refunds cannot be given, save for exceptional circumstances, at the Race
+          Organiser's discretion. Please contact us at{' '}
+          <a href={`mailto:${race.contact}`}>{race.contact}</a>.
+        </li>
+        {
+          /* **"18 or over on race day" stays as prose, and it is a second statement of a rule
+          the database enforces.** `entries.events.minimum_age` is 18 and
+          `create_pending_purchase()` re-checks it on every submission, so this sentence cannot
+          make an under-age entry possible — but it can go stale if the committee ever moves
+          the age, and nothing would catch that. Wiring this page to the column would mean a
+          database round trip on a static page and a Worker rewriting branch it does not
+          otherwise need, which is a larger change than the fact is worth today. Recorded as a
+          known duplication rather than left to be discovered. */
+        }
+        <li>Entrants must be 18 or over on race day.</li>
+        <li>
+          By taking part in this event, you confirm that your name and/or
+          photographic/video footage taken during their participation may be used to
+          publicise the Nightingale Nightmare and Southville Running Club, as well as for
+          the fancy dress competition on the day. Tell us if you would rather not appear
+          and we will not use one we know you are in.
+        </li>
+        <li>
+          The Race Organisers reserve the right to refuse or cancel applications,
+          including duplicate applications, or alter the date of the event, the course
+          route or distance.
+        </li>
+        <li>
+          The Race Organisers, marshals, sponsors, charities, suppliers and/or their
+          agents will not be liable for any injury, loss or expense which may arise in
+          consequence of your participation in this event, save as to negligence.
+        </li>
+        <li>
+          Race marshals and medical team members have the authority to disqualify and
+          remove any runner they consider to be acting dangerously, or to be unfit to
+          compete.
+        </li>
+        <li>
+          In the event of any dispute the decision of the Race Referee and Race Organisers
+          shall be final.
+        </li>
+      </ul>
+
+      <h2>Race Rules</h2>
+
+      <ul>
+        <li>
+          Entrants are required to abide by these Event Terms &amp; Conditions, Race Rules
+          and Marshals' directions.
+        </li>
+        {
+          /* **The collection time and the race HQ both come from `race.json`.** `09:15` is the
+          schedule's registration row — one value, read by name; `hqName` is the short form of
+          `location`, which this sentence wants rather than the full postal address. */
+        }
+        <li>
+          Race numbers will not be posted in advance of the event and shall be available
+          for collection at the Race HQ at {race.hqName} from {registration.time} onwards on{
+            ' '
+          }{race.dateShort}.
+        </li>
+        <li>
+          Runners must ensure that their race numbers are visible to ensure fair and
+          accurate timing.
+        </li>
+        <li>Stay on the marked route, and take your litter with you.</li>
+        <li>This event is not suitable for wheelchair athletes.</li>
+        <li>
+          In accordance with UKA Rule 240 the wearing of headphones or similar devices
+          (other than those medically prescribed) is not permitted. The Race Organisers
+          reserve the right to disqualify any competitor found in breach of this rule.
+        </li>
+        <li>Toilet facilities and limited changing will be available at the Race HQ.</li>
+      </ul>
+
+      <p>
+        These Terms &amp; Conditions and Race Rules are subject to change by the Race
+        Organisers.
+      </p>
+
+      {
+        /* **The version line, and the date in it is load-bearing.** The document says in its
+        own last sentence that it is subject to change, so somebody who entered on 1 September
+        needs to be able to say which version they agreed to — and the club needs to be able to
+        answer them. `entry_purchases.consents_version` records the wording a person ticked
+        against; this is the human-readable half of the same fact.
+
+        **It claims what is true and no more.** The race director supplied this copy; the
+        committee has not ratified it. Writing "agreed by the committee" here would put a false
+        statement of provenance on a legal document, which is the one thing worse than having
+        no provenance line at all.
+
+        **A plain `<p>`, with no class and no new CSS.** `/nn/privacy/` ends with
+        "Last updated: …" the same way, which is the register this belongs in — and a long
+        legal document is exactly what `.nn-prose` already expresses. */
+      }
+      <p>Version 1 — published 28 August 2026. Supplied by the race director.</p>
+    </div>
+
+    <footer>
+      <p>
+        <a href="/nn/2026/">Back to Nightingale Nightmare 2026</a>
+      </p>
+      <p>
+        <a href="/nn/privacy/">What the club does with your details</a>
+      </p>
+    </footer>
+  </div>
+
+  {
+    /* The same decorative artwork as every other page under /nn/, and empty for the same
+    reason — it is a CSS background. See the artwork section of nn-theme.css. */
+  }
+  <div class="nn-hands" aria-hidden="true"></div>
+</Base>

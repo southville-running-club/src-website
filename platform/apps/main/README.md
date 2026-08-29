@@ -37,6 +37,8 @@ src/pages/nn/course.astro      Course and terrain — evergreen
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
 src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
 src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
+src/pages/nn/2026/terms.astro  The entry terms and race rules — the race director's
+                               copy, verbatim. Do not edit it for style
 src/pages/nn/2026/race-day.astro   Race day — HQ, the morning in order, prizes
 src/pages/nn/2026/spectators.astro Watching the race
 src/pages/nn/2026/entry/complete.astro  Where Stripe sends somebody back to
@@ -63,6 +65,7 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
 | `/nn/2026/` | **The 2026 running.** The date, the facts, and **both forms** — interest before entries open, entry after. Both post here, and a hidden `form` field says which |
+| `/nn/2026/terms/` | **The entry terms and race rules**, and what the entry form's checkbox commits somebody to. **The race director's copy, published verbatim** — see [the entry terms](#the-entry-terms). **With the year**, because it names this running's date, permit and transfer deadline; 2027's terms are a new file beside it, not an edit to this one |
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
@@ -258,7 +261,21 @@ of it whichever year it is run.
 | | |
 | --- | --- |
 | **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/`, `/nn/course/` and `/nn/privacy/`. **`privacy.*` is read by `/privacy/` too**, which is not a race page at all: the controller, the registered office, the company number and the data contact are the club's facts that happen to live in this file, and both notices lifting them from one place is what stops the two disagreeing |
-| **One running's** | `date`, `startTime`, `location`, `price`, `entriesOpen`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
+| **One running's** | `date`, `dateShort`, `startTime`, `location`, `hqName`, `price`, `entriesOpen`, `entriesClose`, `transferDeadline`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
+
+**`dateShort` and `hqName` are narrow forms of `date` and `location`, and the duplication is
+deliberate.** `/nn/2026/terms/` publishes the race director's sentences verbatim, and hers use
+the short forms — "the Race HQ at Ashton Park School", "on 1 November". Deriving either by
+splitting the long form is a templating scheme cleverer than the one in use here and it fails
+quietly on the first address whose first component is not the venue. Two adjacent keys are
+honest about the cost instead; both are asserted against the page in `nn-terms.spec.ts`.
+
+**Every `schedule` row carries a stable `id`.** `/nn/2026/race-day/` still renders the array in
+order and ignores them; `/nn/2026/terms/` looks up `registration` by name to state when race
+numbers can be collected, so `09:15` is stated once in this repository rather than twice. Every
+row rather than only that one, because `resolveJsonModule` infers the element type from the
+literal — a single row with an `id` makes the array a union and the lookup unreachable without a
+narrowing guard.
 
 **The file is not split in two, and that is deliberate rather than unfinished.** Separating it
 into a race file and a year file is a content change with its own review, and doing it inside a
@@ -344,6 +361,68 @@ one-word edit to `race.json` and not a CSS change.
 **The page copy is a draft pending committee approval.** It is written to be edited, not
 decided on their behalf — see [the phases](../../../docs/delivery/phases.md#what-the-race-pages-still-need-from-the-committee)
 for that and for the six questions the draft could not answer.
+
+### The entry terms
+
+**`/nn/2026/terms/` is the race director's copy, published verbatim on 28 August 2026**, and it
+is the document the entry form's `entryTerms` checkbox commits somebody to. Until this landed
+the checkbox said the terms were "still to be confirmed by the committee, and will be linked
+here before entries open"; the hint is now the link, and nothing else about that control
+changed.
+
+**It must not be edited for style.** The capitalisation is inconsistent, the ordinals and the
+24-hour clock disagree with the rest of the site, and one clause slips into the third person
+mid-sentence. All of it is hers. This is the wording a person agrees to be bound by, so a
+tidy-up here is a silent amendment to a legal instrument — suggested corrections go back to her
+as a batch and return as new copy with a new version line. `terms-single-source.test.ts` pins
+the provenance line; the copy itself is pinned in `nn-terms.spec.ts`.
+
+**The committee has not ratified it**, and the page says exactly that: *"Version 1 — published
+28 August 2026. Supplied by the race director."* Both tests assert the absence of a ratification
+claim as hard as they assert the line itself, because a false statement of provenance on a legal
+document is worse than none.
+
+**One character on the page is not hers.** The supplied copy reads `ARC/26/ 0842` with an
+internal space; the number issued on 27 August 2026 has none. It renders from `race.json` like
+every other fact, so reproducing the space would have meant changing the value on `/nn/2026/`
+and at the foot of the entry form too, and failing `site.spec.ts`. Confirmed as a transcription
+slip.
+
+**Every fact on it that appears anywhere else on the site is interpolated**, and the pair of
+tests is what makes that a guarantee rather than an intention. `nn-terms.spec.ts` reads
+`race.json` off disk and takes its expectations from it, which proves the page renders whatever
+the file says; `tests/unit/terms-single-source.test.ts` reads the `.astro` source with its
+comments stripped and asserts the values are **not** in it, which proves the page reads the
+file. **Neither is sufficient alone** — a page with the permit number typed into its markup
+passes the first one today and goes on passing the morning the number changes.
+
+**The spec reads the file rather than importing it**, which is `entries-retention.test.ts`'s
+precedent and not a style choice: Playwright loads a spec as Node ESM, where a bare JSON import
+needs a `with { type: 'json' }` attribute the Vite-transformed unit suite does not want. It also
+disagrees with `site.spec.ts`, which pins race facts as literals — deliberately. That file
+asserts *which page* a fact may appear on, where reading the value back would be
+self-referential; this one asserts that a page reads the file rather than repeating it, where a
+literal is the wrong tool. The permit number has a guard in both, and they catch different
+things.
+
+**The collection time is the schedule's registration row, found by `id`.** `09:15` is stated
+once in this repository. The row grew a stable `id` so this page could ask for it by name rather
+than by position — the schedule was reordered once already — or by matching the prose, which a
+copy edit would break silently. A missing row throws at build time rather than rendering a
+sentence with a hole in it.
+
+**`hqName` and `dateShort` are narrow forms of facts the file already states in full**, and they
+exist because her sentences use the short form: "the Race HQ at Ashton Park School" rather than
+the full postal address, "on 1 November" rather than "on Sunday 1 November 2026". Splitting the
+long form on a comma or a weekday would be one source but a fragile one, and nothing would catch
+it going wrong.
+
+**"Entrants must be 18 or over on race day" is prose, and it is a second statement of a rule the
+database enforces.** `entries.events.minimum_age` is 18 and `create_pending_purchase()` re-checks
+it on every submission, so this sentence cannot make an under-age entry possible — but it can go
+stale if the committee moves the age. Wiring a static page to that column would cost a database
+round trip and a Worker rewriting branch it does not otherwise need. Recorded as a known
+duplication rather than left to be found.
 
 ## What the event theme deliberately does not do
 
