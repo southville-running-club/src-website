@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
+import { expectNoSidewaysScroll as expectNoSidewaysScrollAt } from '../sideways-scroll';
 import {
   ADMIN_EVENT_SLUG,
   ADMIN_PASSWORD,
@@ -230,13 +231,15 @@ async function signInAs(page: Page, email: string): Promise<void> {
  * A pixel of tolerance, because a sub-pixel border on a fractional device ratio is not a layout
  * failure — but nothing above that, which is what caught the visually-hidden `<caption>` escaping
  * the old scroll region and dragging the whole page left under a thumb.
+ *
+ * **The measurement itself is `../sideways-scroll.ts`'s now**, along with the rest of the
+ * repository's. This file measured after a `goto`, which waits for `load` and so was never the
+ * one that flaked — but it carried the same single unguarded sample, and the shared helper
+ * waits for a styled and settled layout before it reads anything. The tolerance stays here,
+ * because it is this surface's decision rather than the helper's.
  */
 async function expectNoSidewaysScroll(page: Page, note: string): Promise<void> {
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-
-  expect(overflow, `${note} scrolls sideways by ${overflow}px`).toBeLessThanOrEqual(1);
+  await expectNoSidewaysScrollAt(page, note, 1);
 }
 
 /**

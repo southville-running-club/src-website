@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
  * The whole site, in a real browser, on one origin — exactly as the public will meet it.
@@ -1090,11 +1091,7 @@ test.describe('the Nightingale Nightmare content pages', () => {
       .locator('.nn-prizes')
       .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
     expect(narrow).toBe(1);
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      ),
-    ).toBe(false);
+    await expectNoSidewaysScroll(page, 'the prize grid at 320px');
   });
 
   test('the hero fog stops for anyone who asked for no motion @requires-js', async ({
@@ -1493,10 +1490,7 @@ test.describe('accessibility', () => {
       await page.setViewportSize({ width: 320, height: 640 });
       await page.goto(path);
 
-      const overflows = await page.evaluate(
-        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      );
-      expect(overflows).toBe(false);
+      await expectNoSidewaysScroll(page, `${name} at 320px`);
     });
   }
 });

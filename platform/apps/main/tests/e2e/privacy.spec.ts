@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
  * The club's site-wide privacy notice, at `/privacy/`.
@@ -320,36 +321,32 @@ test.describe("the club's privacy notice", () => {
   });
 
   test('reads at 320px without the page scrolling sideways', async ({ page }) => {
-    // **Twice, deliberately.** The 320px failure this repository has already met was
-    // intermittent — an element laying out at its intrinsic width before the stylesheet
-    // applied, about one run in four. A single pass is not evidence about layout at this
-    // width, and a second reload costs a second.
+    // **Once, now that the wait is a real one.** This used to run twice, against the
+    // intermittent it named as *"an element laying out at its intrinsic width before the
+    // stylesheet applied, about one run in four"* — the right diagnosis, and a re-run for a
+    // fix. `waitForStyledLayout` waits for the sheets to be applied, the fonts to settle and
+    // the width to stop moving, so one pass is evidence now.
     //
     // The notice is description lists rather than tables precisely so that this can be a
     // simple assertion: there is no element here that can exceed its container while the
     // page around it still fits. See the privacy block in base.css for that trade.
-    for (let pass = 0; pass < 2; pass += 1) {
-      await page.setViewportSize({ width: 320, height: 640 });
-      await page.goto('/privacy/');
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/privacy/');
+    await waitForStyledLayout(page);
 
-      const measured = await page.evaluate((selector) => {
-        const notice = document.querySelector(selector);
-        const widest = Math.max(
-          ...[...(notice?.querySelectorAll('dl, ul, p, h2, h3') ?? [])].map(
-            (element) => element.scrollWidth,
-          ),
-        );
+    const measured = await page.evaluate((selector) => {
+      const notice = document.querySelector(selector);
+      const widest = Math.max(
+        ...[...(notice?.querySelectorAll('dl, ul, p, h2, h3') ?? [])].map(
+          (element) => element.scrollWidth,
+        ),
+      );
 
-        return {
-          noticeWidth: notice?.clientWidth ?? 0,
-          widest,
-          documentOverflows:
-            document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        };
-      }, NOTICE);
+      return { noticeWidth: notice?.clientWidth ?? 0, widest };
+    }, NOTICE);
 
-      expect(measured.documentOverflows, `pass ${pass}`).toBe(false);
-      expect(measured.widest, `pass ${pass}`).toBeLessThanOrEqual(measured.noticeWidth);
-    }
+    await expectNoSidewaysScroll(page, 'the club privacy notice at 320px');
+
+    expect(measured.widest).toBeLessThanOrEqual(measured.noticeWidth);
   });
 });
