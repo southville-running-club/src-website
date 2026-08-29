@@ -2674,10 +2674,47 @@ html:has(body.theme-nn) {
  * On desktop the two are placed into columns by line rather than by source order, which
  * diverges visually from the DOM in the mild direction: both are on screen together.
  * ------------------------------------------------------------------------------------- */
+/* **The page widens by exactly the rail, and by nothing else.**
+ *
+ * The first version of this put a 300px rail and a 44px gap *inside* `--nn-column`, which is
+ * 45rem. That left the content column at 376px on a 2000px screen — narrower than a phone, and
+ * less than half the width the same card gets on `/nn/course/`. The prose was squeezed to buy
+ * space for a card beside it.
+ *
+ * So the wrap grows by the rail plus the gap, and the content column lands back on
+ * `--nn-column` exactly. **Every campaign page now sets prose to the same measure**, and this
+ * one has a rail as well rather than instead.
+ *
+ * **Scoped by `:has()` so every wrap on this page moves together.** Widening only the grid
+ * would leave the hero, the jump-nav and the forms centred on the narrower measure, 172px to
+ * the right of the content column's left edge — a visible jog down the middle of the page. One
+ * left edge for everything is the whole point.
+ *
+ * The two lengths are custom properties on the page rather than literals in three rules,
+ * because the wrap's width is derived from them and a rail widened without the wrap would put
+ * the squeeze straight back. */
+body.theme-nn:has(.nn-layout) {
+  --nn-rail: 300px;
+  --nn-rail-gap: 44px;
+}
+
+body.theme-nn:has(.nn-layout) .nn-wrap {
+  max-width: calc(var(--nn-column) + var(--nn-rail) + var(--nn-rail-gap));
+}
+
+/* **The entry states keep the page's ordinary measure.** They sit in the wide wrap with the
+   closing line and the footer, and a text input a thousand pixels wide is not a text input.
+   Left-aligned by default, so the form's left edge is the content column's left edge. */
+body.theme-nn:has(.nn-layout) [data-nn-interest],
+body.theme-nn:has(.nn-layout) [data-nn-entry],
+body.theme-nn:has(.nn-layout) [data-nn-closed] {
+  max-width: var(--nn-column);
+}
+
 .theme-nn .nn-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 44px;
+  grid-template-columns: minmax(0, 1fr) var(--nn-rail);
+  gap: var(--nn-rail-gap);
   align-items: start;
 }
 
@@ -2939,6 +2976,12 @@ html:has(body.theme-nn) {
 @media (max-width: 860px) {
   .theme-nn .nn-layout {
     display: block;
+  }
+
+  /* One column again, so the extra width has nothing to buy — and between 861px and the wide
+     measure this page would otherwise run wider than its siblings for no reason. */
+  body.theme-nn:has(.nn-layout) .nn-wrap {
+    max-width: var(--nn-column);
   }
 
   .theme-nn .nn-entry-rail {
