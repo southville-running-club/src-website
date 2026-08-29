@@ -1360,6 +1360,34 @@ test.describe('accessibility and small screens', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
+  test('has no axe violations on one entry in full @requires-js', async ({ page }) => {
+    // **Its own pass, because it is a different document.** Panels, a definition list per
+    // person, three timelines and two buttons — none of which axe has seen on the table this
+    // page is reached from. Zero, not few: a threshold above zero becomes the new normal
+    // within a month.
+    //
+    // The oversold fixture deliberately, because it is the entry with a medical note, an
+    // attention flag and the awkward strings on it — the most markup this page can hold.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(OVERSOLD);
+    await page
+      .getByRole('button', { name: /Details/ })
+      .first()
+      .click();
+    await expect(page.getByText('Who paid')).toBeVisible();
+
+    expect((await axe(page)).violations).toEqual([]);
+  });
+
+  test('has no axe violations on the email queue @requires-js', async ({ page }) => {
+    // Reachable since #133 and never in this sweep, because it was never in the navigation
+    // bar either. Both are fixed together.
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto('/admin/emails/');
+
+    expect((await axe(page)).violations).toEqual([]);
+  });
+
   test('has no axe violations on the 404 a registered account gets @requires-js', async ({
     page,
   }) => {
