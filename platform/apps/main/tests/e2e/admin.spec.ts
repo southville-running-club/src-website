@@ -858,6 +858,26 @@ test.describe('a medical note', () => {
 test.describe('one entry in full', () => {
   const CLEAN = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
 
+  /**
+   * **Not on a phone, because the control that opens this page is not on a phone.**
+   *
+   * *Details* sits in the actions column with *Cancel* and *Transfer*, and that column is
+   * `admin-col-wide` — folded away below 48rem, deliberately. The table's own header says why:
+   * the narrow layout keeps three columns on purpose, a fourth is what starts it scrolling
+   * sideways, and an absolutely positioned visually-hidden span inside a scroller drags the
+   * whole page with it. Cancelling is a desk task with the Stripe dashboard open in another
+   * tab; the medical note, which *is* wanted on race morning, is what keeps its column.
+   *
+   * So this is a documented decision rather than a gap, and the page is unreachable at this
+   * width by design. **Skipped rather than worked around**: setting a desktop viewport here
+   * would test a layout no phone ever sees, and clicking a hidden control through the DOM
+   * would assert that something works when a volunteer cannot reach it.
+   */
+  test.skip(
+    ({ isMobile }) => isMobile === true,
+    'Details folds away with the actions column below 48rem — see the table header',
+  );
+
   test('is behind a deliberate action from the row, and puts no id in the address bar', async ({
     page,
   }) => {
@@ -1376,7 +1396,14 @@ test.describe('accessibility and small screens', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
-  test('has no axe violations on one entry in full @requires-js', async ({ page }) => {
+  test('has no axe violations on one entry in full @requires-js', async ({
+    page,
+    isMobile,
+  }) => {
+    // Same reason the rest of this page's tests skip on a phone: the control that opens it
+    // folds away with the actions column below 48rem, by decision. See `one entry in full`.
+    test.skip(isMobile === true, 'the Details control is desktop-only by decision');
+
     // **Its own pass, because it is a different document.** Panels, a definition list per
     // person, three timelines and two buttons — none of which axe has seen on the table this
     // page is reached from. Zero, not few: a threshold above zero becomes the new normal
