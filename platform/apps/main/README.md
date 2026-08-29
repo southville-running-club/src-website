@@ -96,7 +96,8 @@ page-local jump-nav links to:
 | 5 | Race information — the schedule in full, a summary, a link out | `race-info` | Race info |
 | 6 | Spooktators — a summary, and a link out | `spooktators` | Spooktators |
 | 7 | Closing call to action | — | — |
-| 8 | Footer | `footer` | — |
+
+**There is no page footer any more.** Its two lines — the race's privacy notice and the contact address — moved into `SiteFooter`'s race group, beside the entry terms, so the page carries one footer instead of two stacked. `SiteFooter` takes them as a `race` prop rather than naming them itself, because it renders on every page of this app including `/nn/`, which ADR-011 requires to name no year anywhere in its markup.
 
 **One entry point rather than one page.** `/nn/course/`, `/nn/2026/race-day/` and
 `/nn/2026/spectators/` stay live and linked; sections 4, 5 and 6 summarise them rather than

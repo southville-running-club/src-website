@@ -28,10 +28,15 @@ interface Props {
   theme?: 'nn';
 
   /**
-   * A race's entry terms, for the club footer, from the pages that are about one running.
-   * See the prop's own note in `SiteFooter.astro` for why it is not written in there.
+   * One race's own footer links, from the pages that are about one running. See the prop's own
+   * note in `SiteFooter.astro` for why they are passed rather than written in there.
    */
-  entryTerms?: string;
+  race?: {
+    name: string;
+    terms: string;
+    privacy: string;
+    contact: string;
+  };
 }
 
 /**
@@ -56,7 +61,7 @@ interface Props {
  * true because neither fills this slot.
  */
 
-const { title, description, canonical, theme, entryTerms } = Astro.props;
+const { title, description, canonical, theme, race } = Astro.props;
 ---
 
 <!doctype html>
@@ -120,6 +125,6 @@ const { title, description, canonical, theme, entryTerms } = Astro.props;
     <main id="main">
       <slot />
     </main>
-    <SiteFooter entryTerms={entryTerms} />
+    <SiteFooter race={race} />
   </body>
 </html>

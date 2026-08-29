@@ -48,7 +48,11 @@ test.describe('the shape of the page', () => {
 
     await expect(page.locator('#top')).toHaveCount(1);
     await expect(page.locator('#entry')).toHaveCount(1);
-    await expect(page.locator('#footer')).toHaveCount(1);
+
+    // **One footer, and it is the club's.** The page carried its own inside `<main>` until its
+    // last two lines moved into the club footer's race group. Asserted as a count because two
+    // stacked footers is what it looked like before, and that is the state to stay out of.
+    await expect(page.locator('footer')).toHaveCount(1);
   });
 
   test('offers exactly the four jump links, pointing at those sections', async ({
@@ -161,30 +165,39 @@ test.describe('what survives without the script', () => {
   });
 
   /**
-   * **Two notices, two footers, and they are different documents.**
+   * **Two privacy notices, and the footer has to say which is which.**
    *
-   * `/nn/privacy/` is the race's — what an entry and a sign-up collect — and it stays in the
-   * page's own footer. `/privacy/` is the club's, in the club footer, and the entry terms sit
-   * beside it there because that is where a reader looks for both.
+   * `/nn/privacy/` is the race's — what an entry and a sign-up collect — and `/privacy/` is the
+   * club's. They are different documents with nearly the same name, so the race's sits under
+   * the race's heading and the club's stands alone. Asserted separately for that reason: a
+   * single "a privacy link exists" check would pass with either one missing, which is the
+   * failure worth catching.
    *
-   * The terms are asserted **wherever they are** rather than inside one footer: they moved out
-   * of the page footer once, and a test pinned to a container would have gone red for a move
-   * rather than for a loss. What has to stay true is that somebody can reach them.
+   * The terms are asserted **wherever they are** rather than inside a container. They have
+   * moved twice now, and a test pinned to a parent goes red for a move rather than for a loss.
    */
   test('reaches the race notice, the club notice and the entry terms', async ({
     page,
   }) => {
     await page.goto(YEAR);
 
+    const race = page.locator('.site-footer-links');
+
+    await expect(race.getByRole('link', { name: /details/i })).toHaveAttribute(
+      'href',
+      '/nn/privacy/',
+    );
+    await expect(race.getByRole('link', { name: /terms/i })).toHaveAttribute(
+      'href',
+      '/nn/2026/terms/',
+    );
     await expect(
-      page.locator('#footer').getByRole('link', { name: /details/i }),
-    ).toHaveAttribute('href', '/nn/privacy/');
+      race.getByRole('link', { name: /nightingalenightmare@/ }),
+    ).toHaveAttribute('href', 'mailto:nightingalenightmare@southvillerunningclub.co.uk');
 
     await expect(
-      page.locator('.site-footer').getByRole('link', { name: 'Privacy notice' }),
+      page.locator('.site-footer-legal').getByRole('link', { name: 'Privacy notice' }),
     ).toHaveAttribute('href', '/privacy/');
-
-    await expect(page.locator('a[href="/nn/2026/terms/"]').first()).toBeVisible();
   });
 
   /**

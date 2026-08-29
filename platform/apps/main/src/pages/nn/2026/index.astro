@@ -75,7 +75,12 @@ const dateLine = race.date
   description="The 2026 running of Nightingale Nightmare — the date, the race facts, and how to enter."
   canonical={canonical}
   theme="nn"
-  entryTerms="/nn/2026/terms/"
+  race={{
+    name: `${race.name} 2026`,
+    terms: '/nn/2026/terms/',
+    privacy: '/nn/privacy/',
+    contact: race.contact,
+  }}
 >
   {
     /* **The one page whose bar releases on a phone**, because it is the one page with a second
@@ -895,28 +900,16 @@ const dateLine = race.date
     </div>
 
     {
-      /* **Two lines left this footer, and neither is missing from the page.**
-      
-      The club's attribution and the "to be confirmed" gloss went together: the gloss was the
-      twin of the paragraph removed from the top of the page, and the attribution is in the
-      masthead's wordmark and again in the club footer below this one — a page does not need to
-      name its own club three times.
+      /* **This page has one footer now, and it is the club's.**
 
-      **The entry terms moved rather than went.** They are in the club footer now, beside the
-      privacy notice, which is where a reader looks for both — see `SiteFooter`'s `entryTerms`
-      prop for why that link is passed in rather than written there.
+      It used to have two, stacked: its own inside `<main>`, then `SiteFooter` below the
+      artwork. The contact address and the race's privacy notice have moved into the club
+      footer's race group, beside the entry terms, so there was nothing left in here but a
+      second `<footer>` element.
 
-      `/nn/privacy/` stays here because it is the *race's* notice; the one in the club footer is
-      the club's, and they are different documents. */
+      Losing it costs the `#footer` anchor, which nothing linked to — the jump-nav lists the
+      three content sections and not this. */
     }
-    <footer id="footer">
-      <p>
-        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
-      </p>
-      <p>
-        <a href="/nn/privacy/">What the club does with your details</a>
-      </p>
-    </footer>
   </div>
 
   {
