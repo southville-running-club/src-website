@@ -160,18 +160,31 @@ test.describe('what survives without the script', () => {
     await expect(links).toBeVisible();
   });
 
-  test('reaches the terms and the privacy notice from the footer', async ({ page }) => {
+  /**
+   * **Two notices, two footers, and they are different documents.**
+   *
+   * `/nn/privacy/` is the race's — what an entry and a sign-up collect — and it stays in the
+   * page's own footer. `/privacy/` is the club's, in the club footer, and the entry terms sit
+   * beside it there because that is where a reader looks for both.
+   *
+   * The terms are asserted **wherever they are** rather than inside one footer: they moved out
+   * of the page footer once, and a test pinned to a container would have gone red for a move
+   * rather than for a loss. What has to stay true is that somebody can reach them.
+   */
+  test('reaches the race notice, the club notice and the entry terms', async ({
+    page,
+  }) => {
     await page.goto(YEAR);
 
-    const footer = page.locator('#footer');
-    await expect(footer.getByRole('link', { name: /terms/i })).toHaveAttribute(
-      'href',
-      '/nn/2026/terms/',
-    );
-    await expect(footer.getByRole('link', { name: /details/i })).toHaveAttribute(
-      'href',
-      '/nn/privacy/',
-    );
+    await expect(
+      page.locator('#footer').getByRole('link', { name: /details/i }),
+    ).toHaveAttribute('href', '/nn/privacy/');
+
+    await expect(
+      page.locator('.site-footer').getByRole('link', { name: 'Privacy notice' }),
+    ).toHaveAttribute('href', '/privacy/');
+
+    await expect(page.locator('a[href="/nn/2026/terms/"]').first()).toBeVisible();
   });
 
   /**

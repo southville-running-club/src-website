@@ -894,24 +894,24 @@ const dateLine = race.date
       <p>Whether you sprint, jog, or creep, a frightfully fun finish awaits.</p>
     </div>
 
+    {
+      /* **Two lines left this footer, and neither is missing from the page.**
+      
+      The club's attribution and the "to be confirmed" gloss went together: the gloss was the
+      twin of the paragraph removed from the top of the page, and the attribution is in the
+      masthead's wordmark and again in the club footer below this one — a page does not need to
+      name its own club three times.
+
+      **The entry terms moved rather than went.** They are in the club footer now, beside the
+      privacy notice, which is where a reader looks for both — see `SiteFooter`'s `entryTerms`
+      prop for why that link is passed in rather than written there.
+
+      `/nn/privacy/` stays here because it is the *race's* notice; the one in the club footer is
+      the club's, and they are different documents. */
+    }
     <footer id="footer">
       <p>
-        Southville Running Club. Anything above reading "to be confirmed" is with the
-        committee, and this page is updated when it is settled.
-      </p>
-      <p>
         Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
-      </p>
-      {
-        /* **The entry terms sit beside the privacy notice, and the terms link is year-scoped
-        while the notice is not.** `/nn/2026/terms/` is the document somebody agrees to be bound
-        by when they tick the box on this page, and `entry_purchases.consents_version` records
-        which wording they ticked against — so it belongs to one running the way the date and the
-        permit do. `/nn/privacy/` is about the race and carries no year. The two live together
-        here because that is where a reader looks for both. */
-      }
-      <p>
-        <a href="/nn/2026/terms/">Entry terms and race rules</a>
       </p>
       <p>
         <a href="/nn/privacy/">What the club does with your details</a>
