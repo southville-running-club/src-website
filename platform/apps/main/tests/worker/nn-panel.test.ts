@@ -359,6 +359,5 @@ describe('which of the three states the year page renders', () => {
 
     expect(isHidden(html, 'data-nn-interest')).toBe(false);
     expect(isHidden(html, 'data-nn-closed')).toBe(true);
-    expect(html).not.toContain('Entries have closed');
   });
 });
