@@ -95,6 +95,12 @@ import {
  *   `sold-out`   409 — the last place went while this form was open. **The input is kept**:
  *                      losing a completed entry to a race somebody narrowly missed is the
  *                      worst way to find out, and they may want to ask about a waiting list.
+ *   `already-entered`
+ *                409 — this runner already holds a place. Understood and refused, exactly like
+ *                      `sold-out`. **It answered 503 until #145**, because it was added to
+ *                      `NnEntryStoppedStatus` by #115 and inherited the fallback — and it was
+ *                      missing from this list, which is how that went unnoticed for a month.
+ *                      Anything added to that union belongs here with its status stated.
  *   `free`       503 — the chosen place costs nothing, and a payment page cannot take a
  *                      payment of nothing. See the note on that branch.
  *   `not-taken`  503 — no Stripe secret is configured. **This is the deployed state today**

@@ -16,6 +16,24 @@
  *   node scripts/entry-sweep.mjs --keep-open  # leave the window open afterwards, for hand testing
  *   node scripts/entry-sweep.mjs --closed     # only the closed state (what production serves)
  *
+ * ## Buying a place for real, which needs one thing switching on
+ *
+ * The last phase buys a place with no account, confirms it the way Stripe would, and then
+ * registers an account with the address that paid to prove the entry is waiting on it. That
+ * needs the webhook, and **`./dev up` binds no webhook secret on purpose** — with none, the
+ * endpoint answers 503 and lets Stripe retry, which is the correct state for a deployment
+ * whose endpoint has not been registered yet.
+ *
+ * So that phase **skips loudly unless the two are bound**, rather than failing. To run it, put
+ * this in the gitignored `apps/main/.dev.vars` and restart with `./dev down && ./dev up`:
+ *
+ *     STRIPE_WEBHOOK_SECRET=whsec_TEST_NOT_A_REAL_SIGNING_SECRET_000000
+ *     ENTRIES_WEBHOOK_KEY=zz-worker-test-key-not-a-real-one
+ *
+ * Both are constants this repository already keeps in `apps/main/tests/webhook-fixtures.ts`
+ * and neither authenticates to anything. Delete the file when you are done — a laptop left
+ * with a working webhook key is a laptop where the 503 branch has stopped being tested.
+ *
  * **Local only, and deliberately so.** There is no `--production` flag and there must not be
  * one: half of what follows POSTs entries, and against production that is real places out of
  * 250, real mail against a 100-a-day cap, and rows somebody has to clean up. The read-only
@@ -42,8 +60,25 @@
  */
 
 import { Client } from 'pg';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 const SITE = 'http://localhost:8787';
+
+/** Where the local stack catches outgoing mail. Mailpit, despite the container's name. */
+const MAIL = 'http://localhost:54324';
+
+/**
+ * The two the webhook phase needs, and the digest the database holds for the second.
+ *
+ * Straight out of `apps/main/tests/webhook-fixtures.ts`, which is where this repository
+ * already keeps them. Neither authenticates to anything: the signing secret is a made-up
+ * string and the key is checked against a SHA-256 digest this script installs and removes.
+ */
+const WEBHOOK_SECRET = 'whsec_TEST_NOT_A_REAL_SIGNING_SECRET_000000';
+const WEBHOOK_KEY = 'zz-worker-test-key-not-a-real-one';
+
+/** Invented, local, and never typed into anything but this laptop's own GoTrue. */
+const ACCOUNT_PASSWORD = 'entry-sweep-local-fixture-password';
 
 /** The local Docker Postgres, and nothing else. The credentials `supabase start` prints. */
 const LOCAL_DB =
@@ -554,6 +589,286 @@ async function checkCompletionPage() {
   );
 }
 
+// ---------------------------------------------------------------------------------------
+// Buying a place for real, and finding it again afterwards
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A cookie jar, because the second half of this phase is a genuinely signed-in session.
+ *
+ * Node's `fetch` has none, and the account area is three cookies rather than two —
+ * `src_ax` carries the absolute deadline and a session arriving without a readable one is
+ * ended rather than given one. So all three have to be carried, which is what this does.
+ */
+function cookieJar() {
+  const jar = new Map();
+
+  return {
+    header: () => [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+    remember(response) {
+      for (const line of response.headers.getSetCookie?.() ?? []) {
+        const [pair] = line.split(';');
+        const at = pair.indexOf('=');
+        if (at <= 0) continue;
+        const name = pair.slice(0, at).trim();
+        const value = pair.slice(at + 1).trim();
+        // A deletion is a `Set-Cookie` with an empty value or a 1970 expiry. Treating it as
+        // a value is how a signed-out jar keeps claiming to be signed in.
+        if (value === '' || /expires=Thu, 01 Jan 1970/i.test(line)) jar.delete(name);
+        else jar.set(name, value);
+      }
+    },
+  };
+}
+
+/** The name and value of a form's CSRF field, read off the page that rendered it. */
+function csrfFrom(html) {
+  const name = html.match(/name="(_?csrf[a-zA-Z_]*)"/)?.[1] ?? null;
+  if (name === null) return null;
+  const value =
+    html.match(new RegExp(`name="${name}"[^>]*value="([^"]*)"`))?.[1] ??
+    html.match(new RegExp(`value="([^"]*)"[^>]*name="${name}"`))?.[1] ??
+    null;
+  return value === null ? null : { name, value };
+}
+
+async function checkPurchaseJourney() {
+  step('Buying a place with no account, then finding it after registering');
+
+  const bound = await fetch(`${SITE}/nn/stripe-webhook`, { method: 'POST', body: '{}' });
+
+  // 503 is "no secret bound"; 400 is "bound, and that was not a valid signature".
+  if (bound.status !== 400) {
+    console.log(
+      '    – skipped: no webhook secret is bound, so a payment cannot be confirmed here.\n' +
+        '      See the note at the top of this file to switch it on for a run.',
+    );
+    return;
+  }
+
+  const tag = randomUUID().slice(0, 8);
+  const email = `sweep-buyer-${tag}@example.com`;
+
+  await withDb((db) =>
+    db.query(
+      `update entries.webhook_secrets set key_sha256 = $1, updated_at = now()
+        where name = 'stripe'`,
+      [createHash('sha256').update(WEBHOOK_KEY, 'utf8').digest('hex')],
+    ),
+  );
+
+  try {
+    const entry = validEntry({
+      firstName: 'Marguerite',
+      lastName: `Buyer-${tag}`,
+      email,
+      emailConfirm: email,
+    });
+
+    const bought = await postForm(YEAR_PATH, entry);
+    const location = bought.headers.get('location') ?? '';
+    const sessionId = location.match(/cs_[A-Za-z0-9_]+/)?.[0] ?? null;
+
+    check(
+      'a place is bought with no account at all',
+      bought.status === 303 && sessionId !== null,
+      `got ${bought.status} -> ${location || '(no location)'}`,
+    );
+    if (sessionId === null) return;
+
+    const held = await withDb(async (db) => {
+      const { rows } = await db.query(
+        `select id, status, person_id from entries.entry_purchases where purchaser_email = $1`,
+        [email],
+      );
+      return rows[0] ?? null;
+    });
+
+    // **`client_reference_id` is what names the purchase**, not the session id:
+    // `record_checkout_event()` parses it as a uuid and answers `not_ours` to anything else.
+    // The Worker sets it when it creates the session, so a real event always carries one.
+    const payload = JSON.stringify({
+      id: `evt_sweep_${tag}`,
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: sessionId,
+          client_reference_id: held?.id,
+          amount_total: 2000,
+          currency: 'gbp',
+          payment_status: 'paid',
+          payment_intent: `pi_sweep_${tag}`,
+        },
+      },
+    });
+
+    const at = Math.floor(Date.now() / 1000);
+    const signature = createHmac('sha256', WEBHOOK_SECRET)
+      .update(`${at}.${payload}`)
+      .digest('hex');
+
+    const hook = await fetch(`${SITE}/nn/stripe-webhook`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': `t=${at},v1=${signature}`,
+      },
+      body: payload,
+    });
+    check('the webhook confirms it', hook.status === 200, `got ${hook.status}`);
+
+    const paid = await withDb(async (db) => {
+      const { rows } = await db.query(
+        `select status, paid_at from entries.entry_purchases where purchaser_email = $1`,
+        [email],
+      );
+      return rows[0] ?? null;
+    });
+    check(
+      'and only the webhook does — the purchase is paid now',
+      paid?.status === 'paid' && paid?.paid_at != null,
+      JSON.stringify(paid),
+    );
+
+    const forged = await fetch(`${SITE}/nn/stripe-webhook`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': `t=${at},v1=${'0'.repeat(64)}`,
+      },
+      body: payload,
+    });
+    check('a forged signature is refused', forged.status === 400, `got ${forged.status}`);
+
+    // **`session`, not `session_id`.** The Worker reads `searchParams.get('session')` and
+    // `stripe.ts` builds the success URL as `…?session={CHECKOUT_SESSION_ID}`. Get it wrong
+    // and every state resolves to `confirming`, which looks exactly like a paid entry whose
+    // page never updates — a false alarm that cost half an hour when this was written.
+    const completeHtml = await get(`/nn/2026/entry/complete/?session=${sessionId}`).then(
+      (r) => r.text(),
+    );
+
+    check(
+      'the completion page stops saying it is still confirming',
+      revealed(completeHtml, 'data-complete-confirming') === false,
+      'the confirming notice was still showing for a paid entry',
+    );
+    check(
+      'and reports the payment as confirmed',
+      revealed(completeHtml, 'data-complete="paid"') === true,
+      'the paid block was not revealed',
+    );
+
+    // ---- and now the account, which did not exist when the place was bought --------------
+    const jar = cookieJar();
+    const req = async (path, init = {}) => {
+      const headers = { ...(init.headers ?? {}) };
+      const cookie = jar.header();
+      if (cookie !== '') headers.cookie = cookie;
+      const res = await fetch(`${SITE}${path}`, { redirect: 'manual', ...init, headers });
+      jar.remember(res);
+      return res;
+    };
+
+    const post = (fields) => ({
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields).toString(),
+    });
+
+    const signUpHtml = await req('/account/sign-up/').then((r) => r.text());
+    const signUpCsrf = csrfFrom(signUpHtml);
+
+    const registered = await req(
+      '/account/sign-up/',
+      post({
+        [signUpCsrf?.name ?? 'csrf']: signUpCsrf?.value ?? '',
+        name: 'Marguerite Buyer',
+        email,
+        password: ACCOUNT_PASSWORD,
+        // Cloudflare's own published dummy token, which the local stack's dummy secret passes.
+        'cf-turnstile-response': 'XXXX.DUMMY.TOKEN.XXXX',
+      }),
+    );
+    check(
+      'an account can be made with the address that paid',
+      registered.status === 303,
+      `got ${registered.status}`,
+    );
+
+    const inbox = await fetch(`${MAIL}/api/v1/messages?limit=40`).then((r) => r.json());
+    const message = inbox.messages?.find((m) => m.To?.some((to) => to.Address === email));
+    check(
+      'a confirmation email reaches that address',
+      message != null,
+      'no message found',
+    );
+    if (message == null) return;
+
+    // **Parsed rather than regexed off the raw JSON.** The body arrives escaped, so matching
+    // the transport encoding yields a URL with `&amp;` where the ampersands belong — which
+    // then answers 200 on the "that link did not work" page, and every later failure points
+    // somewhere else entirely.
+    const full = await fetch(`${MAIL}/api/v1/message/${message.ID}`).then((r) =>
+      r.json(),
+    );
+    const link = `${full.Text ?? ''}\n${full.HTML ?? ''}`
+      .match(/http:\/\/localhost:8787\/account\/confirm[^"'\s<>]*/)?.[0]
+      ?.replace(/&amp;/g, '&');
+    check('carrying a confirmation link', link != null, 'no link in the email');
+    if (link == null) return;
+
+    const confirmedHtml = await req(link.replace(SITE, '')).then((r) => r.text());
+
+    // A spent or malformed link answers 200 on a page that says so, so the status proves
+    // nothing here and the words are what the assertion has to read.
+    check(
+      'the address confirms',
+      /is confirmed/i.test(confirmedHtml),
+      'the confirmation page did not say the address was confirmed',
+    );
+
+    const signInHtml = await req('/account/sign-in/').then((r) => r.text());
+    const signInCsrf = csrfFrom(signInHtml);
+    const signedIn = await req(
+      '/account/sign-in/',
+      post({
+        [signInCsrf?.name ?? 'csrf']: signInCsrf?.value ?? '',
+        email,
+        password: ACCOUNT_PASSWORD,
+        'cf-turnstile-response': 'XXXX.DUMMY.TOKEN.XXXX',
+      }),
+    );
+    check('the new account signs in', signedIn.status === 303, `got ${signedIn.status}`);
+
+    const entriesRes = await req('/account/entries/');
+    const entriesHtml = await entriesRes.text();
+
+    // **The whole point of the phase.** `my_entries()` matches `person_id` *or* a
+    // `purchaser_email` equal to the caller's confirmed address, and this entry has no
+    // `person_id` at all — nobody was signed in when it was bought. If this ever fails,
+    // every runner who entered without an account has an entries page that denies their entry.
+    check(
+      'the entry bought before the account existed is waiting on it',
+      entriesRes.status === 200 && entriesHtml.includes(`Buyer-${tag}`),
+      `status ${entriesRes.status}, runner ${entriesHtml.includes(`Buyer-${tag}`) ? 'found' : 'absent'}`,
+    );
+    check(
+      'and carries the reference somebody would quote in an email',
+      held != null && entriesHtml.includes(held.id),
+      'the purchase id is not on the page',
+    );
+  } finally {
+    // The digest goes whatever happened, so a laptop is never left with a working webhook
+    // key for a test secret against the real event row.
+    await withDb((db) =>
+      db.query(
+        `update entries.webhook_secrets set key_sha256 = null where name = 'stripe'`,
+      ),
+    );
+  }
+}
+
 /** How many places are actually gone — `paid`, plus `pending` whose hold has not lapsed. */
 async function paidAndPendingCount() {
   return withDb(async (db) => {
@@ -598,6 +913,7 @@ async function main() {
     try {
       await checkWindowOpen();
       await checkRefusals();
+      await checkPurchaseJourney();
     } finally {
       // **Always put the window back**, whatever happened above. A run that throws halfway
       // and leaves entries open is a laptop that quietly disagrees with production, and the

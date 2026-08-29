@@ -348,7 +348,39 @@ export default {
       renderNnEntryComplete(rewriter, await resolveNnEntryCompleteView(env, url));
     }
 
-    return withSessionCookies(rewriter.transform(response), refreshedCookies);
+    // Did anything on this request depend on the database or on who was asking? The nav is
+    // painted on every masthead page, so this is true across `/nn/*` and false everywhere else.
+    const painted =
+      race !== null ||
+      isNnRacePath(url.pathname) ||
+      yearSlug !== null ||
+      isNnEntryCompletePath(url.pathname);
+
+    // **A page painted for one viewer must not be handed to another.** Issue #145, defect 1.
+    //
+    // The assets binding serves `dist/` with a strong `ETag` describing **the file**, and this
+    // handler then rewrites the body — so the validator no longer describes what was sent,
+    // while `Cache-Control: public` invites anybody to store it. The two together are worse
+    // than either: a conditional request answers **304** on an ETag that is identical for a
+    // signed-out visitor and for an `nn-tester`, who are served materially different pages,
+    // and in production Cloudflare answered `cf-cache-status: HIT` on all three of these.
+    //
+    // Reproduced: view `/nn/<year>/` signed out, sign in as a tester, and the browser serves
+    // the stale signed-out copy with no entry form — the person the early-entry mechanism
+    // exists for is the one it silently fails. Worse on the completion page, whose whole job
+    // is to report what the club has recorded: a runner reloading to see whether the webhook
+    // has landed gets the copy from before it did, and that page is built around never making
+    // a claim it cannot support.
+    //
+    // **Only the painted pages**, not every HTML response: `/`, `/privacy/` and the rest are
+    // genuinely the same bytes for everybody and keep the binding's headers untouched. The
+    // cost here is edge caching on `/nn/*`, which is real and is the right way round — these
+    // pages are cheap, the Worker already runs on every request because of
+    // `run_worker_first`, and the alternative is a race page that lies to somebody.
+    return withSessionCookies(
+      painted ? uncacheable(rewriter.transform(response)) : rewriter.transform(response),
+      refreshedCookies,
+    );
   },
 
   /**
@@ -598,6 +630,34 @@ async function nnViewerFor(
  * `env.ASSETS.fetch` and from `HTMLRewriter.transform`, and an asset response's headers are
  * not guaranteed to be mutable — so this rebuilds rather than mutates.
  */
+/**
+ * Strip the validator and forbid sharing, for a response this handler painted.
+ *
+ * **The `ETag` has to go, and that is the half that actually bites.** It comes from the assets
+ * binding and describes the file in `dist/`, so after HTMLRewriter has painted a running, a
+ * role or a recorded payment onto it, the validator no longer describes what was sent — while
+ * still being byte-identical between two viewers who were sent different pages. A conditional
+ * request then answers 304 and the client keeps the wrong one. Removing it is what makes that
+ * impossible; `private, no-store` is what stops a shared cache holding a copy in the first
+ * place. See issue #145, defect 1.
+ *
+ * `last-modified` goes with it, for the same reason: it is the file's date, not the page's, and
+ * it is a validator a cache may revalidate against just as happily.
+ */
+function uncacheable(response: Response): Response {
+  const headers = new Headers(response.headers);
+
+  headers.delete('etag');
+  headers.delete('last-modified');
+  headers.set('cache-control', 'private, no-store');
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function withSessionCookies(response: Response, cookies: string[]): Response {
   if (cookies.length === 0) {
     return response;
@@ -685,12 +745,26 @@ async function handleNnEntry(
 
   renderNnEntryStopped(rewriter, outcome);
 
-  // **409 for sold out, and it is the right code rather than a near-enough one.** The
-  // request was understood and refused because the state of the world moved between the page
-  // being served and the button being pressed — which is what 409 means, and is the same
-  // thing "entries closed" above is saying. The other three are outages of one kind or
-  // another and 503 says so.
-  return typedPage(rewriter.transform(page), outcome.status === 'sold-out' ? 409 : 503);
+  // **409 where the request was understood and refused, 503 where something is genuinely
+  // unavailable.** `sold-out` and `already-entered` are both the first kind: the submission was
+  // fine and the state of the world says no, which is what 409 means and is the same thing
+  // "entries closed" above is saying. `not-taken`, `failed` and `free` are the second — no
+  // Stripe secret, a session that could not be created, a total a payment page cannot take.
+  //
+  // **A map rather than a ternary, and that is the point of this shape.** It was
+  // `status === 'sold-out' ? 409 : 503`, so `already-entered` — added to the union by #115 —
+  // silently inherited 503 and told every double-submitting runner that the club's server was
+  // down. On the morning entries open that is a spike of 5xx in whatever is watching, burying
+  // any real outage, and 503 invites the retry nobody wants on an entry POST. It was missing
+  // from this file's own list of every refusal, which is how it went unnoticed. A map makes the
+  // next status somebody adds a line they have to write rather than a default they inherit.
+  // Issue #145, defect 3.
+  const STOPPED_STATUS: Partial<Record<NnEntryOutcome['status'], number>> = {
+    'sold-out': 409,
+    'already-entered': 409,
+  };
+
+  return typedPage(rewriter.transform(page), STOPPED_STATUS[outcome.status] ?? 503);
 }
 
 /**

@@ -20,6 +20,20 @@ import {
   AWKWARD_CLUB,
   AWKWARD_FIRST_NAME,
   AWKWARD_LAST_NAME,
+  ACTIONS_CAPACITY,
+  ACTIONS_EVENT_DATE,
+  ACTIONS_EVENT_NAME,
+  ACTIONS_EVENT_SLUG,
+  ACTIONS_RACE_SLUG,
+  CANCELLABLE_ENTRANT_ID,
+  CANCELLABLE_LAST_NAME,
+  CANCELLABLE_PURCHASE_ID,
+  OWNED_ENTRANT_ID,
+  OWNED_LAST_NAME,
+  OWNED_PURCHASE_ID,
+  TRANSFERABLE_ENTRANT_ID,
+  TRANSFERABLE_LAST_NAME,
+  TRANSFERABLE_PURCHASE_ID,
   CLEAN_CAPACITY,
   CLEAN_EVENT_DATE,
   CLEAN_EVENT_NAME,
@@ -51,8 +65,8 @@ import {
   REVOKED_PERSON_KEY,
 } from './admin-fixtures';
 
-/** The two fabricated runnings this file writes, and the only ones it ever deletes from. */
-const FIXTURE_EVENT_SLUGS = [ADMIN_EVENT_SLUG, CLEAN_EVENT_SLUG];
+/** The three fabricated runnings this file writes, and the only ones it ever deletes from. */
+const FIXTURE_EVENT_SLUGS = [ADMIN_EVENT_SLUG, CLEAN_EVENT_SLUG, ACTIONS_EVENT_SLUG];
 
 /**
  * Setting up and tearing down the admin run's fixtures, from ordinary Node.
@@ -187,6 +201,14 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       CLEAN_CAPACITY,
     );
 
+    await seedEvent(
+      ACTIONS_EVENT_SLUG,
+      ACTIONS_EVENT_NAME,
+      ACTIONS_RACE_SLUG,
+      ACTIONS_EVENT_DATE,
+      ACTIONS_CAPACITY,
+    );
+
     /**
      * One purchase and one entrant, with ids the tests already know.
      *
@@ -214,6 +236,15 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       notes?: string;
       /** Which fabricated running this purchase belongs to. Defaults to the oversold one. */
       eventSlug?: string;
+      /**
+       * Who paid, when that is not derived from the runner's own first name.
+       *
+       * `my_entries()` matches a purchase to a person by `person_id` **or** by a
+       * `purchaser_email` equal to their confirmed address, and the second is the ordinary case:
+       * entering does not require an account and never creates one. A fixture that wants to
+       * appear on somebody's `/account/entries/` sets their address here.
+       */
+      purchaserEmail?: string;
     }): Promise<void> => {
       const eventSlug = purchase.eventSlug ?? ADMIN_EVENT_SLUG;
 
@@ -240,7 +271,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
           purchase.purchaseId,
           purchase.status,
           purchase.amountPence,
-          `${purchase.firstName.toLowerCase()}@example.com`,
+          purchase.purchaserEmail ?? `${purchase.firstName.toLowerCase()}@example.com`,
           `${purchase.firstName} ${purchase.lastName}`,
           String(purchase.holdMinutes),
           purchase.attention ?? null,
@@ -389,6 +420,62 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
     // --- the quiet event, with nothing flagged on it ------------------------------------------
     // Two entries against ten places: not full, not over, nothing needing a human and no
     // medical note. It is what proves the attention panel *stays away*.
+    // --- the event the destructive tests are allowed to ruin --------------------------------
+    // Three paid entries on ten places. Nothing else asserts anything about this running, which
+    // is the point: cancelling, transferring and assigning all change what the next read
+    // returns, and doing that to a running another test measures makes the pair order-dependent.
+    await seed({
+      eventSlug: ACTIONS_EVENT_SLUG,
+      purchaseId: CANCELLABLE_PURCHASE_ID,
+      entrantId: CANCELLABLE_ENTRANT_ID,
+      status: 'paid',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Anita',
+      lastName: CANCELLABLE_LAST_NAME,
+      club: 'Southville RC',
+      dateOfBirth: '1988-03-14',
+      gender: 'female',
+      holdMinutes: 31,
+    });
+
+    // **With a note**, because the thing worth asserting about a transfer is that the previous
+    // runner's medical information does not travel to the new one. A note belongs to whoever
+    // wrote it, and carrying one across would file a stranger's condition under a new name.
+    await seed({
+      eventSlug: ACTIONS_EVENT_SLUG,
+      purchaseId: TRANSFERABLE_PURCHASE_ID,
+      entrantId: TRANSFERABLE_ENTRANT_ID,
+      status: 'paid',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Petra',
+      lastName: TRANSFERABLE_LAST_NAME,
+      club: null,
+      dateOfBirth: '1979-11-30',
+      gender: 'female',
+      holdMinutes: 31,
+      notes: MEDICAL_NOTE,
+    });
+
+    // Bought with the plain registered account's address, so it is the entry that appears on
+    // that person's own `/account/entries/` — the page the two ask-the-club buttons live on.
+    await seed({
+      eventSlug: ACTIONS_EVENT_SLUG,
+      purchaseId: OWNED_PURCHASE_ID,
+      entrantId: OWNED_ENTRANT_ID,
+      status: 'paid',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Joris',
+      lastName: OWNED_LAST_NAME,
+      club: null,
+      dateOfBirth: '1994-07-08',
+      gender: 'male',
+      holdMinutes: 31,
+      purchaserEmail: REGISTERED_EMAIL,
+    });
+
     await seed({
       eventSlug: CLEAN_EVENT_SLUG,
       purchaseId: CLEAN_PAID_PURCHASE_ID,

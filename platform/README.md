@@ -93,6 +93,23 @@ role** — the price taken from `entries.fees`, the place held, no account creat
 refusal a person can actually meet — then puts the window back exactly as it found it. Add
 `-- --keep-open` to leave it open and carry on by hand.
 
+#### Buying a place all the way through
+
+The last phase goes further: it buys a place with no account, confirms it the way Stripe does,
+and then registers an account with the address that paid to prove the entry is waiting on it.
+That needs the webhook, and **`./dev up` binds no webhook secret on purpose** — with none the
+endpoint answers 503 and lets Stripe retry, which is right for an endpoint nobody has
+registered yet. So the phase **skips with a note** unless you switch it on:
+
+```bash
+printf 'STRIPE_WEBHOOK_SECRET=whsec_TEST_NOT_A_REAL_SIGNING_SECRET_000000\nENTRIES_WEBHOOK_KEY=zz-worker-test-key-not-a-real-one\n' > apps/main/.dev.vars
+```
+
+Then `./dev down && ./dev up`, run the sweep, and **delete `apps/main/.dev.vars` afterwards** —
+a laptop left with a working webhook key is one where the 503 branch has stopped being tested.
+Both values are constants this repository already keeps in `apps/main/tests/webhook-fixtures.ts`
+and neither authenticates to anything; the file is gitignored.
+
 ### The other dev server
 
 `npm run dev` is `astro dev` on **:4321** — instant reload, but **no Worker runs**, so the
