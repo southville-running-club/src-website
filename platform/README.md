@@ -78,6 +78,21 @@ Check it end to end at any time — the same seven assertions CI runs against pr
 npm run smoke -- --local
 ```
 
+### Testing the morning entries open
+
+`entries_open_at` is null in production and setting it starts selling 250 places unattended, so
+**the open window is a state only a laptop can be put into.** That makes the entry path the one
+journey nobody can rehearse where it matters, on the one morning it has to work.
+
+```bash
+npm run entry-sweep
+```
+
+It moves the window, walks the whole path as an ordinary visitor with **no account and no
+role** — the price taken from `entries.fees`, the place held, no account created, and every
+refusal a person can actually meet — then puts the window back exactly as it found it. Add
+`-- --keep-open` to leave it open and carry on by hand.
+
 ### The other dev server
 
 `npm run dev` is `astro dev` on **:4321** — instant reload, but **no Worker runs**, so the
@@ -93,6 +108,7 @@ content and CSS, misleading for anything else.
 | `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
 | `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
 | `npm run smoke` | The live-site checks against **production**. `-- --local` for localhost |
+| `npm run entry-sweep` | **The entry path in both window states, locally.** Opens the window, walks it as somebody with no account and no role, and puts the window back. `-- --keep-open` leaves it open for hand testing; `-- --closed` does only what production serves |
 | `npm test` | Vitest: unit and database |
 | `npm run entries:open` / `entries:close` | Move the local NN entry window, so `/nn/` shows the entry form or the interest one. `--workspace=packages/db` |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |
