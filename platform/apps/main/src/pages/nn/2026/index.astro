@@ -190,10 +190,23 @@ const dateLine = race.date
       page that says "register your interest", never one offering a button that cannot take
       money. Failing towards the state that charges nobody.
 
-      **No `data-nn-cta` here yet, deliberately.** That hook is painted on exactly one element
-      today and two acceptance tests locate it strictly; riding it from a second place is Worker
-      work and lands with the `resolveNnEntryView` widening. Until then this button says what is
-      true in the shipped state, which is the same thing the hero's button says. */
+      **`data-nn-cta` is on this button, and leaving it off was a defect rather than a
+      deferral.** `#register` is the id of a heading inside `[data-nn-interest]`, which the
+      Worker hides the moment entries open — so a button holding a static `href="#register"`
+      becomes, at 07:00 on the first of September, a control that looks live, takes keyboard
+      focus and does nothing. Silently, on the busiest morning this page will ever have. The
+      hook is what moves the label and the target with the state, and every call to action on
+      the page needs it, not only the hero's.
+
+      Widening it cost no Worker change: `CtaHandler` is stateless and bound by attribute
+      selector, so it already paints every match, exactly as `[data-nn-fee]` does across this
+      card and the facts list. What it did cost was two acceptance tests that located the hook
+      with a bare selector — now scoped to the button each one is actually about, which they
+      should have been from the start.
+
+      **On a phone this is the only inline call to action**, because the hero's is hidden below
+      860px: one button, beside the fee, which is the one place on this page where a price and
+      an action are adjacent. The fixed bar continues it once this scrolls away. */
     }
     <aside class="nn-entry-rail" id="entry" aria-label="Entry">
       <div class="nn-entry-card">
@@ -206,7 +219,9 @@ const dateLine = race.date
           <dd>{orTbc(race.entriesOpen)}</dd>
         </dl>
 
-        <a class="nn-cta nn-entry-card-cta" href="#register">Register your interest</a>
+        <a class="nn-cta nn-entry-card-cta" href="#register" data-nn-cta
+          >Register your interest</a
+        >
       </div>
     </aside>
 
@@ -725,7 +740,7 @@ const dateLine = race.date
     <div class="nn-closing">
       <p class="nn-placeholder">[ CLOSING LINE — KAYLEIGH ]</p>
 
-      <a class="nn-cta" href="#register">Register your interest</a>
+      <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
     </div>
 
     <footer id="footer">
