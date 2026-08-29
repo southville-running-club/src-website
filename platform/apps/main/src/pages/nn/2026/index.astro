@@ -304,10 +304,24 @@ const dateLine = race.date
         together at 10:30", which is the *briefing* since #121 — no coordinate, and no distance
         from HQ, which nobody has supplied and which `race-day.astro` refuses to derive. */
           }
+          {
+            /* **This row used to point at `/nn/2026/race-day/`** and say the race instructions
+            had the exact spot and a map. That was the race director's own sentence, borrowed
+            from `spectators.astro`, and it was true while the map lived on another page. It is
+            not any more — this page carries the pin, two sections down — so sending somebody
+            away for something that is already here was the habit the consolidation exists to
+            break.
+
+            **The URL is built rather than pasted.** `startFinishMap` comes from
+            `race.startFinish`, so this pin, the one in the spooktators section and the one on
+            `/nn/2026/race-day/` cannot disagree.
+
+            The coordinates are not repeated in this cell: a facts row is one line, and the
+            answer a failing link would otherwise take with it is printed in full below. */
+          }
           <dt>Start line</dt>
           <dd>
-            Not at race HQ — <a href="/nn/2026/race-day/">the race instructions</a> have the
-            exact spot and a map.
+            Not at race HQ — <a href={startFinishMap} rel="noopener">show it on a map</a>.
           </dd>
 
           {
