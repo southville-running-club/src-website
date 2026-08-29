@@ -57,7 +57,22 @@ const { title, description, canonical, theme } = Astro.props;
 <html lang="en-GB">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {
+      /* **`viewport-fit=cover` is what makes `env(safe-area-inset-*)` resolve to anything.**
+      Without it those values are 0 on every notched iPhone, so a rule written as
+      `padding-bottom: calc(10px + env(safe-area-inset-bottom))` silently reserves nothing and
+      a fixed element's tap target lands under the home indicator. It is correct in a headless
+      browser and wrong on the device, which is the worst combination — no test can see it.
+
+      Added for the entry bar on `/nn/2026/`, and site-wide because the viewport meta is. It
+      changes nothing on a page with no fixed bottom element and no `env()` rule: the inset
+      area is only *exposed*, not automatically occupied, and every page on this site already
+      lays out inside `.nn-wrap` or `.wrap` rather than against the viewport edge. */
+    }
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>{title}</title>
     <meta name="description" content={description} />
     {

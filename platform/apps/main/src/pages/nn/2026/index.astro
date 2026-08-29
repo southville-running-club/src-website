@@ -226,7 +226,7 @@ const dateLine = race.date
     </aside>
 
     <div class="nn-layout-content">
-      <section id="race">
+      <section id="race" tabindex="-1">
         <h2>The race</h2>
 
         <p>
@@ -351,7 +351,7 @@ const dateLine = race.date
         </dl>
       </section>
 
-      <section id="course">
+      <section id="course" tabindex="-1">
         <h2>The course</h2>
 
         {
@@ -403,7 +403,7 @@ const dateLine = race.date
         </div>
       </section>
 
-      <section id="race-info">
+      <section id="race-info" tabindex="-1">
         <h2>Race information</h2>
 
         {
@@ -437,7 +437,7 @@ const dateLine = race.date
         </p>
       </section>
 
-      <section id="spooktators">
+      <section id="spooktators" tabindex="-1">
         <h2>Spooktators</h2>
 
         <p class="nn-placeholder">[ COPY TO COME — KAYLEIGH ]</p>
@@ -775,4 +775,140 @@ const dateLine = race.date
     See the artwork section of nn-theme.css. */
   }
   <div class="nn-hands" aria-hidden="true"></div>
+
+  {
+    /* **The bar continues the rail rather than competing with it.** It carries the fee as well
+    as the button because £18 is a fact and "£18 · Enter" is an offer — the rail is where those
+    two are adjacent, and this is what keeps them adjacent once the rail has scrolled away.
+
+    **It ships hidden from assistive technology and untabbable**, and the script turns both
+    around when it reveals it. A fixed control that is visually off-screen but still in the tab
+    order is a focus stop that lands nowhere, which is worse than not having it.
+
+    **`data-nn-cta` rather than a hardcoded label.** The Worker relabels and repoints every
+    call to action on this page from one selector, so this one cannot drift out of step with
+    the entry state — which is the defect that put a dead `#register` anchor in this page two
+    commits ago. */
+  }
+  <div class="nn-entry-bar" data-nn-entry-bar aria-hidden="true">
+    <p class="nn-entry-bar-fee nn-figures" data-nn-fee>{orTbc(race.price)}</p>
+    <a class="nn-cta" href="#register" data-nn-cta tabindex="-1">Register your interest</a
+    >
+  </div>
 </Base>
+
+{
+  /* -------------------------------------------------------------------------------------
+   * Enhancement, and only enhancement
+   * -------------------------------------------------------------------------------------
+   * **With this file removed the page is still whole.** The anchors jump, the jump-nav's
+   * `<details>` opens, the entry rail and its button are present, the form works, and every
+   * call to action is reachable. Four jobs and nothing else:
+   *
+   *   1. condense the masthead once the hero has gone
+   *   2. reveal the entry bar when no inline call to action is on screen
+   *   3. mark which section is in view
+   *   4. move focus to a section when its jump link is followed
+   *
+   * **Job 4 is the one that is invisible until somebody needs it.** A bare fragment link
+   * scrolls the page and leaves the keyboard where it was, so the next Tab returns the reader
+   * to the top — silently. Axe passes either way. The sections carry `tabindex="-1"` so they
+   * can take focus without entering the tab order themselves.
+   *
+   * **Job 2's rule is "no inline CTA visible", not "the rail has passed".** Keyed to the
+   * rail's geometry, the bar would appear beside the closing block's button at the foot of the
+   * page — two identical calls to action within a screen of each other, which is the defect
+   * this whole arrangement exists to remove, reproduced where nobody was looking.
+   *
+   * `IntersectionObserver` throughout: a scroll listener does the same work on every frame and
+   * this page is read while somebody is scrolling it.
+   * ------------------------------------------------------------------------------------- */
+}
+<script>
+  const hero = document.getElementById('top');
+  const masthead = document.querySelector('.nn-masthead');
+  const bar = document.querySelector('[data-nn-entry-bar]');
+  const barLink = bar?.querySelector('a');
+  const jumpLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('.nn-jump-links a'),
+  );
+
+  // 1. The masthead condenses once the hero is behind it.
+  if (hero && masthead) {
+    new IntersectionObserver(
+      (entries) => {
+        const showing = entries[0]?.isIntersecting ?? true;
+        masthead.classList.toggle('is-condensed', !showing);
+      },
+      { rootMargin: '-80px 0px 0px 0px' },
+    ).observe(hero);
+  }
+
+  // 2. The bar appears only when nothing else is offering the same thing.
+  //
+  // The body class is gated on the width the bar is actually shown at. Above it the bar is
+  // `display: none`, so an element that never intersects would otherwise leave the page
+  // reserving space at the bottom for a control nobody can see.
+  const inlineCtas = Array.from(document.querySelectorAll('[data-nn-cta]')).filter(
+    (el) => !bar?.contains(el),
+  );
+
+  if (bar && barLink && inlineCtas.length > 0) {
+    const narrow = window.matchMedia('(max-width: 860px)');
+    const onScreen = new Set<Element>();
+
+    const paint = () => {
+      const show = narrow.matches && onScreen.size === 0;
+      bar.toggleAttribute('data-nn-bar-shown', show);
+      bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+      barLink.tabIndex = show ? 0 : -1;
+      document.body.classList.toggle('nn-has-bar', show);
+    };
+
+    const watcher = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) onScreen.add(entry.target);
+        else onScreen.delete(entry.target);
+      }
+      paint();
+    });
+
+    for (const cta of inlineCtas) watcher.observe(cta);
+    narrow.addEventListener('change', paint);
+  }
+
+  // 3. Which section is in view. `aria-current="location"` rather than `"page"` — this is a
+  //    position within the page, and `"page"` is what the masthead uses for the page itself.
+  if (jumpLinks.length > 0) {
+    const linkFor = new Map(
+      jumpLinks.map((link) => [link.getAttribute('href')?.slice(1) ?? '', link]),
+    );
+
+    const spy = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          for (const link of jumpLinks) link.removeAttribute('aria-current');
+          linkFor.get(entry.target.id)?.setAttribute('aria-current', 'location');
+        }
+      },
+      { rootMargin: '-25% 0px -65% 0px' },
+    );
+
+    for (const id of linkFor.keys()) {
+      const section = id === '' ? null : document.getElementById(id);
+      if (section) spy.observe(section);
+    }
+  }
+
+  // 4. The keyboard goes where the page went.
+  for (const link of jumpLinks) {
+    link.addEventListener('click', () => {
+      const id = link.getAttribute('href')?.slice(1);
+      const section = id === undefined || id === '' ? null : document.getElementById(id);
+      // `preventScroll` because the browser is already scrolling to the fragment; focusing
+      // without it would scroll a second time and land differently.
+      section?.focus({ preventScroll: true });
+    });
+  }
+</script>

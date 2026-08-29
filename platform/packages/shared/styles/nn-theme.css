@@ -2746,7 +2746,7 @@ html:has(body.theme-nn) {
    here would make the two bars read as siblings, which is the one thing this element must not
    do. Set by the enhancement script, so it is absent with JavaScript off — which costs
    nothing, because the anchors work regardless and this only ever said "you are here". */
-.theme-nn .nn-jump-links a[aria-current='true'] {
+.theme-nn .nn-jump-links a[aria-current='location'] {
   border-bottom-color: var(--nn-bone);
   font-weight: 700;
 }
@@ -2934,5 +2934,180 @@ html:has(body.theme-nn) {
   .theme-nn .nn-closing {
     margin-top: 40px;
     padding: 36px 20px;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Sticky behaviour, and the bar that carries the price down the page
+ * -------------------------------------------------------------------------------------
+ * **One height token for three rules, because they have to agree or the bar breaks two of
+ * them.** The bar's own height, the body padding that stops it covering the footer, and the
+ * `scroll-padding-bottom` that stops it covering a focused field are the same measurement
+ * written three times, and the third is the one nobody would notice was wrong. This follows
+ * `--nn-masthead-height`, which exists for exactly the same reason on the other edge.
+ * ------------------------------------------------------------------------------------- */
+body.theme-nn {
+  --nn-bar-height: 64px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The sticky entry rail — desktop only
+ * -------------------------------------------------------------------------------------
+ * Offset below the masthead so the card is not delivered underneath it. `align-items: start`
+ * on the grid is what lets the rail be shorter than the content column and still stick; a
+ * stretched grid item is full-height and has nothing to stick within.
+ *
+ * **Only above 860px.** Below it the rail is inline, and a sticky element in a single-column
+ * flow would pin a card over the content the reader is scrolling to.
+ * ------------------------------------------------------------------------------------- */
+@media (min-width: 861px) {
+  .theme-nn .nn-entry-rail {
+    position: sticky;
+    top: calc(var(--nn-masthead-height) + 20px);
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The condensed masthead
+ * -------------------------------------------------------------------------------------
+ * **Page-scoped without a page-scoped selector.** `is-condensed` is only ever set by the
+ * enhancement script, and that script exists only on `/nn/2026/` — so this rule can never
+ * match on the other seven campaign pages, and the masthead component is untouched. That is
+ * the property that keeps ADR-014's bar out of this change.
+ *
+ * Padding only. Nothing here moves the bar's height token, because `scroll-padding-top` is
+ * derived from it and an anchor that lands correctly at rest must still land correctly once
+ * the header has shrunk — so the reserved space stays at the taller of the two.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-masthead.is-condensed {
+  padding-top: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--nn-pus);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-nn .nn-masthead {
+    transition:
+      padding 160ms ease-out,
+      border-color 160ms ease-out;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The entry bar
+ * -------------------------------------------------------------------------------------
+ * **It carries the price, which is the whole reason it is not just a button.** £18 is a fact;
+ * "£18 · Enter" is an offer. The rail is where those two are adjacent, and this is what
+ * continues that pairing once the rail has scrolled away — so the bar is the rail's
+ * continuation rather than a second, competing control.
+ *
+ * **Revealed when no inline call to action is on screen, not when the rail has passed.** The
+ * rail-geometry version of that rule is implementation-shaped: it leaves the bar hidden while
+ * the rail is partly visible, which is right, and it also leaves the bar showing beside the
+ * closing block's button at the foot of the page, which reproduces the very defect — two
+ * identical calls to action within a screen of each other — that this arrangement exists to
+ * remove. The script observes every inline CTA and shows the bar only when none is visible.
+ *
+ * `--nn-blood-deep` because this is chrome and should read as kin to the masthead, which uses
+ * the same. Bone on it is 12.69:1 and the `pus` top edge is 8.20:1 — a non-text indicator
+ * needing 3:1.
+ * ------------------------------------------------------------------------------------- */
+.theme-nn .nn-entry-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: var(--nn-bar-height);
+  /* `env()` resolves to 0 without `viewport-fit=cover` on the viewport meta, which is why
+     that was added to Base.astro in the same change. Without it this padding is inert and the
+     button sits under an iPhone's home indicator — correct in a headless browser, wrong on
+     the device. */
+  padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
+  background: var(--nn-blood-deep);
+  border-top: 1px solid var(--nn-pus);
+  /* Below the masthead's 5. The bar must never paint over the header, and on a short viewport
+     both are unpinned anyway. */
+  transform: translateY(110%);
+}
+
+.theme-nn .nn-entry-bar[data-nn-bar-shown] {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-nn .nn-entry-bar {
+    transition: transform 200ms ease-out;
+  }
+}
+
+.theme-nn .nn-entry-bar-fee {
+  margin: 0;
+  color: var(--nn-bone);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.theme-nn .nn-entry-bar .nn-cta {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* **The footer is reachable while the bar is shown**, and a focused field is not delivered
+   underneath it. The second is the one that would have failed silently: WCAG 2.4.11 is about
+   a focused control being obscured, and *fully* obscured is the failing case — the interest
+   form's consent checkbox and its submit are both inside the bar's height of the page end. */
+.theme-nn.nn-has-bar {
+  padding-bottom: calc(var(--nn-bar-height) + 20px);
+}
+
+html:has(body.nn-has-bar) {
+  scroll-padding-bottom: calc(var(--nn-bar-height) + 20px);
+}
+
+/* Desktop never sees it — the rail is sticky there and always on screen, so a second copy of
+   the same offer would be two controls stating one thing. */
+@media (min-width: 861px) {
+  .theme-nn .nn-entry-bar {
+    display: none;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Short viewports — nothing is pinned
+ * -------------------------------------------------------------------------------------
+ * A landscape phone, or 400% zoom, which WCAG 1.4.10 treats as a 320×256 window. The masthead
+ * alone is 136px there; adding a 64px bar puts 78% of the viewport under fixed chrome. Both
+ * unpin, and the page becomes an ordinary document — which is what reflow asks for.
+ * ------------------------------------------------------------------------------------- */
+@media (max-height: 400px) {
+  .theme-nn .nn-masthead {
+    position: static;
+  }
+
+  .theme-nn .nn-entry-bar {
+    position: static;
+    transform: none;
+  }
+
+  .theme-nn.nn-has-bar {
+    padding-bottom: 0;
+  }
+
+  html:has(body.nn-has-bar) {
+    scroll-padding-bottom: 0;
+  }
+}
+
+/* Smooth scroll is the one motion on this page that is not decoration — it shows the reader
+   the page moved rather than teleporting them. Off under `prefers-reduced-motion`, and the
+   jump still lands because the anchor is what does the work. */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(body.theme-nn) {
+    scroll-behavior: smooth;
   }
 }
