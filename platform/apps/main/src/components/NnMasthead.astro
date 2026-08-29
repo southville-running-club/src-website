@@ -71,9 +71,33 @@ interface Props {
    * here. A page with one job keeps one job.
    */
   nav?: boolean;
+
+  /**
+   * Whether this bar stays on screen on a narrow viewport.
+   *
+   * `true` everywhere except `/nn/2026/`, and the exception is arithmetic rather than taste.
+   *
+   * **Two pinned strips is the cost ADR-012 rejected, reached from the other end.** That record
+   * unstuck this bar and published the reason — 207px of a 568px phone, 36% held permanently.
+   * [ADR-014](../../../../docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md)
+   * stuck it back and corrected that figure as stale: it described a two-row bar that had since
+   * been deleted, and the real cost was 109px. The bar is 136px now, and the consolidated page
+   * adds a fixed entry bar at a 64px floor — about 200px, 35%, which is within seven pixels of
+   * the number ADR-012 refused.
+   *
+   * **Only that page, because only that page has the second strip.** The other seven campaign
+   * pages have no bottom bar and therefore no arithmetic problem, and ADR-014's requirement —
+   * the navigation is reachable from anywhere — is untouched on every one of them. It survives
+   * on `/nn/2026/` too, in the form that page actually has: a jump-nav to its own sections and
+   * a fixed bar carrying the price and the way in.
+   *
+   * **Narrow only.** Above 860px the entry bar is `display: none` and there is one pinned
+   * strip again, so the bar stays stuck exactly as ADR-014 decided.
+   */
+  sticky?: boolean;
 }
 
-const { nav = true } = Astro.props;
+const { nav = true, sticky = true } = Astro.props;
 
 // **The button is a destination too, so it carries the marker on its own page.** Matched on
 // the *shape* of the path rather than on the painted href, exactly as the five links are:
@@ -86,7 +110,7 @@ const path = Astro.url.pathname.endsWith('/')
 const onTheRunning = /^\/nn\/\d{4}\/$/.test(path);
 ---
 
-<header class="nn-masthead">
+<header class:list={['nn-masthead', { 'nn-masthead-unstuck-narrow': !sticky }]}>
   <div class="nn-wrap">
     {
       /* **The club's wordmark, and the page's only accessible copy of it.** It used to sit

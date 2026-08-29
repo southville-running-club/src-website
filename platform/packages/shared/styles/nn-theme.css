@@ -3111,3 +3111,38 @@ html:has(body.nn-has-bar) {
     scroll-behavior: smooth;
   }
 }
+
+/* -------------------------------------------------------------------------------------
+ * The one bar that releases on a phone
+ * -------------------------------------------------------------------------------------
+ * Set by `sticky={false}` on `NnMasthead`, which only `/nn/2026/` passes. The reasoning is in
+ * that prop's own note; the short version is that the consolidated page is the only one with a
+ * fixed bar at the bottom, and 136px of masthead plus a 64px bar is 35% of a 568px phone —
+ * within seven pixels of the figure ADR-012 unstuck this bar over.
+ *
+ * **The scroll offsets have to come down with it, and that is the half that would have been
+ * missed.** `scroll-padding-top` and the sections' `scroll-margin-top` both reserve the height
+ * of a *fixed* header. With no fixed header at this width they reserve 144px of nothing, so
+ * every jump link lands with a screen-quarter of empty gradient above the heading it was asked
+ * to scroll to — which looks like a bug rather than like generosity. 16px is the comfortable
+ * offset a normal document wants.
+ *
+ * Specificity is deliberate rather than incidental: the base rules are `html:has(body.theme-nn)`
+ * and `.theme-nn .nn-layout-content > section`, so each override names one more class than the
+ * rule it is replacing. Source order alone would have done it, and a stylesheet this long is
+ * exactly where source order stops being something to rely on.
+ * ------------------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  .theme-nn .nn-masthead-unstuck-narrow {
+    position: static;
+  }
+
+  html:has(body.theme-nn .nn-masthead-unstuck-narrow) {
+    scroll-padding-top: 16px;
+  }
+
+  body.theme-nn:has(.nn-masthead-unstuck-narrow) .nn-layout-content > section,
+  body.theme-nn:has(.nn-masthead-unstuck-narrow) .nn-hero {
+    scroll-margin-top: 16px;
+  }
+}

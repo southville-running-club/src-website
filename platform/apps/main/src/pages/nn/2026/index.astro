@@ -62,7 +62,13 @@ const dateLine = race.date
   canonical={canonical}
   theme="nn"
 >
-  <NnMasthead slot="masthead" />
+  {
+    /* **The one page whose bar releases on a phone**, because it is the one page with a second
+    fixed strip at the bottom. See the prop's own note in `NnMasthead.astro` for the arithmetic
+    and for why ADR-014 is untouched by it. Above 860px the entry bar is not rendered and this
+    changes nothing. */
+  }
+  <NnMasthead slot="masthead" sticky={false} />
 
   <header class="nn-hero" id="top">
     <div class="nn-wrap">
