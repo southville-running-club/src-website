@@ -436,53 +436,152 @@ const dateLine = race.date
       </section>
 
       <section id="race-info" tabindex="-1">
-        <h2>Race information</h2>
+        <h2 class="nn-display-heading">Race instructions</h2>
 
         {
-          /* **The schedule is here in full and everything else about the day is a summary.**
-          It is the one thing on this page that decides whether somebody makes the start, so it
-          is never a link and never behind a disclosure widget — a runner on a phone on the
-          morning searching for "registration" has to find it.
+          /* **The race director's copy, and two sentences of her opening are not here.**
 
-          **There are no accordions on this page, and that is a decision rather than an
-          omission.** An earlier draft had five: getting there and parking, what to wear, on the
-          day, prizes and fancy dress, cake. Four of the five are `/nn/2026/race-day/`'s own
-          sections, so filling them meant copying a page this work deliberately keeps. Once they
-          hold summaries instead, the mechanism has no job left — a disclosure widget exists to
-          manage length, and two sentences have no length to manage. Five `<details open>`
-          holding one paragraph each are five paragraphs wearing chevrons that never earn a
-          click.
+          "Commiserations on entering the Nightingale Nightmare 10k" was removed on request; it
+          is the 2023 pre-race email's opening, written to somebody who had already entered, and
+          it is waiting for `/nn/2026/entry/complete/`.
 
-          The reasoning for open-by-default is kept in the ADR rather than deleted, because
-          somebody will propose accordions here again and the answer should not have to be
-          re-derived. `NnSchedule.astro` is the same six rows `/nn/2026/race-day/` renders, from
-          the same array, through the same component. */
+          "You'll be pleased to know the time is nearly upon us" went with it, and that one is a
+          claim rather than a joke: read in September it is false, and it becomes true only in
+          the last fortnight. "This message" became "This page" for the same reason — the copy
+          arrived as an email and this is not one. Both are flagged for her rather than settled
+          here. */
         }
-        <h3>Race morning</h3>
+        <p>This page contains all the information you need for the big day.</p>
+
+        <h3 class="nn-display-subheading">Time & place</h3>
+
+        {
+          /* The address is `race.location`, which carries **Bower Ashton** where her copy did
+          not. One address on the site is worth the extra locality; if she wants hers exactly,
+          that is a `race.json` edit rather than a second spelling here. */
+        }
+        <p>
+          The race HQ is {race.location}. There is free parking on site, toilet
+          facilities, and shelter from the elements. If necessary we should also be able
+          to barricade the doors and hold out against a zombie attack for at least 48
+          hours.
+        </p>
+
+        <p>
+          The carpark is large, but unlike the joys of eternal damnation, is not infinite.
+          If you're able to share lifts with friends, foes, or clubmates, we'd encourage
+          you to do so. There is no on-street parking in the area, so please respect our
+          neighbours. There will be dedicated broomstick parking provided.
+        </p>
+
+        {
+          /* **A third paragraph was here and is deleted, not reworded.**
+
+          It read: "There will be an extended witching hour the night before, with the end of
+          BST. You can enjoy an extra hour's rest before your torment commences, so tardiness
+          will not be entertained."
+
+          **British Summer Time ends on Sunday 25 October 2026. This race is Sunday 1 November,
+          a week later.** There is no extra hour, and somebody who set an alarm by that sentence
+          would arrive an hour after registration opened. It was true of 2023, when the race
+          fell on the changeover day, and `site.spec.ts` already refuses both "clocks change"
+          and "witching hour" on the sibling pages for exactly this reason.
+
+          The paragraph carried one real instruction with it — that lateness is not catered for
+          — and that has gone too, because it cannot stand without the sentence that was wrong.
+          It wants one line back from her rather than one invented here. */
+        }
+
+        <h3 class="nn-display-subheading">Race morning</h3>
 
         <NnSchedule />
 
-        <p class="nn-placeholder">[ COPY TO COME — KAYLEIGH ]</p>
+        <h3 class="nn-display-subheading">At start</h3>
 
         <p>
-          <a href="/nn/2026/race-day/">The race instructions, in full</a>.
+          At the start there will be a group warmup (which in keeping with the theme may
+          be mortifying) and there will be a bag drop to leave anything you might want
+          immediately post-race. After the finish we recommend staying to cheer in the
+          other runners, so pack something to keep you warm and dry, and maybe a spare
+          litre of blood if necessary.
+        </p>
+
+        <p>
+          There will be one water station on the route and another at the finish, and
+          plenty of marshals to guide your way. Carrying garlic is recommended, but
+          optional.
+        </p>
+
+        <h3 class="nn-display-subheading">Clothing</h3>
+
+        <p>
+          As you will hopefully appreciate by now, this is a halloween themed race, so
+          bring out your best (worst?) costume and show us how terrifying you can be.
+          There will be a competition for outfits - more on that later. The HQ will have
+          dedicated changing areas and a bag drop for any bulkier items you don't need at
+          the finish. The carpark is also immediately adjacent to the HQ, so please lock
+          anything valuable in your car lest the goblins get it.
+        </p>
+
+        <p>
+          Not to spook you, but this is also a tough off-road run with plenty of
+          elevation. The ground is uneven with rocks and roots and can be slippery if
+          there has been rainfall. Trail shoes are a good option if you have them. Road
+          shoes will be fine too, just take extra care. Flip-flops would be disastrous, so
+          don't wear those.
+        </p>
+
+        <p>
+          As you'll be fully aware, creatures of the night are drawn towards music and
+          especially to running-themed podcasts like moths to the flame. For your own
+          safety we therefore require that you do not wear headphones of any type during
+          the race.
+        </p>
+
+        <h3 class="nn-display-subheading">Competitions & prizes</h3>
+
+        <p>
+          As mentioned, there's a fancy dress competition! If you wish to feel the full
+          force of our judgement, pick up your number for race registration and then pose
+          for a photo with our photographers who will be stationed upstairs in the HQ.
+        </p>
+
+        <p>
+          Prizes will be also be awarded for first finishers overall and in vet 40, 50,
+          and 60 categories, male and female. Every survivor gets a medal. Every
+          non-survivor gets a memorial.
+        </p>
+
+        <p>
+          There's also a special prize for best marshalling station, voted by you, the
+          runners. So keep an eye out (unless your eye is already out) as you run to see
+          which of our volunteer marshals deserves your vote.
+        </p>
+
+        <p>
+          The prizegiving will be back in race HQ after the last runner finishes the
+          course. Speaking of HQ…
+        </p>
+
+        <h3 class="nn-display-subheading">Refreshments</h3>
+
+        <p>
+          Join us back at HQ after the race for free hot drinks and more importantly,
+          cake! Our volunteer bakers are hard at work making a dazzling array of ghoulish
+          cakes for you to enjoy. We'll be serving tea, coffee and hot chocolate to warm
+          you up. All for free!
+        </p>
+
+        <p>
+          There'll be a donation tin if you have any of that pre-pandemic cash hanging
+          around. In past years we've been able to make sizable donations to some great
+          local charities thanks to runners' generosity.
         </p>
       </section>
 
       <section id="spooktators" tabindex="-1">
-        <h2>Spooktators</h2>
+        <h2 class="nn-display-heading">Spooktators</h2>
 
-        {
-          /* **The race director's words, and only the facts inside them are interpolated.**
-          `BS8 3PL`, `Brunel Lock Road` and `Ashton Avenue Bridge` are in `race.json` as those
-          exact strings, so this renders character for character what she wrote while leaving one
-          copy of each fact on the site. Her shortlink is the one thing that changed shape — see
-          the note at the head of this file.
-
-          **It summarises two of the spectators page's four sections** and leaves the fancy dress
-          and the afterwards to it, which is what keeps this a summary and that page worth
-          opening. */
-        }
         <p>
           Friends and family are welcome to come and cheer you on. The start/finish area
           is a good place, and another easy spectator spot is the top of Nightingale
@@ -490,8 +589,17 @@ const dateLine = race.date
           <span class="nn-mono">{race.spectating.viewpointPostcode}</span>.
         </p>
 
+        <h3 class="nn-display-subheading">Start/finish (not race HQ!)</h3>
+
+        {
+          /* The link text is the place rather than the URL. Hers was 200 characters of Google
+          Maps query string — unreadable in a links list, and it carries a `data=` blob that
+          encodes a session rather than a location. The coordinates are printed beside it for
+          the reason `race-day.astro` gives: a link that fails should not take the answer with
+          it. */
+        }
         <p>
-          Start/finish (not race HQ!): <span class="nn-mono">{startFinish}</span> —{' '}
+          <span class="nn-mono">{startFinish}</span> —{' '}
           <a href={startFinishMap} rel="noopener">show it on a map</a>.
         </p>
 
@@ -499,10 +607,6 @@ const dateLine = race.date
           Those just coming to the start/finish to cheer could park on{' '}
           {race.spectating.parking} and then walk over {race.spectating.footbridge} to get there
           by foot, if indeed they have feet.
-        </p>
-
-        <p>
-          <a href="/nn/2026/spectators/">Spooktators, in full</a>.
         </p>
       </section>
     </div>

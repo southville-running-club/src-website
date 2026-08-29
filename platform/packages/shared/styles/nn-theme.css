@@ -1162,6 +1162,17 @@ html:has(body.theme-nn) {
   letter-spacing: normal;
 }
 
+/* The same face one step down, for the subsections inside a section. Smaller than
+   `.nn-display-heading` so a reader can tell a heading from the heading above it — which in a
+   caps-only face is the only signal left, since case cannot carry it. */
+.theme-nn .nn-display-subheading {
+  font-family: var(--nn-display);
+  font-weight: 400;
+  font-size: clamp(16px, 1.9vw, 19px);
+  line-height: 1.9;
+  letter-spacing: normal;
+}
+
 /* Underlined, so the link is not carried by colour alone — bone on bone would be nothing
    but a shade. */
 .theme-nn a {
