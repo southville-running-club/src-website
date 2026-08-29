@@ -281,7 +281,14 @@ body.theme-nn {
   --nn-r-btn: 8px;
   --nn-r-card: 12px;
 
-  --nn-display: 'Nosifer', 'Impact', fantasy;
+  /* **Ends in the body stack, and that is the whole point of the tail.** `font-display: swap`
+     means the fallback is not the failure case — it is what renders for the entire load window,
+     on every first visit. Ending in `fantasy` handed that window to whatever the platform calls
+     a fantasy face; ending in Impact handed it to a condensed poster face metrically nothing
+     like Nosifer, so the swap reflowed as well as re-faced. `var(--nn-body)` substitutes the
+     body stack textually, so the tail cannot drift from it. A pending or failed display face
+     now looks plain rather than wrong. */
+  --nn-display: 'Nosifer', var(--nn-body);
   --nn-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --nn-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   /* The one serif on the page, and only for the word "presents…". A system stack, because
@@ -703,7 +710,10 @@ html:has(body.theme-nn) {
    contrast and the table's entry is unchanged. */
 .theme-nn .nn-dateline {
   margin: 0 0 22px;
-  font-family: var(--nn-sans);
+  /* `--nn-sans` until 29 August 2026, which was defined nowhere — an invalid `var()` with no
+     fallback, so both call sites inherited Inter from `body` and looked correct by accident.
+     Named explicitly now; the computed value is unchanged. */
+  font-family: var(--nn-body);
   font-weight: 700;
   font-size: clamp(16px, 3vw, 22px);
   line-height: 1.5;
@@ -1022,7 +1032,6 @@ html:has(body.theme-nn) {
 .theme-nn .nn-panel-facts {
   margin: 6px 0 0;
   color: var(--nn-ink);
-  font-family: var(--nn-mono);
   font-size: 14px;
 }
 
@@ -1088,7 +1097,8 @@ html:has(body.theme-nn) {
 .theme-nn .nn-previous-heading {
   margin: 0 0 10px;
   color: var(--nn-bone);
-  font-family: var(--nn-sans);
+  /* See the note on `.nn-dateline` — `--nn-sans` never existed. Same computed value. */
+  font-family: var(--nn-body);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -1273,7 +1283,6 @@ html:has(body.theme-nn) {
   padding: 1px 5px;
   border-radius: 4px;
   background: var(--nn-card-muted);
-  font-family: var(--nn-mono);
   font-size: 0.9em;
 }
 
@@ -1456,10 +1465,31 @@ html:has(body.theme-nn) {
  * the browser clamps rather than renders what was asked for. Five existing rules in this file
  * do that. Leaving the weight out of this class keeps it a decision each call site takes
  * explicitly rather than one this class makes silently on their behalf. */
-.theme-nn .nn-figures {
+.theme-nn .nn-figures,
+.theme-nn .nn-panel-facts,
+.theme-nn .nn-card code,
+.theme-nn .nn-dob-part .field-input,
+.theme-nn .nn-category,
+.theme-nn .nn-total,
+.theme-nn .nn-panel .nn-panel-note {
   font-family: var(--nn-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
+}
+
+/* **The weight the five selectors above needed and none of them stated.** JetBrains Mono is
+   declared `500 700`, so a rule that takes the family and omits the weight computes to 400 —
+   outside the axis, where the browser clamps rather than rendering what was asked for. Stating
+   500 changes no pixel; it stops the file describing something it never got. `.nn-figures`
+   itself is deliberately absent, because a class used from markup should leave the weight to
+   its call site — the schedule's times ask for 700. */
+.theme-nn .nn-panel-facts,
+.theme-nn .nn-card code,
+.theme-nn .nn-dob-part .field-input,
+.theme-nn .nn-category,
+.theme-nn .nn-total,
+.theme-nn .nn-panel .nn-panel-note {
+  font-weight: 500;
 }
 
 /* -------------------------------------------------------------------------------------
@@ -1810,10 +1840,8 @@ html:has(body.theme-nn) {
 
 .theme-nn .nn-dob-part .field-input {
   width: 3.75rem;
-  /* Tabular figures, so a 1 and a 7 occupy the same width and three boxes read as a date
-     rather than as three unrelated inputs. */
-  font-family: var(--nn-mono);
-  font-variant-numeric: tabular-nums;
+  /* Tabular figures — so a 1 and a 7 occupy the same width and three boxes read as a date
+     rather than as three unrelated inputs — come from the mono voice above. */
   text-align: center;
 }
 
@@ -1898,7 +1926,7 @@ html:has(body.theme-nn) {
   color: var(--nn-slate);
 }
 
-/* Tabular figures in the mono face, so £15.00 and £17.00 line up on their decimal points
+/* Tabular figures in the mono face, so £18.00 and £20.00 line up on their decimal points
    down a column. `Free` sets in the same face at the same size, which is what stops a price
    of nothing reading as a missing price. */
 .theme-nn .nn-fee-price {
@@ -1984,11 +2012,17 @@ html:has(body.theme-nn) {
   color: var(--nn-ink);
 }
 
-.theme-nn .nn-category b,
-.theme-nn .nn-total b {
-  font-family: var(--nn-mono);
-  font-variant-numeric: tabular-nums;
-}
+/* **`.nn-category b` and `.nn-total b` were here and could never match.** Both paragraphs ship
+   empty and the enhancement fills them with `textContent` — `Total to pay: £18.00`, one text
+   node, no element inside it. So the one figure a runner watches change as they pick an entry
+   type has been rendering in the body face with proportional figures since the rule was
+   written, and the rule looked like it was doing something.
+
+   The treatment moved onto the paragraphs themselves, in the mono voice above. That sets the
+   short label in mono along with the money, which is within the rule — mono covers prices and
+   small factual labels — and matches `.nn-fee-price` on the three cards directly above it, so
+   money looks like money the whole way down the form. Fixed in the stylesheet rather than by
+   teaching the script to emit a `<b>`: the script belongs to the entry form. */
 
 .theme-nn .nn-total {
   margin-top: 4px;
@@ -2391,7 +2425,6 @@ html:has(body.theme-nn) {
    coloured thing in the panel. */
 .theme-nn .nn-panel .nn-panel-note {
   margin-bottom: 20px;
-  font-family: var(--nn-mono);
   font-size: 13px;
   color: var(--nn-pus);
 }

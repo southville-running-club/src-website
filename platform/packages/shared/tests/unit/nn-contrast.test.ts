@@ -65,13 +65,42 @@ const tokens: ReadonlyMap<string, string> = (() => {
   return found;
 })();
 
-/** The declaration body of one rule, found by its exact selector. Throws if it is gone. */
+/**
+ * Every innermost rule in the stylesheet, as a selector list and its declarations.
+ *
+ * Comments are stripped first, because several of this file's contain braces. The pattern then
+ * matches only blocks whose body has no braces of its own, which is what makes it skip an
+ * `@media` wrapper and find the rules inside it — the alternative, anchoring on a selector at
+ * the start of a line, cannot see a rule that shares its declarations with others.
+ *
+ * That matters here rather than being tidiness: the mono voice is one rule over seven
+ * selectors, and a helper that only recognised a selector sitting alone would have reported it
+ * missing and failed for the wrong reason.
+ */
+const rules: ReadonlyArray<readonly [ReadonlyArray<string>, string]> = (() => {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const found: Array<readonly [ReadonlyArray<string>, string]> = [];
+
+  for (const match of withoutComments.matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
+    const [, selectors, declarations] = match;
+    if (selectors === undefined || declarations === undefined) continue;
+    found.push([
+      selectors
+        .split(',')
+        .map((one) => one.trim().replace(/\s+/g, ' '))
+        .filter((one) => one !== ''),
+      declarations,
+    ]);
+  }
+  return found;
+})();
+
+/** The declarations of the rule carrying this exact selector. Throws if it is gone. */
 const rule = (selector: string): string => {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`\\n${escaped}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(css);
-  if (match?.[1] === undefined)
+  const found = rules.find(([selectors]) => selectors.includes(selector));
+  if (found === undefined)
     throw new Error(`nn-theme.css has no rule for \`${selector}\``);
-  return match[1];
+  return found[1];
 };
 
 /**
