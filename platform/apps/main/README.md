@@ -64,7 +64,7 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/` | **The race — evergreen, and it names no year.** No form posts here; a POST gets 405 from the assets binding, as `/nn/privacy/` always has. The Worker paints on which running is current, its date and its links, from `entries.current_entry_state('nn')` — there is no year in this page's markup and there must never be one |
 | `/nn/course/` | Course and terrain. **Evergreen**: the route, the ground and the headphone rule are the race's, not one running's |
 | `/nn/privacy/` | What the club does with an entry and with a sign-up. **Written from the schema rather than from the form** — it lists what `entries.entry_purchases`, `entries.entrants` and `entries.entrant_medical` hold, which is four rows more than a list of what somebody types. **Evergreen, and site-wide in substance** — see [ADR-011](../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md) for why it stays under `/nn/` for now |
-| `/nn/2026/` | **The 2026 running.** The date, the facts, and **both forms** — interest before entries open, entry after. Both post here, and a hidden `form` field says which |
+| `/nn/2026/` | **The 2026 running, and the campaign's one entry point.** The hero, a sticky entry rail, the facts, the race-morning schedule in full, and a summary of each of the three pages below with a link to it — see [the consolidated page](#the-consolidated-page). It carries **both forms**: interest before entries open, entry after. Both post here, and a hidden `form` field says which |
 | `/nn/2026/terms/` | **The entry terms and race rules**, and what the entry form's checkbox commits somebody to. **The race director's copy, published verbatim** — see [the entry terms](#the-entry-terms). **With the year**, because it names this running's date, permit and transfer deadline; 2027's terms are a new file beside it, not an edit to this one |
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ |
@@ -81,6 +81,43 @@ where a convention drifts, and the symptom would be a Stripe return URL that 404
 **The old addresses 404 and no redirect was added.** `/nn/race-day/`, `/nn/spectators/` and
 `/nn/entry/complete/` existed only on this branch, only ever carried `noindex`, and were linked
 from nothing outside the repository. `tests/worker/serves.test.ts` asserts the 404s.
+
+### The consolidated page
+
+`/nn/2026/` is the campaign's one entry point. Its sections, in order, with the ids the
+page-local jump-nav links to:
+
+| # | Section | `id` | In the jump-nav |
+| --- | --- | --- | --- |
+| 1 | Hero | `top` | — |
+| 2 | Entry rail | `entry` | — |
+| 3 | The race, and its facts | `race` | Race |
+| 4 | The course — a summary, and a link out | `course` | Course |
+| 5 | Race information — the schedule in full, a summary, a link out | `race-info` | Race info |
+| 6 | Spooktators — a summary, and a link out | `spooktators` | Spooktators |
+| 7 | Closing call to action | — | — |
+| 8 | Footer | `footer` | — |
+
+**One entry point rather than one page.** `/nn/course/`, `/nn/2026/race-day/` and
+`/nn/2026/spectators/` stay live and linked; sections 4, 5 and 6 summarise them rather than
+absorb them. Absorbing them would retire three URLs, which is a decision with its own record.
+See [ADR-024](../../../docs/architecture/decisions/adr-024-one-entry-point-for-a-running.md).
+
+**The jump-nav is page-local and additive.** `NnNav` is untouched and paints the same seven
+hrefs on all eight campaign pages. These four anchors exist only here, so they point at nothing
+nowhere — and the jump-nav is deliberately not a second masthead: unpinned, no band, no
+wordmark, no call to action, and a bone current-marker where the bar uses `pus`.
+
+**Below 860px this is the one page whose masthead releases.** It is the only page with a fixed
+bar at the bottom, and 136px of masthead plus a 64px entry bar is 35% of a 568px phone — within
+seven pixels of the figure ADR-012 unstuck the bar over. `NnMasthead` takes `sticky={false}`
+here and nowhere else, so ADR-014 is narrowed at one width on one page rather than superseded.
+
+**The enhancement script does four things and the page works without it**: condense the
+masthead, reveal the entry bar when no inline call to action is on screen, mark the section in
+view, and move focus to a section when its jump link is followed. That last one is invisible
+until somebody needs it — a bare fragment link scrolls the page and leaves the keyboard at the
+top, so the next Tab returns them to where they started, and axe passes either way.
 
 ### The navigation — one bar, six controls, and it stays on screen
 
@@ -299,16 +336,16 @@ as a blank or an invention. Two still are, and each for a different reason:
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
 | `privacy.*` | Nine keys. **Five are settled and written in** — the controller, the registered office, the company number, the one-month medical retention, and the date the notice was last updated. **Four are `null` and render "To be confirmed by the club"**: `contact`, `entryRetention`, `emailRetention` and `photographs`. A wrong answer on that page is a legal claim rather than a typo, so filling one in is a one-line edit here and `nn-privacy.spec.ts` counts the markers to stop a fifth appearing or a fourth quietly vanishing |
 
-### The ARC permit number, and why it is quoted twice
+### The ARC permit number, and why it is quoted three times
 
-**`permit` was the third `null` and is now `ARC/26/0842`**, issued 27 August 2026. Landing it
+**`permit` is `ARC/26/0842`**, issued 27 August 2026. Landing it
 was the second test of what this file is for: a one-line edit, and the year page's facts list
 picked it up with no markup moving — exactly as the race date did on 12 August.
 
-**It is quoted in two places, and one of them would not have been enough.** ARC print the
+**It is quoted in three places, and the first two are the ones ARC ask for.** ARC print the
 requirement on the permit itself — *"Please quote Permit Number on race entry forms and
 advertising material."* The facts list on `/nn/2026/` is the advertising half; the foot of the
-entry form, below the pay note, is the form half. The race page alone does not satisfy the
+entry form, below the pay note, is the form half. **The third arrived with #142**: `/nn/2026/terms/` states it in the terms themselves, which is the race director's copy rather than this file's doing. The race page alone does not satisfy the
 instruction, which is why `nn-entry.spec.ts` asserts the form's copy **visible** rather than
 merely present: the form ships `hidden` and the Worker reveals it, so a permit line that only
 ever reached the markup would pass a `toContain` and fail what ARC actually ask for.

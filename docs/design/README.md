@@ -58,6 +58,26 @@ lines and reads "Ashton Park School / Blackmoors Lane / Bristol / BS3 2JL". `rac
 one string and includes **Bower Ashton**, which the four-line version loses. It is used as it
 stands.
 
+**6. Its course map does not exist.** `<div class="course-map">COURSE MAP</div>` is a 220px
+placeholder for an artefact nobody has drawn and nobody has commissioned. The element is dropped
+rather than shipped empty: a labelled box reserving space for a thing that may never arrive is a
+promise the page cannot keep, and the page already links to `/nn/course/`, which describes the
+route in the club's own words. Campaign pages also forbid the two easy ways to fake one — no
+iframe, asserted, and no shortened map link, also asserted. If a map is ever drawn, `#course` is
+where it goes.
+
+**7. Its accordions are gone entirely, which is a bigger departure than it looks.** The demo has
+five collapsible panels in race information and the build has none — not open ones, none. Four
+of the five held content that lives on `/nn/2026/race-day/`, a page this work deliberately keeps
+and links to rather than absorbs, so filling them meant copying it. Once they hold summaries
+instead, the mechanism has no job: a disclosure widget exists to manage length, and two sentences
+have none. Five `<details open>` holding one paragraph each are five paragraphs wearing chevrons
+that never earn a click. The race-morning schedule, which is the one thing in that section a
+runner reads under time pressure, is open in the flow and was never a candidate for a panel.
+[ADR-024](../architecture/decisions/adr-024-one-entry-point-for-a-running.md) keeps the
+open-by-default reasoning on the record even though it no longer applies, because somebody will
+propose accordions here again.
+
 Two more the build does not take, both recorded at greater length elsewhere:
 `background-attachment: fixed` on the hero (already shipping, already a known iOS scroll-jank
 ticket, and not to be replicated anywhere new), and `--font-display: 'Nosifer', fantasy` — a
