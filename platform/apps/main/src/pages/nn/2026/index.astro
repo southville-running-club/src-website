@@ -154,15 +154,25 @@ const dateLine = race.date
     one, so `site.spec.ts` checks it in all three engines rather than trusting it. */
   }
   <nav class="nn-jump" aria-label="Sections of this page">
-    <details class="nn-jump-menu">
-      <summary>Sections</summary>
-      <ul class="nn-jump-links">
-        <li><a href="#race">Race</a></li>
-        <li><a href="#course">Course</a></li>
-        <li><a href="#race-info">Race info</a></li>
-        <li><a href="#spooktators">Spooktators</a></li>
-      </ul>
-    </details>
+    {
+      /* **`.nn-wrap` inside the landmark, not around it**, which is the shape `.nn-hero` and
+      `.nn-masthead` both use: the element that can carry a full-width background is the outer
+      one, and the inner one holds the content to the same measure as everything below it.
+      Without it the links sit hard against the left edge of the viewport at every width — a
+      contents list that is not aligned with the sections it lists reads as a stray fragment
+      rather than as part of the page. */
+    }
+    <div class="nn-wrap">
+      <details class="nn-jump-menu">
+        <summary>Sections</summary>
+        <ul class="nn-jump-links">
+          <li><a href="#race">Race</a></li>
+          <li><a href="#course">Course</a></li>
+          <li><a href="#race-info">Race info</a></li>
+          <li><a href="#spooktators">Spooktators</a></li>
+        </ul>
+      </details>
+    </div>
   </nav>
 
   <div class="nn-wrap nn-layout">
