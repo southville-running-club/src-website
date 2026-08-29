@@ -2905,15 +2905,6 @@ html:has(body.theme-nn) {
   line-height: 1.3;
 }
 
-.theme-nn .nn-closing .nn-placeholder {
-  /* On yellow the bone text and pus border of the standard placeholder both vanish. Ink on
-     pus is 10.93:1 and the border becomes ink at the same ratio. */
-  color: var(--nn-ink);
-  border-color: var(--nn-ink);
-  display: inline-block;
-  margin: 0 0 24px;
-}
-
 /* -------------------------------------------------------------------------------------
  * Narrow — one column, and one call to action
  * -------------------------------------------------------------------------------------
