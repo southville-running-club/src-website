@@ -178,9 +178,9 @@ async function makeEvent(
 
   if (withFee) {
     await query(
-      `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number, requires_permission)
-       values ($1, 'complimentary', 'Complimentary', 0, false, 'nn.entry.create'),
-              ($1, 'unaffiliated', 'Unaffiliated', 2000, false, null)`,
+      `insert into entries.fees (event_id, code, label, price_pence, requires_permission)
+       values ($1, 'complimentary', 'Complimentary', 0, 'nn.entry.create'),
+              ($1, 'unaffiliated', 'Unaffiliated', 2000, null)`,
       [event.id],
     );
   }

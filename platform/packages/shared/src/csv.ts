@@ -59,8 +59,8 @@ const NEEDS_QUOTES = /[",\r\n]|^\s|\s$/;
  * One field, escaped.
  *
  * `null` and `undefined` become an empty field rather than the words "null" or "undefined",
- * which is what an absent club or an absent England Athletics number should look like in a
- * column somebody is reading down.
+ * which is what an absent club should look like in a column
+ * somebody is reading down.
  */
 export function csvField(value: string | number | null | undefined): string {
   if (value === null || value === undefined) {

@@ -107,8 +107,8 @@ async function seedEvent(slug: string, capacity = 10): Promise<string> {
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-     values ($1, 'unaffiliated', 'Unaffiliated', 1700, false)`,
+    `insert into entries.fees (event_id, code, label, price_pence)
+     values ($1, 'unaffiliated', 'Unaffiliated', 1700)`,
     [rows[0]!.id],
   );
 
@@ -147,7 +147,6 @@ async function hold(slug: string, email = 'fixture@example.com'): Promise<Create
           date_of_birth: '1986-12-09',
           gender: 'female',
           club: null,
-          ea_number: null,
           emergency_contact_name: 'Margaret Hamilton',
           emergency_contact_phone: '0117 496 0000',
         },

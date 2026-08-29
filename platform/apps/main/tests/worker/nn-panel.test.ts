@@ -196,13 +196,11 @@ describe('the fee line', () => {
           code: 'unaffiliated',
           label: 'Unaffiliated',
           pricePence: 1700,
-          requiresEaNumber: false,
         },
         {
           code: 'affiliated',
           label: 'Affiliated',
           pricePence: 1500,
-          requiresEaNumber: true,
         },
       ]),
     ).toBe('£17.00 unaffiliated · £15.00 affiliated');
@@ -217,9 +215,8 @@ describe('the fee line', () => {
           code: 'unaffiliated',
           label: 'Unaffiliated',
           pricePence: 1700,
-          requiresEaNumber: false,
         },
-        { code: 'vi_guide', label: 'VI guide', pricePence: 0, requiresEaNumber: false },
+        { code: 'vi_guide', label: 'VI guide', pricePence: 0 },
       ]),
     ).toBe('£17.00 unaffiliated');
   });
@@ -244,10 +241,9 @@ describe('the entry fee on the year page', () => {
       code: 'unaffiliated',
       label: 'Unaffiliated',
       pricePence: 2000,
-      requiresEaNumber: false,
     },
-    { code: 'affiliated', label: 'Affiliated', pricePence: 1800, requiresEaNumber: true },
-    { code: 'vi_guide', label: 'VI guide', pricePence: 0, requiresEaNumber: false },
+    { code: 'affiliated', label: 'Affiliated', pricePence: 1800 },
+    { code: 'vi_guide', label: 'VI guide', pricePence: 0 },
   ];
 
   const render = async (view: NnEntryView): Promise<string> => {

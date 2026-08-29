@@ -199,7 +199,7 @@ cannot do is the point of its shape:
 | **Write to a different event than the slug names** | Every insert is scoped to the resolved row |
 | **Store medical notes without the separate consent** | Whatever the form sent |
 | **Enter without agreeing what the event requires** | `events.required_consents` names the keys; each must be present and json `true`. Refused as `consents_missing` |
-| **Take an affiliated place with no England Athletics number** | The fee says whether one is wanted, and it is compared. Refused as `ea_number_required`. **This was the Slice E finding** — until Slice G nothing consulted `fees.requires_ea_number` at all |
+| **Store an England Athletics number** | Nowhere, by any route. `entrants_ea_number_not_collected` refuses a value in the column and `fees_ea_number_not_collected` refuses a fee that would ask for one — [decision 007](../../../docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers). **The rule used to be the opposite of this**: an affiliated place with no number was refused as `ea_number_required`, and *that* was the Slice E finding — until Slice G nothing consulted `fees.requires_ea_number` at all |
 | **Escalate through an unpinned search_path** | `set search_path = ''` with every reference schema-qualified, as `entry_state()` already is. `citext` comparisons are done with `lower(...::text)` rather than by unpinning the path to reach the `extensions` operator |
 
 **It can hold places, though**, up to the whole field, for as long as a hold lasts — the same
@@ -221,6 +221,13 @@ affiliated entry with no England Athletics number, at £2 less, unverifiable. Th
 did require it. **Zod is the form's control, not the system's**, and it was found by accident
 while building a count for a dashboard.
 
+**That particular rule no longer exists**, because on 29 August 2026 the club stopped asking
+for the number at all — decision 007 and
+[ADR-023](../../../docs/architecture/decisions/adr-023-no-england-athletics-numbers.md). The
+finding is kept here because it is what this whole section is an answer to, and because the
+bypass it names is still the shape of the test: `entries-rules.test.ts` posts a number straight
+at PostgREST with the published key and asserts it reaches no column.
+
 Slice G audited every rule the club has by *attempting the bypass* with an anonymous client
 rather than by reading the code, and found eight more like it — including that the entry terms
 were not enforced at all, and that a medical note could be written against a purchase that
@@ -233,8 +240,8 @@ Three places, and which one a rule goes in is decided by what it needs to see:
 | | For | Why not somewhere else |
 | --- | --- | --- |
 | **A check constraint** | A rule about one row: a birth year at or after 1900, an emergency number with seven digits in it, an address with a domain, a consent value that is a boolean | It cannot see another table, so it cannot express most of the interesting ones |
-| **A trigger** | A rule spanning tables: the England Athletics number against its fee, the medical note against its consent, the consents against the event, the date of birth against the race date, the leg against the event's size | It only ever sees a write, so it can say nothing about the rows already there |
-| **The function** | The two a person needs a sentence about — `ea_number_required` and `consents_missing` — so the form can render words rather than a generic failure | It is one write path. The trigger is what covers every other |
+| **A trigger** | A rule spanning tables: the medical note against its consent, the consents against the event, the date of birth against the race date, the entrant against the event's minimum age, the leg against the event's size | It only ever sees a write, so it can say nothing about the rows already there |
+| **The function** | The ones a person needs a sentence about — `consents_missing`, `under_minimum_age`, `already_entered` — so the form can render words rather than a generic failure | It is one write path. The trigger is what covers every other |
 
 **The triggers raise `check_violation` on purpose**, so `create_pending_purchase`'s existing
 handler turns them into the structured refusal the Worker has rendered since Slice B rather

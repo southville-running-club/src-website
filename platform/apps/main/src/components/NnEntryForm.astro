@@ -31,13 +31,17 @@ import race from '../content/race.json';
  * painted onto which.
  */
 
-// The order on the page is the page's, and it is the mockup's: the affiliated entry first
-// because it is the one with a condition attached, then everyone else, then the guide's
-// place. `entry_state()` returns fees in its own stable order for anything rendering from
-// the array; nothing renders this list from data.
+// The order on the page is the page's, and it is the mockup's: the affiliated entry first,
+// then everyone else, then the guide's place. `entry_state()` returns fees in its own stable
+// order for anything rendering from the array; nothing renders this list from data.
 const FEES = [
   {
     code: 'affiliated',
+    // **A statement the runner makes, and nothing asks them to prove it.** The club stopped
+    // asking for England Athletics numbers on 29 August 2026 — see the note by the entry-type
+    // fieldset below — so this description is the whole of the question. What the club keeps
+    // is the right to ask, which is said in the privacy notice rather than here: a form that
+    // repeated it beside the radio would be reading as a threat over £2.
     description: 'You hold a current England Athletics registration through a club.',
   },
   {
@@ -78,7 +82,6 @@ const SUMMARY_LINKS = [
   ['genderIdentity', 'entry-gender-identity'],
   ['club', 'entry-club'],
   ['feeCode', 'entry-fee-affiliated'],
-  ['eaNumber', 'entry-ea-number'],
   ['discountCode', 'entry-discount-code'],
   ['emergencyName', 'entry-emergency-name'],
   ['emergencyPhone', 'entry-emergency-phone'],
@@ -741,68 +744,36 @@ const SUMMARY_LINKS = [
     </div>
 
     {
-      /* **The England Athletics box sits outside every fee card, and there is a cost on each
-      side of that.**
+      /* **The England Athletics box was here until 29 August 2026, and its absence is the
+      change.** The club decided to stop asking for and storing the number: a runner states
+      that they are affiliated and the club takes their word for it. Nothing here can verify a
+      number — England Athletics publishes no way to — so what the field bought was a
+      seven-digit string held against every affiliated runner, doing no work. What replaces it
+      is a sentence in the privacy notice reserving the club's right to ask somebody to produce
+      their number or other evidence of affiliation. The £18/£20 split is untouched, and the £2
+      gap is still ARC's Unattached Runner Levy rather than the club's money.
 
-      It used to live *inside* the affiliated card, which read well — the condition sat with
-      the choice it is a condition of. It cost two things. Hiding it removed 277px from
-      *above* the other two cards, so choosing a different entry type threw the card the
-      person had just chosen off the top of the screen: at 320px it went from y=271 to y=-7,
-      and the feedback for their own tap was the page jumping somewhere else. And it was the
-      page's only container nested inside another, which is what let `fieldOf` answer
-      "England Athletics number" for an entry-type *radio* and swallow the click entirely —
-      see the note on `fieldOf` below.
-
-      Below the cards, revealing and hiding it moves only what is below it and the cards never
-      move at all. **What is lost is the adjacency**: somebody choosing the affiliated entry
-      meets the box under all three cards rather than immediately beneath their choice. The
-      hint carries that instead, and it has to say so regardless — with scripting off the box
-      is visible whatever is selected, and the server is what decides.
-
-      **It ships hidden and the Worker reveals it**, exactly as the fee cards do, because
-      whether any entry type needs a number at all is `entries.fees.requires_ea_number`'s
-      answer rather than this file's. `data-entry-ea-field` carries the code of the fee that
-      requires one — empty here, written by the Worker — which is all the enhancement needs
-      and the only place that link is stated now that nesting no longer states it. */
+      **Two hard-won layout notes go with it, because they are about the shape and not about
+      the field.** The box lived *inside* the affiliated card first, which read well and cost
+      two defects: hiding it removed 277px from *above* the other two cards, so choosing a
+      different entry type threw the card somebody had just chosen off the top of the screen at
+      320px; and it was the page's only container nested inside another, which is what let
+      `fieldOf` answer "England Athletics number" for an entry-type *radio* and swallow the
+      click entirely — see the note on `fieldOf` below, which is still the rule. Moving it
+      below all three cards fixed both. **A conditional field goes after the group it is a
+      condition of, never inside it**, and nothing on this form is conditional on a fee any
+      more. */
     }
-    <div class="field nn-ea-field" data-entry-ea-field="" hidden>
-      <label class="field-label" for="entry-ea-number">England Athletics number</label>
-      {
-        /* **"Seven digits" is guidance and the check is 6 to 8.** Every number the club has
-      seen is seven; what the national range is below that is unknown, so the field stays
-      permissive and the words point at where to go and look. A false reject here blocks a
-      paying entrant at the worst possible moment, and the affiliated discount is spot-checked
-      by a human anyway. */
-      }
-      <p class="field-hint" id="entry-ea-hint">
-        Required if you choose the affiliated entry. Seven digits, on your England
-        Athletics registration email.{' '}
-        <strong>Nothing here checks it</strong>— England Athletics publishes no way to;
-        the club checks affiliated entries by hand against its own records.
-      </p>
-      <p class="field-error" id="entry-ea-error" data-entry-error="eaNumber" hidden></p>
-      <input
-        class="field-input"
-        id="entry-ea-number"
-        name="eaNumber"
-        type="text"
-        inputmode="numeric"
-        maxlength="8"
-        autocomplete="off"
-        aria-describedby="entry-ea-hint entry-ea-error"
-        data-entry-value="eaNumber"
-      />
-    </div>
 
     {
-      /* **The discount code, below the cards for the same reason the England Athletics box
-      is.** It is not a condition of any one entry type — a code decides for itself which fee
-      it applies to, and the database is the only thing that knows — so nesting it inside a
-      card would be a claim this file is not entitled to make, on top of moving the other two
-      whenever it collapsed.
+      /* **The discount code, below the cards for the reason the note above gives.** It is not
+      a condition of any one entry type — a code decides for itself which fee it applies to,
+      and the database is the only thing that knows — so nesting it inside a card would be a
+      claim this file is not entitled to make, on top of moving the other two whenever it
+      collapsed.
 
-      **Always visible, never revealed.** Unlike the fee cards and the England Athletics box,
-      nothing about this field depends on the event row: an event with no codes at all simply
+      **Always visible, never revealed.** Unlike the fee cards, nothing about this field
+      depends on the event row: an event with no codes at all simply
       refuses whatever is typed. Hiding it until a code exists would mean the Worker
       disclosing that one does, which is most of what somebody guessing wants to know.
 
@@ -911,7 +882,8 @@ const SUMMARY_LINKS = [
     they had to be filled in. `data-entry-guide-fields` is the whole of what the enhancement
     needs — a `hidden` attribute it toggles — and it wraps the fields rather than sitting
     inside them, so revealing them moves only what is below. That is the same rule the
-    England Athletics box was moved out of the affiliated card to obey. */
+    England Athletics box was moved out of the affiliated card to obey, and the reason it is
+    still worth stating now that the box itself is gone. */
   }
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Running with a guide</legend>
@@ -1348,11 +1320,11 @@ const SUMMARY_LINKS = [
    * Three things happen here and not one of them is load-bearing:
    *
    *   1. the age category appears as the date of birth and gender are typed;
-   *   2. the England Athletics box hides when another entry type is chosen;
+   *   2. the guide's fields appear once somebody says a guide is running with them;
    *   3. a message appears beside a field when leaving it, and a running total appears.
    *
    * With scripting off: the category is worked out by the server and shown on the outcome,
-   * the England Athletics box stays visible and the server decides whether it had to be
+   * the guide's fields are simply visible and the server decides whether they had to be
    * filled in, and every price is on its own card. **Nothing is unreachable and nothing is
    * unfinishable.** That is the requirement, and it is why this file may be deleted without
    * the form stopping working.
@@ -1398,7 +1370,6 @@ const SUMMARY_LINKS = [
       eventDate,
       minimumAge: minimumAgeRaw === '' ? null : Number(minimumAgeRaw),
       feeCodes: offeredFeeCodes(entryForm),
-      eaRequiredForFeeCodes: eaRequiredFeeCodes(entryForm),
     };
 
     const shown = new Set<NnEntryField>();
@@ -1412,13 +1383,11 @@ const SUMMARY_LINKS = [
     }
 
     updateCategory(entryForm, rules);
-    updateEaVisibility(entryForm);
     updateGuideVisibility(entryForm);
     updateTotal(entryForm);
 
     entryForm.addEventListener('change', () => {
       updateCategory(entryForm, rules);
-      updateEaVisibility(entryForm);
       updateGuideVisibility(entryForm);
       updateTotal(entryForm);
       revalidate(entryForm, rules, shown);
@@ -1448,28 +1417,6 @@ const SUMMARY_LINKS = [
       .map((card) => card.dataset.entryFee ?? '');
   }
 
-  /**
-   * The fee code an England Athletics number is a condition of, or `''` for none.
-   *
-   * **The Worker writes it, from `entries.fees.requires_ea_number`**, which is the only place
-   * that answer lives. It used to be read from where the box sat in the DOM — inside the card
-   * it belonged to — and that nesting is what made `fieldOf` ambiguous and what threw the
-   * chosen card off the screen when the box collapsed. The box is outside every card now and
-   * states the link on one attribute instead.
-   */
-  function eaFeeCode(entryForm: HTMLFormElement): string {
-    const field = entryForm.querySelector<HTMLElement>('[data-entry-ea-field]');
-
-    return field?.dataset.entryEaField ?? '';
-  }
-
-  /** Which fee needs an England Athletics number — none at all, unless the Worker named one. */
-  function eaRequiredFeeCodes(entryForm: HTMLFormElement): string[] {
-    const code = eaFeeCode(entryForm);
-
-    return code === '' ? [] : [code];
-  }
-
   function values(entryForm: HTMLFormElement): Record<string, unknown> {
     return Object.fromEntries(new FormData(entryForm));
   }
@@ -1486,9 +1433,10 @@ const SUMMARY_LINKS = [
    * The error element's own `data-entry-error`, for the control that was just left.
    *
    * **A message inside a *nested* container belongs to that container, not to this one.**
-   * There is one nested pair on the page and it is the England Athletics box: a `.field`
-   * inside the affiliated `.nn-fee` card, rendered there because it belongs to that choice
-   * and nowhere else. A plain descendant search from the affiliated *radio* therefore found
+   * There is no nested pair on the page today — the one there was is the England Athletics
+   * box, which the club stopped asking for on 29 August 2026 — and the rule is kept because
+   * the next conditional field will re-create the shape. The box was a `.field` inside the
+   * affiliated `.nn-fee` card. A plain descendant search from the affiliated *radio* found
    * `eaNumber`, and read "they have finished with the entry type" as "they have finished with
    * the England Athletics number". Two things followed, and the second is the expensive one:
    *
@@ -1598,33 +1546,10 @@ const SUMMARY_LINKS = [
   }
 
   /**
-   * Hide the England Athletics box when another entry type is chosen.
-   *
-   * **The only mechanism that hides it, and it is not the only mechanism that makes it
-   * optional.** The Worker validates it conditionally whatever the browser did, so a person
-   * without this script sees the box, leaves it empty, and is not asked about it.
-   */
-  function updateEaVisibility(entryForm: HTMLFormElement): void {
-    const field = entryForm.querySelector<HTMLElement>('[data-entry-ea-field]');
-    const code = eaFeeCode(entryForm);
-    const radio =
-      code === ''
-        ? null
-        : entryForm.querySelector<HTMLInputElement>(`.nn-fee-radio[value="${code}"]`);
-
-    // No box, or no entry type that needs one: whatever the Worker decided stands.
-    if (!field || !radio) {
-      return;
-    }
-
-    field.hidden = !radio.checked;
-  }
-
-  /**
    * Show the guide's fields once somebody says a guide is running with them.
    *
-   * **The same arrangement as the England Athletics box, and for the same two reasons.** The
-   * Worker validates them conditionally whatever the browser did, so somebody without this
+   * **The arrangement the England Athletics box ended up in, and for the same two reasons.**
+   * The Worker validates them conditionally whatever the browser did, so somebody without this
    * script sees the fields, leaves them empty, and is never asked about them — and the
    * wrappers sit *after* the checkbox rather than around it, so revealing them moves only
    * what is below and never the control that was just pressed.

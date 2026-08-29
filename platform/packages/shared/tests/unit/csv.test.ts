@@ -46,7 +46,7 @@ describe('csvField', () => {
   });
 
   it('renders an absent value as an empty field, not as the word null', () => {
-    // An entrant with no club and no England Athletics number is the ordinary case, and a
+    // An entrant who named no club is the ordinary case in that column, and a
     // column of the word "null" is how a spreadsheet gets retyped by hand.
     expect(csvField(null)).toBe('');
     expect(csvField(undefined)).toBe('');

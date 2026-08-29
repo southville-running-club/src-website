@@ -32,9 +32,12 @@ import type { EntryState } from './entry-state';
  *
  * `intake.nn_interest` takes three fields and adding a fourth is a committee decision. That
  * rule has not been relaxed — the committee has *made* the decision, and this is the list it
- * made: name, email, date of birth, race category, gender, club, entry type, England
- * Athletics number, emergency contact, and optional medical information under its own
- * separate consent. Anything not on that list is still a stop-and-ask.
+ * made: name, email, date of birth, race category, gender, club, entry type,
+ * emergency contact, and optional medical information under its own separate consent.
+ * Anything not on that list is still a stop-and-ask.
+ *
+ * **The England Athletics number came off that list on 29 August 2026**, which is the only
+ * time a field has ever gone the other way. It is described below.
  *
  * ## Race category and gender are two questions, and that is the fifteenth field
  *
@@ -46,13 +49,25 @@ import type { EntryState } from './entry-state';
  * by. It is the same shape `/account/details/` has collected since #61, and the split is what
  * the GSS harmonised standard and HL7's Gender Harmony model both do.
  *
- * ## The England Athletics number is checked, not verified
+ * ## The England Athletics number is not asked for and not held
  *
- * **England Athletics publishes no verification API.** The number is collected, its format
- * is checked, and that is the whole of what any software here can say about it. The £2
- * affiliated discount is spot-checked afterwards by a human against the club's myAthletics
- * portal access. Nothing in this repository should be read as confirming that a number is
- * real, belongs to the person who typed it, or is currently registered.
+ * **Committee decision, 29 August 2026.** A runner states that they are affiliated and the
+ * club takes their word for it. Nothing here asks for a number, nothing stores one, and
+ * `entries.entrants.ea_number` is null on every row behind a check constraint that keeps it
+ * that way.
+ *
+ * The argument that ended it was that the number never bought what it looked like it bought.
+ * **England Athletics publishes no verification API**, so the number was collected, its
+ * format was checked, and that was the whole of what any software here could say about it —
+ * a seven-digit string somebody typed, held against every runner who took the affiliated
+ * price, doing no work. Under ARC Rule 21(2)(b) the club now has no record of *who* claimed
+ * affiliation, only that they paid the affiliated £18, and the committee accepted that. What
+ * replaces it is a sentence in the privacy notice: the club reserves the right to ask a
+ * runner to produce their number or other evidence of affiliation.
+ *
+ * **The £18/£20 split is untouched**, and so is the £2 gap, which is ARC's Unattached Runner
+ * Levy rather than the club's money. Which fee is the affiliated one is `entries.fees`'
+ * business and is nothing about the person entering.
  *
  * @see docs/architecture/principles.md#personal-data-is-minimised-at-the-boundary
  */
@@ -76,9 +91,6 @@ export const NN_ENTRY_EARLIEST_BIRTH_YEAR = 1900;
 
 /** What `entries.discount_codes.code`'s own check constraint allows. */
 export const NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH = 40;
-
-/** What the `entrants.ea_number` check constraint allows. Format only — see the note above. */
-export const EA_NUMBER_PATTERN = /^[0-9]{6,8}$/;
 
 /** Enough digits to be a phone number, whatever spaces and brackets are around them. */
 const MINIMUM_PHONE_DIGITS = 7;
@@ -137,7 +149,6 @@ export const NN_ENTRY_FIELDS = [
   'genderIdentity',
   'club',
   'feeCode',
-  'eaNumber',
   'discountCode',
   'emergencyName',
   'emergencyPhone',
@@ -196,17 +207,6 @@ const MESSAGES = {
 
   feeMissing: 'Choose an entry type.',
   feeUnknown: 'Choose one of the entry types listed.',
-
-  eaMissing:
-    'Enter your England Athletics number, or choose the unaffiliated entry instead.',
-  // **Guidance, not a rule, and the difference is deliberate.** Every number the club has
-  // seen is seven digits, and the national range below that is unknown — so the check stays
-  // at 6 to 8 while the message says what somebody should actually go and look at. Quoting
-  // "6 to 8 digits" as though it were the rule invites somebody with a genuine six-digit
-  // number to doubt it, and a false reject here blocks a paying entrant at the worst
-  // possible moment.
-  eaFormat:
-    'England Athletics numbers are seven digits — check the one on your registration email.',
 
   emergencyNameMissing:
     'Enter the name of somebody the club can contact in an emergency.',
@@ -298,8 +298,6 @@ export interface NnEntryRules {
   minimumAge: number | null;
   /** Which fee codes the form is offering. A code not in this list is not a valid answer. */
   feeCodes: readonly string[];
-  /** The subset of those codes for which an England Athletics number is required. */
-  eaRequiredForFeeCodes: readonly string[];
 }
 
 /** Lifts the rules straight off what `entries.entry_state()` returned, so nothing restates them. */
@@ -308,9 +306,6 @@ export function entryRulesFrom(state: EntryState): NnEntryRules {
     eventDate: state.eventDate,
     minimumAge: state.minimumAge,
     feeCodes: state.fees.map((fee) => fee.code),
-    eaRequiredForFeeCodes: state.fees
-      .filter((fee) => fee.requiresEaNumber)
-      .map((fee) => fee.code),
   };
 }
 
@@ -321,11 +316,10 @@ export function entryRulesFrom(state: EntryState): NnEntryRules {
 /**
  * The person running with a visually impaired entrant.
  *
- * **Everything a runner gives, minus the two things that are about money.** No England
- * Athletics number, because that exists to justify the £2 affiliated rebate and a guide is not
- * paying anything; no club, because nothing derives from it for somebody who is in no
- * category. What is left is what the club needs about anybody who is on a road in the dark:
- * who they are, how old they are, and who to ring.
+ * **Everything a runner gives, minus the one thing that is about money.** No club, because
+ * nothing derives from it for somebody who is in no category. What is left is what the club
+ * needs about anybody who is on a road in the dark: who they are, how old they are, and who
+ * to ring.
  */
 export interface NnEntryGuide {
   firstName: string;
@@ -358,8 +352,6 @@ export interface NnEntry {
   genderIdentity: string | null;
   club: string | null;
   feeCode: string;
-  /** Null unless the chosen fee requires one — see the dropping rule in `parseNnEntry`. */
-  eaNumber: string | null;
   emergencyName: string;
   emergencyPhone: string;
   /** Null whenever the separate medical consent was not given. Never stored otherwise. */
@@ -429,7 +421,6 @@ const TEXT_KEYS = [
   'genderIdentity',
   'club',
   'feeCode',
-  'eaNumber',
   'discountCode',
   'emergencyName',
   'emergencyPhone',
@@ -527,10 +518,6 @@ function nnEntryObject(rules: NnEntryRules) {
       ),
 
       feeCode: z.string(MESSAGES.feeMissing).trim().min(1, MESSAGES.feeMissing),
-
-      // Never required by itself. Whether this field is required at all depends on the fee
-      // chosen, which is a cross-field rule and is applied below.
-      eaNumber: optionalText,
 
       // **Never required, and never checked for existence here.** Whether a code is real,
       // whether it has been withdrawn, whether its twenty-two places are gone and whether it
@@ -640,20 +627,12 @@ function nnEntryObject(rules: NnEntryRules) {
         fail('gender', MESSAGES.genderUnknown);
       }
 
-      // --- the entry type, and the number that depends on it ---------------------------------
+      // --- the entry type ---------------------------------------------------------------------
+      // **Nothing hangs off which one was chosen any more.** It used to decide whether an
+      // England Athletics number was required; the club stopped asking for one on 29 August
+      // 2026, so the entry type is now a price and nothing else about the person.
       if (values.feeCode && !rules.feeCodes.includes(values.feeCode)) {
         fail('feeCode', MESSAGES.feeUnknown);
-      }
-
-      // **Conditional on the server, always present in the DOM.** The field is rendered
-      // whatever is selected and JavaScript only hides it; a browser with scripting off shows
-      // it, and this is what decides whether it had to be filled in.
-      if (rules.eaRequiredForFeeCodes.includes(values.feeCode)) {
-        if (values.eaNumber === undefined) {
-          fail('eaNumber', MESSAGES.eaMissing);
-        } else if (!EA_NUMBER_PATTERN.test(values.eaNumber)) {
-          fail('eaNumber', MESSAGES.eaFormat);
-        }
       }
 
       // --- the names ------------------------------------------------------------------------
@@ -956,14 +935,13 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
     day: Number(values.dobDay),
   };
 
-  // **Minimised here, before anything can store it.** Two fields are dropped rather than
-  // carried:
+  // **Minimised here, before anything can store it.** One field is dropped rather than
+  // carried: the medical notes, when the separate consent was not given. The schema already
+  // refuses that combination, so this is the second of two locks rather than the only one.
   //
-  //   * the England Athletics number when the chosen fee does not want one — it identifies a
-  //     person and has no purpose against an unaffiliated entry, so it does not travel;
-  //   * the medical notes when the separate consent was not given. The schema already refuses
-  //     that combination, so this is the second of two locks rather than the only one.
-  const eaRequired = rules.eaRequiredForFeeCodes.includes(values.feeCode);
+  // There were two until 29 August 2026. The other was the England Athletics number against a
+  // fee that did not want one, and it is not dropped here now because it is not read here at
+  // all — the club stopped asking, so there is nothing arriving to drop.
 
   // **Built only when the declaration was made, so an untouched set of guide inputs cannot
   // become a second person on the entry.** `superRefine` has already refused a ticked box with
@@ -1011,7 +989,6 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       genderIdentity: values.genderIdentity ?? null,
       club: values.club ?? null,
       feeCode: values.feeCode,
-      eaNumber: eaRequired ? (values.eaNumber ?? null) : null,
       emergencyName: values.emergencyName,
       emergencyPhone: values.emergencyPhone,
       medicalNotes: values.medicalConsent ? (values.medicalNotes ?? null) : null,

@@ -195,9 +195,9 @@ async function makeEvent(
   );
 
   await query(
-    `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number, requires_permission)
-     values ($1, 'unaffiliated', 'Unaffiliated', 1700, false, null),
-            ($1, 'tester', 'Tester (do not use)', 1, false, $2)`,
+    `insert into entries.fees (event_id, code, label, price_pence, requires_permission)
+     values ($1, 'unaffiliated', 'Unaffiliated', 1700, null),
+            ($1, 'tester', 'Tester (do not use)', 1, $2)`,
     [event.id, EARLY],
   );
 
@@ -269,7 +269,6 @@ function entrant(): Record<string, unknown> {
     date_of_birth: '1990-01-01',
     gender: 'female',
     club: null,
-    ea_number: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
     leg: null,
@@ -732,8 +731,8 @@ describe('cancelling an entry', () => {
     );
 
     await query(
-      `insert into entries.fees (event_id, code, label, price_pence, requires_ea_number)
-       values ($1, 'unaffiliated', 'Unaffiliated', 1700, false)`,
+      `insert into entries.fees (event_id, code, label, price_pence)
+       values ($1, 'unaffiliated', 'Unaffiliated', 1700)`,
       [event.id],
     );
 
@@ -1096,7 +1095,7 @@ describe('transferring a place to somebody else', () => {
   });
 
   it('clears the previous runner’s recorded gender rather than carrying it across', async () => {
-    // **The same rule as the medical note and the England Athletics number — ADR-020.** How
+    // **The same rule as the medical note — ADR-020.** How
     // somebody describes their gender is a fact about *them*; leaving it on the row would file
     // one person's answer under another person's name, which is the worse half of the defect
     // the column was added to fix.

@@ -42,8 +42,6 @@ export interface EntryFee {
   code: string;
   label: string;
   pricePence: number;
-  /** Whether choosing this fee makes the England Athletics number a required field. */
-  requiresEaNumber: boolean;
 }
 
 export interface EntryState {
@@ -70,7 +68,11 @@ const feeShape = z.object({
   code: z.string().min(1),
   label: z.string().min(1),
   price_pence: z.number().int().min(0),
-  requires_ea_number: z.boolean(),
+  // **`requires_ea_number` is still on the wire and is deliberately not parsed.** The club
+  // stopped asking for England Athletics numbers on 29 August 2026 and every fee row is false;
+  // the column survives only until the contract step, so reading it here would be reading a
+  // fact about nothing. Zod strips a key it is not asked for, so the parse is unaffected
+  // whichever side of that migration the database is on.
 });
 
 const entryStateShape = z.object({
@@ -194,7 +196,6 @@ function readEntryState(
         code: fee.code,
         label: fee.label,
         pricePence: fee.price_pence,
-        requiresEaNumber: fee.requires_ea_number,
       })),
     },
   };

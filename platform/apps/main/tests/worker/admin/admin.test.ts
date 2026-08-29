@@ -15,7 +15,7 @@ import {
   NN_ADMIN_EMAIL,
   OVER_ENTRANT_ID,
   PEOPLE_ADMIN_EMAIL,
-  PAID_EA_NUMBER,
+  NEVER_STORED_EA_NUMBER,
   PAID_ENTRANT_ID,
   PAID_NON_ASCII_LAST_NAME,
   SUPER_ADMIN_EMAIL,
@@ -844,11 +844,16 @@ describe('the entries list', () => {
     expect(body).not.toContain('06/12/1986');
   });
 
-  it('shows the England Athletics number for an affiliated entry', async () => {
+  it('shows no England Athletics number, and no column that would hold one', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    // The £2 check nobody has been able to do since 2018.
-    expect(body).toContain(PAID_EA_NUMBER);
+    // **Both halves, because either alone passes on a broken page.** Asserting the header is
+    // gone would pass on a page still printing numbers in the stacked phone summary; asserting
+    // no number appears would pass on a page keeping an empty column for somebody to fill in.
+    // The number itself is one nothing can store — `entrants_ea_number_not_collected` — so it
+    // is a value that must be absent rather than one the fixture happens not to have seeded.
+    expect(body).not.toContain('EA number');
+    expect(body).not.toContain(NEVER_STORED_EA_NUMBER);
   });
 
   it('shows no entrant’s email address anywhere', async () => {
@@ -966,15 +971,15 @@ describe('the entries list', () => {
  *
  * **Every figure is asserted against the seeded rows rather than against a snapshot.** The
  * fixtures are six purchases on the oversold event — three paid (one of them flagged
- * `over_capacity`, one of them affiliated with no England Athletics number), one live hold,
- * one expired hold and one refund — so each expectation below is arithmetic somebody can check
- * against `admin-db.ts` rather than a number copied out of a passing run.
+ * `over_capacity`), one live hold, one expired hold and one refund — so each expectation below
+ * is arithmetic somebody can check against `admin-db.ts` rather than a number copied out of a
+ * passing run.
  */
 describe('where the race stands', () => {
   it('states the breakdown the legend claims, from the rows that were seeded', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    // Three paid: Nwosu, Sørensen (flagged) and Pemberton (no EA number).
+    // Three paid: Nwosu, Sørensen (flagged) and Pemberton.
     expect(body).toContain('>3</span> paid');
     // One of those three is over capacity.
     expect(body).toContain('>1</span> over capacity');
@@ -1005,11 +1010,16 @@ describe('where the race stands', () => {
     expect(body).toContain('one month after the race');
   });
 
-  it('names the affiliated claim that gave no number', async () => {
+  it('counts the affiliated entries and claims nothing about checking them', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    expect(body).toContain('without giving a number');
-    expect(body).toContain('claimed the affiliated price');
+    // **The panel used to warn about affiliated entries with no number.** Every affiliated
+    // entry is one of those since 29 August 2026, and correctly so — the club takes a runner's
+    // word for it. The count survives because it is how many entries owe no Unattached Runner
+    // Levy under ARC Rule 21(2)(b), which a treasurer has to be able to produce.
+    expect(body).toContain('Affiliated entries');
+    expect(body).toContain('paid entries took');
+    expect(body).not.toContain('without giving a number');
   });
 
   it('says the closing time is undecided rather than inventing one', async () => {
@@ -1125,7 +1135,6 @@ describe('the filters', () => {
         'Nwosu',
         'Adjei',
         PAID_NON_ASCII_LAST_NAME,
-        PAID_EA_NUMBER,
         'example.com',
       ]) {
         expect(href, `${personal} must not appear in ${href}`).not.toContain(personal);
@@ -1314,14 +1323,21 @@ describe('the exports', () => {
   /** `EF BB BF` — the UTF-8 encoding of U+FEFF, which is what is actually sent. */
   const UTF8_BOM = [0xef, 0xbb, 0xbf];
 
-  it('gives the England Athletics check exactly its columns', async () => {
+  it('gives the affiliated list exactly its columns, and no number column', async () => {
     const { text } = await csv('ea');
 
+    // **The file kept its job and lost its subject.** It evidenced the £2 check against the
+    // club's myAthletics access; nobody is asked for a number now, so what it answers is how
+    // many entries took the affiliated price — the count ARC Rule 21(2)(b)'s Unattached Runner
+    // Levy is assessed against, and the only document that says so.
     expect(text.split('\r\n')[0]).toBe(
-      '﻿Last name,First name,Club,EA number,Entry type,Paid (pence)',
+      '﻿Last name,First name,Club,Entry type,Paid (pence)',
     );
-    expect(text).toContain(PAID_EA_NUMBER);
-    // No emergency contact and no note: a membership secretary is comparing numbers.
+    expect(text).not.toContain('EA number');
+    expect(text).not.toContain(NEVER_STORED_EA_NUMBER);
+    // The affiliated entries are on it, which is the half an empty file would also pass.
+    expect(text).toContain('Nwosu');
+    // No emergency contact and no note: this is a count of entries, not a race-day document.
     expect(text).not.toContain('Kin ');
     expect(text).not.toContain('inhaler');
   });

@@ -239,10 +239,8 @@ export interface AdminEntry {
    * person reading the page.
    */
   discountCode: string | null;
-  eaNumber: string | null;
   feeCode: string;
   feeLabel: string;
-  requiresEaNumber: boolean;
   amountPence: number;
   status: EntryStatus;
   /** Non-null means somebody has to look at this row. `over_capacity` is the loud one. */
@@ -325,15 +323,19 @@ export interface AdminEventFigures {
   feesPence: number;
   /** How many paid entrants wrote something. **A count, never a note.** */
   medicalCount: number;
-  affiliated: number;
   /**
-   * Claimed a fee requiring an England Athletics number, and gave none.
+   * How many paid entrants took the affiliated price.
    *
-   * **Reachable, and not by a legacy row.** `nn-entry.ts` requires the number, but that is the
-   * form's control — `create_pending_purchase()` writes `ea_number` through unchecked and is
-   * granted to anon. See the migration header.
+   * **A count of the fee, and since 29 August 2026 that is all it can be.** The club stopped
+   * asking for England Athletics numbers, so there is nothing to check an affiliated entry
+   * against and nothing else this figure could mean. It still matters: it is the number of
+   * entries the club owes no Unattached Runner Levy on under ARC Rule 21(2)(b).
+   *
+   * `affiliatedMissingEa` sat beside it until the same day and is gone. It counted affiliated
+   * entries with no number against them, which is now every affiliated entry, so the figure
+   * had stopped being able to say anything.
    */
-  affiliatedMissingEa: number;
+  affiliated: number;
   /** The interval the deletion job enforces, as Postgres renders it (`1 mon`). */
   medicalRetention: string;
   /**
@@ -414,10 +416,12 @@ const entryShape = z.object({
   // Same `.catch` reasoning as every optional field here: a Worker deployed ahead of its
   // migration renders the row rather than refusing the page.
   discount_code: z.string().nullable().catch(null),
-  ea_number: z.string().nullable(),
+  // **`ea_number` and `requires_ea_number` are still on the wire and are deliberately not
+  // parsed.** `read_entry_list()` goes on emitting both until the contract step, so that a
+  // Worker built before 29 August 2026 finds the keys it requires; this build has nothing to
+  // do with either, and Zod strips a key it is not asked for.
   fee_code: z.string(),
   fee_label: z.string(),
-  requires_ea_number: z.boolean(),
   amount_pence: z.number().int(),
   // **`.catch` rather than a hard failure.** Nothing sequences a migration against the deploy,
   // so a fifth status added one day must degrade to a row that renders rather than to a page
@@ -491,7 +495,7 @@ const figuresShape = z.object({
   fees_pence: z.number().int().min(0),
   medical_count: z.number().int().min(0),
   affiliated: z.number().int().min(0),
-  affiliated_missing_ea: z.number().int().min(0),
+  // `affiliated_missing_ea` is emitted as a literal zero and is not read; see the type above.
   medical_retention: z.string().min(1),
   medical_delete_after: z.string().min(1),
 });
@@ -515,7 +519,6 @@ function readFigures(rawEvent: unknown): AdminEventFigures | null {
     feesPence: parsed.data.fees_pence,
     medicalCount: parsed.data.medical_count,
     affiliated: parsed.data.affiliated,
-    affiliatedMissingEa: parsed.data.affiliated_missing_ea,
     medicalRetention: parsed.data.medical_retention,
     medicalDeleteAfter: parsed.data.medical_delete_after,
   };
@@ -563,10 +566,8 @@ function parseEntryList(
       genderIdentity: entry.gender_identity,
       role: entry.role,
       discountCode: entry.discount_code,
-      eaNumber: entry.ea_number,
       feeCode: entry.fee_code,
       feeLabel: entry.fee_label,
-      requiresEaNumber: entry.requires_ea_number,
       amountPence: entry.amount_pence,
       status: entry.status,
       attention: entry.attention,
@@ -792,10 +793,20 @@ export async function fetchMedicalNote(
 /**
  * What each export is for, and it is the reason each is separate.
  *
- *   `ea`          the £2 England Athletics check. Numbers and names, no contact details.
+ *   `ea`          who took the affiliated price. Names and fees, no contact details.
  *   `start-list`  race day. Categories and **emergency contacts**, which are needed at the
  *                 finish line and nowhere else.
  *   `medical`     special category data, on its own, taken on purpose.
+ *
+ * **The `ea` export kept its name and lost its subject on 29 August 2026.** It was the £2
+ * England Athletics check: a human reading numbers against the club's myAthletics access.
+ * Nobody is asked for a number any more, so there is nothing to check — but the club still
+ * has to be able to say how many affiliated entries there were, because that is the count ARC
+ * Rule 21(2)(b)'s Unattached Runner Levy is assessed against, and this file is the only place
+ * that answers it as something a treasurer can keep. So the file survives without the column
+ * it was named after. Removing it would have taken the answer with it; the kind is not
+ * renamed because `ea` is in a published runbook and in the audit trail's `action` list, and
+ * a rename is a widened closed list for no gain.
  */
 export const EXPORT_KINDS = ['ea', 'start-list', 'medical'] as const;
 
@@ -815,7 +826,6 @@ export interface EaExportRow {
   lastName: string;
   firstName: string;
   club: string | null;
-  eaNumber: string | null;
   feeLabel: string;
   amountPence: number;
 }
@@ -862,7 +872,8 @@ const eaRowShape = z.object({
   last_name: z.string(),
   first_name: z.string(),
   club: z.string().nullable(),
-  ea_number: z.string().nullable(),
+  // `ea_number` is still emitted, null on every row, and is deliberately not parsed — the
+  // contract step drops it from the read. See the note above `EXPORT_KINDS`.
   fee_label: z.string(),
   amount_pence: z.number().int(),
 });
@@ -931,7 +942,6 @@ function parseExport(
               lastName: row.last_name,
               firstName: row.first_name,
               club: row.club,
-              eaNumber: row.ea_number,
               feeLabel: row.fee_label,
               amountPence: row.amount_pence,
             })),
@@ -1107,19 +1117,23 @@ export interface CancellablePurchase {
  * twice is an ordinary thing to do, and "that does not exist" is a lie about what happened.
  */
 export type CancelResult<T> =
-  | ({ status: 'ok' } & T)
-  | { status: 'already-cancelled' }
-  /**
-   * The fee this place was bought on requires an England Athletics number and the transfer
-   * form did not carry one.
-   *
-   * **Its own outcome for the same reason `already-cancelled` is.** Collapsed into `not-found`
-   * it is indistinguishable from "that entry does not exist" — and before it existed at all the
-   * refusal arrived as a raised `check_violation` that `readCancelEnvelope` could only report
-   * as `unavailable`, so every affiliated transfer told a volunteer the database was down.
-   */
-  | { status: 'ea-number-required' }
-  | AdminFailure;
+  ({ status: 'ok' } & T) | { status: 'already-cancelled' } | AdminFailure;
+
+/**
+ * **`ea-number-required` was an outcome here until 29 August 2026, and its removal fixes a
+ * live defect rather than tidying one away.**
+ *
+ * An affiliated place could not be transferred at all. `transfer_entry()` cleared the previous
+ * runner's number — rightly, since it identifies whoever registered it — and
+ * `assert_entrant_rules()` enforced a biconditional, so on the fee the club sells most of the
+ * update raised `check_violation` and a volunteer was told the database could not be reached.
+ * `ea_number_required` was the refusal that replaced the false outage, and asking the new
+ * runner for a number of their own was the price of it.
+ *
+ * The club stopped asking for numbers, so no fee requires one, so the refusal cannot happen
+ * and the transfer simply works. The branch is still in the SQL function, unreachable, until
+ * the contract step takes the argument with it.
+ */
 
 function readCancelEnvelope<T>(
   data: unknown,
@@ -1149,10 +1163,6 @@ function readCancelEnvelope<T>(
 
     if (envelope.data.reason === 'already_cancelled') {
       return { status: 'already-cancelled' };
-    }
-
-    if (envelope.data.reason === 'ea_number_required') {
-      return { status: 'ea-number-required' };
     }
 
     return { status: 'not-found' };
@@ -1226,15 +1236,6 @@ export interface TransferTo {
   club: string | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
-  /**
-   * **The new runner's own number, never the previous runner's.**
-   *
-   * Null when they did not give one, which the function refuses with `ea_number_required` if the
-   * fee this place was bought on needs one, and drops if it does not. The Worker cannot decide
-   * that for itself — the transfer form does not know which fee the purchase was on, and the fee
-   * is read from the purchase rather than from anything the caller passes.
-   */
-  eaNumber: string | null;
 }
 
 export interface TransferredEntry {
@@ -1273,10 +1274,12 @@ export async function transferEntry(
       p_club: to.club ?? '',
       p_emergency_contact_name: to.emergencyContactName,
       p_emergency_contact_phone: to.emergencyContactPhone,
-      // Empty string rather than null, for the reason `p_club` above gives: the generated
-      // argument type is required and non-nullable, and the function turns an empty string back
-      // into null with `nullif(btrim(coalesce(...)))`.
-      p_ea_number: to.eaNumber ?? '',
+      // **Nine arguments, not ten, and that picks the other overload on purpose.**
+      // `transfer_entry()` has a ten-argument form taking `p_ea_number` and a nine-argument
+      // wrapper that delegates with a null one. The club stopped asking for numbers on 29
+      // August 2026, so this build has none to send and the two forms now behave identically —
+      // naming nine says what is true rather than sending an empty string that means nothing.
+      // The contract step drops the ten-argument form.
     });
 
     return readCancelEnvelope(data, error, 'transfer_entry', (value) => {
@@ -1381,9 +1384,6 @@ export async function createManualEntry(
     gender: person.gender,
     gender_identity: null,
     club: person.club,
-    // Never on a complimentary place: the number justifies the affiliated rebate and nothing
-    // here was charged.
-    ea_number: null,
     leg: null,
     emergency_contact_name: person.emergencyContactName,
     emergency_contact_phone: person.emergencyContactPhone,

@@ -153,10 +153,12 @@ function render(message: OutboxMessage): RenderedEmail | null {
           '',
           'You can see this entry any time by signing in at https://new.southvillerunningclub.co.uk/account/entries/ — if you do not have an account yet, register with this email address and your entry will be there.',
           '',
-          // The transfer clears the previous runner's England Athletics number, so the new
-          // runner's is missing and only they can supply it.
-          'If you are affiliated to England Athletics and want your affiliated status recorded against this place, reply to this email with your registration number.',
-          '',
+          // **Nothing is asked for here any more.** This line used to ask the new runner to
+          // reply with their England Athletics number, because the transfer cleared the
+          // previous runner's and only they could supply it. The club stopped asking for and
+          // holding numbers on 29 August 2026, so asking would be collecting something nothing
+          // can store — and an email that asks for a reply nobody acts on is worse than no
+          // line at all. What the place was bought at does not change on a transfer.
           signOff,
         ].join('\n'),
       };

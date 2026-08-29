@@ -23,7 +23,6 @@ const RULES: NnEntryRules = {
   eventDate: { year: 2026, month: 11, day: 1 },
   minimumAge: 18,
   feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
-  eaRequiredForFeeCodes: ['affiliated'],
 };
 
 /** An event that turns nobody away on age — the shape `minimum_age is null` produces. */
@@ -69,7 +68,6 @@ describe('a submission with nothing wrong with it', () => {
       gender: 'female',
       club: null,
       feeCode: 'unaffiliated',
-      eaNumber: null,
       medicalNotes: null,
     });
     // **`vi` is present and false rather than absent.** The database reads this key to decide
@@ -316,56 +314,29 @@ describe('the entry type, and the number that hangs off it', () => {
     );
   });
 
-  it('requires an England Athletics number for the affiliated entry', () => {
-    expect(errorOn(good({ feeCode: 'affiliated' }))?.eaNumber).toBe(
-      'Enter your England Athletics number, or choose the unaffiliated entry instead.',
-    );
+  it('asks the affiliated entry for nothing beyond the entry type', () => {
+    // **The committee stopped asking for England Athletics numbers on 29 August 2026.** This
+    // used to refuse an affiliated entry with no number against it, and refusing one is now
+    // the defect: a runner states that they are affiliated and the club takes their word for
+    // it. What the club keeps is the right to ask somebody to produce a number, which is a
+    // sentence in the privacy notice rather than a field on a form.
+    expect(parseNnEntry(good({ feeCode: 'affiliated' }), RULES).ok).toBe(true);
   });
 
-  it('checks the format of that number, and only the format', () => {
-    // **England Athletics publishes no verification API.** A well-formed number is accepted
-    // here and spot-checked by a human later; nothing in this repository confirms that a
-    // number is real or belongs to whoever typed it.
-    //
-    // **The message says seven and the check allows six to eight, and that gap is the
-    // decision.** Every number the club has seen is seven digits; what the national range is
-    // below that is unknown, so the words point somebody at their registration email while
-    // the check stays permissive. A false reject blocks a paying entrant at the worst
-    // possible moment, and the six-digit case below is exactly the one that would be lost.
-    expect(errorOn(good({ feeCode: 'affiliated', eaNumber: 'ABC1234' }))?.eaNumber).toBe(
-      'England Athletics numbers are seven digits — check the one on your registration email.',
-    );
-
-    for (const permitted of ['123456', '1234567', '12345678']) {
-      expect(
-        errorOn(good({ feeCode: 'affiliated', eaNumber: permitted }))?.eaNumber,
-      ).toBeUndefined();
-    }
-
-    expect(
-      errorOn(good({ feeCode: 'affiliated', eaNumber: '12345' }))?.eaNumber,
-    ).toBeDefined();
-    expect(
-      errorOn(good({ feeCode: 'affiliated', eaNumber: '123456789' }))?.eaNumber,
-    ).toBeDefined();
-
-    const fine = parseNnEntry(
-      good({ feeCode: 'affiliated', eaNumber: '1234567' }),
-      RULES,
-    );
-    expect(fine.ok && fine.value.eaNumber).toBe('1234567');
-  });
-
-  it('drops a number given against an entry type that does not want one', () => {
-    // It identifies a person and has no purpose against an unaffiliated entry, so it does
-    // not travel. Minimised at the boundary rather than stored and filtered later.
+  it('has no England Athletics field at all, so one cannot be posted into it', () => {
+    // **The negative case is the one that matters here.** `eaNumber` is not a key of
+    // `NnEntry` any more and not a field the schema reads, so a submission carrying one is
+    // accepted and the value goes nowhere — which is what "not collected" has to mean at a
+    // public endpoint anybody may post to. Asserting the parse merely succeeds would pass
+    // just as well if the value were quietly stored.
     const result = parseNnEntry(
-      good({ feeCode: 'unaffiliated', eaNumber: '1234567' }),
+      good({ feeCode: 'affiliated', eaNumber: '1234567' }),
       RULES,
     );
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.value.eaNumber).toBeNull();
+    expect(result.ok && Object.keys(result.value)).not.toContain('eaNumber');
+    expect(JSON.stringify(result.ok && result.value)).not.toContain('1234567');
   });
 
   it('takes the free VI guide place without asking for a number', () => {
@@ -599,7 +570,7 @@ describe('what a submission that is not a form at all gets', () => {
 });
 
 describe('the rules, lifted off what the database said', () => {
-  it('takes the fee codes and the EA requirement from the event, not from this file', () => {
+  it('takes the fee codes from the event, not from this file', () => {
     const state: EntryState = {
       slug: 'nn-2026',
       displayName: 'Nightingale Nightmare 2026',
@@ -616,15 +587,13 @@ describe('the rules, lifted off what the database said', () => {
           code: 'unaffiliated',
           label: 'Unaffiliated',
           pricePence: 1700,
-          requiresEaNumber: false,
         },
         {
           code: 'affiliated',
           label: 'Affiliated',
           pricePence: 1500,
-          requiresEaNumber: true,
         },
-        { code: 'vi_guide', label: 'VI guide', pricePence: 0, requiresEaNumber: false },
+        { code: 'vi_guide', label: 'VI guide', pricePence: 0 },
       ],
     };
 
@@ -632,7 +601,6 @@ describe('the rules, lifted off what the database said', () => {
       eventDate: { year: 2026, month: 11, day: 1 },
       minimumAge: 18,
       feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
-      eaRequiredForFeeCodes: ['affiliated'],
     });
   });
 });
