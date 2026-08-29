@@ -167,6 +167,11 @@ export {
   type AdminEventFigures,
   type AdminExport,
   type AdminExportEvent,
+  type AdminEntryDetail,
+  type AdminEntryDetailAudit,
+  type AdminEntryDetailEmail,
+  type AdminEntryDetailEntrant,
+  type AdminEntryDetailPurchase,
   type AdminFailure,
   type AdminInterest,
   type AdminInterestList,
@@ -181,7 +186,10 @@ export {
   type MedicalExportRow,
   type MedicalRetentionSweep,
   createManualEntry,
+  fetchEntryDetail,
+  missingFunctionCause,
   transferEntry,
+  type UnavailableCause,
   MANUAL_ENTRY_REASONS,
   type ManualEntrant,
   type ManualEntryInput,
@@ -203,6 +211,15 @@ export {
   type MyEntry,
   type RequestEntryActionResult,
 } from './my-entries';
+
+export {
+  ENTRY_REQUEST_ACTIONS,
+  entryRequestShape,
+  entryRequestWords,
+  readEntryRequest,
+  type EntryRequest,
+  type EntryRequestAction,
+} from './entry-request';
 
 export { BOM, csvDocument, csvField, csvRow } from './csv';
 

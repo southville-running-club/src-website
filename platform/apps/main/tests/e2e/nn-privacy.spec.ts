@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
  * The Nightingale Nightmare privacy notice.
@@ -257,42 +258,43 @@ test.describe('the privacy notice', () => {
   // -------------------------------------------------------------------------------------
 
   test('keeps all three tables inside the card at 320px', async ({ page }) => {
-    // **Twice, deliberately.** The 320px failure this repository has already met was
-    // intermittent — an image laying out at its intrinsic width before the stylesheet
-    // applied, about one run in four. A single pass is not evidence about layout at this
-    // width, and a second reload costs a second.
-    for (let pass = 0; pass < 2; pass += 1) {
-      await page.setViewportSize({ width: 320, height: 640 });
-      await page.goto('/nn/privacy/');
+    // **Once, now that the wait is a real one.** This used to run twice, against the
+    // intermittent it named as *"an element laying out at its intrinsic width before the
+    // stylesheet applied, about one run in four"* — the right diagnosis, and a re-run for a
+    // fix. `waitForStyledLayout` waits for the sheets to be applied, the fonts to settle and
+    // the width to stop moving, so one pass is evidence now. Every reading below needs it,
+    // not just the overflow one: `display: block` on a table row is a thing the stylesheet
+    // says, so `rowsAreBlocks` is as meaningless on a bare document as the rest.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/nn/privacy/');
+    await waitForStyledLayout(page);
 
-      const measured = await page.evaluate(() => {
-        const card = document.querySelector('.nn-prose');
-        const tables = [...document.querySelectorAll('.nn-prose table')];
+    const measured = await page.evaluate(() => {
+      const card = document.querySelector('.nn-prose');
+      const tables = [...document.querySelectorAll('.nn-prose table')];
 
-        return {
-          cardWidth: card?.clientWidth ?? 0,
-          // `scrollWidth`, not the bounding box: a table can overflow its own box without
-          // the box being any wider, which is exactly the failure this is looking for.
-          tableWidths: tables.map((table) => table.scrollWidth),
-          documentOverflows:
-            document.documentElement.scrollWidth > document.documentElement.clientWidth,
-          // The stack has to have engaged, or the assertion above passes for the wrong
-          // reason — a two-column table that happens to fit is not what was designed here.
-          rowsAreBlocks: tables.every((table) =>
-            [...table.querySelectorAll('tbody tr')].every(
-              (row) => getComputedStyle(row).display === 'block',
-            ),
+      return {
+        cardWidth: card?.clientWidth ?? 0,
+        // `scrollWidth`, not the bounding box: a table can overflow its own box without
+        // the box being any wider, which is exactly the failure this is looking for.
+        tableWidths: tables.map((table) => table.scrollWidth),
+        // The stack has to have engaged, or the assertion below passes for the wrong
+        // reason — a two-column table that happens to fit is not what was designed here.
+        rowsAreBlocks: tables.every((table) =>
+          [...table.querySelectorAll('tbody tr')].every(
+            (row) => getComputedStyle(row).display === 'block',
           ),
-        };
-      });
+        ),
+      };
+    });
 
-      expect(measured.documentOverflows, `pass ${pass}`).toBe(false);
-      expect(measured.rowsAreBlocks, `pass ${pass}`).toBe(true);
-      expect(measured.tableWidths, `pass ${pass}`).toHaveLength(3);
+    await expectNoSidewaysScroll(page, 'the privacy notice at 320px');
 
-      for (const width of measured.tableWidths) {
-        expect(width, `pass ${pass}`).toBeLessThanOrEqual(measured.cardWidth);
-      }
+    expect(measured.rowsAreBlocks).toBe(true);
+    expect(measured.tableWidths).toHaveLength(3);
+
+    for (const width of measured.tableWidths) {
+      expect(width).toBeLessThanOrEqual(measured.cardWidth);
     }
   });
 

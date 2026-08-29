@@ -25,6 +25,7 @@ import {
   type AccountResetRequestErrors,
   type AccountSignInErrors,
   type AccountSignUpErrors,
+  type EntryRequest,
   type MyEntry,
   type SupabaseConfig,
 } from '@src/shared';
@@ -2839,7 +2840,19 @@ async function requestOnEntry(
     // "not there", and echoing it back would turn the page into an oracle for whether a
     // reference names somebody else's paid entry.
     console.error(`entries.request_entry_action refused — ${outcome.error}`);
-    return redirectTo('/account/entries/?problem=1', secure, refreshedCookies);
+
+    // **One exception, and it is not about this person's entry at all.** The database has not
+    // got the function this build is calling, which means a deploy landed ahead of its
+    // migration. Telling somebody to "try again in a moment" then sends them round a loop that
+    // can never end — so the page says the club has been told instead. Nothing is disclosed:
+    // it is a fact about the site, not about any entry. See 29 August 2026.
+    return redirectTo(
+      outcome.cause === 'missing-function'
+        ? '/account/entries/?problem=stale'
+        : '/account/entries/?problem=1',
+      secure,
+      refreshedCookies,
+    );
   }
 
   return redirectTo(
@@ -2933,6 +2946,9 @@ async function entriesPage(
   // is a lie about a reason somebody wrote 900 characters into: trying again does nothing, and
   // the page has to say what to change. Nothing was recorded either way.
   const tooLong = url.searchParams.get('problem') === 'reason';
+  // **The site is ahead of its database.** Its own answer for the same reason `tooLong` has
+  // one: "try again in a moment" is a lie when nothing a moment brings can help.
+  const stale = url.searchParams.get('problem') === 'stale';
 
   const body = html`
     <main class="account-page">
@@ -2944,7 +2960,7 @@ async function entriesPage(
               ${
                 asked === 'cancel'
                   ? 'Somebody will look at cancelling this entry and be in touch.'
-                  : 'Somebody will be in touch about transferring this place. Transfers are not guaranteed — the club has not settled how they work for 2026.'
+                  : 'Somebody will be in touch about transferring this place. The club can move a place to a different runner — no money changes hands either way, so anything owed between the two of you is between the two of you.'
               }
               Your place is unchanged until they have.
             </p>`
@@ -2956,6 +2972,17 @@ async function entriesPage(
               <strong>That could not be recorded just now.</strong> Nothing has changed.
               Please try again in a moment, or email the club and somebody will sort it
               out.
+            </p>`
+          : null
+      }
+      ${
+        stale
+          ? html`<p class="account-note" role="alert">
+              <strong>The club’s site cannot record that at the moment.</strong> Nothing
+              has changed and your place is unaffected. This is a fault at the club’s end
+              rather than anything about your entry, and
+              <strong>trying again will not help</strong> — please email the club and
+              somebody will sort it out.
             </p>`
           : null
       }
@@ -3010,6 +3037,35 @@ async function entriesPage(
  * entering themselves sees their name once, and somebody who entered on behalf of another sees
  * both, which is the only case where the distinction carries information.
  */
+/**
+ * Every ask this person has made about one entry, newest first.
+ *
+ * **The history where there is one, the summary where there is not.** `requests` is empty on a
+ * database deployed before the history table, and on one deployed after it is the whole truth;
+ * `requestedAction` is the single word the purchase row has always carried. Falling back keeps
+ * this card rendering through a deploy that has landed ahead of its migration, which is a state
+ * this repository deliberately tolerates and therefore keeps entering.
+ *
+ * **`requestedAt` is faked as `createdAt` in the fallback and that is fine**, because nothing
+ * on this card renders the time of an ask — only its order, and a list of one has none.
+ */
+function asksFor(entry: MyEntry): EntryRequest[] {
+  if (entry.requests.length > 0) {
+    return entry.requests;
+  }
+
+  return entry.requestedAction === null
+    ? []
+    : [
+        {
+          action: entry.requestedAction,
+          reason: entry.requestReason,
+          requestedAt: entry.createdAt,
+          resolvedAt: entry.requestResolved ? entry.createdAt : null,
+        },
+      ];
+}
+
 function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = null): Html {
   const runners = entry.entrants
     .map((runner) => `${runner.firstName} ${runner.lastName}`)
@@ -3078,34 +3134,47 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
       </dd>
 
       ${
-        entry.requestedAction === null
-          ? null
-          : html`<dt>Asked for</dt>
-              <dd>
-                ${
-                  entry.requestedAction === 'cancel'
-                    ? 'You have asked the club to cancel this entry.'
-                    : 'You have asked the club about transferring this place.'
-                }
-                ${
-                  entry.requestResolved
-                    ? 'The club has dealt with it.'
-                    : 'Nothing has changed yet — your place is still yours until the club acts.'
-                }
-                ${
-                  /* **Read back rather than merely stored.** Somebody who has explained a
-                  broken ankle to a form has no other way of knowing the club received the
-                  explanation and not just the button press. */ null
-                }
-                ${
-                  entry.requestReason === null
-                    ? null
-                    : html`<br /><span class="account-quiet"
-                          >You told the club: ${entry.requestReason}</span
-                        >`
-                }
-              </dd>`
+        /* **Every ask, and not only the most recent one.**
+
+        This used to read one column, which held one word — so somebody who asked about a
+        transfer, thought better of it and asked to cancel came back to a page still saying the
+        club had a transfer request. That reads exactly like the second press not having
+        worked, and the next thing they do is press it again or email the club to ask why.
+
+        `requests` is empty on a database deployed before the history table, which is why the
+        summary fields below it are still the fallback: nothing sequences a migration against
+        the Cloudflare deploy, and this card has to render either way. */ null
       }
+      ${asksFor(entry).map(
+        (ask, index) =>
+          html`<dt>
+              ${index === 0 ? 'Asked for' : html`<span class="account-quiet">Before that</span>`}
+            </dt>
+            <dd>
+              ${
+                ask.action === 'cancel'
+                  ? 'You asked the club to cancel this entry.'
+                  : 'You asked the club about transferring this place.'
+              }
+              ${
+                ask.resolvedAt === null
+                  ? 'Nothing has changed yet — your place is still yours until the club acts.'
+                  : 'The club has dealt with it.'
+              }
+              ${
+                /* **Read back rather than merely stored.** Somebody who has explained a
+                broken ankle to a form has no other way of knowing the club received the
+                explanation and not just the button press. */ null
+              }
+              ${
+                ask.reason === null
+                  ? null
+                  : html`<br /><span class="account-quiet"
+                        >You told the club: ${ask.reason}</span
+                      >`
+              }
+            </dd>`,
+      )}
     </dl>
 
     ${

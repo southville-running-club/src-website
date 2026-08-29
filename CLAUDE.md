@@ -152,10 +152,14 @@ re-run.
   impaired guide's free place, both of which Stripe refuses to charge for. **Transfers beyond
   the one that exists, corrections, resends and partial refunds are each still a
   stop-and-ask**, and each is a decision about changing a record somebody paid for.
-- **A sixth role, or a ninth permission.** Since #107 a role is a bundle of permissions and
+- **A sixth role, or an eleventh permission.** Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
-  [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). The five
-  roles and the eight permissions are asserted exactly in
+  [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). **The ninth
+  and tenth arrived on 29 August 2026 and they are a borrow being paid back**: `nn.email.read`
+  and `nn.email.resend`, so `/admin/emails/` stops asking `nn.entry.read` and `nn.entry.cancel`
+  about email. Nobody gained or lost anything on the day — `nn-admin` carries all four — and
+  what changed is that the two can be granted apart. The five
+  roles and the ten permissions are asserted exactly in
   `packages/db/tests/identity-permissions.test.ts`, which is what replaced `identity.roles`'
   check constraint and does the same job: it makes an addition a decision somebody takes in a
   diff. Adding a role is a migration and no deploy — `/admin/people/` reads
@@ -415,6 +419,33 @@ wrong answer**: a prop the caller has to get right is exactly how this arrived. 
 surface recomputes rather than going quietly vacuous. **Compute the pair before writing the
 colour**: two of that page's intended colours failed a 7:1 bar and were redesigned before they
 shipped, and neither would have been caught by looking, because both looked fine.
+**A 320px overflow check that measures straight off `toBeVisible()` is measuring a page with no
+CSS on it.** `document.documentElement.scrollWidth > clientWidth` was asserted directly, once, in
+eight places, and it failed about one run in three across `nn-signup.spec.ts` and
+`nn-entry.spec.ts` — two files, one assertion, and a re-run of the identical build always green.
+**DOMContentLoaded waits for scripts, not for `<link rel="stylesheet">`**, so on a page with no
+blocking script — every page here in the `no-javascript` project, and the deferred-module case
+everywhere else — `readyState` reaches `interactive` with both sheets still in flight. An outcome
+block the Worker has revealed is *visible* at that moment, so `toBeVisible()` resolves; and
+**reading a layout property is not gated on render-blocking**, so `page.evaluate` then forces a
+synchronous layout of a bare document. Caught in the act it reads `overflow=19 client=320
+ready=interactive sheets=[]`, with one offender: `a left=8 right=339.13` holding the club's
+47-character address, because `a[href^='mailto:'] { overflow-wrap: anywhere }` lives in `base.css`
+and `base.css` has not arrived. `left=8` is the browser's default `body { margin }`, which is the
+tell — **`sheets=[]` and a left edge of 8 mean the measurement is the defect rather than the
+layout.** The styled page does not overflow at any width from 300 to 320, with or without the
+fonts. **This repository had already met it and paid for it twice**: `nn-privacy.spec.ts` and
+`privacy.spec.ts` each carried a two-pass reload loop naming *"an element laying out at its
+intrinsic width before the stylesheet applied, about one run in four"* — the right diagnosis and
+a re-run for a fix. All eight go through `apps/main/tests/sideways-scroll.ts` now, which waits
+for a **defined state** — every render-blocking stylesheet applied, `document.fonts.status`
+settled, and the width unchanged across three samples — and never for the assertion to come
+good. **The polling has to be on Playwright's side**: `page.waitForFunction` installs its loop
+*in the page*, so with
+`javaScriptEnabled: false` it never runs and every call times out at ten seconds, which is how the
+first version of this fix failed. `page.evaluate` works there; `requestAnimationFrame` callbacks
+do not. The helper names the offending element on failure, which is what turned this from three
+runs and an afternoon into four minutes.
 
 **The three browser engines do not agree on what an attachment is, and one of them only
 disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
@@ -429,6 +460,45 @@ engine agrees on them; for the bytes use `page.request`, which shares the contex
 hands back a readable body everywhere. Reproduced in
 `mcr.microsoft.com/playwright:v1.62.1-noble`. `nn-admin.spec.ts`'s two export tests are the
 shape to copy.
+
+**Two pull requests merged out of timestamp order stop `db push` dead, and every symptom
+points somewhere else.** `supabase db push` refuses to insert a migration *before* one already
+applied on the remote, so a branch whose migrations are timestamped earlier than a branch that
+merged first takes the whole deploy down — `Found local migration files to be inserted before
+the last migration on remote database`, and **nothing is applied at all**, including the dozen
+migrations that came after. It happened on 29 August 2026: #134 carried `20260828140000`,
+`141000` and `142000`, while #131 and #133 — timestamped `170000` and `190000` — merged first.
+Nine migrations were stranded and `deploy-db.yml` failed on every run for six hours.
+
+**What it looks like from the site is not a broken deploy.** The Worker deployed fine, so it
+calls functions the database has not got, PostgREST answers `PGRST202`, and every client here
+maps a PostgREST error to *"the club's database could not be reached — try again in a moment"*.
+Both halves of that are false: the database is healthy, and retrying can never help. What a
+volunteer saw was **"That could not be read"** on the transfer form and **"That could not be
+recorded just now"** on a runner's own cancellation, on a platform where cancelling still
+worked — because `cancel_entry()` predated the break. **The tell is that only the newest
+functions fail**, and the place to look is the `deploy-db` workflow rather than the code.
+`missingFunctionCause()` in `packages/shared/src/admin.ts` names it now, and both pages say
+"the site is ahead of its database" instead of asking somebody to wait for something that will
+not arrive. **`--include-all` is what applies the stranded migrations**, and it is safe only
+after checking that nothing already applied is re-created by one of them — a migration versioned
+earlier but applied later silently reverts whatever a later-versioned one already changed.
+
+⚠️ **Rebasing onto a merged migration means renumbering past it — every time, and whatever the
+migration contains.** This happened again on 29 August 2026, in the pull request that added the
+paragraph above. Four migrations were rebased onto a branch that had landed `20260829120000`;
+three were renumbered past it and the fourth was left at `20260829100000`, on the reasoning that
+it clobbered nothing — which was true, and irrelevant. **`db push` refuses on version order
+alone**, it refuses the *whole push*, and every deploy after it fails identically until somebody
+renumbers. There are two questions and they are not the same one:
+
+  * *Will `db push` accept it?* — is every version later than the remote's newest. Nothing else.
+  * *Will applying it revert something?* — does it re-create an object a later-versioned
+    migration already changed. This is the one that needs reading the diffs.
+
+Answering the second and skipping the first is what a clean-looking rebase invites, because the
+second is the interesting question and the first feels like bookkeeping. **`ls` the migrations
+directory after any rebase and check the branch's own files sort last.**
 
 **A restated closed list is a merge conflict git cannot see.** `entries.admin_audit.action`,
 `entries.fees.code` and the status checks are widened by `drop constraint if exists` followed by
@@ -624,9 +694,12 @@ remainder arrives the next day. That is a **decision the club took deliberately*
 $20/month, not an oversight, and it is why the outbox exists at all.
 [The runbook](docs/delivery/runbooks/entries-email.md) is what a volunteer reads when somebody
 says they never heard anything, and **`/admin/emails/` is where they look** — the queue, the
-figures, and a re-send button on a failed message. It is gated the way `/admin/people/` is:
-`nn.entry.read` opens the page and `nn.entry.cancel` opens the buttons, reusing that permission
-rather than adding an eighth, exactly as `transfer_entry()` did. **A message that has already
+figures, and a re-send button on a failed message. **It is in the navigation bar and has its own
+two permissions since 29 August 2026**: `nn.email.read` opens the page and `nn.email.resend`
+opens the buttons, gated the way `/admin/people/` is. It was built borrowing `nn.entry.read` and
+`nn.entry.cancel`, which that migration's own header called the wrong answer — the write half
+worst of all, because "may refund an entry somebody paid for" is a strange thing to have to hold
+in order to answer *"I never got my confirmation"*. **A message that has already
 been sent cannot be re-sent** — the club cannot un-send an email, and "I never got it" is far
 more often a spam folder. ⚠️ **"Sent today" on that page counts entry emails only**: account
 mail shares the Resend account and is not in the outbox, so the club's real usage against the
@@ -678,9 +751,23 @@ are unreferenced and go with them.
 page a runner reads, and it will serve Pass the Buck — so every colour is a `--colour-*` name and
 there is not one hex value in `packages/shared/styles/nn-admin.css`, which
 `packages/shared/tests/unit/admin-contrast.test.ts` asserts along with the contrast of every wash
-the surface mixes. **The audit trail is deliberately not on it**: nothing may read
-`entries.admin_audit`, and rendering it would need a fourteenth anon-callable function, which is a
-stop-and-ask rather than a layout decision.
+the surface mixes. **The audit trail is on it now, scoped to one entry** —
+[ADR-024](docs/architecture/decisions/adr-024-one-entry-in-full.md), which reverses the position
+that it deliberately was not. Half the old argument expired with the two-key scheme — nothing
+here is anon-callable any more, and `entries.admin_entry_detail()` is granted to `authenticated`
+behind `nn.entry.read` — and the other half was that it is a decision, which this is. **It
+returns only the rows that name one purchase**, so it is the history of a record rather than a
+log of what each volunteer has been doing; there is still no way to read `admin_audit` as a
+list, and adding one is a separate decision. The actor stays the pseudonym ADR-013 made it.
+
+**There is a page per entry, behind every row** — `POST /admin/nn/entry/`. The list is a table
+and a table can only carry what fits in a column, so the facts a volunteer needs on the phone
+were the ones that did not fit: which address paid, when it settled, Stripe's references, the
+emergency contact, the emails owed, every ask made, and what has been done to it. It is a
+**purchase** rather than an entrant, for the reason the list is; it writes **no audit row**,
+because it discloses what the list and the exports already do to the same permission; and it
+returns **whether** there is a medical note and never the note, and `consent_version` and never
+`consents`.
 
 **A cancelled entry stays on `/admin/nn/`, with no runner on it.** `cancel_entry()` deletes the
 entrants — deliberately, so the club stops holding personal data for a race somebody is not
@@ -837,7 +924,8 @@ test is what forces it to be made in a diff** — it has happened twice: `curren
 which discloses nothing `entry_state()` does not, and the admin surface's six, argued in
 [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
 
-**`authenticated` is a second list: six, then eleven in #107, then twelve, then fourteen.** It is a role
+**`authenticated` is a second list: six, then eleven in #107, then twelve, then fourteen, then
+sixteen** — the last being `admin_entry_detail()`, ADR-024's. It is a role
 anybody who registers holds, so every function on it authorises inside itself and the grant only
 says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` are there because
 a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a
@@ -874,7 +962,17 @@ somebody bought. See [ADR-021](docs/architecture/decisions/adr-021-a-place-can-b
 beside `attention` rather than a sixth value of `status`, because the capacity predicate
 counts `status = 'paid'` — an entry somebody has asked to cancel still holds its place until
 a volunteer acts, and a new status would make that place invisible to the count and sellable
-twice. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
+twice.
+
+**And a request is a list, not a word, since 29 August 2026.** `requested_action` held one, so a
+runner who pressed *Transfer*, thought better of it and pressed *Cancel* left a record saying
+only the second — and the two want opposite things, so a volunteer seeing one of them acts on
+the wrong one about half the time. `entries.entry_requests` is the append-only record of every
+ask; the columns stay, holding the most recent, because the **Asked about** filter and every
+deployed reader use them. **Resolution is a fact about the entry rather than about one ask** —
+there is no act that answers one and leaves another open — so a trigger on
+`request_resolved_at` closes every open row at once, which is what lets `cancel_entry()` and
+`transfer_entry()` stay exactly as they are. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
 no transfer button until the club asked for one — see the paragraph above, which is what
 that ask turned into. **The email half is built now, and it is not this** — #73 sends on what a
 volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody

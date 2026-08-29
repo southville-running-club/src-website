@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { UserClient } from './supabase';
 import { parseIsoDate, type CivilDate } from './age-category';
-import type { EntryStatus } from './admin';
+import { missingFunctionCause, type EntryStatus, type UnavailableCause } from './admin';
+import { entryRequestShape, readEntryRequest, type EntryRequest } from './entry-request';
 
 /**
  * What a runner may see about their own entry.
@@ -86,6 +87,19 @@ export interface MyEntry {
   requestReason: string | null;
   /** Whether a volunteer has marked the request above as dealt with. */
   requestResolved: boolean;
+  /**
+   * **Every ask this person has made about this entry, newest first.**
+   *
+   * The three fields above hold the most recent one, because that is what the column on the
+   * purchase holds and a second ask overwrote the first in it. Somebody who asked to transfer,
+   * changed their mind and asked to cancel was then shown a page still saying the club had a
+   * transfer request — which reads exactly like the second press having done nothing, and the
+   * next thing they do is email the club to ask why.
+   *
+   * Empty on a database that predates the history table, which reads the same as never having
+   * asked.
+   */
+  requests: EntryRequest[];
   entrants: MyEntrant[];
 }
 
@@ -120,6 +134,9 @@ const entryShape = z.object({
   requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
   request_reason: z.string().nullable().catch(null),
   request_resolved: z.boolean().catch(false),
+  // Same `.catch` reasoning: a Worker newer than the database finds no history and renders the
+  // summary alone, which is what it rendered before the history existed.
+  requests: z.array(entryRequestShape).catch([]),
   entrants: z.array(entrantShape),
 });
 
@@ -149,7 +166,20 @@ export type RequestEntryActionResult =
    * confirmation page and now on `/account/entries/` — cannot be used to find out whether it
    * names a real paid entry belonging to somebody else.
    */
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * **Set only when the database has not got the function this build is calling.**
+       *
+       * The page's ordinary refusal — *"that could not be recorded just now, please try again
+       * in a moment"* — is false in both halves when that is the cause: nothing is wrong that
+       * a moment will fix, and the record is fine. It happened on 29 August 2026, when a
+       * deploy went out ahead of migrations that had not applied at all, and the message sent
+       * a runner round a loop that could never end.
+       */
+      cause?: UnavailableCause | undefined;
+    };
 
 /**
  * Ask the club to cancel or transfer one of your own entries.
@@ -187,7 +217,11 @@ export async function requestEntryAction(
     });
 
     if (error) {
-      return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
+      return {
+        ok: false,
+        error: `${error.code ?? 'unknown'}: ${error.message}`,
+        cause: missingFunctionCause(error.code),
+      };
     }
 
     const answer = data as { ok?: unknown; reason?: unknown } | null;
@@ -247,6 +281,7 @@ export async function fetchMyEntries(client: UserClient): Promise<MyEntriesResul
         requestedAction: row.requested_action,
         requestReason: row.request_reason,
         requestResolved: row.request_resolved,
+        requests: row.requests.map(readEntryRequest),
         entrants: row.entrants.map((entrant) => ({
           firstName: entrant.first_name,
           lastName: entrant.last_name,

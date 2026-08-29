@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Json } from '@src/db';
 import type { AnonClient, UserClient } from './supabase';
 import { NN_ENTRY_GENDERS } from './nn-entry';
+import { entryRequestShape, readEntryRequest, type EntryRequest } from './entry-request';
 
 /**
  * Reading the admin surface — through the key, and now through the `nn-admin` role as well.
@@ -53,8 +54,45 @@ import { NN_ENTRY_GENDERS } from './nn-entry';
  */
 export type AdminFailure =
   | { status: 'unauthorised' }
-  | { status: 'unavailable'; error: string }
+  // `| undefined` written out because `exactOptionalPropertyTypes` is on: the helper below
+  // answers `undefined` for the ordinary case, and an optional property that cannot hold it
+  // would force every call site to branch before building the object.
+  | { status: 'unavailable'; error: string; cause?: UnavailableCause | undefined }
   | { status: 'not-found' };
+
+/**
+ * Why the question could not be asked, where the answer changes what a page should say.
+ *
+ * **`missing-function` is the one that has cost real hours, twice.** PostgREST answers
+ * `PGRST202` when the function a caller named is not in its schema cache, and `PGRST203` when
+ * it cannot choose between two candidates. Both mean *the database does not have the thing
+ * this build of the Worker is asking for* — a deploy that landed ahead of its migration, which
+ * is a state this repository is explicitly built to tolerate (expand, migrate, contract) and
+ * therefore a state it will keep entering.
+ *
+ * Reported as a bare `unavailable`, it renders as *"the club's database could not be reached
+ * — try again in a moment"*, which is **false in both halves**: the database is healthy, and
+ * trying again can never help. Somebody on call retries, waits, retries, and eventually reads
+ * a Cloudflare log to find a code nothing on the page mentioned.
+ *
+ * It is deliberately an optional field on the existing failure rather than a fourth status:
+ * every caller goes on treating it as `unavailable` — which it is — and the two that render a
+ * page can say something truthful instead.
+ */
+export type UnavailableCause = 'missing-function';
+
+/**
+ * Whether a PostgREST error means "this database has not got that function".
+ *
+ * `PGRST202` — not found in the schema cache. `PGRST203` — more than one candidate matched,
+ * which is what an overload with a defaulted argument produces and is why the discount slice
+ * had to drop a function rather than add one.
+ */
+export function missingFunctionCause(
+  code: string | null | undefined,
+): UnavailableCause | undefined {
+  return code === 'PGRST202' || code === 'PGRST203' ? 'missing-function' : undefined;
+}
 
 export type AdminResult<T> = ({ status: 'ok' } & T) | AdminFailure;
 
@@ -74,6 +112,7 @@ function readEnvelope(
     return {
       status: 'unavailable',
       error: `${error.code ?? 'unknown'}: ${error.message}`,
+      cause: missingFunctionCause(error.code),
     };
   }
 
@@ -263,6 +302,19 @@ export interface AdminEntry {
    */
   requestReason: string | null;
   requestResolved: boolean;
+  /**
+   * **Every ask made about this entry, newest first** — not only the most recent one.
+   *
+   * The three fields above are the summary `entry_purchases` has always held, and a second ask
+   * overwrote the first in them. Somebody who pressed *Transfer* and then thought better of it
+   * and pressed *Cancel* has asked for two opposite things, and a volunteer who can see only
+   * the last one will act on the wrong one about half the time.
+   *
+   * Empty on a database that predates the history table, which is the same as never having
+   * asked — and is exactly what the summary fields say too, so the row stays consistent with
+   * itself either way.
+   */
+  requests: EntryRequest[];
   /** Whether a medical note exists. **Never the note** — that is its own audited read. */
   hasMedical: boolean;
   createdAt: string;
@@ -434,6 +486,9 @@ const entryShape = z.object({
   requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
   request_reason: z.string().nullable().catch(null),
   request_resolved: z.boolean().catch(false),
+  // `.catch([])` for the same reason: a Worker deployed ahead of the history migration finds
+  // no key and renders the summary alone, which is what it rendered before this existed.
+  requests: z.array(entryRequestShape).catch([]),
   has_medical: z.boolean(),
   created_at: z.string(),
   paid_at: z.string().nullable(),
@@ -575,6 +630,7 @@ function parseEntryList(
       requestedAction: entry.requested_action,
       requestReason: entry.request_reason,
       requestResolved: entry.request_resolved,
+      requests: entry.requests.map(readEntryRequest),
       hasMedical: entry.has_medical,
       createdAt: entry.created_at,
       paidAt: entry.paid_at,
@@ -1080,6 +1136,291 @@ export async function deleteExpiredMedicalNotes(
 }
 
 // -----------------------------------------------------------------------------------------
+// One entry, in full
+// -----------------------------------------------------------------------------------------
+
+/**
+ * Everything the club holds about one purchase, for the page behind a row on `/admin/nn/`.
+ *
+ * **The list is a table and a table can only carry what fits in a column.** The facts a
+ * volunteer needs on the phone are the ones that did not fit: which address paid, when it
+ * settled, Stripe's references, the emergency contact, what the club still owes them by email,
+ * every ask that has been made about it, and what has already been done to the record. See
+ * ADR-024.
+ *
+ * Timestamps are ISO strings, exactly as `AdminEntry`'s are, and are turned into words by
+ * `formatLondon` at the point of rendering and nowhere else.
+ */
+export interface AdminEntryDetailPurchase {
+  purchaseId: string;
+  eventSlug: string;
+  eventName: string;
+  eventDate: string;
+  status: EntryStatus;
+  /** The flag that says a human is needed, and whether somebody has cleared it. */
+  attention: string | null;
+  attentionResolvedAt: string | null;
+  amountPence: number;
+  feeCode: string;
+  feeLabel: string;
+  discountCode: string | null;
+  purchaserName: string;
+  /** The address that paid, and the one every message about this entry goes to. */
+  purchaserEmail: string;
+  /**
+   * Whether somebody has claimed this entry with an account — never whose.
+   *
+   * A uuid on a page is a fact nobody can act on; *"they can see this at `/account/entries/`"*
+   * is one they can. It is false for most paid entries, because entering never creates an
+   * account and most people never register.
+   */
+  linkedToAccount: boolean;
+  /**
+   * Which version of the entry terms was in force. **Not what was agreed to** — no read
+   * returns `entry_purchases.consents`, which is where ADR-022 deliberately put the visually
+   * impaired declaration so that it would never be a fact on a screen.
+   */
+  consentVersion: string;
+  stripeCheckoutSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  createdAt: string;
+  holdExpiresAt: string | null;
+  paidAt: string | null;
+  revivedAt: string | null;
+  requestedAction: 'cancel' | 'transfer' | null;
+  requestedAt: string | null;
+  requestReason: string | null;
+  requestResolvedAt: string | null;
+}
+
+/** One person on the entry — the runner, or the guide running with them. */
+export interface AdminEntryDetailEntrant {
+  entrantId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  age: number;
+  /** Null only for a guide, who is in no prize category and is asked for none — ADR-022. */
+  gender: (typeof NN_ENTRY_GENDERS)[number] | null;
+  genderIdentity: string | null;
+  club: string | null;
+  role: 'runner' | 'guide';
+  /** A guide's own address. Null for a runner, who is reached at the address that paid. */
+  email: string | null;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  createdAt: string;
+  /**
+   * Whether there is a note, never what it says.
+   *
+   * The note has one door — `entries.entrant_medical()` — and that door writes an audit row
+   * every time it opens. Putting the text here would be a second, unaudited read of Article 9
+   * data, which is the one thing this page is not allowed to become.
+   */
+  hasMedical: boolean;
+}
+
+/** One message the club owes, or has already sent, about this entry. */
+export interface AdminEntryDetailEmail {
+  id: string;
+  template: string;
+  recipient: string;
+  status: 'pending' | 'sent' | 'failed';
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}
+
+/**
+ * One thing a volunteer did to this entry.
+ *
+ * **`actor` is a pseudonym and stays one** — `auth.uid()`, which maps to a human only through
+ * `identity.people`. ADR-013's amendment settled that and this does not reopen it.
+ */
+export interface AdminEntryDetailAudit {
+  at: string;
+  action: string;
+  actor: string;
+  detail: Record<string, unknown>;
+}
+
+export interface AdminEntryDetail {
+  purchase: AdminEntryDetailPurchase;
+  entrants: AdminEntryDetailEntrant[];
+  emails: AdminEntryDetailEmail[];
+  /** Every ask made about this entry, newest first. See `EntryRequest`. */
+  requests: EntryRequest[];
+  /** Newest first, and only the rows that name this entry. Empty is an ordinary answer. */
+  audit: AdminEntryDetailAudit[];
+}
+
+const detailEntrantShape = z.object({
+  entrant_id: z.uuid(),
+  first_name: z.string(),
+  last_name: z.string(),
+  date_of_birth: z.string(),
+  age: z.number().int(),
+  gender: z.enum(NN_ENTRY_GENDERS).nullable(),
+  gender_identity: z.string().nullable().catch(null),
+  club: z.string().nullable(),
+  role: z.enum(['runner', 'guide']).catch('runner'),
+  email: z.string().nullable().catch(null),
+  emergency_contact_name: z.string(),
+  emergency_contact_phone: z.string(),
+  created_at: z.string(),
+  has_medical: z.boolean(),
+});
+
+const detailEmailShape = z.object({
+  id: z.uuid(),
+  template: z.string(),
+  recipient: z.string(),
+  status: z.enum(['pending', 'sent', 'failed']).catch('pending'),
+  attempts: z.number().int().min(0),
+  last_error: z.string().nullable(),
+  created_at: z.string(),
+  sent_at: z.string().nullable(),
+});
+
+const detailAuditShape = z.object({
+  at: z.string(),
+  action: z.string(),
+  actor: z.string(),
+  detail: z.record(z.string(), z.unknown()).catch({}),
+});
+
+const entryDetailShape = z.object({
+  ok: z.literal(true),
+  purchase: z.object({
+    purchase_id: z.uuid(),
+    event_slug: z.string().min(1),
+    event_name: z.string().min(1),
+    event_date: z.string(),
+    // The same `.catch` reasoning `entryShape` gives: a fifth status added one day must
+    // degrade to a page that renders rather than one that refuses.
+    status: z.enum(ENTRY_STATUSES).catch('pending'),
+    attention: z.string().nullable(),
+    attention_resolved_at: z.string().nullable(),
+    amount_pence: z.number().int().min(0),
+    fee_code: z.string(),
+    fee_label: z.string(),
+    discount_code: z.string().nullable(),
+    purchaser_name: z.string(),
+    purchaser_email: z.string(),
+    linked_to_account: z.boolean().catch(false),
+    consent_version: z.string(),
+    stripe_checkout_session_id: z.string().nullable(),
+    stripe_payment_intent_id: z.string().nullable(),
+    created_at: z.string(),
+    hold_expires_at: z.string().nullable(),
+    paid_at: z.string().nullable(),
+    revived_at: z.string().nullable(),
+    requested_action: z.enum(['cancel', 'transfer']).nullable().catch(null),
+    requested_at: z.string().nullable().catch(null),
+    request_reason: z.string().nullable().catch(null),
+    request_resolved_at: z.string().nullable().catch(null),
+  }),
+  entrants: z.array(detailEntrantShape),
+  emails: z.array(detailEmailShape).catch([]),
+  requests: z.array(entryRequestShape).catch([]),
+  audit: z.array(detailAuditShape).catch([]),
+});
+
+/**
+ * Read one entry in full.
+ *
+ * **No audit row is written, and that is the line rather than an omission.** This discloses
+ * what the entry list and the three exports already disclose to the same permission, and
+ * auditing every look-up would bury the four acts that matter under thousands of navigations —
+ * including in the trail this very read returns. The medical note is audited and stays
+ * audited; everything here is ordinary entry data.
+ */
+export async function fetchEntryDetail(
+  client: UserClient,
+  purchaseId: string,
+): Promise<AdminResult<AdminEntryDetail>> {
+  return callAndParse(
+    'admin_entry_detail',
+    () =>
+      client.schema('entries').rpc('admin_entry_detail', { p_purchase_id: purchaseId }),
+    (value, label): AdminResult<AdminEntryDetail> => {
+      const parsed = entryDetailShape.safeParse(value);
+
+      if (!parsed.success) {
+        return { status: 'unavailable', error: `${label} returned an unexpected shape` };
+      }
+
+      const purchase = parsed.data.purchase;
+
+      return {
+        status: 'ok',
+        purchase: {
+          purchaseId: purchase.purchase_id,
+          eventSlug: purchase.event_slug,
+          eventName: purchase.event_name,
+          eventDate: purchase.event_date,
+          status: purchase.status,
+          attention: purchase.attention,
+          attentionResolvedAt: purchase.attention_resolved_at,
+          amountPence: purchase.amount_pence,
+          feeCode: purchase.fee_code,
+          feeLabel: purchase.fee_label,
+          discountCode: purchase.discount_code,
+          purchaserName: purchase.purchaser_name,
+          purchaserEmail: purchase.purchaser_email,
+          linkedToAccount: purchase.linked_to_account,
+          consentVersion: purchase.consent_version,
+          stripeCheckoutSessionId: purchase.stripe_checkout_session_id,
+          stripePaymentIntentId: purchase.stripe_payment_intent_id,
+          createdAt: purchase.created_at,
+          holdExpiresAt: purchase.hold_expires_at,
+          paidAt: purchase.paid_at,
+          revivedAt: purchase.revived_at,
+          requestedAction: purchase.requested_action,
+          requestedAt: purchase.requested_at,
+          requestReason: purchase.request_reason,
+          requestResolvedAt: purchase.request_resolved_at,
+        },
+        entrants: parsed.data.entrants.map((entrant) => ({
+          entrantId: entrant.entrant_id,
+          firstName: entrant.first_name,
+          lastName: entrant.last_name,
+          dateOfBirth: entrant.date_of_birth,
+          age: entrant.age,
+          gender: entrant.gender,
+          genderIdentity: entrant.gender_identity,
+          club: entrant.club,
+          role: entrant.role,
+          email: entrant.email,
+          emergencyContactName: entrant.emergency_contact_name,
+          emergencyContactPhone: entrant.emergency_contact_phone,
+          createdAt: entrant.created_at,
+          hasMedical: entrant.has_medical,
+        })),
+        emails: parsed.data.emails.map((message) => ({
+          id: message.id,
+          template: message.template,
+          recipient: message.recipient,
+          status: message.status,
+          attempts: message.attempts,
+          lastError: message.last_error,
+          createdAt: message.created_at,
+          sentAt: message.sent_at,
+        })),
+        requests: parsed.data.requests.map(readEntryRequest),
+        audit: parsed.data.audit.map((row) => ({
+          at: row.at,
+          action: row.action,
+          actor: row.actor,
+          detail: row.detail,
+        })),
+      };
+    },
+  );
+}
+
+// -----------------------------------------------------------------------------------------
 // Cancelling an entry
 // -----------------------------------------------------------------------------------------
 
@@ -1145,6 +1486,11 @@ function readCancelEnvelope<T>(
     return {
       status: 'unavailable',
       error: `${error.code ?? 'unknown'}: ${error.message}`,
+      // **The refusal that reads as an outage, named.** Every affiliated transfer answered
+      // this for a week — first because the trigger raised, and then because the ten-argument
+      // form had not reached production ahead of the Worker that calls it. Both arrived on the
+      // page as "the database could not be reached"; only one of them was even close.
+      cause: missingFunctionCause(error.code),
     };
   }
 

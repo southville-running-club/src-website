@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
  * The page the interest form is on — the running it is an interest in.
@@ -190,10 +191,14 @@ test.describe('accessibility of the form', () => {
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    // **Measured once the page is styled, and that is the whole of this line's history.**
+    // The summary is revealed by the Worker, so it is visible the moment the parser reaches
+    // it — before either stylesheet has been applied. Asserting straight off `toBeVisible()`
+    // measured a bare document about one run in three, where the club's address in the
+    // `mailto:` link sets 331px wide because the rule that wraps it has not arrived yet.
+    // `expectNoSidewaysScroll` waits for the styled, settled layout first; it does not retry
+    // the assertion. See `../sideways-scroll.ts`.
+    await expectNoSidewaysScroll(page, 'the interest form error state at 320px');
   });
 
   test('every control can be reached and used from the keyboard', async ({ page }) => {
