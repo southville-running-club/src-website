@@ -1198,19 +1198,45 @@ test.describe('once entries are open', () => {
         }
 
         const { top, bottom } = input.getBoundingClientRect();
-        return { top, bottom, viewport: window.innerHeight };
+
+        // **Where it sits in the *document*, not in the viewport, and the difference is the
+        // whole point of this test.** `getBoundingClientRect().top` moves when the page
+        // scrolls, and revealing the guide fields makes the browser scroll them into view —
+        // measured at 296px on WebKit at 320px. That is the browser being helpful about
+        // newly-revealed content, and it is not what this test is about.
+        //
+        // The defect it *is* about is layout: a conditional block **above** the control
+        // shoving that control when it opens or closes, which is what the England Athletics
+        // box did twice. That shows up as the offset from the top of the document changing,
+        // and nothing else does.
+        let documentTop = 0;
+        let node = input;
+        while (node !== null) {
+          documentTop += node.offsetTop;
+          node = node.offsetParent;
+        }
+
+        return { top, bottom, documentTop, viewport: window.innerHeight };
       });
 
     const before = await positionOf();
     await box.check();
     const after = await positionOf();
 
-    // Still on the screen, both edges of it.
+    // Still on the screen, both edges of it. This is the "in view" half of the name, and it
+    // is a real assertion: the browser may scroll, but it may not leave the control somewhere
+    // the person who just tapped it cannot see.
     expect(after.top).toBeGreaterThanOrEqual(0);
     expect(after.bottom).toBeLessThanOrEqual(after.viewport);
-    // And within a line of where it was, rather than merely somewhere on the page. A
-    // sub-pixel border swap is tolerated; a row of movement is not.
-    expect(Math.abs(after.top - before.top)).toBeLessThan(24);
+
+    // And the layout did not move it. A sub-pixel border swap is tolerated; a row is not.
+    //
+    // **This used to compare `top` and it was vacuous.** `scroll-behavior: smooth` was on the
+    // document until this branch, so the two readings were taken part-way through a scroll
+    // animation and their difference was whatever the animation happened to be worth at that
+    // instant — small, by luck. Removing the smooth scroll made the same 296px scroll instant
+    // and the assertion started failing on a page whose layout was never wrong.
+    expect(Math.abs(after.documentTop - before.documentTop)).toBeLessThan(24);
   });
 
   test("asks for the guide's details only once one is declared @requires-js", async ({
