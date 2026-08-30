@@ -186,6 +186,10 @@ interface EntrantOverrides {
   ea_number?: string | null;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  /** The runner's own number — required of a runner since ADR-025, and refused with
+   *  `phone_required`. Distinct from the emergency contact's above, which is somebody else's
+   *  number given for one thing. */
+  phone?: string | null;
   leg?: number | null;
 }
 
@@ -220,6 +224,11 @@ function entrant(overrides: EntrantOverrides = {}): Record<string, unknown> {
     club: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
+    // The runner's own number, which `create_pending_purchase()` has required of a
+    // runner since ADR-025 and refuses with `phone_required` without. Deliberately not
+    // the emergency contact's: a fixture where the two agree cannot catch the two being
+    // read the wrong way round.
+    phone: '07700 900124',
     leg: null,
     ...overrides,
   };
@@ -645,6 +654,48 @@ describe('the fields a caller fills in', () => {
     await acceptedPurchaseId(OPEN, {
       entrants: [entrant({ emergency_contact_phone: '+44 (0)7700 900123' })],
     });
+  });
+
+  it('refuses a runner with no phone number of their own', async () => {
+    // **The eighteenth field, and the bypass it has to survive** — ADR-025, argued in #168.
+    // `parseNnEntry` requires it, and Zod is the form's control rather than the system's: this
+    // function is granted to `anon` and reachable through PostgREST with the key published in
+    // the page source, so the form having a required box is not an answer on its own.
+    //
+    // **Refused by name rather than as `invalid_entrants`.** A log line saying `phone_required`
+    // says the form and the database disagree about what is asked; one saying
+    // `invalid_entrants` says something, somewhere, in the entrant block.
+    const { phone: _dropped, ...noPhone } = entrant();
+    expect(await refusalFor(OPEN, { entrants: [noPhone] })).toBe('phone_required');
+
+    // An empty box and a box of spaces are the same answer as no key at all — an untouched
+    // text input posts `''`, and a browser is happy with three spaces.
+    expect(await refusalFor(OPEN, { entrants: [entrant({ phone: '' })] })).toBe(
+      'phone_required',
+    );
+    expect(await refusalFor(OPEN, { entrants: [entrant({ phone: '   ' })] })).toBe(
+      'phone_required',
+    );
+  });
+
+  it("stores the runner's number apart from the emergency contact's", async () => {
+    // **The silent failure this guards.** Two numbers of the same shape mapped onto each other
+    // produce a valid entry, a valid start list, and a volunteer ringing somebody's next of kin
+    // about a start time. Nothing about the row would look wrong.
+    const purchaseId = await acceptedPurchaseId(OPEN, {
+      entrants: [
+        entrant({ phone: '0117 496 0100', emergency_contact_phone: '0117 496 0000' }),
+      ],
+    });
+
+    const rows = await query<{ phone: string; emergency_contact_phone: string }>(
+      'select phone, emergency_contact_phone from entries.entrants where purchase_id = $1',
+      [purchaseId],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.phone).toBe('0117 496 0100');
+    expect(rows[0]!.emergency_contact_phone).toBe('0117 496 0000');
   });
 
   it('refuses a purchaser email that is not an address', async () => {

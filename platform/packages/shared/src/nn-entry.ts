@@ -32,12 +32,30 @@ import type { EntryState } from './entry-state';
  *
  * `intake.nn_interest` takes three fields and adding a fourth is a committee decision. That
  * rule has not been relaxed — the committee has *made* the decision, and this is the list it
- * made: name, email, date of birth, race category, gender, club, entry type,
+ * made: name, email, phone number, date of birth, race category, gender, club, entry type,
  * emergency contact, and optional medical information under its own separate consent.
  * Anything not on that list is still a stop-and-ask.
  *
  * **The England Athletics number came off that list on 29 August 2026**, which is the only
  * time a field has ever gone the other way. It is described below.
+ *
+ * ## The runner's own phone number is the eighteenth field
+ *
+ * **Committee decision, 30 August 2026 — ADR-025, argued in issue #168.** `/nn/privacy/` has
+ * said since it was written that the club collects a phone number and the club did not: what
+ * `entries.entrants` held was an *emergency contact's* number, which belongs to somebody else
+ * and is given for one thing. Deleting the claim was the cheaper way to make the notice true.
+ * The club took the other, because a number it can reach a runner on — a start-time change, a
+ * course change, somebody who has not come through registration — is a thing it has wanted on
+ * every race it has put on, and ringing somebody's mother because the start moved by twenty
+ * minutes is not what that number was for.
+ *
+ * **Required of a runner and not asked of a guide.** A guide already gives their own address
+ * and their own emergency contact; a third contact detail for a second person on somebody
+ * else's entry is one nothing uses. `entries.create_pending_purchase()` refuses a runner
+ * without one, which is where this rule lives when the form is not the thing being posted to.
+ *
+ * **A nineteenth field is a new decision.**
  *
  * ## Race category and gender are two questions, and that is the fifteenth field
  *
@@ -144,6 +162,11 @@ export const NN_ENTRY_FIELDS = [
   'lastName',
   'email',
   'emailConfirm',
+  // **The runner's own number, and it sits with the other two ways of reaching them.** The
+  // emergency contact's number is a different question about a different person, four
+  // fieldsets down, and putting them side by side is how a form gets one written in the
+  // other's box. See ADR-025.
+  'phone',
   'dateOfBirth',
   'gender',
   'genderIdentity',
@@ -192,6 +215,12 @@ const MESSAGES = {
   emailConfirmMissing: 'Type your email address again, to check it.',
   emailConfirmMismatch:
     'The two email addresses do not match. Check both, then try again.',
+
+  // **"your own" is doing work.** The next number this form asks for belongs to somebody
+  // else, and the two boxes are the likeliest pair on the page to be filled in the wrong way
+  // round. The hint above the field says what the club uses it for; this only has to say
+  // whose it is.
+  phoneMissing: 'Enter your own phone number.',
 
   dobMissing: 'Enter your date of birth as a day, a month and a year.',
   dobNotADate: 'That is not a date. Check the day, the month and the year.',
@@ -354,6 +383,15 @@ export interface NnEntry {
   firstName: string;
   lastName: string;
   email: string;
+  /**
+   * The runner's own number, for the club to reach them about the race.
+   *
+   * **Not the emergency contact's, and the club may use exactly one of them for this.**
+   * `emergencyPhone` is somebody else's number, given for one thing, and ringing it because
+   * the start moved by twenty minutes is not that thing. ADR-025, and it is the eighteenth
+   * field.
+   */
+  phone: string;
   dateOfBirth: CivilDate;
   /** The race category, not the answer to "what is your gender" — see `genderIdentity`. */
   gender: Gender;
@@ -425,6 +463,7 @@ const TEXT_KEYS = [
   'lastName',
   'email',
   'emailConfirm',
+  'phone',
   'dobDay',
   'dobMonth',
   'dobYear',
@@ -502,6 +541,16 @@ function nnEntryObject(rules: NnEntryRules) {
         .string(MESSAGES.emailConfirmMissing)
         .trim()
         .min(1, MESSAGES.emailConfirmMissing),
+
+      // **Required, and the same ceiling the emergency contact's number has.** Whether what
+      // was typed is shaped like a phone number is a cross-field-shaped rule rather than a
+      // per-field one — it counts digits — so it is in `superRefine` below, through the same
+      // `phoneProblem` the other two numbers on this form go through.
+      phone: z
+        .string(MESSAGES.phoneMissing)
+        .trim()
+        .min(1, MESSAGES.phoneMissing)
+        .max(NN_ENTRY_PHONE_MAX_LENGTH, MESSAGES.emergencyPhoneTooLong),
 
       // **Three inputs, not a date picker.** A picker is hostile on a phone for a birth year
       // forty years back — it opens on this month and asks somebody to page backwards five
@@ -623,6 +672,15 @@ function nnEntryObject(rules: NnEntryRules) {
         if (values.email.toLowerCase() !== values.emailConfirm.toLowerCase()) {
           fail('emailConfirm', MESSAGES.emailConfirmMismatch);
         }
+      }
+
+      // --- the runner's own number ----------------------------------------------------------
+      // **The same function the emergency contact's number goes through**, rather than a
+      // third copy of the rule. The second copy is what let `ask my mum` through on the field
+      // whose whole purpose is to be dialled; a third would be the same wait for the same bug.
+      const ownPhoneIssue = phoneProblem(values.phone);
+      if (ownPhoneIssue !== null) {
+        fail('phone', ownPhoneIssue);
       }
 
       // --- the date of birth ---------------------------------------------------------------
@@ -995,6 +1053,7 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       firstName: values.firstName,
       lastName: values.lastName,
       email: values.email,
+      phone: values.phone,
       dateOfBirth,
       gender: values.gender,
       genderIdentity: values.genderIdentity ?? null,

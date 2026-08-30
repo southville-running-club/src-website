@@ -729,11 +729,12 @@ function csvResponse(taken: AdminExport): Response {
         // the affiliated price, which is the count ARC Rule 21(2)(b)'s Unattached Runner Levy
         // is assessed against. A treasurer needs that; nobody needs an empty column.
         csvDocument(
-          ['Last name', 'First name', 'Club', 'Entry type', 'Paid (pence)'],
+          ['Last name', 'First name', 'Club', 'Phone', 'Entry type', 'Paid (pence)'],
           taken.rows.map((row) => [
             row.lastName,
             row.firstName,
             row.club,
+            row.phone,
             row.feeLabel,
             row.amountPence,
           ]),
@@ -745,6 +746,11 @@ function csvResponse(taken: AdminExport): Response {
               'First name',
               'Club',
               'Category',
+              // **Named "Runner phone" beside "Emergency phone", not "Phone".** This file is
+              // opened in a spreadsheet by somebody who did not build it, and two columns of
+              // numbers where one of them is a next of kin is a mistake worth spending a word
+              // on. ADR-025.
+              'Runner phone',
               'Emergency contact',
               'Emergency phone',
             ],
@@ -757,6 +763,7 @@ function csvResponse(taken: AdminExport): Response {
               row.firstName,
               row.club,
               startListCategory(row),
+              row.phone,
               row.emergencyContactName,
               row.emergencyContactPhone,
             ]),
@@ -2116,6 +2123,25 @@ function startListRow(row: StartListExportRow): Html {
   return html`<tr>
     <th scope="row">
       ${row.lastName}, ${row.firstName}
+      ${
+        /* **The runner's own number goes inside the runner cell, and not into a sixth
+           column.** The comment above this function is the whole argument: five columns
+           already do not fit 320px, four of them fold into this cell to make the sheet work
+           at the registration desk, and the folded arrangement cleared a Linux runner by
+           about seven pixels of headroom that a scrollbar and wider font metrics had already
+           eaten once. A sixth column would spend that twice over on a page with no clipping
+           ancestor, where every excess pixel becomes document overflow.
+
+           So it is a line under the name, present at every width and in print, and it costs
+           the table height rather than width. Null on a guide and on every entry taken before
+           ADR-025, and rendered as nothing at all rather than as an empty line — a blank
+           where a number should be reads as a number nobody wrote down. */ null
+      }
+      ${
+        row.phone === null
+          ? null
+          : html`<span class="admin-sub admin-mono admin-nowrap">${row.phone}</span>`
+      }
       <span class="admin-stack">
         <span>${row.club ?? 'No club'}</span>
         <span>${startListCategory(row)}</span>
@@ -2690,6 +2716,20 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
         entrant.email === null
           ? null
           : html`<span class="admin-mono">${entrant.email}</span>`,
+      )}
+      ${
+        /* **Above the emergency contact, and labelled "Their own number" rather than "Phone".**
+           Two numbers on one panel are worth telling apart in the label rather than in the
+           order, because a volunteer scanning this on a phone at the registration desk is the
+           person who rings the wrong one. Null for a guide, who is not asked, and null on
+           every entry taken before ADR-025 — `fact` renders nothing at all for a null, which
+           is what keeps an old entry from showing an empty row for ever. */ null
+      }
+      ${fact(
+        'Their own number',
+        entrant.phone === null
+          ? null
+          : html`<span class="admin-mono">${entrant.phone}</span>`,
       )}
       ${fact('Emergency contact', entrant.emergencyContactName)}
       ${fact(
@@ -3332,7 +3372,8 @@ async function transferResponse(
     !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth) ||
     !(NN_ENTRY_GENDERS as readonly string[]).includes(gender) ||
     read('emergencyName') === '' ||
-    read('emergencyPhone') === ''
+    read('emergencyPhone') === '' ||
+    read('phone') === ''
   ) {
     const token = mintCsrfToken();
 
@@ -3360,6 +3401,11 @@ async function transferResponse(
       club: read('club') === '' ? null : read('club'),
       emergencyContactName: read('emergencyName'),
       emergencyContactPhone: read('emergencyPhone'),
+      // **Required by this form and not by `transfer_entry()`**, which takes a null and simply
+      // clears the previous runner's number. The split is deliberate: the function has to keep
+      // working for a Worker deployed before ADR-025, and this form is the Worker that came
+      // after. A place that moves should arrive with a way to reach whoever it moved to.
+      phone: read('phone'),
     },
   );
 
@@ -3479,6 +3525,24 @@ function transferFormPage(
             type="text"
             id="transfer-last"
             name="lastName"
+            required
+            autocomplete="off"
+          />
+        </p>
+
+        ${
+          /* **The new runner's own number, beside their name rather than beside the emergency
+          contact's.** The same arrangement the entry form uses and for the same reason: two
+          phone boxes on one page are the likeliest pair to be filled in the wrong way round,
+          and distance is the cheapest defence. `transfer_entry()` replaces the number rather
+          than carrying the previous runner's across — see ADR-025. */ null
+        }
+        <p>
+          <label for="transfer-phone">Their own phone number</label>
+          <input
+            type="tel"
+            id="transfer-phone"
+            name="phone"
             required
             autocomplete="off"
           />
@@ -3813,6 +3877,12 @@ function readAssignPerson(
   const emergencyName = read(field('emergencyName'));
   const emergencyPhone = read(field('emergencyPhone'));
   const club = read(field('club'));
+  // **Asked of the runner and not of the guide, which is the one field this function treats
+  // the two halves differently over.** A guide is not asked on the public form either — they
+  // have their own emergency contact and, on that form, their own email address — and asking
+  // a volunteer for a third contact detail about a second person is asking for what nothing
+  // reads. See ADR-022 and ADR-025.
+  const phone = prefix === '' ? read(field('phone')) : '';
 
   if (
     firstName === '' ||
@@ -3833,6 +3903,11 @@ function readAssignPerson(
     club: club === '' ? null : club,
     emergencyContactName: emergencyName,
     emergencyContactPhone: emergencyPhone,
+    // **Not in the refusal above, and that is the decision.** The public form will not take an
+    // entry without a number; this one will, because a complimentary place is arranged by a
+    // volunteer who may have nothing but an email thread — and refusing Kinsi a place over a
+    // phone number would make ADR-021's answer conditional on ADR-025's field.
+    phone: phone === '' ? null : phone,
   };
 }
 
@@ -4042,6 +4117,26 @@ function assignPersonFields(prefix: '' | 'guide', idPrefix: string): Html {
           </p>`,
       )}
     </fieldset>
+
+    ${
+      /* **The runner's own number, and the runner's block only.** `readAssignPerson` reads
+      this for the runner and never for the guide, so rendering it under the guide's heading
+      would be a box whose contents are dropped. Optional here and required on the public
+      form — see `readAssignPerson`. */ null
+    }
+    ${
+      prefix === ''
+        ? html`<p>
+            <label for="${idPrefix}-phone">Their own phone number (optional)</label>
+            <input
+              type="tel"
+              id="${idPrefix}-phone"
+              name="${raw(name('phone'))}"
+              autocomplete="off"
+            />
+          </p>`
+        : null
+    }
 
     <p>
       <label for="${idPrefix}-club">Running club (optional)</label>

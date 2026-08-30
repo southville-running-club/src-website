@@ -13,19 +13,35 @@ import '@src/shared/styles/nn-theme.css';
 
 // The race's privacy notice.
 //
-// ## This is the committee's document, published verbatim
+// ## The club maintains this page now, and that changed on 30 August 2026
 //
-// **The committee supplied this notice as a document, and on 30 August 2026 the club asked for
-// it to be published word for word.** Every sentence below is theirs. Nothing here is written,
-// corrected, extended or reordered, and that is the instruction rather than an oversight — so
-// a sentence that looks wrong is changed by the committee supplying new wording, never by
-// editing this file.
+// **The committee supplied this notice as a document, and it was published word for word from
+// 30 August 2026 until later the same day.** Issue #168 is where that ended: the collection
+// list said the club holds a postal address and an expected finish time, which it has never
+// asked anybody for, and did not say it holds medical information, a declaration that somebody
+// is visually impaired, how a runner describes their gender, or anything at all about a guide —
+// all four of which it does hold. Over-claiming is inaccurate; under-claiming what is special
+// category data under Article 9 is the half that matters, and **the guide is the sharpest case
+// of it**: a second person whose data is collected through somebody else's form, who may never
+// read this page because they did not do the entering.
 //
-// **An earlier version of this page merged that document with the notice it replaced.** It
-// carried a medical-note retention period, a schema-derived list of what the entry tables
-// hold, the named processors, the registered office, and the affiliation sentence. All of it
-// came out when the club asked for the document as it stands. Three of those differences are
-// load-bearing elsewhere, so they are recorded here rather than left to be rediscovered:
+// **So the club took the edits itself rather than waiting for new wording, and that is a choice
+// rather than a drift.** The alternative was the committee supplying an amended document, which
+// is still the better route for anything that changes what the notice *says*; what was done
+// here is narrower — **items inserted into and removed from one list, and no sentence anywhere
+// on the page rewritten, restyled or reordered.** The document's own words, structure,
+// capitalisation and headings are untouched. A change beyond that shape goes back to the
+// committee.
+//
+// **`/privacy/` is a separate document and was not touched by any of this.**
+//
+// ## What is still deliberately absent
+//
+// **An earlier version of this page merged the committee's document with the notice it
+// replaced.** It carried a medical-note retention period, a schema-derived list of what the
+// entry tables hold, the named processors, the registered office, and the affiliation sentence.
+// All of it came out. Three of those differences are load-bearing elsewhere, so they are
+// recorded here rather than left to be rediscovered:
 //
 //  1. **No retention period for a medical note is published.**
 //     `entries.events.medical_retention` is still one month and the cron still deletes on it,
@@ -33,12 +49,13 @@ import '@src/shared/styles/nn-theme.css';
 //     `race.json`'s `privacy.medicalRetention` — which is why that key is still there and
 //     still reads "One month after the race" though this page no longer prints it. **The tie
 //     is now between the column and the JSON only**, and no longer between either and what a
-//     runner reads.
-//  2. **The medical box, the visually impaired declaration and the guide are not named.** All
-//     three are collected — see `NN_ENTRY_FIELDS` — and the first two are special category
-//     data under Article 9.
+//     runner reads. Naming the medical box, as this page now does, does not restore it: what
+//     is collected and how long it is kept are two claims, and only the first is back.
+//  2. **The named processors and the registered office are still absent.** The list below
+//     names what is collected; who processes it is the committee's to supply.
 //  3. **The affiliation sentence is not here.** ADR-023 asks for it on both notices; it
-//     remains on `/privacy/`.
+//     remains on `/privacy/`, and closing that gap needs wording from the committee rather
+//     than an edit here — which is exactly the line the edits above stay on the near side of.
 //
 // ## What is interpolated, and why that is not an edit
 //
@@ -137,13 +154,25 @@ const { privacy } = race;
       </p>
 
       <ul>
-        <li><strong>Personal Identification:</strong> Name, date of birth, gender.</li>
         <li>
-          <strong>Contact Details:</strong> Email address, phone number, postal address.
+          <strong>Personal Identification:</strong> Name, date of birth, gender, and how you
+          describe your gender if you choose to tell us.
+        </li>
+        <li>
+          <strong>Contact Details:</strong> Email address, phone number.
         </li>
         <li>
           <strong>Race-Related Information:</strong> Emergency contact details, running club
-          affiliation, chosen race category, expected finish time.
+          affiliation, chosen race category.
+        </li>
+        <li>
+          <strong>Health Information:</strong> Any medical information you choose to give us
+          about yourself or about a guide running with you, under a separate consent; and, if
+          you tell us you are visually impaired so that a guide can run with you, that declaration.
+        </li>
+        <li>
+          <strong>Your Guide's Details:</strong> If a guide is running with you, their name,
+          date of birth, email address and emergency contact details, collected on your entry.
         </li>
         <li>
           <strong>Payment Information:</strong> Processed securely by our third-party payment

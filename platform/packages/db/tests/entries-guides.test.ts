@@ -66,6 +66,12 @@ interface Person {
   gender: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
+  /**
+   * The runner's own number — required of a runner since ADR-025, and **null for a guide**,
+   * who is not asked for one. That asymmetry is the thing worth having in a fixture here: a
+   * guide with a number would pass whether or not the function tells the two roles apart.
+   */
+  phone: string | null;
   role: string;
   /**
    * **Not a field anybody is asked for — a value posted at the function anyway.**
@@ -89,6 +95,11 @@ function person(role: 'runner' | 'guide', overrides: Partial<Person> = {}): Pers
     gender: 'female',
     emergency_contact_name: 'Margaret Hamilton',
     emergency_contact_phone: '07700 900000',
+    // **Required of a runner and null for a guide** — ADR-025, and the function refuses a
+    // runner without one with `phone_required`. Deliberately not the emergency contact's
+    // number: a fixture where the two agree cannot catch the two being read the wrong way
+    // round.
+    phone: role === 'guide' ? null : '07700 900001',
     role,
     ...overrides,
   };

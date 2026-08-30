@@ -149,6 +149,9 @@ async function hold(slug: string, email = 'fixture@example.com'): Promise<Create
           club: null,
           emergency_contact_name: 'Margaret Hamilton',
           emergency_contact_phone: '0117 496 0000',
+          // Required of a runner since ADR-025; `create_pending_purchase()` refuses without
+          // one, and this helper throws on a refusal rather than reporting it.
+          phone: '0117 496 0100',
         },
       ]),
       JSON.stringify({ entryTerms: true, medical: false }),
@@ -999,6 +1002,7 @@ describe('a revival racing a fresh entry for the last place', () => {
                   gender: 'female',
                   emergency_contact_name: 'Margaret Hamilton',
                   emergency_contact_phone: '0117 496 0000',
+                  phone: '0117 496 0100',
                 },
               ]),
               JSON.stringify({ entryTerms: true, medical: false }),

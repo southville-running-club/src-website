@@ -77,6 +77,7 @@ const SUMMARY_LINKS = [
   ['lastName', 'entry-last-name'],
   ['email', 'entry-email'],
   ['emailConfirm', 'entry-email-confirm'],
+  ['phone', 'entry-phone'],
   ['dateOfBirth', 'entry-dob-day'],
   ['gender', 'entry-gender'],
   ['genderIdentity', 'entry-gender-identity'],
@@ -528,6 +529,41 @@ const SUMMARY_LINKS = [
         required
         aria-describedby="entry-email-confirm-hint entry-email-confirm-error"
         data-entry-value="emailConfirm"
+      />
+    </div>
+
+    {
+      /* **The runner's own number, and it belongs here rather than beside the emergency
+      contact's.** Two phone boxes on one page are the likeliest pair on this form to be
+      filled in the wrong way round, and the cheapest defence is distance: this one is with
+      the other two ways of reaching *you*, and the other is four fieldsets down under a
+      legend that says whose it is.
+
+      **The hint names what the club will use it for and the fieldset it is not in.** ADR-025
+      is a decision about a purpose — a start-time change, a course change, somebody missing
+      from registration — and a required field with no stated purpose is the one people put
+      a made-up number into.
+
+      `autocomplete="tel"` because this genuinely is the person's own number, unlike both of
+      the emergency boxes, which carry `autocomplete="off"` for the opposite reason. */
+    }
+    <div class="field">
+      <label class="field-label" for="entry-phone">Phone number</label>
+      <p class="field-hint" id="entry-phone-hint">
+        Your own number. The club uses it to tell you about a change to the race — not on
+        race day for an emergency, which is the contact further down.
+      </p>
+      <p class="field-error" id="entry-phone-error" data-entry-error="phone" hidden></p>
+      <input
+        class="field-input"
+        id="entry-phone"
+        name="phone"
+        type="tel"
+        maxlength="40"
+        autocomplete="tel"
+        required
+        aria-describedby="entry-phone-hint entry-phone-error"
+        data-entry-value="phone"
       />
     </div>
   </fieldset>

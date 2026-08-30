@@ -535,6 +535,7 @@ const TEXT_FIELDS = [
   'lastName',
   'email',
   'emailConfirm',
+  'phone',
   'dobDay',
   'dobMonth',
   'dobYear',

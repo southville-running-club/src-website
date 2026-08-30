@@ -883,9 +883,14 @@ body.admin {
 
 /*
  * A second line inside a cell, for a value that qualifies the one above it rather than standing
- * on its own — today, the gender a runner recorded, under the race category it is not the same
- * question as. Muted and smaller because it is a note about a person, not a value this desk sorts,
- * filters or acts on.
+ * on its own. Two of them: the gender a runner recorded, under the race category it is not the
+ * same question as; and the runner's own phone number on the printed start list, under the name
+ * it belongs to. Muted and smaller because it is a note about a person, not a value this desk
+ * sorts, filters or acts on.
+ *
+ * **The start list uses this rather than a sixth column on purpose** — see `startListRow`. That
+ * table already folds four of its five columns below 48rem to clear 320px on a Linux runner, and
+ * a new column would spend headroom the fold was bought with.
  *
  * No `color-mix`, so `admin-contrast.test.ts` does not need a new pair: `--colour-muted` on the
  * panel is the pair `.admin-stack` already stands on.

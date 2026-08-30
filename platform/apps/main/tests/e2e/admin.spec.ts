@@ -1831,6 +1831,12 @@ test.describe('acting on an entry somebody paid for', () => {
     await page.getByLabel(/email address of the new runner/i).fill(TRANSFER_TO_EMAIL);
     // **Radios under a `Race category` legend**, not a select — `selectOption` finds nothing.
     await page.getByRole('radio', { name: 'Female' }).check();
+    // **Two numbers, and the labels are what keep them apart.** `Their own phone number` is
+    // the new runner's — required by this form since ADR-025, and it *replaces* the previous
+    // runner's rather than being carried across, exactly as the medical note and the recorded
+    // gender are. `Emergency contact number` belongs to somebody else. Different values here
+    // on purpose: a fixture where they agree cannot see them swapped.
+    await page.getByLabel(/their own phone number/i).fill('07700 900555');
     await page.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
     await page.getByLabel(/emergency contact number/i).fill('07700 900123');
     await page.getByRole('button', { name: 'Move the place to this runner' }).click();

@@ -339,15 +339,23 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'record_admin_action',
       'record_checkout_event',
       'record_send_result',
-      // **Two signatures each, and each pair is one expand step.** The three-argument
-      // `request_entry_action` records why somebody asked; the two-argument one delegates with
-      // a null reason. The ten-argument `transfer_entry` takes the new runner's own England
-      // Athletics number — without which an affiliated transfer raised a `check_violation` that
-      // reached a volunteer as "the database could not be reached" — and the nine-argument one
-      // delegates with a null.
+      // **`request_entry_action` has two signatures and `transfer_entry` now has three, and
+      // every one of them is an expand step.** The three-argument `request_entry_action`
+      // records why somebody asked; the two-argument one delegates with a null reason.
+      //
+      // `transfer_entry` grew twice. The ten-argument form took the new runner's own England
+      // Athletics number — without which an affiliated transfer raised a `check_violation`
+      // that reached a volunteer as "the database could not be reached". The **eleven**-argument
+      // form is ADR-025's: it takes the new runner's own phone number and replaces the previous
+      // runner's rather than carrying it across. It had to be eleven rather than ten, because
+      // Postgres identifies a function by its argument types and a tenth `text` is already the
+      // England Athletics form. The other two delegate with a null phone, which clears the
+      // number without recording a new one — so a Worker deployed before ADR-025 goes on
+      // transferring places.
       'request_entry_action',
       'request_entry_action',
       'resolve_entry_requests',
+      'transfer_entry',
       'transfer_entry',
       'transfer_entry',
     ]);
@@ -360,10 +368,10 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       .map((row) => row.args.split(',').length)
       .sort((a, b) => a - b);
 
-    expect(signatures).toEqual([9, 10]);
+    expect(signatures).toEqual([9, 10, 11]);
   });
 
-  it('lets anon execute exactly fifteen of the thirty-one, and never PUBLIC', async () => {
+  it('lets anon execute exactly fifteen of the forty-one, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument

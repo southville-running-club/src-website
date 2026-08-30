@@ -1350,13 +1350,17 @@ describe('the exports', () => {
     // many entries took the affiliated price — the count ARC Rule 21(2)(b)'s Unattached Runner
     // Levy is assessed against, and the only document that says so.
     expect(text.split('\r\n')[0]).toBe(
-      '﻿Last name,First name,Club,Entry type,Paid (pence)',
+      '﻿Last name,First name,Club,Phone,Entry type,Paid (pence)',
     );
     expect(text).not.toContain('EA number');
     expect(text).not.toContain(NEVER_STORED_EA_NUMBER);
     // The affiliated entries are on it, which is the half an empty file would also pass.
     expect(text).toContain('Nwosu');
-    // No emergency contact and no note: this is a count of entries, not a race-day document.
+    // **No emergency contact and no note.** The runner's own number *is* on it since ADR-025 —
+    // the club asked for it on every export, and a treasurer reconciling ARC's levy against a
+    // name they cannot place needs a way to ask. What stays off is the number belonging to
+    // somebody else and the Article 9 note: this is a count of entries, not a race-day
+    // document.
     expect(text).not.toContain('Kin ');
     expect(text).not.toContain('inhaler');
   });
@@ -1364,8 +1368,11 @@ describe('the exports', () => {
   it('gives the start list its emergency contacts and no note', async () => {
     const { text } = await csv('start-list');
 
+    // **"Runner phone" beside "Emergency phone", and the two words are the whole point.**
+    // This file is opened in a spreadsheet by somebody who did not build it, and two columns
+    // of numbers where one of them is a next of kin is a mistake worth a word. ADR-025.
     expect(text.split('\r\n')[0]).toBe(
-      '﻿Last name,First name,Club,Category,Emergency contact,Emergency phone',
+      '﻿Last name,First name,Club,Category,Runner phone,Emergency contact,Emergency phone',
     );
     expect(text).toContain('Kin Nwosu');
     expect(text).toContain('Vet 40');
@@ -1396,6 +1403,11 @@ describe('the exports', () => {
         'Lena',
         '"Bristol & West AC, ""the Bees"""',
         'Vet 60',
+        // **The runner's own number, and it is the column before the contact's** —
+        // ADR-025. Asserting the whole line rather than a fragment is what makes a new
+        // column show up here as a failure rather than as a silent shift of everything
+        // after the club.
+        '0117 496 0100',
         `Kin ${PAID_NON_ASCII_LAST_NAME}`,
         '0117 496 0000',
       ].join(','),

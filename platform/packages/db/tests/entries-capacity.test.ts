@@ -164,6 +164,11 @@ function entrant(overrides: Record<string, unknown> = {}): Record<string, unknow
     club: null,
     emergency_contact_name: 'Margaret Hamilton',
     emergency_contact_phone: '0117 496 0000',
+    // The runner's own number, which `create_pending_purchase()` has required of a
+    // runner since ADR-025 and refuses with `phone_required` without. Deliberately not
+    // the emergency contact's: a fixture where the two agree cannot catch the two being
+    // read the wrong way round.
+    phone: '0117 496 0100',
     ...overrides,
   };
 }

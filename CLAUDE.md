@@ -95,7 +95,26 @@ re-run.
   `entrants.gender` is nullable behind `entrants_gender_unless_guide`, which permits that for a
   guide and for nothing else, and a runner without one is refused as loudly as ever. **The VI
   guide entry type is off the form**; the `vi_guide` fee row survives as the backstop's
-  subject. **An eighteenth field is a new decision.**
+  subject. **The eighteenth was taken on 30 August 2026 and it is the runner's own phone
+  number** — [ADR-025](docs/architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md)
+  and [decision 008](docs/decisions/decision-log.md#008--ask-a-runner-for-a-phone-number-and-make-the-race-notice-say-what-is-actually-held),
+  argued in #168. It exists because `/nn/privacy/` claimed a phone number the club did not hold:
+  what `entrants` held was `emergency_contact_phone`, **somebody else's** number given for one
+  thing, and ringing it because the start moved by twenty minutes is not that thing. The stated
+  purpose is telling a runner about a change to the race. **A guide is not asked** — they give
+  their own email address and their own emergency contact already. **Required of a runner in two
+  layers and in a check constraint in neither**: `parseNnEntry` refuses a blank box and
+  `create_pending_purchase()` refuses a payload with `phone_required`, while
+  `entrants.phone` is nullable behind `entrants_phone_shaped`, which only says what may be
+  *held*. A `role = 'guide' or phone is not null` constraint is the obvious shape and it would
+  refuse the transfer and the given place the **deployed** Worker is making, which is what
+  expand-migrate-contract forbids — so `transfer_entry()` and `create_manual_entry()` both take
+  a null. `transfer_entry()` gained an **eleventh** argument rather than a tenth, because a
+  tenth `text` is already ADR-023's England Athletics form and `create or replace` cannot rename
+  a parameter; its wrappers delegate with a null phone, which **clears** the previous runner's
+  number rather than carrying it across. It is on `/admin/nn/entry/`, the printed start list, the
+  start-list CSV and the affiliated export, and **not** on the entries table or the medical
+  sheet. **A nineteenth field is a new decision.**
 - **One field has come off the list, which had never happened before — the England Athletics
   number, on 29 August 2026.** The club asks for none and holds none: a runner states that they
   are affiliated and the club takes their word for it —
@@ -120,10 +139,21 @@ re-run.
   owed**, and it is
   [the contract runbook](docs/delivery/runbooks/entries-ea-number-contract.md). **Asking for a
   number again is a new decision**, not a revert.
-- **`/nn/privacy/` is the committee's document word for word, and what it says is theirs to
-  change.** **Rewritten on 30 August 2026**, when the club asked for that document to be published
-  verbatim; until then the page merged it with the notice it replaced. A sentence that looks wrong
-  on it is corrected by the committee supplying new wording, **never** by editing the file.
+- **`/nn/privacy/` was the committee's document word for word for part of one day, and the club
+  maintains it now.** **Rewritten on 30 August 2026**, when the club asked for that document to be
+  published verbatim; until then the page merged it with the notice it replaced. **Later the same
+  day the club took edits to it itself** — #168 and
+  [ADR-025](docs/architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md) —
+  because the collection list claimed a **postal address** and an **expected finish time** that
+  nobody is asked for, and omitted the medical box, the visually impaired declaration, gender
+  identity and the guide entirely, which are four things it holds and two of which are Article 9.
+  The document was contradicting itself about the health data: it names health and safety as a
+  basis and medical services as a party it shares with.
+  ⚠️ **What that permits is items inserted into and removed from the collection list and
+  nothing else.** No sentence on that page may be rewritten, restyled, reordered or "improved",
+  and no section may be added; the structure, headings and capitalisation are the committee's.
+  Anything beyond insertion and deletion of list items still goes back to them and returns as new
+  wording — which is why **the affiliation sentence decision 007 asks for is still not there**.
   **It renders no "To be confirmed by the club" marker at all now** — `nn-privacy.spec.ts` has
   `OPEN_DECISIONS = 0`, and it is `/privacy/`, the club's own notice, that still carries the two
   the marker is for: how long an account is kept, and whether deleting one deletes a race entry.
