@@ -32,6 +32,7 @@
     "build:worker": "npm run build:worker --workspaces --if-present",
     "dev:all": "concurrently --kill-others --names main,timing --prefix-colors green,cyan \"npm run dev:worker\" \"npm run dev:timing\"",
     "smoke": "node scripts/smoke.mjs",
+    "entry-sweep": "node scripts/entry-sweep.mjs",
     "stripe:stub": "node scripts/stripe-stub.mjs",
     "prepare": "cd .. && node platform/node_modules/husky/bin.js .husky || true"
   },

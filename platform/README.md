@@ -78,6 +78,38 @@ Check it end to end at any time — the same seven assertions CI runs against pr
 npm run smoke -- --local
 ```
 
+### Testing the morning entries open
+
+`entries_open_at` is null in production and setting it starts selling 250 places unattended, so
+**the open window is a state only a laptop can be put into.** That makes the entry path the one
+journey nobody can rehearse where it matters, on the one morning it has to work.
+
+```bash
+npm run entry-sweep
+```
+
+It moves the window, walks the whole path as an ordinary visitor with **no account and no
+role** — the price taken from `entries.fees`, the place held, no account created, and every
+refusal a person can actually meet — then puts the window back exactly as it found it. Add
+`-- --keep-open` to leave it open and carry on by hand.
+
+#### Buying a place all the way through
+
+The last phase goes further: it buys a place with no account, confirms it the way Stripe does,
+and then registers an account with the address that paid to prove the entry is waiting on it.
+That needs the webhook, and **`./dev up` binds no webhook secret on purpose** — with none the
+endpoint answers 503 and lets Stripe retry, which is right for an endpoint nobody has
+registered yet. So the phase **skips with a note** unless you switch it on:
+
+```bash
+printf 'STRIPE_WEBHOOK_SECRET=whsec_TEST_NOT_A_REAL_SIGNING_SECRET_000000\nENTRIES_WEBHOOK_KEY=zz-worker-test-key-not-a-real-one\n' > apps/main/.dev.vars
+```
+
+Then `./dev down && ./dev up`, run the sweep, and **delete `apps/main/.dev.vars` afterwards** —
+a laptop left with a working webhook key is one where the 503 branch has stopped being tested.
+Both values are constants this repository already keeps in `apps/main/tests/webhook-fixtures.ts`
+and neither authenticates to anything; the file is gitignored.
+
 ### The other dev server
 
 `npm run dev` is `astro dev` on **:4321** — instant reload, but **no Worker runs**, so the
@@ -93,6 +125,7 @@ content and CSS, misleading for anything else.
 | `npm run dev:worker` | `wrangler dev` — `apps/main` alone, :8787 |
 | `npm run dev:timing` | `next dev` — `apps/timing` alone, :8788/timing |
 | `npm run smoke` | The live-site checks against **production**. `-- --local` for localhost |
+| `npm run entry-sweep` | **The entry path in both window states, locally.** Opens the window, walks it as somebody with no account and no role, and puts the window back. `-- --keep-open` leaves it open for hand testing; `-- --closed` does only what production serves |
 | `npm test` | Vitest: unit and database |
 | `npm run entries:open` / `entries:close` | Move the local NN entry window, so `/nn/` shows the entry form or the interest one. `--workspace=packages/db` |
 | `npm run test:worker` | Inside the Workers runtime, via Miniflare. Needs a build first |

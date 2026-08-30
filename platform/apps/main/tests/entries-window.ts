@@ -48,8 +48,9 @@ const SLUG = 'nn-2026';
  * would start failing on whichever morning the clock passed the closing one, which is the
  * kind of test that fails on a Tuesday and teaches everybody to rerun the suite.
  *
- * Closed restores exactly what the migration seeded — **null, meaning nobody has decided
- * when entries open** — which is the state production is in.
+ * Closed restores the state production is in: **a null `entries_open_at`, meaning nobody has
+ * decided when entries open, and the `entries_close_at` the committee ratified** — a real
+ * value in the schema since 27 August. Only the opening half is the switch.
  */
 export async function setEntryWindow(open: boolean): Promise<void> {
   const db = new Client({ connectionString: LOCAL_DB });
@@ -62,8 +63,13 @@ export async function setEntryWindow(open: boolean): Promise<void> {
               set entries_open_at = now() - interval '1 day',
                   entries_close_at = now() + interval '30 days'
             where slug = $1`
-        : `update entries.events
-              set entries_open_at = null, entries_close_at = null
+        : // **The opening half alone**, so closing restores the shape production is in rather
+          // than an emptier one. `entries_close_at` has been a real value since 27 August —
+          // `20260827180000_nn_2026_entries_close_at.sql` — and nulling it here left every
+          // suite that ran after a close asking questions of a row production never had. See
+          // issue #145, defect 4.
+          `update entries.events
+              set entries_open_at = null
             where slug = $1`,
       [SLUG],
     );

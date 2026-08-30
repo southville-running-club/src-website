@@ -544,24 +544,29 @@ html:has(body.theme-nn) {
  * 72px. That is the exact silent failure `scroll-padding-top` exists to prevent, and one a test
  * at 1280px and 320px would have passed.
  *
- * **768px, and the slack above the real wrap point is deliberate.** The sweep in `site.spec.ts`
- * brackets that wrap between 640px and 700px — the bar is 110.9px at 640 and 62.5px at 700 —
- * and where exactly it falls is a consequence of five label widths in a variable font rather
- * than a number this file sets. Putting the boundary *at* it would make the inset wrong on
- * whichever side the fonts moved. Above the wrap this reserves about 58px more than the bar
- * needs, which lands a tablet anchor slightly low; below it, being short would put the anchor
- * underneath the header. Those are not the same size of wrong, so the boundary sits high.
+ * ## That band closed when the bar lost a link, and the middle regime went with it
+ *
+ * **All of the paragraph above was true of a five-link bar and none of it is true now.** #147
+ * took the bar to four controls, and four labels have enough room to share one line all the way
+ * down to the compact layout — so the two-row regime the `max-width: 768px` block existed for
+ * simply does not happen any more.
+ *
+ * Measured on both engines at seventeen widths, the bar is **62.5px from 1280px to 520px** and
+ * **105.3px at 480px and below**. There is no width at which it is ~110px. The block was still
+ * reserving 112px across that whole span, so `scroll-padding-top` was 120px against a 62.5px
+ * bar — clearing it, but tracking nothing, which is what `site.spec.ts`'s second property is
+ * for and what it failed on at 640px.
+ *
+ * **So the token now steps once, at the 480px boundary the compact layout already owns.** If a
+ * fifth control is ever added the middle regime comes back and this block with it — take the
+ * measurements again rather than restoring these numbers, because they described five labels
+ * in a variable font and not a rule this file chooses.
  *
  * `site.spec.ts` sweeps nine widths and asserts the two properties separately for this reason:
- * the inset clears the bar at *every* width, and tracks it closely at the five where the bar is
- * as tall as its regime ever gets rather than in the slack. Its table carries the measurements.
+ * the inset clears the bar at *every* width, and tracks it closely at the widths where the bar
+ * is as tall as its regime ever gets rather than in the slack. Its table carries the
+ * measurements.
  * ------------------------------------------------------------------------------------- */
-@media (max-width: 768px) {
-  html:has(body.theme-nn) {
-    /* Two rows, measured at 110.9px. */
-    --nn-masthead-height: 112px;
-  }
-}
 
 .theme-nn .nn-masthead {
   /* **The bar stays on screen. ADR-014.** */
@@ -893,14 +898,30 @@ html:has(body.theme-nn) {
  * ------------------------------------------------------------------------------------- */
 @media (max-width: 480px) {
   html:has(body.theme-nn) {
-    /* **This regime has two heights and the token is the taller of them.** Measured 97.3px at
-       400–480px, where five compact labels still fit one row, and 134.8px at 320px, where they
-       wrap onto two. So the inset is knowingly ~47px generous on the wider phones and tight on
-       the narrow ones — the same trade as the 768px boundary above, for the same reason: the
-       width at which five labels wrap is a font metric, not a number this file chooses.
+    /* **One height now, where there were two.** With five labels this regime measured 97.3px
+       at 400–480px and 134.8px at 320px — they fitted one row on the wider phones and wrapped
+       on the narrow ones — and 136px was the taller of the two, knowingly ~47px generous above
+       320px.
 
-       Measured, not estimated. The first version of this value was 116px, from arithmetic on
-       label widths, and `site.spec.ts` failed it. */
+       Four labels fit one row at every compact width, so the wrap is gone and with it the
+       second height. Measured across 480px down to 320px: **105.3px on chromium and desktop
+       webkit, 100.1px on mobile-safari**, and flat within each engine.
+
+       **136px stays, and it is now knowingly generous rather than measured.** Against a
+       ~105px bar it reserves about 31px more than the bar needs, which lands a phone anchor
+       slightly low — the harmless direction. The alternative was worse: this inset is also
+       what gives the entry form's fee cards room to shift without leaving the screen, and
+       lowering it to 112px moved the card somebody had just chosen 3.4px off the top at 320px
+       on CI's Linux chromium. That is the defect `nn-entry.spec.ts`'s "keeps the entry type
+       that was chosen in view" exists to catch, in miniature.
+
+       **So this number answers two requirements and only one of them is about the bar.** It
+       cannot be re-derived from the bar's height alone, and it could not be reproduced on
+       macOS — the card's position at 320px differs enough between platforms that the local
+       measurement said the opposite of CI. Changing it needs a CI run, not a laptop.
+
+       `site.spec.ts` no longer asks the inset to *track* the bar at 320px for the same reason;
+       the comment on `TIGHT` there says so. It still asks it to clear it, at every width. */
     --nn-masthead-height: 136px;
   }
 

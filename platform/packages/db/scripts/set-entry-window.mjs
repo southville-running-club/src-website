@@ -7,6 +7,10 @@
  * `entries_open_at` is null, because nobody has decided when entries open — so this is how
  * a laptop sees the entry form at all.
  *
+ * **Closing puts back the seeded shape rather than an empty one**: a null open date and the
+ * close date the committee ratified, which since 27 August is a real value in the schema. See
+ * the comment on the SQL below.
+ *
  * **It moves the same row the committee will move.** There is no preview flag, no
  * query-string override and no local-only variable, which is what makes it impossible for
  * something in this repository to force a form open in production.
@@ -35,8 +39,19 @@ const SQL = open
             entries_close_at = now() + interval '30 days'
       where slug = $1
       returning entries_open_at, entries_close_at`
-  : `update entries.events
-        set entries_open_at = null, entries_close_at = null
+  : // **Only the opening half is withheld, and the close date stays.** This used to null both,
+    // on the reasoning that closed is what the migration seeded — true when it was written and
+    // false since 27 August, when `20260827180000_nn_2026_entries_close_at.sql` set
+    // `entries_close_at` to `2026-10-30 17:00:00+00`. Production holds a null open date and a
+    // set close date: the committee ratified the window, and `entries_open_at` alone is the
+    // switch.
+    //
+    // Nulling both left the laptop in a state nobody has deployed, and with **no symptom** —
+    // `entry_state()` tests `entries_open_at is null` as an explicit branch before it compares
+    // anything, so the page reads correctly either way. What broke was any question *about*
+    // the close date, asked of a row that no longer had one.
+    `update entries.events
+        set entries_open_at = null
       where slug = $1
       returning entries_open_at, entries_close_at`;
 

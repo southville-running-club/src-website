@@ -81,12 +81,25 @@ export const NN_TESTER_EMAIL = 'zz-admin-worker-tester@example.com';
  */
 export const PEOPLE_ADMIN_EMAIL = 'zz-admin-worker-people@example.com';
 
+/**
+ * Somebody who holds an **entry**, and no role beyond `registered`.
+ *
+ * **Not `REGISTERED_EMAIL`, and the distinction is load-bearing.** That person's defining
+ * property is that they hold *nothing*: `tests/worker/admin/tester.test.ts` signs in as them
+ * and asserts `/account/entries/` shows the honest empty state. Hanging an entry off them to
+ * save a fixture broke that test's premise while every assertion inside it still read as
+ * correct — which is the expensive kind of fixture reuse, and is how this constant came to
+ * exist. A person who holds an entry and a person who holds nothing are two fixtures.
+ */
+export const ENTRANT_EMAIL = 'zz-admin-worker-entrant@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
   SUPER_ADMIN_EMAIL,
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
+  ENTRANT_EMAIL,
 ] as const;
 
 /**
@@ -162,6 +175,55 @@ export const CLEAN_HELD_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000032';
 
 export const CLEAN_PAID_LAST_NAME = 'Ferreira';
 export const CLEAN_HELD_LAST_NAME = 'Underhill';
+
+/**
+ * A third event, and **the only one anything is allowed to destroy**.
+ *
+ * Cancelling refunds a purchase and deletes its entrants; transferring replaces the runner and
+ * deletes their medical note; assigning adds a place. All three are irreversible within a run,
+ * so pointing them at the oversold event or the quiet one would leave every later assertion in
+ * this file reading a table the earlier tests had already changed — and which tests those are
+ * depends on the order Playwright happens to run them in.
+ *
+ * So the destructive tests get their own running with nothing else asserted about it. Its own
+ * `race_slug` again, so `entries.current_entry_state('nn')` cannot see it either, and ten places
+ * so that assigning one is nowhere near the capacity edge.
+ */
+export const ACTIONS_EVENT_SLUG = 'zz-admin-actions';
+export const ACTIONS_RACE_SLUG = 'zz-admin-actions-race';
+export const ACTIONS_EVENT_NAME = 'Actions Fixture Race';
+export const ACTIONS_EVENT_DATE = '2026-12-20';
+export const ACTIONS_CAPACITY = 10;
+
+/** Paid, and cancelled by the test that proves the refund returns the place. */
+export const CANCELLABLE_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000041';
+export const CANCELLABLE_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000051';
+export const CANCELLABLE_LAST_NAME = 'Banerjee';
+
+/** Paid, **with a medical note**, so the transfer test can prove the note goes with the runner. */
+export const TRANSFERABLE_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000042';
+export const TRANSFERABLE_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000052';
+export const TRANSFERABLE_LAST_NAME = 'Lindqvist';
+
+/**
+ * Paid, and **bought with `ENTRANT_EMAIL`'s address**, which is what puts it on that person's
+ * `/account/entries/`. `my_entries()` matches on `person_id` *or* on a `purchaser_email` equal
+ * to the caller's confirmed address, and this fixture is the second of those — the state a
+ * purchase sits in when somebody entered without being signed in, which is most of them.
+ */
+export const OWNED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000043';
+export const OWNED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000053';
+export const OWNED_LAST_NAME = 'Achterberg';
+
+/** Who a transferred place ends up with. Nobody who already holds one. */
+export const TRANSFER_TO_FIRST_NAME = 'Rosalind';
+export const TRANSFER_TO_LAST_NAME = 'Nakamura';
+export const TRANSFER_TO_EMAIL = 'rosalind@example.com';
+
+/** Who a complimentary place is given to. */
+export const ASSIGN_TO_FIRST_NAME = 'Kinsi';
+export const ASSIGN_TO_LAST_NAME = 'Warsame';
+export const ASSIGN_TO_EMAIL = 'kinsi@example.com';
 
 /**
  * The awkward strings, split across two entrants **for a reason rather than for variety**.

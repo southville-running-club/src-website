@@ -4,6 +4,17 @@ import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
 import { expectNoSidewaysScroll as expectNoSidewaysScrollAt } from '../sideways-scroll';
 import {
+  ACTIONS_EVENT_SLUG,
+  ASSIGN_TO_FIRST_NAME,
+  ASSIGN_TO_LAST_NAME,
+  ASSIGN_TO_EMAIL,
+  CANCELLABLE_LAST_NAME,
+  ENTRANT_EMAIL,
+  OWNED_LAST_NAME,
+  TRANSFERABLE_LAST_NAME,
+  TRANSFER_TO_EMAIL,
+  TRANSFER_TO_FIRST_NAME,
+  TRANSFER_TO_LAST_NAME,
   ADMIN_EVENT_SLUG,
   ADMIN_PASSWORD,
   AWKWARD_FIRST_NAME,
@@ -109,6 +120,9 @@ const OVERSOLD_ALL = `${OVERSOLD}?hide=none`;
 
 /** The quiet fixture — two entries against ten places, nothing wrong with it. */
 const QUIET = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
+
+/** The running the destructive tests are allowed to ruin. Nothing else asserts about it. */
+const ACTIONS = `${NN}entries/${ACTIONS_EVENT_SLUG}/`;
 
 /**
  * What `apps/main`'s `preview` script binds, and what `seed.sql` installs the digest of.
@@ -1673,5 +1687,210 @@ test.describe('accessibility and small screens', () => {
     for (const column of ['Club', 'Category', 'Entry', 'Code', 'Paid']) {
       await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
     }
+  });
+});
+
+/**
+ * The three things this surface may do to an entry somebody paid for.
+ *
+ * **These were tested as database functions and never as buttons.** `entries-transfer-and-
+ * requests.test.ts` and `entries-manual-entry.test.ts` prove `cancel_entry()`,
+ * `transfer_entry()` and `create_manual_entry()` enforce their rules; nothing proved a
+ * volunteer could reach them. That gap is the shape of the two defects a manual sweep found
+ * in August 2026 — both live between a correct database and the page in front of it, where a
+ * function test cannot see.
+ *
+ * Every test here works on `ACTIONS_EVENT_SLUG`, which exists so they can destroy things. All
+ * three acts are irreversible within a run, so pointing them at a running another test
+ * measures would make the pair depend on the order Playwright happened to pick.
+ *
+ * **Each is a two-step POST**, which is deliberate and is asserted rather than skipped past:
+ * the button on the row only *asks*, and carries no CSRF token because it changes nothing.
+ * The confirmation it renders mints the token the second POST has to echo. Driving the real
+ * buttons rather than hand-building the requests is what keeps that honest — Playwright
+ * submits whatever the form actually contains.
+ */
+test.describe('acting on an entry somebody paid for', () => {
+  test('cancels an entry, refunds it, and leaves the row with no runner on it', async ({
+    page,
+  }) => {
+    // **A desktop width, because the row's actions are a desktop-only control today.**
+    // Details, Cancel and Transfer sit in an `.admin-col-wide` cell, which is `display: none`
+    // below 768px, and the stacked mobile row carries only the club and the category — so on a
+    // phone there is no way to reach any of them. That is issue #145, defect 5; pinning the
+    // width here keeps these tests about cancelling and transferring rather than about the
+    // breakpoint, and they will keep passing once the defect is fixed.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ACTIONS);
+
+    // **`Lastname, Firstname`** — `runnerName()` renders the table's sort order rather than a
+    // greeting, and the visually-hidden half of every row button's name is built from it.
+    await page
+      .getByRole('button', {
+        name: `Cancel the entry for ${CANCELLABLE_LAST_NAME}, Anita`,
+      })
+      .click();
+
+    // The first press only asks. Nothing has changed yet, and the page says what will.
+    await expect(page.getByRole('heading', { name: /cancel/i })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel this entry' }).click();
+
+    // **It renders an outcome rather than redirecting.** Asserting a redirect to the list would
+    // be asserting a flow this surface deliberately does not have.
+    //
+    // **The shared half of both outcomes**, deliberately: the copy differs on whether there was
+    // a card payment to give back, and these fixtures are rows written straight into the table
+    // with no payment intent, so they take the "no card payment to refund" branch. Pinning that
+    // wording would pin a fact about the fixture rather than about cancelling.
+    await expect(page.getByText(/the place released/i)).toBeVisible();
+
+    // **The purchase stays and the runner goes.** `cancel_entry()` deletes the entrants so the
+    // club stops holding personal data for a race nobody is running, and #116 made the list
+    // purchase-driven precisely so the row does not vanish with them — a Refunded filter that
+    // can never match is how a volunteer once concluded there had been no refunds.
+    // **By row header, not by text.** Every row repeats the runner's name inside the accessible
+    // name of each of its buttons, so a bare `getByText` matches the header and the controls and
+    // fails strict mode — on a page that is perfectly correct.
+    await page.goto(`${ACTIONS}?status=refunded`);
+    await expect(
+      page.getByRole('rowheader', { name: 'No runner recorded' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(CANCELLABLE_LAST_NAME) }),
+    ).toBeHidden();
+  });
+
+  test('transfers a place, and the previous runner’s medical note does not go with it', async ({
+    page,
+  }) => {
+    // A desktop width, for the reason the cancel test above gives — issue #145, defect 5.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ACTIONS);
+
+    await expect(
+      page.getByRole('button', {
+        name: `Show note for ${TRANSFERABLE_LAST_NAME}, Petra`,
+      }),
+      'the fixture starts with a note, or this test proves nothing',
+    ).toBeVisible();
+
+    await page
+      .getByRole('button', {
+        name: `Transfer the entry for ${TRANSFERABLE_LAST_NAME}, Petra to somebody else`,
+      })
+      .click();
+
+    // The transfer form collects one person, so its labels are unambiguous — unlike the
+    // assign form below, which collects a runner and a guide and needs the group naming.
+    await page.getByLabel('First name').fill(TRANSFER_TO_FIRST_NAME);
+    await page.getByLabel('Last name').fill(TRANSFER_TO_LAST_NAME);
+    await page.getByLabel(/date of birth/i).fill('1990-02-17');
+    await page.getByLabel(/email address of the new runner/i).fill(TRANSFER_TO_EMAIL);
+    // **Radios under a `Race category` legend**, not a select — `selectOption` finds nothing.
+    await page.getByRole('radio', { name: 'Female' }).check();
+    await page.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
+    await page.getByLabel(/emergency contact number/i).fill('07700 900123');
+    await page.getByRole('button', { name: 'Move the place to this runner' }).click();
+
+    await page.goto(ACTIONS);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFER_TO_LAST_NAME) }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFERABLE_LAST_NAME) }),
+    ).toBeHidden();
+
+    // **The note belonged to whoever wrote it.** Carrying one across would file a stranger's
+    // condition under a new name, so the new runner has none until they write one.
+    await expect(
+      page.getByRole('button', {
+        name: `Show note for ${TRANSFER_TO_LAST_NAME}, ${TRANSFER_TO_FIRST_NAME}`,
+      }),
+    ).toBeHidden();
+  });
+
+  test('assigns a complimentary place, at £0 and counted against the field', async ({
+    page,
+  }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ACTIONS);
+
+    await page.getByRole('button', { name: 'Assign a place' }).click();
+
+    // **Scoped to the runner's fieldset.** The form collects a runner *and* an optional guide
+    // from the same function, so every person label appears twice and a bare `getByLabel`
+    // is a strict-mode violation rather than a wrong answer — which is the good failure.
+    const runner = page.getByRole('group', { name: 'The runner' });
+
+    await runner.getByLabel('First name').fill(ASSIGN_TO_FIRST_NAME);
+    await runner.getByLabel('Last name').fill(ASSIGN_TO_LAST_NAME);
+    await runner.getByLabel(/date of birth/i).fill('1986-09-01');
+    await runner.getByRole('radio', { name: 'Female' }).check();
+    await runner.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
+    await runner.getByLabel(/emergency contact number/i).fill('07700 900123');
+    await page.getByLabel('Their email address').fill(ASSIGN_TO_EMAIL);
+
+    // **The consent is not decoration.** `assert_purchase_consents()` refuses a purchase whose
+    // consents are empty — Slice G closed that bypass — so a complimentary place needs the same
+    // agreement a paid one does, recorded by whoever is giving it away.
+    await page.getByLabel(/agreement to the entry terms/i).check();
+    await page.getByRole('button', { name: 'Give this place' }).click();
+
+    // **It lands on the current running, not on the page it was pressed from.**
+    // `assignResponse` resolves the event through `reader.currentSlug()` rather than the slug in
+    // the address, so giving a place away from a past running's page files it against whichever
+    // running is current. Worth pinning precisely because it is surprising: the button is
+    // offered on every event's page and only ever means one of them.
+    await page.goto(NN);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(ASSIGN_TO_LAST_NAME) }),
+    ).toBeVisible();
+  });
+
+  /**
+   * **`super-admin` deliberately does not carry `nn.entry.cancel`**, and this is what that
+   * decision looks like from a page. Granting somebody a role is not holding it, so the person
+   * who can hand out `nn-admin` cannot themselves refund an entry — and the surface offers them
+   * no button rather than one that 404s, because a dead control reads as a broken page rather
+   * than as a thing this person may not do.
+   */
+  test('offers a super-admin none of the three, because granting a role is not holding one', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    // They are staff, so the door opens — and the race section is not theirs.
+    expect((await page.goto(ACTIONS))?.status()).toBe(404);
+  });
+});
+
+/**
+ * The two buttons a runner presses about their own entry.
+ *
+ * Neither cancels nor transfers anything: `request_entry_action()` **records that somebody
+ * asked** and performs neither act. That is the whole point of the column being its own thing
+ * rather than a sixth status — an entry somebody has asked to cancel still holds its place
+ * until a volunteer acts, and a new status would make that place invisible to the capacity
+ * count and sellable twice.
+ */
+test.describe('a runner asking the club about their own entry', () => {
+  test('records the ask without changing the entry’s status', async ({ page }) => {
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/');
+
+    // The entry reaches this page by `purchaser_email` rather than `person_id` — the state a
+    // purchase sits in when somebody entered without being signed in, which is most of them.
+    await expect(page.getByText(OWNED_LAST_NAME)).toBeVisible();
+
+    await page.getByLabel(/why are you asking/i).fill('Injured, sorry.');
+    await page.getByRole('button', { name: /ask to cancel this entry/i }).click();
+
+    // **Still theirs, and still holding its place.** The club has been told, and nothing else.
+    await expect(page.getByText(OWNED_LAST_NAME)).toBeVisible();
+    await expect(
+      page.getByText('You asked the club to cancel this entry.'),
+    ).toBeVisible();
   });
 });

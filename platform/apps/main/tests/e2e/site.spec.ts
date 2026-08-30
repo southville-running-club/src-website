@@ -781,10 +781,31 @@ test.describe('the Nightingale Nightmare content pages', () => {
       expect(before, `starts on screen at ${width}px`).toBeGreaterThanOrEqual(0);
       expect(before, `starts above the fold at ${width}px`).toBeLessThan(height / 2);
 
-      // 1200px is well past the banner, so the bar has been pinned to the top rather than
-      // merely not yet reached. `toBeLessThanOrEqual(1)` rather than `toBe(0)`: sub-pixel
-      // rounding of a sticky offset differs between the three engines.
-      await page.evaluate(() => window.scrollTo(0, 1200));
+      // **Past the end, and polled rather than read once.** The bar is sticky *below* the
+      // cross-site banner, so until the banner has scrolled away the bar sits at the banner's
+      // height — 92px — which is correct behaviour and indistinguishable from "not sticky" if
+      // the scroll fell short. A literal 1200 assumed every engine had that much page: mobile
+      // safari on a Linux runner did not, landed short, and reported the bar at 92 as though
+      // stickiness had broken.
+      //
+      // A large number rather than `documentElement.scrollHeight`, because which element
+      // reports the scrollable height differs on a touch-emulating context and reading the
+      // wrong one scrolls nowhere. The browser clamps to its own maximum, so overshooting is
+      // exact. Polled because `scrollTo` returns before the position has settled.
+      const bannerHeight = await page.evaluate(
+        () => document.querySelector('.site-banner')?.getBoundingClientRect().height ?? 0,
+      );
+
+      await page.evaluate(() => window.scrollTo(0, 1_000_000));
+
+      // And this says so when it is the scroll that failed rather than the bar. Without it the
+      // failure reads as a stickiness bug on a page that simply never moved.
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY), {
+          message: `${width}px: the page scrolled past its ${bannerHeight}px banner`,
+        })
+        .toBeGreaterThan(bannerHeight);
+
       const after = await page.evaluate(
         () => document.querySelector('.nn-masthead')!.getBoundingClientRect().top,
       );
@@ -823,25 +844,42 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // token is one number per regime and the wrap points inside a regime are font metrics rather
     // than anything this repository sets.
     //
-    // The heights, measured on the three engines CI runs, are what pick this set:
+    // The heights, re-measured on chromium and webkit at seventeen widths after #147 took the
+    // bar to four controls, are what pick this set:
     //
     //   width   bar      token   note
     //   -----------------------------------------------------------------------------
     //   1280    62.5px   64px    one row — the regime's tallest
-    //   900     62.5px   64px    one row — the regime's tallest
-    //   768     62.5px   112px   still one row; the boundary sits above the wrap point
-    //   700     62.5px   112px   still one row — slack, deliberately
-    //   640    110.9px   112px   two rows — the regime's tallest
-    //   560    110.9px   112px   two rows — the regime's tallest
-    //   480     97.3px   136px   compact, and five labels still fit one row — slack
-    //   400     97.3px   136px   compact, one row of links — slack
-    //   320    134.8px   136px   compact, two rows of links — the regime's tallest
+    //   900     62.5px   64px    one row
+    //   768     62.5px   64px    one row
+    //   700     62.5px   64px    one row
+    //   640     62.5px   64px    one row
+    //   560     62.5px   64px    one row — and the last width before the compact layout
+    //   480    105.3px  136px    compact — 101.2px on mobile-safari. Slack, deliberately
+    //   400    105.3px  136px    compact — slack
+    //   320    105.3px  136px    compact — 100.1px on mobile-safari. Slack, and not tracked
     //
-    // **Two things in that table were wrong when this was first written**, which is why it is
-    // written down. The one-row bar survives to somewhere between 640px and 700px rather than the
-    // ~620px estimated from label widths; and the ≤480px regime has *two* heights, because five
-    // labels fit on one row at 400px and wrap at 320px. Both were found by this sweep failing.
-    const TIGHT = new Set([1280, 900, 640, 560, 320]);
+    // **The middle regime is gone, and that is the change.** With five labels the bar wrapped to
+    // two rows somewhere between 640px and 700px, which is what `--nn-masthead-height`'s 112px
+    // value and its `max-width: 768px` block existed for. Four labels share one line all the way
+    // down to 480px, so there is now no width at which the bar is ~110px — and the block was
+    // still reserving 112px across that whole span, giving a 120px inset against a 62.5px bar.
+    // It cleared, and tracked nothing, which is exactly what the second property below catches.
+    //
+    // **The compact regime has one height now, not two — but its token stays at 136px, and
+    // 320px is no longer tracked.** It had two heights because five labels fit one row at 400px
+    // and wrapped at 320px; four fit at every compact width, so 105.3px holds from 480px down
+    // and 136px is now ~31px of slack.
+    //
+    // Tightening it is not available. That inset is also what gives the entry form's fee cards
+    // room to shift without leaving the screen, and 112px moved the chosen card 3.4px off the
+    // top at 320px on CI's Linux chromium — `nn-entry.spec.ts`'s "keeps the entry type that was
+    // chosen in view" caught it. The two requirements pull opposite ways and the bar is not the
+    // one that decides, so this width is asserted to *clear* and no longer to *track*.
+    //
+    // A fifth control brings both regimes back. Re-measure rather than restoring these numbers:
+    // where labels wrap is a font metric, not something this repository sets.
+    const TIGHT = new Set([1280, 900, 640, 560]);
 
     await page.goto('/nn/2026/race-day/');
 
@@ -898,6 +936,18 @@ test.describe('the Nightingale Nightmare content pages', () => {
       // serves. Asserting it before measuring means a page that stopped rendering it fails here,
       // saying so, rather than in the arithmetic below on a rectangle of zeroes.
       await expect(page.locator('#register'), `${width}px`).toBeVisible();
+
+      // **Wait for the fragment jump to land before measuring it.** A `goto` with a hash
+      // returns once the document is ready, not once the browser has finished scrolling to the
+      // target — so reading `scrollY` on the next line races it and sometimes reads 0. CI had
+      // already flagged this test flaky on mobile-safari for that reason; measured locally the
+      // scroll settles at 1913px (1280) and 1063px (320), so the poll below waits for a real
+      // value rather than sleeping a guessed number of milliseconds.
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY), {
+          message: `${width}px: the fragment jump never moved the page`,
+        })
+        .toBeGreaterThan(0);
 
       const landed = await page.evaluate(() => {
         const bar = document.querySelector('.nn-masthead')!.getBoundingClientRect();
