@@ -164,3 +164,36 @@ driven through a control that no longer exists is not coverage.
 would take, it is still on the constraint, and removing it would be a contraction with no expand
 in front of it. It remains uncompletable on its own for the Stripe reason, which
 [ADR-021](adr-021-a-place-can-be-given.md) is the answer to.
+
+## Recorded, 30 August 2026 — there was a fourth read, and it was written the same day
+
+The decision above names **three** reads that were wrong the moment two entrants could share a
+purchase. There were four. `entries.claim_outbox_batch()` — the outbox drain, which decides whose
+name greets somebody in an email about their entry — left joined `entries.entrants` on
+`purchase_id` alone, so it returned one message **twice** with a different name on each copy and
+nothing choosing between them. **A runner could be greeted by their guide's name.** #170, fixed
+in `20260830150000_entries_outbox_greets_the_runner.sql`.
+
+Nothing above changes. This is recorded here because *why it was missed* is the useful part, and
+it is not carelessness:
+
+- **It was written the same day.** `20260828142000_entries_reads_know_about_guides.sql` taught
+  three reads about guides; `20260828170100_entries_email_outbox_drain.sql` landed hours later
+  and introduced a fourth. The sweep was done against the reads that existed when the sweep was
+  written, and the drain was not one of them.
+- **The failure looks like success.** The three reads above all fail *visibly* — a page
+  disagreeing with its own total, a spot-check list full of structural false positives, a start
+  list missing a marker. The drain fails silently: the provider's idempotency key is the message
+  id, so the duplicate send is suppressed, exactly one email leaves, and no counter moves. There
+  is no artefact to look at and be troubled by.
+- **Every fixture had one entrant.** `entries-email-outbox.test.ts` inserted exactly one person
+  per purchase throughout, so no test could have seen it. That was the second half of the defect
+  and is closed with the first.
+
+The rule the four have in common is worth stating plainly, because a fifth read will be written:
+**anything that joins `entries.entrants` to a purchase must say what it wants from the join.**
+One row per purchase, one row per person, or one row per *runner* are three different questions,
+and the join answers whichever one it was asked. Write `role <> 'guide'` — the form the rest of
+this schema uses, and the one that keeps sending to somebody if the roles list is ever widened —
+and, where the read must return one row per purchase, bound it to one rather than trusting an
+`order by` on a column the duplicate rows share.

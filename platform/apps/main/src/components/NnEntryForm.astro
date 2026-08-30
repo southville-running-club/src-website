@@ -481,7 +481,29 @@ const SUMMARY_LINKS = [
       />
     </div>
 
-    <div class="field">
+    {
+      /* **Two renderings of one field, and the Worker reveals whichever fits.**
+
+      A signed-out visitor types their address into the two boxes below, exactly as before. A
+      signed-in one gets the fixed line above them instead: their entry uses the address on
+      their account, and the Worker substitutes it before the submission is validated, so a
+      box would be a control that does nothing.
+
+      **The boxes are hidden rather than removed** — they are one Astro component serving both
+      states, and `hidden` is what the rest of this page already uses to carry a state it is
+      not currently in. Hiding also removes them from the submission, which is why the Worker
+      fills both keys in before parsing rather than after. */
+    }
+    <div class="field" data-nn-entry-fixed-email hidden>
+      <p class="field-label">Email address</p>
+      <p class="field-fixed" data-nn-entry-account-email></p>
+      <p class="field-hint">
+        Your entry confirmation goes to the address you are signed in with. To enter with
+        a different address, sign out first.
+      </p>
+    </div>
+
+    <div class="field" data-nn-entry-typed-email>
       <label class="field-label" for="entry-email">Email address</label>
       <p class="field-hint" id="entry-email-hint">Your entry confirmation goes here.</p>
       <p class="field-error" id="entry-email-error" data-entry-error="email" hidden></p>
@@ -499,7 +521,7 @@ const SUMMARY_LINKS = [
       />
     </div>
 
-    <div class="field">
+    <div class="field" data-nn-entry-typed-email>
       <label class="field-label" for="entry-email-confirm"
         >Confirm your email address</label
       >

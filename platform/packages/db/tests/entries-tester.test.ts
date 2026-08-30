@@ -307,12 +307,22 @@ interface Attempt {
   amount_pence?: number;
 }
 
+/** Keeps each default purchaser address distinct — see `attemptEntry`'s `email` default. */
+let entrySerial = 0;
+
 async function attemptEntry(
   client: SupabaseClient,
   slug: string,
   options: { feeCode?: string; email?: string } = {},
 ): Promise<Attempt> {
-  const { feeCode = 'unaffiliated', email = 'entrant@example.com' } = options;
+  // **A serial on the default address, because one place per email is a database rule since
+  // 30 August 2026.** This file enters the same event repeatedly to prove who a fee is visible
+  // to; a constant purchaser would have every attempt after the first refused with
+  // `email_already_entered`, which reads as the permission check failing and is not.
+  const {
+    feeCode = 'unaffiliated',
+    email = `entrant-${(entrySerial += 1)}@example.com`,
+  } = options;
 
   const { data, error } = await client.schema('entries').rpc('create_pending_purchase', {
     p_slug: slug,

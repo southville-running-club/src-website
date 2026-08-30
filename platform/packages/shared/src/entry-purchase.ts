@@ -78,6 +78,18 @@ export const PENDING_PURCHASE_REASONS = [
   // absent confirmation email cannot either. So it gets its own notice rather than folding
   // into `failed`, and the notice points at `/account/entries/`.
   'already_entered',
+  // **The second reason a person is meant to meet, and it is a different sentence from the
+  // one above.** `already_entered` says *you* already hold a place, keyed on name and date of
+  // birth. This one says the *address* does, which may not be the same person at all — a
+  // partner, a parent entering a second child, somebody using a shared family address. Folding
+  // the two together would tell one of those people they had already entered when they had
+  // not, which is a claim about a record rather than a fact about this submission.
+  //
+  // It is answered beside the email box rather than as a page state, the way
+  // `invalid_discount` is answered beside the code box: it is a thing about one field, and
+  // using another address fixes it. See `20260830160000_entries_one_place_per_email.sql` for
+  // the decision, and for what it costs the couple entering on one card.
+  'email_already_entered',
   'unknown',
 ] as const;
 

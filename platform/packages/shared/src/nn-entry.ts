@@ -318,6 +318,38 @@ export function guideMinimumAgeMessage(minimumAge: number): string {
 export const NN_ENTRY_DISCOUNT_REFUSED_MESSAGE =
   'That discount code cannot be used with this entry. Check it, or clear the box to enter at the standard price.';
 
+/**
+ * What a person is told when the address they gave already holds a place on this race.
+ *
+ * **It does not say "you have already entered", and the distinction is the whole message.**
+ * The rule is about the address, not the person — so the somebody reading this may be a second
+ * runner on a shared family address, who has entered nothing. Telling them they had already
+ * entered would be a claim about a record that is not theirs, which is the failure this page
+ * avoids everywhere else.
+ *
+ * **Not a Zod rule**, because whether an address already holds a place is not knowable from
+ * the submission. It arrives from the database and is rendered in the email field's own error
+ * slot, exactly as `NN_ENTRY_DISCOUNT_REFUSED_MESSAGE` is.
+ */
+export const NN_ENTRY_EMAIL_TAKEN_MESSAGE =
+  'This email address already has a place for this race. Each entry needs its own email address — use a different one, or get in touch if you think this is wrong.';
+
+/**
+ * The same refusal, for somebody who is signed in — and it has to be a different sentence.
+ *
+ * ⚠️ **"Use a different one" is advice a signed-in person cannot take.** Their entry uses the
+ * address on their account and the form does not offer a box to change it, so the message
+ * above would name the one thing they are unable to do and leave them on a page with no way
+ * forward. That is a dead end, and a dead end on the entry form on the morning entries open is
+ * somebody emailing the club instead of entering.
+ *
+ * So this one names the two things that *are* open to them: look at the place they already
+ * have, or — if they are entering for somebody else — sign out and use that person's own
+ * address, which is what one place per email requires of them.
+ */
+export const NN_ENTRY_EMAIL_TAKEN_SIGNED_IN_MESSAGE =
+  'Your account already has a place for this race — you can see it on your entries page. Entries use the address you are signed in with, so to enter somebody else, sign out and enter with their own email address.';
+
 /** The message shown when a minimum age is configured and the entrant does not meet it. */
 export function minimumAgeMessage(minimumAge: number): string {
   return `You must be ${minimumAge} or over on race day to enter.`;

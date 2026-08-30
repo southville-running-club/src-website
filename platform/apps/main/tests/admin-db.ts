@@ -48,6 +48,10 @@ import {
   CLEAN_RACE_SLUG,
   EXPIRED_ENTRANT_ID,
   EXPIRED_PURCHASE_ID,
+  LAPSED_EMAIL,
+  LAPSED_ENTRANT_ID,
+  LAPSED_LAST_NAME,
+  LAPSED_PURCHASE_ID,
   MEDICAL_NOTE,
   SECOND_AFFILIATED_ENTRANT_ID,
   SECOND_AFFILIATED_LAST_NAME,
@@ -483,6 +487,25 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       purchaserEmail: ENTRANT_EMAIL,
     });
 
+    // **A lapsed hold and nothing else**, bought with `LAPSED_EMAIL`'s address. The one state
+    // `/account/entries/`'s pay-twice guard is written for: no confirmed place, and an entry
+    // whose payment may yet arrive. `holdMinutes` is negative, so the hold ran out.
+    await seed({
+      eventSlug: ACTIONS_EVENT_SLUG,
+      purchaseId: LAPSED_PURCHASE_ID,
+      entrantId: LAPSED_ENTRANT_ID,
+      status: 'expired',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Chidi',
+      lastName: LAPSED_LAST_NAME,
+      club: null,
+      dateOfBirth: '1988-02-19',
+      gender: 'male',
+      holdMinutes: -40,
+      purchaserEmail: LAPSED_EMAIL,
+    });
+
     await seed({
       eventSlug: CLEAN_EVENT_SLUG,
       purchaseId: CLEAN_PAID_PURCHASE_ID,
@@ -560,6 +583,7 @@ async function seedFixturePeople(): Promise<void> {
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
     [ENTRANT_EMAIL]: null,
+    [LAPSED_EMAIL]: null,
   };
 
   // Sequential, not parallel — each round trip is cheap, and running them concurrently would
