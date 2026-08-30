@@ -6,6 +6,7 @@ import {
   isAccountPath,
   isAdminPath,
   isNnAdminPath,
+  isNnCoursePath,
   isNnEntryCompletePath,
   isNnRacePath,
   isNnYearPath,
@@ -16,6 +17,7 @@ import {
   nnYearPathForEventSlug,
   ACCOUNT_PREFIX,
   NN_ADMIN_PREFIX,
+  NN_COURSE_PATH,
   NN_PREFIX,
   NN_RACE_SLUG,
   TIMING_PREFIX,
@@ -88,6 +90,42 @@ describe('the race page, which no form posts to any more', () => {
   });
 });
 
+describe('where the course page used to be, and the letters that decide where it ends', () => {
+  it('claims both spellings of the address that moved', () => {
+    // **Both, and for a different reason from every other pair in this file.** The others take
+    // two spellings because a human typed one into a form's `action` or a Stripe dashboard.
+    // This takes two because the assets binding used to: with `dist/nn/course/index.html`
+    // gone, the 307 the binding gave `/nn/course` went with it, so that spelling would 404
+    // unless this claims it too.
+    expect(isNnCoursePath('/nn/course/')).toBe(true);
+    expect(isNnCoursePath('/nn/course')).toBe(true);
+  });
+
+  it('does not match another page that happens to start with the same letters', () => {
+    // **The trap this predicate was written as an exact match to avoid**, and it is the same
+    // character `isNnAdminPath` documents for `/nn/admin.css`. These are addresses a future
+    // page could legitimately want, and a `startsWith` here would answer both with a 301 to
+    // `/nn/` before the assets binding ever saw them — a page that exists, sending people
+    // somewhere else, with nothing failing anywhere to say why.
+    expect(isNnCoursePath('/nn/course-records/')).toBe(false);
+    expect(isNnCoursePath('/nn/courses/')).toBe(false);
+  });
+
+  it('does not match the page it redirects to', () => {
+    // The destination, which has to reach the assets binding like any other page. A predicate
+    // that claimed it as well would be a redirect loop on the race's front door.
+    expect(isNnCoursePath('/nn/')).toBe(false);
+    expect(isNnCoursePath('/nn')).toBe(false);
+  });
+
+  it('keeps the old address under the race rather than at the root', () => {
+    // The same property the other prefixes are pinned for: at the Squarespace cutover the
+    // hostname changes and this published address does not.
+    expect(NN_COURSE_PATH).toBe('/nn/course');
+    expect(NN_COURSE_PATH.startsWith(NN_PREFIX)).toBe(true);
+  });
+});
+
 describe('where one running of the race lives', () => {
   // **This is the whole of the coupling between a URL and a database row**, and it is here
   // rather than anywhere else so that nothing has to know it twice. `/nn/<year>/` is the
@@ -104,9 +142,16 @@ describe('where one running of the race lives', () => {
   it.each([
     '/nn/',
     '/nn',
-    // The evergreen pages, and the reason the pattern is four digits rather than "anything".
-    '/nn/course/',
+    // The evergreen page, and the reason the pattern is four digits rather than "anything".
     '/nn/privacy/',
+    // **Not a page any more, and this is not an assertion about a page.** The course and
+    // terrain are on `/nn/` itself now, and both spellings of this address are claimed by
+    // `isNnCoursePath` and redirected before anything consults this predicate. It stays in
+    // the list because `NN_YEAR_PATH` names it: widen those four digits to "anything" and
+    // `/nn/course/` resolves to the event slug `nn-course`, which is a POST to a dead
+    // address being read as an entry submission.
+    '/nn/course/',
+    '/nn/course',
     // Below a running rather than the running itself — these are content pages the Worker
     // does nothing to, and a POST to one must 404 rather than be read as an entry.
     '/nn/2026/race-day/',
@@ -124,6 +169,9 @@ describe('where one running of the race lives', () => {
   it('resolves a year path to the event slug for that running', () => {
     expect(nnEventSlugForYearPath('/nn/2026/')).toBe('nn-2026');
     expect(nnEventSlugForYearPath('/nn/2026')).toBe('nn-2026');
+    // **`/nn/course/` redirects to `/nn/` now, and that changes nothing here.** The redirect
+    // is a branch in `index.ts`; what this function answers is a fact about the address, and
+    // `null` is the answer that says the old address names no running of the race.
     expect(nnEventSlugForYearPath('/nn/course/')).toBeNull();
   });
 

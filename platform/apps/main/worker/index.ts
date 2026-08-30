@@ -12,6 +12,7 @@ import {
   isAdminPath,
   isHealthPath,
   isNnAdminPath,
+  isNnCoursePath,
   isNnEntryCompletePath,
   isNnMastheadPath,
   isNnRacePath,
@@ -216,14 +217,26 @@ export default {
       const moved = new URL(url);
       moved.pathname = adminPathForNnAdminPath(url.pathname);
 
-      return new Response(null, {
-        status: request.method === 'GET' || request.method === 'HEAD' ? 301 : 308,
-        headers: {
-          location: `${moved.pathname}${moved.search}`,
-          'cache-control': 'no-store',
-          'x-robots-tag': 'noindex, nofollow',
-        },
-      });
+      return movedPermanently(request, `${moved.pathname}${moved.search}`);
+    }
+
+    // **Where the course page used to be, and now nothing but a redirect.** The course and
+    // terrain moved onto `/nn/` itself, where almost all of it already was; this address has
+    // been published since the race pages were written, so it keeps resolving.
+    //
+    // **Both spellings, and here it is the assets binding that stopped answering.** With
+    // `dist/nn/course/index.html` gone, the 307 the binding used to give `/nn/course` is gone
+    // with it, so the unslashed form would 404 unless this claims it too.
+    //
+    // The destination is `/nn/` and never `/nn` — `trailingSlash` is `'always'`, so `/nn`
+    // would take a second hop from the binding on the way.
+    //
+    // Matched before the assets binding, like the redirect above it, and here that is what
+    // makes it work at all rather than merely tidy: after `env.ASSETS.fetch()` the binding has
+    // already answered 404 for a page that no longer exists, and the `!response.ok` early
+    // return below sends that 404 straight back.
+    if (isNnCoursePath(url.pathname)) {
+      return movedPermanently(request, `${NN_PREFIX}/${url.search}`);
     }
 
     // **The staff backend.** Always answered here — every address under it, including ones
@@ -289,9 +302,10 @@ export default {
     // -------------------------------------------------------------------------------------
     // The navigation, on every Nightingale Nightmare page that carries it
     // -------------------------------------------------------------------------------------
-    // **The bar is the same bar everywhere, so it is painted everywhere.** Two of its five
+    // **The bar is the same bar everywhere, so it is painted everywhere.** Two of its four
     // controls point at the current running, and the pages that carry them include
-    // `/nn/course/` and `/nn/privacy/`, which this Worker previously did nothing to at all.
+    // `/nn/privacy/`, which this Worker previously did nothing to at all. `/nn/course/` was the
+    // other such page and is a redirect now, answered above and never reaching this.
     //
     // **That is one database round trip per content-page view, and it was a real trade.** The
     // alternative is a year written into a component — the thing the route split exists to
@@ -794,4 +808,29 @@ function typedPage(rendered: Response, status: number): Response {
   const headers = new Headers(rendered.headers);
   headers.set('cache-control', 'no-store');
   return new Response(rendered.body, { status, headers });
+}
+
+/**
+ * **Where a page used to be.** Both of this Worker's permanent redirects answer through here,
+ * so neither can drift from the other on a status code or a header.
+ *
+ * **301 for a GET and 308 for anything else**, because a 301 permits a client to turn a POST
+ * into a GET, and three of the admin addresses are POSTs carrying a body — an entrant id, an
+ * export kind. A 308 preserves both the method and the body. The course page never took a
+ * POST, but the rule is the same rule and stating it once is what stops the two answers
+ * diverging the next time one of them is edited.
+ *
+ * `no-store` because a redirect for an address the club has retired is exactly the thing that
+ * should not be pinned in an intermediary for a year, and `noindex, nofollow` because neither
+ * destination wants the old address competing with it in a search result.
+ */
+function movedPermanently(request: Request, location: string): Response {
+  return new Response(null, {
+    status: request.method === 'GET' || request.method === 'HEAD' ? 301 : 308,
+    headers: {
+      location,
+      'cache-control': 'no-store',
+      'x-robots-tag': 'noindex, nofollow',
+    },
+  });
 }

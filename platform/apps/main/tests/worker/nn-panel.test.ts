@@ -56,11 +56,21 @@ describe('the panel answers the two questions in the order they are asked', () =
     expect(html).toContain('250 places');
   });
 
-  it('links to the rest of this running from inside the panel', async () => {
+  it('links to this running and to nothing else beside it', async () => {
+    // **The panel held three year links and holds one.** "Race instructions" and "Spooktators"
+    // sat under the action in a `<ul class="nn-panel-links">`; both came out on request, and
+    // this asserted their hrefs.
+    //
+    // **Inverted rather than deleted, because the Worker still offers to paint them.**
+    // `renderNnRaceView` registers `[data-nn-panel-link="race-day"]` and
+    // `[data-nn-panel-link="spectators"]` and always will — `/nn/2026/` uses the same hooks — so
+    // nothing in the Worker would go red if the markup came back. Asserting the absence is what
+    // notices, and it is the same shape as the bar's own guard one file along.
     const html = panel(await front());
 
-    expect(html).toContain('href="/nn/2026/race-day/"');
-    expect(html).toContain('href="/nn/2026/spectators/"');
+    expect(html).toContain('href="/nn/2026/"');
+    expect(html).not.toContain('href="/nn/2026/race-day/"');
+    expect(html).not.toContain('href="/nn/2026/spectators/"');
   });
 });
 
@@ -255,7 +265,7 @@ describe('the entry fee on the year page', () => {
   };
 
   it('states the fee even though the form is not on offer', async () => {
-    const html = await render({ show: 'closed', fees: FEES });
+    const html = await render({ show: 'closed', window: 'pre_open', fees: FEES });
 
     expect(html).toContain('£20.00 unaffiliated · £18.00 affiliated');
     expect(html).not.toContain('To be confirmed');
@@ -266,16 +276,88 @@ describe('the entry fee on the year page', () => {
     // means no claim: "To be confirmed" is true of a page that could not check, and a stale
     // number would not be. `resolveNnEntryView` yields an empty array for an unreachable
     // database, so this is that case exactly.
-    const html = await render({ show: 'closed', fees: [] });
+    // `unknown` is what `resolveNnEntryView` yields for an unreachable database, and it
+    // renders as `pre_open` deliberately — see the note on `NnEntryView.window`.
+    const html = await render({ show: 'closed', window: 'unknown', fees: [] });
 
     expect(html).toContain('To be confirmed');
     expect(html).not.toContain('£');
   });
 
   it('never advertises the free guide place as a price', async () => {
-    const html = await render({ show: 'closed', fees: FEES });
+    const html = await render({ show: 'closed', window: 'pre_open', fees: FEES });
 
     expect(html).not.toContain('Free');
     expect(html).not.toContain('guide');
+  });
+});
+
+/**
+ * The three states of `/nn/2026/`, rendered from a stubbed view rather than a database.
+ *
+ * **The distinction these assert did not exist until now.** `NnEntryView`'s `closed` variant
+ * collapsed four situations — not yet, no longer, no such event, and a database this Worker
+ * could not reach — so the page could not tell a runner "come back on Tuesday" from "you have
+ * missed it". `window` carries the reason and this is what holds it to the right rendering.
+ *
+ * The fixture markup is the page's own shape reduced to the elements the Worker touches: the
+ * two form blocks, the closed notice, one call to action and the rail's entries-open line.
+ */
+describe('which of the three states the year page renders', () => {
+  const PAGE = [
+    '<a data-nn-cta href="#register">Register interest</a>',
+    '<dl data-nn-entries-open><dt>Entries open</dt><dd>Tuesday 1 September</dd></dl>',
+    '<div data-nn-interest><h2 id="register">Register your interest</h2></div>',
+    '<div data-nn-closed hidden><h2>Entries have closed</h2></div>',
+    '<div data-nn-entry hidden><form></form></div>',
+  ].join('');
+
+  const render = async (view: NnEntryView): Promise<string> => {
+    const response = renderNnEntryView(new HTMLRewriter(), view).transform(
+      new Response(PAGE, { headers: { 'content-type': 'text/html' } }),
+    );
+    return response.text();
+  };
+
+  /** `hidden` on the element carrying this attribute, whatever order the attributes are in. */
+  const isHidden = (html: string, marker: string): boolean =>
+    new RegExp(`<[^>]*\\b${marker}\\b[^>]*\\bhidden\\b`).test(html);
+
+  it('offers the interest form before the window opens', async () => {
+    const html = await render({ show: 'closed', window: 'pre_open', fees: [] });
+
+    expect(isHidden(html, 'data-nn-interest')).toBe(false);
+    expect(isHidden(html, 'data-nn-closed')).toBe(true);
+    expect(isHidden(html, 'data-nn-entry')).toBe(true);
+    // The opening date is still ahead, so it is still worth stating.
+    expect(isHidden(html, 'data-nn-entries-open')).toBe(false);
+  });
+
+  it('says so plainly once the window has ended, and offers nothing', async () => {
+    const html = await render({ show: 'closed', window: 'ended', fees: [] });
+
+    expect(isHidden(html, 'data-nn-closed')).toBe(false);
+    expect(isHidden(html, 'data-nn-interest')).toBe(true);
+    expect(isHidden(html, 'data-nn-entry')).toBe(true);
+
+    // **No control left looking live beside a shut door**, and no opening date that has been
+    // and gone sitting above it.
+    expect(isHidden(html, 'data-nn-cta')).toBe(true);
+    expect(isHidden(html, 'data-nn-entries-open')).toBe(true);
+  });
+
+  /**
+   * The one that matters most, and the one nobody would have written without the type change.
+   *
+   * A database this Worker could not reach must not produce a page claiming entries have
+   * closed. That is a false statement about a race somebody may still be able to enter, and a
+   * reader cannot tell it apart from a decision the club took — so an outage would read as
+   * "you have missed it" on the morning of the first of September.
+   */
+  it('falls back to the interest form when it could not find out', async () => {
+    const html = await render({ show: 'closed', window: 'unknown', fees: [] });
+
+    expect(isHidden(html, 'data-nn-interest')).toBe(false);
+    expect(isHidden(html, 'data-nn-closed')).toBe(true);
   });
 });

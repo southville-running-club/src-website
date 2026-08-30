@@ -32,10 +32,14 @@ re-run.
   either way — decision 006. **So is the minimum age: 18 on race day**, in
   `entries.events.minimum_age`. **The 2026 ARC permit number is confirmed and published** —
   **`ARC/26/0842`**, issued 27 August 2026 — and it lives in `race.json`'s `permit`, never in
-  markup. ARC require it on entry forms and advertising material, so it is quoted twice: the
-  facts list on `/nn/2026/` and the foot of the entry form. It is **year-scoped like the
-  date** and may not appear on `/nn/`, `/nn/course/` or `/nn/privacy/`; `site.spec.ts` asserts
-  both halves. The 2023 number is still not a substitute for any future year's. **Still
+  markup. ARC require it on entry forms and advertising material, so it is quoted **three
+  times**: the facts list on `/nn/2026/`, the foot of the entry form, and — since #142 —
+  `/nn/2026/terms/`, where it is part of the race director's own copy. The first two are the
+  two ARC ask for. It is **year-scoped like the date** and may not appear on `/nn/` or
+  `/nn/privacy/`. **`site.spec.ts` asserts that only for `/nn/`**, not for `/nn/privacy/` —
+  the rule is real and the guard is narrower than it reads. Note also that
+  `/nn/privacy/` says the words *"ARC permit"* in prose, deliberately, so it is the *number*
+  that is year-scoped rather than the phrase. The 2023 number is still not a substitute for any future year's. **Still
   unconfirmed, and it may not appear anywhere:** the 2026 race director's name. **The
   transfer deadline is confirmed** — **3pm on 16th October** — supplied by the race director
   on 28 August 2026 with the entry terms, and it lives in `race.json`'s `transferDeadline`,
@@ -394,6 +398,55 @@ looked wrong; the page just slid left under a thumb. `position: relative` on `.a
 makes it the containing block, measured 783 → 320. The same is waiting for any absolutely
 positioned thing inside any scroller.
 
+**A component whose colours were computed against a surface it does not carry breaks silently
+the first time it is moved.** `NnSchedule` was written inside `race-day.astro`'s `.nn-card`, and
+every colour in it assumes white: the time is `--nn-blood` at a computed 9.01:1 *on that card*,
+and the row divider is `--nn-card-muted`, picked to be an almost-invisible 1.12:1 line *on that
+card*. Rendering the same markup on `/nn/2026/`'s gradient inverted both — the divider became the
+loudest thing in the block, and the time became `#8f1b0f` on the radial's `#8f1b0f` centre stop.
+**1:1 by identity: not hard to read, absent** — and `background-attachment: fixed` means the
+block scrolls through the gradient's whole range rather than sitting at one value, so it passes
+*through* identity rather than merely near it. Nothing went red, because nothing was looking:
+`brand.test.ts` covers the club palette and `admin-contrast.test.ts` covers the admin washes, and
+**neither reads `nn-theme.css`** — every ratio in that file's opening table is its author's word,
+and one row has already gone stale. The fix is that the component carries its own surface and
+gives it back via a `.nn-card` descendant rule where one already exists, so the two call sites
+cannot disagree because neither is asked. **A surface variant passed by the call site is the
+wrong answer**: a prop the caller has to get right is exactly how this arrived. `NnRaceSummary`'s
+`.nn-arrows` is the second instance of the same pattern, still latent — `blood` markers and a
+`card-muted` divider, surviving only because both its call sites happen to sit inside cards.
+`nn-contrast.test.ts` now resolves both sides of each pairing out of the stylesheet, so a moved
+surface recomputes rather than going quietly vacuous. **Compute the pair before writing the
+colour**: two of that page's intended colours failed a 7:1 bar and were redesigned before they
+shipped, and neither would have been caught by looking, because both looked fine.
+**A 320px overflow check that measures straight off `toBeVisible()` is measuring a page with no
+CSS on it.** `document.documentElement.scrollWidth > clientWidth` was asserted directly, once, in
+eight places, and it failed about one run in three across `nn-signup.spec.ts` and
+`nn-entry.spec.ts` — two files, one assertion, and a re-run of the identical build always green.
+**DOMContentLoaded waits for scripts, not for `<link rel="stylesheet">`**, so on a page with no
+blocking script — every page here in the `no-javascript` project, and the deferred-module case
+everywhere else — `readyState` reaches `interactive` with both sheets still in flight. An outcome
+block the Worker has revealed is *visible* at that moment, so `toBeVisible()` resolves; and
+**reading a layout property is not gated on render-blocking**, so `page.evaluate` then forces a
+synchronous layout of a bare document. Caught in the act it reads `overflow=19 client=320
+ready=interactive sheets=[]`, with one offender: `a left=8 right=339.13` holding the club's
+47-character address, because `a[href^='mailto:'] { overflow-wrap: anywhere }` lives in `base.css`
+and `base.css` has not arrived. `left=8` is the browser's default `body { margin }`, which is the
+tell — **`sheets=[]` and a left edge of 8 mean the measurement is the defect rather than the
+layout.** The styled page does not overflow at any width from 300 to 320, with or without the
+fonts. **This repository had already met it and paid for it twice**: `nn-privacy.spec.ts` and
+`privacy.spec.ts` each carried a two-pass reload loop naming *"an element laying out at its
+intrinsic width before the stylesheet applied, about one run in four"* — the right diagnosis and
+a re-run for a fix. All eight go through `apps/main/tests/sideways-scroll.ts` now, which waits
+for a **defined state** — every render-blocking stylesheet applied, `document.fonts.status`
+settled, and the width unchanged across three samples — and never for the assertion to come
+good. **The polling has to be on Playwright's side**: `page.waitForFunction` installs its loop
+*in the page*, so with
+`javaScriptEnabled: false` it never runs and every call times out at ten seconds, which is how the
+first version of this fix failed. `page.evaluate` works there; `requestAnimationFrame` callbacks
+do not. The helper names the offending element on failure, which is what turned this from three
+runs and an afternoon into four minutes.
+
 **The three browser engines do not agree on what an attachment is, and one of them only
 disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
 Chromium downloads it — the `download` event fires and `response.body()` is *unreadable*, because
@@ -736,7 +789,8 @@ another.
 
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
-`/nn/` (the race, and the interest form), `/nn/course/`, `/nn/privacy/`. The 2026 running:
+`/nn/` (the race, and the interest form), `/nn/privacy/` — and `/nn/course/`, whose
+content is on `/nn/` now and whose address 301s there. The 2026 running:
 `/nn/2026/` (the date, the facts, the entry form), `/nn/2026/race-day/`,
 `/nn/2026/spectators/`, `/nn/2026/entry/complete/`. Plus a column-scoped anonymous-insert
 policy on `intake.nn_interest`.
@@ -749,12 +803,16 @@ Worker. `/nn/<year>/` is the event `nn-<year>`, and `worker/routing.ts` owns tha
 two functions that are inverses of each other.
 
 **Entries are built here, in `apps/main`** — [ADR-009](docs/architecture/decisions/adr-009-entries-in-apps-main.md)
-retired the plan to give them a repository of their own. **The two forms are on two pages**,
-and the address a submission arrives at is what tells them apart — there is no hidden `form`
-field any more. Each page carries two states and the Worker reveals one, decided per request
-rather than by a deploy. `entries.events.entries_open_at` is `null` today — **still, and
-deliberately, with the window ratified** — so production serves the interest form on `/nn/` and
-"entries are not open yet" on `/nn/2026/`. `entries_close_at` is set and changes none of that.
+retired the plan to give them a repository of their own. **Both forms are on `/nn/2026/`**, and
+a hidden `form` field is what tells them apart — this paragraph used to say the opposite on both
+counts and was wrong on both. `/nn/` carries no form at all; a POST there falls past every
+predicate to the assets binding and answers **405**. The page carries two states and the Worker
+reveals one, decided per request rather than by a deploy.
+`entries.events.entries_open_at` is `null` today — **still, and deliberately, with the window
+ratified** — so production serves the interest form on `/nn/2026/` and the entry form stays
+hidden. `entries_close_at` is set and changes none of that. **The shipped-visible half is the
+safe default rather than an arbitrary one**: a page that cannot reach the database must not
+offer to take money, so every failure lands on the state that asks for an email address.
 
 **A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
 per-event advisory lock: re-check the window, count the places gone, price it from

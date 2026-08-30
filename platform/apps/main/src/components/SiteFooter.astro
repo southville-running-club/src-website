@@ -1,4 +1,48 @@
 ---
+interface Props {
+  /**
+   * One race's own links, for the pages that are about one running.
+   *
+   * **Passed in rather than written here, because this footer is on every page of this app** —
+   * the sign-in screen, the roles page, `/privacy/`. More sharply, it is on `/nn/`, which
+   * [ADR-011](../../../../docs/architecture/decisions/adr-011-a-race-and-its-runnings.md)
+   * requires to name no year anywhere in its markup, and `/nn/2026/terms/` is an href with a
+   * year in it. The terms are year-scoped for a real reason:
+   * `entry_purchases.consents_version` records which wording somebody ticked against.
+   *
+   * **Grouped under the race's name rather than merged into the legal line, and that is the
+   * whole design decision here.** A race carries its own privacy notice — what an entry and a
+   * sign-up collect — and the club carries the club's. Side by side in one row they read as
+   * two links called roughly the same thing, and nothing on screen says which is which. Under
+   * the race's name, one of them is obviously the race's and the other obviously is not.
+   */
+  race?: {
+    /** As it is titled, so a reader knows whose links these are. */
+    name: string;
+    /**
+     * The year-scoped entry terms and race rules, from the pages that belong to one running.
+     *
+     * **Optional, and `/nn/` is why** — the paragraph above described that page as the sharp
+     * case before it was one. It is the race rather than a running of it, so it may not name a
+     * year in its markup, and this href does. It passes `name`, `privacy` and `contact` and
+     * omits this; the row below renders whatever it was given.
+     *
+     * **Omitted rather than pointed somewhere year-free**, because there is nowhere to point.
+     * The terms are year-scoped for a real reason — `entry_purchases.consents_version` records
+     * which wording somebody ticked against — so an evergreen "the entry terms" link would have
+     * to resolve to a running, which is a redirect this site has no mechanism for and a claim
+     * about which year's wording binds.
+     */
+    terms?: string;
+    /** The race's privacy notice, which is not the club's. */
+    privacy: string;
+    /** Where a question about this race goes. */
+    contact: string;
+  };
+}
+
+const { race } = Astro.props;
+
 // The one footer, rendered on every page from `Base.astro`.
 //
 // Just the club's social profiles for now — the old site carried these as a row of icon
@@ -45,5 +89,25 @@ import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
       ))
     }
   </ul>
+  {
+    race !== undefined && (
+      <>
+        <p class="site-footer-heading site-footer-race-heading">{race.name}</p>
+        <ul class="site-footer-links">
+          {race.terms !== undefined && (
+            <li>
+              <a href={race.terms}>Entry terms and race rules</a>
+            </li>
+          )}
+          <li>
+            <a href={race.privacy}>What the club does with your details</a>
+          </li>
+          <li>
+            <a href={`mailto:${race.contact}`}>{race.contact}</a>
+          </li>
+        </ul>
+      </>
+    )
+  }
   <p class="site-footer-legal"><a href="/privacy/">Privacy notice</a></p>
 </footer>

@@ -2,7 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import NnMasthead from '../../../components/NnMasthead.astro';
 import NnEntryForm from '../../../components/NnEntryForm.astro';
-import NnRaceSummary from '../../../components/NnRaceSummary.astro';
+import NnSchedule from '../../../components/NnSchedule.astro';
 import race from '../../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
@@ -45,6 +45,21 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/2026/';
 // what somebody deciding whether to come back next week actually needs to know.
 const orTbc = (fact: string | null): string => fact ?? 'To be confirmed';
 
+// **The start and finish, as a pin and as a link — and never as a shortlink.**
+//
+// Built exactly as `2026/race-day.astro` builds it, from the same two numbers, because the
+// spooktators copy points at the same place and two spellings of one location is how they start
+// disagreeing. Printed as text as well as linked: a coordinate pair is usable in any map
+// application, offline, and read aloud down a phone, and a link that fails should not take the
+// answer with it.
+//
+// **The race director's copy supplied a `goo.gl` shortlink.** `site.spec.ts`'s "a shortened map
+// link never reaches a page" forbids that on this page by name — its comment says the failure it
+// guards is "a later edit pasting the convenient thing back in" — and separately, Google stopped
+// resolving `goo.gl` links in August 2025, so it had probably already gone dead.
+const startFinish = `${race.startFinish.lat}, ${race.startFinish.lng}`;
+const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.startFinish.lat},${race.startFinish.lng}`;
+
 // **The one sentence about when this race happens.**
 //
 // The start time joins the date now that both are confirmed, which is what the campaign
@@ -60,10 +75,22 @@ const dateLine = race.date
   description="The 2026 running of Nightingale Nightmare — the date, the race facts, and how to enter."
   canonical={canonical}
   theme="nn"
+  race={{
+    name: `${race.name} 2026`,
+    terms: '/nn/2026/terms/',
+    privacy: '/nn/privacy/',
+    contact: race.contact,
+  }}
 >
-  <NnMasthead slot="masthead" />
+  {
+    /* **The one page whose bar releases on a phone**, because it is the one page with a second
+    fixed strip at the bottom. See the prop's own note in `NnMasthead.astro` for the arithmetic
+    and for why ADR-014 is untouched by it. Above 860px the entry bar is not rendered and this
+    changes nothing. */
+  }
+  <NnMasthead slot="masthead" sticky={false} />
 
-  <header class="nn-hero">
+  <header class="nn-hero" id="top">
     <div class="nn-wrap">
       {
         /* **"presents…" opens the hero**, and the sentence it belongs to still reads the same
@@ -123,43 +150,193 @@ const dateLine = race.date
         exists for. */
       }
       <div class="nn-herobtns">
-        <a class="nn-cta" href="#register" data-nn-cta>Register your interest</a>
+        <a class="nn-cta" href="#register" data-nn-cta>Register interest</a>
         <a class="nn-ghost" href="/nn/2026/race-day/">Race instructions</a>
       </div>
     </div>
   </header>
 
-  <div class="nn-wrap">
-    <h2>The race</h2>
+  {
+    /* **A contents list, not a second bar — and the difference is load-bearing.** ADR-014
+    unstuck and restuck the masthead over three defects, and the one it exists to answer is two
+    things that read alike competing for the top of the page. So this is everything the
+    masthead is not: unpinned, no background band, no wordmark, no call to action, inset inside
+    the content column, smaller and lighter. It reads as the top of an article because that is
+    what it is.
 
-    <p>
-      Everything here is confirmed by the committee before it appears. Anything still
-      reading "to be confirmed" is genuinely undecided rather than merely unwritten.
-    </p>
+    **It is page-local and additive.** `NnNav` keeps its seven painted hrefs, identical on all
+    eight campaign pages, and is untouched — making *its* items anchors would give seven links
+    whose behaviour depended on which page you were on. These four exist only here, so they
+    point at nothing nowhere.
 
-    <dl class="status">
-      <dt>Date</dt>
-      <dd>{orTbc(race.date)}</dd>
+    **Four labels appear twice on this page**, once in the bar going out to a page and once
+    here going to a section. That is a real cost and the answer is that they are different
+    destinations with different scopes; the visual subordination is what distinguishes them.
+    See the ADR.
 
-      <dt>Start time</dt>
-      <dd>{orTbc(race.startTime)}</dd>
+    **One list is visible at each width.** The inline list is shown above 860px and the
+    `<details>` menu below it, with no JavaScript either way. */
+  }
+  <nav class="nn-jump" aria-label="Sections of this page">
+    {
+      /* **`.nn-wrap` inside the landmark, not around it**, which is the shape `.nn-hero` and
+      `.nn-masthead` both use: the element that can carry a full-width background is the outer
+      one, and the inner one holds the content to the same measure as everything below it.
+      Without it the links sit hard against the left edge of the viewport at every width — a
+      contents list that is not aligned with the sections it lists reads as a stray fragment
+      rather than as part of the page. */
+    }
+    <div class="nn-wrap">
+      <ul class="nn-jump-desktop-links">
+        <li><a href="#race">Race</a></li>
+        <li><a href="#race-info">Race info</a></li>
+        <li><a href="#spooktators">Spooktators</a></li>
+      </ul>
+      <details class="nn-jump-menu">
+        <summary>Sections</summary>
+        <ul class="nn-jump-links">
+          <li><a href="#race">Race</a></li>
+          <li><a href="#race-info">Race info</a></li>
+          <li><a href="#spooktators">Spooktators</a></li>
+        </ul>
+      </details>
+    </div>
+  </nav>
 
-      <dt>Distance</dt>
-      <dd>{orTbc(race.distance)}</dd>
+  <div class="nn-wrap nn-layout">
+    {
+      /* **The entry card is a summary and a way in, not the form itself.** The form is lifted
+      unchanged and is long — the interest form alone runs to an error summary, three fields and
+      a consent box — and none of that fits a 296px rail, nor should it be squeezed to. So the
+      rail carries the fee, the window and one button, and the button goes to the form below.
+      That is also what keeps `position: sticky` meaning anything: a card that contained the
+      form would be taller than the viewport in both open states, and a sticky element taller
+      than the viewport cannot be scrolled to the bottom of.
 
-      <dt>Race HQ</dt>
-      <dd>{orTbc(race.location)}</dd>
+      **It ships in the before-open state, visible.** The page already keeps that rule for the
+      two form blocks and it matters more here: a database the Worker cannot reach must leave a
+      page that says "register your interest", never one offering a button that cannot take
+      money. Failing towards the state that charges nobody.
 
-      {
-        /* **The field size, not how much of it is left** — see the note on the hero row.
+      **`data-nn-cta` is on this button, and leaving it off was a defect rather than a
+      deferral.** `#register` is the id of a heading inside `[data-nn-interest]`, which the
+      Worker hides the moment entries open — so a button holding a static `href="#register"`
+      becomes, at 07:00 on the first of September, a control that looks live, takes keyboard
+      focus and does nothing. Silently, on the busiest morning this page will ever have. The
+      hook is what moves the label and the target with the state, and every call to action on
+      the page needs it, not only the hero's.
+
+      Widening it cost no Worker change: `CtaHandler` is stateless and bound by attribute
+      selector, so it already paints every match, exactly as `[data-nn-fee]` does across this
+      card and the facts list. What it did cost was two acceptance tests that located the hook
+      with a bare selector — now scoped to the button each one is actually about, which they
+      should have been from the start.
+
+      **On a phone this is the only inline call to action**, because the hero's is hidden below
+      860px: one button, beside the fee, which is the one place on this page where a price and
+      an action are adjacent. The fixed bar continues it once this scrolls away. */
+    }
+    <aside class="nn-entry-rail" id="entry" aria-label="Entry">
+      <div class="nn-entry-card nn-card">
+        <p class="nn-entry-card-label">Entry</p>
+
+        <p class="nn-entry-card-fee nn-figures" data-nn-fee>{orTbc(race.price)}</p>
+
+        {
+          /* **A fact about a window that has not opened, so it goes when the window opens.**
+          This is a static string from `race.json` — nothing reads `entries_open_at` to paint
+          it. Left alone it becomes a past-tense date sitting directly above the primary call to
+          action, at seven o'clock on the morning of the first of September. The Worker hides it
+          when the form is on offer and when the window has ended. */
+        }
+        <dl class="nn-entry-card-when" data-nn-entries-open>
+          <dt>Entries open</dt>
+          <dd>{orTbc(race.entriesOpen)}</dd>
+        </dl>
+
+        <a class="nn-cta nn-entry-card-cta" href="#register" data-nn-cta
+          >Register interest</a
+        >
+      </div>
+    </aside>
+
+    <div class="nn-layout-content">
+      <section id="race" tabindex="-1">
+        {
+          /* **The display face, and the rule that permits it.** Nosifer is barred from anything
+          a person has to act on; a three-word section heading with no instruction in it is
+          exactly what it is allowed. Three words also matter for the face itself — it is
+          caps-only, and it carries a title, not a sentence.
+
+          Its three sibling sections are still in the body face. That is a difference somebody
+          should decide about rather than inherit. */
+        }
+        <h2 class="nn-display-heading">Key Race Info</h2>
+
+        <dl class="status">
+          <dt>Date</dt>
+          <dd>{orTbc(race.date)}</dd>
+
+          <dt>Start time</dt>
+          <dd>{orTbc(race.startTime)}</dd>
+
+          <dt>Distance</dt>
+          <dd>{orTbc(race.distance)}</dd>
+
+          <dt>Race HQ</dt>
+          <dd>{orTbc(race.location)}</dd>
+
+          {
+            /* **Directly under Race HQ, because that row is what creates the mistake.** Somebody
+        reads "Ashton Park School…", drives there for eleven o'clock, and is in the wrong place
+        — and that is a mistake this page can prevent in one line.
+
+        **No `startLine` key, and the absence is deliberate.** An earlier draft of this work
+        added one, null, rendering "To be confirmed". That would have been a falsehood about
+        our own data: `/nn/2026/race-day/` publishes the start's coordinates and a map link,
+        under a test named "the start is given as a place of its own, distinct from HQ". The
+        fact is not missing, it is elsewhere — so this row states the *relationship* and points
+        at the page that holds the detail.
+
+        **Every phrase here is already on the site.** "Not at race HQ" is `race-day.astro`'s
+        own opening; "the race instructions have the exact spot and a map" is `spectators.astro`
+        word for word, linking to the same page. The link text names the destination's own `h1`,
+        which is what makes it read correctly alone in a screen reader's list of links.
+
+        **Nothing here can go stale.** No walk time — the demo's version said "we walk down
+        together at 10:30", which is the *briefing* since #121 — no coordinate, and no distance
+        from HQ, which nobody has supplied and which `race-day.astro` refuses to derive. */
+          }
+          {
+            /* **This row used to point at `/nn/2026/race-day/`** and say the race instructions
+            had the exact spot and a map. That was the race director's own sentence, borrowed
+            from `spectators.astro`, and it was true while the map lived on another page. It is
+            not any more — this page carries the pin, two sections down — so sending somebody
+            away for something that is already here was the habit the consolidation exists to
+            break.
+
+            **The URL is built rather than pasted.** `startFinishMap` comes from
+            `race.startFinish`, so this pin, the one in the spooktators section and the one on
+            `/nn/2026/race-day/` cannot disagree.
+
+            The coordinates are not repeated in this cell: a facts row is one line, and the
+            answer a failing link would otherwise take with it is printed in full below. */
+          }
+          <dt>Start line</dt>
+          <dd>
+            Not at race HQ — <a href={startFinishMap} rel="noopener">show it on a map</a>.
+          </dd>
+
+          {
+            /* **The field size, not how much of it is left** — see the note on the hero row.
         250 is how big the race is, and it does not change during the week somebody is
         deciding whether to come. */
-      }
-      <dt>Field size</dt>
-      <dd>{race.places} places</dd>
+          }
+          <dt>Field size</dt>
+          <dd>{race.places} places</dd>
 
-      {
-        /* **The one cell on this page the Worker fills in, and `race.price` stays `null` on
+          {
+            /* **The one cell on this page the Worker fills in, and `race.price` stays `null` on
         purpose.** The fees are `entries.fees.price_pence` and nothing else: they are money,
         they are what `create_pending_purchase()` charges, and a second copy here is how the
         page and the till start disagreeing — with the page being the copy nobody notices has
@@ -172,12 +349,12 @@ const dateLine = race.date
 
         If the database cannot be answered the cell keeps its shipped text, which is the honest
         fallback: "To be confirmed" claims nothing, and a stale number would. */
-      }
-      <dt>Entry fee</dt>
-      <dd data-nn-fee>{orTbc(race.price)}</dd>
+          }
+          <dt>Entry fee</dt>
+          <dd data-nn-fee>{orTbc(race.price)}</dd>
 
-      {
-        /* **This announces when entries open; it does not open them.** The two live in
+          {
+            /* **This announces when entries open; it does not open them.** The two live in
         different places on purpose, and the split is now real rather than latent:
         `race.json` carries the sentence a runner reads, and `entries.events.entries_open_at`
         is the switch `entry_state()` resolves. The committee has ratified the window, and the
@@ -197,12 +374,12 @@ const dateLine = race.date
         Painting this cell from the database instead would remove the gap entirely and is the
         right end state — an ADR after entries open, not a change to this page's rendering
         path in the week before. */
-      }
-      <dt>Entries open</dt>
-      <dd>{orTbc(race.entriesOpen)}</dd>
+          }
+          <dt>Entries open</dt>
+          <dd>{orTbc(race.entriesOpen)}</dd>
 
-      {
-        /* **The closing half, and it is the sturdier of the two.** `entries_close_at` is
+          {
+            /* **The closing half, and it is the sturdier of the two.** `entries_close_at` is
         applied, and `create_pending_purchase()` checks it on every submission — "absolute,
         whatever the caller holds", ahead of even the tester's early-entry permission. So this
         row and the database agree by construction: when the page says entries have closed, the
@@ -211,63 +388,200 @@ const dateLine = race.date
         That is the opposite of the row above, where the page announces a time the database is
         not yet holding. Two rows, one sentence apart, with genuinely different guarantees
         behind them — which is worth knowing before either is edited. */
-      }
-      <dt>Entries close</dt>
-      <dd>{orTbc(race.entriesClose)}</dd>
+          }
+          <dt>Entries close</dt>
+          <dd>{orTbc(race.entriesClose)}</dd>
 
-      {
-        /* **Issued on 27 August 2026, and this is the year's own number** — not 2023's,
+          {
+            /* **Issued on 27 August 2026, and this is the year's own number** — not 2023's,
         which is on record and belongs to the 2023 race. It is quoted here and on the entry
         form because ARC ask for it on entry forms and advertising material; it is on the
         year page rather than on `/nn/` because a permit belongs to one running, which is
         the same rule the date follows. See ADR-011. */
-      }
-      <dt>ARC permit</dt>
-      <dd>{orTbc(race.permit)}</dd>
-    </dl>
+          }
+          <dt>ARC permit</dt>
+          <dd>{orTbc(race.permit)}</dd>
+        </dl>
+      </section>
 
-    {
-      /* **A summary that ends in a link, not a second copy of the course page.** The same five
-      things `/nn/` shows above the interest form, from the same component — read there as what
-      this race is, and here as what you are about to enter. Two copies of five safety-relevant
-      bullets is two copies that drift. See `NnRaceSummary.astro`. */
-    }
-    <div class="nn-card nn-prose">
-      <h2>Know what you are in for</h2>
+      <section id="race-info" tabindex="-1">
+        <h2 class="nn-display-heading">Race instructions</h2>
 
-      {
-        /* **This page did not say where the race goes, and it is the page somebody pays from.**
-        The card below it stated what the ground is like, what to put on your feet, where the
-        water is and that the start is not at race HQ — and never the route. That sentence was
-        on `/nn/` in the race director's words and on `/nn/course/` in the club's, and neither
-        of those is this page. Somebody could read every word in front of the entry form, hand
-        over an entry fee, and not know the race runs along a towpath, up a valley and through
-        woods.
+        {
+          /* **The race director's copy, and two sentences of her opening are not here.**
 
-        **It is `/nn/course/`'s wording rather than the race director's, and only because hers
-        carries the distance.** "A 10km off road run along the towpath…" would put a second
-        spelling of the distance on a page whose `<dl>` above already states it from
-        `race.json`. Which spelling the site settles on is with her, and this sentence stays
-        out of that question rather than adding to it.
+          "Commiserations on entering the Nightingale Nightmare 10k" was removed on request; it
+          is the 2023 pre-race email's opening, written to somebody who had already entered, and
+          it is waiting for `/nn/2026/entry/complete/`.
 
-        **Here rather than in `NnRaceSummary`**, because the component reaches `/nn/` too and
-        that page already has her sentence — one route, two spellings, one page. So this is
-        page-local, and verbatim, so `site.spec.ts` can hold it against the course page's copy
-        for as long as both exist. */
-      }
-      <p>
-        The route runs along the towpath, turns up Nightingale Valley, and carries on
-        through Leigh Woods.
-      </p>
+          "You'll be pleased to know the time is nearly upon us" went with it, and that one is a
+          claim rather than a joke: read in September it is false, and it becomes true only in
+          the last fortnight. "This message" became "This page" for the same reason — the copy
+          arrived as an email and this is not one. Both are flagged for her rather than settled
+          here. */
+        }
+        <p>This page contains all the information you need for the big day.</p>
 
-      <NnRaceSummary />
+        <h3 class="nn-display-subheading">Time & place</h3>
 
-      <p>
-        <a href="/nn/course/">The course and terrain, in full</a> — and{' '}
-        <a href="/nn/2026/race-day/">the whole running order for the day</a>.
-      </p>
+        {
+          /* The address is `race.location`, which carries **Bower Ashton** where her copy did
+          not. One address on the site is worth the extra locality; if she wants hers exactly,
+          that is a `race.json` edit rather than a second spelling here. */
+        }
+        <p>
+          The race HQ is {race.location}. There is free parking on site, toilet
+          facilities, and shelter from the elements. If necessary we should also be able
+          to barricade the doors and hold out against a zombie attack for at least 48
+          hours.
+        </p>
+
+        <p>
+          The carpark is large, but unlike the joys of eternal damnation, is not infinite.
+          If you're able to share lifts with friends, foes, or clubmates, we'd encourage
+          you to do so. There is no on-street parking in the area, so please respect our
+          neighbours. There will be dedicated broomstick parking provided.
+        </p>
+
+        {
+          /* **A third paragraph was here and is deleted, not reworded.**
+
+          It read: "There will be an extended witching hour the night before, with the end of
+          BST. You can enjoy an extra hour's rest before your torment commences, so tardiness
+          will not be entertained."
+
+          **British Summer Time ends on Sunday 25 October 2026. This race is Sunday 1 November,
+          a week later.** There is no extra hour, and somebody who set an alarm by that sentence
+          would arrive an hour after registration opened. It was true of 2023, when the race
+          fell on the changeover day, and `site.spec.ts` already refuses both "clocks change"
+          and "witching hour" on the sibling pages for exactly this reason.
+
+          The paragraph carried one real instruction with it — that lateness is not catered for
+          — and that has gone too, because it cannot stand without the sentence that was wrong.
+          It wants one line back from her rather than one invented here. */
+        }
+
+        <h3 class="nn-display-subheading">Race morning</h3>
+
+        <NnSchedule />
+
+        <h3 class="nn-display-subheading">At start</h3>
+
+        <p>
+          At the start there will be a group warmup (which in keeping with the theme may
+          be mortifying) and there will be a bag drop to leave anything you might want
+          immediately post-race. After the finish we recommend staying to cheer in the
+          other runners, so pack something to keep you warm and dry, and maybe a spare
+          litre of blood if necessary.
+        </p>
+
+        <p>
+          There will be one water station on the route and another at the finish, and
+          plenty of marshals to guide your way. Carrying garlic is recommended, but
+          optional.
+        </p>
+
+        <h3 class="nn-display-subheading">Clothing</h3>
+
+        <p>
+          As you will hopefully appreciate by now, this is a halloween themed race, so
+          bring out your best (worst?) costume and show us how terrifying you can be.
+          There will be a competition for outfits - more on that later. The HQ will have
+          dedicated changing areas and a bag drop for any bulkier items you don't need at
+          the finish. The carpark is also immediately adjacent to the HQ, so please lock
+          anything valuable in your car lest the goblins get it.
+        </p>
+
+        <p>
+          Not to spook you, but this is also a tough off-road run with plenty of
+          elevation. The ground is uneven with rocks and roots and can be slippery if
+          there has been rainfall. Trail shoes are a good option if you have them. Road
+          shoes will be fine too, just take extra care. Flip-flops would be disastrous, so
+          don't wear those.
+        </p>
+
+        <p>
+          As you'll be fully aware, creatures of the night are drawn towards music and
+          especially to running-themed podcasts like moths to the flame. For your own
+          safety we therefore require that you do not wear headphones of any type during
+          the race.
+        </p>
+
+        <h3 class="nn-display-subheading">Competitions & prizes</h3>
+
+        <p>
+          As mentioned, there's a fancy dress competition! If you wish to feel the full
+          force of our judgement, pick up your number for race registration and then pose
+          for a photo with our photographers who will be stationed upstairs in the HQ.
+        </p>
+
+        <p>
+          Prizes will be also be awarded for first finishers overall and in vet 40, 50,
+          and 60 categories, male and female. Every survivor gets a medal. Every
+          non-survivor gets a memorial.
+        </p>
+
+        <p>
+          There's also a special prize for best marshalling station, voted by you, the
+          runners. So keep an eye out (unless your eye is already out) as you run to see
+          which of our volunteer marshals deserves your vote.
+        </p>
+
+        <p>
+          The prizegiving will be back in race HQ after the last runner finishes the
+          course. Speaking of HQ…
+        </p>
+
+        <h3 class="nn-display-subheading">Refreshments</h3>
+
+        <p>
+          Join us back at HQ after the race for free hot drinks and more importantly,
+          cake! Our volunteer bakers are hard at work making a dazzling array of ghoulish
+          cakes for you to enjoy. We'll be serving tea, coffee and hot chocolate to warm
+          you up. All for free!
+        </p>
+
+        <p>
+          There'll be a donation tin if you have any of that pre-pandemic cash hanging
+          around. In past years we've been able to make sizable donations to some great
+          local charities thanks to runners' generosity.
+        </p>
+      </section>
+
+      <section id="spooktators" tabindex="-1">
+        <h2 class="nn-display-heading">Spooktators</h2>
+
+        <p>
+          Friends and family are welcome to come and cheer you on. The start/finish area
+          is a good place, and another easy spectator spot is the top of Nightingale
+          Valley, accessed by a gate on North Road,{' '}
+          <span class="nn-mono">{race.spectating.viewpointPostcode}</span>.
+        </p>
+
+        <h3 class="nn-display-subheading">Start/finish (not race HQ!)</h3>
+
+        {
+          /* The link text is the place rather than the URL. Hers was 200 characters of Google
+          Maps query string — unreadable in a links list, and it carries a `data=` blob that
+          encodes a session rather than a location. The coordinates are printed beside it for
+          the reason `race-day.astro` gives: a link that fails should not take the answer with
+          it. */
+        }
+        <p>
+          <span class="nn-mono">{startFinish}</span> —{' '}
+          <a href={startFinishMap} rel="noopener">show it on a map</a>.
+        </p>
+
+        <p>
+          Those just coming to the start/finish to cheer could park on{' '}
+          {race.spectating.parking} and then walk over {race.spectating.footbridge} to get there
+          by foot, if indeed they have feet.
+        </p>
+      </section>
     </div>
+  </div>
 
+  <div class="nn-wrap">
     {
       /* ------------------------------------------------------------------------------
        * The two states of this page, and which one somebody gets
@@ -301,6 +615,38 @@ const dateLine = race.date
       It ships **visible** and the entry form ships hidden, which is the safe default: a page
       that cannot tell whether entries are open must not offer to take one. */
     }
+    {
+      /* **The third state, and the only one that makes a negative claim.** It ships hidden and
+      the Worker reveals it when `entry_state()` says the window has ended — and *only* then. A
+      database this Worker could not reach falls to the interest form above instead, because
+      "entries have closed" is a false statement about a race somebody may still be able to
+      enter, and a reader cannot tell it apart from a decision the club took.
+
+      **The wording is functional rather than the race director's**, in the same register as the
+      notices the entry form already carries. If she wants it in her own words it is a one-line
+      edit here and nothing else moves.
+
+      No call to action beside it: every `[data-nn-cta]` on the page is hidden in this state, so
+      there is no button left looking live next to a shut door. The link out is to the race
+      instructions, which is what somebody who already holds a place still needs. */
+    }
+    <div class="notice nn-card" data-nn-closed hidden>
+      <h2>Entries have closed</h2>
+
+      {
+        /* The year is a literal, exactly as it is in this page's `<h1>` and its canonical.
+        `race.date` is a pre-formatted display string — "Sunday 1 November 2026" — so parsing a
+        year out of it would be deriving a fact from prose, on a page whose whole discipline is
+        that facts come from `race.json` unaltered. This directory *is* the year. */
+      }
+      <p>Entries for the {race.name} 2026 are no longer open.</p>
+
+      <p>
+        If you already have a place,{' '}
+        <a href="/nn/2026/race-day/">the race instructions</a> have everything for the day.
+      </p>
+    </div>
+
     <div data-nn-interest>
       <h2 id="register">Register your interest</h2>
 
@@ -353,7 +699,7 @@ const dateLine = race.date
         <p><strong>Sorry — that could not be saved just now.</strong></p>
         <p>
           Nothing has been recorded, and nothing you typed has been lost. Please press
-          "Register my interest" again in a moment.
+          "Register interest" again in a moment.
         </p>
       </div>
 
@@ -485,7 +831,7 @@ const dateLine = race.date
           </div>
         </div>
 
-        <button class="button" type="submit">Register my interest</button>
+        <button class="button" type="submit">Register interest</button>
       </form>
     </div>
 
@@ -549,18 +895,38 @@ const dateLine = race.date
        * as JSON. See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
     }
 
-    <footer>
-      <p>
-        Southville Running Club. Anything above reading "to be confirmed" is with the
-        committee, and this page is updated when it is settled.
-      </p>
-      <p>
-        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
-      </p>
-      <p>
-        <a href="/nn/privacy/">What the club does with your details</a>
-      </p>
-    </footer>
+    {
+      /* **Chosen from a shortlist by the club, not written by the race director**, and that
+      provenance is worth recording on a page whose rule is that the prose is hers. It is the one
+      sentence here she did not write.
+
+      **The line that was first offered for this slot went elsewhere.** "Commiserations on
+      entering the Nightingale Nightmare 10k" is the opening of the 2023 pre-race email — written
+      to people who had *already* entered — and `site.spec.ts` bans that string from three pages
+      for exactly that reason. Above a button that reads "Register interest" for every month
+      until the window opens, it commiserates somebody for doing a thing they cannot yet do. It
+      belongs on `/nn/2026/entry/complete/`, which is the only page reached by somebody who has
+      entered, and it is still available for it.
+
+      This sentence makes no date claim — the race is 1 November and Halloween is the day before
+      — and no claim about the light, which two of the other candidates did against an 11:00
+      start. */
+    }
+    <div class="nn-closing">
+      <p>Whether you sprint, jog, or creep, a frightfully fun finish awaits.</p>
+    </div>
+
+    {
+      /* **This page has one footer now, and it is the club's.**
+
+      It used to have two, stacked: its own inside `<main>`, then `SiteFooter` below the
+      artwork. The contact address and the race's privacy notice have moved into the club
+      footer's race group, beside the entry terms, so there was nothing left in here but a
+      second `<footer>` element.
+
+      Losing it costs the `#footer` anchor, which nothing linked to — the jump-nav lists the
+      three content sections and not this. */
+    }
   </div>
 
   {
@@ -570,4 +936,139 @@ const dateLine = race.date
     See the artwork section of nn-theme.css. */
   }
   <div class="nn-hands" aria-hidden="true"></div>
+
+  {
+    /* **The bar continues the rail rather than competing with it.** It carries the fee as well
+    as the button because £18 is a fact and "£18 · Enter" is an offer — the rail is where those
+    two are adjacent, and this is what keeps them adjacent once the rail has scrolled away.
+
+    **It ships hidden from assistive technology and untabbable**, and the script turns both
+    around when it reveals it. A fixed control that is visually off-screen but still in the tab
+    order is a focus stop that lands nowhere, which is worse than not having it.
+
+    **`data-nn-cta` rather than a hardcoded label.** The Worker relabels and repoints every
+    call to action on this page from one selector, so this one cannot drift out of step with
+    the entry state — which is the defect that put a dead `#register` anchor in this page two
+    commits ago. */
+  }
+  <div class="nn-entry-bar" data-nn-entry-bar aria-hidden="true">
+    <p class="nn-entry-bar-fee nn-figures" data-nn-fee>{orTbc(race.price)}</p>
+    <a class="nn-cta" href="#register" data-nn-cta tabindex="-1">Register interest</a>
+  </div>
 </Base>
+
+{
+  /* -------------------------------------------------------------------------------------
+   * Enhancement, and only enhancement
+   * -------------------------------------------------------------------------------------
+   * **With this file removed the page is still whole.** The anchors jump, the jump-nav's
+   * `<details>` opens, the entry rail and its button are present, the form works, and every
+   * call to action is reachable. Four jobs and nothing else:
+   *
+   *   1. condense the masthead once the hero has gone
+   *   2. reveal the entry bar when no inline call to action is on screen
+   *   3. mark which section is in view
+   *   4. move focus to a section when its jump link is followed
+   *
+   * **Job 4 is the one that is invisible until somebody needs it.** A bare fragment link
+   * scrolls the page and leaves the keyboard where it was, so the next Tab returns the reader
+   * to the top — silently. Axe passes either way. The sections carry `tabindex="-1"` so they
+   * can take focus without entering the tab order themselves.
+   *
+   * **Job 2's rule is "no inline CTA visible", not "the rail has passed".** Keyed to the
+   * rail's geometry, the bar would appear beside the closing block's button at the foot of the
+   * page — two identical calls to action within a screen of each other, which is the defect
+   * this whole arrangement exists to remove, reproduced where nobody was looking.
+   *
+   * `IntersectionObserver` throughout: a scroll listener does the same work on every frame and
+   * this page is read while somebody is scrolling it.
+   * ------------------------------------------------------------------------------------- */
+}
+<script>
+  const hero = document.getElementById('top');
+  const masthead = document.querySelector('.nn-masthead');
+  const bar = document.querySelector('[data-nn-entry-bar]');
+  const barLink = bar?.querySelector('a');
+  const jumpLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('.nn-jump-links a'),
+  );
+
+  // 1. The masthead condenses once the hero is behind it.
+  if (hero && masthead) {
+    new IntersectionObserver(
+      (entries) => {
+        const showing = entries[0]?.isIntersecting ?? true;
+        masthead.classList.toggle('is-condensed', !showing);
+      },
+      { rootMargin: '-80px 0px 0px 0px' },
+    ).observe(hero);
+  }
+
+  // 2. The bar appears only when nothing else is offering the same thing.
+  //
+  // The body class is gated on the width the bar is actually shown at. Above it the bar is
+  // `display: none`, so an element that never intersects would otherwise leave the page
+  // reserving space at the bottom for a control nobody can see.
+  const inlineCtas = Array.from(document.querySelectorAll('[data-nn-cta]')).filter(
+    (el) => !bar?.contains(el),
+  );
+
+  if (bar && barLink && inlineCtas.length > 0) {
+    const narrow = window.matchMedia('(max-width: 860px)');
+    const onScreen = new Set<Element>();
+
+    const paint = () => {
+      const show = narrow.matches && onScreen.size === 0;
+      bar.toggleAttribute('data-nn-bar-shown', show);
+      bar.setAttribute('aria-hidden', show ? 'false' : 'true');
+      barLink.tabIndex = show ? 0 : -1;
+      document.body.classList.toggle('nn-has-bar', show);
+    };
+
+    const watcher = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) onScreen.add(entry.target);
+        else onScreen.delete(entry.target);
+      }
+      paint();
+    });
+
+    for (const cta of inlineCtas) watcher.observe(cta);
+    narrow.addEventListener('change', paint);
+  }
+
+  // 3. Which section is in view. `aria-current="location"` rather than `"page"` — this is a
+  //    position within the page, and `"page"` is what the masthead uses for the page itself.
+  if (jumpLinks.length > 0) {
+    const linkFor = new Map(
+      jumpLinks.map((link) => [link.getAttribute('href')?.slice(1) ?? '', link]),
+    );
+
+    const spy = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          for (const link of jumpLinks) link.removeAttribute('aria-current');
+          linkFor.get(entry.target.id)?.setAttribute('aria-current', 'location');
+        }
+      },
+      { rootMargin: '-25% 0px -65% 0px' },
+    );
+
+    for (const id of linkFor.keys()) {
+      const section = id === '' ? null : document.getElementById(id);
+      if (section) spy.observe(section);
+    }
+  }
+
+  // 4. The keyboard goes where the page went.
+  for (const link of jumpLinks) {
+    link.addEventListener('click', () => {
+      const id = link.getAttribute('href')?.slice(1);
+      const section = id === undefined || id === '' ? null : document.getElementById(id);
+      // `preventScroll` because the browser is already scrolling to the fragment; focusing
+      // without it would scroll a second time and land differently.
+      section?.focus({ preventScroll: true });
+    });
+  }
+</script>

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
  * The page the interest form is on — the running it is an interest in.
@@ -62,7 +63,7 @@ test.describe('registering interest', () => {
       name: 'Grace Hopper',
       email: addressFor(testInfo.project.name),
     });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     // POST/Redirect/GET: the address changes, so a refresh does not re-post.
     await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
@@ -88,7 +89,7 @@ test.describe('registering interest', () => {
     for (const attempt of [1, 2]) {
       await page.goto(YEAR);
       await fillIn(page, { name: `Grace Hopper ${attempt}`, email });
-      await page.getByRole('button', { name: 'Register my interest' }).click();
+      await page.getByRole('button', { name: 'Register interest' }).click();
 
       await expect(page).toHaveURL(/\/nn\/2026\/\?signup=ok$/);
       await expect(page.locator('[data-signup-ack]')).toBeVisible();
@@ -103,7 +104,7 @@ test.describe('a submission the server refuses', () => {
     // server-side validation never being optional.
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     const summary = page.locator('[data-signup-summary]');
     await expect(summary).toBeVisible();
@@ -135,7 +136,7 @@ test.describe('a submission the server refuses', () => {
   test('links from the summary to the field it is about', async ({ page }) => {
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await page.locator('[data-signup-summary-link="name"]').click();
 
@@ -153,7 +154,7 @@ test.describe('accessibility of the form', () => {
     // page and there is no error state to check.
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-axe@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 
@@ -186,14 +187,18 @@ test.describe('accessibility of the form', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
     await fillIn(page, { name: '   ', email: 'e2e-invalid@example.com' });
-    await page.getByRole('button', { name: 'Register my interest' }).click();
+    await page.getByRole('button', { name: 'Register interest' }).click();
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflows).toBe(false);
+    // **Measured once the page is styled, and that is the whole of this line's history.**
+    // The summary is revealed by the Worker, so it is visible the moment the parser reaches
+    // it — before either stylesheet has been applied. Asserting straight off `toBeVisible()`
+    // measured a bare document about one run in three, where the club's address in the
+    // `mailto:` link sets 331px wide because the rule that wraps it has not arrived yet.
+    // `expectNoSidewaysScroll` waits for the styled, settled layout first; it does not retry
+    // the assertion. See `../sideways-scroll.ts`.
+    await expectNoSidewaysScroll(page, 'the interest form error state at 320px');
   });
 
   test('every control can be reached and used from the keyboard', async ({ page }) => {

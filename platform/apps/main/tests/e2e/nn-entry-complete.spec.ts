@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { clearPurchases, clearWebhookKey, seedPurchase } from '../entries-db';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 import {
   FIXTURE_AMOUNT_PENCE,
   FIXTURE_EMAIL,
@@ -253,11 +254,9 @@ test.describe('the page Stripe returns somebody to', () => {
       await page.goto(`/nn/2026/entry/complete/?session=${session}`);
 
       // Nothing overflows sideways. A horizontal scrollbar on a phone is how a card ends up
-      // with half a sentence off the edge.
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(overflow, session).toBeLessThanOrEqual(1);
+      // with half a sentence off the edge. A pixel of tolerance, because a sub-pixel border
+      // on a fractional device ratio is not a layout failure.
+      await expectNoSidewaysScroll(page, `the return page (${session}) at 320px`, 1);
 
       // The club's address is reachable in every state, because it is what somebody does next
       // when the page cannot help them.

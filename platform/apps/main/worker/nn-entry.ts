@@ -118,14 +118,37 @@ export interface NnEntryEnv extends StripeEnv {
 /**
  * What `/nn/<year>/` shows.
  *
- * `closed` covers every reason the form is not on offer — not yet, no longer, no such event,
- * and a database this Worker could not reach. To somebody looking at the page they are one
- * fact, and collapsing them here is what makes the failure direction a property of the type
- * rather than of whoever reads it next.
+ * `closed` still covers every reason the form is not on offer, and that collapse is still what
+ * makes the failure direction a property of the type rather than of whoever reads it next: no
+ * branch anywhere can accidentally offer a form because it forgot a case.
+ *
+ * **`window` says which reason, and it is deliberately not a fourth `show`.** Every existing
+ * `view.show !== 'entry'` branch keeps meaning exactly what it meant — the form is not on offer
+ * — and one renderer opts in to telling the difference. Making it a third `show` value would
+ * have put the burden on every consumer instead, on the path that takes money.
  */
 export type NnEntryView =
   | {
       show: 'closed';
+      /**
+       * Why the form is not on offer, for the one page that says so in words.
+       *
+       * `pre_open` — the window has not opened. The interest form is what a runner gets.
+       * `ended`    — the window has closed. Neither form; the page says so plainly.
+       * `unknown`  — no such event, or a database this Worker could not reach.
+       *
+       * **`unknown` renders as `pre_open`, and that is the whole reason it is a third value
+       * rather than folded into either.** A page that cannot reach the database must not claim
+       * entries have closed — that is a false statement about a race somebody may still be able
+       * to enter — and must not offer to take money either. So it falls to the state that asks
+       * for an email address: wrong in the harmless direction, and the same rule the shipped
+       * markup already follows by having the interest form visible and the entry form hidden.
+       *
+       * Folding it into `ended` would make an outage indistinguishable from a decision, on the
+       * page where that distinction is the difference between "come back on Tuesday" and "you
+       * have missed it".
+       */
+      window: 'pre_open' | 'ended' | 'unknown';
       /**
        * **The fees, even though the form is not on offer.** The price is a fact about the race
        * rather than a property of the form: `/nn/2026/` states it in its facts list months
@@ -335,7 +358,21 @@ export async function resolveNnEntryView(
   // `view.state` is undefined only when the database could not be reached — `resolveView`
   // collapses "no such event" and an unreachable database into the same shut door, and only the
   // second has nothing to report. Either way the fee row falls back to "To be confirmed".
-  return { show: 'closed', fees: view.state?.fees ?? [] };
+  //
+  // **`open` cannot reach here**, because `resolveView` returns `show: 'entry'` for it. It is
+  // mapped to `unknown` rather than to `ended` for the same reason `undefined` is: if this ever
+  // becomes reachable, the safe rendering is the one that asks for an email address, not the one
+  // that tells somebody they have missed a race they could enter.
+  const window =
+    view.state === undefined
+      ? 'unknown'
+      : view.state.state === 'pre_open'
+        ? 'pre_open'
+        : view.state.state === 'closed'
+          ? 'ended'
+          : 'unknown';
+
+  return { show: 'closed', window, fees: view.state?.fees ?? [] };
 }
 
 /**
@@ -1154,7 +1191,11 @@ export const NN_PREVIOUS_SLOTS = 4;
 /**
  * The navigation bar, on every page that carries it.
  *
- * **Two links and a button, and none of them may name a year in `dist/`.** They ship hidden
+ * **A button, and two registrations that now match nothing — and none may name a year in
+ * `dist/`.** `running` in `NnNav.astro` is empty since `Race info` and `Spooktators` came out
+ * of the bar, so the two item selectors below find no element on any page. They are kept
+ * because `/nn/2026/` uses the same hooks, and because putting a link back should be one entry
+ * in that array and no change here. What still ships hidden
  * with `href=""`; this is the only thing that fills them in, on every Nightingale Nightmare
  * page rather than only on `/nn/`, because the bar is the same bar everywhere.
  *
@@ -1243,6 +1284,24 @@ export function renderNnEntryView(
   }
 
   if (view.show !== 'entry') {
+    // **The window has ended, and this is the one state that says so in words.** Neither form,
+    // and no call to action anywhere on the page — a button beside a shut door is a control
+    // that looks live and does nothing, which is the defect this branch exists to avoid rather
+    // than a cosmetic tidy-up.
+    //
+    // **`pre_open` and `unknown` fall past this deliberately.** A database this Worker could
+    // not reach must not produce a page claiming entries have closed: that is a false statement
+    // about a race somebody may still be able to enter, and it is indistinguishable to the
+    // reader from a decision the club took. They get the shipped markup, which is the interest
+    // form — wrong in the harmless direction.
+    if (view.window === 'ended') {
+      rewriter
+        .on('[data-nn-interest]', new HideHandler())
+        .on('[data-nn-closed]', new RevealHandler())
+        .on('[data-nn-cta]', new HideHandler())
+        .on('[data-nn-entries-open]', new HideHandler());
+    }
+
     return rewriter;
   }
 
@@ -1251,7 +1310,13 @@ export function renderNnEntryView(
   rewriter
     .on('[data-nn-interest]', new HideHandler())
     .on('[data-nn-entry]', new RevealHandler())
-    .on('[data-nn-cta]', new CtaHandler('#enter', 'Enter the race'));
+    .on('[data-nn-cta]', new CtaHandler('#enter', 'Enter the race'))
+    // **The entry rail's "Entries open — Tuesday 1 September 2026, 07:00" is a static string
+    // from `race.json`**, and nothing reads `entries_open_at` to paint it. Left alone it becomes
+    // a past-tense date sitting directly above the primary call to action, on the busiest
+    // morning this page will ever have. It is a fact about a window that has opened, so it goes
+    // when the window opens.
+    .on('[data-nn-entries-open]', new HideHandler());
 
   // **Only when the form is on offer *because of who is asking*.** `early` is false the
   // moment entries genuinely open, for a tester as much as for anybody, so this notice

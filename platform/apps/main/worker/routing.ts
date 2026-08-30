@@ -63,8 +63,9 @@ export const NN_RACE_SLUG = 'nn';
 /**
  * `/nn/2026/` and `/nn/2026` — the page for one running, and nothing beneath it.
  *
- * Four digits exactly. `/nn/course/` and `/nn/privacy/` are evergreen pages that must never be
- * mistaken for a running, and `/nn/20261/` is not a year.
+ * Four digits exactly. `/nn/privacy/` is an evergreen page that must never be mistaken for a
+ * running, and `/nn/20261/` is not a year. `/nn/course/` was a second such page and is now a
+ * redirect; this refuses both spellings of it either way.
  */
 const NN_YEAR_PATH = /^\/nn\/(\d{4})\/?$/;
 
@@ -154,9 +155,14 @@ export function isHealthPath(pathname: string): boolean {
  * carries the wordmark without the links — somebody who has just paid should not be offered
  * four ways to wander off before reading what the club has recorded.
  *
- * Deliberately a path predicate rather than a list of the six pages that exist. A seventh page
+ * Deliberately a path predicate rather than a list of the five pages that exist. A sixth page
  * added under `/nn/` gets the bar because it renders the masthead, and a predicate that had to
  * be edited to match would be the second place that fact was written down.
+ *
+ * **`/nn/course/` still matches this and that is correct rather than an oversight.** It is a
+ * pattern, not a register of live pages, and the redirect in `index.ts` returns long before
+ * anything consults this — so a third exclusion would be dead code that also contradicts the
+ * paragraph above it.
  */
 export function isNnMastheadPath(pathname: string): boolean {
   const path = pathname.endsWith('/') ? pathname : `${pathname}/`;
@@ -183,6 +189,31 @@ export function isNnMastheadPath(pathname: string): boolean {
  */
 export function isNnRacePath(pathname: string): boolean {
   return pathname === NN_PREFIX || pathname === `${NN_PREFIX}/`;
+}
+
+/** Where the course page used to be. */
+export const NN_COURSE_PATH = `${NN_PREFIX}/course`;
+
+/**
+ * Where the course page used to be — **now nothing but a redirect**.
+ *
+ * The course and terrain are on `/nn/` itself; this address has been published since the race
+ * pages were written and is linked from off the site, so it keeps resolving rather than 404ing.
+ * One destination rather than a prefix rewrite: there was never anything beneath it, which is
+ * why `adminPathForNnAdminPath`'s shape does not fit.
+ *
+ * **Both spellings, and for a different reason from every other pair in this file.** The others
+ * accept two because a human typed one into a form action or a Stripe dashboard. This accepts
+ * two because the assets binding used to: with `dist/nn/course/index.html` gone, the 307 the
+ * binding gave `/nn/course` is gone with it, and the unslashed form would 404 unless this
+ * claims it too.
+ *
+ * **Exactly these two and never a prefix** — the same character `isNnAdminPath` documents.
+ * `/nn/course-records/` is an address a future page could legitimately want, and a
+ * `startsWith` here would swallow it silently.
+ */
+export function isNnCoursePath(pathname: string): boolean {
+  return pathname === NN_COURSE_PATH || pathname === `${NN_COURSE_PATH}/`;
 }
 
 /**
