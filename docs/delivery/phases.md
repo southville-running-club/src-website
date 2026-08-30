@@ -182,7 +182,7 @@ none of them blocks the rest:
       and it costs no code — a cap in the database would block a legitimate person retrying on
       bad signal, which is a policy decision. **It is written down**, as rule **E1** in
       [the committed copy of the Cloudflare rules](../reference/cloudflare-waf-rules.md);
-      creating it is [entries-open step 0.1](runbooks/entries-open.md#01--the-waf-rate-limiting-rule-must-be-live)
+      creating it is [entries-open step 0.1](runbooks/entries-open.md#01--the-rate-limiting-rule-must-be-live)
 
 **Card data never touches club systems.** Stripe Checkout, hosted by Stripe, with a webhook
 recording the result. That is what keeps this inside

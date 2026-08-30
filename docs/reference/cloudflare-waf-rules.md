@@ -14,7 +14,7 @@ DNS record changed without updating the zone file is drift.
 
 | Serves | |
 | --- | --- |
-| [**Opening entries**](../delivery/runbooks/entries-open.md#01--the-waf-rate-limiting-rule-must-be-live) | Rule **E1**, and it is that runbook's step 0.1 — the one failure in the entry design with no recovery path |
+| [**Opening entries**](../delivery/runbooks/entries-open.md#01--the-rate-limiting-rule-must-be-live) | That runbook's step 0.1 — the one failure in the entry design with no recovery path. It asked for **E1** until 30 August 2026 and asks for **C1** now, because E1 was never created and C1 covers the same `POST /nn/` prefix |
 | [**Opening accounts**](../delivery/runbooks/accounts-open.md) | Rules **A1**–**A4**, and they are that runbook's step 0.1 |
 
 ---

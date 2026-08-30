@@ -58,7 +58,7 @@ Do not announce accounts if any of these is true.
 
 **[#64](https://github.com/southville-running-club/src-website/issues/64). Do this one first
 and do not skip it**, exactly as
-[entries-open step 0.1](entries-open.md#01--the-waf-rate-limiting-rule-must-be-live) says
+[entries-open step 0.1](entries-open.md#01--the-rate-limiting-rule-must-be-live) says
 about its own rule. The two are siblings and **their rules live in one place**:
 [the committed copy of the Cloudflare rules](../../reference/cloudflare-waf-rules.md).
 

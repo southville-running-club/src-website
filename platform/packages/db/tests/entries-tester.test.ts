@@ -54,8 +54,22 @@ const OPEN = 'zztester-open';
 const CLOSED = 'zztester-closed';
 /** Withdrawn. `active` is absolute, whatever anybody holds. */
 const INACTIVE = 'zztester-inactive';
+/**
+ * **Scheduled, and it is the state `nn-2026` goes into the moment the runbook runs step 3.**
+ *
+ * Every other fixture here sets `entries_open_at` to null or to the past, so until this one
+ * nothing in this repository exercised `entry_state()`'s middle branch —
+ * `now() < entries_open_at then 'pre_open'` — or `create_pending_purchase()`'s `v_early`, which
+ * tests the same comparison independently.
+ *
+ * That branch is what makes opening entries a *scheduled* act rather than somebody being awake
+ * at 07:00, and `entries-open.md` step 3 now rests on it entirely. A column set on Monday
+ * evening opens the race on Tuesday morning with nobody present, so the club is trusting a line
+ * of SQL that had no test.
+ */
+const SCHEDULED = 'zztester-scheduled';
 
-const FIXTURE_SLUGS = [PRE_OPEN, OPEN, CLOSED, INACTIVE] as const;
+const FIXTURE_SLUGS = [PRE_OPEN, OPEN, CLOSED, INACTIVE, SCHEDULED] as const;
 
 const EVENT_DATE = '2027-06-01';
 
@@ -219,6 +233,12 @@ beforeAll(async () => {
     closesAt: "now() - interval '1 hour'",
   });
   await makeEvent(INACTIVE, { opensAt: "now() - interval '1 hour'", active: false });
+  // An hour away rather than a minute: a fixture that opens while the suite is still running
+  // would flip these assertions mid-run and read as a flake rather than as a clock.
+  await makeEvent(SCHEDULED, {
+    opensAt: "now() + interval '1 hour'",
+    closesAt: "now() + interval '2 hours'",
+  });
 
   // Sequential, for `identity.test.ts`'s reason: running these concurrently races each
   // confirmation update against whichever signUp it belongs to.
@@ -358,6 +378,64 @@ describe('entering before entries open', () => {
     const result = await attemptEntry(anon, OPEN);
 
     expect(result.ok).toBe(true);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// A window with a date in it, which is what opening entries actually is
+// -----------------------------------------------------------------------------------------
+
+/**
+ * **`entries_open_at` is a scheduled switch, and until this block nothing proved it.**
+ *
+ * Every other fixture in this file sets the column to null or to the past, so the branch that
+ * decides the whole of Tuesday morning — `now() < entries_open_at then 'pre_open'` — was carried
+ * by reading the SQL. `entries-open.md` step 3 now says in as many words that the row is set on
+ * Monday evening and the race opens by itself, with nobody present; these are the tests that
+ * make that claim true rather than plausible.
+ *
+ * **Both halves, because they are two independent comparisons.** `entry_state()` decides which
+ * form the page paints and `create_pending_purchase()` decides whether a place may be held. A
+ * page that stayed shut while the function admitted entries would sell places nobody could see
+ * offered; the reverse would show a form that refuses everybody. Neither reads the other.
+ */
+describe('an entry window scheduled for later', () => {
+  it('reads as pre_open while the opening time is still ahead', async () => {
+    // **The branch the launch rests on.** `entry_state()` tests `entries_open_at is null` first
+    // and only then compares the clock, so a null and a future date reach the same answer by
+    // different routes — and only the null route had a test.
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('entry_state', { p_slug: SCHEDULED });
+
+    expect(error).toBeNull();
+    expect((data as { state: string }).state).toBe('pre_open');
+  });
+
+  it('refuses an ordinary caller until the clock reaches it', async () => {
+    // The failure that would matter most: a date in the column reading as *open* the moment it
+    // is written would start selling 250 places on Monday evening rather than Tuesday morning,
+    // with the page still showing the interest form.
+    const result = await attemptEntry(anon, SCHEDULED);
+
+    expect(result).toMatchObject({ ok: false, reason: 'closed' });
+  });
+
+  it('refuses a signed-in caller holding no permission, the same as a null column', async () => {
+    const result = await attemptEntry(plain.client, SCHEDULED);
+
+    expect(result).toMatchObject({ ok: false, reason: 'closed' });
+  });
+
+  it('still lets a tester in, so the rehearsal survives step 3 being run early', async () => {
+    // **This is why the two halves of the runbook can overlap.** Scheduling the opening does not
+    // shut the tester out: the event is still `pre_open` until the clock arrives, so a £1
+    // rehearsal can be run after the column is set and before entries open — which is exactly
+    // the order a Monday-evening step 3 creates.
+    const result = await attemptEntry(tester.client, SCHEDULED);
+
+    expect(result.ok).toBe(true);
+    expect(result.purchase_id).toBeTruthy();
   });
 });
 
