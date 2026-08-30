@@ -437,6 +437,38 @@ footer {
   color: var(--colour-text);
 }
 
+/* **A race's links, grouped under its name.** Same shape as the social row above it — a
+   heading and a wrapping list — so it reads as a peer of "Follow the club" rather than as
+   something appended to the legal line.
+
+   That grouping is the point rather than decoration. The club's privacy notice and a race's
+   are two different documents, and side by side in one row they read as two links called
+   roughly the same thing with nothing saying which is which. Under the race's name, one is
+   obviously the race's and the other obviously is not. */
+.site-footer-race-heading {
+  margin-top: calc(var(--space) * 1.25);
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  /* Wide enough apart to read as separate links when they wrap onto their own lines, which
+     they will at 320px — the email alone is 48 characters. */
+  gap: 0.25rem var(--space);
+  max-width: calc(var(--measure) + var(--space) * 2);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer-links a {
+  /* 44px of target without padding arithmetic, and it is why these are `<li>`s in a flex row
+     rather than text separated by middots: a middot cannot be a tap target boundary. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
 .site-footer-social {
   display: flex;
   flex-wrap: wrap;

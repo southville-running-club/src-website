@@ -6,7 +6,83 @@ Approved visual work, and the notes needed to build against it.
 | --- | --- |
 | [`nn-entry-mockup.html`](nn-entry-mockup.html) | The Nightingale Nightmare campaign mockup |
 | [`nn-admin-mockup.html`](nn-admin-mockup.html) | The race admin surface — **the club brand, not the campaign theme** |
+| [`nn-2026-page-demo.html`](nn-2026-page-demo.html) | The agreed layout for the consolidated `/nn/2026/` page — **behaviour, not content** |
 | [`nn-theme-fonts.md`](nn-theme-fonts.md) | Where the event theme's three faces came from, and how to fetch them again |
+
+## The page demo, and what is settled against it
+
+[`nn-2026-page-demo.html`](nn-2026-page-demo.html) is the approved layout for consolidating
+`/nn/2026/` onto one page: the anchor navigation, the accordions, the sticky header, the sticky
+entry card and the mobile entry bar, all working with the script removed. **That behaviour is
+what it is for.** Its content is lorem, its facts are hardcoded, and five of them are wrong in
+ways that read as perfectly reasonable — which is why they are written down here rather than
+left to be noticed.
+
+**1. Its schedule is the one that was corrected away.** The demo lists four rows — 09:15
+registration, 10:15 briefing, 10:30 walk, 11:00 start. `race.json`'s `schedule[]` carries six,
+and the race director confirmed **10:30 briefing, 10:40 walk, 10:50 warm-up** on 26–27 August
+2026 (#121). The committed array is authoritative and is not edited from this file.
+
+The demo's start-line note repeats the error in the shape that costs somebody their race:
+"We walk there together at 10:30." **10:30 is the briefing now**, so that sentence attaches the
+right number to the wrong event — which is exactly the defect #121 removed from
+`2026/race-day.astro`'s prose, and the reason `site.spec.ts` asserts each time against the row
+it labels rather than asserting bare time strings.
+
+**2. Its places counter is demo data and is guarded against.** "184 of 246 places left" is a
+live count, which is out of scope — it needs a security-definer read nobody has asked for — and
+246 is not the field size either; the race is 250. `site.spec.ts` already asserts
+`not.toMatch(/\bof 250\b|places remaining/i)` on every campaign page, put there when the entry
+mockup made the same offer. **How big the race is does not change during the week somebody is
+deciding whether to come**; how full it is does, and a number cached at the edge on a
+poster-shaped page is a claim the club would have to keep true.
+
+**3. Its prices are in the markup, and one of them names a retired thing.** £18 and £20 are
+`entries.fees.price_pence` — they are what `create_pending_purchase()` actually charges, and a
+second copy in a page is how the page and the till start disagreeing, with the page being the
+copy nobody notices has gone stale. The shipped facts list ships "To be confirmed" and the
+Worker paints the fees over it. Separately, the demo's label reads **"EA-affiliated"**: the club
+stopped asking for and holding England Athletics numbers on 29 August 2026 (decision 007,
+ADR-023). The fee is `affiliated`, and what the £2 buys is ARC's Unattached Runner Levy rather
+than anything to do with England Athletics.
+
+**4. Its accordions are closed, and they ship open.** Content inside a collapsed `<details>` is
+not reliably reachable by find-in-page — Chrome and Edge auto-expand, iOS Safari historically
+does not — and roughly seven in ten visitors are on a phone. Somebody searching "parking" on
+race morning must not get nothing on a page that holds the answer. The scroll length that
+collapsing used to buy is paid for instead by the sticky entry bar, which reaches the call to
+action from any position.
+
+**5. Its address is restructured, and it drops a place.** The demo renders event HQ as four
+lines and reads "Ashton Park School / Blackmoors Lane / Bristol / BS3 2JL". `race.location` is
+one string and includes **Bower Ashton**, which the four-line version loses. It is used as it
+stands.
+
+**6. Its course map does not exist.** `<div class="course-map">COURSE MAP</div>` is a 220px
+placeholder for an artefact nobody has drawn and nobody has commissioned. The element is dropped
+rather than shipped empty: a labelled box reserving space for a thing that may never arrive is a
+promise the page cannot keep, and the page already links to `/nn/course/`, which describes the
+route in the club's own words. Campaign pages also forbid the two easy ways to fake one — no
+iframe, asserted, and no shortened map link, also asserted. If a map is ever drawn, `#course` is
+where it goes.
+
+**7. Its accordions are gone entirely, which is a bigger departure than it looks.** The demo has
+five collapsible panels in race information and the build has none — not open ones, none. Four
+of the five held content that lives on `/nn/2026/race-day/`, a page this work deliberately keeps
+and links to rather than absorbs, so filling them meant copying it. Once they hold summaries
+instead, the mechanism has no job: a disclosure widget exists to manage length, and two sentences
+have none. Five `<details open>` holding one paragraph each are five paragraphs wearing chevrons
+that never earn a click. The race-morning schedule, which is the one thing in that section a
+runner reads under time pressure, is open in the flow and was never a candidate for a panel.
+[ADR-024](../architecture/decisions/adr-024-one-entry-point-for-a-running.md) keeps the
+open-by-default reasoning on the record even though it no longer applies, because somebody will
+propose accordions here again.
+
+Two more the build does not take, both recorded at greater length elsewhere:
+`background-attachment: fixed` on the hero (already shipping, already a known iOS scroll-jank
+ticket, and not to be replicated anywhere new), and `--font-display: 'Nosifer', fantasy` — a
+fallback that ends outside the body stack, so with `font-display: swap` every first visit
+renders headings in Impact before Nosifer arrives. See [`nn-theme-fonts.md`](nn-theme-fonts.md).
 
 ## The admin mockup, and the four things the build did not take from it
 

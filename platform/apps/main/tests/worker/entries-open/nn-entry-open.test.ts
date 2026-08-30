@@ -163,7 +163,7 @@ describe('the race page, once the event row says entries are open', () => {
 
     expect(at('data-nn-panel-date')).toBeLessThan(at('data-nn-panel-time'));
     expect(at('data-nn-panel-time')).toBeLessThan(at('data-nn-panel-action'));
-    expect(at('data-nn-panel-action')).toBeLessThan(at('data-nn-panel-link="race-day"'));
+    expect(at('data-nn-panel-action')).toBeLessThan(at('data-nn-panel-open'));
   });
 
   it('has no entry form on it, and never will', async () => {

@@ -1,6 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import NnMasthead from '../../../components/NnMasthead.astro';
+import NnSchedule from '../../../components/NnSchedule.astro';
 import race from '../../../content/race.json';
 
 // The same event theme as the rest of Nightingale Nightmare — see
@@ -148,24 +149,13 @@ const startFinishMap = `https://www.google.com/maps/search/?api=1&query=${race.s
       <h2>The morning, in order</h2>
 
       {
-        /* A description list rather than a table: each row is one time and one thing, with
-        no second column of data to line up. It is also what degrades best at 320px, where a
-        two-column table either scrolls sideways or squeezes the words to one per line.
-
-        **The `<div>` around each pair is deliberate and is valid inside a `<dl>`.** It is
-        what lets a row be a grid — time in its own column, wrapping to a stacked row on a
-        narrow screen — without the two halves of a pair drifting apart in the markup. */
+        /* **The rows moved to `NnSchedule.astro`, and the markup is unchanged.** `/nn/2026/`
+        carries the same six rows now, and the reasons the row `<div>` and the `<dl>` are what
+        they are moved with them — see the component. Nothing here styles or reorders anything;
+        `site.spec.ts` asserts each time against the row it labels, `nth`-indexed, so an
+        extraction that altered the output would go red rather than quiet. */
       }
-      <dl class="nn-schedule">
-        {
-          race.schedule.map(({ time, what }) => (
-            <div class="nn-schedule-row">
-              <dt>{time}</dt>
-              <dd>{what}</dd>
-            </div>
-          ))
-        }
-      </dl>
+      <NnSchedule />
 
       <p>
         <strong>There is a bag drop at HQ and another one at the start</strong>, so a coat

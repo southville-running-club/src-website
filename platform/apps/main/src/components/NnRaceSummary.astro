@@ -1,69 +1,113 @@
 ---
-// **The five things somebody should know before they commit to this race**, in one place
-// because both pages that need them need exactly these five.
+// **This component is rendered by no page. Nothing imports this file.** That is the first
+// fact about it, so it is the first thing written here rather than the last.
 //
-// `/nn/` shows them as *what this race is*, above the interest form. `/nn/2026/` shows them as
-// *what you are about to enter*, above the entry form. Two copies of five safety-relevant
-// bullets is two copies that drift, and the one that would drift is the one nobody re-read —
-// so there is one copy, here.
+// - **`/nn/2026/` dropped it in commit 1b15cce**, on request. The "Know what you are in for"
+//   section came off the page with the entry form on it, and this component was the whole of
+//   that section's content.
+// - **`/nn/` dropped it when the club supplied the course copy in full.** The four sections
+//   now inside that page's card — where it goes, what it is like underfoot, what is on the
+//   route, and the climb — restate every one of these five facts at greater length and in the
+//   club's own wording. Keeping both would have printed the climb and the headphone rule
+//   twice inside one card.
 //
-// **The climb is the new one, and it was reaching nobody who was about to enter.** It was on
-// `/nn/course/` and nowhere else, so `/nn/2026/` — the page with the entry form on it — told
-// somebody what the ground is like and what to put on their feet, and nothing about the shape
-// of the thing they were paying to run. Nightingale Valley is the part of this race people
-// remember; it belongs with the other four rather than one tap away.
+// ## The open question, which is a decision rather than a tidy-up
 //
-// **It is second rather than last**, because the first bullet is what is underfoot and this is
-// the shape that ground is in. The two are one thought, and the order of the list is course
-// facts, then the rule, then what is on the route, then where it starts.
+// This should either be **deleted** or **brought back into use**. Rendered-nowhere is a state
+// nobody chose: it is what two separate copy decisions left behind, taken weeks apart and
+// neither of them about this file. Meanwhile it goes on typechecking, goes on being formatted,
+// and goes on reading as shared code to anybody who arrives from one of the notes that mention
+// it. Deleting a component is cheap to undo from git; deciding that no page wants the short
+// form of the course is not a call to make while editing markup. **Left for the humans, and
+// written down here rather than taken.**
 //
-// **"It is Bristol, in November. Plan for wet." joined the first bullet for the same reason.**
-// It is the sentence that makes the trail-shoe line advice rather than trivia, and it was on
-// the course page alone.
+// **If it comes back, it comes back inside a `.nn-card`.** `.nn-arrows` is the second, latent
+// instance of `NnSchedule`'s defect — `blood` markers and a `card-muted` divider, both computed
+// against a white card surface — and it survived only because both call sites happened to sit
+// in one. With no call sites left, nothing is holding that assumption up. See the note at
+// `packages/shared/styles/nn-theme.css:1613` and the paragraph in CLAUDE.md before rendering
+// this on any other surface.
 //
-// **Both arrived word for word, and that is what makes the guard assertable.** While
-// `course.astro` still exists the same sentences are on three pages, and `site.spec.ts`
-// asserts them on all three at once — the shape it already uses for the water station. A
-// tidier paraphrase here would have made that impossible and left three pages to drift
-// instead of one component to maintain.
+// ---
 //
-// **The water station says where it is now**, confirmed by the race director: approximately
-// halfway. It was "one water station on the route" with no location, which is the fact somebody
-// rations a bottle against — and this component is the only place it reaches both `/nn/` and
-// `/nn/2026/`. `course.astro` carries the same sentence and got the same words, so the two
-// cannot drift while that page still exists.
+// **Everything below is history.** It is why this markup reads the way it does, kept because
+// the arguments cost something and because most of it is live again the moment any page renders
+// these five lines. **None of it describes the site as it is today.**
 //
-// **The headphone rule is not decoration.** ARC's rules contain no headphone provision, but
-// Rule 81 lets an organiser make additional rules binding on competitors as though they were
-// ARC's own — so this is the club's rule and it is enforceable, on a course Rule 83(3) shares
-// with the public. It does not come off a page in a copy edit.
+// ## History — why there was one copy rather than two
 //
-// ## What is deliberately not in it
+// The five things somebody should know before they commit to this race, in one place because
+// both pages that needed them needed exactly these five. `/nn/` showed them as *what this race
+// is*, above the interest form; `/nn/2026/` showed them as *what you are about to enter*, above
+// the entry form. Two copies of five safety-relevant bullets is two copies that drift, and the
+// one that drifts is the one nobody re-reads — so there was one copy, here.
 //
-// **A time.** The bullet used to end "everybody walks down together at 10:30", and that is a
-// row in this year's schedule rather than a property of the race. It is on
-// `/nn/<year>/race-day/`, in the schedule the committee edits, and this says the part that is
-// true whichever year it is: you do not have to find the start on your own.
+// The climb was pulled up from `/nn/course/` because it was reaching nobody who was about to
+// enter: the page carrying the entry form said what the ground was like and what to put on your
+// feet, and nothing about the shape of the thing being paid for. It sits second rather than
+// last because the first bullet is what is underfoot and this is the shape that ground is in.
+// "It is Bristol, in November. Plan for wet." came up with it, being the sentence that makes
+// the trail-shoe line advice rather than trivia. **Both arrived word for word**, which is what
+// let `site.spec.ts` assert the same sentences on three pages at once while `course.astro`
+// existed; a tidier paraphrase here would have left three pages to drift instead of one
+// component to maintain.
+//
+// The water station's location — approximately halfway, confirmed by the race director — was
+// added because it is the fact somebody rations a bottle against, and this was then the only
+// place it reached both pages. It is on `/nn/` now, in the club's own copy.
+//
+// ## History — the headphone rule, and why it is stated flatly
+//
+// **The rule itself is not history and is not decoration.** ARC's rules contain no headphone
+// provision, but **Rule 81** lets an organiser make additional rules binding on competitors as
+// though they were ARC's own — so this is the club's rule and it is enforceable, on a course
+// Rule 83(3) shares with the public. It does not come off a page in a copy edit.
+//
+// **And it is stated flatly, with no "this one is absolute" after it.** That clause was on
+// `course.astro` and came off before that page was absorbed into `/nn/` — not because the rule
+// has softened, but because the fee structure carries a place for a visually impaired runner's
+// guide and whether a guide is an exception to this has never been decided. "Absolute" settles
+// that question in passing, in markup, which is not where it should be settled. Stating the
+// rule and stopping leaves the committee the decision and leaves every runner reading it in no
+// doubt about what is being asked of them.
+//
+// **This note was the course page's, inherited, and it has now been inherited once more.** The
+// line it defends is on `/nn/` in the club's supplied copy, with the reasoning written beside
+// it there. It stays here as well, because it travels with the markup rather than with the
+// page: whoever brings this component back gets the rule and the reason for its wording in the
+// same file.
+//
+// ## History — what was deliberately not in these five lines
+//
+// **A time.** The last bullet used to end "everybody walks down together at 10:30", and that is
+// a row in one year's schedule rather than a property of the race. It belongs on
+// `/nn/<year>/race-day/`, in the schedule the committee edits, and this said the part that is
+// true whichever year it is run: you do not have to find the start on your own.
 //
 // **The walk is 10:40 as of 26 August 2026, which is the argument making itself.** Had the time
-// stayed in this bullet it would now be wrong on both pages this component reaches, and 10:30
-// would still have read as a real answer — it is the *briefing* under the revised schedule, so
-// the stale number would have named a real thing happening ten minutes earlier, which is the
-// kind of wrong that reads as right.
+// stayed in the bullet it would by now be wrong wherever this rendered, and 10:30 would still
+// have read as a real answer — it is the *briefing* under the revised schedule, so the stale
+// number would have named a real thing happening ten minutes earlier, which is the kind of
+// wrong that reads as right.
 //
 // **A distance from HQ to the start.** Nobody has supplied one, and deriving it from the
 // coordinates and a guessed school entrance is exactly the plausible-looking number this
 // repository keeps out of markup. See the note in `2026/race-day.astro`.
 //
-// **Where the route goes**, and this one is a near miss worth writing down. It reaches
-// `/nn/2026/` in the same commit these bullets did, but as a paragraph on that page rather
-// than through here — because `/nn/` already says it in the race director's own words, and a
-// component that also said it would put two spellings of one route on that page. The climb
-// above is the exception that proves it: the *shape* of the course is what somebody decides
-// on, and it is stated once. See the note in `2026/index.astro`.
+// **Where the route goes — and this one has since been overruled rather than forgotten.** It
+// was kept out because `/nn/` already said it in the race director's own words, and a component
+// that also said it would have put two spellings of one route on that page. The club has since
+// asked for the full course copy on `/nn/`, which states the route a second time in the club's
+// wording, and `site.spec.ts` asserts **both** spellings where it once refused the second. The
+// objection was answered by a decision, not dropped.
 //
-// Every line here is the club's own 2023 copy and is **draft pending committee approval**,
-// like the rest of these pages.
+// **The `{' '}` note in the markup below is in the present tense about two call sites that have
+// gone.** It is left word for word because the trap belongs to this markup rather than to those
+// pages, and it returns with the component: Prettier puts the `<strong>` on a line of its own,
+// `compressHTML` removes the newline, and a typed space does not survive the reformat.
+//
+// Every line of copy here is the club's own 2023 wording and was **draft pending committee
+// approval**, like the rest of these pages.
 ---
 
 <ul class="nn-arrows">

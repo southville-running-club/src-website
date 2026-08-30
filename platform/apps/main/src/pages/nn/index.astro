@@ -2,7 +2,6 @@
 import Base from '../../layouts/Base.astro';
 import NnMasthead from '../../components/NnMasthead.astro';
 import NnPreviousYears from '../../components/NnPreviousYears.astro';
-import NnRaceSummary from '../../components/NnRaceSummary.astro';
 import race from '../../content/race.json';
 
 // The Nightingale Nightmare event theme — the campaign look, and nothing the campaign
@@ -59,6 +58,11 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
   description="Nightingale Nightmare — a tough off-road 10 km in fancy dress, put on by Southville Running Club."
   canonical={canonical}
   theme="nn"
+  race={{
+    name: race.name,
+    privacy: '/nn/privacy/',
+    contact: race.contact,
+  }}
 >
   <NnMasthead slot="masthead" />
 
@@ -132,35 +136,31 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       fancy dress, which are what this race is however it is run. */
     }
     {
-      /* **A summary that ends in a link, not a second copy of the course page.** Five things
-      somebody should know before they leave their name — and the same five somebody should
-      know before they enter, which is why they are one component rather than two copies. See
-      `NnRaceSummary.astro`.
+      /* **The card is the race director's announcement, then the course in full.** It used to
+      be her announcement and a five-bullet summary of a separate course page; that page is
+      gone and its own copy is below, so the summary went with the thing it was summarising.
+      See the note above the course section.
 
-      The mockup has a fifth line here — "Minimum age 18 on race day" — which is inferred from
-      the prize categories rather than stated as a rule anywhere. It is not here, and it is not
+      The mockup has a line here — "Minimum age 18 on race day" — which is inferred from the
+      prize categories rather than stated as a rule anywhere. It is not here, and it is not
       softened into "18+ probably" either. */
     }
     {
       /* **The race director's own words, and they open the card rather than replace it.**
        *
-       * The brief these came from asked for them *instead of* this section. That section is
-       * `NnRaceSummary` — trail shoes, the climb, no headphones, the water station, and the
-       * start not being at race HQ — so taking it out would have stripped five safety-relevant
-       * lines off this page and left them on `/nn/2026/` alone. The headphone rule in
-       * particular is the club's own additional rule under ARC Rule 81 and is binding on
-       * competitors; it is not decoration and it does not come out of a page in a copy edit.
+       * The brief these came from asked for them *instead of* what follows. What follows is
+       * the course and terrain — trail shoes, the climb, no headphones, the water station, and
+       * the start not being at race HQ — so taking it out would strip five safety-relevant
+       * facts off the only page that now states them. The headphone rule in particular is the
+       * club's own additional rule under ARC Rule 81 and is binding on competitors; it is not
+       * decoration and it does not come out of a page in a copy edit.
        *
-       * **The heading stays too, and it is not redundant now there is prose above it.** These
-       * two paragraphs are an announcement — the race is back, here is roughly what it is.
-       * "Know what you are in for" introduces the five things that are true whether or not
-       * anybody is pleased about them. One is a welcome and the other is a warning, and
-       * collapsing them into each other would soften the half that should not be soft.
-       *
-       * **Her second paragraph names the route and the component deliberately does not.** The
-       * towpath, Nightingale Valley and Leigh Woods are two lines above the summary in her own
-       * spelling, so a route bullet here would be the same route twice on one page. `/nn/2026/`
-       * has no such paragraph and got the sentence directly — see the note there.
+       * **Her paragraph and the section below both name the route, and that is now accepted
+       * rather than prevented.** The towpath, Nightingale Valley and Leigh Woods are in her
+       * spelling here and in the club's under "Where it goes". This page refused the second
+       * copy until the club supplied the course copy in full and asked for it as it stands;
+       * the note above that section records the reversal, and `site.spec.ts` asserts the two
+       * spellings rather than forbidding one.
        *
        * Her spelling is hers: "10km off road" unhyphenated, "tricked & treated" with an
        * ampersand, "spooktators" lower case here and capitalised as a page name in the bar.
@@ -179,13 +179,129 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
         fancy dress is strongly encouraged!
       </p>
 
-      <h2>Know what you are in for</h2>
+      {
+        /* ------------------------------------------------------------------------------
+         * "Know what you are in for" and `NnRaceSummary` were here, and they have gone
+         * ------------------------------------------------------------------------------
+         * **Not dropped — superseded.** The five bullets were the short form of the course
+         * page, extracted from it so the two could not drift while both existed. The course
+         * page's own prose is below now, supplied by the club as the wording this page should
+         * carry, and it states every one of those five things at greater length. Keeping both
+         * would have printed the headphone rule and the climb twice inside one card.
+         *
+         * **The component is untouched and still renders on `/nn/2026/`**, which is the page
+         * with the entry form on it and the page that wants the short form: somebody about to
+         * pay wants five lines, not four sections. So it is no longer *shared* — and the note
+         * at the head of `NnRaceSummary.astro` says so, because a component whose whole
+         * argument was "both pages need exactly these five" needs to stop claiming that the
+         * moment one of them stops.
+         *
+         * **One bullet was in the summary and is not in the supplied copy** — that the start
+         * and the finish are not at race HQ. It is carried into "What is on the route" below
+         * rather than lost, because it is the fact that stops somebody driving to the wrong
+         * place on the morning. It is the club's existing wording, moved rather than written.
+         * ------------------------------------------------------------------------------ */
+      }
 
-      <NnRaceSummary />
+      {
+        /* ------------------------------------------------------------------------------
+         * The course and terrain — the course page's own copy, in full
+         * ------------------------------------------------------------------------------
+         * **This was `/nn/course/`, and it is the whole of it rather than a summary.** The
+         * wording below was supplied by the club as what this page should say, and it is
+         * transcribed rather than edited — its own spellings, its own emphasis, its own
+         * three-section shape. `/nn/course/` 301s here now, so this is the only place any of
+         * it is stated.
+         *
+         * **The route sentence is here on purpose and it is the one thing to look at twice.**
+         * The race director's paragraph above already names the towpath, Nightingale Valley
+         * and Leigh Woods in her own spelling, so this page now states the route in two
+         * wordings. `site.spec.ts` used to refuse exactly that — "one route, one spelling per
+         * page" — and the guard is inverted rather than deleted, so the second copy is a
+         * recorded decision that somebody can find, rather than a thing that crept in.
+         *
+         * **The headings are `<h3>` under this `<h2>`.** `course.astro` carried an
+         * `<h1>Course and terrain</h1>` with `<h2>`s beneath it; this page's `<h1>` is the
+         * race, so everything drops one level. A second `<h1>` would be an accessibility
+         * defect on a site that runs axe at zero, and `<h2>`s here would make the three
+         * sections siblings of the section they belong to.
+         *
+         * **The distance is `race.json`'s and not a typed "10 km".** It is the same fact the
+         * hero's fact list reads, and a second literal is a second thing to change.
+         * ------------------------------------------------------------------------------ */
+      }
+      <h2>The course and terrain</h2>
+
+      {
+        /* **`race.distance` is already "10 km, off-road"**, so the supplied line's opening is
+        the value on its own. Typing the ", off-road" as well rendered "10 km, off-road,
+        off-road — and not a fast one." — which is what happens whenever a literal is written
+        beside a value that already contains it. The distance has one home and this reads it. */
+      }
+      <p>
+        {race.distance} — and not a fast one. This is a race you finish rather than a race you
+        set a time on.
+      </p>
+
+      <h3>Where it goes</h3>
 
       <p>
-        <a href="/nn/course/">The course and terrain, in full</a>.
+        The route runs along the towpath, turns up Nightingale Valley, and carries on
+        through Leigh Woods.
       </p>
+
+      <p>
+        <strong>Nightingale Valley is the climb.</strong> It is the part people remember, and
+        the part that decides how the rest of your race feels. There is no clever way to run
+        it — go up steadily, and enjoy how much better everything looks from the top.
+      </p>
+
+      <h3>What it is like underfoot</h3>
+
+      <p>
+        Tough, and properly off-road. The ground is uneven, rocky in places and rooty in
+        others, and it is slippery when wet. It is Bristol, in November. Plan for wet.
+      </p>
+
+      <p>
+        <strong>Trail shoes are recommended.</strong> Road shoes are acceptable, and people
+        run it in them every year. They are working harder than they need to.
+      </p>
+
+      <h3>What is on the route</h3>
+
+      <ul class="nn-arrows">
+        <li>
+          One water station on the route at approximately halfway, and one at the finish.
+        </li>
+        <li>
+          Marshals throughout — and a prize afterwards for the station the runners vote
+          the best.
+        </li>
+        {
+          /* **The rule is the club's own words and it is left at that.** "This one is
+          absolute" was on the course page and has gone — not because the rule has softened,
+          but because the fee structure carries a place for a visually impaired runner's guide
+          and whether a guide is an exception to this has never been decided. "Absolute"
+          settles that question in passing, in markup, which is not where it should be
+          settled. Stating the rule and stopping leaves the committee the decision and leaves
+          every runner reading it in no doubt about what is being asked of them. */
+        }
+        <li><strong>No headphones of any type during the race.</strong></li>
+        {
+          /* **The one line here that did not come from the course page.** It was
+          `NnRaceSummary`'s fifth bullet, which this section replaced, and it is the only one
+          of the five the supplied copy does not restate. It is the fact that stops somebody
+          driving to the wrong place on the morning, so it is carried rather than dropped —
+          the club's existing wording, moved. **The time is deliberately not in it**: the walk
+          down is a row in this year's schedule, on `/nn/<year>/race-day/`, and it has already
+          moved once. */
+        }
+        <li>
+          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
+          together beforehand, so there is nothing to find on your own.
+        </li>
+      </ul>
     </div>
 
     {
@@ -216,17 +332,49 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
        * ------------------------------------------------------------------------------ */
     }
 
+    {
+      /* **`nn-panel` rather than `nn-card`, and the swap is the whole restyle.** The club asked
+      for this panel in the campaign's aubergine rather than on white. Changing the surface
+      changes every colour inside it — see the contrast table over `.nn-panel-year` in
+      `nn-theme.css`, where each one is recomputed rather than re-picked.
+
+      **One of them is fixed by this line alone and is worth knowing about.** The action is
+      `.nn-ghost`, whose base colour is bone and which `nn-theme.css` overrides to blood *scoped
+      to `.nn-card`* — precisely so a ghost on a dark surface keeps the light one. Dropping
+      `nn-card` here lets that base rule apply again, so the button goes from blood at 1.72:1 on
+      aubergine, which is all but invisible, to bone at 14.51:1, without a new rule. */
+    }
     <section
-      class="nn-card nn-panel-year"
+      class="nn-panel nn-panel-year"
       data-nn-panel
       hidden
       aria-labelledby="next-race"
     >
-      <p class="nn-panel-label" id="next-race">The next race</p>
+      {
+        /* **An `<h2>` in the display face, and the one thing on this card that may be.** It
+        was a 13px uppercase `<p>` — a quiet eyebrow, which is right on a white card and reads
+        as unfinished on the campaign's aubergine. Nosifer is the poster face, and the rule at
+        the head of `nn-theme.css` is that it is only ever used for **a heading that carries no
+        instruction**. "The next race" is exactly that: it names the block and asks nothing.
+
+        **The date immediately below it stays in the text face**, and the note over
+        `.nn-panel-date` in that stylesheet calls this out by name as "the one place it would be
+        most tempting to break" the rule. A date is a fact somebody acts on. It is also still
+        the largest thing here — see the size note below.
+
+        **It is an `<h2>` rather than a styled `<p>` because the card had no heading at all.**
+        The other `.nn-panel`s use one; this one leaned on `aria-labelledby` pointing at a
+        paragraph, which names the region correctly and leaves it out of the document outline.
+        The page reads h1, h2 (the course and terrain) with three h3s under it, then this — no
+        level skipped, which is what the axe sweep at zero violations needs. */
+      }
+      <h2 class="nn-panel-label" id="next-race">The next race</h2>
 
       {
-        /* **The biggest thing in the panel, at 24px.** Somebody arriving from a shared link
-        asks "when is it" first, and everything else here is smaller than this on purpose.
+        /* **The biggest thing in the panel.** Somebody arriving from a shared link
+        asks "when is it" first, and everything else here is smaller than this on purpose —
+        including the heading above it, which is why that one is capped below this one's size
+        rather than taking `.nn-panel h2`'s own.
 
         Painted rather than read from `race.json`: that file's date belongs to the 2026
         running, and this page is about the race. The value comes through `packages/shared`'s
@@ -276,13 +424,25 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       </p>
 
       {
-        /* The rest of this year's running, inside the panel because that is what it is about.
-        Both are painted. */
+        /* **"Race instructions" and "Spooktators" were here and have gone, on request.**
+         *
+         * They were painted from the same read as everything else on this card, and nothing
+         * about the Worker changed when they came out: `renderNnRaceView` still registers
+         * `[data-nn-panel-link="race-day"]` and `[data-nn-panel-link="spectators"]`, and
+         * `HTMLRewriter` simply finds nothing to paint. That is why no handler was deleted —
+         * `/nn/2026/` uses the same two selectors, and removing them would have taken that
+         * page's links out with these.
+         *
+         * **Nobody is stranded, which is the only reason this is a copy decision rather than a
+         * navigation one.** Both destinations are in the bar at the top of every campaign page,
+         * as "Race info" and "Spooktators", painted for the current running exactly as these
+         * were. The card is left saying one thing — when the race is, and the way in to it —
+         * instead of four, and the button is now the only control on it.
+         *
+         * `.nn-panel-links` stays in `nn-theme.css`: `/nn/2026/` has no such list today, but
+         * the rule is the panel's rather than this page's, and its colour is part of the
+         * measured set the contrast test resolves. */
       }
-      <ul class="nn-panel-links">
-        <li><a href="" data-nn-panel-link="race-day">Race instructions</a></li>
-        <li><a href="" data-nn-panel-link="spectators">Spooktators</a></li>
-      </ul>
     </section>
 
     <NnPreviousYears />
@@ -308,33 +468,34 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
        * See `packages/shared/src/health-report.ts` and `worker/index.ts`. */
     }
 
-    <footer>
-      {
-        /* **The wayfinding clause has gone, and nothing replaces it.**
-         *
-         * It read "This page is about the race itself; each year's running has its own, linked
-         * above", and the link it promised is the year panel — which ships `hidden` and is only
-         * revealed when the Worker can reach the database. So on the failure path the sentence
-         * pointed at nothing, in prose, on the front door. **The panel is the wayfinding**; a
-         * sentence describing a link that may not render is worse than no sentence, because a
-         * reader who cannot find it assumes the fault is theirs.
-         *
-         * That the panel is the *only* route from `/nn/` to the year page, and that a Worker
-         * which cannot reach Postgres therefore leaves this page with no route to it at all, is
-         * a real gap and a wider one than a copy change — issue #71. It is raised there rather
-         * than patched here with the sentence that was hiding it.
-         *
-         * **The club's name stays.** It is the attribution every footer on this site opens
-         * with, not wayfinding, and `/nn/` is not the page to become the exception. */
-      }
-      <p>Southville Running Club.</p>
-      <p>
-        Questions? <a href={`mailto:${race.contact}`}>{race.contact}</a>
-      </p>
-      <p>
-        <a href="/nn/privacy/">What the club does with your details</a>
-      </p>
-    </footer>
+    {
+      /* ------------------------------------------------------------------------------
+       * This page's own `<footer>` was here, and it has gone into the club's
+       * ------------------------------------------------------------------------------
+       * **The same move `/nn/2026/` made, and for the same reason.** It held three things —
+       * the club's name, the contact address, and the race's privacy notice — and all three
+       * are in the one footer below now, grouped under the race's name through `Base`'s
+       * `race` prop. Two stacked `<footer>` elements were the thing that move removed there,
+       * and this page had the same pair.
+       *
+       * **The attribution went rather than moving.** "Southville Running Club." is the
+       * masthead's wordmark at the top of the page and the club footer's own subject at the
+       * bottom; a page does not need to name its own club a third time, between the two.
+       *
+       * **The wayfinding clause went earlier and still has nothing replacing it.** It read
+       * "This page is about the race itself; each year's running has its own, linked above",
+       * and the link it promised is the year panel — which ships `hidden` and is revealed only
+       * when the Worker can reach the database, so on the failure path the sentence pointed at
+       * nothing. That the panel is the *only* route from here to the year page, and that a
+       * Worker which cannot reach Postgres leaves this page with no route to it at all, is
+       * issue #71 rather than something to patch with a sentence.
+       *
+       * **What this page passes and `/nn/2026/` does not is the absence of `terms`.** The
+       * entry terms live at `/nn/<year>/terms/` and this page may not name a year, so the
+       * group renders two links here and three there. See the prop's own note in
+       * `SiteFooter.astro`.
+       * ------------------------------------------------------------------------------ */
+    }
   </div>
 
   {
