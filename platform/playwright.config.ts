@@ -74,7 +74,26 @@ export default defineConfig({
   // annotating each one that happens to be found.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+
+  // **No retries, anywhere, and that is a decision rather than a default.**
+  //
+  // This was `process.env.CI ? 1 : 0`, and [#125] is the issue that says what it cost: a test
+  // that fails intermittently passes on its retry and the run goes green, with nothing in the
+  // pull request, the checks list or the run summary saying a retry happened. At a 1-in-3
+  // failure rate a single retry converts roughly two failing runs in three into green, so
+  // twelve consecutive green runs is entirely consistent with a fault present for weeks —
+  // which is exactly what the `no-javascript` failures turned out to be.
+  //
+  // **The trade is accepted deliberately: a genuine flake now goes red.** That is the point. A
+  // suite that hides its own unreliability is worse than one that stops, because the hiding is
+  // silent and the cost lands on whoever is next to trust it.
+  //
+  // It also makes CI and a laptop agree, which is the other half of why this changed. Local
+  // was already `0`; CI was not, so the two could not be compared and "green on my machine"
+  // meant something different from "green in CI".
+  //
+  // [#125]: https://github.com/southville-running-club/src-website/issues/125
+  retries: 0,
 
   // **A dead web server should stop the run, not be re-discovered six hundred times.**
   //

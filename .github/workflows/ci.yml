@@ -352,7 +352,25 @@ jobs:
               echo "::error::$config exceeded its globalTimeout — not retrying, because a re-run cannot fit inside it either. Raise globalTimeout in platform/playwright.config.ts and timeout-minutes in ci.yml together." >&2
               return 1
             fi
-            echo "::warning::acceptance tests ($config) failed, retrying the suite once" >&2
+
+            # **A failing test is never retried. Only a suite that did not start is.**
+            #
+            # This block used to re-run the whole config on any failure, which was written for
+            # `wrangler dev` exiting under runner pressure — a real thing, and the comment above
+            # still describes it. But re-running everything also re-runs the tests, so a single
+            # intermittent failure passed second time and the run went green with nothing saying
+            # so. That is the same masking `retries: 1` did, one layer up, and it is why the
+            # `no-javascript` failures survived twelve consecutive green runs. See #125.
+            #
+            # Playwright prints a `N passed` / `N failed` summary if and only if it got as far as
+            # running tests. No summary means the servers never came up and there is nothing to
+            # learn from the attempt — which is the one case the retry was ever for.
+            if grep -qE '[0-9]+ (passed|failed|flaky)' "$log"; then
+              echo "::error::acceptance tests ($config) failed and are not retried — a test that fails once is expected to fail again. If it does not, that is the bug. See issue #125." >&2
+              return 1
+            fi
+
+            echo "::warning::$config ran no tests — the web servers did not come up. Retrying once." >&2
             npx playwright test --config="$config"
           }
 

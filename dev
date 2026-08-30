@@ -11,6 +11,11 @@
 #                   --keep-data skips the rebuild, when you know the schema is already current
 #   ./dev test      run the worker and acceptance tests, then stop everything
 #                   --keep-up leaves the site running afterwards
+#   ./dev e2e       one spec, one engine — the loop for working on an acceptance failure.
+#                   Every argument goes straight to Playwright:
+#                     ./dev e2e --project=no-javascript
+#                     ./dev e2e --config=playwright.config.serial.ts --project=mobile-safari
+#                   nn-entry.spec.ts and nn-signup.spec.ts need the serial config
 #   ./dev check     rebuild the database, then lint, types, unit and database tests
 #                   — no browsers, no builds
 #   ./dev smoke     the live-site assertions, against localhost
@@ -585,6 +590,48 @@ cmd_test() {
   info "the whole run: $TEST_LOG"
 }
 
+# ---------------------------------------------------------------------------------------
+# One spec, one engine — the loop for working on an acceptance failure
+# ---------------------------------------------------------------------------------------
+# **`./dev test` is the gate; this is the loop.** The full suite is two configs, three engines
+# and both Workers — minutes per attempt, which is the wrong shape for iterating on a single
+# failing test. Every argument here is passed straight through to Playwright, so the usual
+# selectors work:
+#
+#   ./dev e2e --project=no-javascript
+#   ./dev e2e --project=no-javascript apps/main/tests/e2e/nn-signup.spec.ts
+#   ./dev e2e --config=playwright.config.serial.ts --project=mobile-safari
+#
+# **`nn-entry.spec.ts` and `nn-signup.spec.ts` need `--config=playwright.config.serial.ts`**,
+# because the default config ignores them — they share `entries.events.entries_open_at` and run
+# on their own worker. Ask for them without it and Playwright reports no tests found, which
+# reads as "they passed".
+#
+# **This exists because a scoped Playwright run needs three environment variables that nothing
+# tells you about.** Without them the fixtures throw `supabaseKey is required` from inside a
+# file the failing test never mentions, and the obvious next move — running `./dev test`
+# instead — costs fifteen minutes to learn nothing. `export_supabase_env` is the same function
+# `check` and `test` use, so a scoped run and a full one see the same database.
+#
+# **It rebuilds the site and does not reset the database.** The build is required because
+# `webServer` previews `dist/` rather than compiling on demand, so a stylesheet change is
+# invisible until it runs; the reset is skipped because it is the slow part and iterating on
+# one test rarely needs a fresh schema. Run `./dev reset` when it does.
+#
+# ⚠️ **Only one of these at a time, machine-wide.** It starts the same servers on the same
+# ports as `./dev test`, and `stop_workers` kills by command-line pattern with no notion of who
+# owns what — so a second run takes the first's servers out from under it. That is the trap in
+# CLAUDE.md, and it applies here for the same reason.
+cmd_e2e() {
+  ensure_docker
+  ensure_database
+  export_supabase_env
+  build_site
+  stop_workers >/dev/null 2>&1 || true
+
+  (cd "$PLATFORM" && npx --no-install playwright test --reporter=list "$@")
+}
+
 cmd_check() {
   ensure_docker
   ensure_database
@@ -674,6 +721,7 @@ case "${1:-up}" in
   # `shift` on an empty list is a non-zero return, which `set -e` would take as a failure.
   up)     if [ "$#" -gt 0 ]; then shift; fi; cmd_up "$@" ;;
   test)   shift; cmd_test "$@" ;;
+  e2e)    shift; cmd_e2e "$@" ;;
   check)  cmd_check ;;
   smoke)  shift; cmd_smoke "$@" ;;
   reset)  cmd_reset ;;
