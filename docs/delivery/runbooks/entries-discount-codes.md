@@ -5,7 +5,9 @@ migration and read off `/admin/nn/`. This runbook is how you find it, how you wa
 to do about a second one.
 
 Serves [Phase 3](../phases.md#phase-3--nightingale-nightmare-live). Reasoning:
-[`20260828210000_nn_2026_lhg_discount_code.sql`](../../../platform/packages/db/supabase/migrations/20260828210000_nn_2026_lhg_discount_code.sql).
+[`20260828210000_nn_2026_lhg_discount_code.sql`](../../../platform/packages/db/supabase/migrations/20260828210000_nn_2026_lhg_discount_code.sql),
+and [`20260830120000_nn_2026_lhg_twenty_five_places.sql`](../../../platform/packages/db/supabase/migrations/20260830120000_nn_2026_lhg_twenty_five_places.sql),
+which raised the allocation from twenty-two to twenty-five on 30 August 2026.
 
 ---
 
@@ -13,7 +15,7 @@ Serves [Phase 3](../phases.md#phase-3--nightingale-nightmare-live). Reasoning:
 
 **`southville-running-club/src-website` is a public repository.** A code committed to a
 migration is not an unguessable code, it is a published one — readable by anybody, in the diff,
-in the file, and in the history for ever after even if it is removed later. Twenty-two places
+in the file, and in the history for ever after even if it is removed later. Twenty-five places
 would be gone before the club had told Left Handed Giant.
 
 So the migration carries the **generator** and never the value. Every environment mints its own:
@@ -33,7 +35,7 @@ Giant what it was had to go and find it there. Now the club reads it off its own
 everybody else gets the ordinary 404 the whole surface gives.
 
 The panel shows the code itself, what it takes off, which entry type it applies to, and how many
-of the twenty-two have gone. Copy it from there to give it out.
+of the twenty-five have gone. Copy it from there to give it out.
 
 It looks like `LHG-10-3F9A2B7C1D0E` — who it is for, what it takes off, and twelve random
 characters. Matching is case-insensitive at both ends, so nobody has to reproduce the case.
@@ -48,7 +50,7 @@ registered enters at the affiliated price, which is already the cheaper of the t
 
 10% of £20.00 is exactly £2.00, and **that £2 is the ARC Unattached Runner Levy the club still
 has to remit** under Rule 21(2)(b) — decision 006. So the club nets **£16** on each of these
-twenty-two rather than £18, and £44 across the allocation.
+twenty-five rather than £18, and £50 across the allocation.
 
 Agreed, and written here because it is not visible from the row.
 
@@ -56,7 +58,7 @@ Agreed, and written here because it is not visible from the row.
 
 ## 3. Watching it
 
-The panel's `used of 22` is the live figure. If you would rather see it in SQL:
+The panel's `used of 25` is the live figure. If you would rather see it in SQL:
 
 ```sql
 select code, percent_off, max_uses, uses, max_uses - uses as remaining, active
@@ -70,12 +72,22 @@ in the middle of a rush is not necessarily wrong** — look again after half an 
 anything about it.
 
 **Never edit `uses` by hand to make room.** It is floored at zero and bounded by
-`discount_codes_within_max_uses`, and the number is the record of how many places have actually
-gone. If the club agrees to more than twenty-two, raise the ceiling, which is the honest change:
+`discount_codes_within_max_uses`, and the number is the record of how many places have
+actually gone. If the club agrees to more than twenty-five, raise the ceiling, which is the
+honest change:
 
 ```sql
 update entries.discount_codes set max_uses = 30 where code like 'LHG-%';
 ```
+
+**Raise it in a migration rather than by hand.** That `update` run against production leaves
+every other environment on the old number — including the one a fresh `db reset` produces, which
+is what `packages/db/tests/entries.test.ts` asserts against, so the club's own test suite would
+go on saying twenty-five while production said thirty. Raising it cannot fail:
+`discount_codes_within_max_uses` is `uses <= max_uses`, so a larger ceiling can never conflict
+with places already taken. *Lowering* it can, and would have to read `uses` first.
+[`20260830120000_nn_2026_lhg_twenty_five_places.sql`](../../../platform/packages/db/supabase/migrations/20260830120000_nn_2026_lhg_twenty_five_places.sql)
+is the shape to copy — it is the twenty-two becoming twenty-five.
 
 ---
 

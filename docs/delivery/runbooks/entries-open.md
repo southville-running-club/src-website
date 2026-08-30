@@ -274,7 +274,7 @@ below is a confirmation, not the change.
       the cheaper price
 - [ ] Somebody has used it once as far as the confirm screen, which shows what it takes off
       **without holding a place or spending a use**, to prove the whole path end to end
-- [ ] The committee know the club nets **£16** rather than £18 on each of the 22, because the
+- [ ] The committee know the club nets **£16** rather than £18 on each of the 25, because the
       10% is £2 and the ARC levy is still owed on an unattached runner
 
 Full detail, including watching it and withdrawing it:

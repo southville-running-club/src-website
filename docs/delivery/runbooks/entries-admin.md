@@ -385,7 +385,7 @@ somebody finds out what to tell the club it belongs to. The panel shows what it 
 entry type it applies to, and how many have gone; the entries table has a **Code** column so you
 can see which entries used it.
 
-**`used of 22` goes down as well as up.** A use is spent when a place is held and given back when
+**`used of 25` goes down as well as up.** A use is spent when a place is held and given back when
 a hold lapses or an entry is refunded, so a figure that looks wrong mid-rush is most likely a
 hold that has not expired yet. [The discount-code runbook](entries-discount-codes.md) has the
 rest.
