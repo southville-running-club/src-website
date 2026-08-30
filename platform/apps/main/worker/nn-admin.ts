@@ -1309,11 +1309,14 @@ function raceMorningSection(list: AdminEntryList): Html {
  * border, its own warning, and the deletion date stated. It is the most sensitive thing the club
  * holds, and using it should feel like a deliberate act rather than a click.
  *
- * **The deletion date is computed from the enforced interval, not from the published wording.**
- * `entries.events.medical_retention` is what deletes; `race.json`'s `privacy.medicalRetention`
- * is what `/nn/privacy/` promises. `packages/db/tests/entries-retention.test.ts` already fails if
- * the two disagree, and a panel that read the promise instead of the mechanism would be trusting
- * the half that cannot delete anything.
+ * **The deletion date is computed from the enforced interval, and that is now the only thing it
+ * could be computed from.** `entries.events.medical_retention` is what deletes, and
+ * `packages/db/tests/entries-retention.test.ts` still ties it to `race.json`'s
+ * `privacy.medicalRetention`. **`/nn/privacy/` no longer publishes a period at all** — since
+ * 30 August 2026 that page reproduces the committee's own privacy document word for word, and
+ * the document states one general retention policy and no per-item interval. So this panel
+ * stopped saying the notice promises this date: it does not. The date is real, the deletion is
+ * real, and what a runner has been told about it is a general statement rather than a period.
  */
 function medicalAndAffiliationSection(
   list: AdminEntryList,
@@ -1354,8 +1357,8 @@ function medicalAndAffiliationSection(
                   <strong class="admin-mono">
                     ${formatLondonDate(`${figures.medicalDeleteAfter}T00:00:00Z`)}</strong
                   >
-                  — ${retentionWords(figures.medicalRetention)}, which is what
-                  <a href="/nn/privacy/">the privacy notice</a> promises.
+                  — ${retentionWords(figures.medicalRetention)}, which is the period set
+                  on this event.
                 </p>`
           }
           ${

@@ -35,12 +35,19 @@ import { orTbc } from '@src/shared/privacy';
 //
 // ## The values that are undecided
 //
-// Three of them render "To be confirmed by the club" through the shared `orTbc` — the contact
-// for data questions, which is `race.json`'s and is the same open decision on both notices;
-// how long an account is kept; and whether deleting an account also deletes a race entry by
-// the same person. `privacy.spec.ts` counts the marker — three, exactly — so filling one in
-// fails that test until it is updated in the same commit, and a settled fact quietly
-// reverting to the marker fails it too.
+// Two of them render "To be confirmed by the club" through the shared `orTbc` — how long an
+// account is kept, and whether deleting an account also deletes a race entry by the same
+// person. `privacy.spec.ts` counts the marker — two, exactly — so filling one in fails that
+// test until it is updated in the same commit, and a settled fact quietly reverting to the
+// marker fails it too.
+//
+// **It was three until 30 August 2026, and the third left without this file being edited.**
+// The contact for data questions is `race.json`'s and was the same open decision on both
+// notices; the committee's privacy document answered it, `/nn/privacy/` was rewritten around
+// that document, and this page picked the answer up on its own — which is the point of
+// lifting the settled facts rather than retyping them, and is why three tests here went red
+// on a change to a different page. The company number arrived in full in the same document,
+// replacing the partial "ending 7549" this page used to print.
 //
 // **The settled facts come from `race.json`'s `privacy` key rather than being retyped here**,
 // so the two notices cannot disagree about who the controller is or where it is registered.
@@ -89,9 +96,36 @@ const club = race.privacy;
         <strong>Registered in England and Wales</strong>, company number{' '}
         {orTbc(club.companyNumber)}
       </li>
+      {
+        /* **A `mailto:` link rather than plain text, and that is a layout fix as much as a
+        convenience.** This value was `null` until 30 August 2026 and rendered "To be confirmed
+        by the club" — four short words, which wrap anywhere. The committee's document answered
+        it, and an email address is a single unbreakable 31-character token: at 320px it ran
+        past the card and the whole page scrolled sideways. **Only CI saw it**, because the
+        fonts on a Linux runner set wider than the ones this was written on.
+
+        `base.css` already carries the fix — `a[href^='mailto:'] { overflow-wrap: anywhere }`,
+        added when `race.contact` moved onto the club domain, and its own comment names "an
+        unbreakable 47-character token" as how this happens. It applies to links, and this was
+        not one. `/nn/privacy/` renders the same value as a link and never had the defect.
+
+        The rendered text is unchanged, so `privacy.spec.ts`'s "Contact about your data: …"
+        join still reads the same.
+
+        **The link only exists when there is an address**, because this value can go back to
+        `null` — that is what `orTbc` is for — and `href="mailto:null"` is a link that looks
+        real, is reachable by keyboard, and opens a message to nobody. The marker is not an
+        address and must not be dressed as one. */
+      }
       <li>
         <strong>Contact about your data:</strong>{' '}
-        {orTbc(club.contact)}
+        {
+          club.contact ? (
+            <a href={`mailto:${club.contact}`}>{club.contact}</a>
+          ) : (
+            orTbc(club.contact)
+          )
+        }
       </li>
     </ul>
 
@@ -111,15 +145,17 @@ const club = race.privacy;
 
     <p>
       {
-        /* The link down. `/nn/privacy/` is the notice with the medical note, the emergency
-        contact, the payment and the retention period the database enforces — none of which
-        belongs in a general document. */
+        /* **The link down, and it names only what that notice actually sets out.** It used to
+        promise the medical note as well. Since 30 August 2026 `/nn/privacy/` reproduces the
+        committee's own privacy document word for word, and that document does not mention the
+        medical box — so this sentence was sending somebody to a page for an answer it does not
+        contain. The emergency contact and the payment are both still named there. */
       }
       <strong>It does not cover entering a race.</strong> What the club collects when you enter{
         ' '
       }
-      {race.name}, or ask to hear when its entries open — including anything you tell us
-      in the medical box, your emergency contact and your payment — is set out in{' '}
+      {race.name}, or ask to hear when its entries open — including your emergency contact
+      and your payment — is set out in{' '}
       <a href="/nn/privacy/">the {race.name} privacy notice</a>.
     </p>
 

@@ -1359,16 +1359,25 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // headphone rule, the trail-shoe advice, the climb, the water station and "the start is not
     // at race HQ". Doing that would have stripped five safety-relevant facts off `/nn/` silently.
     //
-    // **The section under her copy has changed twice and the five facts have not.** It was
-    // "Know what you are in for" and `NnRaceSummary`'s five bullets; since 29 August 2026 it is
-    // "The course and terrain", the course page's own prose in full. So this test no longer
-    // knows or cares which of the two is rendering — it asserts the facts, in the wording the
-    // page actually carries, which is what it was always for.
+    // **The section under her copy has changed three times, and on 30 August 2026 two of the
+    // five facts changed with it.** It was "Know what you are in for" and `NnRaceSummary`'s five
+    // bullets; then, from 29 August 2026, the course page's own prose in full; now the club's
+    // rewrite of that. This test does not know or care which is rendering — it asserts the
+    // facts, in the wording the page actually carries, which is what it was always for.
+    //
+    // **What moved, so a later reader can tell a shortening from a regression.** The climb was
+    // "Nightingale Valley is the climb."; it is "plenty of elevation" now, and the valley is
+    // named once on the page — in the race director's paragraph — rather than twice. The water
+    // station was two, one at halfway and one at the finish, and the finish one is not in the
+    // new wording. Both were the club's own edits rather than losses to be quietly restored, and
+    // putting either back is a change to the page and to this test together.
     //
     // **The headphone rule is not decoration.** ARC's rules carry no headphone provision, but
     // Rule 81 lets an organiser make additional rules binding on competitors as though they were
     // ARC's own — on a course Rule 83(3) shares with the public. It is the club's rule, it is
-    // enforceable, and it does not come off a page in a copy edit.
+    // enforceable, and it does not come off a page in a copy edit. **The 30 August wording asks
+    // where the previous one forbade** — "please do not wear headphones" against "No headphones
+    // of any type during the race" — which changes how it is put, not whether it binds.
     const body = await squashed(page, '/nn/');
 
     // Her two paragraphs, in her spelling — "10km off road" unhyphenated, an ampersand, and
@@ -1377,83 +1386,84 @@ test.describe('the Nightingale Nightmare content pages', () => {
     expect(body).toContain('tricked & treated');
     expect(body).toContain('Halloween fancy dress is strongly encouraged!');
 
-    // And all five facts, four of which the brief would have taken with the heading. The shoe
-    // line is the course page's "Trail shoes are recommended" now rather than the bullet's
-    // "Trail shoes recommended", and the water station's own sentence ends at the finish rather
-    // than running on into the marshals — so both are matched at the length the page states.
-    expect(body).toContain('Trail shoes are recommended.');
-    expect(body).toContain('Nightingale Valley is the climb.');
-    expect(body).toContain('No headphones of any type during the race.');
-    expect(body).toContain('One water station on the route at approximately halfway');
-    expect(body).toContain('The start and the finish are not at race HQ.');
+    // And all five facts, four of which the brief would have taken with the heading. Each is
+    // matched at the length the page states it, so a further shortening fails here rather than
+    // sliding under a substring that happens to survive it.
+    expect(body).toContain('Trail shoes are a good option if you have them.');
+    expect(body).toContain('plenty of elevation');
+    expect(body).toContain('please do not wear headphones of any type during race.');
+    expect(body).toContain('a water station approximately half way through');
+    expect(body).toContain('The start/finish line is not at the HQ.');
 
     // **A welcome first, then the five things that are true whether or not anybody is pleased
     // about them.** Order is asserted because the argument for keeping both was that they do
-    // different jobs; landing the warning above the greeting would mean neither did.
-    expect(body.indexOf('is back!')).toBeLessThan(body.indexOf('No headphones'));
+    // different jobs; landing the warning above the greeting would mean neither did. An absent
+    // headphone rule gives `-1` here, which fails rather than passing vacuously.
+    expect(body.indexOf('is back!')).toBeLessThan(body.indexOf('do not wear headphones'));
   });
 
-  test("the course page's copy is on /nn/ in full, and each sentence once", async ({
-    page,
-  }) => {
-    // **`/nn/course/` was absorbed into this page on 29 August 2026, and the club then supplied
-    // the whole of it as the wording `/nn/` should carry.** This test asserted the opposite
-    // earlier on this same branch, and the history is worth keeping straight: the page was first
-    // folded in as the *remainder* — the three claims `NnRaceSummary`'s five bullets did not
-    // already make — on the argument that the bullets were extracted from that page and a second
-    // copy of the rest would be drift. The club asked for the full prose instead. So the summary
-    // came off this page, its bullets are superseded rather than duplicated, and every sentence
-    // below is the course page's own.
+  test("the club's course copy is on /nn/, and each sentence once", async ({ page }) => {
+    // **`/nn/course/` was absorbed into this page on 29 August 2026; the club supplied the whole
+    // of that page as the wording `/nn/` should carry, and on 30 August 2026 replaced it with a
+    // shorter rewrite.** The history is worth keeping straight, because this test has asserted
+    // three different wordings now: first the *remainder* the five bullets did not already
+    // state, then the course page's prose in full, now the club's rewrite of it. Each time the
+    // words changed and the job of the test did not.
     //
-    // **Which means the wordings moved, and that is what most of the rewriting was.** The shoe
-    // line is "Trail shoes are recommended" rather than the bullet's "Trail shoes recommended";
-    // the water station and the marshals are two items rather than one sentence; the marshals'
-    // prize is "the station the runners vote the best" rather than "the marshalling station".
-    // None of that is a copy edit anybody made — it is the difference between a summary of the
-    // course page and the course page, and the summary is what stopped being rendered.
+    // **The rewrite is shorter, and the shortening is the club's.** "Where it goes" and "What it
+    // is like underfoot" are gone as headings, the route sentence with them; the marshals' prize
+    // and the water station at the finish are not restated. That is theirs to decide. What this
+    // test still refuses is a sentence appearing *twice*.
     //
-    // **The counting stays, and it is the part to keep if anything here is ever trimmed.** The
-    // page prints the headphone rule, the climb and the Bristol line exactly once each today.
-    // Putting `NnRaceSummary` back above this section — which is one line, and would look like
-    // restoring a summary rather than duplicating a warning — prints all three a second time,
-    // ten lines apart, and every `toContain` in this file goes on passing. A duplicate satisfies
-    // a `toContain`; it is only ever visible to a count.
+    // **The counting is the part to keep if anything here is ever trimmed again.** Putting
+    // `NnRaceSummary` back above this section — one line, and it would look like restoring a
+    // summary rather than duplicating a warning — prints the headphone rule and the climb a
+    // second time, ten lines apart, and every `toContain` in this file goes on passing. A
+    // duplicate satisfies a `toContain`; it is only ever visible to a count.
     const body = await squashed(page, '/nn/');
 
     const occurrences = (text: string): number => body.split(text).length - 1;
 
-    // The opening claim. `race.distance` is interpolated ahead of it, so it is matched from the
-    // dash rather than pinned to a spelling `race.json` owns.
+    // The opening claim, and the ground under it, in the supplied wording.
+    expect(body).toContain('This is a tough off-road run with plenty of elevation.');
     expect(body).toContain(
-      '— and not a fast one. This is a race you finish rather than a race you set a time on.',
+      'The ground is uneven with rocks and roots and can be slippery if there has been rainfall.',
     );
 
-    // The ground, the shoes, and the marshals' prize, each in the supplied wording.
-    expect(body).toContain('rocky in places and rooty in others');
+    // Both shoe sentences. The second is the one a summary would flatten away.
+    expect(body).toContain('Trail shoes are a good option if you have them.');
+    expect(body).toContain('Road shoes will be fine too.');
+
+    // The marshalling and the water station are one sentence in this wording, where they were
+    // two bullets before — so it is matched whole rather than as two halves that could drift.
     expect(body).toContain(
-      'Road shoes are acceptable, and people run it in them every year. They are working harder than they need to.',
-    );
-    expect(body).toContain(
-      'a prize afterwards for the station the runners vote the best',
+      'The route is fully marshalled with a water station approximately half way through.',
     );
 
-    // **The one line here that was `NnRaceSummary`'s and not the course page's.** The supplied
-    // copy does not restate it, and it is the fact that stops somebody driving to the wrong
-    // place on the morning, so it is carried into "What is on the route" rather than dropped.
-    expect(body).toContain('The start and the finish are not at race HQ');
+    // **The line that stops somebody driving to the wrong place on the morning.** It has been
+    // `NnRaceSummary`'s bullet, the course page's sentence and now the club's, and it has never
+    // once been absent — which is why it is asserted in both tests rather than only this one.
+    expect(body).toContain('The start/finish line is not at the HQ.');
 
-    // And the three that a restored summary would print a second copy of.
-    expect(occurrences('No headphones of any type during the race.')).toBe(1);
-    expect(occurrences('Nightingale Valley is the climb.')).toBe(1);
-    expect(occurrences('It is Bristol, in November')).toBe(1);
+    // And the two a restored summary would print a second copy of.
+    expect(occurrences('please do not wear headphones of any type during race.')).toBe(1);
 
-    // **The shoe line is the near miss, and the two spellings are one word apart.** The page
-    // carries the course page's "Trail shoes are recommended."; the bullet's is "Trail shoes
-    // recommended, road shoes acceptable." Matching the bullet's comma is what tells the two
-    // apart — a bare "Trail shoes recommended" is not a substring of the sentence on the page,
-    // so it would read as a guard and assert nothing about which wording is there.
-    expect(occurrences('Trail shoes are recommended.')).toBe(1);
+    // **Nightingale Valley is named once on this page now, and the count is the whole point.**
+    // It used to be twice — the race director's paragraph and the course copy's route sentence,
+    // a duplication this file argued about and then accepted. The rewrite drops the second, so
+    // hers is the only one; a restored summary, or a route sentence written back in, takes this
+    // to two and fails here rather than passing quietly.
+    expect(occurrences('Nightingale Valley')).toBe(1);
+
+    // **The shoe line is the near miss, and the wordings are a word apart.** The page carries
+    // "Trail shoes are a good option if you have them."; the bullet's is "Trail shoes
+    // recommended, road shoes acceptable." and the superseded course copy's was "Trail shoes are
+    // recommended." Matching the bullet's comma is what tells them apart — a bare "Trail shoes
+    // recommended" is a substring of neither sentence on the page, so it would read as a guard
+    // and assert nothing about which wording is there.
+    expect(occurrences('Trail shoes are a good option')).toBe(1);
     expect(body).not.toContain('Trail shoes recommended,');
+    expect(body).not.toContain('Trail shoes are recommended.');
 
     // **The 2023 provenance guards, inherited from the course page's leg of "the content pages
     // state the facts they were given, and no others".** That copy is on this page now, so the
@@ -1489,46 +1499,49 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // a name that says otherwise — which is the vacuous kind of green, not the red kind. A list
     // of one is kept rather than unrolled because what left and when is the readable part.
     //
-    // **What reaches `/nn/` is the course page's own paragraph now rather than a bullet.** The
-    // sentences below are the ones it always asserted, and they read the same either way; the
-    // section around them is "Where it goes" instead of "Know what you are in for".
+    // **The 30 August 2026 rewrite weakened what this test protects, and that is the club's
+    // call rather than a regression to repair.** Three sentences it asserted are in the
+    // shortening and none survives on the page: "Nightingale Valley is the climb.", "There is no
+    // clever way to run it — go up steadily", and "It is Bristol, in November. Plan for wet." —
+    // the last being the line that made the shoe advice advice rather than trivia. What is
+    // asserted below is what the page actually states, so this stays a guard with teeth instead
+    // of being deleted along with the sentences it named.
     for (const path of ['/nn/']) {
       const body = await squashed(page, path);
 
-      expect(body, path).toContain('Nightingale Valley is the climb.');
-      expect(body, path).toContain('There is no clever way to run it — go up steadily');
+      // The club's wording of the climb, which is now a general claim rather than a named one.
+      expect(body, path).toContain('plenty of elevation');
 
-      // **The sentence that makes the trail-shoe line advice rather than trivia**, and the
-      // reason the shoes are mentioned at all. It was on the course page alone; it is the last
-      // line of "What it is like underfoot", immediately above the shoe advice it is the
-      // argument for.
-      expect(body, path).toContain('It is Bristol, in November. Plan for wet.');
+      // **And the valley is still named on the page — in the race director's paragraph, not in
+      // a sentence calling it the climb.** Across the two a reader still learns that the route
+      // goes up it and that there is plenty of elevation, which is the fact this test exists
+      // for; it is stated in two paragraphs now rather than in one sentence. If that stops
+      // being true, this is where it shows.
+      expect(body, path).toContain('up Nightingale Valley');
     }
   });
 
-  test('/nn/ says where the race goes, in both the wordings it was given', async ({
+  test("/nn/ says where the race goes, once, in the race director's wording", async ({
     page,
   }) => {
-    // **This guard has been inverted, and the inversion is the decision rather than a repair.**
+    // **This guard has now reversed twice, and both reversals were decisions rather than
+    // repairs. The history is the valuable part, so none of it is tidied away.**
     //
-    // It used to assert that the second of these two sentences was *absent* from `/nn/`. The
-    // rule behind it was "one route, one spelling per page": the race director's own paragraph
-    // already names the towpath, Nightingale Valley and Leigh Woods, so when `/nn/course/` was
-    // absorbed on 29 August 2026 its "Where it goes" sentence was the one line chosen not to
-    // come, and this line was what stopped a later paste putting it back.
+    // It began as "one route, one spelling per page": the race director's own paragraph names
+    // the towpath, Nightingale Valley and Leigh Woods, so when `/nn/course/` was absorbed on
+    // 29 August 2026 its "Where it goes" sentence was the one line chosen not to come with it,
+    // and this test was what stopped a later paste putting it back.
     //
-    // **The club then supplied the course page's copy in full and asked for it as it stands**,
-    // route sentence included. So `/nn/` states where the race goes twice, in two wordings, on
-    // purpose. That is not the rule being forgotten — it is the rule being **overruled by the
-    // people whose copy it is**, which is the only thing that may overrule it. The race
-    // director's spelling and the club's are both quoted below, and asserting both is what makes
-    // the duplication a recorded decision rather than something that crept in: deleting either
-    // one now goes red, and whoever does it has to read this note first.
+    // **Then the club supplied the course page's copy in full and asked for it as it stands**,
+    // route sentence included — so for one day `/nn/` stated the route twice, in two wordings,
+    // on purpose. That was not the rule being forgotten but the rule being overruled by the
+    // people whose copy it is, which is the only thing that may overrule it.
     //
-    // **The old reasoning is left standing above rather than tidied away**, because a guard that
-    // reversed is worth more with its argument attached — the next person to notice two
-    // wordings of one route on one page should find out why before improving it.
-    // `/nn/index.astro`'s note above the course section points here by name.
+    // **The 30 August 2026 rewrite drops that section's route sentence**, so the page is back to
+    // one wording and this test is back to its original shape. Asserting the absence is what
+    // makes the withdrawal recorded rather than accidental: the next person to write a route
+    // sentence into that section finds out here that the duplication was tried deliberately and
+    // then taken out again.
     //
     // **The gap the old note named is still open.** `/nn/2026/` carries the entry form and
     // states the ground, the shoes, the water and the start, and not the route — so the page
@@ -1540,8 +1553,8 @@ test.describe('the Nightingale Nightmare content pages', () => {
       'A 10km off road run along the towpath, up Nightingale Valley and through Leigh Woods.',
     );
 
-    // And the club's, under "Where it goes".
-    expect(race).toContain(
+    // And the club's second wording of the same route, which is not on the page any more.
+    expect(race).not.toContain(
       'The route runs along the towpath, turns up Nightingale Valley, and carries on through Leigh Woods.',
     );
   });
@@ -1565,14 +1578,16 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // a list because the shrinking is the history — and `/nn/course/` could not stay in it: it
     // 301s to `/nn/`, so it would have asserted this page twice.
     //
-    // **Matched to "halfway" and no further, which is deliberate.** `NnRaceSummary`'s bullet ran
-    // the finish and the marshals into this sentence; the supplied copy stops at the finish and
-    // gives the marshals an item of their own. The location is the fact this test is named for,
-    // and it is the half both wordings share.
+    // **The 30 August 2026 rewrite changed both halves of this sentence and kept the fact.** It
+    // read "One water station on the route at approximately halfway, and one at the finish."; it
+    // is "a water station approximately half way through" now, run together with the marshalling
+    // into one sentence. Two things moved with it: the station at the finish is no longer
+    // stated, and "halfway" is two words. **The location is what this test is named for**, and
+    // it survives — so what is matched below is that half, at the new spelling.
     for (const path of ['/nn/']) {
       const body = await squashed(page, path);
 
-      expect(body, path).toContain('water station on the route at approximately halfway');
+      expect(body, path).toContain('water station approximately half way through');
     }
   });
 

@@ -252,8 +252,14 @@ test.describe('the privacy notice', () => {
 
     // The link promises two things — what is held, and how to have it removed. Both have to
     // be true of the page it lands on, or the promise is the thing that is wrong.
+    //
+    // **The first matched "what we collect" until 30 August 2026**, which was the heading of
+    // the notice's own section 2. That page is the committee's supplied document word for word
+    // now, and their heading is "Information we collect" — so the assertion moved to their
+    // wording rather than the promise being weakened. It is still the same claim: the page a
+    // runner is sent to has to say what is held.
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
-    expect(body).toMatch(/what we collect/i);
+    expect(body).toMatch(/information we collect/i);
     expect(body).toMatch(/removed/i);
   });
 });

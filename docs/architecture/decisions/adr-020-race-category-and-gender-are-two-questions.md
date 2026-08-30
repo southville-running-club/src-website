@@ -123,6 +123,16 @@ not say" is one value rather than two, and never derived from or joined on.
 **`/nn/privacy/` grew a row**, and its wording is the enforcement: it says the field is never
 published and never used for a category, which is exactly what keeps it out of the exports.
 
+**Amended 30 August 2026.** That row is gone. `/nn/privacy/` was replaced with the
+committee's privacy document reproduced verbatim, and that document makes neither promise:
+it says "gender" once and "chosen race category" once. So neither this row nor *Where it
+may be read* above still describes the published page — a runner is no longer told the
+field is never published and never used to derive a category. **The promise still holds
+in code**: `admin.spec.ts` asserts the field is absent from every export, against a
+*paid* fixture, which is the only kind an export carries. What was lost is the statement
+to the person the data is about, not the enforcement of it, and the decision itself is
+unchanged.
+
 **The migration is expand-only and there is nothing to contract.** The column is nullable with
 a check a null satisfies, so every existing row passes and every deployed Worker keeps working
 — a `create_pending_purchase()` call that never mentions the key writes null, which is the
