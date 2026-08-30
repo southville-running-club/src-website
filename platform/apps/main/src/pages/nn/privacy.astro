@@ -108,8 +108,24 @@ const { privacy } = race;
         If you are unhappy with how we have handled your information, please contact us at{
           ' '
         }
-        <a href={`mailto:${privacy.contact}`}>{orTbc(privacy.contact)}</a>. You also have
-        the right to complain to the Information Commissioner's Office{' '}
+        {
+          /* **A link only when there is an address to link to.** `orTbc` exists because these
+          values can be `null`, and `href="mailto:null"` is a link that looks real, is reached
+          by keyboard, and opens a message to nobody. The marker is not an address and must not
+          be dressed as one. The link also carries `base.css`'s
+          `a[href^='mailto:'] { overflow-wrap: anywhere }`, which is what stops a 31-character
+          address scrolling the page sideways at 320px — the defect `/privacy/` met on the
+          same value. */
+        }
+        {
+          privacy.contact ? (
+            <a href={`mailto:${privacy.contact}`}>{privacy.contact}</a>
+          ) : (
+            orTbc(privacy.contact)
+          )
+        }. You also have the right to complain to the Information Commissioner's Office{
+          ' '
+        }
         <a href="https://ico.org.uk/">https://ico.org.uk/</a>
       </p>
 
@@ -213,9 +229,13 @@ const { privacy } = race;
           >If you request data deletion, your information will be removed and your race
           entry will be cancelled.</strong
         > Requesting deletion of your data will not impact any future relationship with the
-        SRC. Please contact <a href={`mailto:${privacy.contact}`}
-          >{orTbc(privacy.contact)}</a
-        >.
+        SRC. Please contact {
+          privacy.contact ? (
+            <a href={`mailto:${privacy.contact}`}>{privacy.contact}</a>
+          ) : (
+            orTbc(privacy.contact)
+          )
+        }.
       </p>
 
       <h2>8. Photographs</h2>

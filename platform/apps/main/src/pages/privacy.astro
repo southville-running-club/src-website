@@ -96,9 +96,36 @@ const club = race.privacy;
         <strong>Registered in England and Wales</strong>, company number{' '}
         {orTbc(club.companyNumber)}
       </li>
+      {
+        /* **A `mailto:` link rather than plain text, and that is a layout fix as much as a
+        convenience.** This value was `null` until 30 August 2026 and rendered "To be confirmed
+        by the club" — four short words, which wrap anywhere. The committee's document answered
+        it, and an email address is a single unbreakable 31-character token: at 320px it ran
+        past the card and the whole page scrolled sideways. **Only CI saw it**, because the
+        fonts on a Linux runner set wider than the ones this was written on.
+
+        `base.css` already carries the fix — `a[href^='mailto:'] { overflow-wrap: anywhere }`,
+        added when `race.contact` moved onto the club domain, and its own comment names "an
+        unbreakable 47-character token" as how this happens. It applies to links, and this was
+        not one. `/nn/privacy/` renders the same value as a link and never had the defect.
+
+        The rendered text is unchanged, so `privacy.spec.ts`'s "Contact about your data: …"
+        join still reads the same.
+
+        **The link only exists when there is an address**, because this value can go back to
+        `null` — that is what `orTbc` is for — and `href="mailto:null"` is a link that looks
+        real, is reachable by keyboard, and opens a message to nobody. The marker is not an
+        address and must not be dressed as one. */
+      }
       <li>
         <strong>Contact about your data:</strong>{' '}
-        {orTbc(club.contact)}
+        {
+          club.contact ? (
+            <a href={`mailto:${club.contact}`}>{club.contact}</a>
+          ) : (
+            orTbc(club.contact)
+          )
+        }
       </li>
     </ul>
 
