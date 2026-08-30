@@ -228,17 +228,45 @@ test.describe('the privacy notice', () => {
     //
     // **This test is what is left, and it is a fidelity check rather than a coverage one.** It
     // asserts the document's own sentences so that a later edit "improving" one of them fails
-    // here — which is the only guard a verbatim page can have.
+    // here — which is the only guard a page like this can have.
+    //
+    // ⚠️ **The page stopped being verbatim later the same day — issue #168.** The club took
+    // the collection list's edits itself: two things it does not collect came out, four it
+    // does went in, and **no sentence was rewritten, restyled or reordered**. That is the line
+    // this test now holds. Every assertion below is still one of the committee's own
+    // sentences; the two `not.toContain`s and the four insertions are the diff, and anything
+    // beyond that shape is the committee's to supply. See the header of
+    // `apps/main/src/pages/nn/privacy.astro`.
     await page.goto('/nn/privacy/');
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
 
     expect(body).toContain(
       'We collect the following types of information to manage race registration and event logistics:',
     );
-    expect(body).toContain('Personal Identification: Name, date of birth, gender.');
+    expect(body).toContain('Personal Identification: Name, date of birth, gender,');
+    expect(body).toContain('Contact Details: Email address, phone number.');
+
+    // **The two claims that came out on 30 August 2026 — issue #168.** Neither was ever
+    // collected: `NN_ENTRY_FIELDS` has never had a postal address or an expected finish time
+    // on it, and no column in `entries` holds either. Asserted as absent rather than simply
+    // not asserted as present, because "we hold your address" is the kind of sentence that
+    // gets pasted back in from an older draft.
+    expect(body).not.toContain('postal address');
+    expect(body).not.toContain('expected finish time');
+
+    // **And the four that went in, which is the half that mattered.** All four are collected —
+    // see `NN_ENTRY_FIELDS` — and two of them are special category data under Article 9. The
+    // guide is the one to hold hardest: a second person whose data is collected through
+    // somebody else's form, and who may never read this page because they did not do the
+    // entering.
+    expect(body).toContain('Health Information:');
+    expect(body).toContain('medical information you choose to give us');
+    expect(body).toContain('you are visually impaired');
+    expect(body).toContain("Your Guide's Details:");
     expect(body).toContain(
-      'Contact Details: Email address, phone number, postal address.',
+      'their name, date of birth, email address and emergency contact',
     );
+    expect(body).toContain('how you describe your gender');
     expect(body).toContain('we do not store full card details');
     expect(body).toContain('cookies for website functionality and analytics');
     expect(body).toContain('We do not sell your data to third parties.');

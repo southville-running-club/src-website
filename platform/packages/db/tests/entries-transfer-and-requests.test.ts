@@ -222,6 +222,11 @@ function person(overrides: Record<string, unknown> = {}): Record<string, unknown
     club: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
+    // The runner's own number, which `create_pending_purchase()` has required of a
+    // runner since ADR-025 and refuses with `phone_required` without. Deliberately not
+    // the emergency contact's: a fixture where the two agree cannot catch the two being
+    // read the wrong way round.
+    phone: '07700 900124',
     leg: null,
     role: 'runner',
     ...overrides,
@@ -271,11 +276,14 @@ interface EntrantRow {
   first_name: string;
   role: string;
   ea_number: string | null;
+  /** The runner's own number — ADR-025. Replaced by a transfer, never carried
+   *  across, and null on every entry taken before 30 August 2026. */
+  phone: string | null;
 }
 
 async function entrantsOf(purchaseId: string): Promise<EntrantRow[]> {
   return query<EntrantRow>(
-    `select first_name, role, ea_number
+    `select first_name, role, ea_number, phone
        from entries.entrants
       where purchase_id = $1
       order by role, first_name`,
@@ -326,6 +334,10 @@ describe('transferring an affiliated place', () => {
       p_emergency_contact_name: 'Kin Three',
       p_emergency_contact_phone: '0117 496 0003',
       p_ea_number: '',
+      // **Naming both is what reaches the eleven-argument form**, which is the one that takes
+      // a phone number. Ten `text` arguments is already the England Athletics signature, and
+      // Postgres tells functions apart by their argument types.
+      p_phone: '0117 496 0203',
       ...args,
     });
 
@@ -364,6 +376,39 @@ describe('transferring an affiliated place', () => {
       expect((await transfer(purchaseId, { p_ea_number: '9998887' })).ok).toBe(true);
       expect((await entrantsOf(purchaseId))[0]?.ea_number).toBeNull();
     }
+  });
+
+  it("replaces the previous runner's phone number rather than carrying it across", async () => {
+    // **A number is a fact about the person who gave it** — ADR-025 — so this follows the rule
+    // the medical note and the recorded gender already do. Leaving it on the row would file
+    // one person's number under another person's name and print it on the start list beside
+    // them, and nothing about the row would look wrong.
+    const purchaseId = await paidPurchase('unaffiliated');
+
+    expect((await entrantsOf(purchaseId))[0]?.phone).toBe('07700 900124');
+
+    expect((await transfer(purchaseId)).ok).toBe(true);
+
+    const [entrant] = await entrantsOf(purchaseId);
+
+    expect(entrant?.first_name).toBe('Nell');
+    expect(entrant?.phone).toBe('0117 496 0203');
+  });
+
+  it("clears the previous runner's number when no new one is given", async () => {
+    // **Null is allowed here and refused on the entry form**, because the two are not the same
+    // promise: `/nn/2026/` will not take an entry without a number, and a volunteer moving a
+    // place may be working from an email thread. It is also the line the nine- and
+    // ten-argument wrappers reach — they delegate with a null phone, which is what keeps a
+    // Worker deployed before ADR-025 transferring places rather than meeting a refusal it has
+    // no wording for.
+    //
+    // **The safe direction, and that is the point.** The disclosure is closed on every path the
+    // moment the migration lands; only the *new* number waits for the Worker to catch up.
+    const purchaseId = await paidPurchase('unaffiliated', [person()]);
+
+    expect((await transfer(purchaseId, { p_phone: '' })).ok).toBe(true);
+    expect((await entrantsOf(purchaseId))[0]?.phone).toBeNull();
   });
 
   it('refuses a purchase with a guide on it, rather than guessing who is leaving', async () => {

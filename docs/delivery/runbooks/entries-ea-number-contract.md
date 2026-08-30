@@ -2,7 +2,9 @@
 
 **One migration, written once, after the build that stopped collecting has been deployed.** It
 removes `entries.entrants.ea_number`, `entries.fees.requires_ea_number`, the keys the two reads
-still emit, and `transfer_entry()`'s ten-argument form.
+still emit, and **two** of `transfer_entry()`'s three forms — see step 3, which grew on
+30 August 2026 when [ADR-025](../../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md)
+added a phone number and had to carry `p_ea_number` past it.
 
 **Nothing is broken until it is done, and nothing breaks if it is never done.** This is the
 second half of a deliberate two-step, exactly as
@@ -86,14 +88,33 @@ verbatim-plus-one-line treatment every other read here has had.
 
 ### 3. `transfer_entry()`
 
-Drop the **ten-argument** form — the one taking `p_ea_number` — and keep the nine-argument one,
-which is what the Worker has called since the expand step. Delete the `ea_number_required`
-branch and the `v_ea` variable with it; both are unreachable, because no fee can require a
-number.
+⚠️ **There are three forms now, not two — [ADR-025](../../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md)
+added an eleventh argument on 30 August 2026, and it carries `p_ea_number` too.** It had to:
+Postgres identifies a function by its argument *types*, and the phone number could not be a
+tenth `text` because that signature is already the England Athletics form, which
+`create or replace` cannot rename. So this step is bigger than it was, and the shape it is
+aiming at is **one function taking ten arguments, the tenth being `p_phone`**.
+
+The Worker calls the **eleven**-argument form. The nine- and ten-argument forms are wrappers
+that delegate with a null phone.
+
+1. Recreate the implementation as a **ten**-argument function ending `p_phone text`, with the
+   `ea_number_required` branch and the `v_ea` variable deleted — both are unreachable, because
+   no fee can require a number.
+2. Drop all three of the old forms.
 
 ```sql
+drop function entries.transfer_entry(uuid, text, text, text, date, text, text, text, text, text, text);
 drop function entries.transfer_entry(uuid, text, text, text, date, text, text, text, text, text);
+drop function entries.transfer_entry(uuid, text, text, text, date, text, text, text, text);
 ```
+
+**Drop the two wrappers only once the Worker calls the new ten-argument form**, which is the
+ordinary expand/contract sequencing and is why this is a step rather than a line. Nothing
+sequences a migration against the Cloudflare deploy.
+
+**And update `packages/shared/src/admin.ts`'s `transferEntry`**, which names `p_ea_number: null`
+today with a comment saying why. Both go together.
 
 **Check the grant list afterwards.** `packages/db/tests/entries.test.ts` asserts the exact set
 of functions `authenticated` may call, by name and argument list. Dropping an overload changes

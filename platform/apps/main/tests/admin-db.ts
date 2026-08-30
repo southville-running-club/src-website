@@ -289,11 +289,16 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       // affiliated entry and is correct; and `entrants_ea_number_not_collected` is a check
       // constraint, which `session_replication_role` does not suppress, so the escape hatch
       // would not work even if there were something to model.
+      // **Two phone numbers, and they are given different values on purpose.** The runner's
+      // own — ADR-025 — and the emergency contact's are rendered side by side on the entry
+      // page, printed side by side on the start list and exported as adjacent columns. A
+      // fixture where the two agree cannot catch either of them being read as the other, which
+      // is a defect nothing about the output would look wrong for.
       await db.query(
         `insert into entries.entrants (
            id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
-           club, emergency_contact_name, emergency_contact_phone
-         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
+           club, emergency_contact_name, emergency_contact_phone, phone
+         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10, $11)`,
         [
           purchase.entrantId,
           purchase.purchaseId,
@@ -305,6 +310,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
           purchase.club,
           `Kin ${purchase.lastName}`,
           '0117 496 0000',
+          '0117 496 0100',
         ],
       );
 

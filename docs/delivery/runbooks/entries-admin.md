@@ -188,9 +188,22 @@ contents.
 
 | | Columns | For | Deliberately absent |
 | --- | --- | --- | --- |
-| **Affiliated entries** | Last name, first name, club, entry type, amount paid | **How many entries took the affiliated price**, which is the count the club owes no Unattached Runner Levy on under ARC Rule 21(2)(b). The button says *Download the affiliated list* | England Athletics numbers — the club holds none — emergency contacts, medical notes, email addresses |
-| **Start list** | Last name, first name, club, category, **emergency contact name and phone** | Race day | Medical notes, email addresses, dates of birth |
+| **Affiliated entries** | Last name, first name, club, **phone**, entry type, amount paid | **How many entries took the affiliated price**, which is the count the club owes no Unattached Runner Levy on under ARC Rule 21(2)(b). The button says *Download the affiliated list* | England Athletics numbers — the club holds none — emergency contacts, medical notes, email addresses |
+| **Start list** | Last name, first name, club, category, **runner phone**, **emergency contact name and phone** | Race day | Medical notes, email addresses, dates of birth |
 | **Medical notes** | Last name, first name, club, **the note** | First aiders, on the day | Everything else, including the emergency contact |
+
+⚠️ **Two of these files now carry two different phone numbers, and the column names are the
+only thing telling them apart.** `Runner phone` is the runner's own, given so the club can tell
+them about a change to the race — [ADR-025](../../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md).
+`Emergency phone` belongs to **somebody else**, who agreed to be rung if something happens.
+Ringing the second about a start time is not what it was given for.
+
+**Both are blank on every entry taken before 30 August 2026**, because the club did not ask
+before then and the number is not backfillable. A guide has no runner phone at all — they are
+not asked for one.
+
+**The medical sheet carries neither.** It is a name, a club and the note, and it is the one
+document that gets printed in a hall full of people.
 
 ### Why medical notes are a separate file
 

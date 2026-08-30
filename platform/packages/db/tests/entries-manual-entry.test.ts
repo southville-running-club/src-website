@@ -112,6 +112,15 @@ interface Person {
   gender: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
+  /**
+   * The runner's own number, and **null for a guide**, who is not asked for one — ADR-025.
+   *
+   * `create_manual_entry()` is the one writer that does **not** require it: a complimentary
+   * place is arranged by a volunteer who may have nothing but an email thread, and refusing
+   * Kinsi a place over a phone number would make ADR-021's answer conditional on ADR-025's
+   * field. It is stored when it is given, which is what this fixture proves.
+   */
+  phone: string | null;
   role: string;
 }
 
@@ -124,6 +133,9 @@ function person(role: 'runner' | 'guide', overrides: Partial<Person> = {}): Pers
     gender: 'female',
     emergency_contact_name: 'Margaret Hamilton',
     emergency_contact_phone: '07700 900000',
+    // **Given here and null for a guide**, and deliberately not the emergency contact's
+    // number: a fixture where the two agree cannot catch them being read the wrong way round.
+    phone: role === 'guide' ? null : '07700 900001',
     role,
     ...overrides,
   };

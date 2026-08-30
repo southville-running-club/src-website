@@ -35,6 +35,9 @@ function goodEntry(overrides: Record<string, string> = {}): Record<string, strin
     gender: 'female',
     feeCode: 'unaffiliated',
     emergencyName: 'Margaret Hamilton',
+    // Required since ADR-025, and deliberately not the emergency contact's number — a
+    // fixture where the two agree cannot catch them being read the wrong way round.
+    phone: '0117 496 0100',
     emergencyPhone: '0117 496 0000',
     entryTerms: 'on',
     ...overrides,

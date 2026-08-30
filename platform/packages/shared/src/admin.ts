@@ -882,6 +882,14 @@ export interface EaExportRow {
   lastName: string;
   firstName: string;
   club: string | null;
+  /**
+   * The runner's own number, and null for a guide and for every entry taken before ADR-025.
+   *
+   * **Not the emergency contact's.** The two sit side by side wherever both are rendered, and
+   * whatever renders them has to say which is which — a volunteer ringing the wrong one of
+   * these has rung somebody's next of kin about a start time.
+   */
+  phone: string | null;
   feeLabel: string;
   amountPence: number;
 }
@@ -904,6 +912,14 @@ export interface StartListExportRow {
   role: 'runner' | 'guide' | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  /**
+   * The runner's own number, and null for a guide and for every entry taken before ADR-025.
+   *
+   * **Not the emergency contact's.** The two sit side by side wherever both are rendered, and
+   * whatever renders them has to say which is which — a volunteer ringing the wrong one of
+   * these has rung somebody's next of kin about a start time.
+   */
+  phone: string | null;
 }
 
 export interface MedicalExportRow {
@@ -930,6 +946,11 @@ const eaRowShape = z.object({
   club: z.string().nullable(),
   // `ea_number` is still emitted, null on every row, and is deliberately not parsed — the
   // contract step drops it from the read. See the note above `EXPORT_KINDS`.
+  //
+  // `phone` is parsed and `.catch(null)` for the opposite reason: it is new, so a Worker
+  // deployed ahead of its migration meets a row without the key and must still hand over the
+  // file rather than refusing it.
+  phone: z.string().nullable().catch(null),
   fee_label: z.string(),
   amount_pence: z.number().int(),
 });
@@ -945,6 +966,7 @@ const startListRowShape = z.object({
   role: z.enum(['runner', 'guide']).nullable().catch(null),
   emergency_contact_name: z.string(),
   emergency_contact_phone: z.string(),
+  phone: z.string().nullable().catch(null),
 });
 
 const medicalRowShape = z.object({
@@ -998,6 +1020,7 @@ function parseExport(
               lastName: row.last_name,
               firstName: row.first_name,
               club: row.club,
+              phone: row.phone,
               feeLabel: row.fee_label,
               amountPence: row.amount_pence,
             })),
@@ -1023,6 +1046,7 @@ function parseExport(
               role: row.role,
               emergencyContactName: row.emergency_contact_name,
               emergencyContactPhone: row.emergency_contact_phone,
+              phone: row.phone,
             })),
           },
         }
@@ -1209,6 +1233,14 @@ export interface AdminEntryDetailEntrant {
   email: string | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  /**
+   * The runner's own number, and null for a guide and for every entry taken before ADR-025.
+   *
+   * **Not the emergency contact's.** The two sit side by side wherever both are rendered, and
+   * whatever renders them has to say which is which — a volunteer ringing the wrong one of
+   * these has rung somebody's next of kin about a start time.
+   */
+  phone: string | null;
   createdAt: string;
   /**
    * Whether there is a note, never what it says.
@@ -1268,6 +1300,7 @@ const detailEntrantShape = z.object({
   email: z.string().nullable().catch(null),
   emergency_contact_name: z.string(),
   emergency_contact_phone: z.string(),
+  phone: z.string().nullable().catch(null),
   created_at: z.string(),
   has_medical: z.boolean(),
 });
@@ -1395,6 +1428,7 @@ export async function fetchEntryDetail(
           email: entrant.email,
           emergencyContactName: entrant.emergency_contact_name,
           emergencyContactPhone: entrant.emergency_contact_phone,
+          phone: entrant.phone,
           createdAt: entrant.created_at,
           hasMedical: entrant.has_medical,
         })),
@@ -1582,6 +1616,15 @@ export interface TransferTo {
   club: string | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  /**
+   * The new runner's own number.
+   *
+   * **It replaces the previous runner's rather than being carried over**, which is the same
+   * rule the medical note and the recorded gender follow and for the same reason: a number is
+   * a fact about the person who gave it, and leaving it on the row would put one person's
+   * number on the start list beside another person's name.
+   */
+  phone: string;
 }
 
 export interface TransferredEntry {
@@ -1620,12 +1663,18 @@ export async function transferEntry(
       p_club: to.club ?? '',
       p_emergency_contact_name: to.emergencyContactName,
       p_emergency_contact_phone: to.emergencyContactPhone,
-      // **Nine arguments, not ten, and that picks the other overload on purpose.**
-      // `transfer_entry()` has a ten-argument form taking `p_ea_number` and a nine-argument
-      // wrapper that delegates with a null one. The club stopped asking for numbers on 29
-      // August 2026, so this build has none to send and the two forms now behave identically —
-      // naming nine says what is true rather than sending an empty string that means nothing.
-      // The contract step drops the ten-argument form.
+      // **Eleven arguments since ADR-025, and `p_ea_number` is back only because of the type
+      // list.** Postgres identifies a function by its argument types, so the phone could not
+      // be added as a tenth `text` — that signature is already the England Athletics form, and
+      // `create or replace` cannot rename an input parameter. Naming both is what reaches the
+      // form that takes a phone number.
+      //
+      // **Null, and it stays null.** The club stopped asking for England Athletics numbers on
+      // 29 August 2026 — ADR-023 — so this build has none to send, no fee requires one, and
+      // the branch that reads it is unreachable. The argument goes at the contract step, with
+      // the column. See docs/delivery/runbooks/entries-ea-number-contract.md.
+      p_ea_number: null,
+      p_phone: to.phone,
     });
 
     return readCancelEnvelope(data, error, 'transfer_entry', (value) => {
@@ -1683,6 +1732,15 @@ export interface ManualEntrant {
   club: string | null;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  /**
+   * The runner's own number, or null.
+   *
+   * **Asked for by the form and not required by the function**, which is the one place this
+   * differs from the entry form. A complimentary place is arranged by a volunteer who may only
+   * have an email address, and refusing to give Kinsi a place over a phone number would make
+   * ADR-021's answer conditional on ADR-025's field. Null for a guide, who is not asked.
+   */
+  phone: string | null;
 }
 
 export interface ManualEntryInput {
@@ -1733,6 +1791,7 @@ export async function createManualEntry(
     leg: null,
     emergency_contact_name: person.emergencyContactName,
     emergency_contact_phone: person.emergencyContactPhone,
+    phone: person.phone,
     role,
   });
 
