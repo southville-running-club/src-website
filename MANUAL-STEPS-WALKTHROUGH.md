@@ -911,7 +911,7 @@ requests, not failures**, and a burst that never reaches the endpoint proves not
 - [ ] Tick steps 0.1 and 0.3 in
       [accounts-open](docs/delivery/runbooks/accounts-open.md#step-0--the-things-that-must-be-true-first)
       and step 0.1 in
-      [entries-open](docs/delivery/runbooks/entries-open.md#01--the-waf-rate-limiting-rule-must-be-live)
+      [entries-open](docs/delivery/runbooks/entries-open.md#01--the-rate-limiting-rule-must-be-live)
 - [ ] **#19 and #64 are already closed**, so there is nothing to close. **Add a comment to each
       saying the dashboard half is now done and on what date** — a closed issue whose real work
       happened ten days later is worth being honest about, and the next person reading the

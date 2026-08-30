@@ -1561,10 +1561,18 @@ function entriesSection(
                  positioned visually-hidden span inside a scroller drags the whole page with
                  it, which is the trap CLAUDE.md spends a paragraph on.
 
-                 Losing it on a phone is the deliberate half of that. Cancelling an entry is a
-                 desk task with the Stripe dashboard open in another tab, not something done
-                 one-handed at a race; the medical note, which *is* wanted on race morning,
-                 keeps its column. */ null
+                 Losing *Cancel* on a phone is the deliberate half of that, and it still is:
+                 cancelling is a desk task with the Stripe dashboard open in another tab, not
+                 something done one-handed at a race. The medical note, which *is* wanted on
+                 race morning, keeps its column.
+
+                 **What was not deliberate was losing Details with it** — issue #145 defect 5.
+                 `/admin/nn/entry/` exists because ADR-024 found that the facts a volunteer
+                 needs on a phone are exactly the ones that do not fit in a table, and folding
+                 this cell away left that page with no door on the devices it was built for.
+                 A second copy of the Details button rides in `admin-stack`, under the runner's
+                 name, so the column count does not move. Cancel and Transfer are on that page
+                 anyway, which is why one button is enough. */ null
             }
             <th scope="col" class="admin-col-wide">Cancel</th>
           </tr>
@@ -1679,6 +1687,34 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
             ? null
             : html`<span class="admin-mono">${entry.discountCode}</span>`
         }
+        ${
+          /* **The way in on a phone, and it costs no column.** The actions cell is
+          `admin-col-wide`, so below 768px Details, Cancel and Transfer all fold away — and
+          `/admin/nn/entry/` was built by ADR-024 precisely because the facts a volunteer needs
+          at race HQ do not fit in a table. Its only door was a button a phone could not show.
+
+          Un-hiding that cell is the wrong fix: the narrow layout keeps three columns because a
+          fourth starts the table scrolling sideways, which drags the whole page with it. This
+          rides in the stack that is already under the runner's name, so the column count does
+          not move.
+
+          **Details alone, not all three.** The detail page carries Cancel and Transfer itself,
+          so one button reaches every act this surface allows — and reading before acting is
+          the order these belong in anyway. `display: none` on the stack above 768px keeps
+          exactly one copy of this button in the accessibility tree, the same arrangement every
+          other value in here uses. */ null
+        }
+        <span class="admin-stack-action">
+          <form method="post" action="${NN_SECTION}/entry/">
+            <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+            <button type="submit" class="admin-linkish">
+              Details
+              <span class="admin-visually-hidden"
+                >of the entry for ${runnerName(entry)}</span
+              >
+            </button>
+          </form>
+        </span>
       </span>
     </th>
     <td class="admin-col-wide">${entry.club ?? '—'}</td>

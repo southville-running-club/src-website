@@ -928,6 +928,21 @@ body.admin {
   }
 
   /*
+   * **The Details button, which is the only way into an entry on a phone.**
+   *
+   * The actions cell is `admin-col-wide` and folds away here, so this is the copy that shows —
+   * riding in the stack rather than as a fourth column, because a fourth column is what starts
+   * the table scrolling sideways at 320px.
+   *
+   * A little air above it and nothing else: it is a control among values, so it should not read
+   * as another line of the runner's details. The button keeps `admin-linkish`, which already
+   * carries the 44px touch target this surface uses everywhere else.
+   */
+  .admin-stack-action {
+    margin-top: 0.4rem;
+  }
+
+  /*
    * **Three columns have to *fit*, not merely be fewer.** The panel clips rather than scrolls, so a
    * table still wider than the viewport hides a column instead of offering it — which is worse than
    * the sideways scroll this layout replaced, because nothing tells the reader it happened.

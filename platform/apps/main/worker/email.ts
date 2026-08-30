@@ -87,6 +87,25 @@ function render(message: OutboxMessage): RenderedEmail | null {
   const reference = `Your reference is ${message.purchaseReference}.`;
   const signOff = `Southville Running Club\nReply to this email if you need to ask us anything.`;
 
+  /**
+   * **A place that cost nothing, which two of these templates quoted a figure at anyway.**
+   *
+   * ADR-021 gives a place away as a `paid` purchase at £0 on a £0 fee — Kinsi's two, and the
+   * free place a visually impaired runner's guide is given. Both money sentences below were
+   * written for a purchase that went through Stripe, and neither is true of one that did not:
+   * the confirmation said *"we have received your payment of £0.00"*, and the cancellation said
+   * *"we have refunded £0.00 to the card you paid with"* — which names a card that was never
+   * charged, to somebody who never gave one.
+   *
+   * The second is the worse of the two. Somebody reading it goes looking for a refund that is
+   * not coming, and the first thing they check is a card statement.
+   *
+   * **Nothing else about the message changes.** A given place is a real place: it is confirmed
+   * the same way, it holds one of the 250, and it appears on `/account/entries/` like any
+   * other. Only the sentence about money differs, because only the money differs. #150.
+   */
+  const free = message.amountPence === 0;
+
   switch (message.template) {
     case 'entry_confirmed':
       return {
@@ -94,7 +113,9 @@ function render(message: OutboxMessage): RenderedEmail | null {
         text: [
           greeting,
           '',
-          `Your entry to ${message.eventName} on ${message.eventDate} is confirmed, and we have received your payment of ${formatPence(message.amountPence)}.`,
+          free
+            ? `Your entry to ${message.eventName} on ${message.eventDate} is confirmed. The club has given you this place, so there is nothing to pay.`
+            : `Your entry to ${message.eventName} on ${message.eventDate} is confirmed, and we have received your payment of ${formatPence(message.amountPence)}.`,
           '',
           reference,
           '',
@@ -110,12 +131,18 @@ function render(message: OutboxMessage): RenderedEmail | null {
         text: [
           greeting,
           '',
-          `Your entry to ${message.eventName} on ${message.eventDate} has been cancelled, and we have refunded ${formatPence(message.amountPence)} to the card you paid with.`,
-          '',
-          // **The bank's timing, stated, because not stating it is what generates the email
-          // asking where the money is.** Stripe reports a card refund as pending for several
-          // days routinely, and that is the bank rather than the club.
-          'Refunds usually reach your account within five to ten working days, depending on your bank.',
+          // **The bank's timing is part of the paid sentence rather than a line after it**, so
+          // that dropping it on a free place drops no blank line with it. `join` renders a
+          // `null` as an empty string, which would have left the message with a two-line gap
+          // where a sentence used to be — the sort of thing that reads as a template fault.
+          //
+          // Stating the timing at all is what stops the email asking where the money is:
+          // Stripe reports a card refund as pending for several days routinely, and that is
+          // the bank rather than the club. Saying it to somebody owed nothing would be the
+          // exact wrong thing — they would go and look at a card statement.
+          free
+            ? `Your entry to ${message.eventName} on ${message.eventDate} has been cancelled. Nothing was paid for this place, so there is nothing to refund.`
+            : `Your entry to ${message.eventName} on ${message.eventDate} has been cancelled, and we have refunded ${formatPence(message.amountPence)} to the card you paid with.\n\nRefunds usually reach your account within five to ten working days, depending on your bank.`,
           '',
           reference,
           '',

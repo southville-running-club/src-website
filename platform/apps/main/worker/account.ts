@@ -588,14 +588,14 @@ function signUpPage(
   const body = html`
     <main class="account-page">
       <h1>Create an account</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/sign-up/" class="signup" novalidate>
+        ${errorSummary([
+          ['account-name', errors.name],
+          ['account-email', errors.email],
+          ['account-password', errors.password],
+          ['account-captcha', errors.captchaToken],
+        ])}
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         ${textField('name', 'Your name', submitted.name, errors.name, { autocomplete: 'name' })}
         ${textField('email', 'Email address', submitted.email, errors.email, {
@@ -789,13 +789,10 @@ function signInPage(
   const body = html`
     <main class="account-page">
       <h1>Sign in</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(
+        message,
+        Object.keys(errors).length === 0 && Object.keys(magicLinkErrors).length === 0,
+      )}
       ${
         notice === 'link-sent'
           ? html`<div class="notice" role="status" tabindex="-1" autofocus>
@@ -835,6 +832,11 @@ function signInPage(
       <form method="post" action="/account/sign-in/" class="signup" novalidate>
         <fieldset class="account-way">
           <legend>Sign in with a password</legend>
+          ${errorSummary([
+            ['account-email', errors.email],
+            ['account-password', errors.password],
+            ['account-captcha', errors.captchaToken],
+          ])}
           <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
           ${textField('email', 'Email address', submitted.email, errors.email, {
             type: 'email',
@@ -852,13 +854,25 @@ function signInPage(
           <p class="field-hint">
             No password to remember. The link signs you in on this device, and works once.
           </p>
+          ${errorSummary(
+            [
+              ['account-link-email', magicLinkErrors.email],
+              ['account-link-captcha', magicLinkErrors.captchaToken],
+            ],
+            Object.keys(errors).length === 0,
+          )}
           <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
           ${textField('email', 'Where to send the link', '', magicLinkErrors.email, {
             type: 'email',
             autocomplete: 'email',
             id: 'account-link-email',
           })}
-          ${turnstile(env.TURNSTILE_SITE_KEY, magicLinkErrors.captchaToken, false)}
+          ${turnstile(
+            env.TURNSTILE_SITE_KEY,
+            magicLinkErrors.captchaToken,
+            false,
+            'account-link-captcha',
+          )}
           <button class="button" type="submit">Email me a link</button>
         </fieldset>
       </form>
@@ -1464,14 +1478,12 @@ function resetRequestPage(
   const body = html`
     <main class="account-page">
       <h1>Reset your password</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/reset/" class="signup" novalidate>
+        ${errorSummary([
+          ['account-email', errors.email],
+          ['account-captcha', errors.captchaToken],
+        ])}
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         ${textField('email', 'Email address', submitted.email, errors.email, {
           type: 'email',
@@ -1650,13 +1662,7 @@ function resetConfirmPage(
   const body = html`
     <main class="account-page">
       <h1>Choose a new password</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, Object.keys(errors).length === 0)}
       <p class="notice notice-bad" data-reset-needs-js>
         This link needs JavaScript to complete. If you have disabled it, please contact
         the club at
@@ -1672,6 +1678,10 @@ function resetConfirmPage(
         hidden
         data-reset-form
       >
+        ${errorSummary([
+          ['account-password', errors.password],
+          ['account-captcha', errors.captchaToken],
+        ])}
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         <input type="hidden" name="${raw(RECOVERY_ACCESS_TOKEN_FIELD)}" value="" />
         <input type="hidden" name="${raw(RECOVERY_REFRESH_TOKEN_FIELD)}" value="" />
@@ -1860,14 +1870,13 @@ function changePasswordPage(
   const body = html`
     <main class="account-page">
       <h1>Change your password</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/password/" class="signup" novalidate>
+        ${errorSummary([
+          ['account-current_password', errors.currentPassword],
+          ['account-new_password', errors.newPassword],
+          ['account-captcha', errors.captchaToken],
+        ])}
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         ${passwordField(
           'current_password',
@@ -2160,14 +2169,15 @@ function detailsPage(
           ? html`<p class="field-hint">Last saved ${formatLondon(updatedAt)}.</p>`
           : null
       }
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/details/" class="signup" novalidate>
+        ${errorSummary([
+          ['account-name', errors.name],
+          ['account-email', errors.email],
+          ['account-gender', errors.gender],
+          ['account-dob-day', errors.dateOfBirth],
+          ['account-address', errors.address],
+        ])}
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         ${textField('name', 'Your name', submitted.name, errors.name, {
           autocomplete: 'name',
@@ -2226,13 +2236,7 @@ function dataPage(
   const body = html`
     <main class="account-page">
       <h1>Your data</h1>
-      ${
-        message !== null
-          ? html`<div class="notice notice-bad" role="alert" tabindex="-1" autofocus>
-              <p>${message}</p>
-            </div>`
-          : null
-      }
+      ${problemNotice(message, true)}
 
       <h2>Download what the club holds about you</h2>
       <p>
@@ -2545,6 +2549,100 @@ function detailsAcknowledgement(emailPending: boolean): Html {
  *   which is a duplicate id: axe fails it, and a click on the second label focuses the first
  *   input. Two fields may share a name across two forms; they may not share an id.
  */
+/**
+ * The list of links at the top of a form that was refused — #152.
+ *
+ * ## What was missing, and what was not
+ *
+ * The account forms already **announced** their errors: each bad field carries a
+ * `.field-error` with `aria-invalid` and `aria-describedby` pointing at it, and the top-level
+ * failure is a `role="alert"` that takes focus. So this was never a zero-violations breach.
+ * What was missing is the **navigable summary** — the list that takes somebody straight to the
+ * field that is wrong instead of leaving them to hunt a page for it.
+ *
+ * It matters most for exactly the people this area is for: in #56's words, the members most
+ * likely to *"use the site once a year and forget they ever had one"*, who are also the most
+ * likely to get a password wrong and the least likely to go looking for the reason.
+ *
+ * ## One summary per form, not one per page
+ *
+ * `/account/sign-in/` carries two forms — a password one and a magic-link one — with separate
+ * error objects, deliberately, so a bad address in one does not mark up the other. Each gets
+ * its own summary, as the **first child of its own form**.
+ *
+ * That is CLAUDE.md's rule about a container's message belonging to that container, and it is
+ * the rule that was paid for twice on the entry form: a message that belonged to the wrong
+ * container made the entry type impossible to change at all. It also gets
+ * `/account/reset/confirm/` right for free — that form is `hidden` until its script has read
+ * the recovery tokens out of the fragment, and a summary sitting outside it would be an error
+ * list above a form nobody can see.
+ *
+ * ## The link text is the message
+ *
+ * Not the field's label. Somebody scanning a list of three wants to know what is wrong, and
+ * "Email address" three times over says nothing. This is the shape `nn-signup.spec.ts`'s
+ * *"links from the summary to the field it is about"* asserts, one framework along.
+ *
+ * ⚠️ **The traps this has already cost the repository, both in CLAUDE.md.** A CSS
+ * `@view-transition` swallows the click on a summary link with JavaScript disabled — silently,
+ * so the person simply finds that nothing happens; there is none on these pages and none may
+ * be added. And a message that appears on `focusout` can swallow the click that caused it,
+ * which is the other half of the container rule above.
+ *
+ * @param fields Every field the form has, **in the order they appear on it**, paired with its
+ *   error or `undefined`. The order is what makes the summary read down the page rather than
+ *   in whatever order an object happens to enumerate — the same reason `NN_ENTRY_FIELDS` is
+ *   walked rather than `Object.keys`.
+ * @param takesFocus `false` when a top-level `role="alert"` above it has already claimed the
+ *   focus, so that two elements never carry `autofocus` and leave which one wins to tree order.
+ */
+function errorSummary(
+  fields: ReadonlyArray<readonly [id: string, message: string | undefined]>,
+  takesFocus = true,
+): Html | null {
+  const problems = fields.filter(
+    (field): field is readonly [string, string] => field[1] !== undefined,
+  );
+
+  if (problems.length === 0) {
+    return null;
+  }
+
+  return html`
+    <div
+      class="notice notice-bad"
+      role="alert"
+      tabindex="-1"
+      ${takesFocus ? raw('autofocus') : null}
+    >
+      <h2>There is a problem</h2>
+      <ul class="summary-list">
+        ${problems.map(([id, message]) => html`<li><a href="#${id}">${message}</a></li>`)}
+      </ul>
+    </div>
+  `;
+}
+
+/**
+ * The top-level failure — the one that is about the submission rather than about a field.
+ *
+ * Extracted because it was six identical copies, and because #152 gave it a second parameter:
+ * it may no longer claim the focus unconditionally, or a page with both a message and a field
+ * summary would have two `autofocus` elements and leave the outcome to tree order.
+ */
+function problemNotice(message: string | null, takesFocus = true): Html | null {
+  return message === null
+    ? null
+    : html`<div
+        class="notice notice-bad"
+        role="alert"
+        tabindex="-1"
+        ${takesFocus ? raw('autofocus') : null}
+      >
+        <p>${message}</p>
+      </div>`;
+}
+
 function textField(
   name: string,
   label: string,
@@ -2615,14 +2713,25 @@ function passwordField(
  *   twice is not fatal, but it is a second network entry and a second auto-render pass over
  *   the same two divs, which is exactly the sort of thing that turns into a flaky test.
  */
+/**
+ * @param id What the error summary links to. A `div` is not focusable, so it carries
+ *   `tabindex="-1"` — without it the jump scrolls the widget into view but leaves focus at the
+ *   top of the document, which is the half of "go to the problem" that a screen reader needs.
+ *   `/account/sign-in/` has two of these on one page, which is why it is a parameter.
+ */
 function turnstile(
   siteKey: string,
   error: string | undefined,
   includeScript = true,
+  id = 'account-captcha',
 ): Html {
   return html`
-    <div class="field account-captcha">
-      ${error !== undefined ? html`<p class="field-error">${error}</p>` : null}
+    <div class="field account-captcha" id="${id}" tabindex="-1">
+      ${
+        error !== undefined
+          ? html`<p class="field-error" id="${id}-error">${error}</p>`
+          : null
+      }
       <div class="cf-turnstile" data-sitekey="${siteKey}"></div>
       <noscript>
         <p class="field-hint">
@@ -2913,6 +3022,29 @@ async function entriesPage(
   const confirmed = result.entries.filter((entry) => entry.status === 'paid');
 
   /**
+   * **Cancelled entries have a view of their own, reached by a query parameter.** #148,
+   * finding 4.
+   *
+   * Before this they were invisible to anybody still holding another place: the rule below
+   * shows non-confirmed entries only when there are *no* confirmed ones, so a runner who
+   * cancelled one entry and kept another had no record of the cancellation on the club's site
+   * at all — and, until the same change fixed the £0 wording, possibly none in their inbox
+   * either.
+   *
+   * **A URL filter rather than tabs or a second page**, which is the reasoning `/admin/nn/`'s
+   * filters were built on: it keeps working with scripting off, which everything else in this
+   * area does, and a filtered view becomes a URL somebody can send — which matters when a
+   * volunteer is helping a runner work out what happened to their entry.
+   *
+   * **Anything that is not `cancelled` is the open view**, rather than a third state or an
+   * error. A URL somebody has edited or a stale link must not produce an empty list, which on
+   * this page reads as "nothing was taken" and is how somebody comes to pay twice.
+   */
+  const view = url.searchParams.get('show') === 'cancelled' ? 'cancelled' : 'open';
+
+  const cancelled = result.entries.filter((entry) => entry.status === 'refunded');
+
+  /**
    * **Shown only when there is no confirmed place to show, and that exception is the design.**
    *
    * A lapsed attempt sitting beside a real ticket makes the page look broken, so once somebody
@@ -2926,9 +3058,20 @@ async function entriesPage(
    *
    * Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either,
    * applied to a list rather than to a page.
+   *
+   * **`refunded` came out of this list when Cancelled became a view of its own**, and the two
+   * must not be merged back together. A lapsed hold is not a cancellation, and filing it under
+   * Cancelled would break the negative-claim rule in the most expensive direction — telling
+   * somebody their place was cancelled when it may in fact have been paid for while the webhook
+   * was late. It is not a third view either: `pending` and `expired` are what is left here, and
+   * they keep exactly the rule above, underneath whichever view is open.
    */
   const unconfirmed =
-    confirmed.length > 0 ? [] : result.entries.filter((entry) => entry.status !== 'paid');
+    confirmed.length > 0
+      ? []
+      : result.entries.filter(
+          (entry) => entry.status === 'pending' || entry.status === 'expired',
+        );
 
   /**
    * **A token per render, and the cookie that pairs with it.** The two buttons on each card are
@@ -3007,7 +3150,40 @@ async function entriesPage(
                 If you have entered a race with a different address and want it moved onto
                 this account, get in touch and the club will sort it out.
               </p>`
-          : html`${confirmed.map((entry) => entryCard(entry, false, csrfToken))}
+          : html`${entriesViews(view)}
+            ${
+              view === 'cancelled'
+                ? html`${
+                    cancelled.length === 0
+                      ? // **"Nothing here", and never "you have never cancelled an entry".**
+                        // The second is a claim about a record, and a record that can be
+                        // hidden by anything must not have claims made about it — the same
+                        // rule that governs every status sentence on this page.
+                        html`<p>Nothing here.</p>`
+                      : // **No token, so no form.** There is nothing to ask the club about an
+                        // entry it has already cancelled and refunded, and passing null is
+                        // what makes that structural rather than a rule somebody remembers.
+                        cancelled.map((entry) => entryCard(entry, false, null))
+                  }`
+                : html`${confirmed.map((entry) => entryCard(entry, false, csrfToken))}
+                  ${
+                    confirmed.length === 0 && unconfirmed.length === 0
+                      ? html`<p>Nothing here.</p>`
+                      : null
+                  }`
+            }
+            ${
+              /* **Underneath whichever view is open, and that is the decision rather than a
+              convenience.** A lapsed hold is neither open nor cancelled, and making it a third
+              view — or filing it under Cancelled — would tell somebody their place was
+              cancelled when it may in fact have been paid for while the webhook was late.
+
+              So it keeps exactly today's rule, on both views: shown only when there are no
+              confirmed places. The reason it may not simply be hidden is the same one it has
+              always been — somebody whose payment succeeded and whose webhook was late must
+              not meet an empty page, because the next thing they do is pay again. That has to
+              hold on `?show=cancelled` too, which is an address somebody can be sent. */ null
+            }
             ${
               unconfirmed.length === 0
                 ? null
@@ -3031,6 +3207,37 @@ async function entriesPage(
 }
 
 /**
+ * The two views, as links.
+ *
+ * **Links and a query parameter, not tabs and not two pages.** No JavaScript, no
+ * `role="tablist"` to keep in step with a keyboard, and the address bar carries which view is
+ * open — so a runner can send a volunteer the exact thing they are looking at. That is the
+ * same reasoning `/admin/nn/`'s filters were built on.
+ *
+ * **`aria-current="page"` on the one that is open**, and it is still a link rather than a
+ * disabled span: pressing it re-renders the same view, which is what somebody expects and is
+ * one less state to get wrong. The open view is `/account/entries/` with no parameter at all
+ * rather than `?show=open`, so the plain address stays the plain address and nothing has to
+ * decide which of two spellings is canonical.
+ */
+function entriesViews(current: 'open' | 'cancelled'): Html {
+  return html`<nav class="account-views" aria-label="Which entries to show">
+    <a
+      href="/account/entries/"
+      aria-current="${current === 'open' ? 'page' : ''}"
+      class="${current === 'open' ? 'account-view-current' : ''}"
+      >Open race entries</a
+    >
+    <a
+      href="/account/entries/?show=cancelled"
+      aria-current="${current === 'cancelled' ? 'page' : ''}"
+      class="${current === 'cancelled' ? 'account-view-current' : ''}"
+      >Cancelled race entries</a
+    >
+  </nav>`;
+}
+
+/**
  * One entry.
  *
  * **The runner's name is shown and the purchaser's is not**, unless they differ — one person
@@ -3048,6 +3255,20 @@ async function entriesPage(
  *
  * **`requestedAt` is faked as `createdAt` in the fallback and that is fine**, because nothing
  * on this card renders the time of an ask — only its order, and a list of one has none.
+ *
+ * ⚠️ **This fallback was a live disclosure path and is now closed at the source.** #148's first
+ * finding: `transfer_entry()` clears `requested_action` and deliberately keeps `request_reason`
+ * — the record of why the place moved — so on a transferred entry the summary columns described
+ * the *previous* runner. The fallback rendered nothing anyway, but only because it is keyed on
+ * `requestedAction`, which that function happens to clear. **Luck, not design**, and one future
+ * path resolving an ask without clearing that column would have brought a stranger's 500
+ * characters back through this door.
+ *
+ * `entries.my_entries()` now derives all four request keys — the list *and* the three summary
+ * fields — from the asks the caller owns, so neither branch of this function can be handed
+ * somebody else's words. The fallback stays because it is still doing its original job: keeping
+ * this card rendering against a database deployed behind this Worker, which is a state this
+ * repository deliberately tolerates and therefore keeps entering.
  */
 function asksFor(entry: MyEntry): EntryRequest[] {
   if (entry.requests.length > 0) {
@@ -3143,7 +3364,13 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
 
         `requests` is empty on a database deployed before the history table, which is why the
         summary fields below it are still the fallback: nothing sequences a migration against
-        the Cloudflare deploy, and this card has to render either way. */ null
+        the Cloudflare deploy, and this card has to render either way.
+
+        **"You asked" is only true because the read is now scoped to the asker.** On a
+        transferred place this list used to be the previous runner's, addressed in the second
+        person to whoever holds the entry now — which is false on its face and, worse, printed
+        one runner's free text to another. `my_entries()` filters on the owner stamped on each
+        ask; see `asksFor()` above and #148. */ null
       }
       ${asksFor(entry).map(
         (ask, index) =>

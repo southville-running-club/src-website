@@ -3416,14 +3416,39 @@ html:has(body.nn-has-bar) {
   }
 }
 
-/* Smooth scroll is the one motion on this page that is not decoration — it shows the reader
-   the page moved rather than teleporting them. Off under `prefers-reduced-motion`, and the
-   jump still lands because the anchor is what does the work. */
-@media (prefers-reduced-motion: no-preference) {
-  html:has(body.theme-nn) {
-    scroll-behavior: smooth;
-  }
-}
+/* **Smooth scroll was here and it is deliberately gone.**
+ *
+ * It read: *"the one motion on this page that is not decoration — it shows the reader the page
+ * moved rather than teleporting them"*, scoped to `html:has(body.theme-nn)` under
+ * `prefers-reduced-motion: no-preference`. The intent was right and the cost was not visible
+ * from the diff: **it made the `no-javascript` acceptance project unreliable, on the entry
+ * form.**
+ *
+ * `scroll-behavior` applies to *every* scroll of the container, not only to anchor jumps —
+ * including the one Playwright performs before it clicks a control that is below the fold.
+ * Its actionability check then requires the target's box to be unchanged across two animation
+ * frames, and the box is moving for the whole ~1s animation. Each retry scrolls again, so it
+ * is a livelock rather than a slow settle: raising the timeout cannot fix it.
+ *
+ * **Measured**, sampling the error summary's link every 100ms after a refused submission with
+ * scripting off — document-relative `offsetTop` a constant 4199 while viewport-relative `top`
+ * ran 4199 → 4092 → 3477 → 1927 → 1279 → 918 → 695 → 553 → 457 → 416 → 405. Nothing reflows;
+ * the page moves under the element. Six to nine tests failed per run and never the same six.
+ *
+ * **Three fixes were tried and rejected before this one.** Waiting for a settled layout
+ * (`waitForStyledLayout`) does not help — the fonts and both stylesheets are already done.
+ * Waiting for the scroll to settle fixes the *autofocus* case and cannot fix the click case,
+ * because there the action is what starts the scroll. And emulating
+ * `prefers-reduced-motion: reduce`, which genuinely suppresses it in a context created
+ * directly, never reaches the context through `use.reducedMotion` or `test.use()` in this
+ * setup — a probe reads `prefersReduce=false` from inside the runner either way.
+ *
+ * So it is binary: this rule, or a reliable `no-javascript` project on the form that takes the
+ * money. **Bringing it back needs a way to scope it to anchor navigation only**, which CSS
+ * does not currently offer — `scroll-behavior` cannot tell a fragment jump from a programmatic
+ * scroll. A JavaScript-driven smooth scroll on the jump-nav's own links would, and would
+ * degrade to an instant jump with scripting off, which is the behaviour this file already
+ * accepts under `prefers-reduced-motion`. */
 
 /* -------------------------------------------------------------------------------------
  * The one bar that releases on a phone

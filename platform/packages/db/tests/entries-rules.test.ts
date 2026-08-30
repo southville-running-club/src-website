@@ -790,10 +790,18 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
     );
 
     expect(rows).toEqual([
-      // **Two of these five are not rules, and that is why they read oddly here.**
+      // **Three of these six are not rules, and that is why they read oddly here.**
       //
       // #73's outbox trigger enforces nothing — it records that the club owes somebody an
       // email, in the same transaction as the payment, refund or transfer that made it true.
+      //
+      // **And it is two triggers rather than one, since #150.** The `after update` half fires
+      // on the transition into `paid`, which is right for a place that is held and then paid
+      // for — and never fires for a complimentary place, which `create_manual_entry()`
+      // *inserts* already `paid`. So a place the club gave away was never confirmed to
+      // anybody. The insert half is guarded on `new.status = 'paid'` and shares the update
+      // path's dedupe key, so no place can be confirmed twice.
+      { tgname: 'enqueue_entry_email_after_insert', relname: 'entry_purchases' },
       { tgname: 'enqueue_entry_email_after_update', relname: 'entry_purchases' },
       { tgname: 'entrant_medical_needs_consent', relname: 'entrant_medical' },
       { tgname: 'entrants_obey_their_event', relname: 'entrants' },
@@ -805,26 +813,27 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
       { tgname: 'resolve_entry_requests_after_update', relname: 'entry_purchases' },
     ]);
     // **They are all here because the list is every non-internal trigger in the schema**, not
-    // only the rule ones — a test that named the rules alone would stop noticing a sixth. It
-    // caught this one, which is the job working.
+    // only the rule ones — a test that named the rules alone would stop noticing a seventh. It
+    // caught this one, which is the job working; and it caught #150's insert trigger too,
+    // which is the same job working a second time.
   });
 
-  it('grants the five trigger functions to nobody at all', async () => {
+  it('grants the six trigger functions to nobody at all', async () => {
     // They are reached only by the triggers that fire them. A grant would make them callable
     // with a key that is published in page source, and two of them read a person.
     //
-    // **`enqueue_entry_email` and `resolve_entry_requests` are here for a different reason
-    // than the other three.** They write rather than read. A caller who could reach the first
-    // directly could make the club email anybody, about an entry that does not exist, from the
-    // club's own verified sending domain; one who could reach the second could mark somebody
-    // else's outstanding cancellation as dealt with, which is how an ask quietly stops being
-    // one. Same treatment as `raise_attention`.
+    // **The two `enqueue_entry_email` functions and `resolve_entry_requests` are here for a
+    // different reason than the other three.** They write rather than read. A caller who could
+    // reach either of the first two directly could make the club email anybody, about an entry
+    // that does not exist, from the club's own verified sending domain; one who could reach the
+    // third could mark somebody else's outstanding cancellation as dealt with, which is how an
+    // ask quietly stops being one. Same treatment as `raise_attention`.
     const granted = await query(
       `select grantee from information_schema.routine_privileges
         where routine_schema = 'entries'
           and routine_name in (
             'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
-            'enqueue_entry_email', 'resolve_entry_requests'
+            'enqueue_entry_email', 'enqueue_entry_email_on_insert', 'resolve_entry_requests'
           )
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );
@@ -834,7 +843,7 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
 
   it('pins the search_path on every trigger function, as every definer function here must', async () => {
     // An unpinned search_path on a `security definer` function is the standard Postgres
-    // escalation. **Asked of all five rather than of the three rule triggers**, because the
+    // escalation. **Asked of all six rather than of the three rule triggers**, because the
     // property is about being a definer function and has nothing to do with enforcing a rule.
     const rows = await query<{ proname: string; proconfig: string[] | null }>(
       `select p.proname, p.proconfig
@@ -842,12 +851,12 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
         where n.nspname = 'entries'
           and p.proname in (
             'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
-            'enqueue_entry_email', 'resolve_entry_requests'
+            'enqueue_entry_email', 'enqueue_entry_email_on_insert', 'resolve_entry_requests'
           )
         order by p.proname`,
     );
 
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(6);
     for (const row of rows) {
       // Postgres stores `set search_path = ''` as the two-character empty string, quotes and
       // all. Asserting the literal it really holds rather than the one the migration typed.
