@@ -361,7 +361,7 @@ as a blank or an invention. Two still are, and each for a different reason:
 | | |
 | --- | --- |
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
-| `privacy.*` | Nine keys. **Five are settled and written in** — the controller, the registered office, the company number, the one-month medical retention, and the date the notice was last updated. **Four are `null` and render "To be confirmed by the club"**: `contact`, `entryRetention`, `emailRetention` and `photographs`. A wrong answer on that page is a legal claim rather than a typo, so filling one in is a one-line edit here and `nn-privacy.spec.ts` counts the markers to stop a fifth appearing or a fourth quietly vanishing |
+| `privacy.*` | **Eight keys since 30 August 2026, and one `null`** — `emailRetention`, whether an address is kept to tell people about next year's race, which no page reads. **Seven are settled and written in**: the controller, the registered office, the company number, the one-month medical retention, the data contact, how long an entry record is kept, and the date the notice was last updated. It was nine keys and four nulls until the club had `/nn/privacy/` rewritten to reproduce the committee's privacy document word for word — that document answered `contact` and `entryRetention`, and `photographs` was **removed outright** rather than settled, because the document says nothing about photographs and there is no longer a question to leave open. **Three of the eight are read by no page.** `entryRetention` and `emailRetention` fed the per-item retention table, which came off `/nn/privacy/` with everything else that was not in the document; `medicalRetention` is kept **for the database test alone** — `packages/db/tests/entries-retention.test.ts` still ties it to `entries.events.medical_retention`, so the cron still deletes a medical note a month after the race while no published page states a period. Of the rest, `controller`, `companyNumber` and `contact` are read by both notices, `registeredOffice` by `/privacy/` alone, `lastUpdated` by `/nn/privacy/`. A wrong answer on either notice is a legal claim rather than a typo, so filling `emailRetention` in is a one-line edit here, and the two spec files count the markers |
 
 ### The ARC permit number, and why it is quoted three times
 
@@ -411,11 +411,18 @@ new file:
 | `accountRetention` | **`null`.** How long an account is kept, and what happens when somebody stops being a member. A committee decision; there is no plausible default that would be safe to print, because whatever is printed is a promise |
 | `accountDeletionAndEntries` | **`null`.** Whether deleting an account also deletes a race entry by the same person. Two schemas, `identity` and `entries`, and nothing yet joins them — so this is a decision about people rather than a lookup |
 
-`privacy.spec.ts` counts **three** markers on `/privacy/` — those two plus `race.json`'s
-`contact`, which is the same open decision on both notices — and `nn-privacy.spec.ts` still
-counts **four** on `/nn/privacy/`. **Two counts in two files, deliberately**: one assertion
-covering both pages would have to be "at least four", and that is the day the guard stops
-working in both directions at once.
+`privacy.spec.ts` counts **two** markers on `/privacy/` — those two — and
+`nn-privacy.spec.ts` counts **zero** on `/nn/privacy/`. **It was three and four until 30
+August 2026, and both fell to the same change.** The committee's privacy document, published
+word for word on `/nn/privacy/`, answered `race.json`'s `contact` — the same open decision on
+both notices — and left that page with nothing undecided to print at all; `/privacy/` lost its
+third marker without being edited, because it lifts the settled facts from `race.json` rather
+than retyping them. **Two counts in two files, deliberately**: one assertion covering both
+pages would have to be "at least two", and that is the day the guard stops working in both
+directions at once. **Zero is still worth asserting**, and it guards the opposite direction
+now — if one of the four values `/nn/privacy/` interpolates ever goes `null`, that page prints
+"to be confirmed by the club" in the middle of a document that says it is the committee's own
+words.
 
 **Presentation is data too, where the committee should own it.** `prizes[].highlight` is
 which tile the campaign's one accent colour lands on — the fancy-dress prize, because that

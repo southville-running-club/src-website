@@ -36,20 +36,34 @@ import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll'
 const MARKER = 'To be confirmed by the club';
 
 /**
- * How many of `race.privacy`'s keys are still `null` — the contact, the entry retention, the
- * email retention and the photographs. **Filling one in is supposed to fail this file**: the
- * count drops to three, and updating it here is the moment somebody confirms the new value
- * came from the committee rather than from a hurry.
+ * How many values on this page render the marker. **It was four, then one, and it is zero
+ * since 30 August 2026** — the club asked for the committee's privacy document to be published
+ * word for word, and that document answers every question this page used to leave open. It
+ * also stopped asking three of them: there is no per-item retention table on the page now, so
+ * `race.json`'s `entryRetention` and `emailRetention` are no longer read here at all.
+ *
+ * **Zero is still worth asserting, and it is the direction that matters now.** The four values
+ * the page still interpolates are settled; if one of them ever goes `null`, this page prints
+ * "to be confirmed by the club" in the middle of a legal document that claims to be a
+ * committee-approved text, and nothing else would notice.
  */
-const OPEN_DECISIONS = 4;
+const OPEN_DECISIONS = 0;
 
-/** The five that are settled, as they must appear. A literal, for the reason in the header. */
+/**
+ * The four the page interpolates, as they must appear. Literals, for the reason in the header.
+ *
+ * **`registeredOffice`, `medicalRetention` and `entryRetention` are not here any more** —
+ * `race.json` still holds all three and `/privacy/` still prints the first, but the committee's
+ * document does not state them so this page does not either. `medicalRetention` in particular
+ * is still tied to `entries.events.medical_retention` by
+ * `packages/db/tests/entries-retention.test.ts`; that tie is now between the column and the
+ * JSON, and no longer reaches anything a runner reads.
+ */
 const SETTLED = {
   controller: 'Southville Running Club Ltd',
-  registeredOffice: '1 Hengrove Farm, Hengrove Farm Lane, Bristol BS14 9DD',
-  companyNumber: 'ending 7549',
-  medicalRetention: 'One month after the race',
-  lastUpdated: '14 August 2026',
+  companyNumber: '09437549',
+  contact: 'info@southvillerunningclub.co.uk',
+  lastUpdated: '29 August 2026',
 } as const;
 
 test.describe('the privacy notice', () => {
@@ -65,16 +79,22 @@ test.describe('the privacy notice', () => {
 
     const headings = await page.getByRole('heading', { level: 2 }).allTextContents();
 
+    // **The titles are the committee's own, transcribed from the document they supplied on
+    // 30 August 2026.** They are not the ones this page carried before, and the medical
+    // section is the one to notice: there was a section 4 devoted to it, and there is not now.
+    // What it said is in sections 2, 4 and 6 instead — what is collected, that explicit
+    // consent is its basis, and how long it is kept — so the substance survives the
+    // reorganisation even though the heading does not.
     expect(headings).toEqual([
       '1. Who we are',
-      '2. What we collect, and why',
-      '3. What we are allowed to do with it, and why that is lawful',
-      '4. Medical information — handled separately, on purpose',
-      '5. Who else sees your information',
-      '6. How long we keep it',
+      '2. Information we collect',
+      '3. How We Use Your Information',
+      '4. Legal Basis For Processing',
+      '5. Data Sharing',
+      '6. Data Retention',
       '7. Your rights',
       '8. Photographs',
-      '9. Changes to this notice',
+      '9. Changes to this policy',
     ]);
   });
 
@@ -106,15 +126,20 @@ test.describe('the privacy notice', () => {
     expect(body.split(MARKER).length - 1).toBe(OPEN_DECISIONS);
   });
 
-  test('leaves no cell of any table empty', async ({ page }) => {
+  test('leaves no list item or cell empty', async ({ page }) => {
     // The other half of the same guard. A `null` reaching the page as `''` would render an
-    // empty cell rather than the marker, the count above would still be whatever it was, and
-    // the page would read as though nothing was collected for that row.
+    // empty item rather than the marker, the count above would still be whatever it was, and
+    // the page would read as though nothing applied to that line.
+    //
+    // **This counted table cells until 30 August 2026**, when the committee's document
+    // replaced the three what/why tables with lists. The elements changed and the failure it
+    // catches did not, so it counts both — and it keeps `th, td` so that a table returning to
+    // this page is covered on the day it does rather than the day somebody remembers.
     await page.goto('/nn/privacy/');
 
     const empties = await page.evaluate(
       () =>
-        [...document.querySelectorAll('.nn-prose th, .nn-prose td')].filter(
+        [...document.querySelectorAll('.nn-prose li, .nn-prose th, .nn-prose td')].filter(
           (cell) => (cell.textContent ?? '').trim() === '',
         ).length,
     );
@@ -131,10 +156,15 @@ test.describe('the privacy notice', () => {
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
 
     expect(body).toContain(SETTLED.controller);
-    expect(body).toContain(SETTLED.registeredOffice);
     expect(body).toContain(SETTLED.companyNumber);
-    expect(body).toContain(SETTLED.medicalRetention);
+    expect(body).toContain(SETTLED.contact);
     expect(body).toContain(SETTLED.lastUpdated);
+
+    // **The photographs paragraph is prose rather than an interpolated value**, so it has no
+    // `race.json` key to go missing — but it is a committee answer that replaced a marker, and
+    // a page that lost it would read as though nothing had been decided.
+    expect(body).toMatch(/Photographs will be taken throughout the event/i);
+    expect(body).toMatch(/if you prefer not to be photographed/i);
   });
 
   test('keeps the space in front of every value it interpolates', async ({ page }) => {
@@ -147,11 +177,15 @@ test.describe('the privacy notice', () => {
     await page.goto('/nn/privacy/');
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
 
-    expect(body).toContain(`Contact about your data: ${MARKER}`);
-    expect(body).toContain(`Registered office: ${SETTLED.registeredOffice}`);
-    expect(body).toContain(`company number ${SETTLED.companyNumber}`);
-    expect(body).toContain(`How long we keep it: ${SETTLED.medicalRetention}.`);
+    expect(body).toContain(`Companies House company no. ${SETTLED.companyNumber} (SRC)`);
+    expect(body).toContain(`please contact us at ${SETTLED.contact}.`);
+    expect(body).toContain(`Please contact ${SETTLED.contact}.`);
     expect(body).toContain(`Last updated: ${SETTLED.lastUpdated}`);
+
+    // **`{race.name}` is interpolated mid-sentence twice in section 1**, which is the join
+    // most likely to close up unnoticed: it is inside a long paragraph rather than after a
+    // label, so the result reads as a typo rather than as a missing value.
+    expect(body).toContain(`or entering ${'Nightingale Nightmare'},`);
   });
 
   test('invents no fee and no date nobody confirmed', async ({ page }) => {
@@ -166,86 +200,119 @@ test.describe('the privacy notice', () => {
   });
 
   // -------------------------------------------------------------------------------------
-  // What it says is collected
+  // The committee's document, word for word
   // -------------------------------------------------------------------------------------
 
-  test('lists what the tables hold, not only what somebody types', async ({ page }) => {
-    // **The four rows the approved draft did not have.** The draft listed the fourteen form
-    // fields; `entries.entry_purchases` also holds the fee, the amount, Stripe's references,
-    // the consents with their version, and three timestamps. Under-listing what a controller
-    // processes is a defect in a notice, and this is the guard against the list drifting back.
-    await page.goto('/nn/privacy/');
-    const body = (await page.locator('.nn-prose').textContent()) ?? '';
-
-    expect(body).toMatch(/entry type you chose, and what you paid/i);
-    expect(body).toMatch(/payment reference from Stripe/i);
-    expect(body).toMatch(/which boxes you ticked/i);
-    expect(body).toMatch(/when you entered, and when your payment was confirmed/i);
-
-    // **The words somebody writes when they ask the club to cancel or transfer.** Optional,
-    // never exported and never published — but collected, and this notice lists what the
-    // tables hold rather than what the entry form asks.
-    expect(body).toMatch(/if you ask us to cancel or transfer/i);
-
-    // The interest form's own timestamp, which the page this replaced disclosed and the
-    // draft dropped. Losing it would be a regression against what was already published.
-    expect(body).toMatch(/date and time you asked/i);
-  });
-
-  test('lists the race category and the gender question as two separate things', async ({
-    page,
-  }) => {
-    // **ADR-020's promise, and this is where it is enforced.** The notice makes two claims
-    // about the gender somebody records — that it is never published, and that it is not what
-    // the category is worked out from — and those two sentences are what keep the field out of
-    // the start list and the exports. A notice that collapsed them back into one row about
-    // "your gender" would be under-describing what the club holds and over-promising what it
-    // does with it.
-    await page.goto('/nn/privacy/');
-    const body = (await page.locator('.nn-prose').textContent()) ?? '';
-
-    expect(body).toMatch(/race category/i);
-    expect(body).toMatch(/how you describe your gender/i);
-    expect(body).toMatch(/never published/i);
-    expect(body).toMatch(/you do not have to answer/i);
-  });
-
-  test('claims no card details and no confirmation email that does not exist', async ({
-    page,
-  }) => {
-    await page.goto('/nn/privacy/');
-    const body = (await page.locator('.nn-prose').textContent()) ?? '';
-
-    expect(body).toMatch(/We never see your card details/i);
-
-    // **Resend is wired up now — #73**, so the line the draft carried conditionally is here
-    // for real. The draft's instruction was to remove it *if the confirmation email was not
-    // in place for 2026*; it is, and entering, cancelling and transferring each send one.
+  test("carries the committee's document, in its own words", async ({ page }) => {
+    // **On 30 August 2026 the club asked for the committee's privacy document to be published
+    // verbatim**, and this test replaced three that asserted the opposite. What went, and why
+    // it is written down rather than quietly deleted:
     //
-    // **This assertion reversed rather than being deleted**, which is the point of having
-    // written it in the negative first: naming a processor the club does not use and failing
-    // to name one it does are the same defect in opposite directions, and only a test that
-    // changes direction with the build catches both.
-    expect(body).toMatch(/Resend/i);
+    //   *"lists what the tables hold, not only what somebody types"* asserted the fee, the
+    //   amount, the payment reference, the consents with their version, the timestamps, the
+    //   cancellation reason, and — added the same week — the medical box, the visually
+    //   impaired declaration and the guide. **None of those is in the document**, so the notice
+    //   no longer says the club holds them. It does hold them: see `NN_ENTRY_FIELDS`, and the
+    //   first two of the last three are special category data under Article 9.
+    //
+    //   *"lists the race category and the gender question as two separate things"* enforced
+    //   ADR-020's promise that `gender_identity` is never published and never used to derive a
+    //   category. The document says "gender" once and "chosen race category" once, and makes
+    //   neither promise. **The promise still holds in the code** — `admin.spec.ts` asserts the
+    //   field is absent from every export — it is simply no longer stated to the person it is
+    //   about.
+    //
+    //   *"claims no card details and no confirmation email that does not exist"* asserted
+    //   "We never see your card details" and, since #73, that Resend is named. The document
+    //   says "we do not store full card details" and names no processor.
+    //
+    // **This test is what is left, and it is a fidelity check rather than a coverage one.** It
+    // asserts the document's own sentences so that a later edit "improving" one of them fails
+    // here — which is the only guard a verbatim page can have.
+    await page.goto('/nn/privacy/');
+    const body = (await page.locator('.nn-prose').textContent()) ?? '';
+
+    expect(body).toContain(
+      'We collect the following types of information to manage race registration and event logistics:',
+    );
+    expect(body).toContain('Personal Identification: Name, date of birth, gender.');
+    expect(body).toContain(
+      'Contact Details: Email address, phone number, postal address.',
+    );
+    expect(body).toContain('we do not store full card details');
+    expect(body).toContain('cookies for website functionality and analytics');
+    expect(body).toContain('We do not sell your data to third parties.');
+    expect(body).toContain(
+      'Contractual necessity: To register you for the race and deliver event services',
+    );
+    expect(body).toContain('Our race is run under an ARC permit');
+    expect(body).toContain(
+      'We retain information only for as long as reasonably necessary',
+    );
+    expect(body).toContain('We may update this Privacy Policy periodically.');
+
+    // **"You can have the right to" is the document's, and it stays as written.** It reads
+    // oddly and it is not this file's to correct — a copy edit to a legal instrument is a
+    // silent amendment to it. Asserted at exactly that wording so a tidy-up fails.
+    expect(body).toContain('You can have the right to');
+  });
+
+  test('says how to be removed, because both forms link here promising it', async ({
+    page,
+  }) => {
+    // **"Removed" in those words, and it survives the rewrite by luck rather than design.**
+    // `NnEntryForm.astro` and `nn/index.astro` both send people here with "how to have it
+    // removed" in the link text, so a page that only ever said "delete" would make the link
+    // that brought somebody here slightly untrue. The committee's own sentence happens to use
+    // the word. **If a future draft does not, the link text has to change with it** — that is
+    // what this holds together, and it is why it is asserted separately from the fidelity
+    // check above rather than folded into it.
+    await page.goto('/nn/privacy/');
+    const body = (await page.locator('.nn-prose').textContent()) ?? '';
+
+    expect(body).toContain(
+      'If you request data deletion, your information will be removed and your race entry will be cancelled.',
+    );
   });
 
   // -------------------------------------------------------------------------------------
-  // Tabular data, as tables
+  // Structure: lists, where this page used to hold tables
   // -------------------------------------------------------------------------------------
 
-  test('gives the three tables real headers in both directions', async ({ page }) => {
-    // Column headers alone would leave somebody listening to the page able to ask "what
-    // column is this" and not "what row". Both are what makes a table navigable rather than
-    // a grid of unlabelled text — and it is why these are tables and not stacked divs.
+  test('presents its lists as real lists, and holds any returning table to real headers', async ({
+    page,
+  }) => {
+    // **This page carried three what/why tables until 30 August 2026**, and asserted that each
+    // gave both column and row headers — because column headers alone leave somebody listening
+    // able to ask "what column is this" and not "what row". The committee's document is prose
+    // and bullets throughout, so the tables are gone and that assertion had nothing to run
+    // against.
+    //
+    // **Both halves are kept rather than one deleted.** The count is asserted at zero, so a
+    // table arriving back here fails and whoever adds it reads this note; and the header loop
+    // is kept beneath it so that when one does return it is covered on the day, not on the day
+    // somebody remembers. The lists are asserted to be real `ul`/`li` for the reason the
+    // tables were asserted to be real tables: a list marked up as paragraphs tells a screen
+    // reader nothing about how many items there are.
     await page.goto('/nn/privacy/');
+
+    const lists = page.locator('.nn-prose ul');
+    expect(await lists.count()).toBeGreaterThan(0);
+
+    const strays = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('.nn-prose ul')].filter(
+          (list) => list.querySelectorAll(':scope > li').length === 0,
+        ).length,
+    );
+    expect(strays, 'a list with no items in it').toBe(0);
 
     const tables = page.locator('.nn-prose table');
-    await expect(tables).toHaveCount(3);
+    await expect(tables).toHaveCount(0);
 
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < (await tables.count()); index += 1) {
       const table = tables.nth(index);
       await expect(table.locator('thead th[scope="col"]')).toHaveCount(2);
-      expect(await table.locator('tbody th[scope="row"]').count()).toBeGreaterThan(0);
 
       // Every body row carries its row header, so none is a cell that lost its label.
       const rows = await table.locator('tbody tr').count();
@@ -257,45 +324,52 @@ test.describe('the privacy notice', () => {
   // 320px
   // -------------------------------------------------------------------------------------
 
-  test('keeps all three tables inside the card at 320px', async ({ page }) => {
+  test('keeps every block inside the card at 320px', async ({ page }) => {
     // **Once, now that the wait is a real one.** This used to run twice, against the
     // intermittent it named as *"an element laying out at its intrinsic width before the
     // stylesheet applied, about one run in four"* — the right diagnosis, and a re-run for a
     // fix. `waitForStyledLayout` waits for the sheets to be applied, the fonts to settle and
-    // the width to stop moving, so one pass is evidence now. Every reading below needs it,
-    // not just the overflow one: `display: block` on a table row is a thing the stylesheet
-    // says, so `rowsAreBlocks` is as meaningless on a bare document as the rest.
+    // the width to stop moving, so one pass is evidence now, and every reading below needs it
+    // rather than only the overflow one.
+    //
+    // **It measured the three tables until 30 August 2026**, because a table is the element
+    // that can exceed its container while the page around it still fits. There are no tables
+    // now, so it measures every child of the card instead — which covers the tables if they
+    // come back, and covers the long committee paragraphs and the ARC and ICO links that
+    // replaced them. `code` in section 5 is the one to watch: a monospace run does not wrap on
+    // its own.
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto('/nn/privacy/');
     await waitForStyledLayout(page);
 
     const measured = await page.evaluate(() => {
       const card = document.querySelector('.nn-prose');
-      const tables = [...document.querySelectorAll('.nn-prose table')];
+      const blocks = [...(card?.children ?? [])];
 
       return {
         cardWidth: card?.clientWidth ?? 0,
-        // `scrollWidth`, not the bounding box: a table can overflow its own box without
-        // the box being any wider, which is exactly the failure this is looking for.
-        tableWidths: tables.map((table) => table.scrollWidth),
-        // The stack has to have engaged, or the assertion below passes for the wrong
-        // reason — a two-column table that happens to fit is not what was designed here.
-        rowsAreBlocks: tables.every((table) =>
-          [...table.querySelectorAll('tbody tr')].every(
-            (row) => getComputedStyle(row).display === 'block',
-          ),
+        // `scrollWidth`, not the bounding box: a block can overflow its own box without the
+        // box being any wider, which is exactly the failure this is looking for.
+        widest: blocks.reduce(
+          (worst, block) =>
+            block.scrollWidth > worst.width
+              ? { width: block.scrollWidth, tag: block.tagName.toLowerCase() }
+              : worst,
+          { width: 0, tag: 'none' },
         ),
+        blocks: blocks.length,
       };
     });
 
     await expectNoSidewaysScroll(page, 'the privacy notice at 320px');
 
-    expect(measured.rowsAreBlocks).toBe(true);
-    expect(measured.tableWidths).toHaveLength(3);
+    // A card with nothing in it would pass the width check by having nothing to measure.
+    expect(measured.blocks).toBeGreaterThan(20);
 
-    for (const width of measured.tableWidths) {
-      expect(width).toBeLessThanOrEqual(measured.cardWidth);
-    }
+    expect(
+      measured.widest.width,
+      `<${measured.widest.tag}> is wider than the card`,
+    ).toBeLessThanOrEqual(measured.cardWidth);
   });
 
   test('the way back to the race resolves', async ({ page, request }) => {

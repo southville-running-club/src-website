@@ -108,7 +108,7 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
         form is on the running now. What is left is true of the race whichever year it is run,
         which is all this page is for. */
       }
-      <p class="lede">The course has not got any kinder.</p>
+      <p class="lede nn-strapline">The course has not got any kinder.</p>
 
       {
         /* **No button in this hero, and that is the form move's tidiest consequence.**
@@ -155,12 +155,13 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
        * club's own additional rule under ARC Rule 81 and is binding on competitors; it is not
        * decoration and it does not come out of a page in a copy edit.
        *
-       * **Her paragraph and the section below both name the route, and that is now accepted
-       * rather than prevented.** The towpath, Nightingale Valley and Leigh Woods are in her
-       * spelling here and in the club's under "Where it goes". This page refused the second
-       * copy until the club supplied the course copy in full and asked for it as it stands;
-       * the note above that section records the reversal, and `site.spec.ts` asserts the two
-       * spellings rather than forbidding one.
+       * **Hers is the only paragraph that names the route, and it has been that way twice.**
+       * The towpath, Nightingale Valley and Leigh Woods were hers alone; then the club supplied
+       * the course page's copy in full and asked for it as it stands, route sentence included,
+       * so the page carried both wordings on purpose for a day; the 30 August 2026 rewrite of
+       * that section drops its route sentence, so hers stands alone again. `site.spec.ts`
+       * asserts hers and the absence of the other, which is what keeps the withdrawal a
+       * recorded decision rather than something that fell out.
        *
        * Her spelling is hers: "10km off road" unhyphenated, "tricked & treated" with an
        * ampersand, "spooktators" lower case here and capitalised as a page name in the bar.
@@ -168,7 +169,20 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
        * two spellings on this page, which is hers to settle rather than this file's. */
     }
     <div class="nn-card nn-prose">
-      <p class="lede">
+      {
+        /* **Her two paragraphs set at the same size, which is why the first carries no
+           `.lede`.** It did, and inside `.nn-prose` that class is worth exactly one pixel —
+           17px against the 16px `body.theme-nn` gives the rest of the card — while its
+           colour and measure were already the card's. One pixel is not emphasis; it is a
+           mismatch you can see but not name, and it was made worse by `.lede`'s `0` bottom
+           margin, which left her announcement and the description touching with no line
+           between them. A plain `<p>` is the whole fix: same 16px, same ink, and the
+           `0 0 var(--space)` every other paragraph on the page already carries.
+
+           **The words are untouched**, as the note above requires — this changes which
+           element they sit in, never what they say. */
+      }
+      <p>
         Southville Running Club's 'Spooktacular' Nightingale Nightmare Halloween Run is
         back!
       </p>
@@ -184,124 +198,99 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
          * "Know what you are in for" and `NnRaceSummary` were here, and they have gone
          * ------------------------------------------------------------------------------
          * **Not dropped — superseded.** The five bullets were the short form of the course
-         * page, extracted from it so the two could not drift while both existed. The course
-         * page's own prose is below now, supplied by the club as the wording this page should
-         * carry, and it states every one of those five things at greater length. Keeping both
-         * would have printed the headphone rule and the climb twice inside one card.
+         * page, extracted from it so the two could not drift while both existed. The club's
+         * own prose is below instead. Keeping both would have printed the headphone rule
+         * twice inside one card.
          *
          * **The component is untouched and still renders on `/nn/2026/`**, which is the page
          * with the entry form on it and the page that wants the short form: somebody about to
-         * pay wants five lines, not four sections. So it is no longer *shared* — and the note
+         * pay wants five lines, not two sections. So it is no longer *shared* — and the note
          * at the head of `NnRaceSummary.astro` says so, because a component whose whole
          * argument was "both pages need exactly these five" needs to stop claiming that the
          * moment one of them stops.
-         *
-         * **One bullet was in the summary and is not in the supplied copy** — that the start
-         * and the finish are not at race HQ. It is carried into "What is on the route" below
-         * rather than lost, because it is the fact that stops somebody driving to the wrong
-         * place on the morning. It is the club's existing wording, moved rather than written.
          * ------------------------------------------------------------------------------ */
       }
 
       {
         /* ------------------------------------------------------------------------------
-         * The course and terrain — the course page's own copy, in full
+         * The course and terrain — the club's copy, rewritten 30 August 2026
          * ------------------------------------------------------------------------------
-         * **This was `/nn/course/`, and it is the whole of it rather than a summary.** The
-         * wording below was supplied by the club as what this page should say, and it is
-         * transcribed rather than edited — its own spellings, its own emphasis, its own
-         * three-section shape. `/nn/course/` 301s here now, so this is the only place any of
-         * it is stated.
+         * **This replaces the course page's own prose**, which this section carried from
+         * 29 August 2026 until now. `/nn/course/` 301s here, so this is still the only place
+         * any of it is stated, and the wording below is transcribed rather than edited.
          *
-         * **The route sentence is here on purpose and it is the one thing to look at twice.**
-         * The race director's paragraph above already names the towpath, Nightingale Valley
-         * and Leigh Woods in her own spelling, so this page now states the route in two
-         * wordings. `site.spec.ts` used to refuse exactly that — "one route, one spelling per
-         * page" — and the guard is inverted rather than deleted, so the second copy is a
-         * recorded decision that somebody can find, rather than a thing that crept in.
+         * **Four things the previous wording stated are not in this one.** The route itself
+         * ("along the towpath, up Nightingale Valley, through Leigh Woods"); Nightingale
+         * Valley named as *the climb*; the second water station at the finish; and the
+         * marshals' prize. `site.spec.ts` asserted the first three by exact sentence and
+         * asserts this wording instead now — so restoring any of them is a change here and a
+         * matching change there, never an edit to one of the two on its own.
+         *
+         * **The route is still named on this page once**, in the race director's paragraph
+         * above. Hers was the second of two wordings and is now the only one, which retires
+         * the "one route, one spelling per page" question this section used to raise.
          *
          * **The headings are `<h3>` under this `<h2>`.** `course.astro` carried an
          * `<h1>Course and terrain</h1>` with `<h2>`s beneath it; this page's `<h1>` is the
          * race, so everything drops one level. A second `<h1>` would be an accessibility
-         * defect on a site that runs axe at zero, and `<h2>`s here would make the three
-         * sections siblings of the section they belong to.
+         * defect on a site that runs axe at zero, and an `<h2>` here would make "On the
+         * route" a sibling of the section it belongs to rather than part of it.
          *
-         * **The distance is `race.json`'s and not a typed "10 km".** It is the same fact the
-         * hero's fact list reads, and a second literal is a second thing to change.
+         * **No distance is typed here now.** The previous opening interpolated
+         * `race.distance`; this wording states none, and the hero's fact list still reads the
+         * same value — which is where that fact has always lived.
          * ------------------------------------------------------------------------------ */
       }
       <h2>The course and terrain</h2>
 
+      <p>
+        This is a tough off-road run with plenty of elevation. The ground is uneven with
+        rocks and roots and can be slippery if there has been rainfall. Trail shoes are a
+        good option if you have them.
+      </p>
+
+      <p>Road shoes will be fine too.</p>
+
+      <h3>On the route</h3>
+
       {
-        /* **`race.distance` is already "10 km, off-road"**, so the supplied line's opening is
-        the value on its own. Typing the ", off-road" as well rendered "10 km, off-road,
-        off-road — and not a fast one." — which is what happens whenever a literal is written
-        beside a value that already contains it. The distance has one home and this reads it. */
+        /* **Three paragraphs, where this section carried a `.nn-arrows` list before.** The
+        supplied copy separates these the way it separates paragraphs everywhere else in it,
+        and bullets are a shape somebody has to ask for rather than one to infer. The class is
+        untouched and still renders in `NnRaceSummary`. */
       }
       <p>
-        {race.distance} — and not a fast one. This is a race you finish rather than a race you
-        set a time on.
+        The route is fully marshalled with a water station approximately half way through.
       </p>
 
-      <h3>Where it goes</h3>
+      {
+        /* **The headphone rule is the club's own additional rule under ARC Rule 81**, binding
+        on competitors as though it were ARC's own, on a course Rule 83(3) shares with the
+        public. It does not come off this page in a copy edit, and `site.spec.ts` asserts that
+        it is here.
 
+        **This wording asks rather than forbids**, where the previous one was a flat "No
+        headphones of any type during the race." That is the club's wording to choose and the
+        rule behind it is unchanged. It also leaves untouched the question the previous note
+        recorded: the fee structure carries a place for a visually impaired runner's guide,
+        and whether a guide is an exception to this has never been decided. Neither wording
+        settles that, which is the right outcome — it is the committee's to settle, not
+        markup's. */
+      }
+      <p>For your own safety, please do not wear headphones of any type during race.</p>
+
+      {
+        /* **The fact that stops somebody driving to the wrong place on the morning.** It came
+        from `NnRaceSummary`'s fifth bullet, was carried through the course page's copy, and is
+        carried again here — it is the one line in this section that has survived every rewrite
+        of it, because it is the one whose absence costs somebody their race. **The time is
+        deliberately not in it**: the walk down is a row in this year's schedule, on
+        `/nn/<year>/race-day/`, and it has already moved once. */
+      }
       <p>
-        The route runs along the towpath, turns up Nightingale Valley, and carries on
-        through Leigh Woods.
+        The start/finish line is not at the HQ. Join us for briefing at the HQ and we will
+        walk to the start together.
       </p>
-
-      <p>
-        <strong>Nightingale Valley is the climb.</strong> It is the part people remember, and
-        the part that decides how the rest of your race feels. There is no clever way to run
-        it — go up steadily, and enjoy how much better everything looks from the top.
-      </p>
-
-      <h3>What it is like underfoot</h3>
-
-      <p>
-        Tough, and properly off-road. The ground is uneven, rocky in places and rooty in
-        others, and it is slippery when wet. It is Bristol, in November. Plan for wet.
-      </p>
-
-      <p>
-        <strong>Trail shoes are recommended.</strong> Road shoes are acceptable, and people
-        run it in them every year. They are working harder than they need to.
-      </p>
-
-      <h3>What is on the route</h3>
-
-      <ul class="nn-arrows">
-        <li>
-          One water station on the route at approximately halfway, and one at the finish.
-        </li>
-        <li>
-          Marshals throughout — and a prize afterwards for the station the runners vote
-          the best.
-        </li>
-        {
-          /* **The rule is the club's own words and it is left at that.** "This one is
-          absolute" was on the course page and has gone — not because the rule has softened,
-          but because the fee structure carries a place for a visually impaired runner's guide
-          and whether a guide is an exception to this has never been decided. "Absolute"
-          settles that question in passing, in markup, which is not where it should be
-          settled. Stating the rule and stopping leaves the committee the decision and leaves
-          every runner reading it in no doubt about what is being asked of them. */
-        }
-        <li><strong>No headphones of any type during the race.</strong></li>
-        {
-          /* **The one line here that did not come from the course page.** It was
-          `NnRaceSummary`'s fifth bullet, which this section replaced, and it is the only one
-          of the five the supplied copy does not restate. It is the fact that stops somebody
-          driving to the wrong place on the morning, so it is carried rather than dropped —
-          the club's existing wording, moved. **The time is deliberately not in it**: the walk
-          down is a row in this year's schedule, on `/nn/<year>/race-day/`, and it has already
-          moved once. */
-        }
-        <li>
-          <strong>The start and the finish are not at race HQ.</strong> Everybody walks down
-          together beforehand, so there is nothing to find on your own.
-        </li>
-      </ul>
     </div>
 
     {
