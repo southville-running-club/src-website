@@ -921,6 +921,45 @@ test.describe('one entry in full', () => {
     expect(page.url()).not.toContain(CLEAN_PAID_PURCHASE_ID);
   });
 
+  test('is reachable from a phone, which is what this page was built for', async ({
+    page,
+  }) => {
+    // **#145 defect 5, asserted at the width it was about.** This page's whole argument is the
+    // phone: a table can only carry what fits in a column, so the facts a volunteer needs at
+    // race HQ are the ones that did not. The button that opens it lived in the actions cell,
+    // which folds away below 48rem — so on the device the page exists for, it could not be
+    // opened at all.
+    //
+    // **320px rather than merely "mobile"**, because that is where the column budget bites. The
+    // fix had to add a way in *without* adding a fourth column, and 320px is the width that
+    // fails if it did: the table starts scrolling sideways, and an absolutely positioned
+    // visually-hidden span inside a scroller drags the whole document with it.
+    //
+    // **On the clean event, not the actions one.** Every entry on `zz-admin-actions` is
+    // consumed by a test that cancels, transfers or assigns it, and those acts are
+    // irreversible within a run — `cancel_entry()` deletes the entrant, so the row it leaves
+    // has no name to find. This is a read, so it belongs on the fixture nothing mutates.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+    ).toBeVisible();
+
+    // **And the two acts are on the other side of it**, which is why one button in the stacked
+    // row is the whole fix rather than three. Cancel and Transfer stay out of the phone *table*
+    // deliberately — cancelling is a desk task — but they are not out of reach.
+    await expect(page.getByRole('button', { name: 'Cancel this entry' })).toBeVisible();
+
+    await expectNoSidewaysScroll(page, 'one entry in full, reached from a 320px phone');
+  });
+
   test('says the things the table had no column for', async ({ page }) => {
     // The whole reason the page exists: the reference somebody quotes on the phone, the address
     // that paid, and the emergency contact.
@@ -1811,42 +1850,6 @@ test.describe('acting on an entry somebody paid for', () => {
         name: `Show note for ${TRANSFER_TO_LAST_NAME}, ${TRANSFER_TO_FIRST_NAME}`,
       }),
     ).toBeHidden();
-  });
-
-  test('reaches an entry from a phone, which is what the page was built for', async ({
-    page,
-  }) => {
-    // **#145 defect 5, asserted at the width it was about.** `/admin/nn/entry/` is ADR-024's
-    // page and its whole argument is the phone: a table can only carry what fits in a column,
-    // so the facts a volunteer needs at race HQ were the ones that did not. The button that
-    // opened it lived in the actions cell, which folds away below 48rem — so on the device the
-    // page exists for, it could not be opened at all.
-    //
-    // **320px rather than merely "mobile"**, because that is where the column budget bites: the
-    // fix had to add a way in without adding a fourth column, and this is the width that fails
-    // if it did.
-    await page.setViewportSize({ width: 320, height: 640 });
-    await signInAs(page, NN_ADMIN_EMAIL);
-    await page.goto(ACTIONS);
-
-    await page
-      .getByRole('row', { name: new RegExp(CANCELLABLE_LAST_NAME) })
-      .getByRole('button', { name: /Details/ })
-      .click();
-
-    await expect(
-      page.getByRole('heading', { level: 1, name: new RegExp(CANCELLABLE_LAST_NAME) }),
-    ).toBeVisible();
-
-    // **And the two acts are on the other side of it**, which is why one button in the stacked
-    // row is the whole fix rather than three. Cancel and Transfer stay out of the table on a
-    // phone deliberately; they are not out of reach.
-    await expect(page.getByRole('button', { name: 'Cancel this entry' })).toBeVisible();
-
-    // **The page did not start scrolling sideways to afford it.** The fourth column this fix
-    // deliberately did not add is exactly what would break here, and an absolutely positioned
-    // visually-hidden span inside the scroller would take the whole document with it.
-    await expectNoSidewaysScroll(page, 'one entry in full, reached from a 320px phone');
   });
 
   test('assigns a complimentary place, at £0 and counted against the field', async ({
