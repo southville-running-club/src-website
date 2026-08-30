@@ -265,17 +265,22 @@ function validEntry(overrides = {}) {
 async function checkRoutes() {
   step('Routes');
 
-  for (const path of [
-    '/',
-    '/nn/',
-    YEAR_PATH,
-    '/nn/course/',
-    '/nn/privacy/',
-    '/privacy/',
-  ]) {
+  for (const path of ['/', '/nn/', YEAR_PATH, '/nn/privacy/', '/privacy/']) {
     const r = await get(path);
     check(`${path} serves`, r.status === 200, `got ${r.status}`);
   }
+
+  // **`/nn/course/` is a redirect now, not a page.** #147 folded the course into `/nn/` and
+  // deleted `src/pages/nn/course.astro`, leaving `isNnCoursePath` to answer 301 — the same
+  // treatment `/nn/admin/*` got, and for the same reason: the address is published, so it has
+  // to keep resolving. Asserted rather than dropped, because a consolidated page silently
+  // 404ing is exactly the regression this sweep exists to catch.
+  const course = await get('/nn/course/');
+  check(
+    '/nn/course/ still resolves, as a redirect to the race page',
+    course.status === 301 && (course.headers.get('location') ?? '').startsWith('/nn/'),
+    `got ${course.status} -> ${course.headers.get('location') ?? '(none)'}`,
+  );
 
   const account = await get('/account/');
   check(
