@@ -54,6 +54,22 @@
   **Do not add a second link.** The one call to action is the point; an unsubscribe or a
   "visit the website" link beside it gives a hesitant reader something else to click and a
   scanner something else to fetch.
+
+  ⚠️ **The reply line at the foot is prose and not a mailto link, and that is this rule being
+  obeyed rather than an oversight.** #99 asks for a real address on account mail because GoTrue
+  sends these with no Reply-To header at all — the sender is a Resend *sending* subdomain with
+  no MX, so a reply bounces. An address somebody can read and type is the whole of what is
+  needed; a `mailto:` would be the second link this paragraph forbids, and it would be the one
+  a scanner fetches.
+
+  **This is the interim half of #99 and it is deliberately the only half.** The confirmation is
+  the one GoTrue message whose body already lives in a file — this file, declared at
+  `auth.email.template.confirmation`. Giving the magic link, the password reset and the
+  password-changed notice the same line means declaring new `auth.email.template.*` blocks, and
+  that is the class of change that failed `supabase config push` on every merge from 25 August
+  2026, taking `site_url`, the redirect allowlist, `enable_signup` and the captcha secret with
+  it. Editing this file changes no config key and adds no block. The Send Email Hook, which is
+  what actually puts a `Reply-To` header on all of them, waits until after 1 November.
 -->
 <h2>Confirm your email address</h2>
 
@@ -69,4 +85,9 @@
 <p>
   If you did not sign up to Southville Running Club, you can ignore this message and
   nothing further will happen.
+</p>
+
+<p>
+  This address does not accept replies. If you need to ask us anything, write to
+  info@southvillerunningclub.co.uk and a person will read it.
 </p>

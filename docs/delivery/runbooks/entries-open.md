@@ -257,9 +257,16 @@ on 28 August 2026.** Stripe refuses a zero-total Checkout session, so nothing ca
 
 > **⚙️ Ops**
 
-**22 places at 10% off an unaffiliated entry**, confirmed 28 August 2026. **The code already
-exists** — it is minted by a migration and is not in the repository, which is public — so there
-is nothing to generate. What there is, is telling somebody.
+**25 places at 10% off an unaffiliated entry**, confirmed 28 August 2026 and **raised from 22 to
+25 on 30 August 2026**
+([#157](https://github.com/southville-running-club/src-website/issues/157)).
+**The code already exists** — it is minted by a migration and is not in the repository, which
+is public — so there is nothing to generate. What there is, is telling somebody.
+
+**The allocation is a migration rather than a step on this list.**
+`20260830120000_nn_2026_lhg_twenty_five_places.sql` raises it everywhere, so there is nothing to
+run by hand and nothing that can be true of production and false of a laptop. Reading the panel
+below is a confirmation, not the change.
 
 - [ ] The code has been read off `/admin/nn/` → **Discount codes**, and given to Left Handed Giant
 - [ ] They have been told it is for the **unaffiliated** entry — it is refused against the

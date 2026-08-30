@@ -96,6 +96,41 @@ async function makePendingPurchase(serial: number): Promise<string> {
   return purchaseId;
 }
 
+/**
+ * A place that arrives already `paid`, which is what `create_manual_entry()` writes — ADR-021,
+ * the complimentary place. **No hold, no pending status, no transition**: the whole point is
+ * that the update trigger has nothing to watch, which is why #150 existed.
+ */
+async function makeGivenPurchase(serial: number, pence = 0): Promise<string> {
+  const purchaseId = randomUUID();
+
+  const [fee] = await query<{ id: string }>(
+    `select id from entries.fees where event_id = $1 and code = 'unaffiliated'`,
+    [EVENT_ID],
+  );
+
+  await query(
+    `insert into entries.entry_purchases
+       (id, event_id, purchaser_email, purchaser_name, fee_id, amount_pence, status,
+        hold_expires_at, paid_at, consents, consent_version)
+     values ($1, $2, $3, 'Given Fixture', $4, $5, 'paid',
+             null, now(),
+             '{"entryTerms": true}'::jsonb, 'nn-2026-v1')`,
+    [purchaseId, EVENT_ID, `outbox-given-${serial}@example.com`, fee!.id, pence],
+  );
+
+  await query(
+    `insert into entries.entrants
+       (purchase_id, first_name, last_name, date_of_birth, gender,
+        emergency_contact_name, emergency_contact_phone)
+     values ($1, 'Given', $2, date '1986-03-07', 'female',
+             'Next Of Kin', '0117 496 0000')`,
+    [purchaseId, `Fixture${serial}`],
+  );
+
+  return purchaseId;
+}
+
 const outboxFor = async (purchaseId: string) =>
   query<{ template: string; recipient: string; status: string; dedupe_key: string }>(
     `select template, recipient::text as recipient, status, dedupe_key
@@ -297,6 +332,129 @@ describe('entries.enqueue_entry_email(), the trigger that owes the message', () 
     expect(rows.filter((row) => row.template === 'entry_transferred_out')).toHaveLength(
       2,
     );
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// The insert path — #150
+// -----------------------------------------------------------------------------------------
+
+describe('entries.enqueue_entry_email_on_insert(), the place that skips the transition', () => {
+  it('owes a confirmation for a place that arrives already paid', async () => {
+    // **The whole of #150.** `create_manual_entry()` inserts a purchase already `paid`, so
+    // there is no update and the `after update` trigger never fires. Before this, Kinsi's two
+    // complimentary places and every visually impaired runner's guide were given a place and
+    // told nothing at all — and the silence is total, because nobody chases an email they
+    // were never told to expect.
+    const purchaseId = await makeGivenPurchase(1);
+
+    const rows = await outboxFor(purchaseId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      template: 'entry_confirmed',
+      recipient: 'outbox-given-1@example.com',
+      status: 'pending',
+    });
+  });
+
+  it('owes nothing on the pending row every bought entry starts as', async () => {
+    // **The guard is the whole function**, and this is what it is guarding. Two hundred and
+    // fifty `pending` rows are inserted on a race that fills, and not one of them owes
+    // anybody a message until it is paid for. An insert trigger without the `paid` test would
+    // confirm every abandoned checkout in the queue.
+    const purchaseId = await makePendingPurchase(8);
+
+    expect(await outboxFor(purchaseId)).toEqual([]);
+  });
+
+  it('owes exactly one confirmation when a given place is inserted and then touched', async () => {
+    // The two triggers share a dedupe key on purpose. They are mutually exclusive today — a
+    // row is either inserted paid or updated into paid — so this asserts the property rather
+    // than the path: whatever order the two fire in, one place is confirmed once.
+    const purchaseId = await makeGivenPurchase(2);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    expect(
+      (await outboxFor(purchaseId)).filter((row) => row.template === 'entry_confirmed'),
+    ).toHaveLength(1);
+  });
+
+  it('owes the refund message for a given place too, once it is cancelled', async () => {
+    // A given place is a real place: it is cancelled with the same button, by the same
+    // function, and the person is owed the same message. What differs is the wording, and
+    // that is `worker/email.ts`'s job — see its `free` branch, which stops this one saying
+    // the club has "refunded £0.00 to the card you paid with" to somebody who gave no card.
+    const purchaseId = await makeGivenPurchase(3);
+
+    await query(
+      `update entries.entry_purchases set status = 'refunded', paid_at = null where id = $1`,
+      [purchaseId],
+    );
+
+    expect((await outboxFor(purchaseId)).map((row) => row.template)).toEqual([
+      'entry_confirmed',
+      'entry_refunded',
+    ]);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// What a cancellation is owed, and the one case where it is owed nothing — #148, finding 3
+// -----------------------------------------------------------------------------------------
+
+describe('the cancellation message, and who it is addressed to', () => {
+  it('addresses the runner who holds the place now, not the one who bought it', async () => {
+    // **This is the case the reported silence had to be checked against.** After a transfer,
+    // `purchaser_email` is the new runner's, and the refund branch reads `new.purchaser_email`
+    // — so a cancellation following a transfer must reach the person who actually holds the
+    // entry. Asserted rather than reasoned about, because the refund and transfer branches
+    // read different sides of the same row and it would be easy for one to drift.
+    const purchaseId = await makePendingPurchase(9);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+    await query(`update entries.entry_purchases set purchaser_email = $2 where id = $1`, [
+      purchaseId,
+      'outbox-9-new-runner@example.com',
+    ]);
+    await query(
+      `update entries.entry_purchases set status = 'refunded', paid_at = null where id = $1`,
+      [purchaseId],
+    );
+
+    const refund = (await outboxFor(purchaseId)).find(
+      (row) => row.template === 'entry_refunded',
+    );
+
+    expect(refund?.recipient).toBe('outbox-9-new-runner@example.com');
+  });
+
+  it('owes nothing when a purchase that was never paid for is marked refunded', async () => {
+    // **Working as written, asserted so it stays a decision rather than an accident.** #148's
+    // finding 3 asked whether the reported "no email on cancellation" was a defect in the
+    // enqueue path. It is not: the paid case above and the transferred case beside it both
+    // enqueue correctly. What does not enqueue is this — `cancel_entry()` refuses only a
+    // purchase already `refunded`, so it will take a `pending` or `expired` one to `refunded`,
+    // and the trigger's `old.status = 'paid'` guard does not match.
+    //
+    // That is right on the facts — nothing was paid, so nothing was refunded, and an email
+    // saying money is coming back would be false. **It is still silent**, and whether a
+    // volunteer should be told they have just cancelled something that was never paid for is
+    // a question for the admin surface rather than for the outbox.
+    const purchaseId = await makePendingPurchase(10);
+
+    await query(`update entries.entry_purchases set status = 'refunded' where id = $1`, [
+      purchaseId,
+    ]);
+
+    expect(await outboxFor(purchaseId)).toEqual([]);
   });
 });
 

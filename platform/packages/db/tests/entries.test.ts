@@ -305,10 +305,18 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'create_pending_purchase',
       'current_entry_state',
       'delete_expired_medical_notes',
-      // **The fourth trigger function, and like the other three it is callable by nobody.**
-      // It writes the row saying the club owes somebody an email, in the same transaction as
-      // the payment, refund or transfer that made it true.
+      // **The fourth and fifth trigger functions, and like the other three they are callable
+      // by nobody.** They write the row saying the club owes somebody an email, in the same
+      // transaction as the payment, refund or transfer that made it true.
+      //
+      // **Two of them since #150**, because they watch different things. The `_after_update`
+      // trigger fires on the transition into `paid`, which a complimentary place never makes:
+      // `create_manual_entry()` *inserts* one already `paid`, so a place the club gave away
+      // was never confirmed to anybody at all. `enqueue_entry_email_on_insert` is that half,
+      // guarded on `new.status = 'paid'` so the 250 pending rows a full race inserts owe
+      // nobody anything, and sharing the update path's dedupe key so nothing is sent twice.
       'enqueue_entry_email',
+      'enqueue_entry_email_on_insert',
       // **The four role counterparts, granted to `authenticated`.** Same reads, different
       // door: `identity.has_role('nn-admin')` rather than a key. There is deliberately no
       // counterpart to `admin_sign_in` — signing in is `/account/`'s job now.
@@ -755,6 +763,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       admin_outbox_resend: 'v',
       claim_outbox_batch: 'v',
       enqueue_entry_email: 'v',
+      enqueue_entry_email_on_insert: 'v',
       record_send_result: 'v',
     });
   });
@@ -1339,9 +1348,15 @@ describe('the discount codes table', () => {
   it('carries exactly one Left Handed Giant code, minted rather than written down', async () => {
     // **This test used to assert the table was empty**, because the 2023 code had not been
     // confirmed for 2026 and seeding one would have been a discount the club was offering. It
-    // has been confirmed — 10% off an unaffiliated entry, 22 places — so the assertion is now
-    // the opposite one, and it is here rather than deleted because *how* the code exists is
-    // the part worth protecting.
+    // has been confirmed — 10% off an unaffiliated entry — so the assertion is now the
+    // opposite one, and it is here rather than deleted because *how* the code exists is the
+    // part worth protecting.
+    //
+    // **25 places since 30 August 2026, raised from the 22 the minting migration wrote**
+    // ([#157]). The number is asserted rather than described, which is the reason the raise is
+    // `20260830120000_nn_2026_lhg_twenty_five_places.sql` and not an `update` somebody runs
+    // against production: a hand-run edit would have left this test green at 22 while CLAUDE.md
+    // and the entries-open runbook said 25.
     //
     // **Scoped to `nn-2026` rather than asserted over the whole table.**
     // `entries-capacity.test.ts` seeds codes against fabricated events to exercise the
@@ -1368,15 +1383,15 @@ describe('the discount codes table', () => {
     // **10% off an *unaffiliated* entry is two facts**, and `fee_id` is the second. Without it
     // the same code takes 10% off the £18 affiliated entry, which is not what was agreed.
     expect(code?.percent_off).toBe(10);
-    expect(code?.max_uses).toBe(22);
+    expect(code?.max_uses).toBe(25);
     expect(code?.fee_code).toBe('unaffiliated');
     expect(code?.uses).toBe(0);
   });
 
   it('mints a code that is not written down anywhere a stranger can read', async () => {
     // **The property the whole arrangement exists for, asserted rather than trusted.** This
-    // repository is public: a code committed to a migration is a published code, and the 22
-    // places would be gone before the club had told Left Handed Giant. So the migration carries the
+    // repository is public: a code committed to a migration is a published code, and the
+    // whole allocation would be gone before the club had told Left Handed Giant. So the migration carries the
     // *generator* and never the value.
     //
     // Asserted on shape rather than by grepping the repository, which a database test cannot

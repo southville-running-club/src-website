@@ -617,6 +617,12 @@ footer {
   margin-bottom: 0;
 }
 
+/* `h2` as well as `h3` since #152: the account forms' error summaries sit under the page's
+   own `h1`, so their heading is an `h2` there, while the Nightingale Nightmare forms nest
+   theirs a level deeper. The two want the same size — the heading is a label on a box, not a
+   step in the document outline — and letting the level decide it would make one of the two
+   look like a section title. */
+.notice h2,
 .notice h3 {
   margin: 0 0 calc(var(--space) * 0.5);
   font-size: 1.05rem;

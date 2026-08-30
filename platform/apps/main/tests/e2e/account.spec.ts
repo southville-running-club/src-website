@@ -306,6 +306,103 @@ test.describe('accessibility @requires-js', () => {
   });
 });
 
+/**
+ * The error summary — #152, filed from #145's second defect.
+ *
+ * **The account forms already announced their errors**, so this was never a zero-violations
+ * breach. What was missing is the *navigable* summary: the list of links at the top of the
+ * form that takes somebody straight to the field that is wrong, which the Nightingale
+ * Nightmare forms have had since they were written.
+ *
+ * It matters most for the people this area is for — in #56's words, the members most likely to
+ * *"use the site once a year and forget they ever had one"*, who are also the most likely to
+ * get a password wrong and the least likely to hunt a page for the reason.
+ *
+ * ⚠️ **The link test deliberately does not carry `@requires-js`**, and that is the whole point
+ * of it. A CSS `@view-transition` swallows the click on a summary link with JavaScript
+ * disabled — silently, so the person simply finds that nothing happens — and it passes with
+ * scripting *on*, which is what makes it easy to ship. `nn-signup.spec.ts`'s own summary-link
+ * test is the guard on that side; this is the guard on this one.
+ */
+test.describe('the error summary on the account forms', () => {
+  test('lists every problem and links to the field it is about', async ({ page }) => {
+    // An empty submission, which is the state somebody actually arrives in: three empty
+    // boxes and, with scripting off, no captcha token either.
+    await page.goto('/account/sign-up/');
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    const summary = page.locator('form[action="/account/sign-up/"] .notice-bad');
+
+    await expect(summary).toBeVisible();
+    await expect(
+      summary.getByRole('heading', { name: 'There is a problem' }),
+    ).toBeVisible();
+
+    // **The link text is the message, not the field's label.** Somebody scanning a list of
+    // three wants to know what is wrong; "Email address" three times over says nothing.
+    const links = summary.getByRole('link');
+    await expect(links.first()).toBeVisible();
+
+    // Following it lands on the field, with no JavaScript anywhere in the path.
+    await links.first().click();
+    await expect(page).toHaveURL(/#account-name$/);
+  });
+
+  test('reads down the page rather than in whatever order an object enumerates', async ({
+    page,
+  }) => {
+    // **The order is load-bearing**, the same reason `NN_ENTRY_FIELDS` is walked rather than
+    // `Object.keys`: a summary that jumps about is worse than no summary for somebody working
+    // through a form one field at a time.
+    await page.goto('/account/sign-up/');
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    const hrefs = await page
+      .locator('form[action="/account/sign-up/"] .notice-bad a')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+
+    expect(hrefs.slice(0, 3)).toEqual([
+      '#account-name',
+      '#account-email',
+      '#account-password',
+    ]);
+  });
+
+  test('belongs to the form it is about, and the sign-in page has two forms', async ({
+    page,
+  }) => {
+    // **A container's message belongs to that container**, which this repository has paid for
+    // twice on the entry form — once badly enough that the entry type could not be changed at
+    // all. `/account/sign-in/` carries a password form and a magic-link form with separate
+    // error objects, deliberately, so a bad address in one must not mark up the other.
+    await page.goto('/account/sign-in/');
+    await page.getByRole('button', { name: 'Email me a link' }).click();
+
+    await expect(page.locator('form[action="/account/link/"] .notice-bad')).toBeVisible();
+    await expect(
+      page.locator('form[action="/account/sign-in/"] .notice-bad'),
+    ).toHaveCount(0);
+  });
+
+  test('the summary state has zero axe violations @requires-js', async ({ page }) => {
+    // The state a page is in when something has gone wrong is the state least likely to have
+    // been checked, and the one somebody is most likely to be struggling with.
+    await page.goto('/account/password/');
+    await page.goto('/account/sign-up/');
+    await page.getByRole('button', { name: 'Create account' }).click();
+
+    await expect(
+      page.locator('form[action="/account/sign-up/"] .notice-bad'),
+    ).toBeVisible();
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+});
+
 test.describe('resetting a forgotten password @requires-js', () => {
   test('goes all the way through, and the old password stops working', async ({
     page,
@@ -577,7 +674,18 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
     await page.getByLabel('Day').fill('31');
     await page.getByLabel('Month').fill('2');
     await page.getByRole('button', { name: 'Save changes' }).click();
-    await expect(page.getByText(/enter a real date/i)).toBeVisible();
+
+    // **The message is on the page twice now, and that is the point rather than a fault.**
+    // #152 put an error summary at the top of this form, and a summary repeats each message as
+    // the text of the link that goes to the field — a label like "Date of birth" three times
+    // over would tell a reader nothing. So this asks for the field's own message by its id,
+    // and the line below asks for the summary's link separately.
+    await expect(page.locator('#account-dob-error')).toBeVisible();
+    await expect(
+      page.locator('form[action="/account/details/"] .notice-bad').getByRole('link', {
+        name: /enter a real date/i,
+      }),
+    ).toHaveAttribute('href', '#account-dob-day');
 
     const errorAxe = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
