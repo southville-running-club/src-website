@@ -93,6 +93,22 @@ export const PEOPLE_ADMIN_EMAIL = 'zz-admin-worker-people@example.com';
  */
 export const ENTRANT_EMAIL = 'zz-admin-worker-entrant@example.com';
 
+/**
+ * Somebody whose **only** entry is one that was not completed in time.
+ *
+ * A third fixture for the same reason `ENTRANT_EMAIL` is not `REGISTERED_EMAIL`: the state
+ * under test is *the absence of a confirmed place beside the presence of a lapsed one*, and
+ * neither of the other two can hold it. `REGISTERED_EMAIL` holds nothing, so the page is
+ * honestly empty; `ENTRANT_EMAIL` holds a paid place, which suppresses the very note this
+ * person exists to prove is there.
+ *
+ * ⚠️ **This is the person the pay-twice guard is for.** Their payment may have succeeded while
+ * the webhook was late, and what they must never meet is a page with nothing on it — so
+ * `/account/entries/` with no parameter has to tell them what the club has, in full, before
+ * they conclude nothing was taken and enter a second time.
+ */
+export const LAPSED_EMAIL = 'zz-admin-worker-lapsed@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
@@ -100,6 +116,7 @@ export const FIXTURE_PEOPLE_EMAILS = [
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
   ENTRANT_EMAIL,
+  LAPSED_EMAIL,
 ] as const;
 
 /**
@@ -214,6 +231,15 @@ export const TRANSFERABLE_LAST_NAME = 'Lindqvist';
 export const OWNED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000043';
 export const OWNED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000053';
 export const OWNED_LAST_NAME = 'Achterberg';
+
+/**
+ * A hold that ran out, **bought with `LAPSED_EMAIL`'s address** and the only entry that person
+ * has. It is what `/account/entries/` files under cancelled race entries, and its absence from
+ * the open view is what the note there stands in for.
+ */
+export const LAPSED_PURCHASE_ID = '0b0b0b0b-0000-4000-8000-000000000044';
+export const LAPSED_ENTRANT_ID = '0b0b0b0b-0000-4000-8000-000000000054';
+export const LAPSED_LAST_NAME = 'Okonkwo';
 
 /** Who a transferred place ends up with. Nobody who already holds one. */
 export const TRANSFER_TO_FIRST_NAME = 'Rosalind';

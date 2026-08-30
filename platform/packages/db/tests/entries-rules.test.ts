@@ -215,6 +215,9 @@ interface EntrantOverrides {
  */
 let entrantSerial = 0;
 
+/** The same counter idea for the purchaser's address, and see `create()` for why it exists. */
+let purchaserSerial = 0;
+
 function entrant(overrides: EntrantOverrides = {}): Record<string, unknown> {
   return {
     first_name: 'Ada',
@@ -250,7 +253,12 @@ async function create(
     p_slug: slug,
     p_fee_code: options.feeCode ?? 'unaffiliated',
     p_purchaser_name: 'Ada O’Brien',
-    p_purchaser_email: options.email ?? 'ada@example.com',
+    // **A serial on the address, for the reason the surname above carries one.** One place
+    // per email is a database rule since 30 August 2026, so a suite whose purchasers are all
+    // `ada@example.com` cannot hold two places on one event — every second call would be
+    // refused with `email_already_entered`, on a rule the test was not written to exercise.
+    // The tests that *are* about that rule pass `email` explicitly.
+    p_purchaser_email: options.email ?? `ada-${(purchaserSerial += 1)}@example.com`,
     p_entrants: options.entrants ?? [entrant()],
     p_medical: options.medical ?? [null],
     p_consents:
@@ -933,6 +941,114 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
  *
  * So the bypass being attempted here is the ordinary one: entering twice.
  */
+/**
+ * One place per email address — `20260830160000_entries_one_place_per_email.sql`.
+ *
+ * **A second rule beside the one below, and it reverses that migration's own reasoning.**
+ * `20260827090000` said the address was the wrong key because a card legitimately pays for a
+ * partner; the club overruled that on 30 August 2026 and accepted the cost. So what is
+ * asserted here is a rule that deliberately refuses somebody a place, and the tests say so
+ * rather than pretending the trade does not exist.
+ *
+ * The negative cases matter as much as the positive ones: a lapsed hold and a refunded entry
+ * must both let an address try again, or somebody whose payment never completed is locked out
+ * of the race permanently on the strength of an attempt that took no money.
+ */
+describe('one place per email address', () => {
+  it('refuses a second entry from the same address, with its own reason', async () => {
+    await acceptedPurchaseId(OPEN, { email: 'shared@example.com' });
+
+    // **`email_already_entered`, not `already_entered`.** A different runner entirely — the
+    // name rule below is not what is firing here, and the two reasons are different sentences
+    // to the person reading them.
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ first_name: 'Grace', last_name: 'Hopper-Shared' })],
+        email: 'shared@example.com',
+      }),
+    ).toBe('email_already_entered');
+  });
+
+  it('is not fooled by the case of an address', async () => {
+    // ⚠️ **This is the test that caught the rule being case-sensitive, and it is worth saying
+    // how.** `purchaser_email` is `citext`, so the obvious way to write the check is `=` and
+    // let the type do the work. It does not: the function runs `set search_path = ''`, the
+    // `citext` equality operator lives in `extensions`, and Postgres resolves the comparison
+    // to plain **text** equality without raising anything at all. `Mark@example.com` and
+    // `mark@example.com` were two addresses and each got a place.
+    //
+    // The test above passes under both spellings, because both its addresses are
+    // byte-identical — which is exactly why asserting only the obvious case is not enough.
+    await acceptedPurchaseId(OPEN, { email: 'MixedCase@example.com' });
+
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ last_name: 'Casefolded-Email' })],
+        email: 'mixedcase@example.com',
+      }),
+    ).toBe('email_already_entered');
+  });
+
+  it('answers a padded address in words rather than as a bad entrant', async () => {
+    // **Whitespace never reaches a stored address** — `entry_purchases_purchaser_email_shape`
+    // refuses it — so without the trim in the check a padded resubmission would sail past this
+    // rule and be refused by that constraint instead, arriving as `invalid_entrants`: "there is
+    // something wrong with the entrant block", about the email box, to somebody who has simply
+    // pasted an address with a space on the end.
+    await acceptedPurchaseId(OPEN, { email: 'padded@example.com' });
+
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ last_name: 'Padded-Email' })],
+        email: '  padded@example.com  ',
+      }),
+    ).toBe('email_already_entered');
+  });
+
+  it('lets a different address enter, which is the case that must not break', async () => {
+    await acceptedPurchaseId(OPEN, { email: 'first-of-two@example.com' });
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ last_name: 'SecondAddress' })],
+      email: 'second-of-two@example.com',
+    });
+  });
+
+  it('lets an address enter again once its hold has lapsed', async () => {
+    // **The place went back into the pool, so the address has to be free with it.** Anything
+    // stricter strands somebody permanently on the strength of a payment that never happened —
+    // and this is the ordinary case of a Stripe page abandoned or timed out.
+    const purchaseId = await acceptedPurchaseId(OPEN, { email: 'lapsed@example.com' });
+
+    await query(
+      `update entries.entry_purchases
+          set hold_expires_at = now() - interval '1 minute'
+        where id = $1`,
+      [purchaseId],
+    );
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ last_name: 'AfterLapse' })],
+      email: 'lapsed@example.com',
+    });
+  });
+
+  it('lets an address enter again after its entry was refunded', async () => {
+    // The club cancelled it and gave the money back. Refusing them a fresh entry would be the
+    // platform holding a cancellation against somebody for the rest of the year.
+    const purchaseId = await acceptedPurchaseId(OPEN, { email: 'refunded@example.com' });
+
+    await query(`update entries.entry_purchases set status = 'refunded' where id = $1`, [
+      purchaseId,
+    ]);
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ last_name: 'AfterRefund' })],
+      email: 'refunded@example.com',
+    });
+  });
+});
+
 describe('one runner, one place', () => {
   it('refuses a second entry for the same runner, with that specific reason', async () => {
     const runner = entrant({ last_name: 'Twice' });
@@ -950,9 +1066,14 @@ describe('one runner, one place', () => {
 
     await acceptedPurchaseId(OPEN, { entrants: [runner], email: 'first@example.com' });
 
-    // **The key is the runner, not the card.** Keying on `purchaser_email` would have let this
-    // through — and would separately have refused a partner paying for a partner, which is the
-    // failure direction that costs somebody a place.
+    // **The key is the runner, not the card**, and this rule is still keyed that way — which
+    // is what this asserts. Two addresses, one runner, refused on the *name*.
+    //
+    // The second half of this comment used to say that keying on `purchaser_email` would
+    // refuse a partner paying for a partner, and that the club would not do that. **The club
+    // did**, on 30 August 2026 — see the describe above. The reasoning was not wrong and it
+    // was overruled; both rules now run, and this test proves the older one still fires on its
+    // own terms rather than being shadowed by the newer.
     expect(
       await refusalFor(OPEN, { entrants: [runner], email: 'second@example.com' }),
     ).toBe('already_entered');

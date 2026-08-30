@@ -203,6 +203,9 @@ interface CallOptions {
  * something `jsonb_array_length` cannot read. The `::jsonb` casts are what make the argument
  * types unambiguous to the parser as well.
  */
+/** Keeps each default purchaser address distinct — see `call()`'s `email` default. */
+let purchaserSerial = 0;
+
 function call(client: Client, slug: string, options: CallOptions = {}): Promise<Result> {
   const {
     entrants = [entrant()],
@@ -210,7 +213,13 @@ function call(client: Client, slug: string, options: CallOptions = {}): Promise<
     consents = { entryTerms: true, medical: false },
     feeCode = 'unaffiliated',
     discountCode = null,
-    email = 'fixture@example.com',
+    // **A serial, because one place per email is a database rule since 30 August 2026.**
+    // Several tests here enter the same event more than once on purpose — filling a capacity,
+    // spending a discount code's allocation — and a fixture whose purchasers are all
+    // `fixture@example.com` cannot do that any more: everything after the first is refused
+    // with `email_already_entered`, on a rule the test was not written to exercise. The tests
+    // that are *about* an address pass `email` themselves.
+    email = `fixture-${(purchaserSerial += 1)}@example.com`,
   } = options;
 
   return client

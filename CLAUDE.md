@@ -991,10 +991,37 @@ and nothing enforced it, so somebody who already had a place could pay again and
 one out of 250 — #115. `create_pending_purchase()` now refuses with `already_entered`, keyed on
 **first name, last name and date of birth** and counting only a *live* place: `paid`, or
 `pending` with a hold that has not lapsed, so an expired hold or a cancelled entry lets somebody
-try again. **Not `purchaser_email`** — one card legitimately pays for a partner, and refusing
-that would cost a real runner a place. The check sits inside the per-event advisory lock, and
+try again. **Not `purchaser_email`** — that was the original decision, and it has been
+overruled; see the rule below. The check sits inside the per-event advisory lock, and
 **every database fixture that enters more than once now carries a serial on the surname**,
-because a suite whose runners are all the same person cannot hold two places any more. **Which consents an event requires is
+because a suite whose runners are all the same person cannot hold two places any more.
+
+**The eleventh rule is "one place per email address", and it reverses a written decision.**
+`20260827090000`'s own header argued the address was the wrong key because *one card
+legitimately pays for a partner, and refusing that would cost a real runner a place*. The club
+overruled that on **30 August 2026**, and
+`20260830160000_entries_one_place_per_email.sql` refuses a second live place on one address
+with `email_already_entered` — on the entry path **and** in `transfer_entry()`, because
+otherwise the transfer form is the way round the entry form. ⚠️ **The cost is accepted rather
+than solved**: a couple on one card, a parent entering two children, and anybody entering for
+somebody with no address of their own are refused at the moment they pay. **If that starts
+happening the answer is to revisit the decision, not to add an exception to the function.**
+**`create_manual_entry()` is deliberately exempt** — giving a place away is a volunteer
+deciding one at a time, and the club's complimentary places and a visually impaired runner's
+guide are exactly what a blanket address rule would refuse. **Name and date of birth stay**:
+the two rules overlap and neither subsumes the other, so `already_entered` still catches the
+same runner re-submitting under a different address. **The fixtures carry a serial on the
+address now as well as on the surname**, for the same reason.
+
+**A signed-in buyer's `purchaser_email` comes from their session, not from the form.** It came
+straight off the form for everybody, so somebody signed in could type any address — and every
+consequence lands where they cannot see it: the confirmation, the refund notice, both sides of
+a transfer and Stripe's receipt all go to `purchaser_email`, and `my_entries()` matches on
+`person_id` **or** that address, so a typo hands the second arm to a stranger. The entry still
+appeared on their own account through `person_id`, which is what made it invisible. The Worker
+reads the confirmed address with `auth.getUser()` on the POST and ignores the box. **With the
+rule above, the two together mean somebody signed in holds one place and cannot enter on
+anybody else's behalf** — they sign out, or the club gives the place from `/admin/nn/`. **Which consents an event requires is
 `events.required_consents`**, not a constant — the set differs between races. **Four check
 constraints ship `NOT VALID`** and protect every new write; validating them against the rows
 already there is [a runbook](docs/delivery/runbooks/entries-constraints.md), because a
@@ -1159,25 +1186,42 @@ somebody can send to the other volunteer; an empty set means every value. Exclus
 things. A tester's place is still real and still counted; it is simply not what somebody
 opens that page to look at.
 
-**`/account/entries/` shows confirmed places only — unless there are none, and that
-exception is not decoration.** A lapsed attempt beside a real ticket makes the page look
-broken, so once somebody holds a place it is the only thing they see. Hiding the rest
-*unconditionally* would show an empty page to somebody whose payment succeeded while the
-webhook was late, who reads that as nothing having been taken and enters again. So: only
-successful tickets, unless there are none. Same rule as `/nn/<year>/entry/complete/`, which
-may not make a negative claim either, applied to a list. Every entry carries its purchase id
-as a reference, because somebody emailing the club had nothing to name one by.
+**`/account/entries/`'s open view shows confirmed places and nothing else.** A lapsed attempt
+beside a real ticket makes the page look broken, so a ticket is the only thing on that view.
+Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either, applied
+to a list. Every entry carries its purchase id as a reference, because somebody emailing the
+club had nothing to name one by.
+
+⚠️ **What may never be dropped is the note that replaces them.** Hiding a lapsed hold with
+nothing in its place shows an empty page to somebody whose payment succeeded while the webhook
+was late — they read that as nothing having been taken, and enter again. So when there is no
+confirmed place and there *is* a lapsed one, the open view carries a note that names the state,
+says in full that a payment can arrive after the page that took it gave up and to get in touch
+rather than entering twice, and links to where the entry is filed. **The note is the pay-twice
+guard, not a signpost**: it carries that sentence itself rather than deferring it to the card,
+because the card is now one click away and the default address is where doing nothing lands.
 
 **A cancelled entry has a view of its own since 30 August 2026, and the rule above is why it
 needed one.** Showing non-confirmed entries only when there are none confirmed meant a runner
 who cancelled one entry and kept another had **no record of the cancellation on the club's site
 at all**. `?show=cancelled` is the second view — **a URL filter rather than tabs or a second
 page**, for the reason `/admin/nn/`'s filters are: it works with scripting off, and a filtered
-view is a URL somebody can send while helping a runner work out what happened. **A lapsed hold
-is not filed under Cancelled** and is not a third view — it keeps today's rule underneath
-whichever view is open, because calling a lapsed hold a cancellation would break the
-negative-claim rule in the most expensive direction. An empty Cancelled view says **"Nothing
-here"** and never *"you have never cancelled an entry"*, which is a claim about a record. #148.
+view is a URL somebody can send while helping a runner work out what happened. An empty
+Cancelled view says **"Nothing here"** and never *"you have never cancelled an entry"*, which is
+a claim about a record. #148.
+
+**A lapsed hold is filed under Cancelled, and that reverses the position this paragraph used to
+state.** It sat underneath *whichever* view was open, shown only when there were no confirmed
+places — which meant `?show=cancelled` with nothing cancelled said "Nothing here" and then
+rendered a not-completed entry directly beneath it. Asked for and decided on 30 August 2026: a
+not-completed entry goes in the Cancelled view. ⚠️ **It is not a cancellation, and the heading
+can therefore be wrong about it in the expensive direction** — the webhook may be late, the
+place may in fact be paid for, and a runner who believes their entry is gone enters again. Two
+things pay for that and **neither may be removed without putting the other back**: the card's
+own status sentence still says only what it knows (*not completed in time; if you were charged,
+get in touch before entering again*), and the open view carries the note described above. The
+lapsed card is rendered quiet and *after* the refunds, because a refund happened and a lapsed
+hold merely failed to complete.
 
 **Two functions in `entries` now answer differently depending on who is asking, and that is new.**
 `entry_state()` hides a fee whose `requires_permission` the caller does not hold, and

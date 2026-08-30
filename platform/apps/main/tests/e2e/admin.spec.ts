@@ -10,6 +10,8 @@ import {
   ASSIGN_TO_EMAIL,
   CANCELLABLE_LAST_NAME,
   ENTRANT_EMAIL,
+  LAPSED_EMAIL,
+  LAPSED_LAST_NAME,
   OWNED_LAST_NAME,
   TRANSFERABLE_LAST_NAME,
   TRANSFER_TO_EMAIL,
@@ -2032,6 +2034,93 @@ test.describe('open and cancelled entries on a runner’s own page', () => {
     await page.goto('/account/entries/?show=cancelled');
 
     await expectNoSidewaysScroll(page, 'the cancelled entries view at 320px');
+  });
+
+  test('files a not-completed entry under cancelled, not under open', async ({
+    page,
+  }) => {
+    // The change asked for: a lapsed hold used to render underneath *whichever* view was
+    // open, so `?show=cancelled` with nothing cancelled said "Nothing here." and then showed
+    // a not-completed entry directly beneath it.
+    await signInAs(page, LAPSED_EMAIL);
+
+    await page.goto('/account/entries/');
+    await expect(page.getByText(LAPSED_LAST_NAME)).toHaveCount(0);
+
+    await page.goto('/account/entries/?show=cancelled');
+    await expect(page.getByText(LAPSED_LAST_NAME)).toBeVisible();
+
+    // And the contradiction is gone: a view with a card on it does not also claim to be empty.
+    await expect(page.getByText('Nothing here.')).toHaveCount(0);
+  });
+
+  test('warns on the open view that a payment may still be in flight', async ({
+    page,
+  }) => {
+    // ⚠️ **The pay-twice guard, and it is the reason the test above is allowed to pass.**
+    // Moving the lapsed entry off the default view without this note hands an empty page to
+    // somebody whose payment succeeded while the webhook was late — at the address with no
+    // parameter, which is where doing nothing lands them. An empty page here reads as
+    // "nothing was taken", and the next thing they do is enter again.
+    await signInAs(page, LAPSED_EMAIL);
+    await page.goto('/account/entries/');
+
+    const note = page
+      .getByRole('status')
+      .filter({ hasText: /not recorded a confirmed place/i });
+
+    await expect(note).toBeVisible();
+
+    // **The whole warning, on the default view.** Not a signpost to the card — the card is a
+    // click away now, and the sentence that stops somebody paying twice has to be on the page
+    // they actually land on.
+    //
+    // **`\s+` rather than a literal space, because Prettier decides where these lines break.**
+    // The message lives inside an `html` tagged template, which Prettier reflows on every
+    // format — so a sentence written on one line arrives with a newline somewhere in the
+    // middle of it, and which words it falls between changes when the surrounding markup
+    // does. Playwright does normalise whitespace, but an assertion that silently depends on
+    // that is one reformat away from failing for a reason nobody will connect to formatting.
+    await expect(note).toContainText(
+      /after\s+the\s+page\s+that\s+took\s+it\s+has\s+given\s+up/i,
+    );
+    await expect(note).toContainText(
+      /get\s+in\s+touch\s+rather\s+than\s+entering\s+a\s+second\s+time/i,
+    );
+
+    // And it says where the entry went, rather than leaving them to find it.
+    await expect(
+      note.getByRole('link', { name: /cancelled race entries/i }),
+    ).toBeVisible();
+  });
+
+  test('never says "Nothing here" to somebody holding a lapsed entry', async ({
+    page,
+  }) => {
+    // The negative of the guard above, asserted on both views because either is an address
+    // somebody can be sent. A page that says "Nothing here" to this person is the empty page
+    // the whole rule exists to prevent.
+    await signInAs(page, LAPSED_EMAIL);
+
+    await page.goto('/account/entries/');
+    await expect(page.getByText('Nothing here.')).toHaveCount(0);
+
+    await page.goto('/account/entries/?show=cancelled');
+    await expect(page.getByText('Nothing here.')).toHaveCount(0);
+  });
+
+  test('offers no ask-the-club form on a not-completed entry', async ({ page }) => {
+    // There is no place to cancel or transfer, so there is nothing to ask about — and the
+    // card is rendered with a null token, which is what makes that structural.
+    await signInAs(page, LAPSED_EMAIL);
+    await page.goto('/account/entries/?show=cancelled');
+
+    await expect(
+      page.getByRole('button', { name: /ask to cancel this entry/i }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: /ask to transfer this entry/i }),
+    ).toHaveCount(0);
   });
 
   test('an unknown show value is the open view rather than an empty page', async ({
