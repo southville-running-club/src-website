@@ -1188,6 +1188,18 @@ sloppy** — the only person who can reach Checkout before 1 September is somebo
 `nn-tester` to. Swapping `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to live keys is the last
 manual step before the window opens, and it is in the entries-open runbook.
 
+⚠️ **Nothing may be left `paid` across that swap, and this has already cost one real payment.**
+Stripe's two modes are separate object graphs, so a key of one mode cannot refund a payment
+intent of the other — and the cancel path is Stripe first, the record second, so a mode mismatch
+answers *"Nothing was cancelled"* on a database that is perfectly healthy and leaves the place
+consumed for ever. A live payment taken on 27 August 2026 is still stranded that way (#118 item
+7), and the only occasion it can be cancelled at all is while the live pair is bound. **The
+failure is indistinguishable on the page from a restricted key missing Refunds — Write**, which
+is a second per-key fact that cannot be inferred from the other pair; the Worker log's status and
+Stripe `code=` are what tell them apart. Both, and the reason a hand refund in the dashboard
+makes the row permanently unreconcilable, are in
+[the key-swap runbook](docs/delivery/runbooks/entries-stripe-keys.md).
+
 **`/account/entries/` is what tells a runner they have a place**, alongside the confirmation
 email #73 sends and Stripe's own receipt. It reads `entries.my_entries()`, which matches on
 `person_id` — set when the buyer happened to be signed in — **or** on a `purchaser_email` equal to

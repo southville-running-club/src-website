@@ -356,7 +356,21 @@ the alternative leaves the club holding money for an entry it has already delete
 ### If it says "Nothing was cancelled"
 
 Either Stripe refused the refund, or no `STRIPE_SECRET_KEY` is installed. **Nothing was
-deleted and the place is still taken** in both cases. Check the payment in the Stripe dashboard.
+deleted and the place is still taken** in every case. Check the payment in the Stripe dashboard.
+
+**The page cannot tell you which refusal it was**, deliberately — it never quotes Stripe's own
+message, because an error message can carry the value that was rejected. The classification is in
+the Cloudflare observability panel, as `stripe refund failed — <status> type=… code=…`, and the
+three refusals worth knowing apart are:
+
+| | |
+| --- | --- |
+| **The wrong mode** | The payment was taken by the *other* Stripe key pair, so the payment intent does not exist for the key that is bound. **The commonest one, and the only one no amount of retrying fixes** |
+| **A missing scope** | The restricted key lacks **Refunds — Write**. Scopes are per key, so the test pair having it says nothing about the live pair |
+| **Already refunded by hand** | Somebody refunded it in the dashboard first. The button can now never complete the record — do not patch the row |
+
+All three, with the log lines that tell them apart and the recovery for each, are in
+[swapping the Stripe keys](entries-stripe-keys.md#telling-the-two-failures-apart).
 
 ---
 
@@ -371,7 +385,7 @@ somebody finds out what to tell the club it belongs to. The panel shows what it 
 entry type it applies to, and how many have gone; the entries table has a **Code** column so you
 can see which entries used it.
 
-**`used of 22` goes down as well as up.** A use is spent when a place is held and given back when
+**`used of 25` goes down as well as up.** A use is spent when a place is held and given back when
 a hold lapses or an entry is refunded, so a figure that looks wrong mid-rush is most likely a
 hold that has not expired yet. [The discount-code runbook](entries-discount-codes.md) has the
 rest.
