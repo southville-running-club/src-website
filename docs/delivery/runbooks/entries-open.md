@@ -201,17 +201,20 @@ argues that trade in full; it is recorded, not overlooked.
 when somebody has paid and has no place. It is a `console.error` in the Cloudflare
 observability panel, which is a place a person has to decide to open.
 
-**Decided on 30 August 2026: the standing daily reminder, explicitly as an interim.** The
-alternative — the cron sending "N purchases need a human" through the outbox #73 built — is the
-better answer and was not taken before Tuesday, because it is new sending behaviour on the path
-the confirmation emails depend on, two days before the club's first public transaction. **The
-procedure and the reasoning are in [the attention runbook](entries-attention.md#-the-interim-agreed-30-august-2026--a-daily-reminder-and-it-is-not-the-answer)**;
+**Decided on 30 August 2026: a standing open issue, explicitly as an interim.** A daily calendar
+reminder was proposed the same day and rejected — an alert that fires whether or not anything is
+wrong trains the person receiving it to dismiss it. The alternative — the cron sending "N
+purchases need a human" through the outbox #73 built — is the better answer and was not taken
+before Tuesday, because it is new sending behaviour on the path the confirmation emails depend
+on, two days before the club's first public transaction. **The procedure and the reasoning are in
+[the attention runbook](entries-attention.md#-the-interim-agreed-30-august-2026--an-open-issue-and-it-is-not-the-answer)**;
 these are the boxes for the day.
 
-- [ ] **The reminder exists in both volunteers' own calendars**, daily from 1 September to 30
-      October — one each, not a shared entry one person assumes the other has seen
-- [ ] The entry is **marked interim and links to #20**, so whoever deletes it knows what has to
-      exist first
+- [ ] **[#162](https://github.com/southville-running-club/src-website/issues/162) is open**, and
+      it stays open from 1 September to 30 October — the whole window. It carries the query, so
+      the thing to run is in the thing that reminds you
+- [ ] **It is checked daily** while the window is open. **The issue is the reminder** — closing
+      it early deletes it
 - [ ] **On the first day it is checked twice**, mid-morning and end of day
 - [ ] **`/admin/nn/` is not that channel and does not close this.** It counts unresolved flags at
       the top of the entries list, which makes the check a page rather than a SQL query — but it
