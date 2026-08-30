@@ -876,24 +876,23 @@ test.describe('one entry in full', () => {
   const CLEAN = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
 
   /**
-   * **Not on a phone, because the control that opens this page is not on a phone.**
+   * **This suite used to skip on a phone, and the reason it gave was the defect.**
    *
-   * *Details* sits in the actions column with *Cancel* and *Transfer*, and that column is
-   * `admin-col-wide` — folded away below 48rem, deliberately. The table's own header says why:
-   * the narrow layout keeps three columns on purpose, a fourth is what starts it scrolling
-   * sideways, and an absolutely positioned visually-hidden span inside a scroller drags the
-   * whole page with it. Cancelling is a desk task with the Stripe dashboard open in another
-   * tab; the medical note, which *is* wanted on race morning, is what keeps its column.
+   * It read: *"Not on a phone, because the control that opens this page is not on a phone"* —
+   * *Details* sat in the actions column with *Cancel* and *Transfer*, `admin-col-wide` folded
+   * that column away below 48rem, and the stacked row did not carry it. The skip called that a
+   * documented decision. It was half of one.
    *
-   * So this is a documented decision rather than a gap, and the page is unreachable at this
-   * width by design. **Skipped rather than worked around**: setting a desktop viewport here
-   * would test a layout no phone ever sees, and clicking a hidden control through the DOM
-   * would assert that something works when a volunteer cannot reach it.
+   * **The half that was deliberate is still deliberate**: the narrow layout keeps three columns
+   * because a fourth starts the table scrolling sideways, and cancelling is a desk task with
+   * the Stripe dashboard open beside it. **The half that was a defect is #145 defect 5** — this
+   * page is ADR-024's, built because the facts a volunteer needs *on a phone* are the ones that
+   * do not fit in a table, and folding the cell away left it with no door on the device it
+   * exists for. A skip whose justification is the bug will never fail when the bug is fixed.
+   *
+   * So it runs everywhere now, reached through the copy of the button that rides in the stacked
+   * row. Cancel and Transfer are on this page, so one button is the whole way in.
    */
-  test.skip(
-    ({ isMobile }) => isMobile === true,
-    'Details folds away with the actions column below 48rem — see the table header',
-  );
 
   test('is behind a deliberate action from the row, and puts no id in the address bar', async ({
     page,
@@ -920,6 +919,45 @@ test.describe('one entry in full', () => {
     expect(page.url()).toContain('/admin/nn/entry/');
     expect(page.url()).not.toContain('purchaseId');
     expect(page.url()).not.toContain(CLEAN_PAID_PURCHASE_ID);
+  });
+
+  test('is reachable from a phone, which is what this page was built for', async ({
+    page,
+  }) => {
+    // **#145 defect 5, asserted at the width it was about.** This page's whole argument is the
+    // phone: a table can only carry what fits in a column, so the facts a volunteer needs at
+    // race HQ are the ones that did not. The button that opens it lived in the actions cell,
+    // which folds away below 48rem — so on the device the page exists for, it could not be
+    // opened at all.
+    //
+    // **320px rather than merely "mobile"**, because that is where the column budget bites. The
+    // fix had to add a way in *without* adding a fourth column, and 320px is the width that
+    // fails if it did: the table starts scrolling sideways, and an absolutely positioned
+    // visually-hidden span inside a scroller drags the whole document with it.
+    //
+    // **On the clean event, not the actions one.** Every entry on `zz-admin-actions` is
+    // consumed by a test that cancels, transfers or assigns it, and those acts are
+    // irreversible within a run — `cancel_entry()` deletes the entrant, so the row it leaves
+    // has no name to find. This is a read, so it belongs on the fixture nothing mutates.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(CLEAN);
+
+    await page
+      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
+      .getByRole('button', { name: /Details/ })
+      .click();
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+    ).toBeVisible();
+
+    // **And the two acts are on the other side of it**, which is why one button in the stacked
+    // row is the whole fix rather than three. Cancel and Transfer stay out of the phone *table*
+    // deliberately — cancelling is a desk task — but they are not out of reach.
+    await expect(page.getByRole('button', { name: 'Cancel this entry' })).toBeVisible();
+
+    await expectNoSidewaysScroll(page, 'one entry in full, reached from a 320px phone');
   });
 
   test('says the things the table had no column for', async ({ page }) => {
@@ -1413,13 +1451,11 @@ test.describe('accessibility and small screens', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
-  test('has no axe violations on one entry in full @requires-js', async ({
-    page,
-    isMobile,
-  }) => {
-    // Same reason the rest of this page's tests skip on a phone: the control that opens it
-    // folds away with the actions column below 48rem, by decision. See `one entry in full`.
-    test.skip(isMobile === true, 'the Details control is desktop-only by decision');
+  test('has no axe violations on one entry in full @requires-js', async ({ page }) => {
+    // **It runs on a phone now, and that is the point of running it there.** This used to skip
+    // below 48rem because the Details control did — #145 defect 5 — so the one document on this
+    // surface built specifically for a phone had never been through axe at a phone's width.
+    // See `one entry in full` for the whole of that.
 
     // **Its own pass, because it is a different document.** Panels, a definition list per
     // person, three timelines and two buttons — none of which axe has seen on the table this
@@ -1714,12 +1750,17 @@ test.describe('acting on an entry somebody paid for', () => {
   test('cancels an entry, refunds it, and leaves the row with no runner on it', async ({
     page,
   }) => {
-    // **A desktop width, because the row's actions are a desktop-only control today.**
-    // Details, Cancel and Transfer sit in an `.admin-col-wide` cell, which is `display: none`
-    // below 768px, and the stacked mobile row carries only the club and the category — so on a
-    // phone there is no way to reach any of them. That is issue #145, defect 5; pinning the
-    // width here keeps these tests about cancelling and transferring rather than about the
-    // breakpoint, and they will keep passing once the defect is fixed.
+    // **A desktop width, because Cancel and Transfer are still desktop-only — deliberately.**
+    // They sit in an `.admin-col-wide` cell that folds away below 768px, and cancelling is a
+    // desk task with the Stripe dashboard open beside it rather than something done one-handed
+    // at a race.
+    //
+    // **That is no longer the whole story, and the half that was a defect is fixed.** #145
+    // defect 5 was that *Details* folded away with them, leaving `/admin/nn/entry/` — the page
+    // ADR-024 built for exactly the phone case — with no door on a phone. A second copy of that
+    // button now rides in the stacked row, and `reaches an entry from a phone` below is the
+    // test for it. The pin here keeps this test about cancelling rather than about the
+    // breakpoint.
     await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ACTIONS);

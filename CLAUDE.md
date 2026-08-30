@@ -269,6 +269,32 @@ test` reserved for a final pass before opening the pull request. It composes wit
 above rather than replacing it — the full run still goes through a Haiku subagent when it
 runs at all.
 
+**`./dev e2e` is the loop; `./dev test` is the gate.** One spec on one engine, seconds rather
+than minutes — and it exports the three Supabase variables a scoped Playwright run needs, without
+which the fixtures throw `supabaseKey is required` from a file the failing test never mentions.
+`nn-entry.spec.ts` and `nn-signup.spec.ts` need `--config=playwright.config.serial.ts`; asked for
+without it, Playwright reports **no tests found**, which reads as a pass.
+
+⚠️ **A green Mac does not mean a green CI, and `./dev e2e --linux` is how you find out before
+pushing.** Both volunteers are on macOS; CI is Linux, and the font metrics differ — so every
+assertion about position, wrapping or overflow can be honestly green on one and red on the other.
+It has now cost three separate sessions:
+
+* the radio-focus divergence and the CSV download behaviour, both already in the traps below;
+* `element is not stable` across a whole project, which took two wrong hypotheses to place;
+* `keeps the entry type that was chosen in view` — **0.1px on a Mac, 214px on the runner.**
+
+`./dev e2e --linux` runs the browsers inside `mcr.microsoft.com/playwright:v1.62.1-noble`, the
+image and version CI installs, while the Workers and the database stay on the host and are
+reached through `host.docker.internal`. It reproduced that 214px exactly, on a Mac, in twenty-one
+seconds. **Use it before pushing anything that touches layout, a stylesheet, or an assertion
+about where something is** — and when CI fails something a laptop passed, reach for it first
+rather than reasoning about what the runner might be doing.
+
+It is not a replacement for `./dev test`: it runs the browsers only, against a build and a
+database the host already has. First run pulls about 2GB; after that it is seconds slower than
+the native one.
+
 **Every change by pull request.** Both volunteers review.
 
 **One change per pull request, and since 15 August 2026 that is mechanical rather than

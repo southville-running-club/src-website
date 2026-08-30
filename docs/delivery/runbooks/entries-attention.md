@@ -17,11 +17,40 @@ Two channels, and only the first is reliable.
 | --- | --- |
 | **The Worker log** | Every five minutes the cron writes `entries: N purchase(s) need a human, oldest Hh` to the Cloudflare observability panel. It **repeats until somebody clears the flag** and the age climbs, because a single line at 02:14 is an artefact nobody sees |
 | **The row itself** | `attention is not null and attention_resolved_at is null`. Durable, greppable, and still true next month. This is the one to trust |
-| **The entries list** | [`/nn/admin/entries/`](entries-admin.md) counts unresolved flags at the top of the page and says in words when the field is over capacity. **It is somewhere to look rather than something that tells you**, and it only exists once its key is installed |
+| **The entries list** | [`/admin/nn/`](entries-admin.md) counts unresolved flags at the top of the page and says in words when the field is over capacity. **It is somewhere to look rather than something that tells you**, and it is opened by holding `nn-admin` rather than by installing a key |
 
-There is still no email and no alerting stack — that is [Slice D](../phases.md) — so **the log
-line is the whole of the notification** and the admin page is where you go once something has
-prompted you. Somebody should look after entries open, and once a week while the window is open.
+There is still no email and no alerting stack, so **the log line is the whole of the
+notification** and the admin page is where you go once something has prompted you.
+
+### ⏰ The interim, agreed 30 August 2026 — a daily reminder, and it is not the answer
+
+**[#20](https://github.com/southville-running-club/src-website/issues/20) is the gap that this
+box closes, and it closes it badly on purpose.** The alarm fires when **somebody has paid and
+has no place**. The mechanism is right — durable on the row, repeating, the age climbing — and
+its last hop is a `console.error` in a panel a person has to *decide* to open. On the morning
+entries open, nobody is deciding to open it.
+
+So, for the entry window and no longer:
+
+- [ ] **A daily calendar reminder on both volunteers**, from 1 September until entries close on
+      30 October, to run [the query below](#the-query). Not a shared calendar entry one person
+      can assume the other has seen — one each
+- [ ] It is **marked interim in the calendar entry itself**, with a link to #20, so that
+      whoever deletes it knows what has to exist first
+- [ ] **On the first day, check it twice** — once mid-morning and once at the end of the day.
+      The opening hours are when a payment is most likely to land against a full or racing field
+
+**Why this rather than something better.** Option 3 on #20 — the cron sending "N purchases need
+a human" through the outbox that #73 built — is the real answer and the machinery now exists:
+`RESEND_API_KEY` is bound and the five-minute cron already sends. It was **not** taken before
+Tuesday because it is new sending behaviour on the send path the confirmation emails depend on,
+introduced two days before the club's first public transaction, against a 100-a-day cap it would
+also consume. **That is a schedule decision rather than a design one, and it should be built
+once the window has settled** — at which point this section is deleted rather than amended.
+
+⚠️ **A reminder is not an alarm and this file should not pretend otherwise.** It fires whether or
+not anything is wrong, so the failure mode is a person who stops reading it. If it is still here
+in November, that is the thing that went wrong.
 
 ---
 

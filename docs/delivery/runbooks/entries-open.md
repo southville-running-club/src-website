@@ -44,29 +44,58 @@ that cannot be undone by closing entries again afterwards.
 | | Why it stops the run |
 | --- | --- |
 | ~~**The entry open and close times have not been supplied by the committee**~~ | **Met.** Agreed by the committee over WhatsApp on **Monday 24 August 2026**: **open Tuesday 1 September 2026 07:00 BST, close Friday 30 October 2026 17:00 GMT**. `entries_close_at` is already applied; this runbook sets the opening half only |
-| **The rate-limiting rule is not live** | [Step 0.1](#01--the-waf-rate-limiting-rule-must-be-live). This is the only failure in the design with no recovery path |
+| ~~**The rate-limiting rule is not live**~~ | **Met, and not by the rule this page used to name.** **C1** has been live since 25 August 2026 and covers `POST /nn/`, which is the prefix that matters. **E1 was never created and never will be** — see [step 0.1](#01--the-rate-limiting-rule-must-be-live). What is *not* met is that nobody has watched it fire, and that is a checkbox rather than a stop condition |
 | **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). The first real payment must not be a stranger's |
-| **The entry terms have not been written** | The form asks people to accept terms; today its hint says they are still to be confirmed. Taking £17 against terms that do not exist is not a build decision |
+| ~~**The entry terms have not been written**~~ | **Met.** Published 28 August 2026 at [`/nn/2026/terms/`](https://new.southvillerunningclub.co.uk/nn/2026/terms/) and linked from the acceptance checkbox — #142. The race director's copy, verbatim. **The committee has not ratified it**, which is why the page says "Supplied by the race director" rather than claiming otherwise; that is a known state, not a blocker |
 | **Nobody has restored a backup** | [#23 item 2](https://github.com/southville-running-club/src-website/issues/23). The rows about to arrive include dates of birth, emergency contacts and — under separate consent — medical notes |
 
 ---
 
-## ⏰ The deadline this runbook now has: 07:00, Tuesday 1 September 2026
+## ⏰ Nobody has to be awake at 07:00, and that is new
 
-**`/nn/2026/` already tells runners that entries open at 07:00 on 1 September. Nothing in the
-database enforces that.** The page reads `race.json`; the form reads
-`entries.events.entries_open_at`, which is still null. **Until step 3 is run, the page promises
-open entries against a form that is shut.**
+**This section used to say the opposite, and it was wrong about the mechanism.** It read *"this
+is a diary entry, not a deploy — one volunteer awake before 07:00"*. That is not what the column
+does.
 
-**It fails silently and in the worst direction.** Nothing reads both values, so nothing can
-notice they disagree — there is no alarm, no failing test, and no log line. What happens instead
-is that people who set an alarm for 07:00 arrive to a page saying entries are open, find the
-interest form, and email the club. The first the club hears of it is the inbox.
+**`entries_open_at` is a scheduled switch, not a manual one.** `entries.entry_state()` resolves
+the state by comparing the clock to it:
 
-**So this is a diary entry, not a deploy.** One volunteer awake before 07:00 on Tuesday 1
-September, with these two statements to hand. They are the same ones in
-[step 3](#step-3--the-row-edit), repeated here so that whoever is awake is not scrolling for
-them:
+```sql
+when event.entries_open_at is null              then 'pre_open'
+when pg_catalog.now() < event.entries_open_at   then 'pre_open'
+when ... >= event.entries_close_at              then 'closed'
+else 'open'
+```
+
+`create_pending_purchase()` guards the same way independently, through its own `v_early` branch.
+So **setting the column to Tuesday 07:00 at any point beforehand opens the race at Tuesday
+07:00**, on its own, with no cron, no deploy and nobody present. Two separate reads, so they
+cannot drift apart.
+
+**Three things this changes, and the second is the one to hold on to:**
+
+1. **The page and the database stop disagreeing.** `/nn/2026/` publishes 07:00 Tuesday from
+   `race.json` while `entries_open_at` says *never*. Nothing reads both, so nothing can notice —
+   there is no alarm, no log line, and until now no failing test. Scheduling the column closes
+   that gap rather than racing it. `entries-window-published.test.ts` is the test that now fails
+   if the two ever disagree again.
+2. ⚠️ **The gate moves earlier, and it moves onto you.** Once this statement is run there is
+   nothing between the clock and 250 places going on sale. **Everything in
+   [step 0](#step-0--the-things-that-must-be-true-first) must be true before you type it**, not
+   before 07:00. That is the whole cost of the convenience.
+3. **Somebody still looks on Tuesday morning** — at 07:05, not 06:45, and to confirm rather than
+   to act. Load `/nn/2026/` in a browser that has never seen it and check the entry form is
+   there.
+
+**The rollback is unchanged and still one statement**, and it works before, at, and after 07:00.
+See [closing entries again](#closing-entries-again).
+
+**If it is already past 07:00 and the column was never set**, run it anyway and then check
+`/admin/nn/` for interest sign-ups that arrived in the gap: those are people who tried to enter
+and could not, and they are the ones to tell first.
+
+The two statements are in [step 3](#step-3--schedule-the-opening), and repeated here so that
+whoever is running it is not scrolling for them:
 
 ```sql
 -- Opens Tuesday 1 September 2026, 07:00 BST. Explicit +01, so it does not depend
@@ -89,13 +118,10 @@ select entries_open_at  at time zone 'Europe/London' as opens_london,
 or `18:00` means the offset went in the wrong way round — the clocks go back between the two
 ends of this window, so they do not share one.
 
-**If it is already past 07:00 when somebody notices**, run it anyway and then check
-`/admin/nn/` for the interest sign-ups that arrived in the gap: those are people who tried to
-enter and could not, and they are the ones to tell first.
-
-**The permanent fix is to publish from the database rather than from `race.json`**, which
-removes the gap instead of scheduling around it. That is an ADR after entries open, not a change
-to make in the week before — recorded here so the deadline is understood as a symptom.
+**The permanent fix is still to publish from the database rather than from `race.json`**, which
+deletes the second source instead of testing that the two agree. That is an ADR after entries
+open, not a change to make in the week before — recorded here so the test is understood as a
+guard rather than as the answer.
 
 ---
 
@@ -104,12 +130,19 @@ to make in the week before — recorded here so the deadline is understood as a 
 **This is the checklist the four blocking issues were written for.** Work down it; each item
 links to the issue that explains it properly.
 
-### 0.1 — the WAF rate-limiting rule must be live
+### 0.1 — the rate-limiting rule must be live
 
 > **⚙️ Ops**
 
-**[#19](https://github.com/southville-running-club/src-website/issues/19). Do this one first
-and do not skip it.**
+**[#19](https://github.com/southville-running-club/src-website/issues/19), and it is met —
+by a different rule from the one this step used to ask for.**
+
+⚠️ **Do not go looking for `E1`. It does not exist and it is not going to.** This step named it
+until 30 August 2026, and somebody following the old wording at 07:00 on a Tuesday would have
+found no such rule in the dashboard and either halted the run or created a second rule the free
+plan does not allow. **What is live is `C1`**, created 25 August 2026 — one combined expression
+over every `POST` under `/account/`, `/admin/` and `/nn/`, excluding `/nn/stripe-webhook`.
+It covers this step's concern because `/nn/` is a prefix and `POST /nn/2026/` is underneath it.
 
 `entries.create_pending_purchase()` is granted to `anon`, the anon key is published in page
 source by design, and every successful call holds a place for 31 minutes. A single script
@@ -121,29 +154,44 @@ up, and every remedy available on the day lands on real entrants too.
 
 **The rule is written down, and it is not written down here.** Its expression, threshold,
 period, action and mitigation are [in the committed copy of the Cloudflare
-rules](../../reference/cloudflare-waf-rules.md), where it is **E1** — beside **A1**–**A4**,
-the account rules [#64](https://github.com/southville-running-club/src-website/issues/64)
-adds for sign-in, sign-up, password reset and the admin surfaces. One table, because they are
-the same kind of object in the same dashboard and the free plan may only allow one of them.
+rules](../../reference/cloudflare-waf-rules.md). That file carries **E1** and **A1**–**A4** as
+well, and **every one of those five rows says "superseded by C1"** — they are the argument that
+was made, kept because they become reachable the day somebody pays for a plan, not a list of
+things to create.
 
-**One correction that file makes to this step, and it matters:** #19 says `POST /nn/` because
-it was written before [ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md)
-split the pages. `POST /nn/` is now the *interest* form; **`POST /nn/2026/` is the entry form,
-and that is the one that holds places.** E1 matches the prefix for that reason — a rule
-written to the letter of the issue would cover the harmless half and miss the expensive one.
+**The `POST /nn/` correction still stands and is why the prefix matters.** #19 said `POST /nn/`
+because it was written before
+[ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md) split the pages.
+`POST /nn/` is now the *interest* form; **`POST /nn/2026/` is the entry form, and that is the one
+that holds places.** C1 matches on the prefix, so it covers both — a rule written to the letter
+of the issue would have covered the harmless half and missed the expensive one.
 
-- [ ] **E1** is **live and tested** — created from
-      [the table](../../reference/cloudflare-waf-rules.md#the-rules), then read back from the
-      dashboard and diffed against it
-- [ ] `POST /nn/stripe-webhook` is **excluded** from it, deliberately. Stripe's delivery
+**What C1 buys, and what it does not.** At 3 requests per 10 seconds it caps one address at 18
+entry attempts a minute, which is a real brake on the throughput attack this step exists for.
+The 10-second mitigation is the most the free plan offers, so it is a burst brake rather than a
+cost to an attacker. [The rules file](../../reference/cloudflare-waf-rules.md#what-actually-happened)
+argues that trade in full; it is recorded, not overlooked.
+
+- [x] **C1 is live** — created 25 August 2026, named `Combined — account, admin and race forms`
+      in the dashboard, execution order first, status Active
+- [x] `POST /nn/stripe-webhook` is **excluded** from it, deliberately. Stripe's delivery
       volume is not a person's, and a block there stops a payment being *recorded* rather
       than stopping one being taken
+- [ ] ⚠️ **Somebody has watched it fire.** Still outstanding, and it is the one box on this step
+      that is not ticked — [accounts-open step 0.3](accounts-open.md#03--somebody-has-actually-tried-it).
+      Four rapid `POST`s from one address should be blocked; nobody has confirmed what the
+      blocked person actually sees, because it is Cloudflare's page rather than the club's
+- [ ] ⚠️ **Expect at least one report of a legitimate block on opening morning**, and know in
+      advance that it is not a fault. A mobile carrier puts hundreds of subscribers behind one
+      address and 07:00 is when a group of them submits at once. The 10-second mitigation means
+      somebody blocked is through again before they have finished reading the page — **do not
+      loosen the rule on the day** without reading the rules file first
 - [ ] Consider covering the anon-callable `entries.expire_pending_holds()` and any health
       endpoints the platform exposes by then. Neither is abusable for correctness; both are
       free-tier compute anybody can spend
-- [ ] The rule is recorded in [`apps/main/README.md`](../../../platform/apps/main/README.md)'s
-      manual-steps table — that file already says a WAF rule *"is a manual step and belongs
-      here when it happens"* — and its status column in the rules file says it is live
+- [x] The rule is recorded in [`apps/main/README.md`](../../../platform/apps/main/README.md)'s
+      manual-steps table as step 11, marked **Partly done**, and its status column in the rules
+      file says it is live
 
 ### 0.2 — somebody is watching the attention alarm
 
@@ -153,17 +201,22 @@ written to the letter of the issue would cover the harmless half and miss the ex
 when somebody has paid and has no place. It is a `console.error` in the Cloudflare
 observability panel, which is a place a person has to decide to open.
 
-- [ ] Either a channel that reaches a person without them choosing to look, **or** a standing
-      daily reminder on both volunteers to run the query in
-      [the attention runbook](entries-attention.md)
-- [ ] **`/nn/admin` is not that channel and does not close this.** It counts unresolved flags at
+**Decided on 30 August 2026: the standing daily reminder, explicitly as an interim.** The
+alternative — the cron sending "N purchases need a human" through the outbox #73 built — is the
+better answer and was not taken before Tuesday, because it is new sending behaviour on the path
+the confirmation emails depend on, two days before the club's first public transaction. **The
+procedure and the reasoning are in [the attention runbook](entries-attention.md#-the-interim-agreed-30-august-2026--a-daily-reminder-and-it-is-not-the-answer)**;
+these are the boxes for the day.
+
+- [ ] **The reminder exists in both volunteers' own calendars**, daily from 1 September to 30
+      October — one each, not a shared entry one person assumes the other has seen
+- [ ] The entry is **marked interim and links to #20**, so whoever deletes it knows what has to
+      exist first
+- [ ] **On the first day it is checked twice**, mid-morning and end of day
+- [ ] **`/admin/nn/` is not that channel and does not close this.** It counts unresolved flags at
       the top of the entries list, which makes the check a page rather than a SQL query — but it
-      is still somewhere a person has to decide to look. Switching it on is worth doing before
-      entries open ([the admin runbook](entries-admin.md)); it is not a substitute for either
-      option above
-- [ ] Whichever it is, it is written into that runbook next to the diagnosis table
-- [ ] If it is the reminder, it is **marked as an interim** so it is removed when the
-      confirmation email makes it redundant, rather than left running as a second half-alarm
+      is still somewhere a person has to decide to look. It is a good place to go once something
+      has prompted you; it is not the prompt
 
 ### 0.3 — a backup exists and a restore has been performed
 
@@ -387,16 +440,27 @@ sub-step is for, and finding out on 1 September is finding out too late.
 
 At `/admin/people/`. It takes effect on the tester's next request, with no session to end.
 
-Leave the live keys installed — [step 3](#step-3--the-row-edit) is the next thing that happens,
+Leave the live keys installed — [step 3](#step-3--schedule-the-opening) is the next thing that happens,
 and swapping them back to test keys before opening entries would take real money nowhere.
 
 ---
 
-## Step 3 — the row edit
+## Step 3 — schedule the opening
 
 > **👥 Both**
 
 **Both volunteers present.** One types, one reads it back before it runs.
+
+⚠️ **This is the moment, not 07:00 on Tuesday.** The column is a scheduled switch — see
+[the section above](#-nobody-has-to-be-awake-at-0700-and-that-is-new) — so the race opens by
+itself at the time you write here. **Once this runs there is nothing between the clock and 250
+places going on sale**, so do not run it until every box in
+[step 0](#step-0--the-things-that-must-be-true-first) is ticked and
+[step 2](#step-2--rehearse-a-real-payment-without-opening-the-window)'s pound has been taken and
+refunded.
+
+**Running it early is the point, and Monday evening is the intent.** It buys daylight: if the
+read-back is wrong you find out with a day in hand rather than at 07:04 with runners arriving.
 
 **One column, not two.** The committee's ratified window is
 **opens Tuesday 1 September 2026 07:00 BST, closes Friday 30 October 2026 17:00 GMT**, and
@@ -442,15 +506,34 @@ per request, from this row.
 
 > **🏁 Race pages**
 
-Do all of these from a browser that has never seen the site, not from the SQL editor.
+Do all of these from a browser that has never seen the site, not from the SQL editor. **A
+private window is not enough on its own** — the entry pages are `private, no-store` since #146,
+but an edge object cached before that deploy can still be served, so hard-reload if anything
+looks like the state you were in a minute ago.
 
-- [ ] `/nn/` shows the **entry form**, not the interest form
-- [ ] The fees on it are £15 affiliated and £17 unaffiliated, matching `entries.fees`
+**Three things on this list were wrong until 30 August 2026**, and all three would have been
+read out loud at 07:00 by somebody trusting the page:
+
+- [ ] **`/nn/2026/`** shows the **entry form**, not the interest form. **Not `/nn/`** — that page
+      is evergreen, names no year, and carries no form at all since
+      [ADR-011](../../architecture/decisions/adr-011-a-race-and-its-runnings.md); a `POST` to it
+      falls through to the assets binding and answers 405
+- [ ] The fees on it are **£18 affiliated and £20 unaffiliated**, matching `entries.fees`.
+      Revised from £15/£17 on 24 August 2026 —
+      [decision 006](../../decisions/decision-log.md). The £2 gap is ARC's Unattached Runner
+      Levy, so the club nets £18 either way
+- [ ] `/nn/` still shows the **interest** form and still names no year, and its year panel
+      points at `/nn/2026/`
 - [ ] The primary button says "Enter the race"
+- [ ] The ARC permit number **`ARC/26/0842`** is on the page and at the foot of the form
 - [ ] A deliberately invalid entry is refused with messages against the right fields
-- [ ] **With JavaScript disabled**, the form still works
+- [ ] **With JavaScript disabled**, the form still works — this is the one that has broken twice
+- [ ] Entering twice with the same name and date of birth is refused with *"This runner already
+      has a place"*, and the response is **409**, not 503
 - [ ] `npm run smoke` passes
-- [ ] The rate-limiting rule fires when you make it fire
+- [ ] The rate-limiting rule fires when you make it fire — four rapid `POST`s from one address.
+      **This also closes [step 0.1](#01--the-rate-limiting-rule-must-be-live)'s open box**, so
+      write down what the blocked page actually said
 
 ---
 
