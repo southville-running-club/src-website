@@ -376,6 +376,8 @@ export type Database = {
         Row: {
           action: string
           id: string
+          owner_email: string | null
+          owner_person_id: string | null
           purchase_id: string
           reason: string | null
           requested_at: string
@@ -384,6 +386,8 @@ export type Database = {
         Insert: {
           action: string
           id?: string
+          owner_email?: string | null
+          owner_person_id?: string | null
           purchase_id: string
           reason?: string | null
           requested_at?: string
@@ -392,6 +396,8 @@ export type Database = {
         Update: {
           action?: string
           id?: string
+          owner_email?: string | null
+          owner_person_id?: string | null
           purchase_id?: string
           reason?: string | null
           requested_at?: string
