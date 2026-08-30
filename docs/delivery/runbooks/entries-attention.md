@@ -22,7 +22,7 @@ Two channels, and only the first is reliable.
 There is still no email and no alerting stack, so **the log line is the whole of the
 notification** and the admin page is where you go once something has prompted you.
 
-### ⏰ The interim, agreed 30 August 2026 — a daily reminder, and it is not the answer
+### ⏰ The interim, agreed 30 August 2026 — an open issue, and it is not the answer
 
 **[#20](https://github.com/southville-running-club/src-website/issues/20) is the gap that this
 box closes, and it closes it badly on purpose.** The alarm fires when **somebody has paid and
@@ -30,13 +30,18 @@ has no place**. The mechanism is right — durable on the row, repeating, the ag
 its last hop is a `console.error` in a panel a person has to *decide* to open. On the morning
 entries open, nobody is deciding to open it.
 
+**A daily calendar reminder was proposed on the day and rejected.** A recurring alert that fires
+whether or not anything is wrong trains the person receiving it to dismiss it, which is the
+failure mode the warning at the foot of this box names — so the club would have been buying that
+cost outright rather than risking it.
+
 So, for the entry window and no longer:
 
-- [ ] **A daily calendar reminder on both volunteers**, from 1 September until entries close on
-      30 October, to run [the query below](#the-query). Not a shared calendar entry one person
-      can assume the other has seen — one each
-- [ ] It is **marked interim in the calendar entry itself**, with a link to #20, so that
-      whoever deletes it knows what has to exist first
+- [ ] **[#162](https://github.com/southville-running-club/src-website/issues/162) is open**, and
+      it stays open from 1 September until entries close on 30 October. It carries
+      [the query below](#the-query), so the thing to run is in the thing that reminds you
+- [ ] **It is checked daily** while the window is open. **The issue is the reminder** — it is
+      closed when the window closes, and closing it early deletes the reminder
 - [ ] **On the first day, check it twice** — once mid-morning and once at the end of the day.
       The opening hours are when a payment is most likely to land against a full or racing field
 
