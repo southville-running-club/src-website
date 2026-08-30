@@ -855,9 +855,9 @@ test.describe('the Nightingale Nightmare content pages', () => {
     //   700     62.5px   64px    one row
     //   640     62.5px   64px    one row
     //   560     62.5px   64px    one row — and the last width before the compact layout
-    //   480    105.3px  112px    compact — 101.2px on mobile-safari, so this width is slack
-    //   400    105.3px  112px    compact
-    //   320    105.3px  112px    compact — 100.1px on mobile-safari, and the width tracked
+    //   480    105.3px  136px    compact — 101.2px on mobile-safari. Slack, deliberately
+    //   400    105.3px  136px    compact — slack
+    //   320    105.3px  136px    compact — 100.1px on mobile-safari. Slack, and not tracked
     //
     // **The middle regime is gone, and that is the change.** With five labels the bar wrapped to
     // two rows somewhere between 640px and 700px, which is what `--nn-masthead-height`'s 112px
@@ -866,15 +866,20 @@ test.describe('the Nightingale Nightmare content pages', () => {
     // still reserving 112px across that whole span, giving a 120px inset against a 62.5px bar.
     // It cleared, and tracked nothing, which is exactly what the second property below catches.
     //
-    // **The compact regime has one height now, not two, and its token came down with it.** It
-    // had two because five labels fit one row at 400px and wrapped at 320px; four fit at every
-    // compact width, so 105.3px holds from 480px down — and the 136px token, sized for the old
-    // 134.8px two-row bar, was 3.9px outside the tracking bound on mobile-safari, whose bar is
-    // 100.1px. 112px satisfies both engines: it clears the tallest and tracks the shortest.
+    // **The compact regime has one height now, not two — but its token stays at 136px, and
+    // 320px is no longer tracked.** It had two heights because five labels fit one row at 400px
+    // and wrapped at 320px; four fit at every compact width, so 105.3px holds from 480px down
+    // and 136px is now ~31px of slack.
+    //
+    // Tightening it is not available. That inset is also what gives the entry form's fee cards
+    // room to shift without leaving the screen, and 112px moved the chosen card 3.4px off the
+    // top at 320px on CI's Linux chromium — `nn-entry.spec.ts`'s "keeps the entry type that was
+    // chosen in view" caught it. The two requirements pull opposite ways and the bar is not the
+    // one that decides, so this width is asserted to *clear* and no longer to *track*.
     //
     // A fifth control brings both regimes back. Re-measure rather than restoring these numbers:
     // where labels wrap is a font metric, not something this repository sets.
-    const TIGHT = new Set([1280, 900, 640, 560, 320]);
+    const TIGHT = new Set([1280, 900, 640, 560]);
 
     await page.goto('/nn/2026/race-day/');
 

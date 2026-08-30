@@ -907,18 +907,22 @@ html:has(body.theme-nn) {
        second height. Measured across 480px down to 320px: **105.3px on chromium and desktop
        webkit, 100.1px on mobile-safari**, and flat within each engine.
 
-       **112px, and the bound that picks it is the tracking one rather than the clearing one.**
-       `site.spec.ts` asks that the inset clears the tallest bar (105.3px) and stays within 40px
-       of the shortest (100.1px), so the token has to satisfy both engines at once: the padding
-       is the token plus 8, which puts the usable range at 97–132px. 112 sits in the middle of
-       it, clearing by 15px and tracking by 20px, which is enough for the three engines to
-       disagree about a line box and not enough to hide a regime that has gone missing.
+       **136px stays, and it is now knowingly generous rather than measured.** Against a
+       ~105px bar it reserves about 31px more than the bar needs, which lands a phone anchor
+       slightly low — the harmless direction. The alternative was worse: this inset is also
+       what gives the entry form's fee cards room to shift without leaving the screen, and
+       lowering it to 112px moved the card somebody had just chosen 3.4px off the top at 320px
+       on CI's Linux chromium. That is the defect `nn-entry.spec.ts`'s "keeps the entry type
+       that was chosen in view" exists to catch, in miniature.
 
-       Measured, not estimated — twice now. The first version was 116px from arithmetic on label
-       widths and `site.spec.ts` failed it; 136px was right for five labels and failed on
-       mobile-safari the day the bar lost one. Re-measure rather than reason if the labels
-       change again. */
-    --nn-masthead-height: 112px;
+       **So this number answers two requirements and only one of them is about the bar.** It
+       cannot be re-derived from the bar's height alone, and it could not be reproduced on
+       macOS — the card's position at 320px differs enough between platforms that the local
+       measurement said the opposite of CI. Changing it needs a CI run, not a laptop.
+
+       `site.spec.ts` no longer asks the inset to *track* the bar at 320px for the same reason;
+       the comment on `TIGHT` there says so. It still asks it to clear it, at every width. */
+    --nn-masthead-height: 136px;
   }
 
   /* 4px off the top and bottom of a bar that is now on screen for the whole page. */
