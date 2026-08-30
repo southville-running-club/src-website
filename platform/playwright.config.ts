@@ -139,7 +139,11 @@ export default defineConfig({
     // One origin for the whole site, exactly as in production. `/timing` is a different
     // Worker — forwarded by `apps/main` locally, dispatched by a Cloudflare route live —
     // but the browser cannot tell, which is the point.
-    baseURL: 'http://localhost:8787',
+    // **`PW_BASE_URL` is how `./dev e2e --linux` reaches the site**, and it is the only reason
+    // this is not a literal. That mode runs the browsers inside CI's own Linux image while the
+    // Workers and the database stay on the host, so the container addresses them as
+    // `host.docker.internal` rather than `localhost`. Everything else leaves it unset.
+    baseURL: process.env.PW_BASE_URL ?? 'http://localhost:8787',
     trace: 'on-first-retry',
     // Europe/London, so the browser sees what a club member's phone sees. The *unit*
     // suite pins UTC; this one deliberately does not.
@@ -180,38 +184,44 @@ export default defineConfig({
 
   // Both front doors under `wrangler dev` — the real Workers runtime, not a framework dev
   // server. **Neither command builds**; `npm run test:e2e` does that first.
-  webServer: [
-    {
-      // **A fake Stripe, and the reason the entry suite can run at all.** This repository
-      // holds no Stripe credentials and never will, so `apps/main`'s `preview` script points
-      // `STRIPE_API_BASE` here and this answers `POST /v1/checkout/sessions` with a canned
-      // session on `checkout.stripe.com`. The suite asserts **where** the Worker redirects
-      // and never follows it: Stripe's hosted page is a third party's, and a test that types
-      // into it is a test that breaks when they redesign it.
-      //
-      // Started before the website, because `apps/main` is what calls it.
-      command: 'npm run stripe:stub',
-      url: 'http://127.0.0.1:8789/__stub/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-      stdout: 'ignore',
-      stderr: 'pipe',
-    },
-    {
-      command: 'npm run preview --workspace=apps/main',
-      url: 'http://localhost:8787',
-      reuseExistingServer: !process.env.CI,
-      timeout: 90_000,
-      stdout: 'ignore',
-      stderr: 'pipe',
-    },
-    {
-      command: 'npm run preview --workspace=apps/timing',
-      url: 'http://localhost:8788/timing',
-      reuseExistingServer: !process.env.CI,
-      timeout: 90_000,
-      stdout: 'ignore',
-      stderr: 'pipe',
-    },
-  ],
+  // **`PW_NO_WEBSERVER` is set by `./dev e2e --linux` and nothing else.** In that mode the
+  // servers are already running on the host — this process is inside a container and could
+  // neither start them nor bind their ports. Everywhere else Playwright owns their lifecycle,
+  // which is what makes a plain `npx playwright test` work at all.
+  webServer: process.env.PW_NO_WEBSERVER
+    ? undefined
+    : [
+        {
+          // **A fake Stripe, and the reason the entry suite can run at all.** This repository
+          // holds no Stripe credentials and never will, so `apps/main`'s `preview` script points
+          // `STRIPE_API_BASE` here and this answers `POST /v1/checkout/sessions` with a canned
+          // session on `checkout.stripe.com`. The suite asserts **where** the Worker redirects
+          // and never follows it: Stripe's hosted page is a third party's, and a test that types
+          // into it is a test that breaks when they redesign it.
+          //
+          // Started before the website, because `apps/main` is what calls it.
+          command: 'npm run stripe:stub',
+          url: 'http://127.0.0.1:8789/__stub/health',
+          reuseExistingServer: !process.env.CI,
+          timeout: 30_000,
+          stdout: 'ignore',
+          stderr: 'pipe',
+        },
+        {
+          command: 'npm run preview --workspace=apps/main',
+          url: 'http://localhost:8787',
+          reuseExistingServer: !process.env.CI,
+          timeout: 90_000,
+          stdout: 'ignore',
+          stderr: 'pipe',
+        },
+        {
+          command: 'npm run preview --workspace=apps/timing',
+          url: 'http://localhost:8788/timing',
+          reuseExistingServer: !process.env.CI,
+          timeout: 90_000,
+          stdout: 'ignore',
+          stderr: 'pipe',
+        },
+      ],
 });

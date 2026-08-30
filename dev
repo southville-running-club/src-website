@@ -16,6 +16,11 @@
 #                     ./dev e2e --project=no-javascript
 #                     ./dev e2e --config=playwright.config.serial.ts --project=mobile-safari
 #                   nn-entry.spec.ts and nn-signup.spec.ts need the serial config
+#                   --linux runs the browsers in CI's own image, so a Mac sees what the
+#                   runner sees. Use it before pushing anything about layout, position,
+#                   wrapping or overflow — those differ by font metrics, and a green Mac
+#                   has twice meant a red CI:
+#                     ./dev e2e --linux --config=playwright.config.serial.ts
 #   ./dev check     rebuild the database, then lint, types, unit and database tests
 #                   — no browsers, no builds
 #   ./dev smoke     the live-site assertions, against localhost
@@ -622,14 +627,58 @@ cmd_test() {
 # ports as `./dev test`, and `stop_workers` kills by command-line pattern with no notion of who
 # owns what — so a second run takes the first's servers out from under it. That is the trap in
 # CLAUDE.md, and it applies here for the same reason.
+# **`--linux` runs the browsers in CI's own image, and it is the answer to "green here, red
+# there".** Two failures this week reproduced only on the runner — an entry-form assertion that
+# was 214px out on Linux and 0.1px out on a Mac, and before it a whole project's worth of
+# `element is not stable`. Neither could be investigated on the machine that had to fix them.
+#
+# The browsers run inside `mcr.microsoft.com/playwright:v1.62.1-noble` — the same image and the
+# same version CI installs — while the Workers and the database stay on the host. The container
+# reaches them through `host.docker.internal`, which Docker Desktop routes to loopback-bound
+# services on macOS. `PW_BASE_URL` and `PW_NO_WEBSERVER` are the two hooks in
+# `playwright.config.ts` that make that possible, and they are set nowhere else.
+#
+# **The font stack is the point.** Text metrics differ between macOS and this image, and every
+# assertion about position, wrapping or overflow inherits that difference — which is why the
+# same test can be honestly green on both machines and red on one of them.
+#
+# First run pulls about 2GB. After that it is seconds slower than the native run.
+LINUX_IMAGE='mcr.microsoft.com/playwright:v1.62.1-noble'
+
 cmd_e2e() {
+  local linux=0
+  if [ "${1:-}" = "--linux" ]; then
+    linux=1
+    shift
+  fi
+
   ensure_docker
   ensure_database
   export_supabase_env
   build_site
-  stop_workers >/dev/null 2>&1 || true
 
-  (cd "$PLATFORM" && npx --no-install playwright test --reporter=list "$@")
+  if [ "$linux" -eq 0 ]; then
+    stop_workers >/dev/null 2>&1 || true
+    (cd "$PLATFORM" && npx --no-install playwright test --reporter=list "$@")
+    return
+  fi
+
+  # The container cannot start the Workers, so the host must be serving before it runs.
+  start_workers
+
+  info "running the browsers in $LINUX_IMAGE"
+
+  docker run --rm \
+    --add-host=host.docker.internal:host-gateway \
+    -v "$PLATFORM:/work" \
+    -w /work \
+    -e PW_BASE_URL=http://host.docker.internal:8787 \
+    -e PW_NO_WEBSERVER=1 \
+    -e SUPABASE_URL=http://host.docker.internal:54321 \
+    -e SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+    -e SUPABASE_DB_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres \
+    "$LINUX_IMAGE" \
+    npx --no-install playwright test --reporter=list "$@"
 }
 
 cmd_check() {
