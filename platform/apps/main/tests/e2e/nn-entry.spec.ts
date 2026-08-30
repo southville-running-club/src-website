@@ -1142,7 +1142,19 @@ test.describe('once entries are open', () => {
         }
 
         const { top, bottom } = card.getBoundingClientRect();
-        return { top, bottom, viewport: window.innerHeight };
+
+        // Document-relative, for the reason its sibling below gives in full: a viewport
+        // reading also moves when the *page* scrolls, and choosing a fee reveals the running
+        // total, which the browser may scroll into view. That scroll is not this test's
+        // subject; a card being shoved by something expanding above it is.
+        let documentTop = 0;
+        let node = card;
+        while (node !== null) {
+          documentTop += node.offsetTop;
+          node = node.offsetParent;
+        }
+
+        return { top, bottom, documentTop, viewport: window.innerHeight };
       });
 
     await entry(page)
@@ -1168,8 +1180,20 @@ test.describe('once entries are open', () => {
     // rounding and says nothing about that.
     expect(after.top).toBeGreaterThanOrEqual(0);
     expect(after.bottom).toBeLessThanOrEqual(after.viewport + 1);
-    // And within a line of where it was left, rather than merely somewhere on the page.
-    expect(Math.abs(after.top - before.top)).toBeLessThan(24);
+
+    // And the layout did not move it — within a line of where it was left, rather than merely
+    // somewhere on the page.
+    //
+    // **This compared viewport position and only CI ever saw the difference.** On a Mac
+    // nothing moves at all: measured `top` 297.8 → 297.9, `offsetTop` 8324 → 8323, `scrollY`
+    // 8026 → 8025, with the document growing 62px as the running total appears *below* the
+    // cards. On the Linux runner the same act scrolls the page 214px and the old assertion
+    // failed on it — a scroll, not a shove, and not what this test is for.
+    //
+    // **Document-relative cannot hide the defect it guards.** A card shoved by something
+    // expanding above it moves in the document, which is exactly what this reads; what it
+    // stops reporting is the page scrolling underneath a card that has not moved at all.
+    expect(Math.abs(after.documentTop - before.documentTop)).toBeLessThan(24);
   });
 
   test('keeps the guide box in view when the guide fields appear', async ({ page }) => {
