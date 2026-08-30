@@ -104,8 +104,14 @@ re-run.
   £18/£20 split and the £2 levy are untouched**; only the number stopped being asked for. Under
   ARC Rule 21(2)(b) the club has no record of *who* claimed affiliation, only that they paid the
   affiliated £18 — put to the committee and accepted — and what replaces the check is a sentence
-  on **both** privacy notices reserving the club's right to ask somebody to produce their number
-  or other evidence of affiliation. **Which fee is the affiliated price is
+  reserving the club's right to ask somebody to produce their number or other evidence of
+  affiliation. **That sentence is required on both privacy notices and it is on one.** Decision
+  007 makes it a requirement of the decision rather than a nicety, and `/nn/privacy/`'s own header
+  names ADR-023 as asking for both — but it has been on `/privacy/` only since **30 August 2026**,
+  when the club asked for `/nn/privacy/` to be the committee's document word for word and
+  everything the club had added to it came out. **That is an open gap rather than a settled
+  state**, and closing it means new wording from the committee rather than an edit here.
+  **Which fee is the affiliated price is
   `entries.fees.affiliated` now**, a column that says only that; `requires_ea_number` was
   carrying both facts and is false everywhere behind `fees_ea_number_not_collected`.
   `entrants.ea_number` is null everywhere behind `entrants_ea_number_not_collected`. **Both
@@ -114,15 +120,25 @@ re-run.
   owed**, and it is
   [the contract runbook](docs/delivery/runbooks/entries-ea-number-contract.md). **Asking for a
   number again is a new decision**, not a revert.
-- **The privacy notice's four open decisions**, in `race.json`'s `privacy` key and `null`
-  there: who somebody writes to about their data, how long an entry record is kept, whether
-  an email address is kept to tell people about next year's race, and what is true about
-  photographs. They render "To be confirmed by the club" and `nn-privacy.spec.ts` counts
-  them. **Settled, and written in:** the controller, the registered office, the company
-  number, and one month for medical notes. **What the notice says is collected comes from
-  the schema, not from the form** — the entry tables also hold the fee and amount, Stripe's
-  references, the consents with their version, and three timestamps, and a notice that omits
-  those under-lists what the club processes.
+- **`/nn/privacy/` is the committee's document word for word, and what it says is theirs to
+  change.** **Rewritten on 30 August 2026**, when the club asked for that document to be published
+  verbatim; until then the page merged it with the notice it replaced. A sentence that looks wrong
+  on it is corrected by the committee supplying new wording, **never** by editing the file.
+  **It renders no "To be confirmed by the club" marker at all now** — `nn-privacy.spec.ts` has
+  `OPEN_DECISIONS = 0`, and it is `/privacy/`, the club's own notice, that still carries the two
+  the marker is for: how long an account is kept, and whether deleting one deletes a race entry.
+  **Four values are interpolated from `race.json`** — the controller, the company number, the
+  contact address and the date — because `/privacy/` reads the same four and the two notices may
+  never disagree about who the controller is; each renders the document's own words. **What came
+  out on 30 August is load-bearing elsewhere**, so the page's own header comment records it: no
+  medical-note retention period, no medical box, visually impaired declaration or guide by name,
+  no named processors, no registered office, and **no schema-derived list of what the entry tables
+  hold** — the fee and amount, Stripe's references, the consents with their version and the
+  timestamps are all off the page. **One open decision survives and is published nowhere:**
+  whether an email address is kept to tell people about next year's race, still `null` in
+  `race.json`'s `emailRetention`, which nothing reads. `entryRetention` is settled prose that
+  nothing reads either, the `photographs` key is gone, and `medicalRetention` is kept only for
+  `entries-retention.test.ts`.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
   more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
   `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
@@ -851,13 +867,19 @@ always rendered the same purchase. **The counts were already right** — they re
 grain — and **`holding` and the three exports keep their inner joins**, because capacity is
 measured in runners and a start list has nobody to put on it. #116.
 
-**The medical notes are deleted a month after the race, and the promise and the enforcement are
-tied together by a test.** `entries.events.medical_retention` is what the five-minute cron
-applies; `race.json`'s `privacy.medicalRetention` is what `/nn/privacy/` publishes;
+**The medical notes are deleted a month after the race, and the column and the JSON are tied
+together by a test.** `entries.events.medical_retention` is what the five-minute cron applies;
+`race.json`'s `privacy.medicalRetention` is the wording for that interval;
 `packages/db/tests/entries-retention.test.ts` reads both and fails unless the words are the ones
 the interval generates through `packages/shared/src/medical-retention.ts`. **Changing either one
-alone goes red.** That is the only thing stopping the club publishing one period and keeping
-another.
+alone goes red.** **The tie stops at the JSON since 30 August 2026, and that is a guarantee
+lost.** `/nn/privacy/` published `medicalRetention` until the club asked for that page to be the
+committee's document word for word, and the document names no period — so the deletion is
+unchanged and **nothing published is tied to the enforced interval any more.** The key survives
+for this test alone and no page reads it. What the test used to stop — the club publishing one
+period and keeping another — is now unguarded rather than impossible, so publishing a period
+again means asking the committee for wording *and* re-establishing that tie, never assuming it
+still holds.
 
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
@@ -1165,6 +1187,18 @@ cancel button rather than excluded from the thing it is testing.
 sloppy** — the only person who can reach Checkout before 1 September is somebody the club granted
 `nn-tester` to. Swapping `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to live keys is the last
 manual step before the window opens, and it is in the entries-open runbook.
+
+⚠️ **Nothing may be left `paid` across that swap, and this has already cost one real payment.**
+Stripe's two modes are separate object graphs, so a key of one mode cannot refund a payment
+intent of the other — and the cancel path is Stripe first, the record second, so a mode mismatch
+answers *"Nothing was cancelled"* on a database that is perfectly healthy and leaves the place
+consumed for ever. A live payment taken on 27 August 2026 is still stranded that way (#118 item
+7), and the only occasion it can be cancelled at all is while the live pair is bound. **The
+failure is indistinguishable on the page from a restricted key missing Refunds — Write**, which
+is a second per-key fact that cannot be inferred from the other pair; the Worker log's status and
+Stripe `code=` are what tell them apart. Both, and the reason a hand refund in the dashboard
+makes the row permanently unreconcilable, are in
+[the key-swap runbook](docs/delivery/runbooks/entries-stripe-keys.md).
 
 **`/account/entries/` is what tells a runner they have a place**, alongside the confirmation
 email #73 sends and Stripe's own receipt. It reads `entries.my_entries()`, which matches on

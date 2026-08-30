@@ -301,8 +301,21 @@ not the build's, and they sit on the critical path.
 - [ ] All [manual steps](../../../platform/apps/main/README.md#manual-steps) are done, including
       the **three Worker secrets** and the **Stripe dashboard endpoint**
 - [ ] `npm run smoke` passes against production
-- [ ] The privacy notice's four open decisions are settled, or the club is content that they
-      still render "To be confirmed by the club"
+- [ ] **The published privacy notice is the committee's current wording.** **This asked
+      about four open decisions until 30 August 2026**, when the club instructed that
+      `/nn/privacy/` reproduce the committee's document word for word. That document
+      answers all four, so the page renders no "To be confirmed by the club" marker at all
+      and `nn-privacy.spec.ts` asserts zero. What is left to check on the day is that no
+      newer document has been supplied — new wording is published by replacing that page,
+      never by editing it
+- [ ] ⚠️ **The club accepts that the notice states no medical-note retention period.** The
+      committee's document says only that information is kept for as long as reasonably
+      necessary. **The deletion is unchanged** — `entries.events.medical_retention` is one
+      month and the five-minute cron still applies it — so the enforcement is stricter than
+      the published words, which is the safe direction of the two. `race.json`'s
+      `medicalRetention` still reads "One month after the race" and
+      `packages/db/tests/entries-retention.test.ts` still ties it to the column, but that tie
+      no longer reaches anything a runner reads
 
 ---
 
@@ -421,8 +434,21 @@ the role carries: `nn.entry.before_open`, and nothing else. A tester cannot read
    - the treasurer can see it
 6. Check `/account/entries/` as the tester. The entry is listed, confirmed, with no medical note
    on it.
-7. **Cancel it** from `/admin/nn/`, as a `super-admin`. Confirm the refund appears in Stripe,
+7. **Cancel it** from `/admin/nn/`, holding **`nn-admin`**. Confirm the refund appears in Stripe,
    the row is `refunded`, and the place is back in the count on `/admin/nn/`.
+
+> ⚠️ **Step 7 happens before 2c, and that ordering is not tidiness.** A test-mode payment left
+> `paid` becomes **permanently unrefundable** the moment the live key is bound: Stripe treats the
+> two modes as separate object graphs, so a live key cannot refund a test payment intent and the
+> Cancel button refuses it for ever. That is exactly what happened in the other direction on
+> 27 August 2026 — see [swapping the Stripe keys](entries-stripe-keys.md), which is this rule and
+> its recovery in full.
+>
+> **`nn-admin`, not `super-admin`.** Since
+> [ADR-017](../../architecture/decisions/adr-017-permissions-are-what-code-checks.md) a
+> `super-admin` holds `identity.person.read` and `identity.role.grant` and neither
+> `nn.entry.read` nor `nn.entry.cancel` — so they get the ordinary 404 at `/admin/nn/` and have
+> to grant themselves `nn-admin` first, which is by design and writes a row in `identity.audit`.
 
 ### 2c — then live mode, for a pound
 
@@ -433,15 +459,27 @@ sub-step is for, and finding out on 1 September is finding out too late.
 1. Swap `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to the **live** pair
    (`wrangler secret put`, both, in that order — the endpoint's signing secret comes from the
    live-mode endpoint in the Stripe dashboard, which is a different endpoint from the test one
-   and has to be registered separately).
-2. Repeat 2b, choosing the **Tester (do not use)** entry type, which costs **£1**. It is
+   and has to be registered separately). Follow
+   [swapping the Stripe keys](entries-stripe-keys.md) for the query that proves 2b.7 actually
+   cleared the test mode.
+2. **Confirm the live key's scopes**, separately from the test key's: Checkout Sessions
+   **write**, Payment Intents **read**, Refunds **write**. Scopes are per key, so a correctly
+   scoped test key says nothing about the live one — and a missing Refunds — Write is invisible
+   until somebody presses Cancel on a real entry.
+3. **Reconcile the stranded live payment of 27 August 2026** while the live pair is bound. It is
+   still `paid` with its place consumed, and this is the only planned occasion on which it can be
+   cancelled at all —
+   [#118](https://github.com/southville-running-club/src-website/issues/118) item 7, procedure in
+   [swapping the Stripe keys](entries-stripe-keys.md#recovering-a-payment-that-is-already-stranded).
+4. Repeat 2b, choosing the **Tester (do not use)** entry type, which costs **£1**. It is
    visible only to somebody holding `nn.entry.before_open`. **Not a penny** — Stripe's minimum
    charge in GBP is £0.30, and a fee below it holds a place and then fails at the session
    call.
-3. Pay with a real card.
-4. Verify the same four things, plus: the money appears in the club's real Stripe balance and
+5. Pay with a real card.
+6. Verify the same four things, plus: the money appears in the club's real Stripe balance and
    the payout schedule is what the treasurer expects.
-5. **Cancel it**, and confirm the pound comes back.
+7. **Cancel it**, and confirm the pound comes back. **This is also the only proof that step 2's
+   Refunds — Write is actually present**, and it leaves nothing `paid` behind in live mode.
 
 ### 2d — revoke the role
 

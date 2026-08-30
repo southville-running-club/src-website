@@ -63,14 +63,13 @@
     "footbridge": "Ashton Avenue Bridge"
   },
   "privacy": {
-    "lastUpdated": "14 August 2026",
+    "lastUpdated": "29 August 2026",
     "controller": "Southville Running Club Ltd",
     "registeredOffice": "1 Hengrove Farm, Hengrove Farm Lane, Bristol BS14 9DD",
-    "companyNumber": "ending 7549",
+    "companyNumber": "09437549",
     "medicalRetention": "One month after the race",
-    "contact": null,
-    "entryRetention": null,
-    "emailRetention": null,
-    "photographs": null
+    "contact": "info@southvillerunningclub.co.uk",
+    "entryRetention": "As long as is reasonably necessary for the purposes described in this notice, including legal, accounting, insurance, dispute-resolution, safety and historical-results requirements",
+    "emailRetention": null
   }
 }

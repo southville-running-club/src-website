@@ -101,10 +101,19 @@ The questions to settle together, and to write the answers to in the reply:
    that gets decided by accident.
 
 **The medical note is not part of this conversation.** It is deleted a month after the race
-automatically, by the cron, and
-[`/nn/privacy/`](../../../platform/apps/main/src/pages/nn/privacy.astro) publishes that
-promise. If somebody asks for it sooner, that is a plain yes — ⚙️ delete the row, and say it
-is done.
+automatically, by the cron, and that is unchanged. **What is no longer true is that the club
+has *published* that period.** Until 30 August 2026 this page said
+[`/nn/privacy/`](../../../platform/apps/main/src/pages/nn/privacy.astro) published the
+promise, and it did; on that day the club asked for the committee's own document to be
+reproduced word for word, and that document neither mentions the medical box nor names a
+period for it. Its section 6 says only that the club keeps information "for as long as
+reasonably necessary" for the purposes it lists — a general statement, with no figure
+anywhere on the page.
+
+✉️ **So do not quote the notice as the source of the month**, because this is the
+sentence most likely to be read back to the club by the person or by the ICO. The month
+is **what the club does**; the notice is the general rule it does it under. If somebody
+asks for it sooner, that is a plain yes — ⚙️ delete the row, and say it is done.
 
 ## Step 4 — somebody with no account
 

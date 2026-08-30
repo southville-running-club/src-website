@@ -168,10 +168,11 @@ describe('Nightingale Nightmare', () => {
    * **The opposite case to the three 404s above, and what separates them is whether anybody
    * ever had the address.** Those three were never published. This one was: it was in the
    * navigation bar, linked from `/nn/`, and printed on things the club does not control. So it
-   * keeps resolving, and it resolves to `/nn/` — which carries this page's copy **in full**
-   * rather than a summary of it. The club supplied the whole of it as the wording `/nn/` should
-   * say, so every section the old address answered is answered at the new one, in the same
-   * words: where it goes, what it is like underfoot, and what is on the route.
+   * keeps resolving, and it resolves to `/nn/`, which carries the club's course copy. That was
+   * this page's own prose in full from 29 August 2026; since 30 August 2026 it is the club's
+   * shorter rewrite of it — the terrain, the shoes, the marshalling and the water station, the
+   * headphone rule, and where the start is. What the destination says is `site.spec.ts`'s to
+   * assert; what is under test here is only that the address still arrives there.
    *
    * **Every request here passes `redirect: 'manual'`, and that is the whole reason this block
    * is worth anything.** `SELF.fetch` follows a redirect by default, so without it the response
