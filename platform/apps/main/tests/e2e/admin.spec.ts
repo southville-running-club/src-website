@@ -1935,3 +1935,108 @@ test.describe('a runner asking the club about their own entry', () => {
     ).toBeVisible();
   });
 });
+
+/**
+ * The two views on `/account/entries/` — #148, finding 4.
+ *
+ * Before this, a cancelled entry was **invisible to anybody still holding another place**: the
+ * page shows non-confirmed entries only when there are *no* confirmed ones, so a runner who
+ * cancelled one entry and kept another had no record of the cancellation on the club's site at
+ * all.
+ *
+ * **A URL filter rather than tabs or a second page**, which is the reasoning `/admin/nn/`'s
+ * own filters were built on: it works with scripting off, and a filtered view becomes a URL
+ * somebody can send — which matters when a volunteer is helping a runner work out what
+ * happened to their entry. So none of these carries `@requires-js`.
+ */
+test.describe('open and cancelled entries on a runner’s own page', () => {
+  test('offers both views, and leads with the open one', async ({ page }) => {
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/');
+
+    const views = page.getByRole('navigation', { name: 'Which entries to show' });
+
+    await expect(views.getByRole('link', { name: 'Open race entries' })).toBeVisible();
+    await expect(
+      views.getByRole('link', { name: 'Cancelled race entries' }),
+    ).toBeVisible();
+
+    // The open view is the plain address, with no parameter at all — so there is one spelling
+    // of it rather than two, and `aria-current` says which is showing.
+    await expect(views.getByRole('link', { name: 'Open race entries' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await expect(page.getByText(OWNED_LAST_NAME)).toBeVisible();
+  });
+
+  test('does not file a confirmed place under cancelled', async ({ page }) => {
+    // **The negative, and it is the one that matters.** Telling somebody their place was
+    // cancelled when it was not is the most expensive direction this page can be wrong in.
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/?show=cancelled');
+
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Which entries to show' })
+        .getByRole('link', { name: 'Cancelled race entries' }),
+    ).toHaveAttribute('aria-current', 'page');
+
+    await expect(page.getByText(OWNED_LAST_NAME)).toHaveCount(0);
+  });
+
+  test('says "Nothing here" rather than making a claim about the record', async ({
+    page,
+  }) => {
+    // **Never "you have never cancelled an entry".** That is a claim about a record, and a
+    // record that can be hidden by anything must not have claims made about it — the same
+    // rule that governs every status sentence on this page.
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/?show=cancelled');
+
+    await expect(page.getByText('Nothing here.')).toBeVisible();
+    await expect(page.getByText(/never cancelled/i)).toHaveCount(0);
+  });
+
+  test('offers no ask-the-club form on the cancelled view', async ({ page }) => {
+    // There is nothing to ask the club about an entry it has already cancelled and refunded,
+    // and the card is rendered with no CSRF token — which is what makes that structural
+    // rather than a rule somebody has to remember.
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/?show=cancelled');
+
+    await expect(
+      page.getByRole('button', { name: /ask to cancel this entry/i }),
+    ).toHaveCount(0);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }) => {
+    // **A new nav is a layout change**, and "Open race entries" beside "Cancelled race
+    // entries" does not fit on one line at 320px — it has to wrap rather than push the
+    // document sideways under a thumb. `expectNoSidewaysScroll` waits for a defined state
+    // rather than for the assertion to come good, which is what stopped this class of check
+    // measuring a page with no stylesheet on it.
+    await page.setViewportSize({ width: 320, height: 640 });
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/');
+
+    await expectNoSidewaysScroll(page, 'the entries page at 320px');
+
+    await page.goto('/account/entries/?show=cancelled');
+
+    await expectNoSidewaysScroll(page, 'the cancelled entries view at 320px');
+  });
+
+  test('an unknown show value is the open view rather than an empty page', async ({
+    page,
+  }) => {
+    // A URL somebody has edited, or a stale link. It must not be a third state, and it must
+    // certainly not be an empty list — which on this page reads as "nothing was taken" and is
+    // how somebody comes to pay twice.
+    await signInAs(page, ENTRANT_EMAIL);
+    await page.goto('/account/entries/?show=nonsense');
+
+    await expect(page.getByText(OWNED_LAST_NAME)).toBeVisible();
+  });
+});

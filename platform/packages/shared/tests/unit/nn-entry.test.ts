@@ -238,9 +238,7 @@ describe('the race category, and the gender question beside it', () => {
   // what stop the second one quietly acquiring the first one's rules.
 
   it('still requires a category, because a results table has to place somebody', () => {
-    expect(errorOn(good({ gender: '' }))?.gender).toBe(
-      'Choose a category, so the club can work out your age category.',
-    );
+    expect(errorOn(good({ gender: '' }))?.gender).toBe('Choose your race category.');
   });
 
   it('refuses a category that is not one of the three', () => {

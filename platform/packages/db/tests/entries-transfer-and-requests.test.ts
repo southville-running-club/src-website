@@ -63,7 +63,14 @@ const EVENT_DATE = '2027-06-01';
 
 const NN_ADMIN_EMAIL = 'zz-transfer-admin@example.com';
 const RUNNER_EMAIL = 'zz-transfer-runner@example.com';
-const PEOPLE_EMAILS = [NN_ADMIN_EMAIL, RUNNER_EMAIL];
+/**
+ * The runner a place is transferred **to**, with an account of their own — which is what makes
+ * the disclosure in #148 reachable at all. `transfer_entry()` re-points `purchaser_email` and
+ * nulls `person_id`, so `my_entries()` matches this person against the purchase the moment
+ * they register with the address it was moved to.
+ */
+const NEW_RUNNER_EMAIL = 'zz-transfer-new-runner@example.com';
+const PEOPLE_EMAILS = [NN_ADMIN_EMAIL, RUNNER_EMAIL, NEW_RUNNER_EMAIL];
 const PERSON_PASSWORD = 'zz-transfer-test-password-long-enough';
 
 /** Cloudflare's published dummy response token — see `entries-admin.test.ts`. */
@@ -168,6 +175,7 @@ async function fixturePerson(
 
 let nnAdmin: { id: string; client: SupabaseClient };
 let runner: { id: string; client: SupabaseClient };
+let newRunner: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
@@ -179,13 +187,14 @@ beforeAll(async () => {
 
   nnAdmin = await fixturePerson(NN_ADMIN_EMAIL, ['nn-admin']);
   runner = await fixturePerson(RUNNER_EMAIL, []);
+  newRunner = await fixturePerson(NEW_RUNNER_EMAIL, []);
 }, 30_000);
 
 afterAll(async () => {
   await connected;
   await removeFixtures();
   await query('delete from entries.admin_audit where actor = any($1::text[])', [
-    [nnAdmin?.id, runner?.id].filter(Boolean),
+    [nnAdmin?.id, runner?.id, newRunner?.id].filter(Boolean),
   ]);
   await query('delete from auth.users where email = any($1::text[])', [PEOPLE_EMAILS]);
   await db.end();
@@ -703,6 +712,242 @@ describe('a second ask does not erase the first', () => {
       'cancel',
       'transfer',
     ]);
+  });
+});
+
+// =========================================================================================
+// Whose ask was it — #148, finding 1
+// =========================================================================================
+
+/**
+ * **The disclosure this block exists to keep closed.**
+ *
+ * `transfer_entry()` re-points `purchaser_email` at the new runner and sets `person_id` null.
+ * `my_entries()` matches a purchase on exactly those two things — so before an owner was
+ * stamped on each ask, the person a place was transferred **to** was shown the entire request
+ * history of the person it came **from**, addressed to them in the second person:
+ *
+ *   > **Asked for** — You asked the club about transferring this place. The club has dealt
+ *   > with it. *You told the club: <whatever the previous runner typed>*
+ *
+ * The reason box is 500 characters of anything — a bereavement, a pregnancy, a phone number.
+ * So this is a disclosure of one runner's free text to another, and the copy being addressed
+ * to the wrong person is the smaller half of it.
+ *
+ * **Every assertion here is a negative one**, per the repository's rule: that the new runner
+ * *cannot* see the previous runner's words proves the thing that matters. The positives are
+ * beside them only to stop the negatives passing vacuously — a `my_entries()` that returned
+ * nothing at all would satisfy every "must not see" line in this file.
+ */
+describe('an ask belongs to whoever made it, and a transfer does not hand it on', () => {
+  const WORDS = 'My father has died and I cannot face it. Please cancel.';
+
+  async function myEntry(
+    who: { client: SupabaseClient },
+    purchaseId: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const { data, error } = await who.client.schema('entries').rpc('my_entries');
+
+    expect(error, `my_entries errored: ${JSON.stringify(error)}`).toBeNull();
+
+    return ((data as { entries?: Record<string, unknown>[] }).entries ?? []).find(
+      (row) => row.purchase_id === purchaseId,
+    );
+  }
+
+  /** A paid place held by `runner`, carrying one ask with words on it. */
+  async function askedAbout(): Promise<string> {
+    const purchaseId = await acceptedPurchaseId({ email: RUNNER_EMAIL });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    const { data, error } = await runner.client
+      .schema('entries')
+      .rpc('request_entry_action', {
+        p_purchase_id: purchaseId,
+        p_action: 'cancel',
+        p_reason: WORDS,
+      });
+
+    expect(error).toBeNull();
+    expect(data).toEqual({ ok: true, action: 'cancel' });
+
+    return purchaseId;
+  }
+
+  /** Move the place to `newRunner`, who has an account and will therefore match it. */
+  async function moveToNewRunner(purchaseId: string): Promise<void> {
+    serial += 1;
+
+    const { data, error } = await nnAdmin.client.schema('entries').rpc('transfer_entry', {
+      p_purchase_id: purchaseId,
+      p_email: NEW_RUNNER_EMAIL,
+      p_first_name: 'Nell',
+      p_last_name: `Gwyn-owner-${serial}`,
+      p_date_of_birth: '1991-02-02',
+      p_gender: 'female',
+      p_club: '',
+      p_emergency_contact_name: 'Kin Three',
+      p_emergency_contact_phone: '0117 496 0003',
+      p_ea_number: '',
+    });
+
+    expect(error, `transfer_entry errored: ${JSON.stringify(error)}`).toBeNull();
+    expect((data as { ok?: boolean }).ok).toBe(true);
+  }
+
+  it('stamps the asker on the ask, rather than leaving it to be inferred from a clock', async () => {
+    // The mechanism itself. A `transferred_at` column would have answered "was this made
+    // before the transfer", which is a proxy; this answers "whose was it", which is the
+    // question — and it is the only one of the two that survives a second transfer.
+    const purchaseId = await askedAbout();
+
+    const row = await single<{ owner_email: string; owner_person_id: string | null }>(
+      `select owner_email, owner_person_id from entries.entry_requests
+        where purchase_id = $1`,
+      [purchaseId],
+    );
+
+    expect(row.owner_email).toBe(RUNNER_EMAIL);
+    expect(row.owner_person_id).toBe(runner.id);
+  });
+
+  it('shows the asker their own ask, words and all', async () => {
+    // **Here so the negatives below cannot pass vacuously.** Every "must not see" assertion
+    // in this block is satisfied by a function that returns nothing to anybody.
+    const purchaseId = await askedAbout();
+    const own = await myEntry(runner, purchaseId);
+
+    expect(own).toBeDefined();
+    expect(own?.requests).toEqual([
+      expect.objectContaining({ action: 'cancel', reason: WORDS }),
+    ]);
+    expect(own?.request_reason).toBe(WORDS);
+    expect(own?.requested_action).toBe('cancel');
+  });
+
+  it('shows the new runner the entry and none of the previous runner’s asks', async () => {
+    // **The defect, asserted from the reader's side.** The new runner really does hold this
+    // entry — the first assertion is what makes the rest meaningful — and the history on it
+    // is not theirs.
+    const purchaseId = await askedAbout();
+    await moveToNewRunner(purchaseId);
+
+    const theirs = await myEntry(newRunner, purchaseId);
+
+    expect(theirs, 'the new runner should see the entry itself').toBeDefined();
+    expect(theirs?.requests).toEqual([]);
+  });
+
+  it('does not leak the words through the summary columns either', async () => {
+    // ⚠️ **The second door, and the one that was open by luck rather than by design.**
+    // `transfer_entry()` clears `requested_action` and deliberately **keeps** `request_reason`
+    // — it is the record of why the place moved. `asksFor()` in `worker/account.ts` falls back
+    // to the summary columns whenever `requests` is empty, and it is keyed on
+    // `requested_action`, which happens to be null here. Filtering only the list would have
+    // left this reachable the moment any future path resolved an ask without clearing that
+    // column, so `my_entries()` derives all four keys from the owned asks.
+    const purchaseId = await askedAbout();
+    await moveToNewRunner(purchaseId);
+
+    const theirs = await myEntry(newRunner, purchaseId);
+
+    expect(theirs?.request_reason).toBeNull();
+    expect(theirs?.requested_action).toBeNull();
+    expect(theirs?.request_resolved).toBe(false);
+
+    // And the row itself still carries it, which is the point of the boundary being on the
+    // read: the club has not forgotten why the place moved, it has stopped showing it to
+    // somebody it is not about.
+    const stored = await single<{ request_reason: string | null }>(
+      `select request_reason from entries.entry_purchases where id = $1`,
+      [purchaseId],
+    );
+
+    expect(stored.request_reason).toBe(WORDS);
+  });
+
+  it('keeps the whole history on the admin surface, which is what the volunteer acted on', async () => {
+    // **Not "delete the history on transfer".** Keeping it is right for `/admin/nn/`: it is
+    // the record of why the place moved. The boundary belongs on the runner's read and
+    // nowhere else, and this is the half that would break if somebody moved it.
+    const purchaseId = await askedAbout();
+    await moveToNewRunner(purchaseId);
+
+    const { data } = await nnAdmin.client
+      .schema('entries')
+      .rpc('entry_list', { p_event_slug: EVENT });
+
+    const listed = (
+      (
+        data as {
+          entries?: {
+            purchase_id: string;
+            requests?: { action: string; reason: string | null }[];
+          }[];
+        }
+      ).entries ?? []
+    ).find((row) => row.purchase_id === purchaseId);
+
+    expect(listed?.requests).toEqual([
+      expect.objectContaining({ action: 'cancel', reason: WORDS }),
+    ]);
+  });
+
+  it('survives a place changing hands twice, which is the reason for the mechanism', async () => {
+    // **The argument for stamping an owner over stamping a clock**, made as a test. After two
+    // moves there are three people involved, and each ask has to land with exactly one of
+    // them. A boundary that said "anything before the transfer" has no way to express that.
+    const purchaseId = await askedAbout();
+    await moveToNewRunner(purchaseId);
+
+    // The new runner now asks something of their own.
+    const second = await newRunner.client.schema('entries').rpc('request_entry_action', {
+      p_purchase_id: purchaseId,
+      p_action: 'transfer',
+      p_reason: 'A friend would like it.',
+    });
+
+    expect(second.error).toBeNull();
+    expect(second.data).toEqual({ ok: true, action: 'transfer' });
+
+    // And the place moves on again, to somebody with no account at all.
+    serial += 1;
+    const { error } = await nnAdmin.client.schema('entries').rpc('transfer_entry', {
+      p_purchase_id: purchaseId,
+      p_email: `zz-third-holder-${serial}@example.com`,
+      p_first_name: 'Ida',
+      p_last_name: `Third-${serial}`,
+      p_date_of_birth: '1992-03-03',
+      p_gender: 'female',
+      p_club: '',
+      p_emergency_contact_name: 'Kin Four',
+      p_emergency_contact_phone: '0117 496 0004',
+      p_ea_number: '',
+    });
+    expect(error).toBeNull();
+
+    // Two asks on the row, by two different people, and neither is now visible to the third
+    // holder — who has an account nowhere, so the strongest thing that can be asserted is
+    // that the two asks are still attributed to the two people who made them.
+    const rows = await query<{ owner_email: string; action: string }>(
+      `select owner_email, action from entries.entry_requests
+        where purchase_id = $1 order by requested_at, id`,
+      [purchaseId],
+    );
+
+    expect(rows).toEqual([
+      { owner_email: RUNNER_EMAIL, action: 'cancel' },
+      { owner_email: NEW_RUNNER_EMAIL, action: 'transfer' },
+    ]);
+
+    // And the middle person no longer holds the entry, so they see nothing — not even their
+    // own ask, because the entry is not theirs any more. That is the outer ownership test
+    // doing its job, and it is unchanged by this work.
+    expect(await myEntry(newRunner, purchaseId)).toBeUndefined();
   });
 });
 

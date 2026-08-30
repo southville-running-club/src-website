@@ -576,6 +576,15 @@ Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting *on
 what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the field it is
 about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
 
+**The account forms have that summary too since 30 August 2026, and it is a second guard on the
+same trap.** They always *announced* their errors — `aria-invalid`, `aria-describedby`, a
+`role="alert"` — so this was never a zero-violations breach; what was missing is the navigable
+list of links. It is `errorSummary()` in `worker/account.ts`, rendered as the **first child of
+each form** rather than above it, because `/account/sign-in/` has two forms with separate error
+objects and a container's message belongs to that container. `account.spec.ts`'s "lists every
+problem and links to the field it is about" runs **without** `@requires-js`, which is the half
+that would catch a `@view-transition` here. #152.
+
 **A message that appears on `focusout` can swallow the click that caused it.** The England
 Athletics box **is off the form since 29 August 2026** and the rule it cost is not — the next
 conditional field re-creates the shape exactly, which is why this stays. It was a `.field`
@@ -714,6 +723,43 @@ five-minute cron claims a batch, sends it through Resend's REST API, and records
 data, an email address** — everything else a message needs is joined from the live tables at
 send time, so it is not a second copy of an entry for retention to chase.
 
+**There are two triggers, because a given place skips the transition the first one watches.**
+`enqueue_entry_email()` is `after update` and its confirmation branch fires on
+`pending`/`expired` → `paid` — which is right for a place that is *held* and then paid for, and
+never fires for one `create_manual_entry()` **inserts** already `paid`. So Kinsi's two
+complimentary places and every visually impaired runner's guide were given a place and told
+nothing at all, and the silence was total: nobody chases an email they were never told to
+expect. `enqueue_entry_email_on_insert()` is the `after insert` half, guarded on
+`new.status = 'paid'` — the 250 `pending` rows a full race inserts owe nobody anything — and it
+**shares the update path's dedupe key**, so no place can be confirmed twice. A second trigger
+rather than a fifth branch: all three existing branches compare `old` to `new`, and under
+`after insert` there is no `old`. #150.
+
+⚠️ **Two of the four templates quote an amount, and a given place is £0.** The confirmation said
+*"we have received your payment of £0.00"* and the cancellation said *"we have refunded £0.00 to
+the card you paid with"* — which names a card nobody gave, and sends somebody to check a
+statement for a refund that is not coming. `worker/email.ts` branches on `amountPence === 0` for
+both, and `tests/unit/email.test.ts` asserts the wording each way. Nothing else about the message
+differs, because nothing else about the place does.
+
+**A cancellation of a purchase that was never `paid` enqueues nothing, and that is written
+rather than accidental.** `cancel_entry()` refuses only a purchase already `refunded`, so it
+will take a `pending` or `expired` one to `refunded` — and the refund branch guards on
+`old.status = 'paid'`. Right on the facts, since nothing was paid and so nothing was refunded,
+and still silent; `entries-email-outbox.test.ts` asserts it both ways so the silence stays a
+decision.
+
+**Account mail has a reply line but still no `Reply-To` header, and the split is deliberate.**
+GoTrue sends confirmations, magic links and password resets with no `Reply-To` field at all — it
+has none — from a Resend *sending* subdomain with no MX, so a reply bounces. The **confirmation**
+is the one message whose body already lives in a file, `supabase/templates/confirmation.html`
+declared at `auth.email.template.confirmation`, so it now names `info@southvillerunningclub.co.uk`
+in prose. **Prose and not a `mailto:`**, because that file's own rule is one call to action and no
+second link. Giving the other three a reply line means declaring new `[auth.email.template.*]`
+blocks, which is the class of change that failed `supabase config push` on every merge from
+25 August 2026 — so it waits for the Send Email Hook, **after 1 November**. #99, and the sharpest
+case (*"I didn't change my password"*) is on the far side of that line.
+
 ⚠️ **Resend's free tier is 100 emails a day, account-wide, against 250 places** — shared with
 every account email the site sends. On a busy entry day the queue will exceed it and the
 remainder arrives the next day. That is a **decision the club took deliberately** over roughly
@@ -846,7 +892,9 @@ per-event advisory lock: re-check the window, count the places gone, price it fr
 exactly that amount and a 303 to it.
 
 **The Left Handed Giant code exists, is minted by a migration, and is read off `/admin/nn/`.** 10%
-off an unaffiliated entry, 22 places, `LHG-10-` plus twelve random characters. **The migration
+off an unaffiliated entry, **25 places since 30 August 2026** — it was minted at 22 and raised by
+`20260830120000_nn_2026_lhg_twenty_five_places.sql`, because raising a cap cannot conflict with
+places already taken — `LHG-10-` plus twelve random characters. **The migration
 carries the generator and never the value**, so every environment mints its own and none is in
 this public repository — and `/admin/nn/`'s "Discount codes" panel is the only place it can be
 read, which is how somebody finds out what to tell Left Handed Giant. The entries table carries a
@@ -867,7 +915,7 @@ fourteenth anon-callable function, and it is why this is **the one migration tha
 function**: an extra defaulted parameter creates a second overload, and PostgREST would refuse
 every call naming the original eight as ambiguous. **A use is returned when the place is** —
 `expire_pending_holds()` on a lapsed hold, `cancel_entry()` on a refund — because it only ever
-incremented before, so 22 abandoned checkouts would have exhausted a 22-place allocation with
+incremented before, so 25 abandoned checkouts would have exhausted the whole allocation with
 nobody entered. **A 100% code is not the way to give a free place**: Stripe refuses a zero-total
 session and will not charge below £0.30, which is what ADR-021 is the answer to.
 
@@ -998,7 +1046,21 @@ ask; the columns stay, holding the most recent, because the **Asked about** filt
 deployed reader use them. **Resolution is a fact about the entry rather than about one ask** —
 there is no act that answers one and leaves another open — so a trigger on
 `request_resolved_at` closes every open row at once, which is what lets `cancel_entry()` and
-`transfer_entry()` stay exactly as they are. **Nothing in the schema acts on a request**, and the admin surface deliberately offers
+`transfer_entry()` stay exactly as they are. **An ask knows whose it is, since 30 August 2026, and that closed a disclosure.**
+`transfer_entry()` re-points `purchaser_email` and nulls `person_id`; `my_entries()` matches a
+purchase on exactly those two things — so the runner a place moved **to** was shown the whole
+request history of the runner it came **from**, addressed to them in the second person, free
+text and all. The reason box is 500 characters of anything. `entry_requests.owner_email` and
+`owner_person_id` are stamped at ask time and `my_entries()` filters on them — chosen over a
+`transferred_at` column because it is **the only mechanism that survives a place changing hands
+twice**: a clock answers *"was this made before the transfer"*, which is a proxy, and an owner
+answers *"whose was it"*, which is the question. **The three summary keys are derived from the
+owned asks too, not read off the purchase columns**, and that half is not optional —
+`transfer_entry()` keeps `request_reason` deliberately, and `asksFor()` falls back to those
+columns, so filtering only the list rendered nothing *by luck*. **`/admin/nn/` is untouched and
+still sees every ask**, because it is the record of why the place moved. #148, ADR pending.
+
+**Nothing in the schema acts on a request**, and the admin surface deliberately offers
 no transfer button until the club asked for one — see the paragraph above, which is what
 that ask turned into. **The email half is built now, and it is not this** — #73 sends on what a
 volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody
@@ -1053,6 +1115,17 @@ webhook was late, who reads that as nothing having been taken and enters again. 
 successful tickets, unless there are none. Same rule as `/nn/<year>/entry/complete/`, which
 may not make a negative claim either, applied to a list. Every entry carries its purchase id
 as a reference, because somebody emailing the club had nothing to name one by.
+
+**A cancelled entry has a view of its own since 30 August 2026, and the rule above is why it
+needed one.** Showing non-confirmed entries only when there are none confirmed meant a runner
+who cancelled one entry and kept another had **no record of the cancellation on the club's site
+at all**. `?show=cancelled` is the second view — **a URL filter rather than tabs or a second
+page**, for the reason `/admin/nn/`'s filters are: it works with scripting off, and a filtered
+view is a URL somebody can send while helping a runner work out what happened. **A lapsed hold
+is not filed under Cancelled** and is not a third view — it keeps today's rule underneath
+whichever view is open, because calling a lapsed hold a cancellation would break the
+negative-claim rule in the most expensive direction. An empty Cancelled view says **"Nothing
+here"** and never *"you have never cancelled an entry"*, which is a claim about a record. #148.
 
 **Two functions in `entries` now answer differently depending on who is asking, and that is new.**
 `entry_state()` hides a fee whose `requires_permission` the caller does not hold, and

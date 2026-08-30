@@ -222,3 +222,26 @@
 .account-card dd {
   margin: 0;
 }
+
+/* ---------------------------------------------------------------------------------------
+ * The two views on /account/entries/ — #148
+ *
+ * Links rather than tabs, so it works with scripting off and the address bar says which view
+ * is open. `flex-wrap` because "Cancelled race entries" beside "Open race entries" does not
+ * fit on one line at 320px and must drop rather than push the page sideways — the failure the
+ * sideways-scroll helper exists to catch.
+ * --------------------------------------------------------------------------------------- */
+.account-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) * 0.75);
+  margin: 0 0 calc(var(--space) * 1.5);
+}
+
+/* The open view is emphasised rather than un-linked: it is still a link, so pressing it
+   re-renders the same page, which is one less state to get wrong than a disabled control. */
+.account-view-current {
+  font-weight: 700;
+  text-decoration-thickness: 0.15em;
+  text-underline-offset: 0.2em;
+}

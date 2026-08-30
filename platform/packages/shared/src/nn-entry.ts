@@ -198,7 +198,18 @@ const MESSAGES = {
   dobInFuture: 'A date of birth cannot be in the future.',
   dobImplausible: `Check the year — the earliest this form takes is ${NN_ENTRY_EARLIEST_BIRTH_YEAR}.`,
 
-  genderMissing: 'Choose a category, so the club can work out your age category.',
+  // **The field's own name, and nothing else's.** This message used to read *"Choose a
+  // category, so the club can work out your age category"* — which named neither the field it
+  // is attached to nor anything else on screen. The field is labelled **Race category**;
+  // directly beneath it is a different, optional field labelled **Gender**; and "your age
+  // category" is a third thing again, derived from this answer and the date of birth. So the
+  // one message somebody meets at the exact moment they are confused about which of the two
+  // boxes is which explained itself in terms of two things that are not it.
+  //
+  // ADR-020 split race category and gender on purpose. This was the last place on the form
+  // still blurring them. The hint above the field already says why the club asks, so the
+  // error only has to say what to do. #148, finding 2.
+  genderMissing: 'Choose your race category.',
   genderUnknown: 'Choose one of the categories listed.',
 
   genderIdentityTooLong: `That is too long — ${NN_ENTRY_GENDER_IDENTITY_MAX_LENGTH} characters at most.`,
