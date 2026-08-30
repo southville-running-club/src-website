@@ -200,11 +200,19 @@ None of it blocks the site, which is built and tested. All of it is
 [stop-and-ask](../architecture/principles.md#stop-and-ask) territory rather than a build
 decision, and everything undecided renders as "to be confirmed" rather than as a guess:
 
-- [ ] **The race notice's four open decisions** — who somebody writes to about their
+- [ ] **The race notice's four open decisions** — ~~who somebody writes to about their
       data, how long an entry record is kept, whether an email address is kept to tell
       people about next year's race, and what is true about photographs. All four are
-      `null` under `race.json`'s `privacy` key and render "To be confirmed by the club".
-      **The notice itself is written** and covers the entry as well as the interest form
+      `null` under `race.json`'s `privacy` key and render "To be confirmed by the club".~~
+      **Three of the four were answered on 30 August 2026**, when the committee
+      supplied its own notice as a document and the club asked for `/nn/privacy/` to
+      publish it word for word: the contact address and the entry-retention sentence are
+      settled in `race.json`, and photographs are answered by the document's own section
+      8, so that key came out of `race.json` altogether. **Only the email one is still
+      open** — `emailRetention` is still `null` — and it is open in a different way now,
+      because nothing on the page reads it: the notice neither renders a marker for it
+      nor says anything to a runner about next year's race. **The notice itself is
+      written** and covers the entry as well as the interest form
 - [ ] **The site-wide notice's two further open decisions** — **how long an account is
       kept**, including what happens when somebody stops being a member, and **whether
       deleting an account also deletes a race entry** by the same person. They are `null` in
@@ -212,19 +220,31 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       is the club's notice rather than the race's. **The first is the one that blocks
       nothing and matters most**: an account is a standing record of a named person, held
       indefinitely until this is answered. The contact for data questions above is the same
-      open decision on both notices, which is why it is `race.json`'s on both. `/privacy/`
-      is written; `privacy.spec.ts` counts its three markers as `nn-privacy.spec.ts` counts
-      the four
+      open decision on both notices, which is why it is `race.json`'s on both — **it was
+      settled on 30 August 2026** by the committee's document, and `/privacy/` picked the
+      answer up out of `race.json` without being edited. `/privacy/` is written;
+      ~~`privacy.spec.ts` counts its three markers as `nn-privacy.spec.ts` counts the four~~
+      `privacy.spec.ts` counts its **two** remaining markers and `nn-privacy.spec.ts` counts
+      **none**, because the race notice renders no marker at all now
 - [ ] **The wording of both notices, and of the lawful bases on `/privacy/` in particular.**
       Neither page has been read by a lawyer or approved by the committee. The account
       notice claims **legitimate interests** for the account itself and **consent** for the
       optional profile details, and both are arguable the other way round — a wrong answer
       there is a legal claim rather than a typo
-- [ ] **Four rows of the race notice were derived from the schema, not approved.** The committee
-      approved a draft listing what somebody types; the tables also hold the fee and amount,
-      Stripe's references, the consents with their version, and three timestamps. Those rows
-      and one lawful basis were added because a notice that omits them under-lists what the
-      club processes. They go to the committee with the four above
+- [x] **Four rows of the race notice were derived from the schema, not approved.** ~~The
+      committee approved a draft listing what somebody types; the tables also hold the fee
+      and amount, Stripe's references, the consents with their version, and three
+      timestamps. Those rows and one lawful basis were added because a notice that omits
+      them under-lists what the club processes. They go to the committee with the four
+      above~~ **Closed on 30 August 2026 by removal rather than by approval.** The club
+      asked for the committee's own document to be published word for word, so those four
+      rows and the lawful basis added with them came off `/nn/privacy/` entirely instead
+      of going back to the committee. **What the rows existed to say is now said to
+      nobody**: the entry tables still hold the fee and amount, Stripe's references, the
+      consents with their version and three timestamps, and no published page tells the
+      person they are about. That is a notice under-listing what the club processes — the
+      defect the rows were added to close — and closing it again means new wording from
+      the committee, never an edit to that page
 - [ ] **Whether a submission with the consent box unticked is stored at all.** It is
       currently *required to submit*. The database is deliberately neutral on it, so
       reversing this needs no migration

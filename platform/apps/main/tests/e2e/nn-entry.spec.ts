@@ -618,7 +618,7 @@ test.describe('once entries are open', () => {
   }) => {
     // **The link has to be true of the page it lands on**, and it was not: it pointed at a
     // notice describing a three-field interest form while this form collects fourteen fields
-    // and takes a payment. The notice covers both now, and this is what says so.
+    // and takes a payment. The notice covers both, and this is what says so.
     await page.goto(YEAR);
 
     const agreements = entry(page).getByRole('group', { name: 'Agreements' });
@@ -629,8 +629,15 @@ test.describe('once entries are open', () => {
 
     await page.goto('/nn/privacy/');
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
-    expect(body).toMatch(/If you enter the race/i);
-    expect(body).toMatch(/medical box/i);
+
+    // **This asserted "If you enter the race" and "medical box" until 30 August 2026**, when
+    // the club published the committee's privacy document verbatim. Neither phrase is in it —
+    // the document does not separate the entry from the interest form, and it does not mention
+    // the medical box at all. What is asserted instead is the claim this test is actually
+    // named for: that the page a runner is sent to from the entry form is about entering,
+    // rather than only about the interest list.
+    expect(body).toMatch(/registering your interest or entering/i);
+    expect(body).toMatch(/manage race registration and event logistics/i);
   });
 
   test('links the entry terms beside the box that accepts them', async ({

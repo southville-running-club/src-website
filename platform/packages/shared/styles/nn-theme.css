@@ -734,6 +734,35 @@ html:has(body.theme-nn) {
   color: var(--nn-bone);
 }
 
+/* **The one-line strapline on `/nn/`, in the same face as the facts row above it.**
+
+   `.nn-mono` is next door and is not what this wants: it is an *inline* helper for a
+   postcode inside a sentence, so it carries `0.9em` and `white-space: nowrap` — the second
+   of which would push a 34-character line off a 320px screen rather than wrap it. This is a
+   block, so it takes the face and nothing else from that idea.
+
+   **17px rather than the lede's 18**, for the reason written above `.nn-mono`: JetBrains
+   Mono sets optically larger than Inter at a matched pixel size, and 18px mono under a 14px
+   mono facts row reads as a size jump nobody meant. 17px keeps the strapline plainly the
+   larger of the two without shouting. Weight 500 is the facts row's, so the pair reads as
+   one block.
+
+   **Only the strapline, which is why this is not `.nn-hero .lede`.** `/nn/2026/`'s hero has
+   no lede at all now, so that broader selector would have exactly one call site while
+   reading as a general rule — and the next multi-sentence hero lede written would be swept
+   into mono without anybody choosing it, which over several wrapped lines is a wall rather
+   than a line. Naming the strapline keeps the decision at the element it was made for.
+
+   **Contrast is unchanged, and the size tier with it**: bone on blood, and a face does not
+   move a ratio. 17px at weight 500 is still normal text under WCAG — the large-text
+   threshold is 18.66px bold or 24px — exactly as the 18px it replaces was, so the 4.5:1 bar
+   this has to clear is the same bar as before. */
+.theme-nn .nn-strapline {
+  font-family: var(--nn-mono);
+  font-weight: 500;
+  font-size: 17px;
+}
+
 /* -------------------------------------------------------------------------------------
  * The navigation
  * -------------------------------------------------------------------------------------
@@ -1465,6 +1494,11 @@ html:has(body.theme-nn) {
   margin-top: 22px;
 }
 
+/* **This is one pixel larger than the prose under it, and that is what makes it a lede
+   here** — `body.theme-nn` sets 16px, so 17px is the whole of the emphasis. It is a small
+   enough difference to be worth stating: a call site that wants its intro to read at the
+   same size as the paragraph below it does not want this class at all, because colour and
+   measure are already the card's. `/nn/`'s announcement is that case and carries no lede. */
 .theme-nn .nn-prose .lede {
   max-width: none;
   margin-bottom: 0;

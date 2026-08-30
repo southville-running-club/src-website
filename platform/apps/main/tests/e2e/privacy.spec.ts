@@ -37,19 +37,29 @@ import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll'
 const MARKER = 'To be confirmed by the club';
 
 /**
- * How many values on this page are still undecided: the contact for data questions (which is
- * `race.json`'s, and the same open decision on both notices), how long an account is kept,
- * and whether deleting an account also deletes a race entry by the same person. **Filling one
- * in is supposed to fail this file**: the count drops to two, and updating it here is the
- * moment somebody confirms the new value came from the committee.
+ * How many values on this page are still undecided: how long an account is kept, and whether
+ * deleting an account also deletes a race entry by the same person. **Filling one in is
+ * supposed to fail this file**: the count drops, and updating it here is the moment somebody
+ * confirms the new value came from the committee.
+ *
+ * **It was three until 30 August 2026, and the third leaving is this mechanism working.** The
+ * contact for data questions is `race.json`'s and was the same open decision on both notices;
+ * the committee's privacy document answered it, `/nn/privacy/` was rewritten around that
+ * document, and this page picked the answer up without being edited — because the settled
+ * facts are lifted from `race.json` rather than retyped here. Three tests in this file went
+ * red on a change to a different page, which is exactly what they are for.
  */
-const OPEN_DECISIONS = 3;
+const OPEN_DECISIONS = 2;
 
 /** The settled facts, as they must appear. Literals, for the reason in the header. */
 const SETTLED = {
   controller: 'Southville Running Club Ltd',
   registeredOffice: '1 Hengrove Farm, Hengrove Farm Lane, Bristol BS14 9DD',
-  companyNumber: 'ending 7549',
+  // **The full number, since 30 August 2026.** It was "ending 7549" — a partial, which is a
+  // stranger thing to publish than the number itself, Companies House being public. The
+  // committee's document gives it in full and both notices now do.
+  companyNumber: '09437549',
+  contact: 'info@southvillerunningclub.co.uk',
   lastUpdated: '25 August 2026',
 } as const;
 
@@ -154,6 +164,7 @@ test.describe("the club's privacy notice", () => {
     expect(body).toContain(SETTLED.controller);
     expect(body).toContain(SETTLED.registeredOffice);
     expect(body).toContain(SETTLED.companyNumber);
+    expect(body).toContain(SETTLED.contact);
     expect(body).toContain(SETTLED.lastUpdated);
   });
 
@@ -166,7 +177,7 @@ test.describe("the club's privacy notice", () => {
     await page.goto('/privacy/');
     const body = (await page.locator(NOTICE).textContent()) ?? '';
 
-    expect(body).toContain(`Contact about your data: ${MARKER}`);
+    expect(body).toContain(`Contact about your data: ${SETTLED.contact}`);
     expect(body).toContain(`Registered office: ${SETTLED.registeredOffice}`);
     expect(body).toContain(`company number ${SETTLED.companyNumber}`);
     expect(body).toContain(`Last updated: ${SETTLED.lastUpdated}`);

@@ -35,12 +35,19 @@ import { orTbc } from '@src/shared/privacy';
 //
 // ## The values that are undecided
 //
-// Three of them render "To be confirmed by the club" through the shared `orTbc` — the contact
-// for data questions, which is `race.json`'s and is the same open decision on both notices;
-// how long an account is kept; and whether deleting an account also deletes a race entry by
-// the same person. `privacy.spec.ts` counts the marker — three, exactly — so filling one in
-// fails that test until it is updated in the same commit, and a settled fact quietly
-// reverting to the marker fails it too.
+// Two of them render "To be confirmed by the club" through the shared `orTbc` — how long an
+// account is kept, and whether deleting an account also deletes a race entry by the same
+// person. `privacy.spec.ts` counts the marker — two, exactly — so filling one in fails that
+// test until it is updated in the same commit, and a settled fact quietly reverting to the
+// marker fails it too.
+//
+// **It was three until 30 August 2026, and the third left without this file being edited.**
+// The contact for data questions is `race.json`'s and was the same open decision on both
+// notices; the committee's privacy document answered it, `/nn/privacy/` was rewritten around
+// that document, and this page picked the answer up on its own — which is the point of
+// lifting the settled facts rather than retyping them, and is why three tests here went red
+// on a change to a different page. The company number arrived in full in the same document,
+// replacing the partial "ending 7549" this page used to print.
 //
 // **The settled facts come from `race.json`'s `privacy` key rather than being retyped here**,
 // so the two notices cannot disagree about who the controller is or where it is registered.
@@ -111,15 +118,17 @@ const club = race.privacy;
 
     <p>
       {
-        /* The link down. `/nn/privacy/` is the notice with the medical note, the emergency
-        contact, the payment and the retention period the database enforces — none of which
-        belongs in a general document. */
+        /* **The link down, and it names only what that notice actually sets out.** It used to
+        promise the medical note as well. Since 30 August 2026 `/nn/privacy/` reproduces the
+        committee's own privacy document word for word, and that document does not mention the
+        medical box — so this sentence was sending somebody to a page for an answer it does not
+        contain. The emergency contact and the payment are both still named there. */
       }
       <strong>It does not cover entering a race.</strong> What the club collects when you enter{
         ' '
       }
-      {race.name}, or ask to hear when its entries open — including anything you tell us
-      in the medical box, your emergency contact and your payment — is set out in{' '}
+      {race.name}, or ask to hear when its entries open — including your emergency contact
+      and your payment — is set out in{' '}
       <a href="/nn/privacy/">the {race.name} privacy notice</a>.
     </p>
 

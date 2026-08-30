@@ -241,8 +241,21 @@ not the build's, and they sit on the critical path.
 - [ ] All [manual steps](../../../platform/apps/main/README.md#manual-steps) are done, including
       the **three Worker secrets** and the **Stripe dashboard endpoint**
 - [ ] `npm run smoke` passes against production
-- [ ] The privacy notice's four open decisions are settled, or the club is content that they
-      still render "To be confirmed by the club"
+- [ ] **The published privacy notice is the committee's current wording.** **This asked
+      about four open decisions until 30 August 2026**, when the club instructed that
+      `/nn/privacy/` reproduce the committee's document word for word. That document
+      answers all four, so the page renders no "To be confirmed by the club" marker at all
+      and `nn-privacy.spec.ts` asserts zero. What is left to check on the day is that no
+      newer document has been supplied — new wording is published by replacing that page,
+      never by editing it
+- [ ] ⚠️ **The club accepts that the notice states no medical-note retention period.** The
+      committee's document says only that information is kept for as long as reasonably
+      necessary. **The deletion is unchanged** — `entries.events.medical_retention` is one
+      month and the five-minute cron still applies it — so the enforcement is stricter than
+      the published words, which is the safe direction of the two. `race.json`'s
+      `medicalRetention` still reads "One month after the race" and
+      `packages/db/tests/entries-retention.test.ts` still ties it to the column, but that tie
+      no longer reaches anything a runner reads
 
 ---
 
