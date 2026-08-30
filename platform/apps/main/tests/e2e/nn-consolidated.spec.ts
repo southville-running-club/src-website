@@ -249,10 +249,23 @@ test.describe('what the script adds', () => {
     }) => {
       await page.goto(YEAR);
 
-      await page
-        .getByRole('navigation', { name: 'Sections of this page' })
-        .getByRole('link', { name: label, exact: true })
-        .click();
+      const nav = page.getByRole('navigation', { name: 'Sections of this page' });
+
+      // **The nav has two presentations, and on a phone the links start out of the tree.**
+      // Wide screens get `.nn-jump-desktop-links` as a row; narrow ones get a collapsed
+      // `<details>` instead, and a link inside a closed `<details>` is not exposed at all —
+      // `getByRole('link')` matches zero, not one-that-is-hidden. Measured on iPhone SE: the
+      // desktop row has no box and the disclosure is shut.
+      //
+      // So open it when it is the affordance on offer. Doing this unconditionally would click
+      // a summary that is `display: none` at 1280px; doing it not at all was why these three
+      // timed out on mobile-safari and passed everywhere else.
+      const menu = nav.locator('details.nn-jump-menu');
+      if (await menu.isVisible()) {
+        await menu.locator('summary').click();
+      }
+
+      await nav.getByRole('link', { name: label, exact: true }).click();
 
       await expect(page.locator(`#${id}`)).toBeFocused();
     });
