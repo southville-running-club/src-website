@@ -1,5 +1,12 @@
 # Current state
 
+> ⚠️ **Baseline, not current fact.** This is the *before* picture — observed 6–9 August
+> 2026, ahead of any of the build. It contains **no mention of the platform actually
+> built since**: race entries, Stripe payments, member accounts, an admin back office or
+> the email outbox. For what exists now, read [`CLAUDE.md`](../../CLAUDE.md) at the
+> repository root and [the phases](../delivery/phases.md); treat this file as the
+> starting line the build was measured against, not a live description.
+
 What exists today, as fact. No proposals, no recommendations, no vendor preferences.
 
 Everything here is either observed directly (the DNS zone, the timing app source, the live
@@ -39,7 +46,7 @@ School. **The entry fees are confirmed: £18 affiliated, £20 unaffiliated**, se
 Unattached Runner Levy rather than the club's, so the club nets £18 either way. **The 2026
 ARC permit number is confirmed too: `ARC/26/0842`**, issued 27 August 2026.
 
-**People.** One volunteer builds and maintains the platform. A treasurer, race director,
+**People.** Two volunteers build and maintain the platform. A treasurer, race director,
 membership secretary and committee hold the non-technical responsibilities.
 
 ---
@@ -625,5 +632,5 @@ mirroring step.
 - **Governance positions agreed at the QGM:** no payment work before data-protection
   advice and treasurer-controlled payment arrangements are in place; the member fund must
   be re-homed before Squarespace is cancelled.
-- **One volunteer.** Every decision is bounded by what one person with a day job can build
-  and what a second person could later pick up.
+- **Two volunteers with day jobs.** Every decision is bounded by what one person can build
+  and what the other could pick up without them.

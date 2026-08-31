@@ -1,5 +1,9 @@
 # Problem statement
 
+*Written August 2026, as the case for starting. Kept as history rather than rewritten as
+progress is made — each problem below still explains why its part of the build happened,
+even where the build has since solved it; solved ones are marked in place.*
+
 Why the club is doing this at all.
 
 Everything else in this repository — [requirements](requirements.md),
@@ -56,8 +60,11 @@ from Pass the Buck 2026. Squarespace cannot reach it. So results are **transcrib
 web page by hand** after each race, and every year of history is a page somebody typed.
 
 The same wall stands in front of everything else the club wants: race sign-ups that land
-straight in a roster, entry pricing that checks a runner's registration, a members' area
-that knows who is current, an archive that maintains itself.
+straight in a roster, entry pricing that reflects affiliation status, a members' area
+that knows who is current, an archive that maintains itself. **"Checks a runner's
+registration" is no longer the shape this took** — [decision
+007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
+has the club take a runner's word for it rather than verify a number.
 
 ## 3. Volunteers are doing work the system should do
 
@@ -111,8 +118,10 @@ Nothing joins up, so people do the joining.
 
 ## 6. Two races, one of them invisible
 
-Nightingale Nightmare has **no web presence at all**. Pass the Buck has a page and two
-years of hand-typed results.
+**Solved, 30 August 2026.** Nightingale Nightmare had **no web presence at all**; it now has
+seven pages, an entry form taking real payments, and a privacy notice — see [the
+phases](../delivery/phases.md). Pass the Buck has a page and two years of hand-typed
+results, which is what this section was written against.
 
 ## What the club is buying
 

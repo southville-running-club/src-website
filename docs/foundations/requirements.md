@@ -1,5 +1,10 @@
 # Requirements
 
+*Written August 2026. Most capabilities below are now built; a few have been narrowed or
+withdrawn by a committee decision since — each is marked in place rather than the
+requirement being silently rewritten. For which is which, cross-check against [the
+phases](../delivery/phases.md).*
+
 What the club needs the platform to **do**, and what bounds how it may do it. No vendors,
 no products, no architecture.
 
@@ -61,9 +66,9 @@ club's, with no import step.
 
 | Flow | Shape | Today |
 | --- | --- | --- |
-| **Session subscription** — £2.50/month | Small, recurring, cancellable at will, **open to non-members** | Squarespace donation fund, 94 payers |
+| **Session subscription** — £2.50/month | Small, recurring, cancellable at will, **open to non-members** | Squarespace donation fund, **~1,175 payments/yr measured** — not the 94 the proposal carried, see [current state](current-state.md) |
 | **SRC membership** — £4/year | Annual, confers benefits, tied to an identity | Not taken online; forms plus the EA portal |
-| **Race entries** — £8–£10 per runner | One-off, from non-members, priced by EA status | A third-party entry platform |
+| **Race entries** — £18 affiliated, £20 unaffiliated (confirmed 24 Aug 2026, decision 006) | One-off, from non-members, priced by claimed affiliation rather than a verified EA status — see C11 | The club's own entry form |
 | **Merchandise and tickets** | Occasional, physical or admission, needs stock and sizes | Squarespace commerce; kit via an external link |
 
 *Harder than it looks:* the £2.50 subscription **is not membership** and its payers are
@@ -131,8 +136,9 @@ policy.
 
 ### C10 — Hold personal data lawfully
 
-Names, ages, England Athletics numbers, emergency contacts, email addresses, payment
-records. Collected minimally, retained to a written policy, deletable on request.
+Names, ages, phone numbers, emergency contacts, email addresses, payment records, medical
+notes under their own consent. **Not England Athletics numbers** — decision 007 stopped
+that. Collected minimally, retained to a written policy, deletable on request.
 
 *Harder than it looks:* this is not a feature, it is a condition on everything else. It
 constrains where data may live, what may be logged, and what may exist outside production.
@@ -141,6 +147,15 @@ constrains where data may live, what may be logged, and what may exist outside p
 personal data anywhere it is not needed.
 
 ### C11 — Verify England Athletics registration
+
+⚠️ **Withdrawn for race entries, 29 August 2026** — [decision
+007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
+and
+[ADR-023](../architecture/decisions/adr-023-no-england-athletics-numbers.md). The club asks
+for no number and holds none: a runner states they are affiliated and the club takes their
+word for it, reserving the right to ask for evidence. What follows is the requirement as
+originally written, kept as the reasoning a fallback like this one might be revisited from,
+not as a live capability.
 
 Confirm a runner's URN against their name and status, to price entries correctly and to
 gate membership.
@@ -416,7 +431,8 @@ Stating these prevents solutions being judged against imaginary requirements.
 
 - **Not a general-purpose CMS.** Editing convenience is a real requirement (C1); a
   content-management product is not the only way to meet it.
-- **Not scale.** Roughly 100 teams, 150 solo entries, 94 members, a few hundred spectators
+- **Not scale.** Roughly 100 teams, 150 solo entries, ~1,175 subscription payments a year
+  (see [current state](current-state.md), not the proposal's 94), a few hundred spectators
   on race night. Anything designed for scale is being paid for in complexity the club does
   not need.
 - **Not high availability.** The website being down for an hour is an inconvenience. The
