@@ -5,7 +5,9 @@ schema, and what happens when it needs restoring.
 
 **Postgres in `eu-west-2` is settled** —
 [decision 002](../../decisions/decision-log.md#002--hold-the-clubs-data-in-supabase-on-the-free-tier).
-Everything below is the shape inside that.
+**The schema-separation question below is settled too** —
+[ADR-002](../decisions/adr-002-schema-layout.md), later extended by `entries` and `identity`
+as those were built. Everything below is the shape the decision was reasoned from.
 
 ---
 

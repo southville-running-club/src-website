@@ -3,9 +3,9 @@
 How many repositories, what each owns, and how code that belongs to more than one of them
 gets to both.
 
-**Open.** Five candidates below, none recommended. The criteria in
-[requirements](../../foundations/requirements.md) genuinely conflict, and the trade is the
-club's rather than this document's.
+**✅ Settled by [ADR-001](../decisions/adr-001-one-monorepo.md), 8 August 2026 — one
+monorepo.** Five candidates below, none recommended *at the time this was written*; kept as
+the working that produced the decision, not as an open question.
 
 ---
 

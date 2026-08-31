@@ -8,6 +8,10 @@ carries club email. [DNS and domain](../../solutions/dns-and-domain.md) covers t
 risk and [move the DNS first](../../delivery/dns-first.md) covers the runbook; this covers the
 **shape** — what gets a hostname, and why.
 
+**✅ Settled by [ADR-006](../decisions/adr-006-apps-main-and-hostnames-as-code.md) and
+[ADR-007](../decisions/adr-007-one-hostname-paths-not-subdomains.md), 8–9 August 2026** —
+one hostname, told apart by path, declared in `wrangler.jsonc`. Kept as the reasoning.
+
 ---
 
 ## The zone moved to Cloudflare on 8 August 2026
@@ -196,8 +200,8 @@ treated with more care than a website change deserves.
 | **Sequencing** | Mailboxes are bought **before** the nameserver move, so Fasthosts writes its own mail records while it still controls the zone, and the club copies one settled, verified zone into Cloudflare |
 | **Decline Cloudflare Email Routing** | If offered during setup it would **replace the MX records**. [Plan step 29](../../delivery/plan.md) |
 | **Transactional mail is separate** | Resend, from a dedicated sending subdomain, so a bounced entry confirmation cannot damage the reputation of the club's own mail |
-| **SPF has to be tidied later** | [Plan step 64](../../delivery/plan.md) — the `a` mechanism becomes pointless once the apex no longer points at a mail-sending host |
-| **Test mail first, always** | After any nameserver or MX-adjacent change, send **and receive** before checking anything else. [Plan steps 33 and 92](../../delivery/plan.md) |
+| **SPF has to be tidied later** | [Plan step 66](../../delivery/plan.md) — the `a` mechanism becomes pointless once the apex no longer points at a mail-sending host |
+| **Test mail first, always** | After any nameserver or MX-adjacent change, send **and receive** before checking anything else. [Plan steps 33 and 72](../../delivery/plan.md) |
 
 ---
 
