@@ -390,11 +390,18 @@ cannot be taken at all, and that is the safe direction rather than a fault.
 openssl rand -base64 32
 ```
 
-**2. Give it to the Worker**, which prompts for the value and stores it in Cloudflare:
+**2. Give it to the Worker**, which prompts for the value and stores it in Cloudflare. **From
+`platform/`**, and with the same flags every other secret here is set with — `--config` names
+which of the two Workers this belongs to, and without it the command depends on where you
+happen to be standing:
 
 ```bash
-npx wrangler secret put ENTRIES_ENTRY_KEY --env production
+npx wrangler secret put ENTRIES_ENTRY_KEY --env production --config apps/main/wrangler.jsonc
 ```
+
+**No deploy is needed** — a secret takes effect on the next request. But if the Worker was
+deployed *before* the migration in #178 landed, it does not yet read this binding at all; check
+that `main` has deployed since.
 
 **3. Give the database its digest — the digest, never the key.** Run this in the Supabase SQL
 editor, replacing the placeholder with the key you minted:
