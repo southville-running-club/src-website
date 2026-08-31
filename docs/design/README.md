@@ -74,7 +74,7 @@ instead, the mechanism has no job: a disclosure widget exists to manage length, 
 have none. Five `<details open>` holding one paragraph each are five paragraphs wearing chevrons
 that never earn a click. The race-morning schedule, which is the one thing in that section a
 runner reads under time pressure, is open in the flow and was never a candidate for a panel.
-[ADR-024](../architecture/decisions/adr-024-one-entry-point-for-a-running.md) keeps the
+[ADR-027](../architecture/decisions/adr-027-one-entry-point-for-a-running.md) keeps the
 open-by-default reasoning on the record even though it no longer applies, because somebody will
 propose accordions here again.
 

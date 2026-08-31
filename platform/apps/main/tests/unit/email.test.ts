@@ -7,7 +7,7 @@ import type { OutboxMessage } from '@src/shared';
  * way — the same argument `stripe.test.ts` makes about the Checkout body.
  *
  * **The money sentences are the whole reason this file exists.** Two of the four quote an
- * amount, and both were written for a purchase that went through Stripe. ADR-021 then made a
+ * amount, and both were written for a purchase that went through Stripe. ADR-028 then made a
  * purchase that did not: a place the club *gives*, `paid` at £0 on a £0 fee — Kinsi's two, and
  * the free place a visually impaired runner's guide is given. Against one of those the
  * confirmation said *"we have received your payment of £0.00"* and the cancellation said

@@ -252,7 +252,7 @@ on 28 August 2026.** Stripe refuses a zero-total Checkout session, so nothing ca
       `vi_guide` fee still exists and is still uncompletable on its own; nobody has to use it
 - [x] **Any other free place is assigned from `/admin/nn/`** by somebody holding
       `nn.entry.create` —
-      [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md)
+      [ADR-028](../../architecture/decisions/adr-028-a-place-can-be-given.md)
 - [ ] The stop in `worker/nn-entry.ts` is **unchanged**. It is still the backstop for any fee
       that prices at zero on the public path, and nothing should be able to reach it now
 

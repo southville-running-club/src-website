@@ -1,6 +1,14 @@
-# ADR-021 — A place can be given, not only sold
+# ADR-028 — A place can be given, not only sold
 
-**Accepted**, 28 August 2026.
+**Accepted**, 28 August 2026. **Renumbered twice.** First from ADR-021 on 31 August 2026 —
+merged the same day as [ADR-021, *the club tells a runner what happened, through an
+outbox*](adr-021-the-club-tells-people-by-outbox.md), which claimed the number first, so
+this file collided with it and moved to ADR-026. That number then collided a second time,
+with an unrelated ADR-026 (*an HTML part joins the outbox emails*) that merged to `main`
+independently while this file's rename was still only on a branch — since a merged number
+beats an unmerged one, this file is the one renumbered again, to **ADR-028**. If something
+elsewhere still cites "ADR-021" or "ADR-026" meaning *a place can be given*, it means this
+document.
 
 | | |
 | --- | --- |

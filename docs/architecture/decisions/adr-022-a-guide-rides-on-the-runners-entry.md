@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Requirement** | [C17](../../foundations/requirements.md#c17--collect-form-submissions) |
-| **Relates to** | [ADR-011](adr-011-a-race-and-its-runnings.md), [ADR-020](adr-020-race-category-and-gender-are-two-questions.md), [ADR-021](adr-021-a-place-can-be-given.md) |
+| **Relates to** | [ADR-011](adr-011-a-race-and-its-runnings.md), [ADR-020](adr-020-race-category-and-gender-are-two-questions.md), [ADR-028](adr-028-a-place-can-be-given.md) |
 
 ## Context
 
@@ -163,7 +163,7 @@ driven through a control that no longer exists is not coverage.
 **`vi_guide` stays as a fee** and is not removed. It is the shape a guide entering separately
 would take, it is still on the constraint, and removing it would be a contraction with no expand
 in front of it. It remains uncompletable on its own for the Stripe reason, which
-[ADR-021](adr-021-a-place-can-be-given.md) is the answer to.
+[ADR-028](adr-028-a-place-can-be-given.md) is the answer to.
 
 ## Recorded, 30 August 2026 — there was a fourth read, and it was written the same day
 

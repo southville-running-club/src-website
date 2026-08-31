@@ -298,7 +298,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // **The one function here that gives something away rather than recording something
       // bought.** `create_manual_entry` writes a `paid` purchase at £0 on the `complimentary`
       // fee, behind `nn.entry.create`, under the same per-event advisory lock the entry path
-      // takes — so a given place cannot oversell the course. ADR-021 records what that amends
+      // takes — so a given place cannot oversell the course. ADR-028 records what that amends
       // in ADR-010: the webhook is still the only thing that promotes a purchase somebody
       // *paid* for, and this one nobody did.
       'create_manual_entry',
@@ -554,7 +554,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // changing a record.** `create_manual_entry` gives somebody a place at no charge, and it
       // is the one function here gated on `nn.entry.create` — the eighth permission, which
       // exists rather than reusing `nn.entry.cancel` because undoing an entry somebody bought
-      // and adding a runner to a course with a hard limit are different powers. See ADR-021.
+      // and adding a runner to a course with a hard limit are different powers. See ADR-028.
       //
       // The grant is safe on the same terms as every other one here: `authenticated` is a role
       // anybody who registers holds, so the grant only says "you may ask" and
@@ -1309,7 +1309,7 @@ describe('the fees', () => {
     // is a place the club *gives* from `/admin/nn/` behind `nn.entry.create`, so
     // `entry_state()` never offers it and `create_pending_purchase()` refuses it with
     // `invalid_fee` — which is what stops somebody reading the page source and posting the
-    // code straight at PostgREST with the published anon key. See ADR-021.
+    // code straight at PostgREST with the published anon key. See ADR-028.
     //
     // The two are still the only ones. `affiliated`, `unaffiliated` and `vi_guide` are
     // ungated, so nothing changed for a runner.

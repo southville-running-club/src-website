@@ -952,7 +952,7 @@ describe('the entries list', () => {
         // place stays exactly where it is.
         '/admin/nn/transfer/',
         // **The sixth, and the only one that *creates* rather than alters.** It gives somebody
-        // a place at no charge — ADR-021 — and it is the only endpoint here behind a
+        // a place at no charge — ADR-028 — and it is the only endpoint here behind a
         // permission of its own, `nn.entry.create`, rather than behind `nn.entry.cancel`.
         //
         // **It appears here because this viewer holds `nn-admin`**, which is the only role

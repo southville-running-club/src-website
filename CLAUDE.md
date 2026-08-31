@@ -191,7 +191,7 @@ re-run.
   deletes its entrants and returns the place —
   [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Giving a place away
   is settled too, and it came off this list on 28 August 2026** —
-  [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md). Somebody holding
+  [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md). Somebody holding
   `nn.entry.create` may assign a **complimentary** place from `/admin/nn/`: a `paid` purchase at
   £0 on a £0 fee, audited, under the same advisory lock, re-checking capacity, the minimum age
   and one-runner-one-place. It is the answer to the two Kinsi places and to the visually
@@ -1030,7 +1030,7 @@ every call naming the original eight as ambiguous. **A use is returned when the 
 `expire_pending_holds()` on a lapsed hold, `cancel_entry()` on a refund — because it only ever
 incremented before, so 25 abandoned checkouts would have exhausted the whole allocation with
 nobody entered. **A 100% code is not the way to give a free place**: Stripe refuses a zero-total
-session and will not charge below £0.30, which is what ADR-021 is the answer to.
+session and will not charge below £0.30, which is what [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md) is the answer to.
 
 **Every rule is enforced in the database, and Zod is never the only place one lives.** Slice E
 found `create_pending_purchase` writing `ea_number` without ever consulting
@@ -1170,7 +1170,7 @@ either. It reuses `nn.entry.cancel` rather than adding a permission of its own; 
 eighth permission exists now and it is not this one** — `nn.entry.create`, which gives a place
 away rather than moving one, and which was argued as its own permission precisely because
 adding a runner to a course with a hard limit is a different power from undoing an entry
-somebody bought. See [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md).
+somebody bought. See [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md).
 
 **A request is not a status, and that is load-bearing.** `requested_action` is its own column
 beside `attention` rather than a sixth value of `status`, because the capacity predicate

@@ -108,7 +108,7 @@ the short form of the course exists nowhere and the long form is on `/nn/`. The 
 **One entry point rather than one page.** `/nn/2026/race-day/` and `/nn/2026/spectators/` both
 stay live; sections 4 and 5 summarise them rather than absorb them. Absorbing them would
 retire two URLs, which is a decision with its own record.
-See [ADR-024](../../../docs/architecture/decisions/adr-024-one-entry-point-for-a-running.md).
+See [ADR-027](../../../docs/architecture/decisions/adr-027-one-entry-point-for-a-running.md).
 **Only the first of the two is still reachable by a link, though** — the hero's second button
 and the entries-closed notice both point at the race instructions, and nothing anywhere points
 at `/nn/2026/spectators/` since the bar's `Spooktators` item came out.

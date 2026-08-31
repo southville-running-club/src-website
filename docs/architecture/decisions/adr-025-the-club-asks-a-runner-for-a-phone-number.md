@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Requirement** | [C3](../../foundations/requirements.md#c3--accept-race-sign-ups-and-entries), [C10](../../foundations/requirements.md#c10--hold-personal-data-lawfully) |
-| **Relates to** | [ADR-020](adr-020-race-category-and-gender-are-two-questions.md), [ADR-021](adr-021-a-place-can-be-given.md), [ADR-022](adr-022-a-guide-rides-on-the-runners-entry.md), [ADR-023](adr-023-no-england-athletics-numbers.md) |
+| **Relates to** | [ADR-020](adr-020-race-category-and-gender-are-two-questions.md), [ADR-028](adr-028-a-place-can-be-given.md), [ADR-022](adr-022-a-guide-rides-on-the-runners-entry.md), [ADR-023](adr-023-no-england-athletics-numbers.md) |
 | **Supersedes** | Nothing. It **adds the eighteenth entry field** and **ends `/nn/privacy/` being a verbatim document** |
 | **Issue** | [#168](https://github.com/southville-running-club/src-website/issues/168), which supersedes [#167](https://github.com/southville-running-club/src-website/issues/167) |
 
