@@ -167,7 +167,21 @@ re-run.
   and one-runner-one-place. It is the answer to the two Kinsi places and to the visually
   impaired guide's free place, both of which Stripe refuses to charge for. **Transfers beyond
   the one that exists, corrections, resends and partial refunds are each still a
-  stop-and-ask**, and each is a decision about changing a record somebody paid for.
+  stop-and-ask**, and each is a decision about changing a record somebody paid for. **A
+  partial refund is not merely undecided — `refundPayment()` cannot make one.**
+  `worker/stripe.ts` sends no `amount` on the `POST /v1/refunds` call: omitting it refunds the
+  full charge, and the file's own comment calls that "the only refund this platform offers — a
+  partial one is a different decision." So `cancel_entry()` always refunds in full or nothing,
+  and the `entry_refunded` email reflects only those two states — there is no wording anywhere
+  for a partial amount, because the code path that would need it does not exist.
+  **Money is rendered to text in exactly one place, `formatPence()`
+  (`packages/shared/src/entry-state.ts`)**, which returns the `£` and the pound-pence
+  formatting together — including `'Free'` for zero — rather than a bare number a caller adds a
+  symbol to. Every other `£` anywhere in this repository, checked by grep, is inside a comment;
+  the three CSV exports carry an amount as a raw pence integer with no symbol; no SQL renders
+  money to text. A template that writes its own `£` beside a call to `formatPence()` doubles
+  it — `££18.00`, and `£Free` on a given place. The presentation belongs to the one function
+  that already produces it, never to the caller as well.
 - **A sixth role, or an eleventh permission.** Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
   [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). **The ninth
@@ -692,6 +706,23 @@ on screen. **Wait for the run that was dispatched** — this is the sharp edge o
 through a subagent, because a background run that looks slow is exactly what makes somebody
 start another.
 
+⚠️ **A merely *busy* machine fails `./dev test` differently, and the signature reads as a
+runtime bug rather than as load.** No second run is needed — parallel work of any kind is
+enough. Measured on 30 August 2026 on one unchanged tree, twice each: run alongside a
+ten-agent documentation sweep, the Worker layer died with **`Worker exited unexpectedly`
+twice over and a Vite server timeout after 10000ms**, reporting **4 of 6 files and 105
+tests**. Run alone on the same commit, the same command reported **11 files and 348 tests**
+and the ordinary `.dev.vars` failure below. **Both numbers are real and only the second one
+means anything.**
+
+The trap is that the loaded signature names the `@cloudflare/vitest-pool-workers` pool and a
+Vite timeout, so it invites a hunt through `vitest.worker.*.config.ts` for a configuration
+fault that is not there — while the truncated count looks like a suite that shrank rather
+than one that was killed. **The tell is a file count lower than eleven**, and the fix is to
+stop everything else and run it again. Sequence the work rather than overlapping it: this is
+the reason a test run and a subagent fan-out must not be dispatched in the same breath, and
+`./dev check` is not exempt — it rebuilds the database under whatever else is reading it.
+
 **`./dev test` fails one Worker test on any machine that has a Stripe key, and it is the
 machine rather than the branch.** `tests/worker/admin/tester.test.ts`'s "gets the tester entry
 type back still chosen" asserts **503** — the branch the Worker takes when no
@@ -702,11 +733,22 @@ machine somebody has set one up on, so the Worker reaches Stripe Checkout instea
 whole signature, and it reads as a regression in the entry path when nothing has regressed:
 **CI passes because CI has no `.dev.vars`.** The cost is not one test — `cmd_test` stops at the
 Worker layer, so Playwright and axe never run at all and the acceptance layer reports nothing,
-which is the half somebody was waiting on. **Move `.dev.vars` aside and run again**, which is
-the CI environment reproduced. **Do not retry and do not edit the test**: the failure is
-deterministic, and the test is asserting the right thing about the right branch. Rename the
-file rather than copying it, so a live key is never on disk twice, and check its digest when
-you put it back.
+which is the half somebody was waiting on. **Moving `.dev.vars` aside and running again** is the
+CI environment reproduced — and ⚠️ **that step belongs to a volunteer, never to an agent.** A
+session working here does not move, rename, copy or read that file. It runs `./dev test`,
+reports the `303` against the `503` as a fact about the machine, and says plainly that the
+acceptance layer did not run — then stops. Closing the acceptance half of a definition of done
+is a hand-run by one of the two people who own the key.
+
+**The prohibition and the remedy are not in conflict, and reading them as one cost a round trip
+on 30 August 2026.** "Never touch `.dev.vars`" scopes the *actor*, not the file: the file is
+movable, and the person moving it is the one who put a live key on the machine. An agent that
+works around this by renaming the file has taken a decision about a credential that was never
+its own to take; an agent that reports the failure and halts has done the whole of its job.
+**Do not retry and do not edit the test**: the failure is deterministic, and the test is
+asserting the right thing about the right branch. When a volunteer does run it, rename the file
+rather than copying it, so a live key is never on disk twice, and check its digest when you put
+it back.
 
 **`git fetch` fast-forwards local `main` here, so "branch off `main`" is not stable across a
 fetch.** A session can read `main`, plan against it, fetch for some unrelated reason, and then
@@ -738,6 +780,21 @@ five-minute cron claims a batch, sends it through Resend's REST API, and records
 **Nothing can lose a message**; it can only be late. **The outbox holds one piece of personal
 data, an email address** — everything else a message needs is joined from the live tables at
 send time, so it is not a second copy of an entry for retention to chase.
+
+**Each of the four now carries an HTML part as well as text, since 31 August 2026 —
+[ADR-025](docs/architecture/decisions/adr-025-an-html-part-joins-the-outbox-emails.md)
+reverses the plain-text-only decision `worker/email.ts` had carried in a comment rather than a
+record.** The text part is unchanged and stays authoritative; `worker/email-skin.ts` renders
+the HTML from the same `OutboxMessage` the text reads, never from the text's own output, so the
+two can disagree in presentation but never in which facts they state. It is a newsprint skin —
+one card, one stamp, seven colours, three font stacks — with the design fidelity enforced by
+`tests/unit/email-skin.test.ts` rather than left to review by eye. **The campaign banner is a
+served image, not embedded**, at `apps/main/public/nn-email-banner-1080x566.png`; the file must
+be committed before its URL resolves, which is a plain git step rather than a manual one. **The
+Reply-To address moved off Gmail the same day** —
+`20260831090000_entries_nn_reply_to_club_domain.sql` updates `entries.events.from_address` to
+`nightingalenightmare@southvillerunningclub.co.uk`, the club-domain alias whose delivery into
+`info@` was proven on 28 August 2026.
 
 **There are two triggers, because a given place skips the transition the first one watches.**
 `enqueue_entry_email()` is `after update` and its confirmation branch fires on
