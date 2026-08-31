@@ -24,9 +24,12 @@
  * ## The `From` is not the race's address, and that is deliberate
  *
  * Resend may only send as a **verified domain**, which is `send.southvillerunningclub.co.uk`.
- * `entries.events.from_address` is `nightingalenightmare@gmail.com` — a real, monitored
- * mailbox, and one Resend cannot send as. So it becomes **`Reply-To`**, which is the useful
- * half anyway: pressing Reply on one of these reaches a human.
+ * `entries.events.from_address` is `nightingalenightmare@southvillerunningclub.co.uk` — a
+ * club-domain alias that forwards into `info@`, proven to deliver on 28 August 2026
+ * (`docs/delivery/runbooks/nn-email-aliases.md`), and one Resend cannot send as. So it becomes
+ * **`Reply-To`**, which is the useful half anyway: pressing Reply on one of these reaches a
+ * human. It replaced the seed migration's `nightingalenightmare@gmail.com` on 31 August 2026 —
+ * see `20260831090000_entries_nn_reply_to_club_domain.sql`.
  *
  * ⚠️ **That is the opposite of the account emails**, which GoTrue sends with no `reply_to`
  * field at all and which therefore bounce when replied to. The difference is that this path
@@ -34,6 +37,7 @@
  */
 
 import { formatPence, type OutboxMessage } from '@src/shared';
+import { renderEntryEmailHtml } from './email-skin';
 
 /** What the Worker needs before it can send anything at all. */
 export interface EmailConfig {
@@ -64,16 +68,26 @@ export type SendOutcome =
 interface RenderedEmail {
   subject: string;
   text: string;
+  /**
+   * `null` for a template `email-skin.ts` does not know — the plain-text part still sends on
+   * its own rather than losing the whole message, which is what keeps `render()` and
+   * `renderEntryEmailHtml()` free to fail independently at the expand/migrate/contract seam.
+   */
+  html: string | null;
 }
 
 /**
- * **Plain text, and no HTML part at all.**
+ * **The text part is authoritative; the HTML part is a rendering of the same facts.**
  *
- * Four short transactional messages do not need a rendered layout, and an HTML part is a
- * second copy of every sentence that will eventually disagree with the first. It also removes
- * a whole class of deliverability problem — a text-only message from a verified domain is
- * about as unlikely to be filtered as email gets, which matters most for the one message a
- * runner is waiting for.
+ * This used to be "plain text, and no HTML part at all" — reasoned on two grounds: an HTML
+ * part is a second copy of every sentence that will eventually disagree with the first, and a
+ * text-only message from a verified domain is about as unlikely to be filtered as email gets.
+ * Both still hold, which is why the text below is untouched and remains what a screen reader,
+ * a text-only client, and every existing test read.
+ * [ADR-025](../../../../docs/architecture/decisions/adr-025-an-html-part-joins-the-outbox-emails.md)
+ * is the record of reversing that decision, and the fixture-driven test in
+ * `email-skin.test.ts` is what stands in for "one sentence, not two": every fact in the HTML
+ * part is read off the same `OutboxMessage` this function reads, never typed a second time.
  *
  * **A greeting only when there is a name to use.** `entrant_first_name` is null after a
  * cancellation, which deletes the entrants, and after a transfer, which replaces them. So
@@ -106,9 +120,16 @@ function render(message: OutboxMessage): RenderedEmail | null {
    */
   const free = message.amountPence === 0;
 
+  // **Computed once, from `message` alone, and never from anything the text branches below
+  // built.** The HTML part reads the same `OutboxMessage` the text part does — never the
+  // text's own output — so the two can never state different facts and only ever differ in
+  // presentation.
+  const html = renderEntryEmailHtml(message);
+
   switch (message.template) {
     case 'entry_confirmed':
       return {
+        html,
         subject: `Your place in ${message.eventName} is confirmed`,
         text: [
           greeting,
@@ -127,6 +148,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_refunded':
       return {
+        html,
         subject: `Your entry to ${message.eventName} has been cancelled`,
         text: [
           greeting,
@@ -152,6 +174,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_transferred_out':
       return {
+        html,
         subject: `Your place in ${message.eventName} has been transferred`,
         text: [
           // **No name, deliberately.** This message goes to the address the entry has just
@@ -170,6 +193,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_transferred_in':
       return {
+        html,
         subject: `You have a place in ${message.eventName}`,
         text: [
           greeting,
@@ -235,12 +259,17 @@ export async function sendOutboxMessage(
         // before recording it. Belt and braces, and the braces are free.
         'idempotency-key': `outbox:${message.id}`,
       },
+      // `html` is omitted rather than sent as `null` — Resend's own examples never show a
+      // null field, and an absent key is unambiguous where a null one would need guessing
+      // about. `rendered.html` is only ever null for a template `email-skin.ts` does not
+      // know, which `render()` above already refuses before this call is reached.
       body: JSON.stringify({
         from: FROM,
         to: [message.recipient],
         reply_to: message.replyTo,
         subject: rendered.subject,
         text: rendered.text,
+        ...(rendered.html === null ? {} : { html: rendered.html }),
       }),
       // Shorter than the refund's twenty seconds and longer than Checkout's ten: nobody is
       // waiting on this, but a cron that hangs on a provider outage is a cron that stops
