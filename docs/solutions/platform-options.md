@@ -9,10 +9,10 @@ It answers the three questions
 commercial-use terms, whether a candidate needs control of the domain's DNS, and bundled
 versus assembled — because nothing can be built until they are answered.
 
-**This is analysis, not a decision.** The [decision log](../decisions/decision-log.md)
-stays empty until the committee chooses. Read
-[requirements](../foundations/requirements.md) first; the criteria used here are the seven
-in [options](options.md#how-to-judge).
+**This was analysis, not a decision, when it was written.** The committee has since
+chosen — Cloudflare and Supabase, both recorded in [the decision
+log](../decisions/decision-log.md). Read [requirements](../foundations/requirements.md)
+first; the criteria used here are the seven in [options](options.md#how-to-judge).
 
 Companion documents: [DNS and domain](dns-and-domain.md) for the Fasthosts question, and
 [Nightingale Nightmare first](../delivery/nn-first-delivery.md) for what gets built first.

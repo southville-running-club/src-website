@@ -34,12 +34,17 @@ prevent. They are separate purchases, separate providers, and separate DNS recor
 
 ---
 
-## What is true today
+## What was true in August 2026
+
+⚠️ **Superseded by [decision 003](../decisions/decision-log.md#003--buy-mailboxes-from-fasthosts).**
+The club bought real Fasthosts mailboxes; the forwarding-only arrangement below is what
+that decision replaced. Kept as the baseline the decision was argued from.
 
 From the [zone capture](../foundations/current-state.md#dns-and-email):
 
-- **Forwarding only.** Fasthosts livemail forwards club addresses to **Gmail accounts**.
-  There are addresses on the domain but no mailboxes the club holds.
+- ~~**Forwarding only.**~~ Fasthosts livemail forwarded club addresses to **Gmail
+  accounts**; there were addresses on the domain but no mailboxes the club held. **The club
+  now holds real mailboxes** — decision 003.
 - **The MX target is inside the zone** — `mail.southvillerunningclub.co.uk` — so the
   `mail` A record is load-bearing for all inbound mail.
 - **Four DKIM CNAMEs** for livemail, an SPF record of `v=spf1 mx a

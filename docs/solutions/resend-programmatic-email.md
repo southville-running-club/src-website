@@ -11,7 +11,11 @@ The addresses themselves — the five mailboxes, the aliases onto them, and whic
 
 ---
 
-## Current status: account and DNS done, GoTrue sending, `info@` still used directly
+## Current status: built and sending — #73, 25 August 2026
+
+⚠️ **This section describes the state as of 26 August 2026. The design below it is the
+pre-build design, not what shipped — see the note at the top of "the outbox, in depth".**
+The gap between them is real and worth reading before building from either.
 
 **The Resend account exists and `send.southvillerunningclub.co.uk` is verified**, as of
 25 August 2026 — DNS added via Resend's own Cloudflare auto-configure (a `send.send.`
@@ -19,9 +23,13 @@ bounce subdomain plus a DKIM TXT record, both isolated from the mailboxes'
 `livemail1-4._domainkey` records and the zone's own SPF). `RESEND_API_KEY`, scoped to
 Sending access only, is set as a Worker secret on `apps/main`.
 
-**Nothing that sends mail is built yet.** There is still no live form or sign-up flow that
-would call step 8 below, so `info@` remains the programmatic sender in the meantime — see
-why that is still tolerable, below.
+**The outbox is built, #73.** An `after update`/`after insert` trigger on
+`entries.entry_purchases` writes an obligation to send into `entries.email_outbox` in the
+same transaction as the thing it is about — a place paid for, refunded or transferred — and
+a five-minute cron drains it through Resend's REST API, recording each outcome.
+`/admin/emails/` shows the queue and carries a re-send button. See
+[`CLAUDE.md`](../../CLAUDE.md) at the repository root for the shipped shape, which differs
+from the design below it in schema, table name and auth mechanism.
 
 ### GoTrue's own mail: reverted once, re-attempted on 587, now on for production only
 
@@ -501,6 +509,15 @@ pay for a higher Resend tier, not to keep widening the queue.
 
 ## The outbox, in depth
 
+> ⚠️ **Pre-build design — not what shipped.** #73 built a different shape: the table is
+> `entries.email_outbox`, not `intake.email_outbox`; it is fed by triggers on
+> `entries.entry_purchases` rather than application code writing to it directly; and the
+> Worker authenticates the same way every other write in this repository does — a shared
+> key checked by a `security definer` function — rather than the dedicated Postgres role
+> below. Read this section for the reasoning that shaped the sign-off, not as a
+> specification of what exists. `CLAUDE.md` at the repository root describes the shipped
+> mechanism.
+
 **This is design, not a build decision.** A table that stores a recipient email address is
 new storage of personal data, which this repository's CLAUDE.md treats as a committee call
 ("Adding a database column that holds personal data is a committee decision"), not
@@ -676,12 +693,12 @@ person reads it — that's `info@`'s job, not sending.
 
 ---
 
-## If this were decided
+## What was decided
 
 | | |
 | --- | --- |
 | **Requirement** | [C8](../foundations/requirements.md#c8--send-email-as-the-club) |
-| **Status** | **Account, DNS and GoTrue's own mail done; the send code below is not.** `info@` still sends programmatic mail directly in the meantime — see [current status](#current-status-account-and-dns-done-gotrue-sending-info-still-used-directly) |
+| **Status** | **Built and shipped, #73** — in a different shape from the design in this document, as the note at the top of "the outbox, in depth" explains. See [current status](#current-status-built-and-sending--73-25-august-2026) |
 | **Blocked on** | Choosing which four new Fasthosts mailboxes to buy (recorded above as `info`, `welfare`, `secretary`, `payments`); the `send.` subdomain itself is already verified |
 | **Decision** | Resend, free tier, on `send.southvillerunningclub.co.uk`; `From` chosen per context (`nn@`, `pass-the-buck@`, `noreply@`); `Reply-To` defaults to `info@`; a Postgres outbox table + scheduled Worker absorbs any day the 100/day cap is hit |
 | **Cost** | £0, on top of the ~£30/yr already costed for the four mailboxes in [email.md](email.md#cost) |
