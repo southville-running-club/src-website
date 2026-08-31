@@ -164,6 +164,74 @@ describe('the year page before entries open', () => {
     expect(markup).toContain('Entries are not open to the public yet');
   });
 
+  it('disables the email boxes it hides, so the form can actually be submitted', async () => {
+    // ⚠️ **The defect this exists for made the entry form unsubmittable for every signed-in
+    // runner, and produced no error anywhere the club could see.**
+    //
+    // A signed-in person's address comes from their session, so the Worker hides the two
+    // `[data-nn-entry-typed-email]` fields and shows a fixed line instead. But `hidden` does
+    // not stop a control being validated: both inputs are `required`, both were empty, and
+    // the browser refuses to submit a form holding an invalid control it cannot focus —
+    // logging `An invalid form control with name='email' is not focusable` to a console
+    // nobody has open.
+    //
+    // **Nothing reached the Worker**: no request in `wrangler tail`, no row in
+    // `entry_purchases`, no log line. The button simply did nothing. Found on production on
+    // 31 August 2026 while rehearsing a tester payment, hours before entries were due to open.
+    //
+    // **Asserted on the attribute rather than on a submission**, because that is the whole of
+    // the fix and it is what no test was looking at: this layer had assertions for which
+    // fields are *revealed* and none for whether the hidden ones still block the form.
+    const markup = await yearPage(await signIn(NN_TESTER_EMAIL));
+
+    const typedEmailInputs = [
+      // **`data-entry-value` rather than `name`, because `/nn/2026/` carries two forms.**
+      // The interest form has a `name="email"` input of its own, so matching on the name
+      // finds three inputs and the assertion fails on markup that is perfectly correct.
+      ...markup.matchAll(/<input[^>]*data-entry-value="(email|emailConfirm)"[^>]*>/g),
+    ];
+
+    expect(typedEmailInputs, 'neither email input is in the markup at all').toHaveLength(
+      2,
+    );
+
+    for (const [tag, name] of typedEmailInputs) {
+      expect(
+        tag,
+        `${name} is hidden but still validated, which blocks the whole form`,
+      ).toMatch(/\sdisabled/);
+    }
+
+    // The other half of the pair: the address the entry will actually use is on the page.
+    expect(markup).toMatch(/data-nn-entry-fixed-email(?![^>]*hidden)/);
+  });
+
+  it('leaves the email boxes usable for somebody who is not signed in', async () => {
+    // **The negative case, and it is what stops the fix above becoming its own defect.**
+    // Disabling those inputs unconditionally would drop the address from every signed-out
+    // entry — the form's only way of asking for one — and `parseNnEntry` would refuse the
+    // submission for a box the person did fill in.
+    //
+    // Read off `/nn/2026/` while signed out. The entry form is not revealed there today, but
+    // the inputs are in the markup either way and the attribute is what is under test.
+    const markup = await yearPage();
+
+    const typedEmailInputs = [
+      // **`data-entry-value` rather than `name`, because `/nn/2026/` carries two forms.**
+      // The interest form has a `name="email"` input of its own, so matching on the name
+      // finds three inputs and the assertion fails on markup that is perfectly correct.
+      ...markup.matchAll(/<input[^>]*data-entry-value="(email|emailConfirm)"[^>]*>/g),
+    ];
+
+    expect(typedEmailInputs).toHaveLength(2);
+
+    for (const [tag, name] of typedEmailInputs) {
+      expect(tag, `${name} was disabled for a signed-out visitor`).not.toMatch(
+        /\sdisabled/,
+      );
+    }
+  });
+
   it('shows a tester the £1 fee and shows nobody else any fee at all', async () => {
     const tester = await yearPage(await signIn(NN_TESTER_EMAIL));
 

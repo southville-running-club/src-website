@@ -1065,6 +1065,36 @@ class HideHandler {
 }
 
 /**
+ * Takes a control out of the form entirely — not validated, not submitted.
+ *
+ * ⚠️ **`hidden` does not stop a control being validated, and that cost a live entry form.**
+ * A `required` input inside a `hidden` container is still constrained, still empty, and still
+ * invalid — so the browser refuses to submit the form and logs
+ *
+ * ```
+ * An invalid form control with name='email' is not focusable.
+ * ```
+ *
+ * to a console nobody has open. **Nothing reaches the Worker at all**: no request, no log line,
+ * no database row, and a button that does nothing when pressed. Every signed-in runner was
+ * blocked from entering, and the only visible symptom was the absence of one.
+ *
+ * `disabled` is the attribute that does both halves — a disabled control is skipped by
+ * constraint validation *and* left out of the submission — which is exactly the contract the
+ * POST handler already documents for itself: *"a submission from that page carries neither"*,
+ * before it substitutes both keys from the verified session.
+ *
+ * **This is not a JavaScript problem and there is no JavaScript fix.** HTML5 constraint
+ * validation is the browser's, so the `no-javascript` project meets it identically; the
+ * attribute has to come from the same server-side rewrite that hides the field.
+ */
+class DisableHandler {
+  element(element: Element): void {
+    element.setAttribute('disabled', '');
+  }
+}
+
+/**
  * Puts escaped text into an element, and reveals it if it was hidden.
  *
  * **The field is `content` and it must not be called `text`.** `HTMLRewriter.on()` takes an
@@ -1511,7 +1541,13 @@ export function renderNnEntryView(
     rewriter
       .on('[data-nn-entry-fixed-email]', new RevealHandler())
       .on('[data-nn-entry-account-email]', new TextHandler(view.accountEmail))
-      .on('[data-nn-entry-typed-email]', new HideHandler());
+      .on('[data-nn-entry-typed-email]', new HideHandler())
+      // **Disabled as well as hidden, and the pair is the whole fix.** Hiding the container
+      // left two `required` inputs inside it — empty, invalid, and unfocusable — so the
+      // browser refused to submit the form and every signed-in runner was silently unable to
+      // enter. See `DisableHandler`. The POST already expects these boxes to be absent: it
+      // substitutes both keys from the verified session before parsing.
+      .on('[data-nn-entry-typed-email] input', new DisableHandler());
   }
 
   // The two rules the browser-side enhancement cannot read off the DOM. Neither is personal
