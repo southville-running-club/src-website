@@ -13,18 +13,30 @@ import { fetchBannerAttachment, sendOutboxMessage, type EmailConfig } from './em
  * **Every failure in this file is therefore recoverable**: nothing here can lose a message, it
  * can only fail to deliver one this time round.
  *
- * ## Why it rides on the entry cron
+ * ## Who calls this, and why there are two of them — ADR-032
  *
- * The same argument `medical-retention.ts` makes. A second Cron Trigger is a second thing to
- * configure, to get wrong, and to not notice has stopped. On every run where the outbox is
- * empty this makes one database call, gets an empty array, and logs nothing.
+ * **`nudgeOutbox()` in `worker/index.ts` is the one that delivers.** It runs this from
+ * `ctx.waitUntil()` the moment a request finishes that made the club owe a message — the
+ * Stripe webhook, or any POST under `/admin/`. That is what makes a confirmation arrive in
+ * seconds rather than at the next tick of a clock.
  *
- * ## Sequential, not parallel, and that is the point
+ * **The five-minute cron still calls it, and it is the retry net.** `waitUntil` is a best
+ * effort: an isolate can be evicted, and a `429` stops a batch by design. Those rows stay
+ * `pending`, and the cron is what notices. Without it a failed send would be permanent, which
+ * is the one outcome the outbox exists to rule out. On the normal path it now finds an empty
+ * queue, makes one call, and logs nothing.
  *
- * The messages in a batch are sent one at a time. Concurrency would be faster and would also
- * mean discovering the daily cap ten times over instead of once — the first `429` stops the
- * batch, and everything behind it stays `pending` for the next run with its attempt returned.
- * A confirmation email is not a thing anybody is watching a spinner for.
+ * Overlapping runs are safe structurally: `claim_outbox_batch()` selects
+ * `for update skip locked`, so two drains take disjoint rows, and Resend's `Idempotency-Key`
+ * is the outbox row id, so even a genuine double claim cannot send twice.
+ *
+ * ## Sequential, not parallel
+ *
+ * The messages in a batch are sent one at a time, and the first `429` stops the batch with
+ * everything behind it left `pending` and its attempt returned. **This is no longer about
+ * rationing a free tier** — the club pays for Resend now. It is that sending harder into a
+ * provider that has just refused earns more refusals, and on the normal path a batch holds one
+ * message anyway. Concurrency is a real option and ADR-032 says why it was not taken here.
  *
  * ## What is logged
  *
@@ -43,8 +55,26 @@ export interface EmailOutboxEnv {
   ASSETS: Fetcher;
 }
 
-/** How many to attempt per run. Five minutes apart, this is 120 an hour if there is capacity. */
-const BATCH_SIZE = 10;
+/**
+ * How many to attempt per run, and it is `claim_outbox_batch()`'s own ceiling — ADR-032.
+ *
+ * **It was 10, chosen when a five-minute cron was the only thing that ever drained this and
+ * the club was rationing 100 sends a day.** Neither holds now: the club pays for Resend, and
+ * `nudgeOutbox()` drains the moment a message is owed, so on the normal path this batch holds
+ * one message and the size decides nothing at all.
+ *
+ * What it does decide is **how fast a backlog clears** — a Resend outage, or a run of `429`s.
+ * At 10 a five-minute cron recovers 120 an hour, which is slower than a 250-place race can
+ * fill. At 50 it is 600, and the queue is empty again in one pass rather than twenty-five.
+ *
+ * The database refuses more than 50 anyway, so this is the ceiling rather than a preference.
+ *
+ * WARNING: **The sends are still sequential and a `429` still stops the batch.** That is not
+ * politeness towards Resend, it is that continuing into a refusal earns more refusals; the
+ * rows keep their attempt and the cron takes them. Sending a batch concurrently is a real
+ * option now the cap is gone and is deliberately not taken here — see ADR-032.
+ */
+const BATCH_SIZE = 50;
 
 export async function drainEmailOutbox(env: EmailOutboxEnv): Promise<void> {
   // **Both secrets, or nothing happens — and nothing happening is safe.** The rows stay
@@ -87,7 +117,7 @@ export async function drainEmailOutbox(env: EmailOutboxEnv): Promise<void> {
   }
 
   // **Once per batch, not once per message.** Every send in this run wants the same file, and
-  // base64-encoding a 142KB PNG for each of up to ten messages would be pure waste. `null` on
+  // base64-encoding a 142KB PNG once per message would be pure waste. `null` on
   // any failure — the outbox drain does not stop for a missing image, and every send below is
   // written to cope with either shape.
   const bannerAttachment = await fetchBannerAttachment(env.ASSETS);

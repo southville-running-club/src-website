@@ -26,7 +26,9 @@ Sending access only, is set as a Worker secret on `apps/main`.
 **The outbox is built, #73.** An `after update`/`after insert` trigger on
 `entries.entry_purchases` writes an obligation to send into `entries.email_outbox` in the
 same transaction as the thing it is about — a place paid for, refunded or transferred — and
-a five-minute cron drains it through Resend's REST API, recording each outcome.
+the drain runs through Resend's REST API as soon as the message is owed - recording each
+outcome - with the five-minute cron behind it as the retry net
+([ADR-032](../architecture/decisions/adr-032-an-email-is-sent-when-it-is-owed.md)).
 `/admin/emails/` shows the queue and carries a re-send button. See
 [`CLAUDE.md`](../../CLAUDE.md) at the repository root for the shipped shape, which differs
 from the design below it in schema, table name and auth mechanism.

@@ -99,7 +99,9 @@ volunteer acts on it from `/admin/nn/`.
 
 **Outbox** — the mechanism that tells a runner what happened to their entry: a database
 trigger writes the obligation to send in the same transaction as the thing it is about, and
-a five-minute cron drains it through Resend. Nothing can be lost this way; it can only be
+the drain runs as soon as the message is owed, with a five-minute cron behind it as the
+retry net - [ADR-032](../architecture/decisions/adr-032-an-email-is-sent-when-it-is-owed.md).
+Nothing can be lost this way; it can only be
 late.
 
 **Race category** — the closed list of three values (`female`, `male`, and the ones the

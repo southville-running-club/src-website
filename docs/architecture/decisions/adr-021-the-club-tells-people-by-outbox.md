@@ -7,6 +7,7 @@
 | **Requirement** | [C17](../../foundations/requirements.md#c17--collect-form-submissions) |
 | **Relates to** | [ADR-010](adr-010-webhook-writes-paid.md), [ADR-013](adr-013-the-admin-surface-and-who-may-read-it.md), [ADR-018](adr-018-cancelling-an-entry.md) |
 | **Issue** | [#73](https://github.com/southville-running-club/src-website/issues/73) |
+| **Amended by** | [ADR-032](adr-032-an-email-is-sent-when-it-is-owed.md) - the drain schedule below, 31 August 2026 |
 
 ## Context
 
@@ -80,6 +81,13 @@ reused because the alternative is a two-part manual step — a `wrangler secret 
 nothing and says nothing. **A dedicated `outbox` secret is worth taking after entries open.**
 
 ### The queue is drained every five minutes, not at 00:01
+
+> **Amended by [ADR-032](adr-032-an-email-is-sent-when-it-is-owed.md), 31 August 2026.**
+> A message is now sent as soon as the request that owed it finishes, and the five-minute
+> cron is the retry net rather than the delivery mechanism. **The rest of this ADR stands** -
+> the transaction, the trigger, the dedupe key and the outbox itself are unchanged, and the
+> paragraph below is still why the cron is not a nightly sweep. What it never argued is how
+> long a runner should wait, which is what ADR-032 answers.
 
 The ask was a nightly sweep. Resend's daily cap is documented as resetting on a **rolling** basis
 and the exact boundary is recorded as unverified, so a single nightly run aimed at midnight would

@@ -35,7 +35,7 @@ Find the person's address in the list. What you see decides the rest of this pag
 | What the row says | What it means |
 | --- | --- |
 | **Sent** | The club sent it. **Ask them to check their spam folder** — this is the usual answer, and there is no button because a second identical copy is not the fix |
-| **Waiting** | Owed and not gone yet. Nothing to do; it sends within about five minutes unless the cap is reached |
+| **Waiting** | Owed and not gone yet. Nothing to do. It normally sends within seconds; if something went wrong with that first go it is retried within five minutes |
 | **Failed** | Tried three times and stopped. This is the one with a **Send again** button |
 | **Not in the list at all** | The club never owed it. That is not an email problem — go to [`entries-attention.md`](entries-attention.md), because it means the payment was not recorded |
 
@@ -49,8 +49,13 @@ the club's real usage against the daily cap is higher than the number shown.
 
 **Deciding to send and actually sending are separate, on purpose.** When somebody pays, the
 database writes a row saying the club owes them an email — in the same transaction as the
-payment itself. Nothing can lose that row. A separate job runs **every five minutes**, takes a
-few rows at a time, and sends them.
+payment itself. Nothing can lose that row. A separate job then sends it.
+
+**That job runs the moment the club owes the message** — as soon as the payment, the refund or
+the transfer has been recorded, so in practice an email is on its way within seconds. **It also
+runs every five minutes regardless**, and that second schedule is the safety net: if the
+immediate attempt did not happen or was refused, the next sweep picks the message up. So the
+worst case is five minutes, and the normal case is immediate.
 
 So there are two different failures, and they need different responses:
 

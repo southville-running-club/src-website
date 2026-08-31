@@ -972,9 +972,17 @@ sends four messages about an entry, and **the obligation to send one is written 
 transaction as the thing it is about**: an `after update` trigger on `entries.entry_purchases`
 writes a row into `entries.email_outbox` when a place is paid for, refunded, or transferred —
 two rows for a transfer, because the person it moved *away from* has an address that exists
-nowhere else once `purchaser_email` is overwritten. Delivery is separate and retryable: the
-five-minute cron claims a batch, sends it through Resend's REST API, and records each outcome.
-**Nothing can lose a message**; it can only be late. **The outbox holds one piece of personal
+nowhere else once `purchaser_email` is overwritten. Delivery is separate and retryable, and
+**since [ADR-032](docs/architecture/decisions/adr-032-an-email-is-sent-when-it-is-owed.md) it
+happens as soon as the message is owed rather than at the next tick of a clock**:
+`nudgeOutbox()` in `worker/index.ts` runs the drain from `ctx.waitUntil()` after the Stripe
+webhook and after any POST under `/admin/`, which between them are every path that can enqueue
+one. **The five-minute cron still calls the same drain and is now the retry net** — `waitUntil`
+is a best effort and a `429` stops a batch, so anything left `pending` is picked up within five
+minutes. ⚠️ **Removing that call makes a failed send permanent**, which is the one outcome the
+outbox exists to rule out; and the cron may not be deleted for two further reasons that are
+nothing to do with email — it also expires pending holds and applies the **published** medical
+retention promise. **Nothing can lose a message**; it can only be late. **The outbox holds one piece of personal
 data, an email address** — everything else a message needs is joined from the live tables at
 send time, so it is not a second copy of an entry for retention to chase.
 
