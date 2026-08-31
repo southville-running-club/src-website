@@ -50,11 +50,17 @@ function message(overrides: Partial<OutboxMessage> = {}): OutboxMessage {
   };
 }
 
+/**
+ * `hasBanner` defaults to `true` — the shape every drain run has whenever
+ * `fetchBannerAttachment()` succeeds, which is the case every other describe block in this
+ * file is written against. The `false` case has its own block below.
+ */
 function render(
   template: (typeof TEMPLATES)[number],
   overrides: Partial<OutboxMessage> = {},
+  hasBanner = true,
 ) {
-  const html = renderEntryEmailHtml(message({ template, ...overrides }));
+  const html = renderEntryEmailHtml(message({ template, ...overrides }), hasBanner);
 
   expect(html, `${template} did not render`).not.toBeNull();
 
@@ -144,6 +150,23 @@ describe('the structural measurements from the reference design are present', ()
 
     it(`${template} has zero corner radius anywhere`, () => {
       expect(render(template)).not.toContain('border-radius');
+    });
+  }
+});
+
+describe('the banner is a CID attachment, not a remote URL', () => {
+  // ADR-026: the banner ships as part of the message rather than as an https:// reference, so
+  // no mail client ever makes an HTTP request to render it and there is nothing for that
+  // request to disclose. `email.ts`'s `fetchBannerAttachment()` gives the attachment this
+  // exact content_id; the two have to agree for the reference to resolve to anything.
+  for (const template of TEMPLATES) {
+    it(`${template}'s banner <img> references cid:nn-email-banner, not an https:// URL`, () => {
+      const html = render(template);
+      const img = html.match(/<img[^>]*>/)?.[0];
+
+      expect(img, 'no <img> tag found').toBeDefined();
+      expect(img).toContain('src="cid:nn-email-banner"');
+      expect(img).not.toContain('https://');
     });
   }
 });
@@ -269,6 +292,32 @@ describe('one wrapper, four bodies', () => {
   });
 });
 
+describe('the banner degrades gracefully when this run could not fetch it', () => {
+  // fetchBannerAttachment() in email.ts returns null on any failure — never throws — and the
+  // confirmation a runner is waiting for must still send. Nothing here points at an
+  // attachment that does not exist.
+  for (const template of TEMPLATES) {
+    it(`${template} renders with no <img> tag at all, and everything else intact`, () => {
+      const html = render(template, {}, false);
+
+      expect(html).not.toContain('<img');
+      expect(html).not.toContain('cid:');
+      // The stamp still renders — the send is not lost, only the banner.
+      expect(html).toMatch(/font-family:'Courier New', Courier, monospace/);
+    });
+
+    it(`${template} does not pull the stamp up over the card's own top border`, () => {
+      // margin-top:-19px assumes the banner occupies its full height above the stamp. With
+      // no banner row at all, that offset would pull the stamp up past the card's own edge
+      // instead — so it goes to 0 in exactly this case, and only this case.
+      const html = render(template, {}, false);
+
+      expect(html).toContain('margin-top:0;');
+      expect(html).not.toContain('margin-top:-19px');
+    });
+  }
+});
+
 describe('escaping — a name is never trusted raw', () => {
   it('escapes an apostrophe in a first name', () => {
     const html = render('entry_transferred_in', { entrantFirstName: "D'Angelo" });
@@ -338,6 +387,8 @@ describe('the amount is never doubled with its own symbol', () => {
 
 describe('a template this file does not know', () => {
   it('renders null rather than throwing', () => {
-    expect(renderEntryEmailHtml(message({ template: 'not_a_real_template' }))).toBeNull();
+    expect(
+      renderEntryEmailHtml(message({ template: 'not_a_real_template' }), true),
+    ).toBeNull();
   });
 });
