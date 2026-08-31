@@ -1,11 +1,13 @@
-# ADR-026 — Holding a place takes a key, and a place that costs nothing is not held
+# ADR-029 — Holding a place takes a key, and a place that costs nothing is not held
 
-**Accepted**, 31 August 2026.
+**Accepted**, 31 August 2026. **Renumbered from ADR-026, 31 Aug 2026** — the number was
+taken by [ADR-026](adr-026-an-html-part-joins-the-outbox-emails.md) while this branch was
+in flight, and by the documentation audit's renumbering of two others alongside it.
 
 | | |
 | --- | --- |
 | **Requirement** | [C3](../../foundations/requirements.md#c3--accept-race-sign-ups-and-entries) |
-| **Relates to** | [ADR-010](adr-010-webhook-writes-paid.md), [ADR-013](adr-013-the-admin-surface-and-who-may-read-it.md), [ADR-021](adr-021-a-place-can-be-given.md), [ADR-022](adr-022-a-guide-rides-on-the-runners-entry.md) |
+| **Relates to** | [ADR-010](adr-010-webhook-writes-paid.md), [ADR-013](adr-013-the-admin-surface-and-who-may-read-it.md), [ADR-028](adr-028-a-place-can-be-given.md), [ADR-022](adr-022-a-guide-rides-on-the-runners-entry.md) |
 | **Supersedes** | Nothing. It **adds a Worker secret** and **makes a zero total a database refusal** |
 | **Issue** | [#178](https://github.com/southville-running-club/src-website/issues/178) |
 

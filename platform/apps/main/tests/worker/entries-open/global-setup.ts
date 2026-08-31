@@ -42,7 +42,7 @@ export async function setup(): Promise<void> {
     feeCode: 'unaffiliated',
   });
   // **`openEntries()` installs the entry key's digest as well as moving the window**, because
-  // holding a place takes that key since ADR-026 and the row ships null — which refuses
+  // holding a place takes that key since ADR-029 and the row ships null — which refuses
   // everything. The two travel together so that no run can open a form that cannot take an
   // entry; `closeEntries()` in teardown puts the digest back. See `tests/entries-window.ts`.
   await openEntries();

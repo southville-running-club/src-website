@@ -48,7 +48,7 @@ export const PENDING_PURCHASE_REASONS = [
   // **First on the list because it is checked first**, before the slug is even looked up.
   // `create_pending_purchase()` is granted to anon — a signed-out runner reaches PostgREST as
   // anon, so it has to be — and the entry key is the only thing separating the Worker from a
-  // script holding the published key. See ADR-026 and issue #178.
+  // script holding the published key. See ADR-029 and issue #178.
   //
   // **Always drift when it reaches a deployed Worker**, in one of two ways, and both are
   // operational rather than a bad submission: the secret is not installed (so no key is being
@@ -232,7 +232,7 @@ export interface NnPendingPurchaseInput {
    * The entry key — `ENTRIES_ENTRY_KEY`, a Worker secret.
    *
    * **Required rather than optional, so a caller cannot forget it.** Holding a place is
-   * refused without it since ADR-026, and a call that omitted it would compile, deploy, and
+   * refused without it since ADR-029, and a call that omitted it would compile, deploy, and
    * fail only at the moment somebody pressed the button. The Worker checks the binding exists
    * before it builds this at all — see `worker/nn-entry.ts` — so by the time a value is here
    * it is a real one.

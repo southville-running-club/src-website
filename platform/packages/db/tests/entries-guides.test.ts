@@ -142,7 +142,7 @@ async function removeFixtures(): Promise<void> {
 
 beforeAll(async () => {
   await connected;
-  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // **Holding a place takes the entry key since ADR-029**, and the digest ships null —
   // which refuses everything. Installing it is what makes this file's fixtures able to
   // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
   await installEntryKey(db);

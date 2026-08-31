@@ -1308,7 +1308,7 @@ secrets**; the database holds only their SHA-256 digests, in `entries.webhook_se
 ship null, which refuses everything.
 
 ⚠️ **The seventh arrived on 31 August 2026 and it is `create_pending_purchase()` itself —
-[ADR-026](docs/architecture/decisions/adr-026-holding-a-place-takes-a-key.md), issue #178.** That
+[ADR-029](docs/architecture/decisions/adr-029-holding-a-place-takes-a-key.md), issue #178.** That
 sentence above was always about two halves and only the confirming one was ever built. Holding a
 place is granted to `anon` — it must be, a signed-out runner reaches PostgREST as `anon` — and it
 holds a place *before* any money moves, with a live `pending` hold counting against the 250. So a

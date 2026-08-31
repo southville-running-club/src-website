@@ -15,7 +15,7 @@
  * anon key printed in every page's source could take the whole field in half a second for
  * nothing, never touching the Worker or the rate-limiting rule in front of it. Issue #178.
  *
- * The key is what separates the Worker from that loop. See ADR-026.
+ * The key is what separates the Worker from that loop. See ADR-029.
  *
  * **Obviously not a real one, and it authenticates to nothing.** The real key is a Worker
  * secret that never appears in this repository; what makes this one work is only that the

@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
  * with a live hold counting against the 250. Until 31 August 2026 that meant a loop with the
  * published anon key could take the whole field in half a second, for nothing, without ever
  * touching the Worker or the rate-limiting rule in front of it: **249 holds in 0.5 seconds,
- * measured, and the next real runner refused `sold_out`.** Issue #178 and ADR-026.
+ * measured, and the next real runner refused `sold_out`.** Issue #178 and ADR-029.
  *
  * So the function takes a key, exactly as `record_checkout_event()` and the five admin reads
  * do. The grant stays; what the grant now means is "you may ask", and the key is what answers.

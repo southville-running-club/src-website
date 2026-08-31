@@ -68,7 +68,7 @@ async function removeFixtures(): Promise<void> {
   await query('delete from entries.events where slug like $1', [`${FIXTURE_PREFIX}%`]);
 }
 
-// **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+// **Holding a place takes the entry key since ADR-029**, and the digest ships null —
 // which refuses everything. Installed once rather than per test: it is a property of the
 // database this file talks to, not of any one fixture. Issue #178.
 beforeAll(async () => {
@@ -236,7 +236,7 @@ function call(client: Client, slug: string, options: CallOptions = {}): Promise<
       // **`p_key` by name, after the positional arguments.** It is the tenth parameter, past
       // `p_preview`, so a positional call would have to state a preview flag it does not care
       // about in order to reach it. Named notation says what this is instead of counting
-      // commas — and the next parameter added cannot silently shift it. ADR-026.
+      // commas — and the next parameter added cannot silently shift it. ADR-029.
       `select entries.create_pending_purchase(
          $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, p_key => $9
        ) as result`,

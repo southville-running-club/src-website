@@ -470,7 +470,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // calls would buy a free race entry" — but only the *confirming* half was ever closed.
     // Holding a place was not, and holding is what consumes capacity: a loop with the
     // published anon key took all 250 places in half a second, for nothing, without touching
-    // the Worker or the rate-limiting rule in front of it. ADR-026.
+    // the Worker or the rate-limiting rule in front of it. ADR-029.
     const rows = await query<{ routine_name: string }>(
       `select distinct r.routine_name
          from information_schema.routine_privileges as r

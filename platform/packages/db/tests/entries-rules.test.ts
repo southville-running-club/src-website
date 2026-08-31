@@ -156,7 +156,7 @@ async function makeEvent(
 }
 
 beforeAll(async () => {
-  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // **Holding a place takes the entry key since ADR-029**, and the digest ships null —
   // which refuses everything. Installing it is what makes this file's fixtures able to
   // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
   await installEntryKey(db);
@@ -812,7 +812,7 @@ describe('what this slice deliberately left exactly as it was', () => {
     //
     // **Asserted as the specific refusal, not merely as a failure.** A broken function refuses
     // everything, which reads as every rule holding at once — the house rule this whole file
-    // is written under. `unauthorised` is the key check and nothing else. ADR-026.
+    // is written under. `unauthorised` is the key check and nothing else. ADR-029.
     const attempts = await Promise.all(
       [1, 2, 3, 4, 5].map((n) =>
         anon.schema('entries').rpc('create_pending_purchase', {
@@ -932,7 +932,7 @@ describe('what this slice deliberately left exactly as it was', () => {
     //
     // **`vi_guide` deliberately keeps its price and its place in `entry_state()`** — the fee
     // was not gated, because a gate would close nothing the key does not and would retire the
-    // Worker's own free-place backstop with it. See ADR-026.
+    // Worker's own free-place backstop with it. See ADR-029.
     //
     // `makeEvent` builds the two fees every other test here needs, so the free one is made
     // where it is used rather than given to every fabricated event — a £0 fee on all of them

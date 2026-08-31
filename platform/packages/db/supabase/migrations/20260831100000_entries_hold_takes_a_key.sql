@@ -81,7 +81,7 @@
 -- at thirteen** — this function was already on it. What changes is the count of those thirteen
 -- that take a key: six becomes seven.
 --
--- ADR-026. Issue #178.
+-- ADR-029. Issue #178.
 insert into entries.webhook_secrets (name) values ('entry')
 on conflict (name) do nothing;
 
@@ -700,7 +700,7 @@ $$;
 comment on function entries.create_pending_purchase(
   text, text, text, text, jsonb, jsonb, jsonb, text, boolean, text
 ) is
-  'Price one entry, hold a place for it and record a pending purchase. Takes the entry key: granted to anon because a signed-out runner reaches PostgREST as anon, and refusing without the key is what stops that grant from being 250 free places to anybody holding the published key. Refuses a total of zero — Stripe cannot take one, so the place could never be completed. See ADR-026 and issue #178.';
+  'Price one entry, hold a place for it and record a pending purchase. Takes the entry key: granted to anon because a signed-out runner reaches PostgREST as anon, and refusing without the key is what stops that grant from being 250 free places to anybody holding the published key. Refuses a total of zero — Stripe cannot take one, so the place could never be completed. See ADR-029 and issue #178.';
 
 -- **Restated because the drop above took them**, and unchanged from what they were. The anon
 -- list is thirteen functions and this is one of them; `packages/db/tests/entries.test.ts`

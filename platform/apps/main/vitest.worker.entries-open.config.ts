@@ -47,7 +47,7 @@ export default defineConfig({
           // **The entry key, and it is the same constant the global setup installs the
           // digest of** — imported above rather than restated, because two literals that have
           // to agree are two literals that will not. Holding a place is refused without it
-          // since ADR-026 — issue #178.
+          // since ADR-029 — issue #178.
           ENTRIES_ENTRY_KEY: ENTRY_KEY,
         },
       },

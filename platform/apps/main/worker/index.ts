@@ -175,7 +175,7 @@ interface Env {
    * The database holds only this key's SHA-256 digest, in `entries.webhook_secrets` under
    * `entry`, and it ships null — which refuses everything. Installing it is a documented step
    * in `docs/delivery/runbooks/entries-open.md`, and it has to happen **before** the window is
-   * opened. See ADR-026.
+   * opened. See ADR-029.
    */
   ENTRIES_ENTRY_KEY?: string;
   /**

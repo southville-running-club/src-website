@@ -299,7 +299,7 @@ export async function clearWebhookKey(): Promise<void> {
  * a payment; this one holds a place before there is a payment at all, and they are installed,
  * rotated and revoked independently.
  *
- * `entries.create_pending_purchase()` refuses without it since ADR-026 — which is what stopped
+ * `entries.create_pending_purchase()` refuses without it since ADR-029 — which is what stopped
  * a loop with the published anon key taking the whole 250-place field in half a second, for
  * nothing, without ever reaching the Worker. Issue #178.
  */

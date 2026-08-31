@@ -77,7 +77,7 @@ export async function setEntryWindow(open: boolean): Promise<void> {
     );
 
     // **The entry key moves with the window, and that is the pairing production uses.**
-    // Holding a place takes a key since ADR-026, and the digest ships null — which refuses
+    // Holding a place takes a key since ADR-029, and the digest ships null — which refuses
     // everything. Opening the window without installing it would give every local run an
     // entry form that cannot take an entry, and the failure would read as a bug in the form.
     //

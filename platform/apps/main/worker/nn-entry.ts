@@ -121,7 +121,7 @@ export interface NnEntryEnv extends StripeEnv {
    * **What separates the Worker from a script holding the published anon key.**
    * `entries.create_pending_purchase()` is granted to anon because a signed-out runner reaches
    * PostgREST as anon; without a secret in the request, that grant is 250 places to anybody
-   * who reads the page source. See ADR-026 and issue #178.
+   * who reads the page source. See ADR-029 and issue #178.
    *
    * **Optional in the type and required in practice**, the same shape `STRIPE_SECRET_KEY`
    * has: unbound is a real deployment state — "not connected yet" — rather than a bug, and it
@@ -890,7 +890,7 @@ export async function processNnEntry(
   // Without the entry key the database refuses to hold a place at all, so calling anyway would
   // turn a known deployment state into `unauthorised` — a refusal that reads as a defect,
   // gets logged as one, and tells the person their entry failed. Nothing has been stored and
-  // nothing has been charged, which is exactly what `not-taken` says. See ADR-026.
+  // nothing has been charged, which is exactly what `not-taken` says. See ADR-029.
   const entryKey = env.ENTRIES_ENTRY_KEY?.trim();
   if (entryKey === undefined || entryKey === '') {
     console.error(
@@ -979,7 +979,7 @@ export async function processNnEntry(
 
   const { purchase } = outcome;
 
-  // **Unreachable since ADR-026, and kept as the third lock rather than deleted.** The
+  // **Unreachable since ADR-029, and kept as the third lock rather than deleted.** The
   // database refuses a zero total with `free_place` before it writes anything, so a
   // hundred-per-cent discount code is now answered above with no place held — where this
   // branch used to let one be held and lapse on its own. What keeps it here is that it is the

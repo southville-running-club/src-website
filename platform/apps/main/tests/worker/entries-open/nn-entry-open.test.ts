@@ -358,7 +358,7 @@ describe('when no entry key is bound, which is the state before the runbook inst
     // database refuses to hold a place at all, so calling anyway would turn a known
     // deployment state into `unauthorised` — a refusal that reads as a defect and tells
     // somebody their entry failed. Checked *before* a place is held, so "nothing has been
-    // stored and nothing has been charged" is literally true. ADR-026, issue #178.
+    // stored and nothing has been charged" is literally true. ADR-029, issue #178.
     delete (env as Record<string, unknown>).ENTRIES_ENTRY_KEY;
 
     const before = await sessionsCreated();
@@ -451,7 +451,7 @@ describe('the Stripe key, which must not appear anywhere a person can see', () =
         'rk_' + 'live_',
         STUB_KEY,
         // **The entry key is a secret of exactly this class and was not covered here.** It is
-        // what stops the published anon key holding all 250 places (#178, ADR-026), so a
+        // what stops the published anon key holding all 250 places (#178, ADR-029), so a
         // response body that echoed it would hand back the one thing the whole control rests
         // on — and this path builds it into an RPC argument on every submission, which is
         // precisely where a "print the request so we can debug it" would put it.

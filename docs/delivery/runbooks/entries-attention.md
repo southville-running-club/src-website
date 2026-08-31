@@ -238,7 +238,7 @@ one needs neither**, because the failure it looks for is places disappearing wit
 attempted at all** — [#178](https://github.com/southville-running-club/src-website/issues/178).
 
 Holding a place takes a key since
-[ADR-026](../../architecture/decisions/adr-026-holding-a-place-takes-a-key.md), so the
+[ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md), so the
 anonymous flood that motivated this check is closed. What is *not* closed is a distributed
 attempt through the Worker, and that is deliberately not solved — see the ADR's consequences.
 So the shape stays worth watching on a busy day.

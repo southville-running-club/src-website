@@ -369,7 +369,7 @@ for.
 > **⚙️ Ops**
 
 **[#178](https://github.com/southville-running-club/src-website/issues/178) and
-[ADR-026](../../architecture/decisions/adr-026-holding-a-place-takes-a-key.md). This is the
+[ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md). This is the
 step that must not be done out of order.**
 
 `entries.create_pending_purchase()` is granted to the anon role — a signed-out runner reaches

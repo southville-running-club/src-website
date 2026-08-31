@@ -78,7 +78,7 @@ beforeEach(async () => {
   );
   // **The second key, and this file needs it only to build its fixtures.** Every test here is
   // about the webhook; what changed on 31 August 2026 is that *holding* the place a webhook
-  // then confirms takes a key of its own. Issue #178, ADR-026.
+  // then confirms takes a key of its own. Issue #178, ADR-029.
   await installEntryKey(db);
 });
 
@@ -139,7 +139,7 @@ let entrantSerial = 0;
 
 async function hold(slug: string, email = 'fixture@example.com'): Promise<Created> {
   const rows = await query<{ result: Created | { ok: false; reason: string } }>(
-    // `p_key` by name — it is the tenth parameter, past `p_preview`. See ADR-026.
+    // `p_key` by name — it is the tenth parameter, past `p_preview`. See ADR-029.
     `select entries.create_pending_purchase(
        $1, 'unaffiliated', 'Grace O''Sullivan', $2, $3::jsonb, null, $4::jsonb, p_key => $5
      ) as result`,

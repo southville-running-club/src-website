@@ -36,7 +36,7 @@ export default defineConfig({
           // one this file is named after.** Without it the Worker stops at "not connected
           // yet" — a 503 — before it ever asks the database, and the sold-out assertion below
           // would pass on a submission that never reached capacity at all. The digest is
-          // installed by `openEntries()` in this run's global setup. ADR-026, issue #178.
+          // installed by `openEntries()` in this run's global setup. ADR-029, issue #178.
           ENTRIES_ENTRY_KEY: ENTRY_KEY,
         },
       },
