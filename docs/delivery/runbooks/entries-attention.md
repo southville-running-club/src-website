@@ -125,20 +125,19 @@ update entries.events set capacity = capacity + 1 where slug = 'nn-2026';
 The count then reads 251 of 251 — it resolves that one person and **sells nothing new**, which
 is the whole reason an over-capacity purchase counts as taking a place. Then clear the flag.
 
-**Refund them.** Refund in the Stripe dashboard against the payment intent on the row, then:
+**Refund them.** Press **Cancel** on the row from
+[`/admin/nn/`](entries-admin.md#cancelling-an-entry), which refunds through Stripe, deletes the
+entrant and their medical note, writes the audit row, and returns the place — all in the one
+step the button is built for. `refunded` is not counted, so the place returns the same instant.
+Clearing the `attention` flag is then the last step, as above.
 
-```sql
-update entries.entry_purchases
-   set status = 'refunded', paid_at = null, attention_resolved_at = now()
- where id = '<the id>';
-```
-
-`refunded` is not counted, so the place returns the same instant.
-
-> Note the inherited oddity: the `entry_purchases_paid_has_timestamp` constraint forces
-> `paid_at` to null on a refund, so refunding **erases when the money arrived**. Stripe keeps
-> that. It is the refund slice's problem to fix, and is recorded in the migration rather than
-> re-decided quietly.
+> ⚠️ **Do not refund in the Stripe dashboard first and patch the row by hand.** Refunding by
+> hand and then pressing Cancel does not work — Stripe answers the second refund attempt with an
+> error and the button stops before it touches the record — and the `update` that looks like the
+> fix leaves the entrant and their medical note in the database for a race they are not running,
+> with no audit row saying who did it or why. [The dead
+> end](entries-stripe-keys.md#the-dead-end--refunding-by-hand-first) has the full account. If a
+> hand refund has already happened here, stop and raise it rather than patching the row.
 
 **Either way, email them.** They have paid and they have heard nothing — the page told them
 their payment is confirmed, which is true, and said nothing about capacity because a web page is
