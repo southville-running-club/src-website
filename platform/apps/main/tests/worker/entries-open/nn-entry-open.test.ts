@@ -261,6 +261,24 @@ describe('the year page, once the event row says entries are open', () => {
     expect(html).toContain('data-entry-minimum-age="18"');
   });
 
+  it('states the medical retention period the database enforces, not a typed one', async () => {
+    // **Issue #172, and this is the page it mattered most on** — the medical consent is ticked
+    // here, so the sentence beside the box is the retention promise attached to Article 9
+    // special-category data, made at the moment of consent. It was the hand-typed words "one
+    // month", tied to nothing: `entries.events.medical_retention` could move and this promise
+    // would go on being made, with nothing failing.
+    //
+    // The chain is `entries.events.medical_retention` → `entry_state()` →
+    // `medicalRetentionClause()` → this markup, and
+    // `packages/db/tests/entries-retention.test.ts` holds the first two links and the tie to
+    // `race.json`. This is the last one: that the words actually reach the page.
+    const html = await page();
+
+    expect(html).toContain('it is deleted');
+    expect(html).toContain('one month after the race');
+    expect(html).toContain('separately');
+  });
+
   it('repoints the hero button at the entry form', async () => {
     const html = await page();
 

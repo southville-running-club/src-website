@@ -231,6 +231,37 @@ describe('the published wording and the enforced period cannot drift apart', () 
     }
   });
 
+  it('hands the interval to the page that asks for the consent, unchanged', async () => {
+    // **The link issue #172 found missing, and it is the one that matters most.** `/nn/2026/`
+    // is the page somebody ticks the medical consent on, and it stated the period as the
+    // hand-typed words "one month" — tied to nothing, unable to go red, and already drifted in
+    // register from `/account/data/`'s "a month" saying the same thing.
+    //
+    // `entry_state()` is public configuration and is what the Worker paints the form from, so
+    // this asserts the whole of the new chain in one line: the column the deletion job applies
+    // is the value the consent page is given. `medicalRetentionClause()` turns it into words on
+    // the Worker's side and `apps/main/tests/worker/entries-open/` asserts that the words reach
+    // the markup.
+    const rows = await query<{ slug: string; medical_retention: unknown }>(
+      `select slug, medical_retention::text as medical_retention
+         from entries.events
+        where race_slug = 'nn' and active
+        order by slug`,
+    );
+
+    for (const row of rows) {
+      const state = await query<{ state: { medical_retention?: string | null } }>(
+        'select entries.entry_state($1) as state',
+        [row.slug],
+      );
+
+      expect(
+        state[0]?.state.medical_retention,
+        `${row.slug}: entry_state does not carry the enforced interval`,
+      ).toBe(String(row.medical_retention));
+    }
+  });
+
   it('is one month today, which is what the notice says', async () => {
     // Pinned as a literal as well, so a change that moved *both* the column and the JSON still
     // arrives as a diff on this line rather than passing quietly.

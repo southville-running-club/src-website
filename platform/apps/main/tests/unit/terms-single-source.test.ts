@@ -114,7 +114,7 @@ describe('the entry terms page states no fact twice', () => {
     // edit that upgrades "Supplied by the race director" to something warmer would be putting a
     // false statement of provenance on a legal document.
     expect(code).toContain(
-      'Version 1 — published 28 August 2026. Supplied by the race director.',
+      'Version 2 — published 31 August 2026. Supplied by the race director.',
     );
     expect(code).not.toMatch(/committee|ratified|approved by/i);
   });

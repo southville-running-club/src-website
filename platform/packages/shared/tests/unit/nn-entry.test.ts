@@ -662,6 +662,7 @@ describe('the rules, lifted off what the database said', () => {
       minimumAge: 18,
       requiresDob: true,
       consentVersion: 'nn-2026-v1',
+      medicalRetention: '1 mon',
       fees: [
         {
           code: 'unaffiliated',

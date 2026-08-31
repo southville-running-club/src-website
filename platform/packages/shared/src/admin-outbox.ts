@@ -15,6 +15,7 @@
 
 import { z } from 'zod';
 
+import { formatEntryReference } from './entry-reference';
 import type { UserClient } from './supabase';
 
 /** One row of the queue, as the page shows it. */
@@ -27,6 +28,13 @@ export interface OutboxRow {
   lastError: string | null;
   createdAt: string;
   sentAt: string | null;
+  /**
+   * What the entry is called — `NN2026-0042-01092026`, the same string the email quoted.
+   *
+   * **That sameness is the point of this field.** A volunteer answering *"I never got my
+   * confirmation"* is holding the reference the runner is reading out, so the queue has to name
+   * a message the way the message named itself. Both go through `formatEntryReference()`.
+   */
   purchaseReference: string;
   eventName: string;
 }
@@ -70,6 +78,11 @@ const rowSchema = z.object({
   created_at: z.string().min(1),
   sent_at: z.string().nullable(),
   purchase_reference: z.string().min(1),
+  // Optional for the deploy window: a database that predates 20260831130000 emits none of the
+  // three, and the purchase id above is what the page shows — which is what it showed before.
+  entry_no: z.number().int().nullable().optional(),
+  event_slug: z.string().min(1).optional(),
+  purchase_created_at: z.string().min(1).optional(),
   event_name: z.string().min(1),
 });
 
@@ -143,7 +156,15 @@ export async function fetchOutboxList(
         lastError: row.last_error,
         createdAt: row.created_at,
         sentAt: row.sent_at,
-        purchaseReference: row.purchase_reference,
+        purchaseReference:
+          row.event_slug === undefined || row.purchase_created_at === undefined
+            ? row.purchase_reference
+            : formatEntryReference({
+                eventSlug: row.event_slug,
+                entryNo: row.entry_no ?? null,
+                createdAt: row.purchase_created_at,
+                purchaseId: row.purchase_reference,
+              }),
         eventName: row.event_name,
       })),
     };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatLondon,
+  formatLondonCompactDate,
   formatLondonDate,
   formatLondonTime,
   isBritishSummerTime,
@@ -138,5 +139,31 @@ describe('input handling', () => {
 
   it('stores UTC regardless of how the instant arrived', () => {
     expect(toUtcIso('2026-11-01T09:00:00+00:00')).toBe('2026-11-01T09:00:00.000Z');
+  });
+});
+
+describe('formatLondonCompactDate — the tail of an entry reference', () => {
+  it('is the London day, month and year with nothing between them', () => {
+    expect(formatLondonCompactDate('2026-09-01T07:15:00Z')).toBe('01092026');
+  });
+
+  it('pads a single-figure day and month', () => {
+    // `NN2026-0042-1092026` would be a reference one character shorter than every other, which
+    // is exactly the kind of thing that breaks somebody's spreadsheet column.
+    expect(formatLondonCompactDate('2026-09-01T07:15:00Z')).toHaveLength(8);
+    expect(formatLondonCompactDate('2026-01-02T12:00:00Z')).toBe('02012026');
+  });
+
+  it('takes the London day rather than the UTC one during BST', () => {
+    // 00:30 BST on 1 September is 23:30 UTC on 31 August. The reference has to say the day the
+    // club would say the entry was made.
+    expect(formatLondonCompactDate('2026-08-31T23:30:00Z')).toBe('01092026');
+  });
+
+  it('agrees with the rest of this module across the clocks change', () => {
+    // The same two instants the top of this file uses, so a change that broke one formatter's
+    // handling of the change and not the other's cannot pass.
+    expect(formatLondonCompactDate('2026-10-25T00:59:00Z')).toBe('25102026');
+    expect(formatLondonCompactDate(BST_ENDS_UTC)).toBe('25102026');
   });
 });

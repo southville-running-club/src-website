@@ -238,6 +238,29 @@ export interface AdminEntry {
    */
   entrantId: string | null;
   purchaseId: string;
+  /**
+   * The per-event entry number, or `null` for a purchase written before the column existed.
+   *
+   * **Half of a reference, never a reference on its own.** `formatEntryReference()` puts it
+   * together with the event slug and the creation date; nothing here or on the page builds the
+   * string by hand, for the reason `formatPence()` exists.
+   */
+  entryNo: number | null;
+  /**
+   * The address to reach this row at, or `null` when there is none to give.
+   *
+   * ⚠️ **Resolved per row by the database, and it is not always the purchaser's.** A runner is
+   * reachable at `entry_purchases.purchaser_email`; a **guide** is reachable at their own
+   * `entrants.email`, because a guide has no purchase of their own — ADR-022 as amended on
+   * 28 August 2026. Showing the buyer's address beside a guide's name would be wrong on the
+   * page a volunteer rings people from, so `read_entry_list()` decides it and this field is
+   * simply what it decided. **Do not re-derive it here from any other field on this row.**
+   *
+   * Null for a guide entered before that amendment, who has no address of their own. A
+   * cancelled entry has no entrant and keeps the address that paid, which is the address the
+   * refund notice went to.
+   */
+  email: string | null;
   firstName: string | null;
   lastName: string | null;
   club: string | null;
@@ -454,6 +477,13 @@ const entryShape = z.object({
   // non-null shape here would refuse to parse the very rows the Refunded filter exists for.
   entrant_id: z.uuid().nullable(),
   purchase_id: z.uuid(),
+  // `.catch` for the same reason every optional field on this shape has one: a Worker deployed
+  // ahead of its migration renders the row rather than refusing the page. Here that means the
+  // reference falls back to the purchase id, which is what it was until 31 August 2026.
+  entry_no: z.number().int().nullable().catch(null),
+  // Same `.catch`, and the fallback is a dash in the cell. **Never the purchaser's address as
+  // a substitute** — see `AdminEntry.email` for why that is the one wrong answer here.
+  email: z.string().nullable().catch(null),
   first_name: z.string().nullable(),
   last_name: z.string().nullable(),
   club: z.string().nullable(),
@@ -613,6 +643,8 @@ function parseEntryList(
     entries: parsed.data.entries.map((entry) => ({
       entrantId: entry.entrant_id,
       purchaseId: entry.purchase_id,
+      entryNo: entry.entry_no,
+      email: entry.email,
       firstName: entry.first_name,
       lastName: entry.last_name,
       club: entry.club,
@@ -1188,6 +1220,11 @@ export interface AdminEntryDetailPurchase {
   feeCode: string;
   feeLabel: string;
   discountCode: string | null;
+  /**
+   * The per-event entry number, or `null` on a purchase written before the column existed.
+   * Rendered through `formatEntryReference()` with the slug and the creation date, never here.
+   */
+  entryNo: number | null;
   purchaserName: string;
   /** The address that paid, and the one every message about this entry goes to. */
   purchaserEmail: string;
@@ -1339,6 +1376,9 @@ const entryDetailShape = z.object({
     fee_code: z.string(),
     fee_label: z.string(),
     discount_code: z.string().nullable(),
+    // The same `.catch` reasoning as every optional key here: a Worker deployed ahead of its
+    // migration renders the page with the reference it printed before, which is the purchase id.
+    entry_no: z.number().int().nullable().catch(null),
     purchaser_name: z.string(),
     purchaser_email: z.string(),
     linked_to_account: z.boolean().catch(false),
@@ -1400,6 +1440,7 @@ export async function fetchEntryDetail(
           feeCode: purchase.fee_code,
           feeLabel: purchase.fee_label,
           discountCode: purchase.discount_code,
+          entryNo: purchase.entry_no,
           purchaserName: purchase.purchaser_name,
           purchaserEmail: purchase.purchaser_email,
           linkedToAccount: purchase.linked_to_account,

@@ -58,6 +58,17 @@ export interface EntryState {
   minimumAge: number | null;
   requiresDob: boolean;
   consentVersion: string;
+  /**
+   * How long a medical note is kept, as Postgres renders the interval (`1 mon`) — or `null` on
+   * a database that predates the migration which added it.
+   *
+   * **The interval, never the sentence.** `medicalRetentionWording()` is the one module allowed
+   * to turn it into words, and it answers `null` for anything it cannot say in one clause. The
+   * entry form paints the result beside the medical box, which is where the club makes the
+   * promise: `entries.events.medical_retention` is what the deletion cron applies, so the page
+   * that asks for the consent and the job that keeps it now read the same row. Issue #172.
+   */
+  medicalRetention: string | null;
   fees: EntryFee[];
 }
 
@@ -86,6 +97,11 @@ const entryStateShape = z.object({
   minimum_age: z.number().int().nullable(),
   requires_dob: z.boolean(),
   consent_version: z.string().min(1),
+  // **`.nullable().catch(null)`, so a Worker deployed ahead of its migration still serves the
+  // entry form.** Nothing sequences a migration against the Cloudflare deploy, and a missing
+  // key here must degrade to a form that renders without the sentence rather than to a page
+  // that refuses to open a window somebody is trying to enter through.
+  medical_retention: z.string().nullable().catch(null),
   fees: z.array(feeShape),
 });
 
@@ -192,6 +208,7 @@ function readEntryState(
       minimumAge: parsed.data.minimum_age,
       requiresDob: parsed.data.requires_dob,
       consentVersion: parsed.data.consent_version,
+      medicalRetention: parsed.data.medical_retention,
       fees: parsed.data.fees.map((fee) => ({
         code: fee.code,
         label: fee.label,

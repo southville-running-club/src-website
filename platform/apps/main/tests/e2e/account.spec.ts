@@ -957,6 +957,25 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page.getByText(/race entry you have paid for/i)).toBeVisible();
     await expect(page.getByText(/still be on the start list/i)).toBeVisible();
 
+    // **The medical retention period, read rather than typed — issue #172.** This page said
+    // "a month after the race" as a constant, while `/nn/2026/` said "one month" about the same
+    // interval, and neither could go red if `entries.events.medical_retention` moved. It comes
+    // off `current_entry_state()` now, through the one module allowed to put an interval into
+    // words. Asserted as the *whole clause* rather than as the two words, so a page that lost
+    // the sentence and kept the period would fail.
+    //
+    // **Squashed first, which is the house pattern and not a workaround.** The clause is
+    // written across three source lines and Prettier reflows the `html` template around the
+    // interpolation, so the rendered text carries newlines in the middle of the sentence — the
+    // same trap `CLAUDE.md` records for `worker/html.ts` and that `nn-terms.spec.ts` handles
+    // the same way. Matching the words rather than where Prettier put them.
+    const dataText = ((await page.locator('main').textContent()) ?? '').replace(
+      /\s+/g,
+      ' ',
+    );
+
+    expect(dataText).toContain('deleted automatically one month after the race');
+
     // Settled first, for the reason `axeViolations` above is written out in full.
     // The default rule set is kept here rather than the five WCAG tags — routing
     // these through that helper would quietly change what they assert.

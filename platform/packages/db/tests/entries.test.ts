@@ -288,6 +288,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'assert_entrant_rules',
       'assert_medical_consent',
       'assert_purchase_consents',
+      // **The sixth trigger function, and it is the only one that writes rather than
+      // refuses.** `assign_entry_number` issues the per-event number a printed reference is
+      // built from, on `before insert` — ADR-030. A trigger rather than a line in each writing
+      // function because two of them insert a purchase today and a third would silently leave a
+      // null, and a reference is not a thing a page may render half of.
+      'assign_entry_number',
       'attach_checkout_session',
       'cancel_entry',
       'cancellable_purchase',
@@ -775,6 +781,9 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       assert_entrant_rules: 'v',
       assert_medical_consent: 'v',
       assert_purchase_consents: 'v',
+      // The sixth trigger function, and volatile for the same reason plus one of its own: it
+      // increments `entries.events.next_entry_no` and reads back what it wrote.
+      assign_entry_number: 'v',
       attach_checkout_session: 'v',
       // **#107's three.** `cancel_entry` writes, deletes and takes the same per-event advisory
       // lock the entry path does, so `volatile` is load-bearing here for the reason the comment
@@ -892,6 +901,12 @@ describe('entries.entry_state(), the only object anon may reach', () => {
       'entrants_per_entry',
       'event_date',
       'fees',
+      // **The retention interval, added 31 August 2026 — issue #172.** It is a promise the
+      // club publishes rather than a fact about anybody, and it is the thing the page carrying
+      // this configuration is about to ask somebody to consent to. `/nn/2026/` states the
+      // period beside the medical box, and until this key it stated it as typed prose that
+      // could not go red if `entries.events.medical_retention` moved.
+      'medical_retention',
       'minimum_age',
       'requires_dob',
       'slug',

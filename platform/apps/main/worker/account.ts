@@ -4,12 +4,15 @@ import {
   createPkceClient,
   createUserClient,
   entryStatusWording,
+  formatEntryReference,
   requestEntryAction,
+  fetchCurrentEntryState,
   fetchMyEntries,
   formatEventDate,
   formatEventStartTime,
   formatLondon,
   formatPence,
+  medicalRetentionClause,
   parseAccountChangePassword,
   parseAccountDetails,
   parseAccountMagicLink,
@@ -41,7 +44,7 @@ import {
   type Session,
 } from './session';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
-import { ACCOUNT_PREFIX, accountSegments } from './routing';
+import { ACCOUNT_PREFIX, NN_RACE_SLUG, accountSegments } from './routing';
 
 /**
  * `/account/` — register, sign in, sign out. #51 gave the database a person; #52 gave the
@@ -367,7 +370,7 @@ export async function handleAccount(
       if (session === null) {
         return redirectTo('/account/sign-in/', secure, refreshedCookies);
       }
-      return dataPage(secure, null, refreshedCookies);
+      return dataPage(cfg, secure, null, refreshedCookies);
     }
   }
 
@@ -2226,12 +2229,29 @@ function detailsPage(
  * **No Turnstile.** It is behind a session, and #53's rule holds — a bot with a valid session
  * has already got in. CSRF is what matters here, and both forms carry it.
  */
-function dataPage(
+async function dataPage(
+  cfg: SupabaseConfig,
   secure: boolean,
   message: string | null,
   extraCookies: string[],
-): Response {
+): Promise<Response> {
   const csrfToken = mintCsrfToken();
+
+  // **The retention period is read, not typed.** This page told somebody their medical note is
+  // "deleted automatically a month after the race" — a constant, tied to nothing, which had
+  // already drifted in register from the entry form's "one month" saying the same thing. Issue
+  // #172. `entries.events.medical_retention` is what the deletion cron applies, and
+  // `current_entry_state()` is the public read that returns it for the forthcoming running.
+  //
+  // **An unreachable database costs the period, not the promise.** The bullet below still says
+  // the note is deleted on its own schedule and that deleting an account does not change when,
+  // which is the part this page exists to state; only the interval goes. That is the right way
+  // round — a page about somebody's rights must not invent a period it could not read.
+  const current = await fetchCurrentEntryState(createAnonClient(cfg), NN_RACE_SLUG);
+  const retention =
+    current.ok && current.value.medicalRetention !== null
+      ? medicalRetentionClause(current.value.medicalRetention)
+      : null;
 
   const body = html`
     <main class="account-page">
@@ -2264,8 +2284,9 @@ function dataPage(
           still be on the start list
         </li>
         <li>
-          any medical note you gave with an entry — that is deleted automatically a month
-          after the race, and this does not change when
+          any medical note you gave with an entry — that is deleted automatically
+          ${retention === null ? 'after the race' : retention}, and this does not change
+          when
         </li>
         <li>
           the interest list, if you asked to hear about a race. That has its own record
@@ -2330,7 +2351,12 @@ async function handleExport(
     typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
 
   if (!csrfOk(csrfCookieToken, fieldToken)) {
-    return dataPage(secure, 'That form had expired. Please try again.', refreshedCookies);
+    return dataPage(
+      cfg,
+      secure,
+      'That form had expired. Please try again.',
+      refreshedCookies,
+    );
   }
 
   try {
@@ -2339,6 +2365,7 @@ async function handleExport(
 
     if (error !== null || data === null) {
       return dataPage(
+        cfg,
         secure,
         'The club’s database could not be reached. Try again in a moment.',
         refreshedCookies,
@@ -2349,6 +2376,7 @@ async function handleExport(
 
     if (result.ok !== true) {
       return dataPage(
+        cfg,
         secure,
         'That export could not be produced. Try signing in again.',
         refreshedCookies,
@@ -2372,6 +2400,7 @@ async function handleExport(
     });
   } catch {
     return dataPage(
+      cfg,
       secure,
       'The club’s database could not be reached. Try again in a moment.',
       refreshedCookies,
@@ -2396,13 +2425,19 @@ async function handleDeleteAccount(
     typeof form?.get(CSRF_FIELD) === 'string' ? (form.get(CSRF_FIELD) as string) : null;
 
   if (!csrfOk(csrfCookieToken, fieldToken)) {
-    return dataPage(secure, 'That form had expired. Please try again.', refreshedCookies);
+    return dataPage(
+      cfg,
+      secure,
+      'That form had expired. Please try again.',
+      refreshedCookies,
+    );
   }
 
   // **Deliberately not reachable by one keystroke.** #62 asks for that explicitly, and a
   // typed word is the cheapest version that is not a modal nobody can use with a keyboard.
   if (readString(form, 'confirm').trim().toUpperCase() !== 'DELETE') {
     return dataPage(
+      cfg,
       secure,
       'Type DELETE in the box to confirm you want the account removed.',
       refreshedCookies,
@@ -2415,6 +2450,7 @@ async function handleDeleteAccount(
 
     if (error !== null || data === null) {
       return dataPage(
+        cfg,
         secure,
         'The club’s database could not be reached. Try again in a moment.',
         refreshedCookies,
@@ -2426,6 +2462,7 @@ async function handleDeleteAccount(
     if (result.ok !== true) {
       if (result.reason === 'last_super_admin') {
         return dataPage(
+          cfg,
           secure,
           'You are the club’s only super-admin. Give somebody else that role at /admin/people/ first, or nobody will be able to administer the site.',
           refreshedCookies,
@@ -2433,6 +2470,7 @@ async function handleDeleteAccount(
       }
 
       return dataPage(
+        cfg,
         secure,
         'That account could not be deleted. Try signing in again.',
         refreshedCookies,
@@ -2449,6 +2487,7 @@ async function handleDeleteAccount(
     );
   } catch {
     return dataPage(
+      cfg,
       secure,
       'The club’s database could not be reached. Try again in a moment.',
       refreshedCookies,
@@ -3339,21 +3378,36 @@ function entryCard(entry: MyEntry, quiet = false, csrfToken: string | null = nul
       <dd>${entry.feeLabel}, ${formatPence(entry.amountPence)}</dd>
 
       ${
-        /* **The reference, and it is the purchase id rather than a new short code.**
+        /* **The reference, and since 31 August 2026 it is a short code rather than the
+        purchase id.**
 
         Somebody emailing the club about an entry has had nothing to name it by except their
         own name, which is not unique and is exactly what a support email is trying to
-        establish. This is unique, it already exists, and it is what `/admin/nn/` and the
-        Stripe metadata both key on — so a volunteer can find the entry from it without a
-        lookup table.
+        establish. The purchase id answered that and was 36 characters of hexadecimal to read
+        down a phone; the paragraph that used to sit here said as much and called a shorter code
+        "a new column, which is a decision rather than a rendering choice". That column is
+        `entries.entry_purchases.entry_no` and this is what it is for.
+
+        **`formatEntryReference()` builds it and nothing else may.** The four outbox emails,
+        `/admin/nn/entry/` and the attention queue all print the same string through the same
+        function — a reference somebody reads aloud has to match character for character on
+        every surface, which is `formatPence()`'s argument exactly.
 
         **It is not a secret and it is not a credential.** It identifies a row; it authorises
         nothing. `entry_completion_state()` returns one word to anybody holding a session id
-        for precisely this reason. A shorter, quotable code would be kinder over the phone and
-        is a new column, which is a decision rather than a rendering choice — noted in #118. */ null
+        for precisely this reason, and `request_entry_action()` re-derives ownership from the
+        session rather than from the reference it is handed. Being shorter changes none of
+        that. */ null
       }
       <dt>Reference</dt>
-      <dd class="account-reference">${entry.purchaseId}</dd>
+      <dd class="account-reference">
+        ${formatEntryReference({
+          eventSlug: entry.eventSlug,
+          entryNo: entry.entryNo,
+          createdAt: entry.createdAt,
+          purchaseId: entry.purchaseId,
+        })}
+      </dd>
 
       <dt>Status</dt>
       <dd>

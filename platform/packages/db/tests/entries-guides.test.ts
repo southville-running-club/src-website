@@ -84,6 +84,12 @@ interface Person {
    * the box" is not an answer on its own.
    */
   ea_number?: string;
+  /**
+   * A guide's **own** address — the seventeenth field, ADR-022 as amended on 28 August 2026.
+   * Absent on most fixtures here, which is what lets one test below assert that a guide with
+   * no address of their own is left null rather than lent the buyer's.
+   */
+  email?: string;
 }
 
 /** One person, distinct from every other this file makes unless told otherwise. */
@@ -109,19 +115,29 @@ function person(role: 'runner' | 'guide', overrides: Partial<Person> = {}): Pers
 type Refusal = { ok: false; reason: string };
 type Created = { ok: true; purchase_id: string; amount_pence: number };
 
+/**
+ * The address the last `enter()` paid with.
+ *
+ * **One place per address is a database rule**, so the helper mints a fresh one per call and
+ * nothing may reuse it. The #183 tests below need to know which one it was, and re-deriving it
+ * from `serial` would be a second copy of that arithmetic.
+ */
+let lastPurchaserEmail = '';
+
 async function enter(
   entrants: Person[],
   consents: Record<string, boolean>,
   feeCode = 'unaffiliated',
 ): Promise<Refusal | Created> {
   serial += 1;
+  lastPurchaserEmail = `zzguide-${serial}@example.com`;
 
   const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
     p_key: ENTRY_KEY,
     p_slug: EVENT,
     p_fee_code: feeCode,
     p_purchaser_name: 'Ada Guided',
-    p_purchaser_email: `zzguide-${serial}@example.com`,
+    p_purchaser_email: lastPurchaserEmail,
     p_entrants: entrants,
     p_medical: entrants.map(() => null),
     p_consents: { entryTerms: true, medical: false, ...consents },
@@ -129,6 +145,23 @@ async function enter(
 
   if (error) throw error;
   return data as Refusal | Created;
+}
+
+/** One row of `read_entry_list()`, as far as the tests at the foot of this file care. */
+interface ListedEntry {
+  purchase_id: string;
+  role: string | null;
+  email: string | null;
+  entry_no: number | null;
+}
+
+async function listedEntries(purchaseId: string): Promise<ListedEntry[]> {
+  const row = await single<{ list: { entries: ListedEntry[] } }>(
+    'select entries.read_entry_list($1) as list',
+    [EVENT],
+  );
+
+  return row.list.entries.filter((entry) => entry.purchase_id === purchaseId);
 }
 
 async function removeFixtures(): Promise<void> {
@@ -325,5 +358,79 @@ describe('every rule about a runner is a rule about their guide', () => {
     );
 
     expect(rows.map((row) => row.ea_number)).toEqual([null, null]);
+  });
+});
+
+/**
+ * Which address `/admin/nn/` shows against each row — issue #183.
+ *
+ * **The whole subtlety is the guide**, which is why these live in this file. The row on that
+ * page is a *purchase*, and a purchase has one `purchaser_email` — so the obvious
+ * implementation prints the buyer's address beside every name on it. A guide's name is on it
+ * and the buyer's address is not theirs.
+ *
+ * Getting it wrong is not a rendering fault. It is a volunteer ringing the address next to a
+ * name and reaching somebody else, on the page they ring people from.
+ */
+describe('the entries list names an address per row', () => {
+  it("shows the purchaser for a runner and the guide's own address for a guide", async () => {
+    const guideEmail = 'zzguide-own-address@example.com';
+
+    const result = (await enter(
+      [person('runner'), person('guide', { email: guideEmail })],
+      {
+        vi: true,
+      },
+    )) as Created;
+
+    expect(result.ok).toBe(true);
+
+    const rows = await listedEntries(result.purchase_id);
+
+    expect(rows).toHaveLength(2);
+
+    const guide = rows.find((entry) => entry.role === 'guide');
+    const runner = rows.find((entry) => entry.role === 'runner');
+
+    // **Their own address, and never the one that paid.** ADR-022 as amended on 28 August 2026:
+    // a runner is reachable through the address that paid and a guide has no purchase of their
+    // own, which is the whole reason the seventeenth field exists.
+    expect(guide?.email).toBe(guideEmail);
+    expect(runner?.email).toBe(lastPurchaserEmail);
+
+    // Asserted as *different* as well as as themselves, because two fixtures that happened to
+    // share an address would pass the two lines above with the column read either way round.
+    expect(guide?.email).not.toBe(runner?.email);
+  });
+
+  it('leaves a guide with no address of their own null rather than borrowing one', async () => {
+    // **A guide entered before the address was asked for.** The tempting fallback — show the
+    // purchaser's — is the exact defect the expression exists to prevent, so the honest answer
+    // is nothing and the page renders a dash.
+    const result = (await enter([person('runner'), person('guide')], {
+      vi: true,
+    })) as Created;
+
+    const rows = await listedEntries(result.purchase_id);
+
+    expect(rows.find((entry) => entry.role === 'guide')?.email).toBeNull();
+    expect(rows.find((entry) => entry.role === 'runner')?.email).toBe(lastPurchaserEmail);
+  });
+
+  it('gives both people on one entry the same entry number, because it is one purchase', async () => {
+    // **The reference names the purchase, not the person.** A guided entry is two rows on this
+    // page and one thing to quote at the club; two numbers would be two entries as far as
+    // anybody reading them is concerned.
+    const result = (await enter([person('runner'), person('guide')], {
+      vi: true,
+    })) as Created;
+
+    const numbers = (await listedEntries(result.purchase_id)).map(
+      (entry) => entry.entry_no,
+    );
+
+    expect(numbers).toHaveLength(2);
+    expect(numbers[0]).toBe(numbers[1]);
+    expect(numbers[0]).toBeGreaterThan(0);
   });
 });

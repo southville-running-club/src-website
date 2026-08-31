@@ -10,6 +10,7 @@ import {
   formatEventDate,
   formatEventStartTime,
   formatPence,
+  medicalRetentionClause,
   parseNnEntry,
   priceNnEntry,
   toIsoDate,
@@ -1565,6 +1566,26 @@ export function renderNnEntryView(
         state.minimumAge === null ? '' : String(state.minimumAge),
       ),
     );
+
+  // **The retention promise, from the column that keeps it.** `entries.events.medical_retention`
+  // is what `delete_expired_medical_notes()` applies, and until 31 August 2026 this page stated
+  // the period as the hand-typed words "one month" — on the page the medical consent is ticked
+  // on, tied to nothing that could go red. Issue #172.
+  //
+  // **Painted only when there are words for it.** A `null` interval means a database older than
+  // the migration that returns it, and a `null` clause means an interval
+  // `medical-retention.ts` will not say in one register — a mixed interval, or a number above
+  // twelve. In both cases the markup's own sentence stays, which is the same shipped-visible
+  // default the rest of this form takes: what a page that cannot reach the database shows is
+  // the safe answer rather than an arbitrary one.
+  const retention =
+    state.medicalRetention === null
+      ? null
+      : medicalRetentionClause(state.medicalRetention);
+
+  if (retention !== null) {
+    rewriter.on('[data-entry-medical-retention]', new TextHandler(retention));
+  }
 
   // **Only the fees the event is offering.** Each card ships hidden with an empty label and
   // an empty price; a code with no matching fee row is simply never revealed, so withdrawing

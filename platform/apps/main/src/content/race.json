@@ -15,6 +15,7 @@
   "entriesClose": "Friday 30 October 2026, 17:00",
   "transferDeadline": "3pm on 16th October",
   "permit": "ARC/26/0842",
+  "arcRules": "https://share.google/RnTGOplAieN1hWvHL",
   "places": 250,
   "contact": "nightingalenightmare@southvillerunningclub.co.uk",
   "schedule": [
@@ -63,7 +64,7 @@
     "footbridge": "Ashton Avenue Bridge"
   },
   "privacy": {
-    "lastUpdated": "29 August 2026",
+    "lastUpdated": "31 August 2026",
     "controller": "Southville Running Club Ltd",
     "registeredOffice": "1 Hengrove Farm, Hengrove Farm Lane, Bristol BS14 9DD",
     "companyNumber": "09437549",

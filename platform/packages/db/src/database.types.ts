@@ -277,6 +277,7 @@ export type Database = {
           consents: Json
           created_at: string
           discount_code_id: string | null
+          entry_no: number | null
           event_id: string
           fee_id: string
           hold_expires_at: string | null
@@ -305,6 +306,7 @@ export type Database = {
           consents: Json
           created_at?: string
           discount_code_id?: string | null
+          entry_no?: number | null
           event_id: string
           fee_id: string
           hold_expires_at?: string | null
@@ -333,6 +335,7 @@ export type Database = {
           consents?: Json
           created_at?: string
           discount_code_id?: string | null
+          entry_no?: number | null
           event_id?: string
           fee_id?: string
           hold_expires_at?: string | null
@@ -430,6 +433,7 @@ export type Database = {
           id: string
           medical_retention: string
           minimum_age: number | null
+          next_entry_no: number
           race_slug: string
           required_consents: string[]
           requires_dob: boolean
@@ -449,6 +453,7 @@ export type Database = {
           id?: string
           medical_retention?: string
           minimum_age?: number | null
+          next_entry_no?: number
           race_slug: string
           required_consents?: string[]
           requires_dob?: boolean
@@ -468,6 +473,7 @@ export type Database = {
           id?: string
           medical_retention?: string
           minimum_age?: number | null
+          next_entry_no?: number
           race_slug?: string
           required_consents?: string[]
           requires_dob?: boolean

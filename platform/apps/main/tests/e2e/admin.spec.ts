@@ -775,23 +775,40 @@ test.describe('the entries table', () => {
     ).toHaveCount(1);
   });
 
-  test('shows no entrant’s email address, and only the reader’s own', async ({
-    page,
-  }) => {
-    // **This was `getByText('@example.com')).toHaveCount(0)` and it could no longer pass**: the
-    // masthead now names the account somebody is signed in as, which is an address, and the
-    // fixtures are all at `example.com`. The claim the old line was making — *no entrant's
-    // address is on this page* — is still the one that matters, so it is made directly.
+  test('shows the address on each row, and nobody else’s', async ({ page }) => {
+    // **This asserted that no entrant's address was on the page, and #183 reverses it** — a
+    // volunteer could not tell two runners of the same name apart without opening the entry.
+    // What has not changed is that the page may show **only** the addresses of the entries it
+    // is listing: the masthead's is the reader's own, and nothing from the interest list, from
+    // another running, or from any other fixture may leak in.
     //
-    // The markup is stripped of decoration first and the expected address is derived from the
-    // fixture, per the two rules in `CLAUDE.md`: a literal stops testing silently the moment the
-    // value moves, and a bare match against undecorated markup collides with SVG path data.
+    // So what is asserted is the set of addresses the page must *not* carry, named one by one,
+    // rather than a presence check that any address anywhere would satisfy. The markup is
+    // stripped of decoration first, per `CLAUDE.md`: a bare match against undecorated markup
+    // collides with SVG path data.
     const markup = await undecoratedMarkup(page);
-    const addresses = new Set(
-      markup.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [],
-    );
+    const addresses = [
+      ...new Set(markup.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? []),
+    ];
 
-    expect([...addresses]).toEqual([NN_ADMIN_EMAIL]);
+    // The reader's own, from the masthead.
+    expect(addresses).toContain(NN_ADMIN_EMAIL);
+
+    // **Nobody the page is not listing.** `alice@example.com` is on the interest list and has
+    // no entry, which is exactly the kind of address a careless join would bring along.
+    expect(addresses).not.toContain('alice@example.com');
+
+    // **And nobody from another running.** These two paid for entries on a different fixture
+    // event, so either reaching this page would mean the read had stopped being scoped to the
+    // event in the route — the failure a presence check could never catch.
+    expect(addresses).not.toContain(ENTRANT_EMAIL);
+    expect(addresses).not.toContain(LAPSED_EMAIL);
+
+    // At least one address that is not the reader's, so the whole test cannot pass on a page
+    // that renders the column and never fills it.
+    expect(
+      addresses.filter((address) => address !== NN_ADMIN_EMAIL).length,
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -975,6 +992,12 @@ test.describe('one entry in full', () => {
 
     const markup = await undecoratedMarkup(page);
 
+    // **Both references, and this is the only page that carries both.** The readable one is
+    // what a runner quotes — the same string the confirmation email and `/account/entries/`
+    // print, through `formatEntryReference()`. The purchase id is what Stripe's metadata and
+    // every `admin_audit` row key on, so a volunteer reconciling a payment with the dashboard
+    // open needs it here and nowhere else.
+    expect(markup).toMatch(/[A-Z0-9]+-\d{4,}-\d{8}/);
     expect(markup).toContain(CLEAN_PAID_PURCHASE_ID);
     expect(markup).toContain(`Kin ${CLEAN_PAID_LAST_NAME}`);
     await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
@@ -1031,10 +1054,14 @@ test.describe('the interest list', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
 
-    // The dashboard says how many are waiting and does not show one of their addresses. Scoped
-    // to the main region, because the masthead names the reader's own account.
+    // The dashboard says how many are waiting and does not show one of their addresses.
+    //
+    // **Named, rather than "no address anywhere in `main`".** Since #183 the entries table on
+    // this same page carries the address of every entry it lists, so the broad assertion could
+    // no longer pass — and the claim it was making was never about those. It is about the
+    // interest list, whose addresses belong on its own page and nowhere else.
     await expect(page.getByText('People waiting to hear')).toBeVisible();
-    await expect(page.getByRole('main').getByText('@example.com')).toHaveCount(0);
+    await expect(page.getByRole('main').getByText('alice@example.com')).toHaveCount(0);
 
     await page.getByRole('link', { name: /Open the interest list/ }).click();
 
@@ -1565,15 +1592,21 @@ test.describe('accessibility and small screens', () => {
    * already scrolls, on a surface where 70% of visitors are on a phone. Below 48rem the table now
    * drops to three columns and the five it drops reappear inside the runner cell.
    *
-   * **Checked at four widths, and the whole test runs in all three projects** — so it is asserted
+   * **Checked at six widths, and the whole test runs in all three projects** — so it is asserted
    * with JavaScript on and off. The overflow bug this replaces was invisible: the table scrolled
    * correctly, the hidden text stayed hidden, and the only symptom was a page that slid left
    * under a thumb.
+   *
+   * **900 and 1024 arrived with the Email column** — issue #183. The four narrow widths test the
+   * fold, which is where the risk used to be; a ninth column puts the risk at the other end,
+   * just *above* 768px, where every wide column is showing at once and the longest string in the
+   * table is an address. The club's own is 47 characters, which is the exact value that
+   * overflowed a 320px document in the sideways-scroll investigation.
    */
   test('no page in the race section scrolls sideways at any width', async ({ page }) => {
     await signInAs(page, NN_ADMIN_EMAIL);
 
-    for (const width of [320, 360, 414, 768]) {
+    for (const width of [320, 360, 414, 768, 900, 1024]) {
       await page.setViewportSize({ width, height: 640 });
 
       for (const [path, name] of [
@@ -1633,6 +1666,11 @@ test.describe('accessibility and small screens', () => {
     // accessibility tree too and nothing is announced twice.
     await expect(page.getByRole('columnheader', { name: 'Club' })).toBeHidden();
     await expect(page.getByRole('columnheader', { name: 'Code' })).toBeHidden();
+
+    // **Email folds with them, and it is the one that would cost most if it did not.** It is
+    // the longest value in the table, and a fourth column at this width is what starts the
+    // whole page sliding sideways under a thumb. Issue #183.
+    await expect(page.getByRole('columnheader', { name: 'Email' })).toBeHidden();
 
     // The three that remain, and the runner cell now carrying what the others dropped. Filtered to
     // the visible copy for the reason the table's own describe block explains — at this width the

@@ -55,6 +55,13 @@ export interface MyEntrant {
 
 export interface MyEntry {
   purchaseId: string;
+  /**
+   * The per-event entry number, or `null` on a purchase written before the column existed.
+   *
+   * **Half a reference.** `formatEntryReference()` is the one place it becomes the string
+   * `NN2026-0042-01092026`; the page never assembles it, exactly as no page assembles a `£`.
+   */
+  entryNo: number | null;
   eventSlug: string;
   eventName: string;
   /** Civil, as published. Not an instant — see age-category.ts. */
@@ -118,6 +125,10 @@ const entrantShape = z.object({
 
 const entryShape = z.object({
   purchase_id: z.string().min(1),
+  // `.catch(null)` for the reason every optional key on an entries read has one: nothing
+  // sequences a migration against the Cloudflare deploy, and a Worker that arrives first must
+  // print the reference it always printed rather than refuse the page.
+  entry_no: z.number().int().nullable().catch(null),
   event_slug: z.string().min(1),
   event_name: z.string().min(1),
   event_date: z.string(),
@@ -268,6 +279,7 @@ export async function fetchMyEntries(client: UserClient): Promise<MyEntriesResul
 
       entries.push({
         purchaseId: row.purchase_id,
+        entryNo: row.entry_no,
         eventSlug: row.event_slug,
         eventName: row.event_name,
         eventDate,

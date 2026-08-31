@@ -33,7 +33,40 @@ import '@src/shared/styles/nn-theme.css';
 // capitalisation and headings are untouched. A change beyond that shape goes back to the
 // committee.
 //
+// **A third list edit was taken on 31 August 2026: photographs and video went in.** The entry
+// terms have said since version 1 that a runner's name and photographic or video footage may be
+// used to publicise the race and the club, and for the fancy dress competition — and this notice
+// said nothing about images at all. Article 13 makes the categories of data mandatory
+// information, so a processing activity the club states in the document somebody is bound by and
+// omits from the notice describing that document is a gap rather than a nicety. The terms
+// themselves are where the use is described; this list is where the club says it holds the data.
+//
+// ⚠️ **The opt-out those terms offer has no mechanism on this site.** "Tell us if you would
+// rather not appear" is an instruction with no field, no consent box and no route except the
+// contact address — a nineteenth entry field is a committee decision, so it is **not** built and
+// this list item deliberately does not claim one exists.
+//
+// **A second list edit was taken on 31 August 2026, and it is a deletion — issue #179 item 1.**
+// The collection list claimed *"IP address, browser type, device information, and cookies for
+// website functionality and analytics"*. There is no analytics code anywhere in `apps/main` —
+// no gtag, no Plausible, no Fathom — and a plain `GET /nn/2026/` sets no cookie at all, which
+// is what `/privacy/` tells account holders in as many words. **So the club's two notices
+// contradicted each other and the race one was the wrong half**, on the page that invites
+// somebody to complain to the ICO about how their information is handled. The bullet is gone.
+// It is a list item, so it is inside the same permitted shape as #168's insertions; nothing
+// else on the page moved.
+//
 // **`/privacy/` is a separate document and was not touched by any of this.**
+//
+// ## `privacy.lastUpdated` is this page's revision date, not the committee document's
+//
+// The two were the same thing on 29 August 2026 and stopped being the same thing on the 30th,
+// when the club took the first list edits and left the date alone. Section 9 of this notice
+// promises that *"any changes will be posted on this page with an updated revision date"*, so
+// a date that tracks the committee's draft rather than the published page is a promise the
+// page breaks the moment a list item moves. **It tracks the page.** Every edit to what is
+// rendered here — including a list item inserted or deleted — moves `race.json`'s
+// `privacy.lastUpdated` in the same commit. Issue #179 item 3.
 //
 // ## What is still deliberately absent
 //
@@ -43,14 +76,21 @@ import '@src/shared/styles/nn-theme.css';
 // All of it came out. Three of those differences are load-bearing elsewhere, so they are
 // recorded here rather than left to be rediscovered:
 //
-//  1. **No retention period for a medical note is published.**
+//  1. **No retention period for a medical note is published *on this page*.**
 //     `entries.events.medical_retention` is still one month and the cron still deletes on it,
 //     and `packages/db/tests/entries-retention.test.ts` still ties that interval to
 //     `race.json`'s `privacy.medicalRetention` — which is why that key is still there and
-//     still reads "One month after the race" though this page no longer prints it. **The tie
-//     is now between the column and the JSON only**, and no longer between either and what a
-//     runner reads. Naming the medical box, as this page now does, does not restore it: what
-//     is collected and how long it is kept are two claims, and only the first is back.
+//     still reads "One month after the race" though this page no longer prints it. Naming the
+//     medical box, as this page now does, does not restore it: what is collected and how long
+//     it is kept are two claims, and only the first is back.
+//
+//     ⚠️ **What this file used to say next was that the period is published nowhere, and that
+//     was never true** — issue #172. `/nn/2026/`, the page somebody ticks the medical consent
+//     on, and `/account/data/` have both stated a period all along, in hand-typed prose that
+//     nothing tied to the column. Since 31 August 2026 both derive it: the entry form from
+//     `entry_state()`'s `medical_retention`, which is the enforced interval itself, and
+//     `/account/data/` from `race.json`, which the database test above holds to that interval.
+//     So the chain reaches a runner again — just not through this page.
 //  2. **The named processors and the registered office are still absent.** The list below
 //     names what is collected; who processes it is the committee's to supply.
 //  3. **The affiliation sentence is not here.** ADR-023 asks for it on both notices; it
@@ -179,8 +219,9 @@ const { privacy } = race;
           provider; we do not store full card details.
         </li>
         <li>
-          <strong>Technical Data:</strong> IP address, browser type, device information, and
-          cookies for website functionality and analytics.
+          <strong>Photographs and Video:</strong> Images and footage of participants taken at
+          the event, which the entry terms permit us to use to publicise the race and the club
+          and for the fancy dress competition on the day.
         </li>
       </ul>
 
