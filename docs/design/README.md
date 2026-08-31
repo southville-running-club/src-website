@@ -86,11 +86,12 @@ renders headings in Impact before Nosifer arrives. See [`nn-theme-fonts.md`](nn-
 
 ## The admin mockup, and the four things the build did not take from it
 
-`nn-admin-mockup.html` is the approved design for `/nn/admin`, and its central decision is the one
-worth keeping: **it wears the club brand rather than the Nightingale Nightmare theme.** This is a
-tool rather than a page a runner reads — all content and no frame — and it will serve Pass the Buck,
-which has nothing to do with Halloween. `nn-theme.css` is not imported anywhere under `/nn/admin`
-and must not be.
+`nn-admin-mockup.html` is the approved design for the admin surface — **`/admin/`, not
+`/nn/admin`**, which only 301/308-redirects there since #58 retired the surface's old
+address — and its central decision is the one worth keeping: **it wears the club brand
+rather than the Nightingale Nightmare theme.** This is a tool rather than a page a runner
+reads — all content and no frame — and it will serve Pass the Buck, which has nothing to do
+with Halloween. `nn-theme.css` is not imported anywhere under `/admin/` and must not be.
 
 Its section order is the design and was followed exactly. Four things in it were not:
 
@@ -111,24 +112,33 @@ and is the one pair on the surface below a floor: 1.68:1 on a light page. It is 
 every quantity the bar encodes is stated in words beside it, and the test pins the number.
 
 **3. Its event bar shows a closing time.** *"Closes Friday 23 October, 20:00"* is invented, exactly
-like the entry mockup's "238 of 250 places remaining". **The 2026 entry open and close times are not
-confirmed**, `entries.events.entries_close_at` is null, and the page says so in those words. This is
-the same trap this file already warns about one mockup along.
+like the entry mockup's "238 of 250 places remaining". **This was true when written and no longer
+is: the entry window is ratified** — opens Tuesday 1 September 2026 07:00 BST, closes Friday 30
+October 2026 17:00 GMT — **and `entries.events.entries_close_at` is set.** Only
+`entries_open_at` stays null, deliberately, gated on the live Stripe keys being installed. This is
+still the trap this file already warns about one mockup along: a plausible date on a mockup can
+turn out right, and this one has, so do not copy it as if it were still invented.
 
-**4. Its audit trail is not built.** Nothing may read `entries.admin_audit` — see
-[the admin runbook](../delivery/runbooks/entries-admin.md#the-trail-is-read-here-and-not-on-the-page--on-purpose)
-for why that is a decision rather than a gap.
+**4. Its audit trail was not built when this was written, and that has since reversed.**
+[ADR-024](../architecture/decisions/adr-024-one-entry-in-full.md) put the trail on the surface,
+scoped to one entry — `entries.admin_entry_detail()` returns it behind `nn.entry.read`, and it is
+reached from a *Details* button per row on `/admin/nn/`. See [the admin
+runbook](../delivery/runbooks/entries-admin.md#the-trail-is-read-here-and-not-on-the-page--on-purpose)
+for the reasoning ADR-024 answers.
 
-Its "3 claimed affiliated without giving a number" **was** kept, and checked first: the state is
-reachable, because `entries.create_pending_purchase()` writes `ea_number` through without
-consulting `fees.requires_ea_number` and is granted to `anon`.
+**Its "3 claimed affiliated without giving a number" bypass is closed.** It was reachable when
+written — `entries.create_pending_purchase()` wrote `ea_number` through without consulting
+`fees.requires_ea_number`, and the function is granted to `anon` — but Slice G closed that and
+eight other rule bypasses by attempting each one anonymously, and the club has since stopped
+asking for or holding England Athletics numbers at all —
+[decision 007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
 
 ## Read this before taking anything out of the mockup
 
-`nn-entry-mockup.html` is the **entries application** — the build that takes an entry and a
-payment, which does not exist yet. It was drawn against confirmed race facts, and it is
-full of them: a date, a start time, two prices, a capacity, a minimum age, an HQ address, a
-race-morning schedule, prize categories, a transfer deadline.
+`nn-entry-mockup.html` was the design for **the entries application**, the build that takes an
+entry and a payment — which is built now, and taking real money. It was drawn against confirmed
+race facts, and it is full of them: a date, a start time, two prices, a capacity, a minimum age,
+an HQ address, a race-morning schedule, prize categories, a transfer deadline.
 
 **None of those facts is confirmed for this website.** They are the mockup's content, not
 the club's position. Copying one into a page — even as a placeholder, even in a comment —
@@ -147,9 +157,12 @@ drives the site from `race.date` in `apps/main/src/content/race.json` rather tha
 markup — as does the distance, the race HQ, the schedule, the prizes and the spectating
 points.
 
-**That is not licence to take the rest of the mockup at face value.** Several things on it
-still read like facts and are not: the entry prices and the transfer deadline belong to the
-entries application, the "238 of 250 places remaining" counter is demo data, the course
+**That is not licence to take the rest of the mockup at face value, even though two more of
+its numbers have since turned out right too.** The entry prices are now confirmed — £18
+affiliated, £20 unaffiliated, decision 006 — and so is the transfer deadline, 3pm on 16
+October, in `race.json`. Read both off `race.json` rather than the mockup regardless: a
+mockup that happened to guess right is still the wrong place to copy a fact from. The "238
+of 250 places remaining" counter is demo data, the course
 profile drawing is a sketch rather than a survey, the minimum age is inferred from the
 prize categories rather than stated, and **"clocks change the night before" is simply false
 for 2026** — the clocks go back on 25 October and the race is a week later. Each of those
