@@ -4,12 +4,26 @@
 > This document is the single source of truth for the app's visual and verbal identity.
 > Update tokens here first, then propagate to `design-tokens.json` and the codebase.
 
+⚠️ **That governance line is the source document's own, imported verbatim, and it does not
+apply here.** This is `src-race-timing`'s brand file, adopted by reference into this
+repository — **[`tokens.css`](../../platform/packages/shared/styles/tokens.css) is this
+repository's canonical source, not this page.** A token change starts in `tokens.css` and
+`design-tokens.json` together (they are asserted equal by
+`packages/shared/tests/unit/brand.test.ts`); this page is a record of what was adopted and
+why, not a place to edit from. **Not every value below was adopted as written** — see
+`color/danger` in the quick-reference table, refused for insufficient contrast — so treat
+this whole file as reference, and [`brand.md`](brand.md) as the authority on what actually
+shipped.
+
 **Adopted for `apps/main` on 16 August 2026**, superseding the "not compared" note in
 [`brand.md`](brand.md). See that document for the reasoning, the derived AAA-safe text
 colours this repository needed on top of the raw values below, and what stayed out of
 scope (dark mode, and the full-bleed "dominant colour per screen" layout system in section
 6, which is a layout change rather than a token one and was not attempted here).
 **`nn-theme.css` is unaffected** — Nightingale Nightmare keeps its own campaign design.
+**This repository targets AAA (7:1) for body text**, a stricter bar than this file's own
+§Accessibility, which specifies AA (4.5:1) — see `brand.md` for what that meant for the two
+colours it changed.
 
 ---
 
@@ -39,7 +53,7 @@ The brand is built on one dominant, saturated green with near-black text, used f
 | `color.surface`        | `#FFFFFF` | Cards, sheets, secondary backgrounds             |
 | `color.surface-muted`  | `#F4F6F2` | Long-read screens (results, leaderboards)        |
 | `color.warning`        | `#FFB020` | Countdowns, "race starting soon"                 |
-| `color.danger`         | `#E53935` | DNF, errors, cancel timing                       |
+| `color.danger`         | `#E53935` | ⚠️ **Not adopted** — DNF, errors, cancel timing. This repository kept `--src-error` instead (see `brand.md`); read this row as source-document reference only |
 | `color.slate`          | `#4A5568` | Tertiary text, dividers                          |
 
 ### Usage rules
@@ -150,7 +164,7 @@ The brand is wordmark-led. No mascot. No icon required for the master lockup.
 | color/surface        | `#FFFFFF`                            |
 | color/surface-muted  | `#F4F6F2`                            |
 | color/warning        | `#FFB020`                            |
-| color/danger         | `#E53935`                            |
+| color/danger         | `#E53935` — **not adopted**, see § Colours above |
 | color/slate          | `#4A5568`                            |
 | font/display         | Halyard Display, Inter Display       |
 | font/body            | Halyard Display, Inter               |
@@ -161,4 +175,5 @@ The brand is wordmark-led. No mascot. No icon required for the master lockup.
 
 ---
 
-*Last updated: keep this header accurate when you change tokens.*
+*Source document, unedited since adoption on 16 August 2026 — do not update tokens here;
+see the note at the top of this file.*
