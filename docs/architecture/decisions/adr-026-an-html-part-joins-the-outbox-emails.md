@@ -51,8 +51,10 @@ that a message was opened, and when — which is an open-tracker in effect, whet
 is intended, on emails the standing brief for this work says should carry no tracking of any
 kind.
 
-This ADR does not resolve that tension. It records it, because a decision made without
-noticing it exists is worse than one that names the trade-off and proceeds anyway.
+This ADR did not resolve that tension when first written. It recorded it, on the view that a
+decision made without noticing it exists is worse than one that names the trade-off and
+proceeds anyway — and a later revision of this same pull request is what actually closed it;
+see the Decision below.
 
 ## Decision
 
@@ -68,10 +70,19 @@ change. The four existing templates (`entry_confirmed`, `entry_refunded`,
 `entry_transferred_out`, `entry_transferred_in`) each gain an HTML rendering; no fifth
 template is added.
 
-**The banner is served, not embedded.** An absolute HTTPS URL, hosted from `apps/main/public/`
-through the existing static-assets binding — not a base64 data URI, which would blow past
-Gmail's 102KB clipping limit on its own, and not inlined otherwise. The image-loading privacy
-question raised above is not answered by this ADR; see Consequences.
+**The banner is embedded, not served — a CID attachment, not a `<img src="https://…">`.**
+`email.ts`'s `fetchBannerAttachment()` reads the file from `apps/main/public/` through the
+Worker's own static-assets binding once per drain batch, base64-encodes it, and attaches it to
+the Resend call with a `content_id`; `email-skin.ts` references it as `cid:nn-email-banner`.
+**Not a base64 `data:` URI in the HTML itself** — that would blow past Gmail's 102KB
+HTML-clipping limit on its own. A CID attachment is a separate MIME part, so the HTML stays the
+same few kilobytes it always was. This is what closes the open-tracker question raised above:
+an attachment already part of the message needs no HTTP fetch to render, so there is nothing
+for a mail client's request to disclose. It also answers the reliability question that
+prompted revisiting this — a remote image depends on the recipient's client choosing to
+auto-load it, which is not universal, where a CID image ships with the message and every major
+client renders it unconditionally. A missing or unreadable file degrades to a card with no
+banner row rather than blocking the send; see Consequences.
 
 **Escaping is by hand, not by `worker/html.ts`'s tagged template.** That tag exists for
 `/admin/nn` and Prettier reflows its contents on every save, which would silently rewrite the
@@ -91,21 +102,27 @@ message is a Supabase Auth template rendered by GoTrue, not by this file, and ch
 changing `[auth]` in `config.toml` — a stop-and-ask in this repository regardless of anything
 decided here.
 
-**No tracking.** No open pixel beyond the banner's own unavoidable load, no click tracking on
-any link, no UTM parameters. These remain transactional mail, and the standing brief for this
-work says so explicitly.
+**No tracking.** No open pixel — the banner is a CID attachment now, so there is no image load
+of any kind for a mail client to make — no click tracking on any link, no UTM parameters.
+These remain transactional mail, and the standing brief for this work says so explicitly.
 
 ## Consequences
 
-**The banner-loading privacy question is open, and it is not this ADR's to close.** Every
-recipient whose mail client auto-loads remote images will disclose, to the club's own
-infrastructure, that they opened the message and roughly when. Blocked-by-default clients
-render a placeholder where the banner should be — expected and harmless, but worth knowing
-this design accepts. Whether that trade-off is acceptable for a club that has already ruled
-the opposite way for account mail is a question for whoever owns the club's privacy posture,
-not a build decision. It is not resolved by shipping the banner; it is accepted by shipping it
-without being asked, which is a fact worth someone confirming rather than a silence worth
-leaving.
+**The banner-loading privacy question named above is closed, not merely accepted.** A CID
+attachment ships as part of the message, so no mail client ever makes an HTTP request to
+render it — there is nothing left for such a request to disclose. This resolves the tension
+the same way the club has already ruled for its other HTML email
+(`supabase/templates/confirmation.html`'s "no images, no external CSS, no tracking pixel"):
+by not having a network-loaded image at all, rather than by deciding the disclosure is
+acceptable. What remains open is narrower — whether the artwork is wanted at all, and the
+answer here was yes, given how it is now delivered.
+
+**A banner fetch can fail, in a way a remote URL never could.** `fetchBannerAttachment()`
+reads a file at send time rather than merely printing a URL that resolves later, so a missing
+or unreadable asset is now a real, if rare, failure mode of the send path itself — handled by
+degrading to a card with no banner row (`hasBanner: false` in `email-skin.ts`, asserted by a
+dedicated test block) rather than losing the message. `email-outbox.ts` fetches once per drain
+batch and logs a short warning on failure, never a stack trace with content in it.
 
 **A new bug class exists that did not before: HTML/text drift.** The regression test that
 would catch it — asserting the same fact appears in both parts — is not written, because
