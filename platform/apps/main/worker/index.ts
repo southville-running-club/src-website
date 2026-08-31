@@ -158,12 +158,26 @@ interface Env {
    * **A second Worker secret**, and the least obvious thing in this file.
    *
    * `entries.record_checkout_event()` is granted to the anon role like every other function in
-   * that schema — and the anon key is published in page source, while
-   * `entries.create_pending_purchase()` hands any caller a real purchase id and its amount. So
-   * without a second factor, two ordinary PostgREST calls would buy a free race entry. The
+   * that schema — and the anon key is published in page source. So without a second factor,
+   * two ordinary PostgREST calls would move a purchase to `paid` without paying for it. The
    * database holds only this key's SHA-256 digest. The full argument is in the migration.
    */
   ENTRIES_WEBHOOK_KEY?: string;
+  /**
+   * **A third Worker secret, and it closes the other half of the sentence above.**
+   *
+   * `entries.create_pending_purchase()` is granted to anon too — it has to be, because a
+   * signed-out runner reaches PostgREST as anon — and it holds a place *before* any money
+   * moves, with a live hold counting against the 250. Until 31 August 2026 that meant a loop
+   * with the published key could take the whole field in half a second for nothing, without
+   * ever touching this Worker or the rate-limiting rule in front of it. Issue #178.
+   *
+   * The database holds only this key's SHA-256 digest, in `entries.webhook_secrets` under
+   * `entry`, and it ships null — which refuses everything. Installing it is a documented step
+   * in `docs/delivery/runbooks/entries-open.md`, and it has to happen **before** the window is
+   * opened. See ADR-029.
+   */
+  ENTRIES_ENTRY_KEY?: string;
   /**
    * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
    * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*

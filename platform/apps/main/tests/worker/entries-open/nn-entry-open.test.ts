@@ -12,6 +12,9 @@ import worker from '../../../worker/index';
 // and from `fixture-discount.ts` rather than `global-setup.ts`, because that one imports `pg`,
 // which cannot load inside `workerd`. See the note in that file.
 import { FIXTURE_DISCOUNT } from './fixture-discount';
+// The entry key this run binds, from the same constants-only module the config reads — so the
+// leak assertion below is checking the value actually in play rather than a literal beside it.
+import { ENTRY_KEY } from '../../entry-key-fixture';
 
 /**
  * `/nn/` **with entries open**, in the real Workers runtime, against the real build output.
@@ -341,6 +344,51 @@ describe('a free place, which a payment page cannot take a payment for', () => {
   });
 });
 
+describe('when no entry key is bound, which is the state before the runbook installs it', () => {
+  // The binding is removed for the length of one test and put straight back, exactly as the
+  // Stripe block below does it — same file, same run, same reasoning.
+  const BOUND = (env as Record<string, unknown>).ENTRIES_ENTRY_KEY;
+
+  afterEach(() => {
+    (env as Record<string, unknown>).ENTRIES_ENTRY_KEY = BOUND;
+  });
+
+  it('validates, stops, and stores nothing', async () => {
+    // **The same answer as no Stripe key, and deliberately so.** Without the entry key the
+    // database refuses to hold a place at all, so calling anyway would turn a known
+    // deployment state into `unauthorised` — a refusal that reads as a defect and tells
+    // somebody their entry failed. Checked *before* a place is held, so "nothing has been
+    // stored and nothing has been charged" is literally true. ADR-029, issue #178.
+    delete (env as Record<string, unknown>).ENTRIES_ENTRY_KEY;
+
+    const before = await sessionsCreated();
+    const response = await submit(goodEntry({ email: 'worker-nokey-entry@example.com' }));
+    const html = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(html).toMatch(/data-entry-unavailable[^>]*autofocus/);
+    expect(html).toContain('nothing has been stored and nothing has been charged');
+
+    // **Stripe is never reached either**, which is the half that says the check is before the
+    // hold rather than after it.
+    expect(await sessionsCreated()).toBe(before);
+  });
+
+  it('holds a place again as soon as it is bound', async () => {
+    // **The positive case, in the same block as the negative one.** A refusal that were
+    // permanent would look identical to this one on the failing test above — so the thing
+    // that proves the key is the gate, rather than something else having broken, is that
+    // putting it back restores the ordinary path.
+    const before = await sessionsCreated();
+    const response = await submit(
+      goodEntry({ email: 'worker-key-restored@example.com' }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(await sessionsCreated()).toBe(before + 1);
+  });
+});
+
 describe('when no Stripe secret is configured, which is the deployed state today', () => {
   // The binding is removed for the length of one test and put straight back. This file is the
   // only one in its Vitest run and a file's tests run in order, so nothing else can see the
@@ -402,6 +450,12 @@ describe('the Stripe key, which must not appear anywhere a person can see', () =
         'sk_' + 'live_',
         'rk_' + 'live_',
         STUB_KEY,
+        // **The entry key is a secret of exactly this class and was not covered here.** It is
+        // what stops the published anon key holding all 250 places (#178, ADR-029), so a
+        // response body that echoed it would hand back the one thing the whole control rests
+        // on — and this path builds it into an RPC argument on every submission, which is
+        // precisely where a "print the request so we can debug it" would put it.
+        ENTRY_KEY,
       ]) {
         expect(body).not.toContain(secret);
       }
