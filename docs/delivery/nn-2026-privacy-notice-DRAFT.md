@@ -1,6 +1,17 @@
 # Privacy notice — Nightingale Nightmare 2026
 
-**DRAFT FOR COMMITTEE APPROVAL — not yet published**
+> ⚠️ **Historical — approved, published, and since wholly replaced.** This draft was
+> approved by the committee and built into `/nn/2026/privacy/` on 14 August 2026 (see the
+> table below). **That page was then rewritten to be the committee's document word for
+> word on 30 August 2026, and edited again the same day** to add the runner's phone
+> number, fix an emergency-contact and medical-consent omission, and correct two things
+> the page wrongly claimed the club collects —
+> [ADR-025](../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md),
+> [decision 008](../decisions/decision-log.md#008--ask-a-runner-for-a-phone-number-and-make-the-race-notice-say-what-is-actually-held).
+> **This draft's section 2 no longer describes what the live page says the club collects
+> — do not read it as current.** For what the club actually collects, read
+> `packages/shared/src/nn-entry.ts` or the live page itself. This file is kept as the
+> record of what was originally approved, not as a source of current fact.
 
 Prepared 14 August 2026. Sections marked **[DECISION]** need the committee to choose
 before this can go live. Everything else is drafted from what the entry system actually
@@ -41,13 +52,16 @@ August 2026, and this note is how it stays readable beside a page that has moved
 the page it replaced disclosed it, so leaving it out would have been a regression against
 what the club had already published.
 
-**Unchanged and still open:** the four **[DECISION]** items. They are `null` under
-`race.json`'s `privacy` key and render "To be confirmed by the club"; filling one in is a
-one-line edit there. The registered office, the company number, the controller and the
-one-month medical retention are written in as settled.
+**Overtaken by the 30 August rewrite:** the live page renders **no "To be confirmed by the
+club" marker at all now** — the rewrite removed the schema-derived list this draft's
+**[DECISION]** items were tracking, along with the medical-note retention period, named
+processors and the registered office, none of which the committee's own wording states.
+**One open decision survives and is published nowhere:** whether an email address is kept
+to tell people about next year's race — still `null` in `race.json`'s `emailRetention`,
+which nothing reads.
 
-**Also still true:** the entry terms do not exist, and the terms checkbox deliberately links
-to nothing rather than to a page that is not there.
+**Also overtaken:** the entry terms exist now, published at `/nn/2026/terms/` since 28
+August 2026, and the checkbox links to them.
 
 ---
 

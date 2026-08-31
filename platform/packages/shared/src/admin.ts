@@ -1738,7 +1738,7 @@ export interface ManualEntrant {
    * **Asked for by the form and not required by the function**, which is the one place this
    * differs from the entry form. A complimentary place is arranged by a volunteer who may only
    * have an email address, and refusing to give Kinsi a place over a phone number would make
-   * ADR-021's answer conditional on ADR-025's field. Null for a guide, who is not asked.
+   * ADR-028's answer conditional on ADR-025's field. Null for a guide, who is not asked.
    */
   phone: string | null;
 }

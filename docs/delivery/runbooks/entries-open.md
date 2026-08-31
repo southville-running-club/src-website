@@ -252,7 +252,7 @@ on 28 August 2026.** Stripe refuses a zero-total Checkout session, so nothing ca
       `vi_guide` fee still exists and is still uncompletable on its own; nobody has to use it
 - [x] **Any other free place is assigned from `/admin/nn/`** by somebody holding
       `nn.entry.create` —
-      [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md)
+      [ADR-028](../../architecture/decisions/adr-028-a-place-can-be-given.md)
 - [ ] The stop in `worker/nn-entry.ts` is **unchanged**. It is still the backstop for any fee
       that prices at zero on the public path, and nothing should be able to reach it now
 
@@ -337,8 +337,10 @@ for.
       proof that counts — the same rule as `accounts-open.md` step 0.2, for the same reason:
       no local check can tell you the Worker secrets are right
 - [ ] It came from **`nn@send.southvillerunningclub.co.uk`** and **pressing Reply reaches
-      `nightingalenightmare@gmail.com`**. Unlike the account emails, these have a working
-      `Reply-To`, and it is worth confirming once that it goes where it should
+      `nightingalenightmare@southvillerunningclub.co.uk`**. Unlike the account emails, these
+      have a working `Reply-To` — moved off Gmail on 31 August 2026,
+      `20260831090000_entries_nn_reply_to_club_domain.sql` — and it is worth confirming once
+      that it goes where it should
 - [ ] **Cancelling that Tester entry produced a second email** saying it was refunded. Step 2
       cancels it anyway, so this costs nothing extra to check
 - [ ] ⚠️ **Somebody understands the daily cap before the window opens.** Resend's free tier is

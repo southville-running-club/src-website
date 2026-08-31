@@ -1,5 +1,10 @@
 # Move the DNS first
 
+> ⚠️ **Done, 8 August 2026.** The move this document proposes and sequences has happened —
+> see [the nameserver-move runbook](runbooks/nameserver-move.md) for what actually
+> happened, including two steps that did not go as this document expected (both annotated
+> in place below). Kept as the reasoning for the ordering, not as a live plan.
+
 **The proposal: move the nameservers to Cloudflare now, with every record still pointing
 at Squarespace, so nothing changes for anybody. Then build on Cloudflare from inside the
 zone.**
@@ -352,8 +357,8 @@ identity.
 | | | Elapsed |
 | --- | --- | --- |
 | **4** | **Capture the zone.** Export from Fasthosts or transcribe all 18 records. **Commit it to this repository** — it is the rollback reference and the diff baseline | 1 evening |
-| **5** | **Lower every TTL at Fasthosts to 300 seconds.** Then wait | **48 hours, passive** |
-| **6** | **Create the zone in Cloudflare, let it scan, then add every missing record by hand.** Set **everything** to DNS-only. The zone is staged but not authoritative — nothing is live yet | 1 evening |
+| **5** | ~~**Lower every TTL at Fasthosts to 300 seconds.** Then wait~~ — **not possible: Fasthosts has no TTL field.** Skipped, and it cost nothing — see [the plan](plan.md) step 25 | **48 hours, passive** |
+| **6** | **Create the zone in Cloudflare, let it scan, then add every missing record by hand.** Set **everything** to DNS-only. The zone is staged but not authoritative — nothing is live yet. **In practice the scan found 12 of the 18 records and missed all four DKIM CNAMEs**, which had to be added by hand from the committed export | 1 evening |
 | **7** | **Diff record by record against the committed export.** Query the Cloudflare nameservers directly rather than eyeballing the dashboard. **Second volunteer checks it** | Same evening |
 | **8** | **Change the nameservers at the registrar.** Quiet weekday morning. **Send and receive a test message on a club address immediately.** Confirm the website still serves, from mobile data as well as home broadband | 15 minutes |
 | **9** | **Watch.** Send and receive on club addresses daily. Read DMARC reports | **48 hours, passive** |
@@ -389,8 +394,10 @@ two waiting periods.
 **NN must not wait for this**, and it does not have to.
 
 Every Cloudflare Pages project gets a free `<project>.pages.dev` hostname immediately —
-real HTTPS, real deploys, previews per pull request. **The NN build needs no DNS at all**
-until the day it wants a club hostname.
+real HTTPS, real deploys, previews per pull request. **In practice everything shipped as a
+Worker instead** (ADR-006/ADR-007), which gets the equivalent `workers.dev` hostname the
+same way; the argument for not waiting on DNS is unchanged. **The NN build needs no DNS at
+all** until the day it wants a club hostname.
 
 So the two tracks run side by side:
 

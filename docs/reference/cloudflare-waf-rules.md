@@ -15,7 +15,7 @@ DNS record changed without updating the zone file is drift.
 | Serves | |
 | --- | --- |
 | [**Opening entries**](../delivery/runbooks/entries-open.md#01--the-rate-limiting-rule-must-be-live) | That runbook's step 0.1 — the one failure in the entry design with no recovery path. It asked for **E1** until 30 August 2026 and asks for **C1** now, because E1 was never created and C1 covers the same `POST /nn/` prefix |
-| [**Opening accounts**](../delivery/runbooks/accounts-open.md) | Rules **A1**–**A4**, and they are that runbook's step 0.1 |
+| [**Opening accounts**](../delivery/runbooks/accounts-open.md) | Asked for **A1**–**A4** by name until 25 August 2026, that runbook's step 0.1. **Never created as their own rules** — the same as E1 above — and **C1** is what step 0.1 actually created and now names |
 
 ---
 
@@ -64,16 +64,18 @@ pages: `POST /nn/` is now the *interest* form and `POST /nn/2026/` is the entry 
 one that holds places.** A rule written to the letter of the issue would cover the harmless
 half and miss the expensive one.
 
-**Twenty a minute**, because a real entrant submits once and, with validation errors on a
-fourteen-field form, perhaps three or four times. Twenty from one address inside a minute is
+**Twenty a minute**, because a real entrant submits once and, with validation errors on the
+entry form (`packages/shared/src/nn-entry.ts` has the current field list — it has grown since
+this was written and is not restated here), perhaps three or four times. Twenty from one
+address inside a minute is
 not somebody filling in a form. The number that is most likely to need raising is this one:
 a mobile carrier puts hundreds of subscribers behind one address, and the morning entries
 open is exactly when a group of them submits at once. **If legitimate blocks are reported,
 raise this before touching anything else**, and record the new number here.
 
 **Block, not a challenge.** A managed challenge on a `POST` interrupts the submission, and
-the entry form does not survive that: fifteen fields typed on a phone on bad signal are
-gone. The mitigation is 60 seconds for the same reason.
+the entry form does not survive that: a form's worth of fields typed on a phone on bad
+signal are gone. The mitigation is 60 seconds for the same reason.
 
 **`/nn/stripe-webhook` is excluded.** Stripe's delivery volume is not a person's, and a block
 there stops payments being *recorded* rather than stopping anything being taken. Nothing is
@@ -119,12 +121,14 @@ sends and a second is nothing. See [what is still open](#what-is-still-open).
 
 ### A4 — the admin surfaces, 10 a minute, blocked for ten
 
-**Two prefixes, because there are two admin surfaces and they overlap in time.**
-`/nn/admin` is today's, gated by the two keys in
-[ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md);
-`/admin/` is the role-gated shell [#58](https://github.com/southville-running-club/src-website/issues/58)
-builds, and [#63](https://github.com/southville-running-club/src-website/issues/63) retires
-the first one afterwards. A rule covering only one of them has a gap for as long as both
+**Two prefixes, because there are two admin surfaces and they overlap in time.** Written
+before either existed: `/nn/admin` was to be gated by the two keys in
+[ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md), and
+`/admin/` the role-gated shell [#58](https://github.com/southville-running-club/src-website/issues/58)
+would build, with [#63](https://github.com/southville-running-club/src-website/issues/63)
+retiring the first afterwards. **#58 has since landed**: `/admin/` is live and `/nn/admin/*`
+only redirects there; #63, which drops the now-unused key-gated database functions, has
+not. A rule covering only one of them has a gap for as long as both
 exist.
 
 **#58 replaced the keys with a role**, so there is no longer a credential to guess at this

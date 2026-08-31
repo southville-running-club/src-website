@@ -39,10 +39,16 @@ to a requirement or a decision is just somebody's preference that survived.
 
 ### Decided
 
+**⚠️ This table used to list every ADR by hand and stopped being updated after the fifth —
+28 exist now.** Restating them here is exactly the kind of duplication that drifts;
+[**the full, current index is `decisions/README.md`**](decisions/README.md#architecture-decision-records),
+which is what to read rather than this section. The five kept below are the ones this
+folder's own framing above refers to directly:
+
 | | |
 | --- | --- |
 | [**ADR-001**](decisions/adr-001-one-monorepo.md) | One monorepo, npm workspaces. `src-race-timing` joins with the Cloudflare port |
-| [**ADR-002**](decisions/adr-002-schema-layout.md) | `public` / `private` / `club` / `intake`. Nightingale Nightmare sign-ups → `intake.nn_interest` |
+| [**ADR-002**](decisions/adr-002-schema-layout.md) | `public` / `private` / `club` / `intake` / `entries` / `identity`. Nightingale Nightmare sign-ups → `intake.nn_interest` |
 | [**ADR-003**](decisions/adr-003-local-development-and-pipeline.md) | `localhost` with fabricated data; the pipeline brings up the same stack and runs acceptance tests |
 | [**ADR-004**](decisions/adr-004-no-staging-environment.md) | No staging environment. Local plus preview deployments |
 | [**ADR-005**](decisions/adr-005-manual-with-a-reviewable-artefact.md) | DNS stays manual against a committed zone file. **Automate by change frequency, not by category** |
@@ -74,8 +80,9 @@ workspace root, then the skeleton, then a Worker on the club domain writing to S
 **That skeleton now exists** — `apps/main` (not the `apps/nn` sketched here; see
 [ADR-006](decisions/adr-006-apps-main-and-hostnames-as-code.md) and
 [ADR-007](decisions/adr-007-one-hostname-paths-not-subdomains.md)) and `apps/timing`, both
-serving a hello-world page from Postgres. What is left of Phase 3 is the sign-up form
-itself, per [the build brief](../delivery/nn-build-brief.md).
+serving a hello-world page from Postgres. **That was the state as of the skeleton landing**
+— Phase 3 has since grown into entries, payment and an admin surface; see [the
+phases](../delivery/phases.md) for where it actually stands.
 
 ### Before the main website build
 
@@ -84,7 +91,7 @@ itself, per [the build brief](../delivery/nn-build-brief.md).
 | ~~Workers or Pages for the main site~~ | ✅ **Settled — Workers.** The nameserver move on 8 Aug 2026 removed the constraint that forced Pages |
 | **Declarative schemas or imperative migrations** | Cheaper to choose before there are migrations to convert |
 | **Astro for the main website**, as a record | Recommended everywhere, recorded nowhere. Already fixed for Nightingale Nightmare by the build brief |
-| **Does the website need member-facing auth at all?** | Answering *no* removes a large amount of build **and** a large amount of personal data |
+| ~~Does the website need member-facing auth at all?~~ | ✅ **Answered yes, 24 August 2026** — [decision 005](../decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth), [ADR-015](decisions/adr-015-member-accounts-on-supabase-auth.md). `/account/` and `/admin/` are both built |
 | **The backup runbook**, with a tested restore | The free tier has **no automated backups**, and continuity says a 2026 URL resolves in 2036. **The largest remaining gap** |
 | **Document naming and the stable-URL contract** | A limited company's public record back to 2015. Every scheme chosen later breaks URLs published earlier |
 | ~~A ~£10/yr throwaway domain to rehearse the DNS move?~~ | **Moot — the move is done**, and the pre-flight testing (`/etc/resolver` against a pending zone) proved sufficient. Still the only way to test **mail authentication** without touching production |

@@ -276,7 +276,7 @@ export async function handleNnSection(
 
   // **Giving a place away, and it is the one thing here with a permission of its own.**
   // `nn.entry.create` is the eighth, and it did not reuse `nn.entry.cancel` for the reason
-  // ADR-021 gives: undoing an entry somebody bought and adding a runner to a course with a
+  // ADR-028 gives: undoing an entry somebody bought and adding a runner to a course with a
   // hard limit are different powers, and this is the only one on the surface that costs the
   // club money rather than changing a record. Checked here and again inside
   // `entries.create_manual_entry()`, which is the control.
@@ -3906,7 +3906,7 @@ function readAssignPerson(
     // **Not in the refusal above, and that is the decision.** The public form will not take an
     // entry without a number; this one will, because a complimentary place is arranged by a
     // volunteer who may have nothing but an email thread — and refusing Kinsi a place over a
-    // phone number would make ADR-021's answer conditional on ADR-025's field.
+    // phone number would make ADR-028's answer conditional on ADR-025's field.
     phone: phone === '' ? null : phone,
   };
 }

@@ -138,7 +138,7 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 | `POST /admin/nn/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
 | `POST /admin/nn/medical-sheet/` | The medical notes as a printable page. Audited as `medical_export`, the same row the CSV writes, because it is the same disclosure in a different wrapper |
 | `POST /admin/nn/export/` | One of the three CSVs. Audited |
-| `POST /admin/nn/entry/` | **One entry in full** — the payment, the people, every ask, the emails owed and what has been done to it. Reached from the *Details* button on any row. A `POST` so no purchase id reaches a URL. **Not audited**, because it discloses what the list and the exports already do — [ADR-023](../../architecture/decisions/adr-024-one-entry-in-full.md) |
+| `POST /admin/nn/entry/` | **One entry in full** — the payment, the people, every ask, the emails owed and what has been done to it. Reached from the *Details* button on any row. A `POST` so no purchase id reaches a URL. **Not audited**, because it discloses what the list and the exports already do — [ADR-024](../../architecture/decisions/adr-024-one-entry-in-full.md) |
 | `GET`/`POST` `/admin/emails/` | The email queue — what the club has told people and what it still owes them. Reading needs `nn.email.read`; `POST` sends a failed message again and needs `nn.email.resend`. [The email runbook](entries-email.md) is what to read beside it |
 | `GET`/`POST` `/admin/people/` | Who holds what, and the two acts that change it |
 
@@ -409,7 +409,7 @@ rest.
 
 **"Assign a place" on `/admin/nn/`, and it needs `nn.entry.create`** — the eighth permission,
 carried by `nn-admin` and deliberately not by `super-admin`.
-[ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md) is why it exists.
+[ADR-028](../../architecture/decisions/adr-028-a-place-can-be-given.md) is why it exists.
 
 It is for a place the club **gives**: the two Kinsi places, and any other partnership place the
 committee agrees. It is not a discount — a 100% code cannot work, because Stripe refuses a
@@ -433,7 +433,7 @@ the start list like any other entry.
 - **It does not email anybody.** The club has an outbox now (#73), but it fires on a purchase
   being *updated* into `paid` and a given place is inserted straight into it — so no confirmation
   is queued. **Tell the person yourself.** Whether it should send one is an open decision, in
-  [ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md).
+  [ADR-028](../../architecture/decisions/adr-028-a-place-can-be-given.md).
 - **It does not collect medical information.** If they have something the first aiders should
   know, ask them to email the race organisers directly — a volunteer typing somebody's condition
   into a form on their behalf would be recording an Article 9 consent nobody gave.

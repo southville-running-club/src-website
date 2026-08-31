@@ -1,6 +1,9 @@
-# ADR-024 — One entry point for a running, not one page
+# ADR-027 — One entry point for a running, not one page
 
-**Accepted**, 29 August 2026.
+**Accepted**, 29 August 2026. **Renumbered from ADR-024 on 31 August 2026** — merged a day
+after [ADR-024, *one entry in full*](adr-024-one-entry-in-full.md), which claimed the
+number first; this file collided with it and is the one renumbered. If something elsewhere
+still cites "ADR-024" meaning *one entry point for a running*, it means this document.
 
 | | |
 | --- | --- |

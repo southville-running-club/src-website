@@ -101,7 +101,7 @@ async function makePendingPurchase(serial: number): Promise<string> {
 }
 
 /**
- * A place that arrives already `paid`, which is what `create_manual_entry()` writes — ADR-021,
+ * A place that arrives already `paid`, which is what `create_manual_entry()` writes — ADR-028,
  * the complimentary place. **No hold, no pending status, no transition**: the whole point is
  * that the update trigger has nothing to watch, which is why #150 existed.
  */

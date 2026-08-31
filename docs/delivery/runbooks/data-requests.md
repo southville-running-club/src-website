@@ -95,10 +95,14 @@ The questions to settle together, and to write the answers to in the reply:
 2. **What is actually being asked to go** — the entrant's name from a published start list, or
    the purchase record behind it? Those are different things and the first is usually the one
    that matters to the person.
-3. **Is there a refund question tangled up in it?** If so it is
-   [a different decision entirely](https://github.com/southville-running-club/src-website/issues/65),
-   and the club has not settled refunds. Do not let a data request become the route by which
-   that gets decided by accident.
+3. **Is there a refund question tangled up in it?** If so it is a different decision
+   entirely — a full refund on cancellation is settled
+   ([ADR-018](../../architecture/decisions/adr-018-cancelling-an-entry.md)), but a partial
+   refund is not, and the club has not settled it. Do not let a data request become the route
+   by which that gets decided by accident. **Correction, 31 August 2026: this used to cite
+   [#65](https://github.com/southville-running-club/src-website/issues/65), which is the
+   member-accounts sign-in tracker and has nothing to do with refunds — removed rather than
+   replaced with a guess.**
 
 **The medical note is not part of this conversation.** It is deleted a month after the race
 automatically, by the cron, and that is unchanged. **What is no longer true is that the club
@@ -149,9 +153,9 @@ made it would be making that decision for the club, silently, every time.
 procedure that makes it true, and if the two ever disagree the notice is the one that is
 binding on the club.
 
-**Three things on that notice are still undecided**, and they are the ones most likely to be
-asked about: who somebody writes to about their data, how long an account is kept, and whether
-deleting an account also deletes a race entry by the same person. They render "To be confirmed
-by the club" and a test counts them. **Until they are settled this runbook is doing their job
-by hand** — which is workable for the handful of requests a running club receives, and is not
-a reason to leave them open.
+**Two things on that notice are still undecided**, and they are among the ones most likely to
+be asked about: how long an account is kept, and whether deleting an account also deletes a
+race entry by the same person. They render "To be confirmed by the club" and
+`privacy.spec.ts`'s `OPEN_DECISIONS` asserts the exact count. **Until they are settled this
+runbook is doing their job by hand** — which is workable for the handful of requests a running
+club receives, and is not a reason to leave them open.

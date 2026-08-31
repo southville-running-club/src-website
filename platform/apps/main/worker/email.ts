@@ -187,7 +187,7 @@ function render(message: OutboxMessage, hasBanner: boolean): RenderedEmail | nul
   /**
    * **A place that cost nothing, which two of these templates quoted a figure at anyway.**
    *
-   * ADR-021 gives a place away as a `paid` purchase at £0 on a £0 fee — Kinsi's two, and the
+   * ADR-028 gives a place away as a `paid` purchase at £0 on a £0 fee — Kinsi's two, and the
    * free place a visually impaired runner's guide is given. Both money sentences below were
    * written for a purchase that went through Stripe, and neither is true of one that did not:
    * the confirmation said *"we have received your payment of £0.00"*, and the cancellation said

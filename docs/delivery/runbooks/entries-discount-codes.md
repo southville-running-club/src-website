@@ -126,7 +126,7 @@ happen by accident.
 **A 100% code.** Stripe refuses a zero-total Checkout session and will not charge below £0.30 in
 GBP, so a code that zeroes a fee produces a held place that can never be completed. A free place
 is **given** from `/admin/nn/` instead — see
-[ADR-021](../../architecture/decisions/adr-021-a-place-can-be-given.md) and
+[ADR-028](../../architecture/decisions/adr-028-a-place-can-be-given.md) and
 [the admin runbook](entries-admin.md#assigning-a-complimentary-place).
 
 **A fixed amount off.** `percent_off` is a percentage and there is no pence-off column. Adding

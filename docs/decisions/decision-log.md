@@ -3,9 +3,10 @@
 Where choices get recorded once they are made — and, just as importantly, how they get
 **re-opened** when the ground shifts.
 
-**Nothing is recorded here yet.** [Requirements](../foundations/requirements.md) and
-[options](../solutions/options.md) come first; decisions come after. That order is the
-point of this branch.
+Eight decisions are recorded below. [Requirements](../foundations/requirements.md) and
+[options](../solutions/options.md) came first; decisions came after — that order is the
+point of this branch, and it is why the reasoning in each record below still points back
+to them.
 
 ---
 
@@ -93,9 +94,14 @@ volunteers.
 
 # Records
 
-Proposed by the Web Manager, 7–8 August 2026. **Not yet ratified by the committee** — the
-[governance gates](../foundations/requirements.md#legal-and-governance) still stand, and
-nothing here authorises payment work.
+**001–004 were proposed by the Web Manager, 7–8 August 2026.** This repository does not
+carry a separate record of the committee formally ratifying them, but the build has
+proceeded on all four for weeks: Cloudflare and Supabase are what production actually runs
+on, mailboxes are bought, and the old and new sites have run in parallel throughout. **The
+governance gates these were originally recorded ahead of are met** — payment work is
+authorised. **005–008 are committee decisions in their own right**, each with its own date
+and provenance stated in the record: 005 and 006 on 24 August, 007 on 29 August, 008 on 30
+August. Stripe Checkout has been live and taking real money since 27 August.
 
 ---
 
@@ -238,18 +244,22 @@ cannot outlive Squarespace. It is not a decision taken here; see
 - **Five vendor facts** listed under
   [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for
-- **The 2026 entry window** — the race director has proposed **opening Tuesday 1 September
-  2026 at 07:00 and closing Friday 30 October at 17:00**, Europe/London, and **the committee
-  has not ratified it.** It stays out of `entries.events` until they do, and that is not
-  bookkeeping: `entries_open_at` is not configuration waiting to be switched on, it *is* the
-  switch, so a date in that column is a dated instruction to start selling places unattended.
-  [The entries-open runbook](../delivery/runbooks/entries-open.md) owns the moment and carries
-  the exact `update`; its stop conditions are not met today. The conversion either side of the
-  clocks change is already tested — `london-time.test.ts` asserts the open is BST and the close
-  is GMT, so an hour of drift cannot arrive with the ratification
-- **Whether Southville is affiliated to ARC or to UK Athletics**, which decides
-  [#72](https://github.com/southville-running-club/src-website/issues/72) and therefore whether
-  the club's own members can claim the £18 price at the club's own race. See decision 006
+- ~~**The 2026 entry window**~~ — **ratified by the committee over WhatsApp on 24 August
+  2026**: opens Tuesday 1 September 2026 at 07:00, closes Friday 30 October at 17:00,
+  Europe/London. `entries_close_at` is applied. **Ratifying the times is not the same as
+  arming the column, and that is deliberate, not an oversight**: `entries_open_at` is not
+  configuration waiting to be switched on, it *is* the switch, so a date in that column is a
+  dated instruction to start selling 250 places unattended — it is still null, gated on the
+  live Stripe keys being installed. [The entries-open runbook](../delivery/runbooks/entries-open.md)
+  owns that moment and carries the exact `update`. The conversion either side of the clocks
+  change is already tested — `london-time.test.ts` asserts the open is BST and the close is
+  GMT
+- ~~**Whether Southville is affiliated to ARC or to UK Athletics**, which decides #72~~ —
+  **overtaken, 29 August 2026.** The committee decided not to verify affiliation at all —
+  [decision 007](#007--stop-asking-for-and-holding-england-athletics-numbers) — so the
+  question this bullet posed no longer has a build consequence: a runner's own word decides
+  which price they pay, and [#72](https://github.com/southville-running-club/src-website/issues/72)
+  is closed
 
 ---
 

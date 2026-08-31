@@ -1,5 +1,12 @@
 # Nightingale Nightmare: interest, entry, payment, confirmation, the privacy notice and the routes
 
+> ⚠️ **Historical — a pull-request body, frozen as merged on 14 August 2026.** It describes
+> the platform as it stood that day: no confirmation email, `/nn/` carrying both entry
+> states, four `null` privacy-notice decisions, seven anon-callable functions. All of that
+> has moved on substantially — see [the pull-requests folder
+> README](README.md) and [the phases](../phases.md) for what is current. Kept as the
+> review record, not edited to track the present.
+
 **This is more than should be reviewed at once, and that is a fair criticism rather than a
 framing.** Six slices arrived on one branch: the interest form and the `entries` schema, the
 entry form, taking money, confirming it, the privacy notice all of that made necessary, and

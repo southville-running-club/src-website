@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 /**
  * Assigning a complimentary place — the one function here that gives something away.
  *
- * `entries-tester.test.ts`'s method, applied to ADR-021. Every rule is attempted from each of
+ * `entries-tester.test.ts`'s method, applied to ADR-028. Every rule is attempted from each of
  * the three shapes a caller can take:
  *
  *   * an **anonymous** client, which is what a script with the published anon key is;
@@ -117,7 +117,7 @@ interface Person {
    *
    * `create_manual_entry()` is the one writer that does **not** require it: a complimentary
    * place is arranged by a volunteer who may have nothing but an email thread, and refusing
-   * Kinsi a place over a phone number would make ADR-021's answer conditional on ADR-025's
+   * Kinsi a place over a phone number would make ADR-028's answer conditional on ADR-025's
    * field. It is stored when it is given, which is what this fixture proves.
    */
   phone: string | null;
@@ -309,7 +309,7 @@ describe('what a given place actually is', () => {
 
     // **`paid`, and deliberately not a fifth status.** The capacity predicate counts
     // `status = 'paid'`, so a value it did not know about would make a given place invisible
-    // to the count and let the same place be sold to somebody else. See ADR-021.
+    // to the count and let the same place be sold to somebody else. See ADR-028.
     expect(row.status).toBe('paid');
     expect(row.amount_pence).toBe(0);
     expect(row.fee_code).toBe('complimentary');

@@ -41,18 +41,33 @@ it never changes *where*.
    code — `docker exec supabase_db_src-platform psql -U postgres -d postgres -c "..."`
    against `pg_get_functiondef`/`information_schema` answers "is this actually applied?"
    directly, faster than guessing.
-4. **For Playwright, target the one spec file, on one engine.** Build once —
-   `npm run build && npm run build:worker` from `platform/` — then
-   `npx playwright test <path/to/spec.ts> --project=chromium`. Skip `mobile-safari` and
-   `no-javascript` locally:
-   - `no-javascript` already **skips** anything tagged `@requires-js` via
-     `grepInvert: /@requires-js/` in `playwright.config.ts` — running it locally against a
-     `@requires-js` spec proves nothing that project's own config doesn't already prove by
-     construction.
-   - `mobile-safari` (WebKit) is where this repository's own documented traps have actually
-     been found (see `CLAUDE.md`'s "Traps that have already cost time") — it is real
-     coverage, not redundant. Skip it locally for speed, but do not skip it forever: it runs
-     in CI on the pull request, and a webkit-only failure there is not a false alarm.
+4. **For Playwright, target the one spec file, on one engine, through `./dev e2e`.**
+   `./dev e2e <path/to/spec.ts> --project=chromium` from the repository root builds the
+   site and exports the three Supabase variables a scoped run needs — without which the
+   fixtures throw `supabaseKey is required` from a file the failing test never mentions.
+   Prefer this over a raw `npx playwright test`, which does neither.
+   - **`nn-entry.spec.ts` and `nn-signup.spec.ts` need
+     `--config=playwright.config.serial.ts`.** The base `playwright.config.ts` excludes
+     both via `testIgnore` — they share state (`entries.events.entries_open_at`) that
+     cannot run in parallel with the rest of the suite — so asking for either without the
+     serial config gets **"no tests found", which reads as a pass**. This is a documented
+     trap (`CLAUDE.md`), not an edge case: `./dev e2e nn-entry.spec.ts --project=chromium
+     --config=playwright.config.serial.ts`.
+   - Skip `mobile-safari` and `no-javascript` locally for iteration speed:
+     - `no-javascript` already **skips** anything tagged `@requires-js` via
+       `grepInvert: /@requires-js/` in `playwright.config.ts` — running it locally against a
+       `@requires-js` spec proves nothing that project's own config doesn't already prove by
+       construction.
+     - `mobile-safari` (WebKit) is where this repository's own documented traps have actually
+       been found (see `CLAUDE.md`'s "Traps that have already cost time") — it is real
+       coverage, not redundant. Skip it locally for speed, but do not skip it forever: it runs
+       in CI on the pull request, and a webkit-only failure there is not a false alarm.
+   - **If the change touches layout, a stylesheet, or an assertion about where something is
+     on the page, run `./dev e2e --linux` before pushing**, even though it is slower than a
+     bare Chromium run. `CLAUDE.md` documents three separate sessions burned on a change
+     that was green on a Mac and red on CI because of font-metric differences between
+     platforms — `--linux` runs the browsers in CI's own container image and reproduces
+     that gap locally, in seconds rather than a failed CI run and a guess.
 5. **Reserve the full `./dev check` / `./dev test` for a final pass** — before opening the
    pull request, or when the change is broad enough that "which area" from step 1 is
    genuinely "several" (a schema migration, a shared module many routes import, a change to
@@ -70,11 +85,11 @@ it never changes *where*.
    problem, not a feature problem — read what the tool actually captured before rewriting
    the code the test is supposedly checking.
 7. **Never run two `./dev`-family or Docker-touching commands at once.** `./dev check`,
-   `./dev test` and `./dev up` all call `stop_workers`, which kills by command-line pattern
-   machine-wide — documented in `CLAUDE.md` as "a second `./dev test` kills the first."
-   Before starting one, check for anything already running against the same checkout
-   (`ListAgents`, or `pgrep -fl 'dev test\|dev check\|dev up'`) rather than assuming a clear
-   field.
+   `./dev test`, `./dev up` and `./dev e2e` all call `stop_workers`, which kills by
+   command-line pattern machine-wide — documented in `CLAUDE.md` as "a second `./dev test`
+   kills the first." Before starting one, check for anything already running against the
+   same checkout (`pgrep -fl 'dev test\|dev check\|dev up\|dev e2e'`) rather than assuming a
+   clear field.
 8. **Push once the targeted check is green.** Do not chase a full local green as a
    precondition for every push — that is CI's job, and it will do it more thoroughly than a
    pre-push run can afford to.
@@ -90,9 +105,9 @@ nothing more about the actual change than a scoped run would. The fast path:
 # Iterate on the schema/handler fix — seconds, no Docker
 cd platform && npx vitest run --project unit apps/main/tests/unit/account.test.ts
 
-# Once green, check the browser behaviour the unit tests can't reach
-npm run build && npm run build:worker
-npx playwright test apps/main/tests/e2e/account.spec.ts --project=chromium
+# Once green, check the browser behaviour the unit tests can't reach —
+# ./dev e2e builds the site and exports the Supabase env the fixtures need
+./dev e2e apps/main/tests/e2e/account.spec.ts --project=chromium
 ```
 
 Both green is the actual signal to push. A `./dev check` had already run once, earlier,

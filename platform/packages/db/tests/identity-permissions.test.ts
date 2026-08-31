@@ -193,7 +193,7 @@ describe('the shape of the model', () => {
       // gives somebody an entry at no charge. It did not reuse `nn.entry.cancel` — the way
       // transferring did — because undoing an entry somebody bought and adding a runner to a
       // course with a hard limit are different powers, and this is the one you would want to
-      // withhold on its own. See ADR-021.
+      // withhold on its own. See ADR-028.
       'nn.entry.create',
       'nn.entry.export',
       'nn.entry.read',

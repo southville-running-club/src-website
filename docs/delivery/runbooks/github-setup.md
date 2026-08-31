@@ -1,4 +1,4 @@
-# Runbook — GitHub, and the three secrets everything else needs
+# Runbook — GitHub, and the five secrets everything else needs
 
 Getting the repository into a state where the pipeline can deploy. **About fifteen
 minutes**, done once.
@@ -23,7 +23,7 @@ Worth stating plainly, because the asymmetry looks like an oversight and is not:
 
 | | Credential in GitHub? | Why |
 | --- | --- | --- |
-| **Supabase** | **Yes — three secrets** | A database has no git integration. The alternative is a volunteer running migrations from a laptop: unreviewed, unlogged, invisible to the other volunteer |
+| **Supabase** | **Yes — five secrets** | A database has no git integration. The alternative is a volunteer running migrations from a laptop: unreviewed, unlogged, invisible to the other volunteer |
 | **Cloudflare** | **No, none** | Workers Builds connects from Cloudflare's side. **A credential that does not exist cannot leak** |
 
 ---
@@ -180,17 +180,23 @@ Two things reduce that risk in the meantime, and neither removes it:
 
 Carried in the [decision log](../../decisions/decision-log.md) with the plan question.
 
-## 5. The three secrets
+## 5. The five secrets
 
 **Settings → Secrets and variables → Actions → New repository secret.**
 
-All three come from [the Supabase runbook](supabase-setup.md) — do that one to get them.
+The first three come from [the Supabase runbook](supabase-setup.md) — do that one to get
+them. The last two are Turnstile's and Resend's own secrets, added later as `[auth.captcha]`
+and `[auth.email.smtp]` were switched on; both are documented in full, with where each value
+comes from, in [`apps/main/README.md`'s manual-steps table, steps 9 and
+13](../../../platform/apps/main/README.md#manual-steps).
 
 | Name | What it is | Where it comes from |
 | --- | --- | --- |
 | `SUPABASE_ACCESS_TOKEN` | A personal access token | Supabase → Account → Access Tokens |
 | `SUPABASE_PROJECT_REF` | `ketipxpyjjglwpqazsft` | Supabase → Settings → General |
 | `SUPABASE_DB_PASSWORD` | The database password | Supabase → Settings → Database |
+| `SUPABASE_AUTH_CAPTCHA_SECRET` | The Turnstile **secret** key | Cloudflare Turnstile — #53 |
+| `SUPABASE_AUTH_SMTP_PASSWORD` | A Resend API key, Sending access only | Resend — #50 |
 
 Or from a terminal, which keeps the value out of a browser field and out of your clipboard
 history:
@@ -199,7 +205,7 @@ history:
 gh secret set SUPABASE_ACCESS_TOKEN --repo southville-running-club/src-website
 ```
 
-- [ ] All three listed under **Actions secrets**. The values are never displayable again —
+- [ ] All five listed under **Actions secrets**. The values are never displayable again —
       that is the point. Keep them in the club's password manager as well.
 
 > **A secret that was ever committed is compromised and must be rotated, not deleted.** Git
@@ -215,7 +221,7 @@ changing it.
 
 - [ ] Open a pull request. **`Lint, types, tests, build`** runs and passes — eight gates
       including a real Postgres and migrations applied from zero.
-- [ ] **Actions → Deploy database → Run workflow.** It checks the three secrets first and
+- [ ] **Actions → Deploy database → Run workflow.** It checks all five secrets first and
       fails immediately with `Missing repository secrets: …` if any is absent, rather than
       with a Supabase CLI error several steps later.
 

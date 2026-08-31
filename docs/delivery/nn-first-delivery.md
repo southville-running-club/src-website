@@ -1,5 +1,12 @@
 # Nightingale Nightmare first
 
+> ⚠️ **Historical — written before the build, and its open questions are answered now.**
+> The race date, the entry price and the England Athletics pricing question it lists as
+> blockers are all settled (see [the phases](phases.md) and the decision log); the "Full
+> On Sport vs the club's own site" question it argues from Response B was decided the
+> other way — [the plan](plan.md) step 22 records "the club's own site, with Stripe." Kept
+> for why NN was built first, not as a live description of what remains open.
+
 The first thing the club builds, why it is this and not the website, and what it forces to
 be decided.
 

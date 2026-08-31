@@ -1,5 +1,9 @@
 # Target state
 
+*Written August 2026 — still the destination, though several of its open questions have
+since been answered; each is noted in place below rather than the whole file being
+rewritten.*
+
 What the club has when this is finished.
 
 [Current state](current-state.md) is where things are. [Problem
@@ -178,10 +182,16 @@ results, newsletters and news clearly belong in data. Policies and page structur
 belong in code. The boundary in between — a kit price, a discount partner, a committee
 member's name — is not yet drawn, and it is the central design question of the website.
 
-**What are the actual entities?** The most valuable discovery in this work was that the
-£2.50 payers **are not members**. Person, member, subscriber, entrant, customer and runner
-are distinct and overlapping, and getting them wrong would build today's confusion into
-the schema permanently. A domain model is needed before any table is created.
+**What are the actual entities? — answered.** The most valuable discovery in this work was
+that the £2.50 payers **are not members**. Person, member, subscriber, entrant, customer and
+runner are distinct and overlapping, and the domain model this question called for is now
+built across [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md),
+[ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md),
+[ADR-016](../architecture/decisions/adr-016-registered-is-not-a-member.md),
+[ADR-020](../architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md),
+[ADR-021](../architecture/decisions/adr-021-the-club-tells-people-by-outbox.md) and
+[ADR-022](../architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md), and
+named precisely in [the glossary](glossary.md).
 
 **How much of Squarespace's commerce state carries over?** Customer accounts, order
 history and payment records exist today. Carrying them is work; abandoning them is a

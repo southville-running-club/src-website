@@ -1,5 +1,8 @@
 # Dropping the England Athletics columns — the contract step
 
+**Status: not run as of 31 August 2026.** Owned by whichever volunteer next has a quiet
+moment — it is explicitly not urgent (see below) and carries no deadline of its own.
+
 **One migration, written once, after the build that stopped collecting has been deployed.** It
 removes `entries.entrants.ea_number`, `entries.fees.requires_ea_number`, the keys the two reads
 still emit, and **two** of `transfer_entry()`'s three forms — see step 3, which grew on
@@ -92,16 +95,35 @@ verbatim-plus-one-line treatment every other read here has had.
 added an eleventh argument on 30 August 2026, and it carries `p_ea_number` too.** It had to:
 Postgres identifies a function by its argument *types*, and the phone number could not be a
 tenth `text` because that signature is already the England Athletics form, which
-`create or replace` cannot rename. So this step is bigger than it was, and the shape it is
-aiming at is **one function taking ten arguments, the tenth being `p_phone`**.
+`create or replace` cannot rename.
 
-The Worker calls the **eleven**-argument form. The nine- and ten-argument forms are wrappers
-that delegate with a null phone.
+**Name each existing form by what it actually is, not by its argument count alone** — two of
+the three collide on count once the EA argument is gone:
+
+| Form (arguments, `uuid` first) | What it carries |
+| --- | --- |
+| **9** (`uuid` + 8 `text`) | The pre-EA wrapper. Delegates with a null EA number |
+| **10** (`uuid` + 9 `text`) | The current live form — 10th argument is `p_ea_number text` |
+| **11** (`uuid` + 9 `text` + `date` + `text`) | ADR-025's — the Worker's actual call today. Carries both `p_ea_number` and, as the 11th argument, `p_phone` |
+
+**⚠️ The target shape this step is aiming at — one function taking ten arguments, the tenth
+being `p_phone text` instead of `p_ea_number text` — has the *identical* argument-type
+signature to today's live 10-argument form.** `create or replace` on that signature does not
+add a fourth overload: it silently redefines the existing one. That means the ordinary
+expand/contract move — define the new function alongside the old ones, redeploy the Worker,
+then drop what nothing calls — **does not work for the 10-argument slot specifically**, because
+there is no way to have a `p_ea_number`-meaning 10-argument form and a `p_phone`-meaning
+10-argument form coexist. Whoever writes this migration needs to resolve that before running
+it — for example by dropping the 10-argument EA-number form first, in a step that has no
+successor to fail over to, or by giving the new function a different argument order so its
+type signature does not collide. **This runbook does not yet have that answer**, and running
+the drop-and-recreate sequence below as written on a live database mid-deploy is the exact
+risk expand/contract exists to prevent.
 
 1. Recreate the implementation as a **ten**-argument function ending `p_phone text`, with the
    `ea_number_required` branch and the `v_ea` variable deleted — both are unreachable, because
    no fee can require a number.
-2. Drop all three of the old forms.
+2. Drop all three of the old forms — but see the warning above first.
 
 ```sql
 drop function entries.transfer_entry(uuid, text, text, text, date, text, text, text, text, text, text);
@@ -109,8 +131,8 @@ drop function entries.transfer_entry(uuid, text, text, text, date, text, text, t
 drop function entries.transfer_entry(uuid, text, text, text, date, text, text, text, text);
 ```
 
-**Drop the two wrappers only once the Worker calls the new ten-argument form**, which is the
-ordinary expand/contract sequencing and is why this is a step rather than a line. Nothing
+**Drop the nine- and eleven-argument wrappers only once the Worker calls the new
+ten-argument form**, which is the ordinary expand/contract sequencing for those two. Nothing
 sequences a migration against the Cloudflare deploy.
 
 **And update `packages/shared/src/admin.ts`'s `transferEntry`**, which names `p_ea_number: null`

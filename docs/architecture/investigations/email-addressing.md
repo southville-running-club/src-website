@@ -7,7 +7,9 @@ There is already a document that costs the options ([email](../../solutions/emai
 one that designs the transactional sender
 ([Resend](../../solutions/resend-programmatic-email.md)). Neither answers the question
 somebody actually has in front of a diff — **what is true right now, and what may I put in
-this footer** — which is what this page is for.
+this footer** — which is what this page is for. **Unlike the other investigations in this
+directory, this one is meant to stay a live reference rather than be settled by one ADR** —
+check its own dated notes below for how current a given claim is.
 
 It sits beside [networking](networking.md) deliberately: the same zone carries the website
 and the club's mail, so the two documents constrain each other.
@@ -111,7 +113,7 @@ exists to prevent: programmatic volume sharing a reputation, and a sending limit
 inbox the committee depends on.
 
 > **Today that rule is knowingly broken.** Resend's account and DNS are
-> [now in place](../../solutions/resend-programmatic-email.md#current-status-account-and-dns-done-gotrue-sending-info-still-used-directly),
+> [now in place](../../solutions/resend-programmatic-email.md#current-status-built-and-sending--73-25-august-2026),
 > but the Worker's own send call is not written yet, so `info@` still sends this
 > programmatic mail directly in the meantime — tolerable only because there is no
 > confirmation email yet and the volume is zero. **The first live entry is the trigger to

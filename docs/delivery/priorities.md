@@ -1,5 +1,12 @@
 # Priorities
 
+> ⚠️ **Written 7 August 2026, before the build started.** The "decisions that block
+> building" table below (hosting, data platform, payments, DNS) is now entirely settled —
+> see [the decision log](../decisions/decision-log.md) and [the phases](phases.md) for
+> what was chosen and when. Two items in "actions that block nothing" are struck through
+> or corrected in place below; the rest of this document is kept as the reasoning for an
+> ordering that, by and large, is what happened.
+
 What has to happen, in what order, and why.
 
 **There are two fixed dates. Everything else is ordered by dependency, not by calendar.**
@@ -231,10 +238,11 @@ reduce risk immediately:
   cancelling before it requires is still open.
 - **Turn on two-factor authentication for Squarespace Payments.** It is not enabled, and
   that account receives every pound the club takes online.
-- **Settle the Nightingale Nightmare race date.** It blocks race planning, and the
-  clocks-change weekend makes it a technical input.
-- **Apply for England Athletics verification access.** The lead time belongs to them, and
-  a fallback exists meanwhile, so applying early costs nothing.
+- ~~Settle the Nightingale Nightmare race date~~ — **done: Sunday 1 November 2026, 11:00.**
+- ~~Apply for England Athletics verification access~~ — **superseded, 29 August 2026.** The
+  committee decided not to verify at all: a runner states their affiliation and the club
+  takes their word for it — [decision
+  007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
 - **Find out what the `mcp` DNS record serves**, before the club takes responsibility for
   the zone.
 

@@ -100,8 +100,10 @@ A `failed` message usually means one of:
 | `unknown template …` | A deploy is mid-flight — the database knows a message the Worker does not. It clears itself if the deploy lands within about fifteen minutes; past that the message goes to `failed` and needs a re-send |
 
 **A typo in an address cannot be fixed from the admin surface** — correcting an entry is still a
-stop-and-ask. Email the runner from `nightingalenightmare@gmail.com` directly and tell them their
-place is safe.
+stop-and-ask. Email the runner from `nightingalenightmare@southvillerunningclub.co.uk` directly
+and tell them their place is safe — **not the old Gmail address**, which stopped being the
+club's reply-to on 31 August 2026, per
+[the runbook](nn-email-aliases.md#stage-3--the-old-gmail-address).
 
 ---
 

@@ -1,9 +1,14 @@
 # Options
 
+> ⚠️ **Superseded, 8–24 August 2026.** Every category below is now decided — Cloudflare,
+> Supabase, Stripe, and the choices recorded in [the decision
+> log](../decisions/decision-log.md). Kept as the comparison the club actually judged
+> vendors against, not as an open question.
+
 The solution space for each capability, and how to judge between them.
 
-Nothing here is decided. Named products appear as **examples of a category**, not as
-recommendations — the categories are the useful part, because they survive a vendor
+Named products appear as **examples of a category**, not as recommendations at the time
+this was written — the categories are the useful part, because they survive a vendor
 changing its pricing.
 
 Read [requirements](../foundations/requirements.md) first; this is meaningless without

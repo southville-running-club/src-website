@@ -1,5 +1,9 @@
 # Local development and testing
 
+**✅ Settled by [ADR-003](../decisions/adr-003-local-development-and-pipeline.md), 8 August
+2026** — local development on `localhost` with mock data, acceptance tests in the pipeline.
+Kept as the reasoning; `./dev up`/`./dev check`/`./dev test` are what it produced.
+
 Running the whole platform on a laptop, validating it properly, and doing both **without
 touching the club's domain**.
 

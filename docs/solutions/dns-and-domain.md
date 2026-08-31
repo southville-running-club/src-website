@@ -26,12 +26,14 @@ this question live are in [platform options](platform-options.md).
 
 ## Four separable things
 
-| | What it is | Where it is today | Cost |
-| --- | --- | --- | --- |
-| **1. Registration** | Who the club's domain is registered through | **Fasthosts** *(assumed — unverified)* | Part of the £15.40 |
-| **2. Authoritative DNS** | Who answers queries for the zone | Fasthosts | Part of the £15.40 |
-| **3. Mail routing** | The MX target, SPF, DKIM, DMARC | Fasthosts livemail, **forwarding to Gmail** | Included |
-| **4. Individual records** | Where `www` and the apex point | Squarespace | — |
+**As at 7 August 2026, before any of the moves below happened:**
+
+| | What it is | Where it was then | Where it is now | Cost |
+| --- | --- | --- | --- | --- |
+| **1. Registration** | Who the club's domain is registered through | **Fasthosts** *(assumed — unverified)* | Confirmed at Fasthosts, under the Web Manager's personal account | Part of the £15.40 |
+| **2. Authoritative DNS** | Who answers queries for the zone | Fasthosts | **Cloudflare**, since 8 August 2026 | Part of the £15.40 |
+| **3. Mail routing** | The MX target, SPF, DKIM, DMARC | Fasthosts livemail, **forwarding to Gmail** | Real Fasthosts mailboxes — decision 003 | Included |
+| **4. Individual records** | Where `www` and the apex point | Squarespace | Cloudflare | — |
 
 Any of these can move without the others. In particular:
 

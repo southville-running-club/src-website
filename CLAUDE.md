@@ -175,23 +175,26 @@ re-run.
   may. **Three Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
   `ENTRIES_WEBHOOK_KEY` — never in this repository, never in `wrangler.jsonc`, never in a `vars`
   block. A real key on a machine belongs in `apps/main/.dev.vars`, which is gitignored.
-  **Registering the Stripe dashboard endpoint is still a human's job**, and it is the last of
-  the manual steps in `apps/main/README.md` because it needs the production URL.
+  **Registering the Stripe dashboard endpoint is still a human's job**, and it is step 5 of
+  the manual steps in `apps/main/README.md` (test-mode order; the live-key swap, step 15, is
+  the one that is last before entries open) because it needs the production URL.
 - **Granting the anon role anything on a table, or adding a function it may execute.** The
-  thirteen it may call are named in `packages/db/tests/entries.test.ts`, and that list is there
-  to make a fourteenth a decision somebody takes in a diff rather than a side effect. **Reading
-  people is settled** — the admin surface is
+  fifteen it may call are named, exactly, in `packages/db/tests/entries.test.ts` — **the count
+  has already changed once** (it was thirteen before the outbox's two drain functions were
+  added), which is the argument for reading the test rather than trusting a number in prose —
+  and that list is there to make a sixteenth a decision somebody takes in a diff rather than a
+  side effect. **Reading people is settled** — the admin surface is
   [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) and its
   amendment: originally a Worker secret plus a key per person, and **since #57 and #58 the
   `nn-admin` role**, checked by `identity.has_permission()` since #107 and by
-  `identity.has_role()` before it. Fourteen functions are granted to `authenticated` now, and
+  `identity.has_role()` before it. Sixteen functions are granted to `authenticated` now, and
   `entries.test.ts` names them with the argument for each. **Cancelling an entry is settled and
   nothing else about editing one is.** Somebody holding `nn.entry.cancel` — which `nn-admin`
   carries and `super-admin` deliberately does not — may refund one purchase in full, which
   deletes its entrants and returns the place —
   [ADR-018](docs/architecture/decisions/adr-018-cancelling-an-entry.md). **Giving a place away
   is settled too, and it came off this list on 28 August 2026** —
-  [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md). Somebody holding
+  [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md). Somebody holding
   `nn.entry.create` may assign a **complimentary** place from `/admin/nn/`: a `paid` purchase at
   £0 on a £0 fee, audited, under the same advisory lock, re-checking capacity, the minimum age
   and one-runner-one-place. It is the answer to the two Kinsi places and to the visually
@@ -901,8 +904,9 @@ were argued from, so what exists is a burst brake on the entry form and close to
 against credential stuffing. **Whether the account endpoints justify a paid plan is the first
 money question this platform has raised, and it is open.** The runbooks are `accounts-open.md`,
 whose step 0.1 is what created C1 and whose remaining stop condition is step 0.3 — **nobody has
-watched the rule fire** — and `entries-open.md` step 0.1, which still asks for **E1** by name
-and has not been reconciled with C1 covering its `/nn/` prefix.
+watched the rule fire** — and `entries-open.md`, whose step 0.1 was reconciled to C1 on 30
+August 2026: it now says plainly not to go looking for E1, since it does not exist and never
+will, and that C1's `/nn/` coverage is what already meets this step.
 
 **There is a staff backend at `/admin/`, and everything under it answers 404 to anybody who may
 not be there.** Signed out, a plain `registered`, the wrong role, an address nobody built — all the
@@ -1030,7 +1034,7 @@ every call naming the original eight as ambiguous. **A use is returned when the 
 `expire_pending_holds()` on a lapsed hold, `cancel_entry()` on a refund — because it only ever
 incremented before, so 25 abandoned checkouts would have exhausted the whole allocation with
 nobody entered. **A 100% code is not the way to give a free place**: Stripe refuses a zero-total
-session and will not charge below £0.30, which is what ADR-021 is the answer to.
+session and will not charge below £0.30, which is what [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md) is the answer to.
 
 **Every rule is enforced in the database, and Zod is never the only place one lives.** Slice E
 found `create_pending_purchase` writing `ea_number` without ever consulting
@@ -1170,7 +1174,7 @@ either. It reuses `nn.entry.cancel` rather than adding a permission of its own; 
 eighth permission exists now and it is not this one** — `nn.entry.create`, which gives a place
 away rather than moving one, and which was argued as its own permission precisely because
 adding a runner to a course with a hard limit is a different power from undoing an entry
-somebody bought. See [ADR-021](docs/architecture/decisions/adr-021-a-place-can-be-given.md).
+somebody bought. See [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md).
 
 **A request is not a status, and that is load-bearing.** `requested_action` is its own column
 beside `attention` rather than a sixth value of `status`, because the capacity predicate
@@ -1355,10 +1359,13 @@ deadline calls Supabase's `/logout`, so an expiry revokes rather than forgets. *
 both of these itself on a Pro plan and the club is on the free tier** — putting them in
 `[auth]` anyway would be refused, and there is no partial apply.
 
-**A free place cannot be completed**, and it is the one gap somebody meets. Stripe refuses a
-zero-total Checkout session, so a visually impaired runner's guide is told so plainly and
-given the race address. Fixing it means deciding that an unpaid entry counts as paid, which
-is a committee decision rather than a build one.
+**A free place cannot be completed through the entry form, and that gap is answered rather
+than open.** Stripe refuses a zero-total Checkout session, so a discount code can never
+produce a £0 entry on its own. The answer is [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md),
+28 August 2026: somebody holding `nn.entry.create` assigns a **complimentary** place from
+`/admin/nn/` — a `paid` purchase at £0 on a £0 fee, audited, under the same advisory lock,
+re-checking capacity, the minimum age and one-runner-one-place. It is what the two Kinsi
+places and a visually impaired runner's guide's place both use now.
 
 The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).
