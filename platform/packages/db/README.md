@@ -43,8 +43,8 @@ are the thing to read for a current number.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
-| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **The `stripe` row, for the payment webhook, is live** — RLS on, no policy, no grant, ships with a null digest that refuses everything until installed. The `admin` row belonged to the retired two-key admin scheme (see below) |
-| `entries.admin_keys` | **Retired, and unused.** Belonged to the two-key admin scheme (one row per person's key digest); the admin surface is reached by signing in and holding a role since #57/#58. Ships empty and stays empty |
+| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **Both rows are live**: `stripe` for the payment webhook, and `admin` for the five `admin_*` functions below — RLS on, no policy, no grant, ships with a null digest that refuses everything until installed. **The `admin` row is a loose end, not a retired mechanism** — see below |
+| `entries.admin_keys` | One row per person who may read the admin surface via the old scheme: their key's digest, and a handle rather than a name. **The Worker stopped issuing these since #57/#58** — the admin surface is now reached by signing in and holding a role — but this document does not have current evidence of whether the table was ever emptied |
 | `entries.admin_audit` | Who opened the admin surface, who read a medical note, who exported what. **Never the contents.** RLS on, no grant |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
 | `entries.current_entry_state()` | The same answer for the **current running of a recurring race**, so a page about the race never has to name a year. Discloses nothing `entry_state()` does not |
@@ -57,22 +57,33 @@ are the thing to read for a current number.
 | `entries.delete_expired_medical_notes()` | Deletes medical notes for events past their retention period. Housekeeping, on the five-minute cron. **`/nn/privacy/` no longer publishes this period as a promise** — since 30 August 2026 that page is the committee's document verbatim and names no interval, so the tie between the enforced period and a published one now survives only in `entries-retention.test.ts`. **The one anon-callable function that takes no key**, deliberately, because a legal retention obligation should not stop being kept on any day the admin key was not installed |
 | `entries.record_admin_action()` | Writes one audit row. **Granted to nobody** — a forgeable audit trail is worse than none |
 
-**`entries.admin_sign_in()` and `entries.admin_key_ok()` are unreferenced and retired**,
-along with the rest of the two-key scheme, since #57/#58. **The other four still exist and
-are still active** — they still appear in migrations as recent as 29 August 2026 — but their
-auth mechanism has moved: the admin surface is now reached by signing in and holding a role
-(`nn-admin`, or `people-admin`/`super-admin` where relevant), checked through
-`identity.has_permission()`, rather than by presenting a key. Read the rows below as "still
-here, differently gated" rather than "takes a key". See [`CLAUDE.md`](../../../CLAUDE.md)'s
-admin-surface section and `tests/entries.test.ts` / `tests/identity-permissions.test.ts` for
-the current signatures and grants.
+**Correction, 31 August 2026 — the previous version of this note was wrong.** It said
+`admin_sign_in()` and the four `admin_*` read functions were retired or moved to
+permission-checking. They are not: `tests/entries.test.ts`'s anon-callable assertion (read
+it, not this paragraph, for the current list) still includes all five, and its own comment
+says plainly that five of the fifteen "require the admin key and check it before they read
+anything." **What actually retired is narrower than that**: the *Worker* stopped calling
+this path — `worker/admin-session.ts` and its own `adminSignIn()` are unreferenced since
+#57/#58, and the admin surface a person actually uses is reached by signing in and holding
+a role, checked through `identity.has_permission()`. But the five database functions below
+are still granted to `anon`, still gated only by the shared `admin` key digest in
+`entries.webhook_secrets`, and still reachable directly through PostgREST by anyone who has
+that key — CLAUDE.md names this as an open loose end (#57 left them in place; #63, not yet
+done, is what removes them) and `apps/main/README.md` warns that `ENTRIES_ADMIN_KEY` being
+bound at all keeps that key live. Do not describe this mechanism as retired until #63 lands.
 
-| ~~`entries.admin_key_ok()`~~ | Whether the caller presented the admin key. Retired with the two-key scheme |
-| ~~`entries.admin_sign_in()`~~ | Checked the Worker's key, then a person's, and answered with their handle. Retired |
-| `entries.admin_entry_list()` | The entries for one event, one row per entrant. No date of birth, no email address, no medical note. **Permission-checked, not key-gated** |
-| `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Permission-checked, not key-gated** |
-| `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Permission-checked, not key-gated** |
-| `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Permission-checked, not key-gated** |
+| `entries.admin_key_ok()` | Whether the caller presented the admin key. **Granted to nobody** — an oracle for the key on its own, reachable only from the five below |
+| `entries.admin_sign_in()` | Checks the admin key, then a person's, and answers with their handle. **Takes the admin key.** The Worker no longer calls it, but the function itself is unchanged |
+| `entries.admin_entry_list()` | The entries for one event, one row per entrant. No date of birth, no email address, no medical note. **Takes the admin key** |
+| `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Takes the admin key** |
+| `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Takes the admin key** |
+| `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Takes the admin key** |
+
+The admin surface a person actually reaches — `/admin/nn/` and its detail page, gated on
+signing in and holding a permission like `nn.entry.read` — is a **separate, newer set of
+functions granted to `authenticated`**, asserted in
+`tests/entries.test.ts`'s "lets authenticated execute exactly sixteen" and
+`tests/identity-permissions.test.ts`. The two mechanisms currently coexist.
 
 `intake.health()` earns its place: one call proves the migration applied, the schema is
 exposed, the anon key is right, the grant is right, and the Worker can reach the network.
@@ -161,13 +172,14 @@ on its own — an alarm anybody could forge, an audit trail anybody could fill.
 **Several of the anon-callable functions take a key**, and the key is what makes an anon
 grant safe on a function that writes money or reads a person:
 [ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) established the
-mechanism for the payment webhook. **The admin surface's own key-gated functions
-(`admin_sign_in()`, `admin_key_ok()` and the two-key scheme generally) are retired** — since
-#57/#58 the admin surface is reached by signing in and holding the `nn-admin` role, checked
-through `identity.has_permission()`, and `entries.admin_keys` ships empty and unused. What
-replaced it, and the current list of what `anon` and `authenticated` may each call, is in
-[`CLAUDE.md`](../../../CLAUDE.md) and asserted in `tests/entries.test.ts` and
-`tests/identity-permissions.test.ts` — read those rather than a count here.
+mechanism for the payment webhook, and the five `admin_*` functions detailed above still use
+the equivalent mechanism for the admin `webhook_secrets` key — **that path is not retired**,
+only unused by the Worker, which reaches the admin surface a different way now: since
+#57/#58 by signing in and holding the `nn-admin` role, checked through
+`identity.has_permission()`. Both paths currently exist. The current list of what `anon`
+and `authenticated` may each call is in [`CLAUDE.md`](../../../CLAUDE.md) and asserted in
+`tests/entries.test.ts` and `tests/identity-permissions.test.ts` — read those rather than a
+count here.
 
 `tests/entries.test.ts` asserts that exact set, by name, along with which of them `anon` may
 execute. **That assertion is the one this schema's whole shape rests on**, and it has earned
