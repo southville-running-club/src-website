@@ -2,8 +2,8 @@
 
 Everything to do, in order, from today until Squarespace is switched off.
 
-**For a plain summary to share with the committee, read [the nine-step
-overview](overview.md) instead.** This is the working document.
+**For a plain summary to share with the committee, read [the overview](overview.md)
+instead.** This is the working document.
 
 **One numbered list.** The reasoning behind each choice is elsewhere and linked where it
 matters — [decisions](../decisions/decision-log.md), [the DNS move](dns-first.md),
@@ -87,9 +87,10 @@ race-ready by mid-October.** **Race day Sunday 1 November 2026, 11:00** — conf
     confined to `intake`, which holds no membership data.*
 20. ~~**Build the page, the form and the privacy notice**~~ — **done**, and since extended
     with the confirmed date and three content pages, then split between the race and one
-    running of it: `/nn/` and `/nn/course/` are evergreen, `/nn/2026/` carries the date and
-    the entry form, and `/nn/2026/race-day/` and `/nn/2026/spectators/` sit beneath it, with
-    a two-level navigation across them —
+    running of it: `/nn/` is evergreen, `/nn/2026/` carries the date and the entry form, and
+    `/nn/2026/race-day/` and `/nn/2026/spectators/` sit beneath it, with a two-level
+    navigation across them. **`/nn/course/` was the second evergreen page and it is gone**
+    — the club supplied its copy for `/nn/` instead, and the address 301s there —
     [ADR-011](../architecture/decisions/adr-011-a-race-and-its-runnings.md). The interest
     form takes name, email and consent and nothing else; the privacy notice is at
     `/nn/privacy/`. *Every race fact,
@@ -304,10 +305,10 @@ this removes, and volunteer time is the one measure still uncaptured.
 | | By |
 | --- | --- |
 | ~~The race date~~ | **Settled — Sunday 1 November 2026, 11:00**, confirmed 12 August *(step 16)* |
-| The 2026 ARC permit number | Not yet issued. The one race fact still outstanding *(step 16)* |
+| ~~The 2026 ARC permit number~~ | **Settled — `ARC/26/0842`**, issued 27 August 2026 |
 | The Nightingale Nightmare page copy | **Committee's to approve.** What is on the site is a draft written to be edited *(step 20)* |
-| NN 2026 entries: own site or Full On Sport | End of August *(step 22)* |
-| Card or Direct Debit | Before anyone is asked to move *(step 42)* |
+| ~~NN 2026 entries: own site or Full On Sport~~ | **Decided — the club's own site, with Stripe** *(step 22)* |
+| Card or Direct Debit | Before anyone is asked to move *(step 52)* |
 | ~~A second mailbox~~ | **Answered** — five are included at no extra cost |
 | Whether the domain moves to a club-held account | No deadline. Governance, not technical |
 | Committee editing | [Deferred](priorities.md#what-can-safely-be-decided-later) until it is known what they ask to change |
