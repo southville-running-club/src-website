@@ -671,6 +671,22 @@ footer {
   color: var(--colour-muted);
 }
 
+/* A value the form shows rather than asks for — the signed-in entrant's own email address,
+   which the Worker substitutes whatever the submission says.
+
+   **Deliberately not styled as a disabled `.field-input`.** A greyed-out box invites somebody
+   to click it and wonder why it will not take, and a `readonly` input is still in the tab order
+   announcing itself as a text field. This is text, because that is what it is. It keeps the
+   input's own top margin so the label sits the same distance above it as every other field's. */
+.field-fixed {
+  margin: 0.375rem 0 0;
+  font-weight: 600;
+  /* An address is not a word and must be allowed to break rather than push the page sideways
+     at 320px — the same rule `a[href^='mailto:']` carries a few rules down, and for the reason
+     the sideways-scroll helper exists. */
+  overflow-wrap: anywhere;
+}
+
 /* The message itself is the signal; the colour and the bar beside it are emphasis. */
 .field-error {
   padding-left: 0.625rem;

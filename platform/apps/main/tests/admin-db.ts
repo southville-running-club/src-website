@@ -48,6 +48,10 @@ import {
   CLEAN_RACE_SLUG,
   EXPIRED_ENTRANT_ID,
   EXPIRED_PURCHASE_ID,
+  LAPSED_EMAIL,
+  LAPSED_ENTRANT_ID,
+  LAPSED_LAST_NAME,
+  LAPSED_PURCHASE_ID,
   MEDICAL_NOTE,
   SECOND_AFFILIATED_ENTRANT_ID,
   SECOND_AFFILIATED_LAST_NAME,
@@ -289,11 +293,16 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       // affiliated entry and is correct; and `entrants_ea_number_not_collected` is a check
       // constraint, which `session_replication_role` does not suppress, so the escape hatch
       // would not work even if there were something to model.
+      // **Two phone numbers, and they are given different values on purpose.** The runner's
+      // own — ADR-025 — and the emergency contact's are rendered side by side on the entry
+      // page, printed side by side on the start list and exported as adjacent columns. A
+      // fixture where the two agree cannot catch either of them being read as the other, which
+      // is a defect nothing about the output would look wrong for.
       await db.query(
         `insert into entries.entrants (
            id, purchase_id, first_name, last_name, date_of_birth, gender, gender_identity,
-           club, emergency_contact_name, emergency_contact_phone
-         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10)`,
+           club, emergency_contact_name, emergency_contact_phone, phone
+         ) values ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8, $9, $10, $11)`,
         [
           purchase.entrantId,
           purchase.purchaseId,
@@ -305,6 +314,7 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
           purchase.club,
           `Kin ${purchase.lastName}`,
           '0117 496 0000',
+          '0117 496 0100',
         ],
       );
 
@@ -477,6 +487,25 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
       purchaserEmail: ENTRANT_EMAIL,
     });
 
+    // **A lapsed hold and nothing else**, bought with `LAPSED_EMAIL`'s address. The one state
+    // `/account/entries/`'s pay-twice guard is written for: no confirmed place, and an entry
+    // whose payment may yet arrive. `holdMinutes` is negative, so the hold ran out.
+    await seed({
+      eventSlug: ACTIONS_EVENT_SLUG,
+      purchaseId: LAPSED_PURCHASE_ID,
+      entrantId: LAPSED_ENTRANT_ID,
+      status: 'expired',
+      feeCode: 'unaffiliated',
+      amountPence: 1700,
+      firstName: 'Chidi',
+      lastName: LAPSED_LAST_NAME,
+      club: null,
+      dateOfBirth: '1988-02-19',
+      gender: 'male',
+      holdMinutes: -40,
+      purchaserEmail: LAPSED_EMAIL,
+    });
+
     await seed({
       eventSlug: CLEAN_EVENT_SLUG,
       purchaseId: CLEAN_PAID_PURCHASE_ID,
@@ -554,6 +583,7 @@ async function seedFixturePeople(): Promise<void> {
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
     [ENTRANT_EMAIL]: null,
+    [LAPSED_EMAIL]: null,
   };
 
   // Sequential, not parallel — each round trip is cheap, and running them concurrently would

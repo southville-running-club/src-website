@@ -65,14 +65,23 @@ function goodEntry(overrides: Record<string, string> = {}): Record<string, strin
     form: 'entry',
     firstName: 'Grace',
     lastName: `Hopper-${(entrantSerial += 1)}`,
-    email: 'worker-entry@example.com',
-    emailConfirm: 'worker-entry@example.com',
+    // **The address carries the same serial as the surname, and for the second rule rather
+    // than the first.** One place per email is a database rule since 30 August 2026, so a
+    // suite that submits several valid entries against one event cannot use one address any
+    // more: every call after the first is refused with `email_already_entered`, answered as a
+    // 422 with the form back. That reads as a validation defect in whatever the test was
+    // actually about — which is exactly how the surname above came to be serialised.
+    email: `worker-entry-${entrantSerial}@example.com`,
+    emailConfirm: `worker-entry-${entrantSerial}@example.com`,
     dobDay: '9',
     dobMonth: '12',
     dobYear: '1986',
     gender: 'female',
     feeCode: 'unaffiliated',
     emergencyName: 'Margaret Hamilton',
+    // Required since ADR-025, and deliberately not the emergency contact's number — a
+    // fixture where the two agree cannot catch them being read the wrong way round.
+    phone: '0117 496 0100',
     emergencyPhone: '0117 496 0000',
     entryTerms: 'on',
     ...overrides,

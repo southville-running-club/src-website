@@ -941,6 +941,11 @@ describe('entries.admin_export()', () => {
     // and a missing key would fail that parse and take the export down. The contract step drops
     // the key, the column and this line together — see
     // docs/delivery/runbooks/entries-ea-number-contract.md.
+    //
+    // **`phone` is the sixth and it is the runner's own** — ADR-025, 30 August 2026. The club
+    // asked for it on every export; a treasurer reconciling ARC's levy against a name they
+    // cannot place needs a way to ask. Null on every entry taken before that date, because the
+    // club did not ask and it is not backfillable.
     expect(Object.keys(data.rows[0] ?? {}).sort()).toEqual([
       'amount_pence',
       'club',
@@ -948,6 +953,7 @@ describe('entries.admin_export()', () => {
       'fee_label',
       'first_name',
       'last_name',
+      'phone',
     ]);
     expect(data.rows[0]?.ea_number).toBeNull();
   });
@@ -968,6 +974,11 @@ describe('entries.admin_export()', () => {
       'first_name',
       'gender',
       'last_name',
+      // **The ninth is the runner's own number** — ADR-025 — and it sits beside a number that
+      // belongs to somebody else. The two are told apart by their column names on the CSV
+      // (`Runner phone` against `Emergency phone`) and by their position on the printed sheet,
+      // where the runner's is a line under their own name. Null for a guide, who is not asked.
+      'phone',
       // **The eighth, and it is on the sheet a marshal reads rather than a fact about the
       // entry.** A guide is on the road and has to be accounted for, but is not timed and is
       // in no category — so the printed list and the CSV both say `Guide` where a category

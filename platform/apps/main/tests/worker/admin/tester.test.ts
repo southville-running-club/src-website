@@ -237,6 +237,7 @@ describe('a tester whose submission comes back to them', () => {
         gender: 'female',
         feeCode: 'tester',
         emergencyName: 'Margaret Hamilton',
+        phone: '0117 496 0100',
         emergencyPhone: '0117 496 0000',
         entryTerms: 'on',
       }),
@@ -270,24 +271,32 @@ describe('a tester whose submission comes back to them', () => {
       },
       body: new URLSearchParams({
         form: 'entry',
-        firstName: 'Grace',
+        // **A blank name is the refusal lever here, and it used to be a mismatched
+        // confirmation box.** That stopped working for a signed-in person on 30 August 2026:
+        // their entry uses the address on their account, so the Worker fills both email keys
+        // in from the session before validating and the two can no longer disagree. The
+        // submission simply became valid and went on to Stripe — which, with no key bound,
+        // is a 503 rather than the 422 this test needs a body from.
+        firstName: '   ',
         lastName: 'Hopper',
         email: 'worker-tester@example.com',
-        emailConfirm: 'a-different-address@example.com',
+        emailConfirm: 'worker-tester@example.com',
         dobDay: '9',
         dobMonth: '12',
         dobYear: '1986',
         gender: 'female',
         feeCode: 'unaffiliated',
         emergencyName: 'Margaret Hamilton',
+        phone: '0117 496 0100',
         emergencyPhone: '0117 496 0000',
         entryTerms: 'on',
       }),
       redirect: 'manual',
     });
 
-    // 422 — refused on the mismatched confirmation box, which is the least intrusive way to
-    // get the page back with a body to read.
+    // 422 — refused on the blank first name, which is the least intrusive refusal still
+    // available to a signed-in submission and leaves every other field alone, including the
+    // fee radio this test is actually about.
     expect(response.status).toBe(422);
 
     const markup = await response.text();

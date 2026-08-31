@@ -35,6 +35,9 @@ function good(overrides: Record<string, unknown> = {}): Record<string, unknown> 
     lastName: 'Hopper',
     email: 'grace@example.com',
     emailConfirm: 'grace@example.com',
+    // **Deliberately not `emergencyPhone`'s value.** The two are the likeliest pair on this
+    // form to be read the wrong way round, and a fixture where they agree cannot see it.
+    phone: '0117 496 0100',
     dobDay: '9',
     dobMonth: '12',
     dobYear: '1986',
@@ -406,6 +409,84 @@ describe('the emergency contact', () => {
   });
 });
 
+describe("the runner's own phone number", () => {
+  // **The eighteenth field — ADR-025, argued in issue #168.** `/nn/privacy/` claimed since it
+  // was written that the club holds a phone number, and what it held was somebody *else's*,
+  // given for one thing. The club chose to make the claim true rather than to delete it.
+
+  it('is required, and says whose number it wants', () => {
+    // **"your own" is doing the work.** The next number this form asks for belongs to somebody
+    // else, four fieldsets down, and these two boxes are the likeliest pair on the page to be
+    // filled in the wrong way round.
+    expect(errorOn(good({ phone: '' }))?.phone).toBe('Enter your own phone number.');
+  });
+
+  it('refuses whitespace, which an HTML `required` attribute lets through', () => {
+    expect(errorOn(good({ phone: '   ' }))?.phone).toBe('Enter your own phone number.');
+  });
+
+  it('goes through the same rules the emergency contact number does', () => {
+    // **The same function, not a third copy of the rule.** The second copy is how `ask my mum`
+    // came to be accepted on the field whose entire purpose is to be dialled — in two places
+    // at once. This is what says a third was not written.
+    for (const phone of ['07700 900123', '+44 7700 900123', '(0117) 496-0000']) {
+      expect(parseNnEntry(good({ phone }), RULES).ok, phone).toBe(true);
+    }
+
+    expect(errorOn(good({ phone: '12345' }))?.phone).toContain('at least seven');
+    expect(errorOn(good({ phone: 'ask my mum' }))?.phone).toContain('using digits');
+    expect(errorOn(good({ phone: '-' }))?.phone).toBeDefined();
+    expect(parseNnEntry(good({ phone: '0117 496 0000 x214' }), RULES).ok).toBe(true);
+  });
+
+  it('refuses one longer than the column takes', () => {
+    expect(errorOn(good({ phone: '0'.repeat(41) }))?.phone).toContain('40 characters');
+  });
+
+  it('is kept apart from the emergency contact number, both ways round', () => {
+    // **The failure this guards is a silent one.** Two numbers of the same shape mapped onto
+    // each other produce a valid entry, a valid start list, and a volunteer ringing somebody's
+    // next of kin about a start time. The fixture gives the two different values precisely so
+    // that this can be asserted rather than hoped for.
+    const result = parseNnEntry(
+      good({ phone: '0117 496 0100', emergencyPhone: '0117 496 0000' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.phone).toBe('0117 496 0100');
+    expect(result.value.emergencyPhone).toBe('0117 496 0000');
+  });
+
+  it('is asked of the runner and never of the guide', () => {
+    // **A guide gives their own email address and their own emergency contact, and no third
+    // contact detail** — ADR-022 and ADR-025. There is no guide phone key to send, so what
+    // this asserts is that the shape has not quietly grown one.
+    const result = parseNnEntry(
+      good({
+        viGuide: 'on',
+        guideFirstName: 'Katherine',
+        guideLastName: 'Johnson',
+        guideDobDay: '26',
+        guideDobMonth: '8',
+        guideDobYear: '1918',
+        guideEmail: 'katherine@example.com',
+        guideEmergencyName: 'Dorothy Vaughan',
+        guideEmergencyPhone: '0117 496 0001',
+      }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.guide).not.toBeNull();
+    expect(Object.keys(result.value.guide ?? {})).not.toContain('phone');
+  });
+});
+
 describe('a name, and the one thing this form is willing to say about one', () => {
   // **At least one letter, and nothing more opinionated than that.** A validator cleverer
   // than this about names is one that eventually tells a real person they are not real: it
@@ -515,6 +596,7 @@ describe('what a submission that is not a form at all gets', () => {
       'lastName',
       'email',
       'emailConfirm',
+      'phone',
       'dateOfBirth',
       'gender',
       'feeCode',

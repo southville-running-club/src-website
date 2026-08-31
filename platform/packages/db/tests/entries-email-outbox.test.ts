@@ -17,6 +17,10 @@ import { createClient } from '@supabase/supabase-js';
  *     address the transfer has just overwritten — which exists nowhere else afterwards.
  *   * `claim_outbox_batch` refuses without the key. It returns real email addresses, and the
  *     role it is granted to reaches Postgres with a key published in page source.
+ *   * One message comes back once, however many people are on the entry. Every fixture here
+ *     carried exactly one entrant until #170, which is why nothing noticed that a runner with
+ *     a guide could be greeted by their guide's name — with one email leaving, as expected,
+ *     and no counter moving.
  *
  * **The negative cases are the ones that matter**, per the repository's own rule: that an
  * anonymous client *cannot* drain the queue proves more than that the Worker can.
@@ -129,6 +133,30 @@ async function makeGivenPurchase(serial: number, pence = 0): Promise<string> {
   );
 
   return purchaseId;
+}
+
+/**
+ * The second person on one purchase — a guide running with a visually impaired runner,
+ * ADR-022. **Inserted with a `created_at` a minute in the past, deliberately**: the guide is
+ * the *older* row, so a drain that picked the first entrant it found in creation order would
+ * pick this one. Without that the fix would be indistinguishable from luck.
+ *
+ * `gender` is null because a guide is in no race category and is not asked — which
+ * `entrants_gender_unless_guide` permits for a guide and for nothing else — and `email` is
+ * their own, because a runner is reachable through the address that paid and a guide has no
+ * purchase of their own.
+ */
+async function addGuide(purchaseId: string, serial: number): Promise<string> {
+  await query(
+    `insert into entries.entrants
+       (purchase_id, first_name, last_name, date_of_birth, gender, role, email,
+        emergency_contact_name, emergency_contact_phone, created_at)
+     values ($1, 'Guide', $2, date '1979-11-02', null, 'guide', $3,
+             'Next Of Kin', '0117 496 0001', now() - interval '1 minute')`,
+    [purchaseId, `Fixture${serial}`, `guide-${serial}@example.com`],
+  );
+
+  return 'Guide';
 }
 
 const outboxFor = async (purchaseId: string) =>
@@ -527,6 +555,75 @@ describe('entries.claim_outbox_batch(), the fourteenth function anon may call', 
       reply_to: 'fixture@example.com',
       attempts: 1,
     });
+  });
+
+  it('hands over one message for an entry carrying a guide, and greets the runner', async () => {
+    // **#170: a runner could be greeted by their guide's name.** The drain left joined
+    // `entrants` on `purchase_id` alone, so a purchase with two people on it returned the same
+    // message twice with a different `entrant_first_name` on each copy, and the `order by` was
+    // on the *outbox* id — identical for both, so nothing decided which won.
+    //
+    // **Nothing about it was visible.** Resend's idempotency key is the message id, so the
+    // duplicate send was suppressed and exactly one email left; no counter moved and nothing
+    // was logged. The only symptom was the wrong name in the greeting.
+    const purchaseId = await makePendingPurchase(13);
+    const guideFirstName = await addGuide(purchaseId, 13);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    const { data } = await anon
+      .schema('entries')
+      .rpc('claim_outbox_batch', { p_key: DRAIN_KEY, p_limit: 50 });
+
+    const claimed = data as {
+      ok: boolean;
+      messages: { purchase_reference: string; entrant_first_name: string | null }[];
+    };
+
+    const mine = claimed.messages.filter((row) => row.purchase_reference === purchaseId);
+
+    // The fan-out itself. Two entrants, one message — and the count is the half that would
+    // have caught `record_send_result()` being called twice for one id, and a batch of ten
+    // returning more than ten rows.
+    expect(mine).toHaveLength(1);
+
+    // **Asserted as the guide being excluded, not the runner being selected.** `= 'Outbox'`
+    // passes identically under `role = 'runner'` and `role <> 'guide'`, so it cannot tell the
+    // two predicates apart — which is the property that matters if the roles list ever grows.
+    expect(mine[0]?.entrant_first_name).not.toBe(guideFirstName);
+    expect(mine[0]?.entrant_first_name).not.toBeNull();
+  });
+
+  it('still hands the message over once the entrant has gone, with no name on it', async () => {
+    // **The outer join is not decoration and the fix must not quietly close it.**
+    // `cancel_entry()` deletes the entrants and `transfer_entry()` replaces them, so the
+    // runner a message is about may be gone by the time it is sent. An inner join — or a
+    // lateral joined on anything but `true` — would make the row undrainable and leave it
+    // pending for ever, which is the outbox failing at the one thing it exists to do.
+    const purchaseId = await makePendingPurchase(14);
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+    await query(`delete from entries.entrants where purchase_id = $1`, [purchaseId]);
+
+    const { data } = await anon
+      .schema('entries')
+      .rpc('claim_outbox_batch', { p_key: DRAIN_KEY, p_limit: 50 });
+
+    const claimed = data as {
+      ok: boolean;
+      messages: { purchase_reference: string; entrant_first_name: string | null }[];
+    };
+
+    const mine = claimed.messages.filter((row) => row.purchase_reference === purchaseId);
+
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.entrant_first_name).toBeNull();
   });
 
   it('gives an attempt back when the provider refused to look at the message', async () => {

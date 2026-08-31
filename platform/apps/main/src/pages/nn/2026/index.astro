@@ -854,16 +854,22 @@ const dateLine = race.date
          * visitor's page costs no extra round trip — the same trade `data-nn-entry-early`
          * above makes.
          *
-         * **The form stays on offer below it**, deliberately. An account holder can legitimately
-         * be entering somebody else — one card pays for a partner — and hiding the form would
-         * refuse that outright, which is the failure direction this repository avoids. #115. */
+         * **The form stays on offer below it**, and what it can be used for narrowed on
+         * 30 August 2026. It used to say "if you are entering somebody else, carry on below",
+         * on the argument that one card legitimately pays for a partner. **That is no longer
+         * true for a signed-in person**: one place per email, plus an entry that uses the
+         * address on their account, means every submission from this page is for them. So the
+         * notice now says the thing that is actually open to them — sign out and use the other
+         * person's own address — rather than inviting them into a refusal they cannot act on.
+         * #115, and `20260830160000_entries_one_place_per_email.sql`. */
       }
       <p class="notice" role="status" data-nn-entry-entered hidden>
         <strong>You already have a place in this race.</strong> The club has a confirmed entry
         recorded against your account — it is on{' '}
-        <a href="/account/entries/">your entries page</a>. One entry per runner, so
-        entering again for yourself will be refused before anything is charged. If you are
-        entering somebody else, carry on below.
+        <a href="/account/entries/">your entries page</a>. Your entry uses the email
+        address you are signed in with, and each place needs its own address, so entering
+        again here will be refused before anything is charged. To enter somebody else,
+        sign out and enter with their own email address.
       </p>
       <NnEntryForm />
     </div>

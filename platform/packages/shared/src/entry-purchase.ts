@@ -65,6 +65,12 @@ export const PENDING_PURCHASE_REASONS = [
   // ever arrives it lands on `unknown`, which is the right answer to a refusal this build has
   // never heard of.
   'consents_missing',
+  // **Drift for the same reason `consents_missing` is**, and it arrived with the eighteenth
+  // field. `parseNnEntry` refuses a blank phone box first, so this reaching the deployed form
+  // means the form and the database disagree about what is asked. What it is really there for
+  // is the other caller: the published anon key posting straight at PostgREST, which never
+  // meets Zod at all. ADR-025.
+  'phone_required',
   // **The one reason on this list that a person is meant to meet.** Everything above it is
   // either drift or a race the club lost; this is the ordinary case of somebody who already
   // has a place filling the form in again — most often because they are not sure the first
@@ -72,6 +78,18 @@ export const PENDING_PURCHASE_REASONS = [
   // absent confirmation email cannot either. So it gets its own notice rather than folding
   // into `failed`, and the notice points at `/account/entries/`.
   'already_entered',
+  // **The second reason a person is meant to meet, and it is a different sentence from the
+  // one above.** `already_entered` says *you* already hold a place, keyed on name and date of
+  // birth. This one says the *address* does, which may not be the same person at all — a
+  // partner, a parent entering a second child, somebody using a shared family address. Folding
+  // the two together would tell one of those people they had already entered when they had
+  // not, which is a claim about a record rather than a fact about this submission.
+  //
+  // It is answered beside the email box rather than as a page state, the way
+  // `invalid_discount` is answered beside the code box: it is a thing about one field, and
+  // using another address fixes it. See `20260830160000_entries_one_place_per_email.sql` for
+  // the decision, and for what it costs the couple entering on one card.
+  'email_already_entered',
   'unknown',
 ] as const;
 
@@ -135,6 +153,9 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
     gender: entry.gender,
     gender_identity: entry.genderIdentity,
     club: entry.club,
+    // **The runner's own number, and the one `nnGuidePayload` sends null for.** Required of a
+    // runner by `create_pending_purchase()` as well as by the form — see ADR-025.
+    phone: entry.phone,
     // **No `ea_number` key at all since 29 August 2026.** The column is still there and
     // `create_pending_purchase()` still reads for it; sending nothing is the same as sending
     // null to `coalesce(v_entrant ->> 'ea_number', '')`, and it says plainly that this build
@@ -151,9 +172,10 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
 /**
  * The guide, in the same column names.
  *
- * **Three keys are null and each is null for a reason**, rather than because the guide's form
+ * **Four keys are null and each is null for a reason**, rather than because the guide's form
  * did not ask. `gender_identity` and `club` are questions nothing derives anything from for
- * somebody in no category; `leg` is a paired-race field on a solo race.
+ * somebody in no category; `leg` is a paired-race field on a solo race; `phone` is a third way
+ * of reaching somebody who has already given two.
  */
 export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | null> {
   return {
@@ -171,6 +193,11 @@ export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | nul
     gender: null,
     gender_identity: null,
     club: null,
+    // **Not asked, rather than not answered.** A guide gives their own email address above and
+    // their own emergency contact below, and a third contact detail collected from a second
+    // person through somebody else's form is one nothing here uses. `create_pending_purchase()`
+    // requires a number of a runner and of nobody else. See ADR-022 and ADR-025.
+    phone: null,
     emergency_contact_name: guide.emergencyName,
     emergency_contact_phone: guide.emergencyPhone,
     leg: null,

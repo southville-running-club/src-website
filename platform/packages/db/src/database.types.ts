@@ -216,6 +216,7 @@ export type Database = {
           id: string
           last_name: string
           leg: number | null
+          phone: string | null
           purchase_id: string
           role: string
         }
@@ -233,6 +234,7 @@ export type Database = {
           id?: string
           last_name: string
           leg?: number | null
+          phone?: string | null
           purchase_id: string
           role?: string
         }
@@ -250,6 +252,7 @@ export type Database = {
           id?: string
           last_name?: string
           leg?: number | null
+          phone?: string | null
           purchase_id?: string
           role?: string
         }
@@ -695,6 +698,22 @@ export type Database = {
               p_first_name: string
               p_gender: string
               p_last_name: string
+              p_purchase_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_club: string
+              p_date_of_birth: string
+              p_ea_number: string
+              p_email: string
+              p_emergency_contact_name: string
+              p_emergency_contact_phone: string
+              p_first_name: string
+              p_gender: string
+              p_last_name: string
+              p_phone: string
               p_purchase_id: string
             }
             Returns: Json

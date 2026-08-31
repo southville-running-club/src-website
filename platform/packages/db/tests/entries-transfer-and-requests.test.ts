@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -118,13 +118,32 @@ async function makeEvent(slug: string, capacity: number): Promise<string> {
   return event.id;
 }
 
-async function removeFixtures(): Promise<void> {
-  // Purchases first: `entry_purchases.event_id` has no cascade, deliberately.
+/**
+ * Every purchase against this file's own events, and nothing else.
+ *
+ * **Run between tests, because one place per email is a database rule now.** Most of this file
+ * buys its entries as `RUNNER_EMAIL` and has to: `my_entries()` matches a purchase on the
+ * caller's confirmed address, so a test about what a runner can see of their own entry cannot
+ * use a serialised stand-in the way `create()`'s default does. Six tests buying as that address
+ * against one event is six live places on it, and every one after the first is refused with
+ * `email_already_entered`.
+ *
+ * Clearing between tests rather than serialising is the honest fix here: the rule is *one live
+ * place at a time*, and a test that has finished with its entry has no live place. The events
+ * and the fixture people survive — they are `beforeAll`'s, and rebuilding a signed-up person
+ * per test would cost a GoTrue round trip each time for nothing.
+ */
+async function removePurchases(): Promise<void> {
   await query(
     `delete from entries.entry_purchases
       where event_id in (select id from entries.events where slug = any($1::text[]))`,
     [[...SLUGS]],
   );
+}
+
+async function removeFixtures(): Promise<void> {
+  // Purchases first: `entry_purchases.event_id` has no cascade, deliberately.
+  await removePurchases();
   await query('delete from entries.events where slug = any($1::text[])', [[...SLUGS]]);
 }
 
@@ -190,6 +209,13 @@ beforeAll(async () => {
   newRunner = await fixturePerson(NEW_RUNNER_EMAIL, []);
 }, 30_000);
 
+// **Between every test, for the reason `removePurchases` explains.** One place per email is a
+// database rule since 30 August 2026, and most of this file has to buy as one fixed address.
+beforeEach(async () => {
+  await connected;
+  await removePurchases();
+});
+
 afterAll(async () => {
   await connected;
   await removeFixtures();
@@ -222,6 +248,11 @@ function person(overrides: Record<string, unknown> = {}): Record<string, unknown
     club: null,
     emergency_contact_name: 'Mary Somerville',
     emergency_contact_phone: '07700 900123',
+    // The runner's own number, which `create_pending_purchase()` has required of a
+    // runner since ADR-025 and refuses with `phone_required` without. Deliberately not
+    // the emergency contact's: a fixture where the two agree cannot catch the two being
+    // read the wrong way round.
+    phone: '07700 900124',
     leg: null,
     role: 'runner',
     ...overrides,
@@ -248,7 +279,11 @@ async function create(
     p_slug: options.slug ?? EVENT,
     p_fee_code: options.feeCode ?? 'unaffiliated',
     p_purchaser_name: 'Ada O’Brien',
-    p_purchaser_email: options.email ?? 'ada@example.com',
+    // **A serial on the address, for the reason the surname carries one.** One place per
+    // email is a database rule since 30 August 2026, so a suite whose purchasers are all
+    // `ada@example.com` cannot hold two places on one event. The tests that are *about* that
+    // rule pass `email` explicitly.
+    p_purchaser_email: options.email ?? `ada-${(serial += 1)}@example.com`,
     p_entrants: options.entrants ?? [person()],
     p_medical: options.medical ?? [null],
     p_consents:
@@ -271,11 +306,14 @@ interface EntrantRow {
   first_name: string;
   role: string;
   ea_number: string | null;
+  /** The runner's own number — ADR-025. Replaced by a transfer, never carried
+   *  across, and null on every entry taken before 30 August 2026. */
+  phone: string | null;
 }
 
 async function entrantsOf(purchaseId: string): Promise<EntrantRow[]> {
   return query<EntrantRow>(
-    `select first_name, role, ea_number
+    `select first_name, role, ea_number, phone
        from entries.entrants
       where purchase_id = $1
       order by role, first_name`,
@@ -309,6 +347,18 @@ describe('transferring an affiliated place', () => {
     return purchaseId;
   }
 
+  /** The same thing, bought by a named address — for the one-place-per-email tests. */
+  async function paidPurchaseFor(email: string): Promise<string> {
+    const purchaseId = await acceptedPurchaseId({ email, entrants: [person()] });
+
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [purchaseId],
+    );
+
+    return purchaseId;
+  }
+
   async function transfer(
     purchaseId: string,
     args: Record<string, unknown> = {},
@@ -326,6 +376,10 @@ describe('transferring an affiliated place', () => {
       p_emergency_contact_name: 'Kin Three',
       p_emergency_contact_phone: '0117 496 0003',
       p_ea_number: '',
+      // **Naming both is what reaches the eleven-argument form**, which is the one that takes
+      // a phone number. Ten `text` arguments is already the England Athletics signature, and
+      // Postgres tells functions apart by their argument types.
+      p_phone: '0117 496 0203',
       ...args,
     });
 
@@ -366,6 +420,39 @@ describe('transferring an affiliated place', () => {
     }
   });
 
+  it("replaces the previous runner's phone number rather than carrying it across", async () => {
+    // **A number is a fact about the person who gave it** — ADR-025 — so this follows the rule
+    // the medical note and the recorded gender already do. Leaving it on the row would file
+    // one person's number under another person's name and print it on the start list beside
+    // them, and nothing about the row would look wrong.
+    const purchaseId = await paidPurchase('unaffiliated');
+
+    expect((await entrantsOf(purchaseId))[0]?.phone).toBe('07700 900124');
+
+    expect((await transfer(purchaseId)).ok).toBe(true);
+
+    const [entrant] = await entrantsOf(purchaseId);
+
+    expect(entrant?.first_name).toBe('Nell');
+    expect(entrant?.phone).toBe('0117 496 0203');
+  });
+
+  it("clears the previous runner's number when no new one is given", async () => {
+    // **Null is allowed here and refused on the entry form**, because the two are not the same
+    // promise: `/nn/2026/` will not take an entry without a number, and a volunteer moving a
+    // place may be working from an email thread. It is also the line the nine- and
+    // ten-argument wrappers reach — they delegate with a null phone, which is what keeps a
+    // Worker deployed before ADR-025 transferring places rather than meeting a refusal it has
+    // no wording for.
+    //
+    // **The safe direction, and that is the point.** The disclosure is closed on every path the
+    // moment the migration lands; only the *new* number waits for the Worker to catch up.
+    const purchaseId = await paidPurchase('unaffiliated', [person()]);
+
+    expect((await transfer(purchaseId, { p_phone: '' })).ok).toBe(true);
+    expect((await entrantsOf(purchaseId))[0]?.phone).toBeNull();
+  });
+
   it('refuses a purchase with a guide on it, rather than guessing who is leaving', async () => {
     // **The `vi` consent is what makes a two-entrant list legal**, and it is a consent rather
     // than a column because it is a statement somebody makes about themselves — see the guide
@@ -380,6 +467,41 @@ describe('transferring an affiliated place', () => {
       ok: false,
       reason: 'not_a_solo_entry',
     });
+  });
+
+  it('refuses moving a place onto an address that already holds one', async () => {
+    // **The entry path's rule, on the other path** —
+    // `20260830160000_entries_one_place_per_email.sql`. Without it the transfer form is simply
+    // the way round the entry form: one address would end up holding two places, which is the
+    // state that migration exists to make unreachable.
+    const held = await paidPurchaseFor('holder@example.com');
+    const moving = await paidPurchase('unaffiliated');
+
+    const result = await transfer(moving, { p_email: 'holder@example.com' });
+
+    expect(result).toMatchObject({ ok: false, reason: 'email_already_entered' });
+
+    // And nothing moved: the refusal is before the write, so the place it was moving from is
+    // untouched rather than half-transferred.
+    const [row] = await query<{ purchaser_email: string }>(
+      `select purchaser_email::text as purchaser_email
+         from entries.entry_purchases where id = $1`,
+      [moving],
+    );
+
+    expect(row?.purchaser_email).not.toBe('holder@example.com');
+    expect(held).not.toBe(moving);
+  });
+
+  it('still lets a place be re-pointed at the address that already owns it', async () => {
+    // **A correction, not a second entry.** Fixing a typo in the runner's name on an entry
+    // whose address is already right must not be refused by a rule about second entries —
+    // which is what `purchase.id <> p_purchase_id` in the check is there for.
+    const purchaseId = await paidPurchaseFor('same-again@example.com');
+
+    const result = await transfer(purchaseId, { p_email: 'same-again@example.com' });
+
+    expect(result).toMatchObject({ ok: true });
   });
 
   it('still refuses anybody without nn.entry.cancel', async () => {
@@ -986,12 +1108,22 @@ describe('reading one entry in full', () => {
     return { data: (data ?? {}) as Detail, errorCode: error?.code };
   }
 
+  /**
+   * A paid purchase owned by the runner — or by somebody else, when `email` says so.
+   *
+   * **The address is a parameter because one place per email is a database rule.** A test that
+   * needs two entries at once cannot have both belong to `RUNNER_EMAIL`; the second is refused.
+   * Where the second entry is meant to be *somebody else's* — which is the only reason a test
+   * here wants two — saying so is more faithful than sharing an address for the convenience of
+   * one helper.
+   */
   async function paidOwnedPurchase(
     entrants: Record<string, unknown>[] = [person()],
     consents?: Record<string, boolean>,
+    email: string = RUNNER_EMAIL,
   ): Promise<string> {
     const purchaseId = await acceptedPurchaseId({
-      email: RUNNER_EMAIL,
+      email,
       entrants,
       medical: entrants.map(() => null),
       ...(consents === undefined ? {} : { consents }),
@@ -1160,7 +1292,14 @@ describe('reading one entry in full', () => {
     // the history of a record rather than a log of what a volunteer has been doing, so a row
     // naming a different purchase must not appear on this one.
     const mine = await paidOwnedPurchase();
-    const theirs = await paidOwnedPurchase();
+    // **Somebody else's, and now literally so.** It shared the runner's address until one
+    // place per email made that impossible — which is the rule reading this fixture correctly:
+    // "any other" entry belonging to the same person was never what this test meant.
+    const theirs = await paidOwnedPurchase(
+      [person()],
+      undefined,
+      'other-entry@example.com',
+    );
 
     await nnAdmin.client.schema('entries').rpc('cancel_entry', {
       p_purchase_id: theirs,
