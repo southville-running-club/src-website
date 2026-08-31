@@ -12,6 +12,9 @@ import worker from '../../../worker/index';
 // and from `fixture-discount.ts` rather than `global-setup.ts`, because that one imports `pg`,
 // which cannot load inside `workerd`. See the note in that file.
 import { FIXTURE_DISCOUNT } from './fixture-discount';
+// The entry key this run binds, from the same constants-only module the config reads — so the
+// leak assertion below is checking the value actually in play rather than a literal beside it.
+import { ENTRY_KEY } from '../../entry-key-fixture';
 
 /**
  * `/nn/` **with entries open**, in the real Workers runtime, against the real build output.
@@ -447,6 +450,12 @@ describe('the Stripe key, which must not appear anywhere a person can see', () =
         'sk_' + 'live_',
         'rk_' + 'live_',
         STUB_KEY,
+        // **The entry key is a secret of exactly this class and was not covered here.** It is
+        // what stops the published anon key holding all 250 places (#178, ADR-026), so a
+        // response body that echoed it would hand back the one thing the whole control rests
+        // on — and this path builds it into an RPC argument on every submission, which is
+        // precisely where a "print the request so we can debug it" would put it.
+        ENTRY_KEY,
       ]) {
         expect(body).not.toContain(secret);
       }
