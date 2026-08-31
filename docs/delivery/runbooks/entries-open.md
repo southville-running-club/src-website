@@ -337,8 +337,10 @@ for.
       proof that counts — the same rule as `accounts-open.md` step 0.2, for the same reason:
       no local check can tell you the Worker secrets are right
 - [ ] It came from **`nn@send.southvillerunningclub.co.uk`** and **pressing Reply reaches
-      `nightingalenightmare@gmail.com`**. Unlike the account emails, these have a working
-      `Reply-To`, and it is worth confirming once that it goes where it should
+      `nightingalenightmare@southvillerunningclub.co.uk`**. Unlike the account emails, these
+      have a working `Reply-To` — moved off Gmail on 31 August 2026,
+      `20260831090000_entries_nn_reply_to_club_domain.sql` — and it is worth confirming once
+      that it goes where it should
 - [ ] **Cancelling that Tester entry produced a second email** saying it was refunded. Step 2
       cancels it anyway, so this costs nothing extra to check
 - [ ] ⚠️ **Somebody understands the daily cap before the window opens.** Resend's free tier is

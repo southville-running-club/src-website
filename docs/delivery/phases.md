@@ -553,7 +553,7 @@ this removes.
   [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). **Transferring a
   place and giving one away are both built too** — `transfer_entry()`, and
   `create_manual_entry()` behind `nn.entry.create` per
-  [ADR-026](../architecture/decisions/adr-026-a-place-can-be-given.md) — and so is
+  [ADR-028](../architecture/decisions/adr-028-a-place-can-be-given.md) — and so is
   resending a failed email from `/admin/emails/`. **Corrections and partial refunds are
   each still their own decision**
 - **The backup runbook**, with a tested restore

@@ -1361,7 +1361,7 @@ both of these itself on a Pro plan and the club is on the free tier** — puttin
 
 **A free place cannot be completed through the entry form, and that gap is answered rather
 than open.** Stripe refuses a zero-total Checkout session, so a discount code can never
-produce a £0 entry on its own. The answer is [ADR-026](docs/architecture/decisions/adr-026-a-place-can-be-given.md),
+produce a £0 entry on its own. The answer is [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md),
 28 August 2026: somebody holding `nn.entry.create` assigns a **complimentary** place from
 `/admin/nn/` — a `paid` purchase at £0 on a £0 fee, audited, under the same advisory lock,
 re-checking capacity, the minimum age and one-runner-one-place. It is what the two Kinsi
