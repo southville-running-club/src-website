@@ -291,6 +291,40 @@ export async function clearWebhookKey(): Promise<void> {
   });
 }
 
+/**
+ * The same two, one row along, for the key that lets a place be **held**.
+ *
+ * **A second row rather than a second use of the first**, and the migration that added it says
+ * why: one key that opens two doors is one rotation that closes both. The webhook key confirms
+ * a payment; this one holds a place before there is a payment at all, and they are installed,
+ * rotated and revoked independently.
+ *
+ * `entries.create_pending_purchase()` refuses without it since ADR-029 — which is what stopped
+ * a loop with the published anon key taking the whole 250-place field in half a second, for
+ * nothing, without ever reaching the Worker. Issue #178.
+ */
+export async function installEntryKey(key: string): Promise<void> {
+  const digest = createHash('sha256').update(key, 'utf8').digest('hex');
+
+  await withClient(async (db) => {
+    await db.query(
+      `insert into entries.webhook_secrets (name, key_sha256)
+       values ('entry', $1)
+       on conflict (name) do update
+         set key_sha256 = excluded.key_sha256, updated_at = now()`,
+      [digest],
+    );
+  });
+}
+
+export async function clearEntryKey(): Promise<void> {
+  await withClient(async (db) => {
+    await db.query(
+      `update entries.webhook_secrets set key_sha256 = null where name = 'entry'`,
+    );
+  });
+}
+
 export interface SeededPurchase {
   id: string;
   sessionId: string;

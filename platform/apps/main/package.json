@@ -8,7 +8,7 @@
     "dev": "astro dev",
     "dev:worker": "npm run preview",
     "build": "astro build",
-    "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789 --var ENTRIES_ADMIN_KEY:local-development-only-not-a-real-key",
+    "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789 --var ENTRIES_ADMIN_KEY:local-development-only-not-a-real-key --var ENTRIES_ENTRY_KEY:zz-worker-entry-key-not-a-real-one",
     "deploy": "wrangler deploy",
     "typecheck": "astro check && npm run typecheck:worker",
     "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",

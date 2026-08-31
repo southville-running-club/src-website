@@ -606,6 +606,7 @@ export type Database = {
           p_discount_code?: string
           p_entrants: Json
           p_fee_code: string
+          p_key?: string
           p_medical: Json
           p_preview?: boolean
           p_purchaser_email: string

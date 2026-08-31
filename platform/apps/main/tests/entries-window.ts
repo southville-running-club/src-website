@@ -1,4 +1,6 @@
 import { Client } from 'pg';
+import { createHash } from 'node:crypto';
+import { ENTRY_KEY } from './entry-key-fixture';
 
 /**
  * Opening and closing the Nightingale Nightmare entry window, for the tests that need one
@@ -72,6 +74,30 @@ export async function setEntryWindow(open: boolean): Promise<void> {
               set entries_open_at = null
             where slug = $1`,
       [SLUG],
+    );
+
+    // **The entry key moves with the window, and that is the pairing production uses.**
+    // Holding a place takes a key since ADR-029, and the digest ships null — which refuses
+    // everything. Opening the window without installing it would give every local run an
+    // entry form that cannot take an entry, and the failure would read as a bug in the form.
+    //
+    // **The two move together here, in one call, which is what makes them impossible to
+    // forget locally.** Production keeps them apart and in a fixed order — the runbook
+    // installs the secret and verifies it *before* `entries_open_at` is set, so there is no
+    // moment in which entries are open and unprotected. Closing puts the digest back to null,
+    // so a laptop is never left holding a working key for a test secret: the same rule
+    // `clearWebhookKey` is called under.
+    //
+    // The digest, never the key. `createHash` rather than a hand-rolled one, because this has
+    // to agree with `pg_catalog.sha256` and there is exactly one right answer.
+    await db.query(
+      open
+        ? `insert into entries.webhook_secrets (name, key_sha256)
+           values ('entry', $1)
+           on conflict (name) do update
+             set key_sha256 = excluded.key_sha256, updated_at = now()`
+        : `update entries.webhook_secrets set key_sha256 = null where name = 'entry'`,
+      open ? [createHash('sha256').update(ENTRY_KEY, 'utf8').digest('hex')] : [],
     );
   } finally {
     await db.end();
