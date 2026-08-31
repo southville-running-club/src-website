@@ -573,3 +573,71 @@ describe('the five-minute sweep, which is the alarm channel', () => {
     }
   });
 });
+
+describe('the send is nudged rather than left for the cron - ADR-032', () => {
+  /**
+   * **`SELF.fetch` cannot see this and `worker.fetch` can.** The nudge is a call to
+   * `ctx.waitUntil()`, which changes nothing about the response - so the only way to assert it
+   * happened is to hand the handler a context of our own and watch what it does with one. That
+   * is why these three call `worker.fetch` directly rather than going through `SELF` like
+   * every other test in this file.
+   *
+   * A hand-made context rather than `createExecutionContext()`, because a spy is the whole
+   * assertion. The drain promise is created eagerly either way, and with no `RESEND_API_KEY`
+   * bound in this run `drainEmailOutbox()` returns before it claims anything at all - so
+   * nothing is sent, nothing is claimed, and no fixture moves.
+   */
+  async function waitUntilCallsFor(request: Request): Promise<number> {
+    const waitUntil = vi.fn();
+
+    await worker.fetch?.(
+      request,
+      env as Parameters<NonNullable<typeof worker.fetch>>[1],
+      { waitUntil, passThroughOnException: () => {} } as unknown as ExecutionContext,
+    );
+
+    return waitUntil.mock.calls.length;
+  }
+
+  it('nudges the outbox once a signed delivery has been handled', async () => {
+    const body = payload({
+      sessionId: 'cs_test_worker_nudge_0001',
+      eventId: 'evt_test_worker_nudge_0001',
+    });
+    const signature = await signStripePayload(
+      body,
+      WEBHOOK_SECRET,
+      Math.floor(Date.now() / 1000),
+    );
+
+    const calls = await waitUntilCallsFor(
+      new Request(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'stripe-signature': signature },
+        body,
+      }),
+    );
+
+    expect(calls).toBe(1);
+  });
+
+  // **Unconditional, and deliberately so.** The nudge fires after the handler whatever the
+  // handler decided, because "did that transition actually enqueue anything?" is a question
+  // the outbox answers for itself in one query that comes back empty. A refused delivery costs
+  // that query; getting the condition wrong would cost somebody their confirmation.
+  it('nudges even when the delivery was refused, because the queue decides', async () => {
+    const calls = await waitUntilCallsFor(
+      new Request(ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload(),
+      }),
+    );
+
+    expect(calls).toBe(1);
+  });
+
+  it('does not nudge on a GET, which can never owe anybody a message', async () => {
+    expect(await waitUntilCallsFor(new Request(SITE + '/nn/'))).toBe(0);
+  });
+});

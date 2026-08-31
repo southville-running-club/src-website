@@ -537,7 +537,9 @@ this removes.
   [ADR-021](../architecture/decisions/adr-021-the-club-tells-people-by-outbox.md). Four
   messages — paid, refunded, and both sides of a transfer — through an **outbox**: the
   obligation is written in the same transaction as the payment, and delivery is a separate
-  retryable job on the existing five-minute cron. Nothing can be lost; it can only be late.
+  retryable job that runs the moment the message is owed, with the existing five-minute cron
+behind it as the retry net - [ADR-032](../architecture/decisions/adr-032-an-email-is-sent-when-it-is-owed.md).
+Nothing can be lost; it can only be late.
   **`/account/entries/` remains the durable record** and Stripe's receipt still exists.
   ⚠️ **Resend's free tier is 100 a day against 250 places** — an accepted risk, taken
   deliberately over roughly $20/month, and the reason the outbox exists rather than a plain

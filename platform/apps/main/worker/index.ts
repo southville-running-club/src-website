@@ -202,7 +202,7 @@ interface Env {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (env.TIMING_ORIGIN && isTimingPath(url.pathname)) {
@@ -219,7 +219,16 @@ export default {
     // order is stated rather than relied on: a future predicate that widened one of them
     // would otherwise turn payment confirmations into form submissions, silently.
     if (request.method === 'POST' && isNnWebhookPath(url.pathname)) {
-      return handleStripeWebhook(request, env);
+      const response = await handleStripeWebhook(request, env);
+
+      // **Stripe's answer goes back first, and the send happens behind it.** This is the
+      // transition into `paid`, so the trigger has just written the one message somebody is
+      // actually sitting there waiting for. Nudging after the response rather than before it
+      // keeps the webhook's own timing unchanged — Stripe retries on a slow answer, and a
+      // confirmation email is not a thing worth risking that for.
+      nudgeOutbox(ctx, env);
+
+      return response;
     }
 
     // **Where the admin surface used to be, and now nothing but a redirect.** #58 moved it to
@@ -263,7 +272,18 @@ export default {
     // Before the assets binding, like everything else in this block: several of these are
     // POSTs, and every page is built in the Worker rather than served from `dist/`.
     if (isAdminPath(url.pathname)) {
-      return handleAdmin(request, env, url);
+      const response = await handleAdmin(request, env, url);
+
+      // **Every path that enqueues a message from here is a POST** — cancelling writes one,
+      // transferring writes two, giving a place writes one. A GET writes none, so it is not
+      // worth the round trip. The POSTs that enqueue nothing — the filters, the three
+      // exports — cost one query that comes back empty, which is the price of not having to
+      // thread "did that write a row?" back out through every branch of `handleAdmin`.
+      if (request.method === 'POST') {
+        nudgeOutbox(ctx, env);
+      }
+
+      return response;
     }
 
     // **The account area — always on, unlike `/nn/admin`.** There is no key that switches
@@ -468,7 +488,8 @@ export default {
   // Miniflare tests already call this handler the way the runtime does — controller, env,
   // context — and with a two-parameter signature that is a type error nobody saw, because
   // nothing typechecked this file. It is the documented shape of a scheduled handler, and
-  // `ctx.waitUntil` is the thing a future job here would need.
+  // `ctx.waitUntil` is the thing a future job here would need — `fetch` uses its own for
+  // `nudgeOutbox()`, and this handler has no equivalent because it already awaits its work.
   async scheduled(
     _controller: ScheduledController,
     env: Env,
@@ -511,23 +532,53 @@ export default {
     // a year this deletes nothing and says nothing.
     await sweepExpiredMedicalNotes(env);
 
-    // **The outbox, drained on the schedule that already exists — #73.**
+    // **The outbox, and since ADR-032 this is the retry net rather than the delivery.**
     //
-    // The ask was for a sweep "every ~00:01 for any unsent". This runs every five minutes
-    // instead, and that is more than a convenience: Resend's daily cap is documented as
-    // resetting on a **rolling** basis rather than at midnight, and the exact boundary is
-    // recorded as unconfirmed in `docs/solutions/resend-programmatic-email.md`. A single
-    // nightly sweep aimed at a boundary nobody has verified would sit a whole day's overflow
-    // behind one guess; a drain that runs continuously and stops on `429` starts delivering
-    // the moment capacity comes back, whenever that turns out to be, and covers 00:01 on the
-    // way past. It needs no new trigger to configure and no second thing to notice has
-    // stopped.
+    // A message is sent by `nudgeOutbox()` in `fetch` the moment the request that owed it
+    // finishes, so by the time this runs the queue is normally empty and this is one call
+    // that comes back with nothing. What it still exists for is the send that did not
+    // happen: a Resend outage, a `429`, a Worker evicted mid-`waitUntil`. Those rows stay
+    // `pending`, and this is what notices. **Removing it makes a failed send permanent**,
+    // which is the one outcome the outbox was built to rule out.
+    //
+    // It stays on five minutes rather than moving to midnight for the reason it always had:
+    // Resend's daily cap resets on a **rolling** basis and the exact boundary is recorded as
+    // unconfirmed in `docs/solutions/resend-programmatic-email.md`, so a nightly sweep aimed
+    // at a boundary nobody has verified would sit a whole day's overflow behind one guess.
     //
     // Third rather than first, and for the same reason the medical sweep is second: a job
     // that talks to a third party must not decide whether a legal retention obligation runs.
     await drainEmailOutbox(env);
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * Send whatever the request that just finished made the club owe — ADR-032.
+ *
+ * **The outbox row is still written in the same transaction as the thing it is about**, and
+ * that has not changed: the durability argument in ADR-021 was never the reason for the delay.
+ * The delay was that the five-minute cron was the only thing that ever drained it, so a
+ * confirmation could sit `pending` for five minutes behind a payment that had already
+ * completed. This closes that window without giving up the guarantee.
+ *
+ * **`waitUntil` rather than an `await`.** The response goes back first and the send runs after
+ * it, so nobody waits on Resend — which matters most on the webhook, where a slow answer makes
+ * Stripe retry, and on the admin surface, where a volunteer pressing *Cancel* should not watch
+ * a spinner for somebody else's email.
+ *
+ * **Concurrent drains are safe, and that is structural rather than lucky.**
+ * `claim_outbox_batch()` selects `for update skip locked`, so two overlapping runs take
+ * disjoint rows; Resend's `Idempotency-Key` is the outbox row id, so even a genuine double
+ * claim cannot send twice. This is why a nudge on every admin POST is cheap enough not to
+ * need a "did that enqueue anything?" flag threaded back out of `handleAdmin()`.
+ *
+ * ⚠️ **It is a nudge, not a guarantee.** `waitUntil` can be cut short if the isolate is
+ * evicted, and a `429` stops the batch by design. Anything left `pending` is picked up by the
+ * cron in `scheduled()`, which is why that call is still there and must stay.
+ */
+function nudgeOutbox(ctx: ExecutionContext, env: Env): void {
+  ctx.waitUntil(drainEmailOutbox(env));
+}
 
 /**
  * `GET /_health` — the two database round trips, as JSON, for `scripts/smoke.mjs`.
