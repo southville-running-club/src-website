@@ -148,6 +148,53 @@ describe('the structural measurements from the reference design are present', ()
   }
 });
 
+describe('the banner alt text renders when the image is blocked', () => {
+  // The wrapping <td> is `line-height:0; font-size:0;` — the standard email image-gap killer —
+  // which zeroes the alt text too unless the <img> itself carries its own typography. A
+  // blocked image with no fallback leaves a ~10px broken-image icon and nothing else, on "the
+  // one message a runner is waiting for" (email.ts's own words).
+  for (const template of TEMPLATES) {
+    it(`${template}'s banner <img> declares its own non-zero font-size`, () => {
+      const html = render(template);
+      const img = html.match(/<img[^>]*>/)?.[0];
+
+      expect(img, 'no <img> tag found').toBeDefined();
+      expect(img).toMatch(/font-size:15px/);
+      expect(img).not.toMatch(/font-size:0/);
+    });
+  }
+
+  it('is built from the message, not a hardcoded year-scoped string', () => {
+    // Isolated to the alt attribute itself, not the whole page — the CTA elsewhere in the
+    // card links to a year-scoped race-day page by a separate, already year-hardcoded
+    // constant, which would make a whole-page "not 2026" assertion fail for an unrelated
+    // reason and prove nothing about the banner alt text this test is about.
+    const altOf = (html: string) => html.match(/alt="([^"]*)"/)?.[1];
+
+    const html2026 = render('entry_confirmed', {
+      eventName: 'Nightingale Nightmare 2026',
+      eventDate: 'Sunday 1 November 2026',
+    });
+    const html2027 = render('entry_confirmed', {
+      eventName: 'Nightingale Nightmare 2027',
+      eventDate: 'Sunday 7 November 2027',
+    });
+
+    expect(altOf(html2026)).toBe(
+      'Southville Running Club presents Nightingale Nightmare 2026, Sunday 1 November 2026',
+    );
+    expect(altOf(html2027)).toBe(
+      'Southville Running Club presents Nightingale Nightmare 2027, Sunday 7 November 2027',
+    );
+    // The negative case: a hardcoded string would put 2026's date in the 2027 alt text too.
+    expect(altOf(html2027)).not.toContain('2026');
+  });
+
+  it('does not invent a distance, since the artwork does not carry one', () => {
+    expect(render('entry_confirmed')).not.toMatch(/\balt="[^"]*km\b/);
+  });
+});
+
 describe('table-based layout, no forbidden constructs', () => {
   for (const template of TEMPLATES) {
     it(`${template} has no <style> block, no data: URI, and every <table> is a plain layout table`, () => {

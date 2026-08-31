@@ -89,8 +89,15 @@ const MONO = "'Courier New', Courier, monospace";
 export const BANNER_URL =
   'https://new.southvillerunningclub.co.uk/nn-email-banner-1080x566.png';
 
-const BANNER_ALT =
-  'Southville Running Club presents Nightingale Nightmare — 10km off-road, Sunday 1 November 2026';
+/**
+ * Built from the message rather than hardcoded — the file's own rule against inventing a race
+ * fact applies to the alt text exactly as it applies to a facts row. The artwork itself shows
+ * neither a date nor a distance, so this states only what `OutboxMessage` actually carries:
+ * the event's name and date.
+ */
+function bannerAlt(message: OutboxMessage): string {
+  return `Southville Running Club presents ${message.eventName}, ${message.eventDate}`;
+}
 
 const RACE_DAY_URL = 'https://new.southvillerunningclub.co.uk/nn/2026/race-day/';
 const ACCOUNT_ENTRIES_URL = 'https://new.southvillerunningclub.co.uk/account/entries/';
@@ -154,6 +161,7 @@ function ctaButton(label: string, href: string): string {
 
 interface CardParams {
   stamp: string;
+  bannerAlt: string;
   bodyHtml: string;
   factsRowsHtml: string;
   ctaHtml: string;
@@ -186,7 +194,7 @@ function card(params: CardParams): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; margin:0 auto; background-color:${COLOUR.card}; border:1px solid ${COLOUR.border};">
   <tr>
     <td style="padding:0; line-height:0; font-size:0;">
-      <img src="${BANNER_URL}" alt="${escapeHtml(BANNER_ALT)}" width="598" style="display:block; width:100%; max-width:598px; height:auto; border:0;">
+      <img src="${BANNER_URL}" alt="${escapeHtml(params.bannerAlt)}" width="598" style="display:block; width:100%; max-width:598px; height:auto; border:0; font-family:${SERIF}; font-size:15px; line-height:1.6; color:${COLOUR.ink};">
     </td>
   </tr>
   <tr>
@@ -309,6 +317,7 @@ function renderEntryConfirmed(message: OutboxMessage): string {
 
   return card({
     stamp: 'Entry Confirmed',
+    bannerAlt: bannerAlt(message),
     bodyHtml,
     factsRowsHtml,
     ctaHtml,
@@ -352,6 +361,7 @@ function renderEntryRefunded(message: OutboxMessage): string {
 
   return card({
     stamp: 'Entry Cancelled',
+    bannerAlt: bannerAlt(message),
     bodyHtml,
     factsRowsHtml: '',
     ctaHtml: '',
@@ -387,6 +397,7 @@ function renderEntryTransferredOut(message: OutboxMessage): string {
 
   return card({
     stamp: 'Place Transferred',
+    bannerAlt: bannerAlt(message),
     bodyHtml,
     factsRowsHtml,
     ctaHtml: '',
@@ -419,6 +430,7 @@ function renderEntryTransferredIn(message: OutboxMessage): string {
 
   return card({
     stamp: 'Place Received',
+    bannerAlt: bannerAlt(message),
     bodyHtml,
     factsRowsHtml: '',
     ctaHtml: '',
