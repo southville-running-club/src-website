@@ -107,7 +107,9 @@ adapter, Cron Triggers, and a Phase 7 apex cutover that is now a record edit.
 
 ## Phase 3 — Nightingale Nightmare live
 
-**Deadline: ~22 August 2026.**
+**Deadline: ~22 August 2026 — passed. What is outstanding as of 31 August 2026 (the day
+before entries open) is registering the Stripe endpoint and swapping to live keys, both
+rows below; everything else in this phase's table is built.**
 
 A public page, a sign-up link, and **payment through Stripe**. This is the club's first
 transaction on its own infrastructure.
@@ -125,10 +127,13 @@ transaction on its own infrastructure.
 | **The bar says "Race info" where that page says "Race instructions"** | **Not a compromise about the words — the bar's height is load-bearing.** "Race instructions" in the navigation adds 48px, a whole second row, at every width from 768px up, and again at 560px. That overflows `scroll-padding-top`, which is the hand-written per-breakpoint token that pays for defect 2 of the three [ADR-012](../architecture/decisions/adr-012-one-navigation-bar.md) unstuck this bar over and [ADR-014](../architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md) stuck it back by answering. A label that wraps the bar re-opens that defect silently: every anchor and every keyboard focus on those screens lands behind the header. **"Race info" measured identical to the old "Race day" at all thirteen widths, and "Spooktators" identical to "Spectators".** The bar has always been allowed to be shorter than the heading — it read "Spectators" over "Watching the race". `site.spec.ts`'s nine-width sweep is the guard, and it is what caught this |
 | **Stripe payment — the handoff** ✅ | **Built.** A valid entry holds a place for 31 minutes under a per-event lock, is priced from `entries.fees`, and is handed to Stripe Checkout. Capacity is enforced under real concurrency, and the club never sees a card number |
 | **Stripe payment — the confirmation** ✅ | **Built.** `POST /nn/stripe-webhook` verifies Stripe's signature over the raw bytes and is the only thing that writes `paid`. Idempotent under retry and duplicate delivery; a payment arriving after the hold lapsed is taken rather than refused, and flagged when there was no room. `/nn/2026/entry/complete/` reports what the club has recorded. [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md) |
-| **Reading the entries, and forgetting on time** ✅ | **Built.** `/nn/admin` — the entries for a running with the category derived and an over-capacity payment impossible to miss, the interest list nobody could read until now, and three CSV exports with the medical one deliberately separate. Behind a Worker secret and a key per volunteer, with every medical read and every export recorded. And the five-minute cron now **deletes medical notes a month after the race**, which `/nn/privacy/` has been promising since it was published. [ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md) |
+| **Reading the entries, and forgetting on time** ✅ | **Built.** `/admin/nn/` — the entries for a running with the category derived and an over-capacity payment impossible to miss, the interest list nobody could read until now, and three CSV exports with the medical one deliberately separate. **Behind a role now, not a key** — signing in and holding `nn-admin`, per the row below — with every medical read and every export recorded. And the five-minute cron now **deletes medical notes a month after the race**; `/nn/privacy/` no longer publishes that period as a promise since its 30 August rewrite, so the tie survives only in `entries-retention.test.ts`. [ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md), amended by #57/#58 |
 | **Registering the Stripe endpoint** | **A human's job, and the last of `apps/main/README.md`'s manual steps.** It needs the production URL — created any earlier and Stripe posts into a 404. The three Worker secrets go on at the same time |
 | **Switching the admin surface on** | **Superseded by Phase 3b.** It was a fourth Worker secret plus a key per volunteer; #58 retired both. What switches the back office on now is registering the club's admin address and granting a role — [the admin runbook](runbooks/entries-admin.md). No secret, no SQL and no deploy |
-| **A real payment end to end** | Nothing has been paid for yet, in test mode or otherwise. The first real payment is the first full test of the chain, and it should be a committee member's own card in test mode before entries open |
+| **The runner's own entry record, and asking to cancel or transfer** ✅ | **Built.** `/account/entries/` shows a runner their confirmed places, a Cancelled view (`?show=cancelled`) for lapsed holds and refunds, and a request-an-action path — `request_entry_action()` records that somebody has asked to cancel or transfer, and performs neither; a volunteer acts on it from `/admin/nn/`. Nothing in the schema acts on a request automatically, and there is deliberately no transfer button on the admin surface yet |
+| **A real payment end to end** | **Done, and complicated.** A live payment was taken 27 August 2026 while proving the Stripe key swap, and it is still stranded across the test/live mode boundary — a key of one mode cannot refund a payment intent of the other, so it can only be cancelled while the live pair is bound. [The key-swap runbook](runbooks/entries-stripe-keys.md) has the recovery and the mode-mismatch symptom to recognise |
+| **The England Athletics number came off the form** ✅ | **Done, 29 August 2026.** The club asks for no number and holds none — a runner states their affiliation and the club takes their word for it, reserving the right to ask for evidence — [decision 007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers), [ADR-023](../architecture/decisions/adr-023-no-england-athletics-numbers.md). This closed [#72](https://github.com/southville-running-club/src-website/issues/72), which had been open against the possibility of Southville itself being ARC-affiliated. The £18/£20 split and the £2 levy are untouched; only the number stopped being asked for. **The contract step — dropping the two now-unused columns — is still owed**, [runbook](runbooks/entries-ea-number-contract.md) |
+| **The runner's own phone number was added** ✅ | **Done, 30 August 2026.** The eighteenth entry field, required of a runner and asked of no guide — [decision 008](../decisions/decision-log.md#008--ask-a-runner-for-a-phone-number-and-make-the-race-notice-say-what-is-actually-held), [ADR-025](../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md). It exists because `/nn/privacy/` claimed a phone number the club did not hold; the stated purpose is telling a runner about a change to the race, not the emergency contact's number, which is somebody else's |
 
 **Procedure:** [the Cloudflare runbook](runbooks/cloudflare-setup.md) covers the hosting
 path — the two Workers, one hostname told apart by path. The page, form and payment flow
@@ -248,12 +253,12 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
 - [ ] **Whether a submission with the consent box unticked is stored at all.** It is
       currently *required to submit*. The database is deliberately neutral on it, so
       reversing this needs no migration
-- [ ] **The 2026 ARC permit number.** Not yet issued. `race.permit` is `null` and the
-      2023 number is not a stand-in for it. **ARC Rule 21(2)(a) makes this a required page
-      element rather than only a fact the pages happen to lack**: the words "Under ARC Rules"
-      and the permit number must appear on any printed matter or electronic communication
-      connected with the event, and the website is both. Scoped now so it is not discovered in
-      October; blocked on the number
+- [x] **The 2026 ARC permit number — issued 27 August 2026: `ARC/26/0842`.** It lives in
+      `race.json`'s `permit` and is quoted three times, per ARC Rule 21(2)(a)'s requirement
+      that the words "Under ARC Rules" and the permit number appear on any printed matter or
+      electronic communication connected with the event: the facts list on `/nn/2026/`, the
+      foot of the entry form, and `/nn/2026/terms/`. It is year-scoped and may not appear on
+      `/nn/` or `/nn/privacy/`
 - [x] **The group warm-up time — answered 26 August 2026, and the whole schedule landed with
       it.** Four rows were confirmed and the fifth blocked all four: a group warm-up at 10:45
       could not stand once the field leaves HQ at 10:40, and `race.json` therefore kept the old
@@ -335,6 +340,13 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
 and [ADR-015](../architecture/decisions/adr-015-member-accounts-on-supabase-auth.md). Not one
 of the original seven phases; it sits between Phase 3 and Phase 4 because the committee decided
 accounts come before entries open, and entries want to open in early September.
+
+**Built, substantially, as of 31 August 2026.** `/account/` (sign-up, sign-in, sign-out,
+password reset, `/account/entries/`) and `/admin/` are both live. What "three roles" grew
+into is five (`registered`, `nn-admin`, `people-admin`, `super-admin`, `nn-tester`) and ten
+permissions, each addition forced through a diff by
+`identity-permissions.test.ts` — [ADR-016](../architecture/decisions/adr-016-registered-is-not-a-member.md),
+[ADR-017](../architecture/decisions/adr-017-permissions-are-what-code-checks.md).
 
 **Supabase Auth, three roles, `/account/` and `/admin/`.** Roughly seventeen pull requests,
 tracked end to end — with the ordering, the break-glass, and the cost of each piece — in
@@ -514,8 +526,10 @@ this removes.
 - ~~**The Stripe data model**~~ — **done.** The reference and never the instrument: a Checkout
   session id and a payment intent id, and no card number, last four or expiry anywhere near
   this database. That is what keeps the club out of PCI scope
-- **The webhook** — what confirms a payment, how it authenticates, and what privilege it
-  writes with. **Not a licence for a service role key**
+- ~~**The webhook**~~ — **done.** `POST /nn/stripe-webhook` confirms a payment, authenticates
+  by verifying Stripe's signature over the raw bytes, and writes through a `security
+  definer` function gated on a shared key — [ADR-010](../architecture/decisions/adr-010-webhook-writes-paid.md).
+  **Not a licence for a service role key**, and it never became one
 - ~~**The confirmation email**~~ — **done**, in
   [#73](https://github.com/southville-running-club/src-website/issues/73) and
   [ADR-021](../architecture/decisions/adr-021-the-club-tells-people-by-outbox.md). Four
@@ -525,14 +539,21 @@ this removes.
   **`/account/entries/` remains the durable record** and Stripe's receipt still exists.
   ⚠️ **Resend's free tier is 100 a day against 250 places** — an accepted risk, taken
   deliberately over roughly $20/month, and the reason the outbox exists rather than a plain
-  send. **`/admin/emails/` — the queue, with a re-send button — is the remaining half**
+  send. **`/admin/emails/` — the queue, with a re-send button — is built too**, since 29
+  August 2026, gated on its own two permissions, `nn.email.read` and `nn.email.resend`
 - ~~**A way to test the payment path without opening entries**~~ — **done**, in
   [#107](https://github.com/southville-running-club/src-website/issues/107). The `nn-tester`
   role and a permission-gated £1 fee, so the rehearsal in the entries-open runbook no longer
   writes an `entries_open_at` at all. That mattered when the window was unratified and it
   matters for a second reason now that it is: the times being settled does not make the column
   safe to set early, and the rehearsal must not be the thing that opens the race
-- ~~**Undoing an entry**~~ — **done**, narrowly. A `super-admin` may cancel and refund one
-  purchase — [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). Transfers,
-  corrections, manual entries, resends and partial refunds are each still their own decision
+- ~~**Undoing an entry**~~ — **done**, narrowly. Somebody holding `nn.entry.cancel` — which
+  `nn-admin` carries and `super-admin` deliberately does not — may cancel and refund one
+  purchase in full —
+  [ADR-018](../architecture/decisions/adr-018-cancelling-an-entry.md). **Transferring a
+  place and giving one away are both built too** — `transfer_entry()`, and
+  `create_manual_entry()` behind `nn.entry.create` per
+  [ADR-026](../architecture/decisions/adr-026-a-place-can-be-given.md) — and so is
+  resending a failed email from `/admin/emails/`. **Corrections and partial refunds are
+  each still their own decision**
 - **The backup runbook**, with a tested restore
