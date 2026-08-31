@@ -24,6 +24,10 @@ import type { OutboxMessage } from '@src/shared';
 const CONFIG: EmailConfig = {
   apiKey: 'not-a-real-key',
   apiBase: 'https://api.example.invalid',
+  // `null` here on purpose: this file asserts the text part, which email-skin.ts's own
+  // header comment says never changes with the banner's availability. The attachment
+  // mechanics themselves are asserted in the "the banner attachment" block below.
+  bannerAttachment: null,
 };
 
 function message(overrides: Partial<OutboxMessage> = {}): OutboxMessage {
@@ -46,13 +50,28 @@ function message(overrides: Partial<OutboxMessage> = {}): OutboxMessage {
  * Captures the one `POST /emails` and answers it the way Resend does. Returns the parsed body,
  * which is what every assertion below reads.
  */
-async function bodyOf(input: OutboxMessage): Promise<{ subject: string; text: string }> {
-  let captured: { subject: string; text: string } | null = null;
+interface CapturedBody {
+  subject: string;
+  text: string;
+  html?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    content_type: string;
+    content_id: string;
+  }>;
+}
+
+async function bodyOf(
+  input: OutboxMessage,
+  config: EmailConfig = CONFIG,
+): Promise<CapturedBody> {
+  let captured: CapturedBody | null = null;
 
   vi.stubGlobal(
     'fetch',
     vi.fn(async (_url: string, init: RequestInit) => {
-      captured = JSON.parse(String(init.body)) as { subject: string; text: string };
+      captured = JSON.parse(String(init.body)) as CapturedBody;
       return new Response(JSON.stringify({ id: 'msg_1' }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
@@ -60,7 +79,7 @@ async function bodyOf(input: OutboxMessage): Promise<{ subject: string; text: st
     }),
   );
 
-  const outcome = await sendOutboxMessage(CONFIG, input);
+  const outcome = await sendOutboxMessage(config, input);
 
   expect(outcome.ok, `send failed: ${JSON.stringify(outcome)}`).toBe(true);
   expect(captured).not.toBeNull();
@@ -134,5 +153,47 @@ describe('a place the club gave away', () => {
     const body = await bodyOf(message({ template: 'entry_refunded', amountPence: 0 }));
 
     expect(body.text).not.toContain('\n\n\n');
+  });
+});
+
+describe('the banner attachment', () => {
+  const withBanner: EmailConfig = {
+    ...CONFIG,
+    bannerAttachment: {
+      filename: 'nn-email-banner-1080x566.png',
+      content: 'ZmFrZS1wbmctYnl0ZXM=',
+      contentType: 'image/png',
+      contentId: 'nn-email-banner',
+    },
+  };
+
+  it('is attached when this run has one', async () => {
+    const body = await bodyOf(message(), withBanner);
+
+    expect(body.attachments, 'no attachments array sent').toBeDefined();
+    expect(body.attachments).toEqual([
+      {
+        filename: 'nn-email-banner-1080x566.png',
+        content: 'ZmFrZS1wbmctYnl0ZXM=',
+        content_type: 'image/png',
+        content_id: 'nn-email-banner',
+      },
+    ]);
+  });
+
+  it('is not sent as a null field when this run does not have one', async () => {
+    // The one CONFIG every other test in this file uses already has `bannerAttachment: null`
+    // — asserted here explicitly, so a future change to that default does not go unnoticed.
+    const body = await bodyOf(message());
+
+    expect(body.attachments).toBeUndefined();
+    expect(Object.hasOwn(body, 'attachments')).toBe(false);
+  });
+
+  it('does not stop the message sending when the banner could not be fetched', async () => {
+    // The whole point of the null case: a runner still gets told they have a place.
+    const outcome = await bodyOf(message({ template: 'entry_refunded' }));
+
+    expect(outcome.text).toContain('has been cancelled');
   });
 });

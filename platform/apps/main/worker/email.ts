@@ -24,9 +24,12 @@
  * ## The `From` is not the race's address, and that is deliberate
  *
  * Resend may only send as a **verified domain**, which is `send.southvillerunningclub.co.uk`.
- * `entries.events.from_address` is `nightingalenightmare@gmail.com` — a real, monitored
- * mailbox, and one Resend cannot send as. So it becomes **`Reply-To`**, which is the useful
- * half anyway: pressing Reply on one of these reaches a human.
+ * `entries.events.from_address` is `nightingalenightmare@southvillerunningclub.co.uk` — a
+ * club-domain alias that forwards into `info@`, proven to deliver on 28 August 2026
+ * (`docs/delivery/runbooks/nn-email-aliases.md`), and one Resend cannot send as. So it becomes
+ * **`Reply-To`**, which is the useful half anyway: pressing Reply on one of these reaches a
+ * human. It replaced the seed migration's `nightingalenightmare@gmail.com` on 31 August 2026 —
+ * see `20260831090000_entries_nn_reply_to_club_domain.sql`.
  *
  * ⚠️ **That is the opposite of the account emails**, which GoTrue sends with no `reply_to`
  * field at all and which therefore bounce when replied to. The difference is that this path
@@ -34,6 +37,7 @@
  */
 
 import { formatPence, type OutboxMessage } from '@src/shared';
+import { renderEntryEmailHtml, BANNER_CONTENT_ID } from './email-skin';
 
 /** What the Worker needs before it can send anything at all. */
 export interface EmailConfig {
@@ -47,6 +51,89 @@ export interface EmailConfig {
    * living in `wrangler.jsonc` so there is no path by which it reaches a deployed Worker.
    */
   apiBase: string;
+  /**
+   * `null` when `fetchBannerAttachment()` could not read the file this run — a message must
+   * still send, so every send is written to cope with either shape rather than to assume the
+   * banner exists. Fetched once per drain batch by `email-outbox.ts`, not once per message:
+   * it is the same file for every send in the batch, and base64-encoding a 142KB PNG ten
+   * times over a five-minute cron would be pure waste.
+   */
+  bannerAttachment: BannerAttachment | null;
+}
+
+/** One inline image, shaped for Resend's `attachments` field. */
+export interface BannerAttachment {
+  filename: string;
+  /** Base64, no `data:` prefix — Resend's own field, not a browser `<img>` `src`. */
+  content: string;
+  contentType: string;
+  contentId: string;
+}
+
+/**
+ * Reads the banner PNG from the Worker's own static-assets binding and returns it ready to
+ * attach — never throws, and `null` on any failure, because a missing banner must degrade to
+ * a card with no banner row rather than block the confirmation a runner is waiting for.
+ *
+ * **Fetched from `ASSETS`, not a remote URL.** ADR-026 closed the open-tracker question this
+ * way: the banner ships as part of the message rather than as an `https://` reference, so no
+ * mail client ever makes an HTTP request to render it, and there is nothing for that request
+ * to disclose. `card()` in `email-skin.ts` references it as `cid:${BANNER_CONTENT_ID}` — the
+ * two constants have to name the same file, which is why `BANNER_CONTENT_ID` is imported
+ * rather than restated here.
+ *
+ * The host in the request URL is never resolved — `ASSETS.fetch()` serves the Worker's own
+ * bundled files by path alone, the same binding `worker/index.ts`'s `nnPage()` reads through
+ * for an internal request with nothing to build a real origin from.
+ */
+export async function fetchBannerAttachment(
+  assets: Fetcher,
+): Promise<BannerAttachment | null> {
+  let response: Response;
+
+  try {
+    response = await assets.fetch(
+      new Request('https://assets.internal/nn-email-banner-1080x566.png'),
+    );
+  } catch {
+    return null;
+  }
+
+  if (!response.ok) {
+    return null;
+  }
+
+  let bytes: ArrayBuffer;
+
+  try {
+    bytes = await response.arrayBuffer();
+  } catch {
+    return null;
+  }
+
+  return {
+    filename: 'nn-email-banner-1080x566.png',
+    content: base64(bytes),
+    contentType: 'image/png',
+    contentId: BANNER_CONTENT_ID,
+  };
+}
+
+/**
+ * A byte-at-a-time loop rather than `String.fromCharCode(...bytes)` — the spread form
+ * overflows the call stack on a buffer this size in some engines. `btoa` is a Web standard
+ * available without `nodejs_compat`'s `Buffer`, which nothing in `worker/` has needed before
+ * this and which this file's own header argues against reaching for a dependency to avoid.
+ */
+function base64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary);
 }
 
 /**
@@ -64,23 +151,33 @@ export type SendOutcome =
 interface RenderedEmail {
   subject: string;
   text: string;
+  /**
+   * `null` for a template `email-skin.ts` does not know — the plain-text part still sends on
+   * its own rather than losing the whole message, which is what keeps `render()` and
+   * `renderEntryEmailHtml()` free to fail independently at the expand/migrate/contract seam.
+   */
+  html: string | null;
 }
 
 /**
- * **Plain text, and no HTML part at all.**
+ * **The text part is authoritative; the HTML part is a rendering of the same facts.**
  *
- * Four short transactional messages do not need a rendered layout, and an HTML part is a
- * second copy of every sentence that will eventually disagree with the first. It also removes
- * a whole class of deliverability problem — a text-only message from a verified domain is
- * about as unlikely to be filtered as email gets, which matters most for the one message a
- * runner is waiting for.
+ * This used to be "plain text, and no HTML part at all" — reasoned on two grounds: an HTML
+ * part is a second copy of every sentence that will eventually disagree with the first, and a
+ * text-only message from a verified domain is about as unlikely to be filtered as email gets.
+ * Both still hold, which is why the text below is untouched and remains what a screen reader,
+ * a text-only client, and every existing test read.
+ * [ADR-026](../../../../docs/architecture/decisions/adr-026-an-html-part-joins-the-outbox-emails.md)
+ * is the record of reversing that decision, and the fixture-driven test in
+ * `email-skin.test.ts` is what stands in for "one sentence, not two": every fact in the HTML
+ * part is read off the same `OutboxMessage` this function reads, never typed a second time.
  *
  * **A greeting only when there is a name to use.** `entrant_first_name` is null after a
  * cancellation, which deletes the entrants, and after a transfer, which replaces them. So
  * every template is written to read correctly with no name, rather than greeting somebody as
  * "Hello ,".
  */
-function render(message: OutboxMessage): RenderedEmail | null {
+function render(message: OutboxMessage, hasBanner: boolean): RenderedEmail | null {
   const greeting =
     message.entrantFirstName === null ? 'Hello,' : `Hello ${message.entrantFirstName},`;
 
@@ -106,9 +203,16 @@ function render(message: OutboxMessage): RenderedEmail | null {
    */
   const free = message.amountPence === 0;
 
+  // **Computed once, from `message` alone, and never from anything the text branches below
+  // built.** The HTML part reads the same `OutboxMessage` the text part does — never the
+  // text's own output — so the two can never state different facts and only ever differ in
+  // presentation.
+  const html = renderEntryEmailHtml(message, hasBanner);
+
   switch (message.template) {
     case 'entry_confirmed':
       return {
+        html,
         subject: `Your place in ${message.eventName} is confirmed`,
         text: [
           greeting,
@@ -127,6 +231,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_refunded':
       return {
+        html,
         subject: `Your entry to ${message.eventName} has been cancelled`,
         text: [
           greeting,
@@ -152,6 +257,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_transferred_out':
       return {
+        html,
         subject: `Your place in ${message.eventName} has been transferred`,
         text: [
           // **No name, deliberately.** This message goes to the address the entry has just
@@ -170,6 +276,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
 
     case 'entry_transferred_in':
       return {
+        html,
         subject: `You have a place in ${message.eventName}`,
         text: [
           greeting,
@@ -211,7 +318,7 @@ export async function sendOutboxMessage(
   config: EmailConfig,
   message: OutboxMessage,
 ): Promise<SendOutcome> {
-  const rendered = render(message);
+  const rendered = render(message, config.bannerAttachment !== null);
 
   if (rendered === null) {
     return {
@@ -235,12 +342,31 @@ export async function sendOutboxMessage(
         // before recording it. Belt and braces, and the braces are free.
         'idempotency-key': `outbox:${message.id}`,
       },
+      // `html` and `attachments` are both omitted rather than sent as `null` — Resend's own
+      // examples never show a null field, and an absent key is unambiguous where a null one
+      // would need guessing about. `rendered.html` is only ever null for a template
+      // `email-skin.ts` does not know, which `render()` above already refuses before this
+      // call is reached; `config.bannerAttachment` is null whenever this run could not read
+      // the file, in which case `rendered.html` was built with no banner row to attach for.
       body: JSON.stringify({
         from: FROM,
         to: [message.recipient],
         reply_to: message.replyTo,
         subject: rendered.subject,
         text: rendered.text,
+        ...(rendered.html === null ? {} : { html: rendered.html }),
+        ...(config.bannerAttachment === null
+          ? {}
+          : {
+              attachments: [
+                {
+                  filename: config.bannerAttachment.filename,
+                  content: config.bannerAttachment.content,
+                  content_type: config.bannerAttachment.contentType,
+                  content_id: config.bannerAttachment.contentId,
+                },
+              ],
+            }),
       }),
       // Shorter than the refund's twenty seconds and longer than Checkout's ten: nobody is
       // waiting on this, but a cron that hangs on a provider outage is a cron that stops
