@@ -238,9 +238,17 @@ test.describe('the privacy notice', () => {
     // the collection list's edits itself: two things it does not collect came out, four it
     // does went in, and **no sentence was rewritten, restyled or reordered**. That is the line
     // this test now holds. Every assertion below is still one of the committee's own
-    // sentences; the two `not.toContain`s and the four insertions are the diff, and anything
-    // beyond that shape is the committee's to supply. See the header of
+    // sentences; the `not.toContain`s and the insertions are the diff, and anything beyond
+    // that shape is the committee's to supply. See the header of
     // `apps/main/src/pages/nn/privacy.astro`.
+    //
+    // ⚠️ **The shape widened once, on 31 August 2026 — #179 items 4 and 5.** Until then an
+    // insertion meant an item in *the collection list*. Two of the commitments #179 left open
+    // could not live there: the affiliation reservation decision 007 requires on both notices,
+    // and an Article 9 condition for the health data section 2 already lists. Both went in as
+    // **list items in their own list's shape** — one in section 2, one in section 4 — and no
+    // sentence on the page was rewritten, restyled or reordered. So the line this test holds
+    // is now "an item in a list, in that list's voice"; the prose is still untouchable.
     await page.goto('/nn/privacy/');
     const body = (await page.locator('.nn-prose').textContent()) ?? '';
 
@@ -292,6 +300,44 @@ test.describe('the privacy notice', () => {
     expect(body).not.toContain('IP address');
 
     expect(body).toContain('We do not sell your data to third parties.');
+
+    // ⚠️ **The two 31 August insertions are matched against whitespace-squashed text, and the
+    // assertions above deliberately are not.** `textContent` returns the source's own newlines
+    // and indentation, so a phrase Prettier happens to wrap arrives with a line break in the
+    // middle of it — the trap `worker/html.ts` documents, one framework along. Every assertion
+    // above survives only because no committee sentence currently straddles a break, and the
+    // next reformat can move that. **The sentences below are the ones this change owns**, so
+    // they are matched the robust way rather than the lucky way: `\s+` collapses to a single
+    // space, the words still have to be exact, and nothing about the fidelity check weakens.
+    const flowed = body.replace(/\s+/g, ' ');
+
+    // **The affiliation reservation, added 31 August 2026 — issue #179 item 5 and #167.**
+    // Decision 007 stopped the club asking for England Athletics numbers and made this
+    // sentence a requirement of the decision rather than a nicety, on **both** notices; it was
+    // on `/privacy/` only. These are that page's words, carried across rather than rewritten,
+    // which is why nothing here is new wording. It is a collection-list item because its first
+    // half is a statement about what the club does not collect.
+    expect(flowed).toContain('Running Club Affiliation:');
+    expect(flowed).toContain('we do not ask for your England Athletics number');
+    expect(flowed).toContain(
+      'produce your registration number, or other evidence that you are affiliated',
+    );
+
+    // **The Article 9 condition, added the same day — issue #179 item 4.** Section 2 lists two
+    // categories of special category data and section 4 named no condition for either, so a
+    // reader of the legal bases would conclude consent covered only marketing. The heading
+    // test above has claimed since 30 August that this section says explicit consent is the
+    // basis for the medical data. It did not, until this change.
+    //
+    // **Asserted with the section-2 cross-reference in it**, because the condition is only
+    // meaningful attached to the data it is a condition for — a bare "explicit consent" bullet
+    // would pass this and tell a reader nothing about which processing it covers.
+    expect(flowed).toContain(
+      'Explicit consent (Article 9(2)(a)): For the health information in section 2',
+    );
+    expect(flowed).toContain('telling us you are visually impaired');
+    expect(flowed).toContain('you can withdraw at any time');
+
     expect(body).toContain(
       'Contractual necessity: To register you for the race and deliver event services',
     );

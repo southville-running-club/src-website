@@ -33,6 +33,25 @@ import '@src/shared/styles/nn-theme.css';
 // capitalisation and headings are untouched. A change beyond that shape goes back to the
 // committee.
 //
+// ⚠️ **On 31 August 2026 the shape was widened, deliberately and once — issue #179 items 4 and
+// 5.** Until then the permitted edit was an item in *the collection list*, section 2. Two of
+// the four things #179 left open are sentences the club has already committed to elsewhere and
+// which section 2 alone cannot carry: the affiliation reservation decision 007 requires on both
+// notices, and an Article 9 condition for the health data section 2 lists. **Both went in as
+// list items, in their own list's existing shape** — one in section 2, one in section 4's list
+// of legal bases — and still no sentence anywhere on this page has been rewritten, restyled or
+// reordered. So the rule now reads: **an item inserted into or removed from a list, in that
+// list's own voice, and nothing else.** Prose is still the committee's.
+//
+// **Neither item is new wording, which is what made it a transcription rather than a drafting
+// exercise.** The affiliation item is the sentence already published on `/privacy/`, carried
+// across word for word because decision 007 asks for it on both notices and it was on one. The
+// Article 9 item names the condition the entry form already relies on — the medical note and
+// the visually impaired declaration each take a separate, unbundled, explicit tick, and nothing
+// is stored without one — so it describes the built consent rather than choosing a basis for it.
+// **`nn-privacy.spec.ts`'s own heading test has claimed since 30 August that section 4 says
+// "explicit consent is its basis" for the medical data. It did not, until this change.**
+//
 // **A third list edit was taken on 31 August 2026: photographs and video went in.** The entry
 // terms have said since version 1 that a runner's name and photographic or video footage may be
 // used to publicise the race and the club, and for the fancy dress competition — and this notice
@@ -93,9 +112,11 @@ import '@src/shared/styles/nn-theme.css';
 //     So the chain reaches a runner again — just not through this page.
 //  2. **The named processors and the registered office are still absent.** The list below
 //     names what is collected; who processes it is the committee's to supply.
-//  3. **The affiliation sentence is not here.** ADR-023 asks for it on both notices; it
-//     remains on `/privacy/`, and closing that gap needs wording from the committee rather
-//     than an edit here — which is exactly the line the edits above stay on the near side of.
+//  3. **The affiliation sentence is here now, and it was the third of these until 31 August
+//     2026.** ADR-023 and decision 007 ask for it on both notices and it was on one. It is a
+//     collection-list item rather than a new sentence — the first half of it is a statement
+//     about what the club does *not* collect, which is what section 2 is for, and the words are
+//     `/privacy/`'s own. Issue #179 item 5, and issue #167's first half.
 //
 // ## What is interpolated, and why that is not an edit
 //
@@ -206,6 +227,13 @@ const { privacy } = race;
           affiliation, chosen race category.
         </li>
         <li>
+          <strong>Running Club Affiliation:</strong> If you take an affiliated entry, we do
+          not ask for your England Athletics number. We do not collect one and we do not hold
+          one — we take your word for it. We reserve the right to ask you to produce your registration
+          number, or other evidence that you are affiliated, if we need to check that the entry
+          fee you paid was the right one.
+        </li>
+        <li>
           <strong>Health Information:</strong> Any medical information you choose to give us
           about yourself or about a guide running with you, under a separate consent; and, if
           you tell us you are visually impaired so that a guide can run with you, that declaration.
@@ -252,6 +280,12 @@ const { privacy } = race;
           Legitimate interests: Event safety, operational efficiency, and fraud prevention
         </li>
         <li>Consent: For optional marketing communications</li>
+        <li>
+          Explicit consent (Article 9(2)(a)): For the health information in section 2 —
+          any medical information you give us, and telling us you are visually impaired.
+          Each is asked for separately on the entry form, we hold neither unless you agree
+          to it, and you can withdraw at any time
+        </li>
         <li>Legal obligations: Health and safety requirements, incident reporting</li>
       </ul>
 

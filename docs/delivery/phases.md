@@ -218,19 +218,21 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       because nothing on the page reads it: the notice neither renders a marker for it
       nor says anything to a runner about next year's race. **The notice itself is
       written** and covers the entry as well as the interest form
-- [ ] **The site-wide notice's two further open decisions** — **how long an account is
+- [x] **The site-wide notice's two further open decisions** — **how long an account is
       kept**, including what happens when somebody stops being a member, and **whether
-      deleting an account also deletes a race entry** by the same person. They are `null` in
-      `apps/main/src/content/privacy.json` and render the same marker on `/privacy/`, which
-      is the club's notice rather than the race's. **The first is the one that blocks
-      nothing and matters most**: an account is a standing record of a named person, held
-      indefinitely until this is answered. The contact for data questions above is the same
-      open decision on both notices, which is why it is `race.json`'s on both — **it was
-      settled on 30 August 2026** by the committee's document, and `/privacy/` picked the
-      answer up out of `race.json` without being edited. `/privacy/` is written;
+      deleting an account also deletes a race entry** by the same person. **Both answered on
+      31 August 2026**, by the club rather than by the committee —
+      [decision 009](../decisions/decision-log.md#009--answer-the-two-open-questions-on-the-club-privacy-notice-and-carry-two-committed-sentences-onto-the-race-notice),
+      issue #179 item 2 — because neither needed a choice the club had not already made:
+      nothing deletes an account, so the retention answer is the criterion "until you delete
+      it", and what deletion does to an entry was settled in #62, enforced by
+      `identity.delete_me()` and published on `/account/data/` all along. The contact for data
+      questions above is the same open decision on both notices, which is why it is
+      `race.json`'s on both — **it was settled on 30 August 2026** by the committee's document,
+      and `/privacy/` picked the answer up out of `race.json` without being edited.
       ~~`privacy.spec.ts` counts its three markers as `nn-privacy.spec.ts` counts the four~~
-      `privacy.spec.ts` counts its **two** remaining markers and `nn-privacy.spec.ts` counts
-      **none**, because the race notice renders no marker at all now
+      **Both specs count zero now**, and the constants stay at zero because the failure worth
+      guarding is an answer reverting to a marker on a published notice
 - [ ] **The wording of both notices, and of the lawful bases on `/privacy/` in particular.**
       Neither page has been read by a lawyer or approved by the committee. The account
       notice claims **legitimate interests** for the account itself and **consent** for the
