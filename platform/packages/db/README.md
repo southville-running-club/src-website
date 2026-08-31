@@ -1,7 +1,20 @@
 # `packages/db` — schema, migrations and generated types
 
-The schemas **this repository owns**: `club` and `intake`.
-[ADR-002](../../../docs/architecture/decisions/adr-002-schema-layout.md).
+> ⚠️ **This file describes the schema roughly as it stood in Slice G (mid-to-late August
+> 2026) and has drifted from it in several places since — the counts, the fees, the
+> discount-code state and the `entries_open_at`/`entries_close_at` claims below are all
+> corrected inline, but the detailed walk-through of the admin surface's key-and-grant
+> mechanism (§ "The anon role holds nothing here") predates the `identity` schema, the
+> `nn-admin`/`people-admin`/`super-admin` roles and the retirement of the two-key scheme.
+> For the current state of any of that, [`CLAUDE.md`](../../../CLAUDE.md) at the repository
+> root is the reference, and `tests/entries.test.ts` /
+> `tests/identity-permissions.test.ts` are what is actually enforced. Bringing this file
+> fully current — including an `identity` section — is its own piece of work; treat
+> anything here about roles, permissions or the admin surface as historical until then.**
+
+The schemas **this repository owns**: `club`, `intake`, `entries` and `identity`.
+[ADR-002](../../../docs/architecture/decisions/adr-002-schema-layout.md) named the first
+two; `entries` and `identity` were added once race entries and member accounts were built.
 
 ## The rule that matters most
 
@@ -12,13 +25,15 @@ rather than good intentions:
 |  |  |
 | --- | --- |
 | `public`, `private` | **The timing platform's.** Migrated from `src-race-timing`. Not a column, not a policy, not ever from here |
-| `club`, `intake` | Migrated from here |
-| Diff and push | Always schema-scoped — `--schema club,intake` |
+| `club`, `intake`, `entries`, `identity` | Migrated from here |
+| Diff and push | Always schema-scoped — `--schema club,intake,entries,identity` |
 | `supabase db reset` | **Local only.** Against the shared remote it destroys the other application's data |
 
 ## What is in it
 
-Three schemas, ten tables and sixteen functions.
+Four schemas. Table and function counts are not restated here — they only ever drift —
+`tests/entries.test.ts` and `tests/identity-permissions.test.ts` assert the exact sets and
+are the thing to read for a current number.
 
 |  |  |
 | --- | --- |
@@ -28,8 +43,8 @@ Three schemas, ten tables and sixteen functions.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
-| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **Two rows**: `stripe` for the payment webhook, `admin` for the admin surface. RLS on, no policy, no grant. Both ship with a null digest, which refuses everything — installing each is a manual step |
-| `entries.admin_keys` | One row per person who may read the admin surface: their key's digest, and a **handle rather than a name**, because it lands in every audit row. RLS on, no grant. Ships empty |
+| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **The `stripe` row, for the payment webhook, is live** — RLS on, no policy, no grant, ships with a null digest that refuses everything until installed. The `admin` row belonged to the retired two-key admin scheme (see below) |
+| `entries.admin_keys` | **Retired, and unused.** Belonged to the two-key admin scheme (one row per person's key digest); the admin surface is reached by signing in and holding a role since #57/#58. Ships empty and stays empty |
 | `entries.admin_audit` | Who opened the admin surface, who read a medical note, who exported what. **Never the contents.** RLS on, no grant |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
 | `entries.current_entry_state()` | The same answer for the **current running of a recurring race**, so a page about the race never has to name a year. Discloses nothing `entry_state()` does not |
@@ -39,14 +54,25 @@ Three schemas, ten tables and sixteen functions.
 | `entries.record_checkout_event()` | The only object that writes `paid`. **Takes a key** — [ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) |
 | `entries.entry_completion_state()` | One word about one Checkout session. No personal data, and not the purchase id |
 | `entries.raise_attention()` | Flags a purchase for a human. **Granted to nobody** |
-| `entries.delete_expired_medical_notes()` | Deletes medical notes for events past their retention period — the promise `/nn/privacy/` publishes. Housekeeping, on the five-minute cron. **The one anon-callable function that takes no key**, deliberately |
-| `entries.admin_key_ok()` | Whether the caller presented the admin key. **Granted to nobody** — on its own it is an oracle for the key |
+| `entries.delete_expired_medical_notes()` | Deletes medical notes for events past their retention period. Housekeeping, on the five-minute cron. **`/nn/privacy/` no longer publishes this period as a promise** — since 30 August 2026 that page is the committee's document verbatim and names no interval, so the tie between the enforced period and a published one now survives only in `entries-retention.test.ts`. **The one anon-callable function that takes no key**, deliberately, because a legal retention obligation should not stop being kept on any day the admin key was not installed |
 | `entries.record_admin_action()` | Writes one audit row. **Granted to nobody** — a forgeable audit trail is worse than none |
-| `entries.admin_sign_in()` | Checks the Worker's key, then a person's, and answers with their handle. **Takes a key** |
-| `entries.admin_entry_list()` | The entries for one event, one row per entrant. No date of birth, no email address, no medical note. **Takes a key** |
-| `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Takes a key** |
-| `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Takes a key** |
-| `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Takes a key** |
+
+**`entries.admin_sign_in()` and `entries.admin_key_ok()` are unreferenced and retired**,
+along with the rest of the two-key scheme, since #57/#58. **The other four still exist and
+are still active** — they still appear in migrations as recent as 29 August 2026 — but their
+auth mechanism has moved: the admin surface is now reached by signing in and holding a role
+(`nn-admin`, or `people-admin`/`super-admin` where relevant), checked through
+`identity.has_permission()`, rather than by presenting a key. Read the rows below as "still
+here, differently gated" rather than "takes a key". See [`CLAUDE.md`](../../../CLAUDE.md)'s
+admin-surface section and `tests/entries.test.ts` / `tests/identity-permissions.test.ts` for
+the current signatures and grants.
+
+| ~~`entries.admin_key_ok()`~~ | Whether the caller presented the admin key. Retired with the two-key scheme |
+| ~~`entries.admin_sign_in()`~~ | Checked the Worker's key, then a person's, and answered with their handle. Retired |
+| `entries.admin_entry_list()` | The entries for one event, one row per entrant. No date of birth, no email address, no medical note. **Permission-checked, not key-gated** |
+| `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Permission-checked, not key-gated** |
+| `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Permission-checked, not key-gated** |
+| `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Permission-checked, not key-gated** |
 
 `intake.health()` earns its place: one call proves the migration applied, the schema is
 exposed, the anon key is right, the grant is right, and the Worker can reach the network.
@@ -107,14 +133,14 @@ personal-data incident and a financial one at once.
 | --- | --- |
 | `events` | One running of one race in one year, and **every value that differs between events** — capacity, the entry window, the minimum age, whether a date of birth is collected, and how long its medical notes are kept. A new race is an `insert`, not a deploy |
 | `fees` | What an entry costs, **in pence, and the only place a price exists**. Passed as `price_data` at Checkout, never as a Stripe Price object — a price held in two systems is a price that will disagree with itself |
-| `discount_codes` | Percentage discounts. **Deliberately empty**: the 2023 LHGRC code has not been confirmed for 2026 |
+| `discount_codes` | Percentage discounts, scoped to one fee. **No longer empty** — Left Handed Giant's 2026 code was minted by migration and raised to 25 places on 30 August 2026; see [the runbook](../../../docs/delivery/runbooks/entries-discount-codes.md). The code itself is never in this repository, only the generator |
 | `entry_purchases` | One payment covering one or more entrants. **The Stripe reference, never the payment instrument** |
 | `entrants` | One runner. **No age column and no category column** — both are derived at read time from `date_of_birth` and `gender`, as the timing platform does. `gender` is the **race category**, three values, and `gender_identity` beside it is the open question nothing derives from — [ADR-020](../../../docs/architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md) |
 | `entrant_medical` | Medical notes, **on their own** — see below |
 
 #### The anon role holds nothing here, and entries are written anyway
 
-Not insert, not select, on any of the nine. RLS is on from the first migration and there is
+Not insert, not select, on any table in this schema. RLS is on from the first migration and there is
 no grant, so a request is refused at `42501` before row-level security is even consulted.
 `tests/entries.test.ts` asserts that on **every table, for every verb, by error code**, and
 that assertion was written to outlive the slice that added it — which it now has. **Entries
@@ -124,25 +150,30 @@ starts failing, something handed a table privilege to a key that is published in
 
 **`entries` *is* exposed through PostgREST**, and that is what makes those assertions worth
 anything. A refusal that only happens because nothing can get as far as asking has not been
-tested. What the exposure is actually for is **thirteen functions** — and three more granted to
-**nobody at all**, reachable only from the definer functions that call them:
-`raise_attention()`, which writes the flag that says a purchase needs a human; `admin_key_ok()`,
-which answers whether a string is the admin key; and `record_admin_action()`, which writes the
-audit trail. Each would be a hole on its own — an alarm anybody could forge, an oracle for the
-key, an audit trail anybody could fill.
+tested. What the exposure is actually for is a small, named set of functions granted to
+`anon` — **do not trust a count written in this paragraph**; `tests/entries.test.ts` asserts
+the exact set by name and is what has to change for the set to change. A further handful are
+granted to **nobody at all**, reachable only from the definer functions that call them —
+`raise_attention()`, which writes the flag that says a purchase needs a human, and
+`record_admin_action()`, which writes the audit trail, are two of them. Each would be a hole
+on its own — an alarm anybody could forge, an audit trail anybody could fill.
 
-**Six of the thirteen take a key**, and the key is what makes an anon grant safe on a function
-that writes money or reads a person:
+**Several of the anon-callable functions take a key**, and the key is what makes an anon
+grant safe on a function that writes money or reads a person:
 [ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md) established the
-mechanism and
-[ADR-013](../../../docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)
-extended it. The digests live in `entries.webhook_secrets` and the keys are Worker secrets.
+mechanism for the payment webhook. **The admin surface's own key-gated functions
+(`admin_sign_in()`, `admin_key_ok()` and the two-key scheme generally) are retired** — since
+#57/#58 the admin surface is reached by signing in and holding the `nn-admin` role, checked
+through `identity.has_permission()`, and `entries.admin_keys` ships empty and unused. What
+replaced it, and the current list of what `anon` and `authenticated` may each call, is in
+[`CLAUDE.md`](../../../CLAUDE.md) and asserted in `tests/entries.test.ts` and
+`tests/identity-permissions.test.ts` — read those rather than a count here.
 
 `tests/entries.test.ts` asserts that exact set, by name, along with which of them `anon` may
-execute. **That assertion is the one this schema's whole shape rests on**, and it has earned its
-keep twice: `current_entry_state()` had to be added to that list in a diff somebody read, and so
-did the admin surface's six — the largest single change it has been asked to force, with the
-argument for each written into the test beside the list.
+execute. **That assertion is the one this schema's whole shape rests on**, and it has earned
+its keep repeatedly: every function added to the anon-callable set has had to be added to that
+list in a diff somebody read, with the argument for each written into the test beside the
+list.
 
 #### `entries.entry_state()` — the one door
 
@@ -310,10 +341,11 @@ production.
 
 | | |
 | --- | --- |
-| Confirmed | 1 November 2026, 11:00, 250 places, £15 affiliated, £17 unaffiliated, £0 for a VI guide |
-| `entries_open_at` / `entries_close_at` | **Null.** Nobody has decided when entries open, and a placeholder would be a published claim about when a race opens. Null reads as `pre_open`, which is the interest form |
+| Confirmed | 1 November 2026, 11:00, 250 places, **£18 affiliated, £20 unaffiliated** since 24 August 2026 (was £15/£17 at seeding), £0 for a visually impaired runner's guide |
+| `entries_close_at` | **Set.** The window was ratified by the committee on 24 August 2026: opens Tuesday 1 September 2026 07:00 BST, closes Friday 30 October 2026 17:00 GMT |
+| `entries_open_at` | **Still null, deliberately — this is the one still worth treating as unconfirmed.** Ratifying the window is not the same as arming it: this column is the switch that starts selling 250 places unattended, and it is gated on the live Stripe keys being installed. A date in it is a stop-and-ask, not a build decision |
 | `minimum_age` | **18**, confirmed by the committee on 13 August 2026. It was null while it was only *implied* by the youngest prize category, and landing it was **one `update` in a later migration with no deploy** — which is the whole reason it is a column, demonstrated |
-| `discount_codes` | **No rows.** The 2023 code has not been confirmed for 2026. The redemption path is built and tested against fabricated events anyway, so enabling it is one `insert` rather than a deploy in the middle of a live entry window |
+| `discount_codes` | **No longer empty at seeding time either** — see the row above; a code is minted by a later migration once the committee confirms it, never seeded with the event |
 
 **The minimum age was applied by `update`, not by editing the migration that seeded the row.**
 That migration has already run — locally, in CI, and on the shared project. Editing it would
@@ -325,7 +357,7 @@ two environments start disagreeing about a rule that turns entrants away.
 ```bash
 npm run db:start        # Postgres, auth, storage — Docker
 npm run db:reset        # migrations from zero, then seed
-npm run db:diff         # generate a migration, scoped to club,intake,entries
+npm run db:diff         # generate a migration, scoped to club,intake,entries,identity
 npm run db:types        # regenerate src/database.types.ts
 npm run db:types:check  # fails if the committed types are stale
 npm run db:config:push  # send config.toml to the linked project
@@ -394,19 +426,23 @@ on 25 October 2026 that both render as 01:30 in `Europe/London`.
 
 ## Testing
 
-Seven files, all against the real local Postgres rather than a mock — there is no API tier
-between the browser and the database, so a mock would only ever test the mock.
+All against the real local Postgres rather than a mock — there is no API tier between the
+browser and the database, so a mock would only ever test the mock. **The list below is a
+sample, not the full directory** — `tests/` holds around twenty files now, covering the
+`identity` schema, entry rules, entry requests, discount codes, transfers and the email
+outbox as well as the ones named here; do not treat this table as the complete index.
 
 | | |
 | --- | --- |
 | `tests/schemas.test.ts` | That `intake` is reachable and **`club` is not** |
 | `tests/seed.test.ts` | That the seed applied, and that the table has **exactly one policy** |
 | `tests/nn-interest.test.ts` | The grant and the policy, **from both sides** |
-| `tests/entries.test.ts` | That every table in `entries` refuses the anon role, on every verb — and keeps refusing now that entries are written |
+| `tests/entries.test.ts` | That every table in `entries` refuses the anon role, on every verb, and asserts the exact set of functions `anon` and `authenticated` may call |
 | `tests/entries-capacity.test.ts` | What `create_pending_purchase()` does, **including under real concurrency** |
 | `tests/entries-webhook.test.ts` | What `record_checkout_event()` does — the key, idempotency, and a payment that arrived late |
-| `tests/entries-admin.test.ts` | That all five gated admin functions refuse a wrong key, a null key and an uninstalled digest **identically**, that the two internal helpers are callable by nobody, and that a medical read cannot happen without the audit row |
-| `tests/entries-retention.test.ts` | That the deletion removes only what it should, is safe to run twice, leaves the entrant intact — and that **the published wording and the enforced period cannot drift apart** |
+| `tests/entries-rules.test.ts` | Every rule enforced in the database, attempted as a bypass with an anonymous client rather than read from the code |
+| `tests/identity-permissions.test.ts` | The five roles and ten permissions, asserted exactly |
+| `tests/entries-retention.test.ts` | That the deletion removes only what it should, is safe to run twice, and leaves the entrant intact |
 
 `entries-capacity.test.ts` runs against fabricated `zz-cap-*` events it creates and removes,
 so it cannot collide with the real `nn-2026` row, with the acceptance suite, or with a laptop
@@ -435,9 +471,10 @@ and **removes what it wrote afterwards**, so the seed's own seven rows are what
 | What | Why | By | How to redo |
 | --- | --- | --- | --- |
 | _Create the Supabase project_ | Cannot be code | Already done — project `ketipxpyjjglwpqazsft`, `eu-west-2` | — |
-| _Add the GitHub Actions secrets_ | Migrations need a credential; Cloudflare does not | _pending_ | Repository → Settings → Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` |
+| _Add the GitHub Actions secrets_ | Migrations need a credential; Cloudflare does not | **Done** | Repository → Settings → Secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` — see [github-setup.md](../../../docs/delivery/runbooks/github-setup.md) for the full set of five |
 | _Add `SUPABASE_AUTH_CAPTCHA_SECRET`_ | `deploy-db.yml`'s `supabase config push` sends `config.toml`'s `[auth.captcha]` block, which reads this via `env(...)` — #53 | **Done**, 24 Aug 2026 | Repository → Settings → Secrets and variables → Actions. The Turnstile **secret** key, never the site key — that one is public and lives in `apps/main/wrangler.jsonc` |
-| _Confirm `intake` is exposed on the remote_ | `config.toml` may not reach that setting | _pending_ | Dashboard → Settings → API → exposed schemas. **Record the answer here** — it is one of the open "which settings are dashboard-only" questions |
+| _Add `SUPABASE_AUTH_SMTP_PASSWORD`_ | Same mechanism, for `[auth.email.smtp]` — #50 | **Done**, 25 Aug 2026 | Repository → Settings → Secrets and variables → Actions. A Resend API key scoped to Sending access only |
+| _Confirm `entries` and `identity` are exposed on the remote_ | `config.toml` may not reach that setting | **Done** — both schemas have been live in production since their respective builds | Dashboard → Settings → API → exposed schemas |
 
 ## One ordering fact worth knowing
 
