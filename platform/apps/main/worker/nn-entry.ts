@@ -627,7 +627,12 @@ function readString(form: FormData, field: string): string {
 function readSubmission(form: FormData): NnEntrySubmission {
   const text: Record<string, string> = {};
 
-  for (const field of [...TEXT_FIELDS, ...TEXTAREA_FIELDS, 'gender'] as const) {
+  for (const field of [
+    ...TEXT_FIELDS,
+    ...TEXTAREA_FIELDS,
+    'gender',
+    'resultPlacement',
+  ] as const) {
     text[field] = readString(form, field);
   }
 
@@ -1174,48 +1179,36 @@ class CheckedHandler {
 }
 
 /**
- * The one fee radio that was chosen, whichever code it is.
+ * The one radio in a `data-entry-checked="field:value"` group that was chosen, matched by
+ * prefix rather than by a list of the group's own values.
  *
- * **This replaced a loop over `['affiliated', 'unaffiliated', 'vi_guide']`, and that literal
- * was a real defect rather than an untidiness.** #107 added a fourth code, `tester`, and it was
- * not in the list — so a tester whose submission came back to them re-rendered (invalid,
- * sold-out, no Stripe key, any of them) lost the entry type they had chosen, on a page that
- * says in as many words *"Nothing you typed has been lost"*.
- *
- * Reading the code off the element's own attribute means the fee list is the database's, here
- * as everywhere else on this form: `entries.fees` decides which cards exist, which are revealed
- * and what they cost, and now which one comes back checked. **A fifth fee code needs no edit to
- * this file at all**, which is the property the hardcoded version quietly did not have.
+ * **Generalised from `feeCode`'s own handler, which this replaced a loop over
+ * `['affiliated', 'unaffiliated', 'vi_guide']` to become.** That literal was a real defect
+ * rather than an untidiness — #107 added a fourth code, `tester`, and it was not in the list,
+ * so a tester whose submission came back to them re-rendered lost the entry type they had
+ * chosen, on a page that says in as many words *"Nothing you typed has been lost"*. Reading
+ * the value off the element's own attribute means the list of options is wherever it is
+ * decided — `entries.fees` for a fee, this file's own markup for a race category — and never
+ * repeated here to go stale. `resultPlacement` (ADR-031) is the second field this handler
+ * serves; a third needs no new class, only a new prefix at its call site.
  */
-class FeeCheckedHandler {
+class MarkerCheckedHandler {
   constructor(
+    private readonly prefix: string,
     private readonly chosen: string,
     private readonly invalid: boolean,
   ) {}
 
   element(element: Element): void {
-    // `feeCode:unaffiliated` — the half after the colon is the code. Read rather than
-    // matched against a list, so this cannot go stale.
     const marker = element.getAttribute('data-entry-checked') ?? '';
-    const code = marker.startsWith('feeCode:') ? marker.slice('feeCode:'.length) : '';
+    const value = marker.startsWith(this.prefix) ? marker.slice(this.prefix.length) : '';
 
-    if (code !== '' && code === this.chosen) {
+    if (value !== '' && value === this.chosen) {
       element.setAttribute('checked', '');
     }
 
     if (this.invalid) {
       element.setAttribute('aria-invalid', 'true');
-    }
-  }
-}
-
-/** The one `<option>` that was chosen. */
-class SelectedHandler {
-  constructor(private readonly selected: boolean) {}
-
-  element(element: Element): void {
-    if (this.selected) {
-      element.setAttribute('selected', '');
     }
   }
 }
@@ -1726,27 +1719,32 @@ function restoreSubmission(
     );
   }
 
-  // The `<select>`: the chosen `<option>` gets `selected`, and the select itself is marked.
-  //
-  // **One again, not two.** The guide had a race category until ADR-022's amendment, and it
-  // was removed because a guide is in no category — so asking which one they would be in was
-  // collecting an answer nothing could use. Their email took its place, and an email is a text
-  // input restored by the loop above.
-  for (const select of ['gender'] as const) {
-    const chosen = submitted.text[select] ?? '';
-    for (const option of ['', 'female', 'male', 'non_binary']) {
-      rewriter.on(
-        `[data-entry-selected="${select}:${option}"]`,
-        new SelectedHandler(option === chosen),
-      );
-    }
-  }
+  // **Every race-category radio, matched by prefix.** Radios rather than a `<select>` since
+  // the layout brief this shipped against — a select labelled "Race category" showing "Male"
+  // was the single most confusing thing on the form. See `MarkerCheckedHandler`.
+  rewriter.on(
+    '[data-entry-checked^="gender:"]',
+    new MarkerCheckedHandler('gender:', submitted.text.gender ?? '', invalid('gender')),
+  );
+
+  // **Where a non-binary entrant's result should be placed — ADR-031, and asked of nobody
+  // else.** The client-side reveal shows this only once `non_binary` is chosen above; the
+  // Worker restores whichever option came back regardless, the same as every other field
+  // that is not always on offer.
+  rewriter.on(
+    '[data-entry-checked^="resultPlacement:"]',
+    new MarkerCheckedHandler(
+      'resultPlacement:',
+      submitted.text.resultPlacement ?? '',
+      invalid('resultPlacement'),
+    ),
+  );
 
   // **Every fee radio, matched by prefix rather than by a list of codes.** See
-  // `FeeCheckedHandler` for what the list used to cost.
+  // `MarkerCheckedHandler` for what the list used to cost.
   rewriter.on(
     '[data-entry-checked^="feeCode:"]',
-    new FeeCheckedHandler(submitted.feeCode, invalid('feeCode')),
+    new MarkerCheckedHandler('feeCode:', submitted.feeCode, invalid('feeCode')),
   );
 
   rewriter

@@ -259,6 +259,38 @@ export function nnEntryCompletePath(yearPath: string): string {
 }
 
 /**
+ * The places-remaining figure for one running — **not the entry page, deliberately**.
+ *
+ * Fetched by the entry page's own enhancement script rather than painted into its HTML, so
+ * this answer can carry a short public `Cache-Control` while the page it is fetched from
+ * stays `private, no-store` for the reason `worker/index.ts`'s own comment on painted pages
+ * gives: a page rendered per viewer must never be cached, and a places-remaining count is
+ * the one figure on this page that is not per viewer.
+ */
+const NN_PLACES_REMAINING_PATH = /^\/nn\/(\d{4})\/places-remaining\/?$/;
+
+export function isNnPlacesRemainingPath(pathname: string): boolean {
+  return NN_PLACES_REMAINING_PATH.test(pathname);
+}
+
+/** Where the figure for one running lives. `/nn/2026/` → `/nn/2026/places-remaining`. */
+export function nnPlacesRemainingPath(yearPath: string): string {
+  return `${yearPath}places-remaining`;
+}
+
+/**
+ * The event slug this address is asking about — its own extraction, not `nnEventSlugForYearPath`.
+ *
+ * `NN_YEAR_PATH` is anchored to the bare year page and matches nothing past the trailing
+ * slash, so it answers `null` for this address on purpose. Same convention as that function
+ * — `${NN_RACE_SLUG}-${year}` — kept in one place for the inverse it has no need of here.
+ */
+export function nnEventSlugForPlacesRemainingPath(pathname: string): string | null {
+  const year = NN_PLACES_REMAINING_PATH.exec(pathname)?.[1];
+  return year === undefined ? null : `${NN_RACE_SLUG}-${year}`;
+}
+
+/**
  * Where the admin surface used to live — **now nothing but redirects**.
  *
  * #58 moved the whole surface to `/admin/nn/`, because the club's back office had become one

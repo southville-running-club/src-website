@@ -5,6 +5,7 @@ import {
   compareCivilDates,
   daysInMonth,
   deriveAgeCategory,
+  effectiveCategory,
   isLeapYear,
   isRealDate,
   parseIsoDate,
@@ -96,7 +97,7 @@ describe('age on race day', () => {
 
 describe('which category somebody runs in', () => {
   const on = (year: number, month: number, day: number, gender: 'female' | 'male') =>
-    deriveAgeCategory({ year, month, day }, gender, RACE_DAY);
+    deriveAgeCategory({ year, month, day }, gender, null, RACE_DAY);
 
   it('puts an 18-year-old in Senior, on the day they turn 18', () => {
     const category = on(2008, 11, 1, 'female');
@@ -136,34 +137,70 @@ describe('which category somebody runs in', () => {
 });
 
 describe('the two gaps, which are the club’s and are not filled by guessing', () => {
-  it('has no category for a non-binary runner, and says so rather than picking one', () => {
-    // A non-binary option existed on the 2023 form and there were no non-binary categories
-    // to receive it. That gap is unresolved and it is the committee's to resolve; inventing
-    // a structure here would be a decision taken on their behalf.
+  it('has no category for a non-binary runner who was never asked, and says so rather than picking one', () => {
+    // Never asked: this is what a non-binary entrant with no `result_placement` on the row
+    // reads as, including every row from before ADR-031. There is still no non-binary
+    // category and this still invents none.
     const category = deriveAgeCategory(
       { year: 1986, month: 3, day: 7 },
       'non_binary',
+      null,
       RACE_DAY,
     );
 
     expect(category).toEqual({
       known: false,
-      reason: 'gender-has-no-categories',
+      reason: 'not-placed',
       age: 40,
     });
   });
 
-  it('reports the gender gap ahead of the age one, for a young non-binary runner', () => {
+  it('has no category for a non-binary runner who was asked and chose neither', () => {
+    // The explicit "do not place me in either" answer resolves to the identical `not-placed`
+    // reason as never having been asked — the two are indistinguishable to everything
+    // downstream of `effectiveCategory()`, deliberately.
+    const category = deriveAgeCategory(
+      { year: 1986, month: 3, day: 7 },
+      'non_binary',
+      null,
+      RACE_DAY,
+    );
+
+    expect(category).toMatchObject({ known: false, reason: 'not-placed' });
+  });
+
+  it('places a non-binary runner in the band their chosen placement resolves to', () => {
+    // Chose "place me in the women's results": from here on this is exactly a female
+    // entrant's own answer, band and all — the "no third branch" ADR-031 asks for.
+    const placedFemale = deriveAgeCategory(
+      { year: 1986, month: 11, day: 1 },
+      'non_binary',
+      'female',
+      RACE_DAY,
+    );
+    const rawFemale = deriveAgeCategory(
+      { year: 1986, month: 11, day: 1 },
+      'female',
+      null,
+      RACE_DAY,
+    );
+
+    expect(placedFemale).toEqual(rawFemale);
+    expect(placedFemale).toMatchObject({ known: true, code: 'vet40', label: 'Vet 40' });
+  });
+
+  it('reports the placement gap ahead of the age one, for a young unplaced non-binary runner', () => {
     // "Too young for a category" would be the wrong reason and a worse thing to be told:
-    // the club has no categories for this runner at any age, and the two must not be
+    // there is no category for this runner to be too young for, and the two must not be
     // confused in the wording somebody actually reads.
     const category = deriveAgeCategory(
       { year: 2015, month: 1, day: 1 },
       'non_binary',
+      null,
       RACE_DAY,
     );
 
-    expect(category).toMatchObject({ known: false, reason: 'gender-has-no-categories' });
+    expect(category).toMatchObject({ known: false, reason: 'not-placed' });
   });
 
   it('has no category below 18, which is not the same as a minimum age', () => {
@@ -174,6 +211,7 @@ describe('the two gaps, which are the club’s and are not filled by guessing', 
     const category = deriveAgeCategory(
       { year: 2008, month: 11, day: 2 },
       'female',
+      null,
       RACE_DAY,
     );
 
@@ -185,6 +223,23 @@ describe('the two gaps, which are the club’s and are not filled by guessing', 
   });
 });
 
+describe('effectiveCategory — resolving gender and placement to one answer', () => {
+  it('is the gender itself for a female or male entrant, whatever placement says', () => {
+    // Never asked the follow-up, so nothing on the row should ever change the answer —
+    // asserted with a placement value present anyway, to prove it is genuinely ignored
+    // rather than merely absent in every fixture that reaches this branch.
+    expect(effectiveCategory('female', null)).toBe('female');
+    expect(effectiveCategory('male', null)).toBe('male');
+    expect(effectiveCategory('female', 'male')).toBe('female');
+  });
+
+  it('is the placement for a non-binary entrant, whatever it is', () => {
+    expect(effectiveCategory('non_binary', 'female')).toBe('female');
+    expect(effectiveCategory('non_binary', 'male')).toBe('male');
+    expect(effectiveCategory('non_binary', null)).toBeNull();
+  });
+});
+
 describe('ageCategoryFor — the same answer, from an age that has already been worked out', () => {
   // **This exists so a date of birth does not have to travel to reach a category.** The admin
   // list gets an age computed in Postgres — by the identical expression
@@ -193,17 +248,21 @@ describe('ageCategoryFor — the same answer, from an age that has already been 
 
   it('agrees with deriveAgeCategory at every band boundary', () => {
     // The assertion that keeps the two from becoming two rules. `deriveAgeCategory` delegates
-    // to this, and if a future edit ever un-delegated it, these are the pairs that would
-    // disagree first.
+    // to this via `effectiveCategory()`, and if a future edit ever un-delegated it, these are
+    // the pairs that would disagree first.
     const raceDay = { year: 2026, month: 11, day: 1 };
 
     for (const age of [17, 18, 39, 40, 49, 50, 59, 60, 61]) {
       for (const gender of ['female', 'male', 'non_binary'] as const) {
         const birthday = { year: 2026 - age, month: 11, day: 1 };
+        // A non-binary fixture is placed as female here specifically so this loop exercises
+        // a real band for every gender, rather than `not-placed` swallowing a third of it.
+        const placement = gender === 'non_binary' ? 'female' : null;
 
-        expect(ageCategoryFor(age, gender), `age ${age}, ${gender}`).toEqual(
-          deriveAgeCategory(birthday, gender, raceDay),
-        );
+        expect(
+          ageCategoryFor(age, effectiveCategory(gender, placement)),
+          `age ${age}, ${gender}`,
+        ).toEqual(deriveAgeCategory(birthday, gender, placement, raceDay));
       }
     }
   });
@@ -222,11 +281,11 @@ describe('ageCategoryFor — the same answer, from an age that has already been 
   });
 
   it('keeps the club’s two unfinished decisions apart', () => {
-    // A non-binary runner has no category at any age, which is not the same fact as being too
-    // young for one — and saying the wrong one of those two would be worse than saying nothing.
-    expect(ageCategoryFor(12, 'non_binary')).toEqual({
+    // No category at any age is not the same fact as being too young for one — and saying
+    // the wrong one of those two would be worse than saying nothing.
+    expect(ageCategoryFor(12, null)).toEqual({
       known: false,
-      reason: 'gender-has-no-categories',
+      reason: 'not-placed',
       age: 12,
     });
     expect(ageCategoryFor(12, 'female')).toEqual({

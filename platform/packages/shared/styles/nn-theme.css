@@ -1920,6 +1920,30 @@ html:has(body.theme-nn) {
   font-weight: 400;
 }
 
+/* Capped rather than the full width of the card — an input as wide as a paragraph is hard
+   to scan while typing and harder to proofread afterwards. Capped on the field's own
+   container, not just the input, so the hint and error text under it wrap to the same
+   measure rather than running the full card too. */
+.theme-nn .field {
+  max-width: 28rem;
+}
+
+/* First and last name, side by side above ~560px, stacked below. The row shares the same
+   28rem measure a single field gets — an unpaired field and a paired row read as the same
+   width of "thing you type into" rather than the row looking wider because it holds two. */
+.theme-nn .nn-field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  max-width: 28rem;
+}
+
+@media (min-width: 560px) {
+  .theme-nn .nn-field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .theme-nn .button {
   display: block;
   width: 100%;
@@ -1959,6 +1983,25 @@ html:has(body.theme-nn) {
  * legend rather than by six separate cards, because six cards on a phone is six scroll
  * positions where the person loses their place in one form.
  * ------------------------------------------------------------------------------------- */
+/* **Not `.nn-facts`.** That class is coloured `--nn-bone` against the hero's gradient
+   outside this card; reused here unmodified it would be pale grey on white, close to
+   invisible — the exact trap this file's own header note on moved surfaces describes. Mono
+   for the same factual-row voice, `--colour-muted` because that token already resolves to a
+   readable slate inside `.nn-card`, restating nothing the card's own scope does not already
+   give it. */
+.theme-nn .nn-entry-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  font-family: var(--nn-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--colour-muted);
+}
+
 .theme-nn .nn-fieldset {
   margin: 0 0 8px;
   padding: 0 0 24px;
@@ -2010,6 +2053,20 @@ html:has(body.theme-nn) {
  * safety net rather than the mechanism — if a future font makes four digits wider, the
  * year drops to its own line instead of pushing the page sideways.
  * ------------------------------------------------------------------------------------- */
+/* **A `<fieldset>` carries a native border, padding and inline margin that `.field` never
+   accounted for**, because every other question on this form is a `<div>`. Nothing resets it
+   generically, so each fieldset-shaped field has needed its own — `.nn-dob` below is the
+   first. This is the second and the reason it stopped being written per element: a bare
+   `fieldset.field`, used by both the race-category radios and the placement follow-up, needs
+   the identical reset and nothing else about it. */
+.theme-nn fieldset.field {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
 .theme-nn .nn-dob {
   margin: 0 0 var(--space, 1rem);
   padding: 0;
@@ -2128,6 +2185,13 @@ html:has(body.theme-nn) {
 /* Tabular figures in the mono face, so £18.00 and £20.00 line up on their decimal points
    down a column. `Free` sets in the same face at the same size, which is what stops a price
    of nothing reading as a missing price. */
+/* Its own gap above the fee cards, so the label does not read as belonging to the last
+   card — `.nn-fees` carries no bottom margin of its own and `.field` carries no top
+   margin, so without this the two sit flush against each other. */
+.theme-nn .nn-discount {
+  margin-top: 20px;
+}
+
 .theme-nn .nn-fee-price {
   flex-shrink: 0;
   font-family: var(--nn-mono);
@@ -2202,13 +2266,19 @@ html:has(body.theme-nn) {
  * worse than no total.
  * ------------------------------------------------------------------------------------- */
 .theme-nn .nn-category,
-.theme-nn .nn-total {
+.theme-nn .nn-total,
+.theme-nn .nn-notice-inline {
   margin: 0 0 var(--space, 1rem);
   padding: 10px 14px;
   border-radius: var(--nn-r-btn);
   background: var(--nn-card-muted);
   font-size: 14px;
   color: var(--nn-ink);
+}
+
+.theme-nn .nn-notice-inline {
+  margin-top: 8px;
+  margin-bottom: 0;
 }
 
 /* **`.nn-category b` and `.nn-total b` were here and could never match.** Both paragraphs ship

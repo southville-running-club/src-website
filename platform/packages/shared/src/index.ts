@@ -80,6 +80,7 @@ export {
   compareCivilDates,
   daysInMonth,
   deriveAgeCategory,
+  effectiveCategory,
   isLeapYear,
   isRealDate,
   parseIsoDate,
@@ -89,12 +90,14 @@ export {
   type CivilDate,
   type Gender,
   type NoCategoryReason,
+  type ResultPlacement,
 } from './age-category';
 
 export {
   ENTRY_WINDOW_STATES,
   fetchCurrentEntryState,
   fetchEntryState,
+  fetchPlacesRemaining,
   formatEventDate,
   formatEventStartTime,
   formatPence,
@@ -102,6 +105,8 @@ export {
   type EntryState,
   type EntryStateResult,
   type EntryWindowState,
+  type PlacesRemaining,
+  type PlacesRemainingResult,
 } from './entry-state';
 
 export { formatEntryReference, type EntryReference } from './entry-reference';

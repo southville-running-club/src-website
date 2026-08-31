@@ -7,6 +7,7 @@ import {
   type CivilDate,
   type Gender,
   type AgeCategory,
+  type ResultPlacement,
 } from './age-category';
 import type { EntryState } from './entry-state';
 
@@ -110,18 +111,103 @@ export const NN_ENTRY_EARLIEST_BIRTH_YEAR = 1900;
 /** What `entries.discount_codes.code`'s own check constraint allows. */
 export const NN_ENTRY_DISCOUNT_CODE_MAX_LENGTH = 40;
 
-/** Enough digits to be a phone number, whatever spaces and brackets are around them. */
-const MINIMUM_PHONE_DIGITS = 7;
+/**
+ * A trailing extension, kept apart from the number it belongs to.
+ *
+ * `x214` and `ext. 214` are both real ways people write one down, and neither is part of the
+ * digits that get normalised into a canonical UK or international number — an extension has
+ * no country code and no leading zero of its own.
+ */
+const PHONE_EXTENSION = /\s*(?:x|ext\.?)\s*(\d+)\s*$/i;
+
+/** A leading `tel:` — real, because people paste rather than type. Case-insensitive. */
+const TEL_PREFIX = /^tel:/i;
+
+/** Anything left besides digits and a leading `+` once punctuation is stripped, is a letter. */
+const HAS_A_LETTER_IN_A_PHONE = /[^\d+]/;
 
 /**
- * What may appear in a phone number besides digits.
+ * Accept generously, store canonically, reject clearly.
  *
- * Deliberately generous — spaces, brackets, dashes, dots, a leading `+` and the `x` or `ext`
- * somebody writes before an extension are all real ways people write a number down, and a form
- * that refuses one of them is wrong about the phone number rather than the number being wrong.
- * What it refuses is a box with **no phone number in it at all**.
+ * **UK national form is exactly eleven digits starting `0`.** The brief this shipped against
+ * floated a ten-digit exception for "a handful of old area codes" and then, in the same
+ * breath, gave `07700 90012` — itself ten digits — as an example of a number that must be
+ * *rejected* as too short. Both cannot be true without a lookup table of which ten-digit
+ * numbers are genuinely valid, which is exactly the dependency this brief also forbids
+ * (`libphonenumber` or equivalent). Eleven digits, no exception, is the only reading that
+ * satisfies the brief's own worked example — and it matches the UK numbering plan since the
+ * "phONEday" reforms, under which a ten-digit `0`-prefixed number is not a valid modern
+ * number in the first place.
+ *
+ * **`+44` is a rewrite into that same national form, not a separate shape.** `+447700900123`
+ * and `07700900123` are one number written two ways, and storing them differently would make
+ * "is this the number already on file" a string comparison that gets the answer wrong.
+ *
+ * **Everything else beginning `+` is stored as given, digits only.** 8–15 digits after the
+ * `+` is deliberately the whole of the rule — `docs/architecture/principles.md`'s own
+ * boundary-minimisation argument applies here too: this form does not know how Portuguese or
+ * Australian numbers are shaped and has no business inventing an opinion about it.
  */
-const PHONE_SHAPE = /^[0-9+()\-.\s/]*(?:(?:x|ext\.?)\s*[0-9]+)?$/i;
+function normalisePhone(value: string): { value: string; problem: string | null } {
+  const withoutPrefix = value.replace(TEL_PREFIX, '').trim();
+
+  if (withoutPrefix === '') {
+    // Genuinely nothing typed — somebody else's message — `min(1)` on a required box, or the
+    // guide's own "missing" branch. This function is never asked to explain an empty one.
+    //
+    // **Checked before anything is stripped, deliberately.** `'-'` alone is not empty — it is
+    // content that happens to strip down to nothing — and the two must not read the same way.
+    // A box containing only punctuation is not a phone number and has to say so, which is
+    // exactly the "digits are counted rather than merely present" hole this file has already
+    // had to close once.
+    return { value: '', problem: null };
+  }
+
+  const extensionMatch = PHONE_EXTENSION.exec(withoutPrefix);
+  const extension = extensionMatch?.[1] ?? null;
+  const withoutExtension = extensionMatch
+    ? withoutPrefix.slice(0, extensionMatch.index)
+    : withoutPrefix;
+
+  // Stripped of the punctuation people actually use — spaces, brackets, dashes, dots, a
+  // forward slash — before anything is said about what is left.
+  const stripped = withoutExtension.replace(/[\s()\-./]/g, '');
+
+  if (HAS_A_LETTER_IN_A_PHONE.test(stripped)) {
+    return { value: '', problem: MESSAGES.phoneHasLetters };
+  }
+
+  const suffix = extension === null ? '' : ` x${extension}`;
+
+  if (stripped.startsWith('+44')) {
+    // **The trunk prefix, optionally still there.** `+44 (0)7700 900123` is the standard way
+    // to print a UK number for an international reader — the bracketed 0 is dialled at home
+    // and dropped abroad — and it survives punctuation-stripping as a leading 0 on the digits
+    // after `+44`. Both `+447700900123` and `+4407700900123` are the same number.
+    const afterCountryCode = stripped.slice(3);
+    const nationalDigits = afterCountryCode.startsWith('0')
+      ? afterCountryCode.slice(1)
+      : afterCountryCode;
+    return nationalDigits.length === 10
+      ? { value: `0${nationalDigits}${suffix}`, problem: null }
+      : { value: '', problem: MESSAGES.phoneUkShape };
+  }
+
+  if (stripped.startsWith('0')) {
+    return stripped.length === 11
+      ? { value: `${stripped}${suffix}`, problem: null }
+      : { value: '', problem: MESSAGES.phoneUkShape };
+  }
+
+  if (stripped.startsWith('+')) {
+    const digits = stripped.slice(1);
+    return digits.length >= 8 && digits.length <= 15
+      ? { value: `+${digits}${suffix}`, problem: null }
+      : { value: '', problem: MESSAGES.phoneInternationalShape };
+  }
+
+  return { value: '', problem: MESSAGES.phoneUnrecognised };
+}
 
 /**
  * At least one letter, in any alphabet.
@@ -169,6 +255,11 @@ export const NN_ENTRY_FIELDS = [
   'phone',
   'dateOfBirth',
   'gender',
+  // **Only ever asked, and only ever required, when `gender` is `non_binary`.** ADR-031. It
+  // sits between the two other race-category questions because that is where the mockup put
+  // it and where the client-side reveal shows it: directly under "Which results category do
+  // you want to be placed in?", above "How you describe your gender".
+  'resultPlacement',
   'genderIdentity',
   'club',
   'feeCode',
@@ -241,6 +332,11 @@ const MESSAGES = {
   genderMissing: 'Choose your race category.',
   genderUnknown: 'Choose one of the categories listed.',
 
+  // **Asked once, only of somebody who chose non-binary above.** The hint above the field
+  // says why; the error only has to say what to do, the same rule `genderMissing` follows.
+  resultPlacementMissing: 'Choose where your result should be placed.',
+  resultPlacementUnknown: 'Choose one of the options listed.',
+
   genderIdentityTooLong: `That is too long — ${NN_ENTRY_GENDER_IDENTITY_MAX_LENGTH} characters at most.`,
 
   clubTooLong: `That club name is too long — ${NN_ENTRY_CLUB_MAX_LENGTH} characters at most.`,
@@ -252,9 +348,13 @@ const MESSAGES = {
     'Enter the name of somebody the club can contact in an emergency.',
   emergencyNameTooLong: `That name is too long — ${NN_ENTRY_CONTACT_NAME_MAX_LENGTH} characters at most.`,
   emergencyPhoneMissing: 'Enter a phone number for your emergency contact.',
-  emergencyPhoneTooShort: 'Enter a phone number with at least seven digits in it.',
-  phoneShape:
-    'Enter a phone number using digits, and if you need them spaces, brackets, dashes or a leading +.',
+  phoneHasLetters: 'Enter a phone number using digits, not letters.',
+  phoneUkShape:
+    'That number is too short or too long. A UK number has 11 digits, starting 0.',
+  phoneInternationalShape:
+    'That number is too short or too long. An international number needs 8 to 15 digits after the +.',
+  phoneUnrecognised:
+    'Enter a UK number starting 0, or an international number starting +.',
   nameNoLetters: 'Enter the name as it should appear on the start list.',
   contactNameNoLetters: 'Enter the name of a person the club can ring on race day.',
   emergencyPhoneTooLong: `That phone number is too long — ${NN_ENTRY_PHONE_MAX_LENGTH} characters at most.`,
@@ -427,6 +527,12 @@ export interface NnEntry {
   dateOfBirth: CivilDate;
   /** The race category, not the answer to "what is your gender" — see `genderIdentity`. */
   gender: Gender;
+  /**
+   * Where this runner's result should be placed, if `gender` is `non_binary` and they said —
+   * null otherwise, always, including "do not place me in either". ADR-031. Read alongside
+   * `gender` through `effectiveCategory()`, never on its own.
+   */
+  resultPlacement: ResultPlacement;
   /** How this runner describes their gender, in their own words. Null when they did not say,
    *  which is a real and common answer rather than a missing one. Never used to derive a
    *  category, never published, never sorted on. */
@@ -500,6 +606,7 @@ const TEXT_KEYS = [
   'dobMonth',
   'dobYear',
   'gender',
+  'resultPlacement',
   'genderIdentity',
   'club',
   'feeCode',
@@ -593,6 +700,16 @@ function nnEntryObject(rules: NnEntryRules) {
       dobYear: z.string().trim().catch(''),
 
       gender: z.string(MESSAGES.genderMissing).trim().min(1, MESSAGES.genderMissing),
+
+      // **Optional at this layer, and required by exactly one other field's answer.**
+      // Whether it is required at all is a cross-field rule — `gender === 'non_binary'` —
+      // so the "missing" case is judged in `superRefine` below, the same way the guide's
+      // conditionally-required fields are. `'none'` is a real, distinct answer from
+      // "did not say": it is what "do not place me in either" posts, and it resolves to a
+      // stored `null` exactly as an entrant who was never asked does.
+      resultPlacement: optionalText.pipe(
+        z.enum(['female', 'male', 'none'], MESSAGES.resultPlacementUnknown).optional(),
+      ),
 
       // **Optional, and never required by any combination of the other fields.** A person who
       // does not want to answer this has answered it. The only rule is a length ceiling, which
@@ -726,6 +843,16 @@ function nnEntryObject(rules: NnEntryRules) {
       // already produced `genderMissing` above and does not need a second opinion.
       if (values.gender && !isGender(values.gender)) {
         fail('gender', MESSAGES.genderUnknown);
+      }
+
+      // --- where a non-binary entrant's result should be placed --------------------------------
+      // **Asked once, of exactly the people `gender` says it should be asked of.** Anybody
+      // else's answer here — if the request carries one at all — is never read; the output
+      // construction below only consults `resultPlacement` when `gender` is `non_binary`,
+      // which is the same rule `entrants_result_placement_only_non_binary` enforces at the
+      // database.
+      if (values.gender === 'non_binary' && !values.resultPlacement) {
+        fail('resultPlacement', MESSAGES.resultPlacementMissing);
       }
 
       // --- the entry type ---------------------------------------------------------------------
@@ -895,17 +1022,14 @@ const GUIDE_DOB_MESSAGES: DateOfBirthMessages = {
 };
 
 /**
- * Every rule about a phone number, in the order they should be reported. Null means it is fine.
+ * The validation half of `normalisePhone`, for the three call sites that only need to know
+ * whether a number is a problem, not what it normalises to. Null means it is fine.
  *
- * ⚠️ **The hole this closes.** Both callers read
- * `digits.length > 0 && digits.length < MINIMUM_PHONE_DIGITS`, and that `> 0` was not a guard
- * against an empty box — `min(1)` and the guide's own "missing" branch already catch those. It
- * was an **exemption for every string containing no digits at all**: `ask my mum`, `n/a` and
- * `see above` were accepted, on the one field whose entire purpose is to be dialled by somebody
- * standing over a runner at the side of a course.
- *
- * Shared between the runner's contact and the guide's, because they are the same question asked
- * twice — and a second copy of the rule is exactly how the hole came to exist in two places.
+ * Shared between the runner's own contact and the guide's, because they are the same question
+ * asked twice — and a second copy of the rule is exactly how a past defect here came to exist
+ * in two places: `ask my mum`, `n/a` and `see above` were once accepted, on the one field
+ * whose entire purpose is to be dialled by somebody standing over a runner at the side of a
+ * course.
  */
 function phoneProblem(value: string | undefined): string | null {
   if (value === undefined || value === '') {
@@ -918,13 +1042,7 @@ function phoneProblem(value: string | undefined): string | null {
     return MESSAGES.emergencyPhoneTooLong;
   }
 
-  if (!PHONE_SHAPE.test(value)) {
-    return MESSAGES.phoneShape;
-  }
-
-  return value.replace(/\D/g, '').length < MINIMUM_PHONE_DIGITS
-    ? MESSAGES.emergencyPhoneTooShort
-    : null;
+  return normalisePhone(value).problem;
 }
 
 /** Every date-of-birth rule, in the order they should be reported. Null means it is fine. */
@@ -1074,10 +1192,22 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       // column allows null for exactly this row and no other. See ADR-022.
       email: values.guideEmail,
       emergencyName: values.guideEmergencyName,
-      emergencyPhone: values.guideEmergencyPhone,
+      emergencyPhone: normalisePhone(values.guideEmergencyPhone).value,
       medicalNotes: values.medicalConsent ? (values.guideMedicalNotes ?? null) : null,
     };
   }
+
+  // **Read only when `gender` is `non_binary`, and never trusted otherwise.** The same rule
+  // `entrants_result_placement_only_non_binary` enforces at the database — a payload that
+  // named a placement for a female or male entrant is not an error, it is simply not this
+  // entrant's answer to read. `'none'` — "do not place me in either" — resolves to the same
+  // stored `null` an entrant who was never asked the question would have.
+  const resultPlacement: ResultPlacement =
+    values.gender === 'non_binary' &&
+    values.resultPlacement &&
+    values.resultPlacement !== 'none'
+      ? values.resultPlacement
+      : null;
 
   return {
     ok: true,
@@ -1085,14 +1215,15 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
       firstName: values.firstName,
       lastName: values.lastName,
       email: values.email,
-      phone: values.phone,
+      phone: normalisePhone(values.phone).value,
       dateOfBirth,
       gender: values.gender,
+      resultPlacement,
       genderIdentity: values.genderIdentity ?? null,
       club: values.club ?? null,
       feeCode: values.feeCode,
       emergencyName: values.emergencyName,
-      emergencyPhone: values.emergencyPhone,
+      emergencyPhone: normalisePhone(values.emergencyPhone).value,
       medicalNotes: values.medicalConsent ? (values.medicalNotes ?? null) : null,
       discountCode: values.discountCode ?? null,
       guide,
@@ -1106,7 +1237,12 @@ export function parseNnEntry(input: unknown, rules: NnEntryRules): NnEntryResult
         vi: values.viGuide,
       },
     },
-    category: deriveAgeCategory(dateOfBirth, values.gender, rules.eventDate),
+    category: deriveAgeCategory(
+      dateOfBirth,
+      values.gender,
+      resultPlacement,
+      rules.eventDate,
+    ),
   };
 }
 

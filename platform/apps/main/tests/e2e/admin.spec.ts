@@ -729,9 +729,9 @@ test.describe('the entries table', () => {
     await expect(categories.getByText('Paid entries only')).toBeVisible();
 
     // A band nobody can be placed in is exactly the number that should be visible when
-    // somebody asks whether to make one — `ageCategoryFor()` answers
-    // `gender-has-no-categories` for a non-binary runner, and the panel names it rather than
-    // dropping the row.
+    // somebody asks whether to make one — `ageCategoryFor()` answers `not-placed` for a
+    // non-binary runner who was never asked, or who said neither, and the panel names the
+    // band rather than dropping the row.
     await expect(categories.getByText('Vet 40')).toBeVisible();
   });
 

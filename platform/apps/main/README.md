@@ -69,6 +69,7 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ. **Nothing on the site links to it any more**: its content is on `/nn/2026/` as the `#spooktators` section, and the bar's `Spooktators` item was the last inbound link. The page is live and answers 200 to anybody holding the address — which is exactly the shape `/nn/course/` was in before it was retired with a 301, and it is a decision somebody should take rather than a side effect to leave standing |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
+| `/nn/2026/places-remaining` | **Not a page.** JSON, fetched by the entry form's own enhancement script — never rendered into the page's HTML, and never queried on the entry page's own render path. See [the entry form](#the-entry-form) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 | `/privacy/` | **The club's notice, and not the race's** — the account, its columns, the lawful basis for each purpose, who else sees it and what can be asked for. In the club's brand, with no event theme anywhere near it. Written from `identity`'s columns and Supabase Auth's own, which is a good deal more than the sign-up form asks for. Linked from the footer of every page on both front doors, and from `/nn/privacy/`, which it links back down to |
 | `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
@@ -669,6 +670,23 @@ overselling by overselling on purpose with the lock left out. A concurrency test
 actually overlaps passes for the wrong reason and keeps passing after somebody removes the
 lock.
 
+### Places remaining, read rather than counted twice
+
+**`entries.places_remaining()` is the same count, unlocked.** It joins `entry_purchases` to
+`entrants` exactly as `create_pending_purchase()`'s own capacity check does — same predicate,
+same fan-out for a guide's second entrant row — because a second, slightly different
+definition of "taken" is the trap this schema has already named once. No advisory lock: a
+display figure does not need to serialise against a concurrent purchase, and the entry path
+re-checks capacity under its own lock regardless of what this said a moment earlier.
+
+**Fetched by the entry form's own script, at `GET /nn/<year>/places-remaining` — never
+rendered into the page.** The entry page is `private, no-store` because it is painted per
+viewer; this figure is the same for everybody, so it is a separate, small, JSON endpoint that
+carries `cache-control: public, max-age=30` instead. With scripting off it never appears —
+render nothing rather than a stale or invented number, the same rule the age-category preview
+already follows. A 204 on any failure (unknown slug, migration not yet landed, database
+unreachable) rather than a wrong figure.
+
 ### The Checkout call
 
 **No Stripe SDK.** One `POST /v1/checkout/sessions` over `fetch`, and two fields read off the
@@ -861,6 +879,11 @@ Harmony model both specify. **A longer closed list was the rejected option** —
 defect with more rows, and every value past female and male would advertise a category with no
 prize to award.
 
+**Three radios now, not a select** — [ADR-031](../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md).
+A `<select>` labelled "Race category" defaulting to whatever "Male" happened to be scrolled to
+was the single most confusing thing on the form; a radio group is read all at once and answered
+with a genuine choice.
+
 The open answer reaches `/admin/nn/`, under the category, and **nowhere else** — not the start
 list, not any of the three exports. Collecting it and showing it nowhere would be collecting it
 for no purpose; putting it on paper handed round a race HQ would out somebody who answered a
@@ -868,10 +891,29 @@ question the form told them was optional. `/nn/privacy/` publishes both halves o
 `admin.spec.ts` asserts the absence against a *paid* fixture, because a pending one would pass
 by not being in the file at all.
 
-**No age category is invented for a non-binary runner**, and the split does not change that.
-The 2023 form offered the option and there were no categories to receive it. The form records
-the answer and says plainly that the categories are undecided. That is still not the same
-question as the minimum age, even though both numbers happen to be 18.
+**No third prize category is invented for a non-binary runner** — that is still the
+committee's decision, and it is still open. What changed on 31 August 2026, under ADR-031, is
+narrower: choosing "Non-binary" reveals a follow-up asking which of the two existing
+categories, women's or men's, the runner's result should count in — or neither, stated as a
+real choice rather than the form's silent default. `entries.entrants.result_placement` holds
+the answer, null for every female and male entrant and for a guide; `effectiveCategory()` in
+`age-category.ts` is the one place `gender` and it are resolved together, so every band
+calculation downstream — the form's own preview, the admin entry page, the start list — still
+answers a two-valued-or-null question. Choosing "neither" and never being asked read the same
+to all of them: both are `ageCategoryFor()`'s `not-placed`, because both mean no band and no
+prize eligibility, and the form's own wording is what tells a person the true one of those two
+facts. **The follow-up ships visible in markup and is hidden by JavaScript**, the same pattern
+as the medical textarea and the guide's fields — scripting off meets exactly the same question,
+and the server enforces the same rule either way. That is still not the same question as the
+minimum age, even though both numbers happen to be 18.
+
+**Neither the admin manual-entry form nor the admin transfer form collects a placement.** A
+volunteer assigning a complimentary place, or moving somebody's entry to a new runner, cannot
+currently set where a non-binary runner's result should count — a stated scope boundary in
+ADR-031, not an oversight. A transfer clears `result_placement`, exactly as it clears
+`gender_identity`, for the same reason: it is a fact about the runner who answered it, and
+carrying it onto whoever the place moves to would file one person's answer under another
+person's name.
 
 **The England Athletics number is not asked for and not held**, since 29 August 2026 —
 [decision 007](../../../docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
@@ -890,12 +932,71 @@ somebody to produce their number or other evidence of affiliation.
 fee is the affiliated price is `entries.fees.affiliated` — a column that says only that, and
 asks the runner nothing.
 
+### Phone numbers, accepted generously and stored canonically
+
+**Three boxes go through the same function** — the runner's own number, the emergency
+contact's, and the guide's emergency contact's — `normalisePhone()` in
+`packages/shared/src/nn-entry.ts`. A UK number is stored as eleven digits starting `0`,
+whatever punctuation or country-code prefix it was typed with; anything else beginning `+` is
+stored as given, digits only. **No dependency** — a regex and a normalisation function is the
+whole of it, deliberately, rather than `libphonenumber` or equivalent.
+
+**Storing the canonical form rather than the typed one is the change from before.** A form
+that stored `'0117 496 0100'` and `'0117 496 0000'` as typed could not tell two numbers with
+different spacing apart from the same number written twice; two people's numbers now compare
+equal only when they actually are the same number.
+
+**Eleven digits, with no exception for a shorter historic form.** A ten-digit UK number is not
+valid under the numbering plan the "phONEday" reforms left in place, so none is accepted —
+CLAUDE.md has the fuller argument for why an exception here would need a lookup table this
+form deliberately does not have. `+44 (0)7700 900123` — the bracketed trunk prefix shown to an
+international reader — is recognised and the bracketed digit is dropped, so it normalises to
+the same number as `+447700900123`.
+
+**No backfill.** `entrants.phone` has never been populated in production — entries have not
+opened — so there is no existing row in a format this normaliser would need to reconcile.
+Seed and test fixtures keep whatever format they were written in; they are invented data, not
+production rows, and nothing reads them expecting a canonical shape.
+
+### Medical information — consent first, tick to reveal
+
+**The consent checkbox comes before the textarea in markup, and the textarea is JavaScript's
+to hide.** It used to be the other way round: type a condition, then tick a box saying the
+club may hold it. Typing it first is collecting it and then deleting it if the box stays
+unticked, not never collecting it — the reveal is what makes "if you leave the box unticked,
+nothing you type is kept" true by construction rather than by hope.
+
+**With scripting off, both boxes are simply visible**, and that is safe for the same reason
+it is safe everywhere else on this form: the server never trusts what the checkbox says the
+browser did. `parseNnEntry()`'s own rule refuses a submission carrying medical text with
+`medicalConsent` false rather than silently keeping the text, and independently,
+`entries.create_pending_purchase()` only ever attempts to insert a row into
+`entries.entrant_medical` when its own `p_consents.medical` flag is true — text arriving
+alongside a false flag is never written, not even briefly. A third backstop,
+`entries.assert_medical_consent()`, is a trigger on `entrant_medical` itself, callable by
+nobody, that refuses any insert whose purchase does not carry the consent, however it got
+there. `packages/db/tests/entries-rules.test.ts`'s `'drops notes sent without the medical
+consent'` and `'refuses a note written against an entrant whose purchase withheld consent'`
+prove the second and third independently of the form.
+
+**The guide's medical notes need two things to show, not one.** They sit in the same
+section, under the same consent, and are additionally gated on a guide having been declared
+at all — `updateMedicalVisibility()` runs after `updateGuideVisibility()` specifically so the
+combination of the two conditions is what a viewer sees, rather than whichever function last
+wrote to the element's `hidden` attribute.
+
+**The one-month retention is a real, running cron, not only a sentence in the privacy
+notice.** `worker/index.ts`'s `scheduled()` handler — every five minutes, per
+`wrangler.jsonc`'s `crons` trigger — calls `sweepExpiredMedicalNotes()`, which calls
+`entries.delete_expired_medical_notes()`. `packages/db/tests/entries-retention.test.ts`
+proves the deletion itself, against the real interval, not merely that the function exists.
+
 ### The progressive enhancement, and what it costs
 
-Three things, none load-bearing: the live age category, revealing the guide's fields, and a
-running total plus inline validation. **With scripting off every one degrades to the fields
-being visible and the server deciding** — which is the path the `no-javascript` project
-tests.
+Four things, none load-bearing: the live age category, revealing the guide's fields and the
+non-binary placement follow-up, and a running total plus inline validation. **With scripting
+off every one degrades to the fields being visible and the server deciding** — which is the
+path the `no-javascript` project tests.
 
 **It validates with the shared schema rather than a copy of the rules**, which puts Zod in
 the page bundle: **68.8 kB raw, 19.2 kB gzipped**, deferred, and requested only by `/nn/`.

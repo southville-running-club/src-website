@@ -218,6 +218,7 @@ export type Database = {
           leg: number | null
           phone: string | null
           purchase_id: string
+          result_placement: string | null
           role: string
         }
         Insert: {
@@ -236,6 +237,7 @@ export type Database = {
           leg?: number | null
           phone?: string | null
           purchase_id: string
+          result_placement?: string | null
           role?: string
         }
         Update: {
@@ -254,6 +256,7 @@ export type Database = {
           leg?: number | null
           phone?: string | null
           purchase_id?: string
+          result_placement?: string | null
           role?: string
         }
         Relationships: [
@@ -631,6 +634,7 @@ export type Database = {
       export: { Args: { p_event_slug: string; p_kind: string }; Returns: Json }
       interest_list: { Args: never; Returns: Json }
       my_entries: { Args: never; Returns: Json }
+      places_remaining: { Args: { p_slug: string }; Returns: Json }
       raise_attention: {
         Args: { p_detail: Json; p_purchase_id: string; p_reason: string }
         Returns: undefined

@@ -1307,3 +1307,104 @@ describe('what an anonymous client can and cannot do after this slice', () => {
     expect(error?.code).toBe('42501');
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// The places-remaining figure the entry page shows
+// -----------------------------------------------------------------------------------------
+
+describe('entries.places_remaining()', () => {
+  it('answers the full capacity when nobody has entered', async () => {
+    await seedEvent(`${FIXTURE_PREFIX}empty`, { capacity: 5 });
+
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('places_remaining', { p_slug: `${FIXTURE_PREFIX}empty` });
+
+    expect(error).toBeNull();
+    expect(data).toEqual({ capacity: 5, remaining: 5 });
+  });
+
+  it('counts a paid place and a live pending hold, and not an expired one', async () => {
+    await seedEvent(`${FIXTURE_PREFIX}mixed`, { capacity: 5 });
+
+    const paid = await enter(`${FIXTURE_PREFIX}mixed`);
+    expect(paid.ok).toBe(true);
+    await query(
+      `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+      [(paid as Created).purchase_id],
+    );
+
+    const pending = await enter(`${FIXTURE_PREFIX}mixed`);
+    expect(pending.ok).toBe(true);
+
+    const expired = await enter(`${FIXTURE_PREFIX}mixed`);
+    expect(expired.ok).toBe(true);
+    await query(
+      `update entries.entry_purchases set hold_expires_at = now() - interval '1 hour'
+        where id = $1`,
+      [(expired as Created).purchase_id],
+    );
+
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('places_remaining', { p_slug: `${FIXTURE_PREFIX}mixed` });
+
+    expect(error).toBeNull();
+    // Five capacity, one paid and one live pending taken, the expired hold not counted —
+    // the same predicate `create_pending_purchase()`'s own capacity check uses.
+    expect(data).toEqual({ capacity: 5, remaining: 3 });
+  });
+
+  it('never reports fewer than zero remaining', async () => {
+    // An over-capacity event is real — CLAUDE.md's own attention mechanism exists because a
+    // payment arriving after a hold lapsed is still recorded `paid` regardless of capacity.
+    // Reproduced the simple way here: two genuine places taken while capacity is 2, then the
+    // event's own capacity lowered under it — which is what the club does deliberately, from
+    // `/admin/nn/`, the day it decides to sell fewer places than it first offered. Either way
+    // the figure a runner reads must say "none left", not a negative number that reads as a
+    // bug on the club's own page.
+    await seedEvent(`${FIXTURE_PREFIX}over`, { capacity: 2 });
+
+    for (let i = 0; i < 2; i += 1) {
+      const result = await enter(`${FIXTURE_PREFIX}over`);
+      expect(result.ok).toBe(true);
+      await query(
+        `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+        [(result as Created).purchase_id],
+      );
+    }
+
+    await query(`update entries.events set capacity = 1 where slug = $1`, [
+      `${FIXTURE_PREFIX}over`,
+    ]);
+
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('places_remaining', { p_slug: `${FIXTURE_PREFIX}over` });
+
+    expect(error).toBeNull();
+    expect(data).toEqual({ capacity: 1, remaining: 0 });
+  });
+
+  it('answers null for an event that does not exist, rather than erroring', async () => {
+    const { data, error } = await anon
+      .schema('entries')
+      .rpc('places_remaining', { p_slug: 'no-such-race' });
+
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+  });
+
+  it('leaks nothing beyond capacity and remaining', async () => {
+    await seedEvent(`${FIXTURE_PREFIX}shape`, { capacity: 2 });
+
+    const { data } = await anon
+      .schema('entries')
+      .rpc('places_remaining', { p_slug: `${FIXTURE_PREFIX}shape` });
+
+    expect(Object.keys(data as Record<string, unknown>).sort()).toEqual([
+      'capacity',
+      'remaining',
+    ]);
+  });
+});

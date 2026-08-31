@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Json } from '@src/db';
 import type { AnonClient, UserClient } from './supabase';
 import { NN_ENTRY_GENDERS } from './nn-entry';
+import type { ResultPlacement } from './age-category';
 import { entryRequestShape, readEntryRequest, type EntryRequest } from './entry-request';
 
 /**
@@ -276,6 +277,12 @@ export interface AdminEntry {
   /** The race category — what the results and the prize list are grouped by. */
   gender: (typeof NN_ENTRY_GENDERS)[number] | null;
   /**
+   * Where a non-binary entrant's result counts, if anywhere — ADR-031. Null for a female or
+   * male entrant, always, and null for a cancelled entry alongside `gender`. Read together
+   * with `gender` through `effectiveCategory()`, never on its own.
+   */
+  resultPlacement: ResultPlacement;
+  /**
    * How this runner described their gender, or null because they did not say — which is most
    * of them, and is an answer rather than a gap. Shown here and nowhere else: it is not on the
    * start list, not in an export, and not on any page a runner or a spectator can reach.
@@ -489,6 +496,10 @@ const entryShape = z.object({
   club: z.string().nullable(),
   age: z.number().int().nullable(),
   gender: z.enum(NN_ENTRY_GENDERS).nullable(),
+  // Same reasoning as `gender_identity` below: a Worker deployed ahead of
+  // 20260831170000_entries_results_placement.sql finds no `result_placement` key at all, and
+  // `.catch(null)` is what renders the row instead of refusing the page.
+  result_placement: z.enum(['female', 'male']).nullable().catch(null),
   // `.catch` for the same reason every optional field on this shape has one: a Worker deployed
   // ahead of its migration renders the row rather than refusing the page.
   gender_identity: z.string().nullable().catch(null),
@@ -650,6 +661,7 @@ function parseEntryList(
       club: entry.club,
       age: entry.age,
       gender: entry.gender,
+      resultPlacement: entry.result_placement,
       genderIdentity: entry.gender_identity,
       role: entry.role,
       discountCode: entry.discount_code,
@@ -932,6 +944,8 @@ export interface StartListExportRow {
   club: string | null;
   age: number;
   gender: (typeof NN_ENTRY_GENDERS)[number];
+  /** Where a non-binary entrant's result counts, if anywhere — ADR-031. */
+  resultPlacement: ResultPlacement;
   /**
    * `guide` for somebody running with a visually impaired entrant, `runner` for everybody
    * else — and null only from a database that predates guides.
@@ -993,6 +1007,9 @@ const startListRowShape = z.object({
   club: z.string().nullable(),
   age: z.number().int(),
   gender: z.enum(NN_ENTRY_GENDERS),
+  // Same reasoning: a Worker deployed ahead of the migration finds no `result_placement`
+  // key, and `.catch(null)` prints "No category yet" instead of refusing the sheet.
+  result_placement: z.enum(['female', 'male']).nullable().catch(null),
   // `.catch` for the reason every optional field here has one: a Worker deployed ahead of its
   // migration prints the sheet rather than refusing it.
   role: z.enum(['runner', 'guide']).nullable().catch(null),
@@ -1075,6 +1092,7 @@ function parseExport(
               club: row.club,
               age: row.age,
               gender: row.gender,
+              resultPlacement: row.result_placement,
               role: row.role,
               emergencyContactName: row.emergency_contact_name,
               emergencyContactPhone: row.emergency_contact_phone,
@@ -1263,6 +1281,8 @@ export interface AdminEntryDetailEntrant {
   age: number;
   /** Null only for a guide, who is in no prize category and is asked for none — ADR-022. */
   gender: (typeof NN_ENTRY_GENDERS)[number] | null;
+  /** Where a non-binary entrant's result counts, if anywhere — ADR-031. */
+  resultPlacement: ResultPlacement;
   genderIdentity: string | null;
   club: string | null;
   role: 'runner' | 'guide';
@@ -1331,6 +1351,7 @@ const detailEntrantShape = z.object({
   date_of_birth: z.string(),
   age: z.number().int(),
   gender: z.enum(NN_ENTRY_GENDERS).nullable(),
+  result_placement: z.enum(['female', 'male']).nullable().catch(null),
   gender_identity: z.string().nullable().catch(null),
   club: z.string().nullable(),
   role: z.enum(['runner', 'guide']).catch('runner'),
@@ -1463,6 +1484,7 @@ export async function fetchEntryDetail(
           dateOfBirth: entrant.date_of_birth,
           age: entrant.age,
           gender: entrant.gender,
+          resultPlacement: entrant.result_placement,
           genderIdentity: entrant.gender_identity,
           club: entrant.club,
           role: entrant.role,
@@ -1827,6 +1849,13 @@ export async function createManualEntry(
     last_name: person.lastName,
     date_of_birth: person.dateOfBirth,
     gender: person.gender,
+    // **Always null, and that is a scope boundary rather than an oversight.** ADR-031 asks
+    // the public entry form the placement follow-up; this form does not, so a complimentary
+    // place given to a non-binary runner lands unplaced until that is its own decision. The
+    // database accepts the key regardless — `create_manual_entry()` reads it exactly as
+    // `create_pending_purchase()` does — so adding it here later is a form change, not a
+    // migration.
+    result_placement: null,
     gender_identity: null,
     club: person.club,
     leg: null,

@@ -370,6 +370,52 @@ describe('the health endpoint', () => {
   });
 });
 
+describe('the places-remaining endpoint', () => {
+  // Same discipline as the health endpoint above: these assert the contract — shape, cache
+  // header, which addresses answer — not the figure itself, which depends on however many
+  // places the local stack's seed data has taken.
+
+  it('answers JSON with a short public cache, for the real running', async () => {
+    const response = await SELF.fetch(`${SITE}/nn/2026/places-remaining`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    // Public and short-lived, unlike `/_health`'s `no-store` — this is the one figure on the
+    // entry page that is not per viewer, and the whole reason it is a separate endpoint.
+    expect(response.headers.get('cache-control')).toBe('public, max-age=30');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex');
+
+    const body = (await response.json()) as { capacity: number; remaining: number };
+    expect(body.capacity).toBe(250);
+    expect(Number.isInteger(body.remaining)).toBe(true);
+    expect(body.remaining).toBeGreaterThanOrEqual(0);
+    expect(body.remaining).toBeLessThanOrEqual(250);
+  });
+
+  it('answers 204 for a running that does not exist, never a stale or invented figure', async () => {
+    const response = await SELF.fetch(`${SITE}/nn/2019/places-remaining`);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('is not something the assets binding will answer for a POST', async () => {
+    const response = await SELF.fetch(`${SITE}/nn/2026/places-remaining`, {
+      method: 'POST',
+    });
+
+    expect(response.status).not.toBe(200);
+  });
+
+  it('is not painted with the navigation — it is JSON, never HTML', async () => {
+    const response = await SELF.fetch(`${SITE}/nn/2026/places-remaining`);
+    const body = await response.text();
+
+    expect(body).not.toContain('<nav');
+    expect(body).not.toContain('<html');
+  });
+});
+
 describe('the pages a runner sees', () => {
   // **The diagnostics came off `/nn/` deliberately, and this is what keeps them off.**
   //

@@ -33,10 +33,12 @@
  *
  * Two gaps are real and neither is filled by guessing:
  *
- *   * **Non-binary.** The 2023 entry form offered the option and there were no non-binary
- *     categories to receive it. Recording the answer somebody gives is right; inventing a
- *     category structure is a committee decision, so `known` is `false` and the caller says
- *     so in words.
+ *   * **Non-binary.** There is still no non-binary category, and this module still invents
+ *     none — that is still the committee's decision, not a build one. What changed with
+ *     ADR-031 is that a non-binary entrant is now asked directly which of the two existing
+ *     categories, if either, their result should count in — `gender` and the new
+ *     `result_placement` resolve through `effectiveCategory()` below, and `known` is `false`
+ *     only for the entrant who was asked and said neither, or was never asked at all.
  *   * **Under 18.** The youngest band starts at 18, so a 17-year-old has no category. That
  *     is still *not* the same as a minimum age, even though Nightingale Nightmare's is now
  *     18 as well. The committee confirmed that separately on 13 August 2026 and it lives in
@@ -69,11 +71,16 @@ export const AGE_CATEGORY_CODES = ['senior', 'vet40', 'vet50', 'vet60'] as const
 export type AgeCategoryCode = (typeof AGE_CATEGORY_CODES)[number];
 
 /**
- * Why a category could not be worked out. Both are honest answers about the club's own
- * unfinished decisions rather than about anything the entrant did wrong, and the wording
- * shown to a person has to reflect that.
+ * Why a category could not be worked out.
+ *
+ * **`not-placed` covers two different facts now, deliberately merged.** A female or male
+ * runner is never in this state at all; a non-binary runner reaches it either by explicitly
+ * choosing "do not place me in either" or — for anywhere still reading `gender` without
+ * `result_placement`, or an old row from before ADR-031 — by not having answered. Both are
+ * "no band, no prize eligibility" to everything downstream, and the wording shown to a person
+ * has to say the true one of the two rather than guess.
  */
-export type NoCategoryReason = 'gender-has-no-categories' | 'younger-than-any-category';
+export type NoCategoryReason = 'not-placed' | 'younger-than-any-category';
 
 export type AgeCategory =
   | { known: true; code: AgeCategoryCode; label: string; age: number }
@@ -181,18 +188,51 @@ export function compareCivilDates(a: CivilDate, b: CivilDate): number {
 }
 
 /**
+ * Where a non-binary entrant's result counts, if anywhere — the follow-up ADR-031 adds.
+ *
+ * Null for two different reasons that this type does not distinguish, deliberately: "never
+ * asked" (a female or male entrant) and "asked, chose neither" (a non-binary entrant who
+ * opted out) resolve to the identical downstream fact — no band, no prize eligibility — and a
+ * caller that needs to tell the two apart already has `gender` beside this to do it.
+ */
+export type ResultPlacement = 'female' | 'male' | null;
+
+/**
+ * The two-valued-or-null category a result actually counts in — the one thing age-category
+ * derivation, the admin surface and every export need, resolved once rather than by each of
+ * them re-deriving the same branch.
+ *
+ * **A female or male entrant's own answer, unchanged.** They were not asked the follow-up,
+ * because `gender` alone already says which of the two categories they are in.
+ *
+ * **A non-binary entrant's `placement`, whatever it is.** `'female'`, `'male'`, or `null` for
+ * "do not place me in either" — which is the same null a category-less answer always was, now
+ * arrived at by an explicit choice rather than by the club never having asked.
+ */
+export function effectiveCategory(
+  gender: Gender,
+  placement: ResultPlacement,
+): 'female' | 'male' | null {
+  return gender === 'non_binary' ? placement : gender;
+}
+
+/**
  * Which band a runner falls in on race day, or an honest reason there is not one.
  *
  * The age is returned either way, because it is the useful half of the answer when the
- * category is missing: a non-binary entrant should still be told the club has their age
- * right, and told plainly that the categories are the part still to be decided.
+ * category is missing: somebody with no category should still be told the club has their age
+ * right.
  */
 export function deriveAgeCategory(
   dateOfBirth: CivilDate,
   gender: Gender,
+  placement: ResultPlacement,
   eventDate: CivilDate,
 ): AgeCategory {
-  return ageCategoryFor(ageOn(dateOfBirth, eventDate), gender);
+  return ageCategoryFor(
+    ageOn(dateOfBirth, eventDate),
+    effectiveCategory(gender, placement),
+  );
 }
 
 /**
@@ -202,19 +242,28 @@ export function deriveAgeCategory(
  * is the half of `deriveAgeCategory` that is only about the bands. The admin surface reads
  * `entries.admin_entry_list()`, which computes completed years at `event_date` in SQL — with
  * the identical expression `entries.create_pending_purchase()` enforces the minimum age with —
- * and hands back an age and a gender. A date of birth is a far stronger identifier than a
- * number of years and an entries list has no use for one, so it never leaves the database.
+ * and hands back an age, a gender and a placement. A date of birth is a far stronger
+ * identifier than a number of years and an entries list has no use for one, so it never
+ * leaves the database.
  *
  * `deriveAgeCategory` delegates here rather than repeating the bands, which is what keeps the
  * two answers the same answer: the form's live preview and the organiser's list cannot
  * disagree about what somebody runs as.
+ *
+ * **Takes the resolved category, not raw `gender`.** Every caller with a `gender` and a
+ * `placement` calls `effectiveCategory()` first — `deriveAgeCategory` above does exactly that
+ * — so this function itself needs no opinion about non-binary at all, which is the "no third
+ * branch" ADR-031 asks for.
  */
-export function ageCategoryFor(age: number, gender: Gender): AgeCategory {
-  // Checked before the age bands, deliberately. A non-binary runner aged 12 is not
-  // "too young for a category" — the club has no categories for them at any age, and
+export function ageCategoryFor(
+  age: number,
+  category: 'female' | 'male' | null,
+): AgeCategory {
+  // Checked before the age bands, deliberately. Somebody with no category at age 12 is not
+  // "too young for a category" — there is no category for them to be too young for — and
   // saying the wrong one of those two things would be worse than saying nothing.
-  if (gender === 'non_binary') {
-    return { known: false, reason: 'gender-has-no-categories', age };
+  if (category === null) {
+    return { known: false, reason: 'not-placed', age };
   }
 
   if (age < 18) {

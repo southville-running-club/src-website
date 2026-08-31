@@ -22,6 +22,9 @@ const ENTRY: NnEntry = {
   email: 'grace@example.com',
   dateOfBirth: { year: 1986, month: 12, day: 9 },
   gender: 'female',
+  // Female, so never asked the follow-up — asserted below, in the same place the mismatched
+  // phone numbers are, so a mapping that started reading it for every entrant would be caught.
+  resultPlacement: null,
   genderIdentity: 'Woman',
   club: "O'Sullivan Runners",
   feeCode: 'affiliated',
@@ -47,6 +50,9 @@ describe('one runner, in the column names the database uses', () => {
       // is how somebody turns 18 a day early in one country and a day late in another.
       date_of_birth: '1986-12-09',
       gender: 'female',
+      // Female, never asked the placement follow-up — see the dedicated non-binary test
+      // below for the case where this is not null.
+      result_placement: null,
       // The race category and the recorded gender are two columns and two keys. A payload
       // that carried only the first would silently drop what somebody typed.
       gender_identity: 'Woman',
@@ -96,6 +102,18 @@ describe('one runner, in the column names the database uses', () => {
     expect(nnEntrantPayload(unsaid)).toHaveProperty('gender_identity', null);
   });
 
+  it('carries a non-binary entrant’s chosen placement', () => {
+    const placed: NnEntry = { ...ENTRY, gender: 'non_binary', resultPlacement: 'female' };
+
+    expect(nnEntrantPayload(placed)).toHaveProperty('result_placement', 'female');
+  });
+
+  it('carries null for a non-binary entrant who chose neither', () => {
+    const unplaced: NnEntry = { ...ENTRY, gender: 'non_binary', resultPlacement: null };
+
+    expect(nnEntrantPayload(unplaced)).toHaveProperty('result_placement', null);
+  });
+
   it('states leg rather than omitting it', () => {
     // Null because Nightingale Nightmare is a solo race. Stated so that the first paired race
     // meets a field to fill in rather than a field to discover.
@@ -123,13 +141,15 @@ describe('the guide, in the same column names', () => {
       // this person without it: a runner is reachable through the address that paid, and a
       // guide has no purchase of their own.
       email: 'katherine@example.com',
-      // **Five nulls, and each is null for a reason rather than because the form did not
+      // **Six nulls, and each is null for a reason rather than because the form did not
       // ask.** `gender` is the race category and a guide is in none — asking was collecting an
-      // answer nothing could use; `gender_identity` and `club` derive nothing for somebody in
-      // no category either; `leg` is a paired-race field on a solo race; and `phone` is a
-      // third way of reaching somebody who has already given two — ADR-025 requires one of a
-      // runner and asks it of nobody else.
+      // answer nothing could use; `result_placement` is the follow-up to a question that was
+      // never asked; `gender_identity` and `club` derive nothing for somebody in no category
+      // either; `leg` is a paired-race field on a solo race; and `phone` is a third way of
+      // reaching somebody who has already given two — ADR-025 requires one of a runner and
+      // asks it of nobody else.
       gender: null,
+      result_placement: null,
       gender_identity: null,
       club: null,
       phone: null,

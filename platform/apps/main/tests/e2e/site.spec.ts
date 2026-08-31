@@ -465,14 +465,16 @@ test.describe('Nightingale Nightmare, at /nn', () => {
       await page.goto(path);
       const body = (await page.locator('body').textContent()) ?? '';
 
-      // Live capacity is the entries application's business too. 250 is how big the race is;
-      // "238 of 250 remaining" is demo data from the mockup and must not follow it here.
+      // 250 is how big the race is, on both pages, always.
       expect(body, path).toContain('250 places');
-      expect(body, path).not.toMatch(/\bof 250\b|places remaining/i);
 
       if (path === '/nn/') {
-        // The evergreen page names no year, and a fee belongs to one running — the same rule
-        // the date and the ARC permit follow.
+        // **Still true on the evergreen page, and only there.** No live count, because a
+        // page that names no year has no one running's capacity to count against — the same
+        // rule the date and the ARC permit follow — and because a stale cached copy of this
+        // page is exactly the "wrong within a day, cached at the edge" claim the entry
+        // year's own page accepts for a good reason and this one still does not.
+        expect(body, path).not.toMatch(/\bof 250\b|places (remaining|left)/i);
         expect(body, path).not.toMatch(/£\s?\d/);
         continue;
       }
@@ -481,6 +483,16 @@ test.describe('Nightingale Nightmare, at /nn', () => {
       // £0 guide's place is absent because `feeLine` drops free places.
       expect(body, path).toContain('£20.00 unaffiliated · £18.00 affiliated');
       expect(body, path).not.toMatch(/£15|£17|from £/);
+
+      // **The one live count on the site, and only on the entry form.** Fetched by the
+      // enhancement script rather than rendered by the Worker, so this waits for it rather
+      // than reading the DOM synchronously the way the rest of this test does — a fixed
+      // number here would be exactly the fragile literal `nn-entry-complete.spec.ts`'s own
+      // "a real session id reveals nothing" test warns against, and the shape is the thing
+      // that is actually being promised.
+      await expect(page.locator('[data-entry-places-remaining]')).toContainText(
+        /^\d+ places? left$/,
+      );
     }
   });
 

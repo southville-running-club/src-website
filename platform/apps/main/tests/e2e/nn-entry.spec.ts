@@ -115,8 +115,22 @@ async function fillEntry(
   // **By id.** "Phone number" is a substring of "Contact phone number" four fieldsets
   // down, so a label match would be ambiguous — which is exactly the ambiguity the two
   // fields are laid out to avoid for a person.
-  await form.locator('#entry-phone').fill(values.phone!);
-  await form.getByLabel('Race category', { exact: true }).selectOption('female');
+  const phone = form.locator('#entry-phone');
+  await phone.fill(values.phone!);
+  // **An explicit blur, not left to the next `.check()`'s own implicit one.** Leaving the
+  // phone field revalidates on `focusout` — real content when three spaces trim to nothing —
+  // and that reveal shifts everything below it, including the race-category radios, by about
+  // the height of one radio row. A `.check()` immediately after resolves its click target
+  // before that shift, races it, and — on WebKit specifically — can click a coordinate the
+  // radio has already moved out from under: the same shape of bug as the England Athletics
+  // box that used to sit here, just from an adjacent field's own message rather than a
+  // conditional one. Blurring first, as its own awaited step, lets the reveal (or, on every
+  // other call to this helper, the absence of one) finish before anything below is clicked.
+  await phone.blur();
+  // **By id, not by label — ADR-031.** The race category is three radios now rather than a
+  // select, and "Women's" alone is not distinctive enough to pin to `#entry-gender-female`
+  // with a label match the way the fee cards' labels are.
+  await form.locator('#entry-gender-female').check();
   await form.getByLabel('Contact name', { exact: true }).fill(values.emergencyName!);
   await form
     .getByLabel('Contact phone number', { exact: true })
@@ -791,6 +805,70 @@ test.describe('once entries are open', () => {
     expect(held[0]).toMatchObject({ status: 'pending', amountPence: 2000 });
   });
 
+  test('accepts a non-binary entrant who has said where their result should count — ADR-031', async ({
+    page,
+  }) => {
+    // **Not tagged `@requires-js`, on purpose.** The placement follow-up ships visible in
+    // markup, so a runner with scripting off meets exactly the same question and the server
+    // enforces the same rule either way — this is what proves the whole path rather than
+    // only the client-side reveal.
+    await clearPurchases();
+
+    const response = await postEntry(page, {
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'e2e-non-binary@example.com',
+      emailConfirm: 'e2e-non-binary@example.com',
+      phone: '0117 496 0100',
+      dobDay: '9',
+      dobMonth: '12',
+      dobYear: '1986',
+      gender: 'non_binary',
+      resultPlacement: 'female',
+      feeCode: 'unaffiliated',
+      emergencyName: 'Margaret Hamilton',
+      emergencyPhone: '0117 496 0000',
+      entryTerms: 'on',
+    });
+
+    expect(response.status()).toBe(303);
+    expect(response.headers().location).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+
+    const held = await purchases();
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ status: 'pending', amountPence: 2000 });
+  });
+
+  test('refuses a non-binary entrant who was not asked where to be placed', async ({
+    page,
+  }) => {
+    // **The rule this whole feature exists to enforce.** A female or male entrant is never
+    // asked and never refused for it; a non-binary entrant with no `resultPlacement` at all —
+    // not even `'none'` — is refused rather than silently left unplaced, because "the club
+    // never asked" and "the entrant said neither" are different facts and only one of them is
+    // a genuine answer.
+    await clearPurchases();
+
+    const response = await postEntry(page, {
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'e2e-non-binary-unasked@example.com',
+      emailConfirm: 'e2e-non-binary-unasked@example.com',
+      phone: '0117 496 0100',
+      dobDay: '9',
+      dobMonth: '12',
+      dobYear: '1986',
+      gender: 'non_binary',
+      feeCode: 'unaffiliated',
+      emergencyName: 'Margaret Hamilton',
+      emergencyPhone: '0117 496 0000',
+      entryTerms: 'on',
+    });
+
+    expect(response.status()).toBe(422);
+    expect(await purchases()).toHaveLength(0);
+  });
+
   test('holds exactly one place per press, not one per attempt', async ({ page }) => {
     // Somebody on bad signal presses the button, sees nothing happen, and presses it again.
     // Each press is a separate submission and holds its own place — which is correct, and
@@ -884,12 +962,14 @@ test.describe('once entries are open', () => {
     await entry(page)
       .getByLabel(/^Unaffiliated/)
       .check();
-    await entry(page)
-      .getByLabel('Medical information (optional)', { exact: true })
-      .fill('Type 1 diabetic.');
+    // **Consent first, which is what reveals the box.** PR D's whole point: the textarea
+    // ships hidden and JavaScript shows it only once this is ticked.
     await entry(page)
       .getByLabel(/I agree to the club holding/)
       .check();
+    await entry(page)
+      .getByLabel('Medical information (optional)', { exact: true })
+      .fill('Type 1 diabetic.');
 
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page).toHaveURL(/^https:\/\/checkout\.stripe\.com\//);
@@ -944,6 +1024,11 @@ test.describe('once entries are open', () => {
     await entry(page)
       .getByLabel(/^Running club/)
       .fill("O'Sullivan Runners");
+    // Ticked before the textarea is filled, since it is what reveals it — not the point of
+    // this test, but required for the interaction to be possible at all.
+    await entry(page)
+      .getByLabel(/I agree to the club holding/)
+      .check();
     await entry(page)
       .getByLabel('Medical information (optional)', { exact: true })
       .fill('Type 1 diabetic.');
@@ -967,9 +1052,7 @@ test.describe('once entries are open', () => {
     ).toHaveValue('wrong@example.com');
     await expect(entry(page).locator('#entry-dob-day')).toHaveValue('9');
     await expect(entry(page).locator('#entry-dob-year')).toHaveValue('1986');
-    await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
-      'female',
-    );
+    await expect(entry(page).locator('#entry-gender-female')).toBeChecked();
     await expect(entry(page).getByLabel(/^Running club/)).toHaveValue(
       "O'Sullivan Runners",
     );
@@ -1124,6 +1207,12 @@ test.describe('once entries are open', () => {
   test('refuses medical notes written without the separate consent', async ({ page }) => {
     // Special category data under UK GDPR Article 9. Ticking the entry terms is not consent
     // to hold it, and the form does not quietly bin what somebody wrote either.
+    //
+    // **Tick, type, then untick — the one way a JavaScript-enabled browser can reach this
+    // state at all**, now that the box is hidden until consent is given. Somebody who ticks
+    // it, writes a condition, and then changes their mind and unticks it again still has the
+    // text sitting in a hidden textarea, and the server has to refuse that exactly as it
+    // would have refused it typed with the box never ticked.
     await page.goto(YEAR);
 
     await fillEntry(page);
@@ -1131,8 +1220,14 @@ test.describe('once entries are open', () => {
       .getByLabel(/^Unaffiliated/)
       .check();
     await entry(page)
+      .getByLabel(/I agree to the club holding/)
+      .check();
+    await entry(page)
       .getByLabel('Medical information (optional)', { exact: true })
       .fill('Asthma. Carries an inhaler.');
+    await entry(page)
+      .getByLabel(/I agree to the club holding/)
+      .uncheck();
 
     await page.getByRole('button', { name: 'Continue to payment' }).click();
 
@@ -1397,6 +1492,54 @@ test.describe('what JavaScript adds @requires-js', () => {
     await closeEntries();
   });
 
+  test('reveals the medical textarea only once its consent is ticked', async ({
+    page,
+  }) => {
+    await page.goto(YEAR);
+
+    const notes = entry(page).getByLabel('Medical information (optional)', {
+      exact: true,
+    });
+    const consent = entry(page).getByLabel(/I agree to the club holding/);
+
+    await expect(notes).toBeHidden();
+
+    await consent.check();
+    await expect(notes).toBeVisible();
+
+    await consent.uncheck();
+    await expect(notes).toBeHidden();
+  });
+
+  test("reveals the guide's medical textarea only when a guide is declared and consent is ticked", async ({
+    page,
+  }) => {
+    // **Two conditions, and either one absent hides it.** A guide declared with consent
+    // still unticked, and consent ticked with no guide declared, both leave it hidden —
+    // `updateMedicalVisibility` running after `updateGuideVisibility` is what makes the
+    // combination correct rather than whichever function happened to run last.
+    await page.goto(YEAR);
+
+    const guideNotes = entry(page).getByLabel("Guide's medical information (optional)", {
+      exact: true,
+    });
+    const guideDeclared = entry(page).getByLabel(
+      'I am a visually impaired runner and a guide will run with me',
+    );
+    const consent = entry(page).getByLabel(/I agree to the club holding/);
+
+    await expect(guideNotes).toBeHidden();
+
+    await guideDeclared.check();
+    await expect(guideNotes).toBeHidden();
+
+    await consent.check();
+    await expect(guideNotes).toBeVisible();
+
+    await guideDeclared.uncheck();
+    await expect(guideNotes).toBeHidden();
+  });
+
   test('shows the age category as the date of birth and gender are typed', async ({
     page,
   }) => {
@@ -1408,7 +1551,7 @@ test.describe('what JavaScript adds @requires-js', () => {
     await entry(page).locator('#entry-dob-day').fill('1');
     await entry(page).locator('#entry-dob-month').fill('11');
     await entry(page).locator('#entry-dob-year').fill('1986');
-    await entry(page).getByLabel('Race category', { exact: true }).selectOption('male');
+    await entry(page).locator('#entry-gender-male').check();
 
     // Born 1 November 1986, race day 1 November 2026 — forty **on** race day, which is the
     // boundary somebody will write in to argue about.
@@ -1416,7 +1559,29 @@ test.describe('what JavaScript adds @requires-js', () => {
     await expect(category).toContainText('Vet 40');
   });
 
-  test('says plainly that non-binary categories are undecided rather than inventing one', async ({
+  test('reveals the placement question only once "non-binary" is chosen', async ({
+    page,
+  }) => {
+    // **The follow-up, and only the follow-up — ADR-031.** Ships visible in markup so
+    // scripting-off always meets it; this is what asserts JavaScript hides it for female and
+    // male, and reveals it the moment non-binary is chosen, then hides it again on second
+    // thoughts.
+    await page.goto(YEAR);
+
+    const placement = page.locator('[data-entry-placement-fields]');
+    await expect(placement).toBeHidden();
+
+    await entry(page).locator('#entry-gender-female').check();
+    await expect(placement).toBeHidden();
+
+    await entry(page).locator('#entry-gender-non-binary').check();
+    await expect(placement).toBeVisible();
+
+    await entry(page).locator('#entry-gender-male').check();
+    await expect(placement).toBeHidden();
+  });
+
+  test('says plainly that a non-binary result is unplaced until asked, and asked until answered', async ({
     page,
   }) => {
     await page.goto(YEAR);
@@ -1424,14 +1589,39 @@ test.describe('what JavaScript adds @requires-js', () => {
     await entry(page).locator('#entry-dob-day').fill('9');
     await entry(page).locator('#entry-dob-month').fill('12');
     await entry(page).locator('#entry-dob-year').fill('1986');
-    await entry(page)
-      .getByLabel('Race category', { exact: true })
-      .selectOption('non_binary');
+    await entry(page).locator('#entry-gender-non-binary').check();
 
     const category = page.locator('[data-entry-category]');
     await expect(category).toContainText(
-      'has not confirmed age categories for non-binary',
+      'has not confirmed which category, if any, your result will count in',
     );
+
+    // Choosing "do not place me in either" reads exactly the same as never having answered —
+    // both are `null` once `updateCategory` resolves them, so the wording does not change.
+    await entry(page).locator('#entry-result-placement-none').check();
+    await expect(category).toContainText(
+      'has not confirmed which category, if any, your result will count in',
+    );
+  });
+
+  test('resolves the age category once a non-binary entrant chooses where to be placed', async ({
+    page,
+  }) => {
+    // **The other half of ADR-031.** A non-binary entrant who chooses a placement gets
+    // exactly the band a female or male entrant of the same age would — `effectiveCategory()`
+    // is the only place that distinction is made, and this is what proves the form's own
+    // preview goes through it rather than reading `gender` directly.
+    await page.goto(YEAR);
+
+    await entry(page).locator('#entry-dob-day').fill('1');
+    await entry(page).locator('#entry-dob-month').fill('11');
+    await entry(page).locator('#entry-dob-year').fill('1986');
+    await entry(page).locator('#entry-gender-non-binary').check();
+    await entry(page).locator('#entry-result-placement-female').check();
+
+    const category = page.locator('[data-entry-category]');
+    await expect(category).toContainText('Age on race day: 40');
+    await expect(category).toContainText('Vet 40');
   });
 
   test('shows a running total once an entry type is chosen', async ({ page }) => {
@@ -1452,6 +1642,36 @@ test.describe('what JavaScript adds @requires-js', () => {
       .getByLabel(/^Unaffiliated/)
       .check();
     await expect(total).toHaveText('Total to pay: £20.00');
+  });
+
+  test('suggests, but never requires, a different emergency contact number', async ({
+    page,
+  }) => {
+    await page.goto(YEAR);
+
+    const notice = page.locator('[data-entry-same-phone-notice]');
+    await expect(notice).toBeHidden();
+
+    await entry(page).getByLabel('Phone number', { exact: true }).fill('07889 270964');
+    await entry(page)
+      .getByLabel('Contact phone number', { exact: true })
+      .fill('07889270964');
+
+    // Same digits, different formatting — the comparison is digits-only, not a string match.
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('same as your own number');
+
+    // Never blocking: the field carries no error, no `aria-invalid`, and nothing here stops
+    // the same submission `validates inline without ever blocking a submission` proves for
+    // the ordinary inline messages.
+    await expect(page.locator('[data-entry-error="emergencyPhone"]')).toBeHidden();
+
+    // Clears itself the moment the numbers genuinely differ, the same as every other
+    // JavaScript-only feedback on this form.
+    await entry(page)
+      .getByLabel('Contact phone number', { exact: true })
+      .fill('0117 496 0000');
+    await expect(notice).toBeHidden();
   });
 
   test('validates inline without ever blocking a submission', async ({ page }) => {
@@ -1552,11 +1772,11 @@ test.describe('when the race is full', () => {
       .getByLabel(/^Running club/)
       .fill("O'Sullivan Runners");
     await entry(page)
-      .getByLabel('Medical information (optional)', { exact: true })
-      .fill('Type 1 diabetic.');
-    await entry(page)
       .getByLabel(/I agree to the club holding/)
       .check();
+    await entry(page)
+      .getByLabel('Medical information (optional)', { exact: true })
+      .fill('Type 1 diabetic.');
 
     await page.getByRole('button', { name: 'Continue to payment' }).click();
 
@@ -1575,9 +1795,7 @@ test.describe('when the race is full', () => {
     await expect(entry(page).locator('#entry-dob-day')).toHaveValue('9');
     await expect(entry(page).locator('#entry-dob-month')).toHaveValue('12');
     await expect(entry(page).locator('#entry-dob-year')).toHaveValue('1986');
-    await expect(entry(page).getByLabel('Race category', { exact: true })).toHaveValue(
-      'female',
-    );
+    await expect(entry(page).locator('#entry-gender-female')).toBeChecked();
     await expect(entry(page).getByLabel(/^Affiliated/)).toBeChecked();
     await expect(entry(page).getByLabel(/^Running club/)).toHaveValue(
       "O'Sullivan Runners",

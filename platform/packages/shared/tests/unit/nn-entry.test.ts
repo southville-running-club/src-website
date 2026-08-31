@@ -302,6 +302,86 @@ describe('the race category, and the gender question beside it', () => {
   });
 });
 
+describe('where a non-binary entrant’s result should count — ADR-031', () => {
+  it('is never required of a female or male entrant', () => {
+    expect(errorOn(good({ gender: 'female' }))?.resultPlacement).toBeUndefined();
+    expect(
+      errorOn(good({ gender: 'male', resultPlacement: '' }))?.resultPlacement,
+    ).toBeUndefined();
+  });
+
+  it('is required once gender is non-binary', () => {
+    expect(
+      errorOn(good({ gender: 'non_binary', resultPlacement: '' }))?.resultPlacement,
+    ).toBe('Choose where your result should be placed.');
+  });
+
+  it('refuses a value that is not one of the three options', () => {
+    expect(
+      errorOn(good({ gender: 'non_binary', resultPlacement: 'other' }))?.resultPlacement,
+    ).toBe('Choose one of the options listed.');
+  });
+
+  it('stores the chosen category for a non-binary entrant', () => {
+    const result = parseNnEntry(
+      good({ gender: 'non_binary', resultPlacement: 'female' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.resultPlacement).toBe('female');
+  });
+
+  it('stores null for "do not place me in either"', () => {
+    const result = parseNnEntry(
+      good({ gender: 'non_binary', resultPlacement: 'none' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.resultPlacement).toBeNull();
+  });
+
+  it('never reads a placement sent for a female or male entrant', () => {
+    // **A crafted request cannot buy a category through the back door.** The form never
+    // reveals this field unless `non_binary` is chosen, but a POST straight at the Worker
+    // could still carry one — and it must be read as though it had not.
+    const result = parseNnEntry(
+      good({ gender: 'female', resultPlacement: 'male' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.resultPlacement).toBeNull();
+  });
+
+  it('resolves the live age-category preview using the chosen placement', () => {
+    const placed = parseNnEntry(
+      good({ gender: 'non_binary', resultPlacement: 'male' }),
+      RULES,
+    );
+    const raw = parseNnEntry(good({ gender: 'male' }), RULES);
+
+    expect(placed.ok && raw.ok).toBe(true);
+    if (!placed.ok || !raw.ok) return;
+    expect(placed.category).toEqual(raw.category);
+  });
+
+  it('gives an honest "not placed" preview for a non-binary entrant with no placement', () => {
+    const result = parseNnEntry(
+      good({ gender: 'non_binary', resultPlacement: 'none' }),
+      RULES,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.category).toMatchObject({ known: false, reason: 'not-placed' });
+  });
+});
+
 describe('the entry type, and the number that hangs off it', () => {
   it('asks for a choice when none was made', () => {
     expect(errorOn(good({ feeCode: '' }))?.feeCode).toBe('Choose an entry type.');
@@ -367,9 +447,9 @@ describe('the emergency contact', () => {
     }
   });
 
-  it('refuses one with too few digits to be a phone number', () => {
+  it('refuses one that is not shaped like a UK or an international number', () => {
     expect(errorOn(good({ emergencyPhone: '12345' }))?.emergencyPhone).toBe(
-      'Enter a phone number with at least seven digits in it.',
+      'Enter a UK number starting 0, or an international number starting +.',
     );
   });
 
@@ -389,13 +469,13 @@ describe('the emergency contact', () => {
   });
 
   it('says which of the two things is wrong with it', () => {
-    // Too short and not-a-phone-number need different fixes, so they get different messages:
-    // one says add more digits, the other says use digits.
+    // Letters and an unrecognised shape need different fixes, so they get different
+    // messages: one says use digits, the other says what shape is accepted.
     expect(errorOn(good({ emergencyPhone: 'ask my mum' }))?.emergencyPhone).toContain(
       'using digits',
     );
     expect(errorOn(good({ emergencyPhone: '12345' }))?.emergencyPhone).toContain(
-      'at least seven',
+      'starting 0',
     );
   });
 
@@ -433,7 +513,7 @@ describe("the runner's own phone number", () => {
       expect(parseNnEntry(good({ phone }), RULES).ok, phone).toBe(true);
     }
 
-    expect(errorOn(good({ phone: '12345' }))?.phone).toContain('at least seven');
+    expect(errorOn(good({ phone: '12345' }))?.phone).toContain('starting 0');
     expect(errorOn(good({ phone: 'ask my mum' }))?.phone).toContain('using digits');
     expect(errorOn(good({ phone: '-' }))?.phone).toBeDefined();
     expect(parseNnEntry(good({ phone: '0117 496 0000 x214' }), RULES).ok).toBe(true);
@@ -456,8 +536,11 @@ describe("the runner's own phone number", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.value.phone).toBe('0117 496 0100');
-    expect(result.value.emergencyPhone).toBe('0117 496 0000');
+    // **Canonical form, not the typed one.** Both were 11-digit UK numbers with spaces in
+    // them; the normalised output has none, which is what makes this assertion prove the two
+    // are still different numbers rather than the same one formatted twice.
+    expect(result.value.phone).toBe('01174960100');
+    expect(result.value.emergencyPhone).toBe('01174960000');
   });
 
   it('is asked of the runner and never of the guide', () => {
@@ -484,6 +567,102 @@ describe("the runner's own phone number", () => {
 
     expect(result.value.guide).not.toBeNull();
     expect(Object.keys(result.value.guide ?? {})).not.toContain('phone');
+  });
+});
+
+describe('phone number normalisation', () => {
+  // **Every one of these is the exact set the brief asked for**, and every assertion is the
+  // normalised value rather than merely `ok: true` — a test that only checks validation
+  // passed would keep passing if the canonical form silently reverted to the typed one.
+
+  it.each([
+    ['07700 900123', '07700900123'],
+    ['07700900123', '07700900123'],
+    ['+447700900123', '07700900123'],
+    ['+44 7700 900123', '07700900123'],
+    ['(0117) 496 0123', '01174960123'],
+    ['0117 496 0123', '01174960123'],
+    // International, stored as given rather than rewritten into a UK shape — `+44` is the
+    // one country code this form has an opinion about.
+    ['+353 1 234 5678', '+35312345678'],
+  ])('normalises %s to %s', (typed, canonical) => {
+    const result = parseNnEntry(good({ phone: typed }), RULES);
+
+    expect(result.ok, typed).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.phone).toBe(canonical);
+  });
+
+  it('refuses a UK-shaped number with too few digits', () => {
+    // Ten digits, not eleven — and deliberately not accepted as one of "the handful of old
+    // area codes" the brief floated, because the brief's own next line gives this exact
+    // number as an example of one that must be rejected. Accepting some ten-digit numbers
+    // and not others needs a lookup table this form does not have and was told not to add.
+    expect(errorOn(good({ phone: '07700 90012' }))?.phone).toBe(
+      'That number is too short or too long. A UK number has 11 digits, starting 0.',
+    );
+  });
+
+  it('refuses a UK-shaped number with too many digits', () => {
+    expect(errorOn(good({ phone: '07700 9001234567' }))?.phone).toBe(
+      'That number is too short or too long. A UK number has 11 digits, starting 0.',
+    );
+  });
+
+  it('refuses a letter standing in for a digit', () => {
+    // A capital O for a zero — the mistake this exists to catch, not a stray character a
+    // shape-only regex would have let through.
+    expect(errorOn(good({ phone: '0770O 900123' }))?.phone).toBe(
+      'Enter a phone number using digits, not letters.',
+    );
+  });
+
+  it('treats an empty box and a whitespace-only one the same way', () => {
+    // Both are "nothing typed", covered by the field's own required message rather than by
+    // this function — asserted here so the two stay in one list rather than living only in
+    // the separate tests above.
+    expect(errorOn(good({ phone: '' }))?.phone).toBe('Enter your own phone number.');
+    expect(errorOn(good({ phone: '   ' }))?.phone).toBe('Enter your own phone number.');
+  });
+
+  it('refuses a real number typed with only punctuation left after stripping', () => {
+    // **The same hole this file has already had to close once, in a new shape.** `'-'` is not
+    // an empty box — something was typed — and it must not silently pass because everything
+    // in it happened to be punctuation.
+    expect(errorOn(good({ phone: '-' }))?.phone).toBe(
+      'Enter a UK number starting 0, or an international number starting +.',
+    );
+  });
+
+  it('keeps a genuine extension apart from the number it normalises', () => {
+    const result = parseNnEntry(good({ phone: '0117 496 0000 x214' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.phone).toBe('01174960000 x214');
+  });
+
+  it('accepts the bracketed trunk prefix international readers are shown', () => {
+    // `+44 (0)7700 900123` is the standard way to print a UK number for somebody dialling
+    // from abroad — the bracketed 0 is real UK usage, not noise — and `entries-rules.test.ts`
+    // already uses this exact shape as a fixture at the database layer.
+    const result = parseNnEntry(good({ phone: '+44 (0)7700 900123' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.phone).toBe('07700900123');
+  });
+
+  it('accepts a tel: link pasted whole, and normalises past the prefix', () => {
+    const result = parseNnEntry(good({ phone: 'tel:+447700900123' }), RULES);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.value.phone).toBe('07700900123');
   });
 });
 
