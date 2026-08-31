@@ -204,14 +204,18 @@ re-run.
   partial one is a different decision." So `cancel_entry()` always refunds in full or nothing,
   and the `entry_refunded` email reflects only those two states — there is no wording anywhere
   for a partial amount, because the code path that would need it does not exist.
-  **Money is rendered to text in exactly one place, `formatPence()`
-  (`packages/shared/src/entry-state.ts`)**, which returns the `£` and the pound-pence
-  formatting together — including `'Free'` for zero — rather than a bare number a caller adds a
-  symbol to. Every other `£` anywhere in this repository, checked by grep, is inside a comment;
-  the three CSV exports carry an amount as a raw pence integer with no symbol; no SQL renders
-  money to text. A template that writes its own `£` beside a call to `formatPence()` doubles
-  it — `££18.00`, and `£Free` on a given place. The presentation belongs to the one function
-  that already produces it, never to the caller as well.
+  **`formatPence()` (`packages/shared/src/entry-state.ts`) is the one function meant to render
+  money to text**, returning the `£` and the pound-pence formatting together — including
+  `'Free'` for zero — rather than a bare number a caller adds a symbol to. **One place re-derives
+  it by hand instead of calling it**: `NnEntryForm.astro`'s running-total script, a client
+  `<script>` in an Astro island, re-implements the same `£`/`.00`/`'Free'` shape rather than
+  importing `formatPence` — behaviourally identical today, tracked as the sixth instance of this
+  pattern by [#175](https://github.com/southville-running-club/src-website/issues/175), still
+  open. Every *other* `£` anywhere in this repository, checked by grep, is inside a comment; the
+  three CSV exports carry an amount as a raw pence integer with no symbol; no SQL renders money
+  to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
+  `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
+  already produces it — the caller in `NnEntryForm.astro` is the one place that still does not.
 - **A sixth role, or an eleventh permission.** Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
   [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). **The ninth
