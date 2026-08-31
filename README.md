@@ -20,6 +20,7 @@ committee.
 
 | Read this | For |
 | --- | --- |
+| [`docs/README.md`](docs/README.md) | **An index of everything below** — which documents are live and which are historical |
 | [Problem statement](docs/foundations/problem-statement.md) | **Why this is happening at all** |
 | [Current state](docs/foundations/current-state.md) | What exists today, as fact. The baseline any option has to beat |
 | [Target state](docs/foundations/target-state.md) | **What the club has when this is finished** |
