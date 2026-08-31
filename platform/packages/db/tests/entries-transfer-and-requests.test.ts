@@ -535,6 +535,32 @@ describe('transferring an affiliated place', () => {
   });
 
   describe('a non-binary entrant’s placement — ADR-031', () => {
+    it('reaches the entry list, so the category column can resolve it', async () => {
+      // **`read_entry_list()`'s half of the same gap the detail page's tests close.** The
+      // admin table shows one "Category" column, and `effectiveCategory()` needs `gender` and
+      // `result_placement` together to fill it — a non-binary runner placed in the women's
+      // results reads as `female` there, and reads as an unresolved non-binary row if the
+      // placement never leaves the database.
+      //
+      // Asserted through the function rather than off the table because that is the step that
+      // is actually at risk: this body is re-pasted in full by every migration that touches
+      // it, and a line dropped in a re-paste changes nothing a schema test would notice.
+      const purchaseId = await paidPurchase('unaffiliated', [
+        person({ gender: 'non_binary', result_placement: 'male' }),
+      ]);
+
+      const row = await single<{ list: { entries: Record<string, unknown>[] } }>(
+        'select entries.read_entry_list($1) as list',
+        [EVENT],
+      );
+
+      const listed = row.list.entries.filter((entry) => entry.purchase_id === purchaseId);
+
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.gender).toBe('non_binary');
+      expect(listed[0]?.result_placement).toBe('male');
+    });
+
     it('is cleared by a transfer, exactly like gender_identity', async () => {
       // **Load-bearing, not tidy.** The transfer form collects the new runner's own `gender`
       // fresh but does not ask the placement follow-up — that is its own decision, still
@@ -1311,6 +1337,38 @@ describe('reading one entry in full', () => {
     const { data } = await detailAs(nnAdmin.client, purchaseId);
 
     expect(data.entrants?.map((entrant) => entrant.role)).toEqual(['runner', 'guide']);
+  });
+
+  it('carries a non-binary entrant’s placement through to the page — ADR-031', async () => {
+    // **The read half of ADR-031, which nothing else asserts.** Every other placement test in
+    // this repository reads the column straight off `entries.entrants`, so all of them pass on
+    // a `admin_entry_detail()` that never selects it — the value is written, and the page that
+    // is the only place a volunteer can see it renders nothing.
+    //
+    // That gap is worth closing on its own terms and it is sharper than it looks: this
+    // function's body is re-pasted whole by every migration that touches it, so a placement
+    // key dropped during one of those re-pastes is invisible to the schema, to the types and
+    // to every test that reads the table. Asserting it *out of the function* is what makes the
+    // re-paste checkable.
+    const purchaseId = await paidOwnedPurchase([
+      person({ gender: 'non_binary', result_placement: 'female' }),
+    ]);
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.entrants?.[0]?.gender).toBe('non_binary');
+    expect(data.entrants?.[0]?.result_placement).toBe('female');
+  });
+
+  it('leaves the placement null on the page for a runner who was never asked', async () => {
+    // The other direction, and the one that keeps the assertion above honest: a female or male
+    // runner is asked no follow-up, so `null` here is the answer rather than a missing key. A
+    // function that hard-coded a placement would pass the test above and fail this one.
+    const purchaseId = await paidOwnedPurchase([person({ gender: 'female' })]);
+
+    const { data } = await detailAs(nnAdmin.client, purchaseId);
+
+    expect(data.entrants?.[0]?.result_placement).toBeNull();
   });
 
   it('carries every ask that was made about it', async () => {

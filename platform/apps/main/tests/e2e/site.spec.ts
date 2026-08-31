@@ -449,7 +449,7 @@ test.describe('Nightingale Nightmare, at /nn', () => {
     expect(body).toContain('BS3 2JL');
   });
 
-  test('invents none of the facts that are still open', async ({ page }) => {
+  test('invents none of the facts that are still open', async ({ page }, testInfo) => {
     // The other half, and the half that still matters most. **The entry fee belongs to
     // `entries.fees`** — this site does not quote a figure it does not own, and the mockup's
     // "from £15" and "7am, Tue 1 September" are exactly the plausible-looking values that
@@ -490,9 +490,20 @@ test.describe('Nightingale Nightmare, at /nn', () => {
       // number here would be exactly the fragile literal `nn-entry-complete.spec.ts`'s own
       // "a real session id reveals nothing" test warns against, and the shape is the thing
       // that is actually being promised.
-      await expect(page.locator('[data-entry-places-remaining]')).toContainText(
-        /^\d+ places? left$/,
-      );
+      // **Guarded rather than tagged, because the rest of this test is worth running with
+      // scripting off.** The element ships `hidden` and empty in the markup and is filled by
+      // a `fetch` in `NnEntryForm.astro`'s island — the Worker deliberately does not render
+      // it, so that the year page stays cacheable and only the figure is fetched per viewer.
+      // With `javaScriptEnabled: false` that fetch never runs, so this assertion cannot pass
+      // in the `no-javascript` project rather than merely being slow there. Tagging the whole
+      // test `@requires-js` would have been the smaller diff and would have taken the fee and
+      // "250 places" assertions above out of the one project whose whole point is that they
+      // hold without scripting.
+      if (testInfo.project.name !== 'no-javascript') {
+        await expect(page.locator('[data-entry-places-remaining]')).toContainText(
+          /^\d+ places? left$/,
+        );
+      }
     }
   });
 
