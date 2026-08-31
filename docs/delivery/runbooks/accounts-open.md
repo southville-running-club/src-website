@@ -134,7 +134,8 @@ third person to sign up in an hour never receives anything and sees no error.
 **A rule that has never fired is a belief, not a control.** This is the step that turns the
 dashboard into evidence, and it is [step 2](#step-2--prove-a-rule-fires) in full.
 
-- [ ] A scripted burst has been run against **A1**, and it was blocked
+- [ ] A scripted burst has been run against **`C1`** (3 requests in 10 seconds, via
+      `/account/sign-in/`), and it was blocked
 - [ ] **What the blocked person actually saw is written down** at the foot of this file — the
       status code, and what the page said. It will be Cloudflare's own page and not the
       club's; that is an acceptable answer, and it is only acceptable *because* somebody
@@ -187,9 +188,8 @@ registration against production, watched rather than assumed.
 
 > **🏛️ Committee**
 
-- [ ] **A site-wide privacy notice is published** —
-      [#60](https://github.com/southville-running-club/src-website/issues/60). What is
-      collected, why, how long it is kept, and who to write to
+- [x] **A site-wide privacy notice is published** — done. #60 is closed and `/privacy/` is
+      live: what is collected, why, how long it is kept, and who to write to
 - [ ] **Somebody can delete their account and take their data with them** —
       [#62](https://github.com/southville-running-club/src-website/issues/62), or a written
       answer for how a request is handled by hand until it exists
@@ -198,23 +198,22 @@ registration against production, watched rather than assumed.
 
 ---
 
-## Step 1 — create the rules
+## Step 1 — create the rule
 
 > **⚙️ Ops**
+
+**✅ Done, 25 August 2026 — see [what actually happened](#what-actually-happened).** The
+free plan allows exactly one rate-limiting rule, so there is one rule to create, not five:
+**`C1`**, the combined expression covering every `POST` under `/account/`, `/admin/` and
+`/nn/`. Do not go looking for A1–A4 or E1 in the Cloudflare dashboard — they were never
+created and are not going to be; the rows in the rules file that once named them separately
+are marked *superseded by C1*.
 
 Cloudflare dashboard → the zone → **Security** → **WAF** → **Rate limiting rules**.
 
 **Work from [the committed copy](../../reference/cloudflare-waf-rules.md), not from memory
-and not from this page.** That file holds the expression, the threshold, the period, the
-action and the mitigation duration for every rule; this one holds only the order to do them
-in.
-
-1. **A1 first** — sign in. It is the rule protecting the thing an attacker wants.
-2. **A3 next** — password reset. It is the only endpoint whose cost lands on somebody who has
-   never visited the site.
-3. **A2**, then **A4**.
-4. **E1** last, and only because it belongs to a different issue — not because it matters
-   less.
+and not from this page.** That file holds `C1`'s expression, threshold, period, action and
+mitigation duration.
 
 **Paste the expression rather than building it in the visual editor.** The rule builder's
 "Edit expression" box takes the text as written, and a hand-built rule with one clause
@@ -230,28 +229,31 @@ zone file re-exported after a DNS change. That is the drift detection, and it co
 
 > **👥 Both**
 
-**Against A1, from an address that is not the club's office.** A block applies to the
-address it counted, so whoever runs this is the one who gets blocked — do it from a phone on
-mobile data if the other volunteer needs the site working meanwhile.
+**Against `C1`, from an address that is not the club's office**, using the sign-in
+endpoint as the test path. A block applies to the address it counted, so whoever runs this
+is the one who gets blocked — do it from a phone on mobile data if the other volunteer needs
+the site working meanwhile.
 
 The requests must be **real POSTs to the real path** with a wrong password and a nonsense
 Turnstile token. They will all fail authentication, which is the point: the rule counts
 requests, not failures, and a burst that never reaches the endpoint proves nothing.
 
-- [ ] Fire **more than A1's threshold** inside its period — a dozen requests in a few seconds
-      is plenty against 5 per 60 seconds
+- [ ] Fire **more than `C1`'s threshold** inside its period — **four POSTs inside ten
+      seconds** is plenty against 3 per 10s
 - [ ] **Record the status code and the body** of the first blocked response. Cloudflare
       answers a block with `403` and its own HTML page
 - [ ] **Try the site normally from the same address** and confirm the whole hostname is not
       blocked — only what the expression matches should be
-- [ ] **Wait out the mitigation period** and confirm sign-in works again with no intervention
+- [ ] **Wait out the 10-second mitigation period** and confirm sign-in works again with no
+      intervention
 - [ ] **Sign in successfully from a different address while the block is in force**, which is
       what proves the rule is counted per address and not globally
 - [ ] Write all of it into [what actually happened](#what-actually-happened)
 
-> **Do not test A3 by bursting it at a real address.** Every request that gets through sends
-> mail to whoever owns it. Use an address the club controls, and stop as soon as the block
-> lands.
+> **Do not test the password-reset path by bursting it at a real address.** Every request
+> that gets through sends mail to whoever owns it. Use an address the club controls, and
+> stop as soon as the block lands — it will, since `/account/reset/` is under the same `C1`
+> expression as sign-in.
 
 ---
 
@@ -306,9 +308,11 @@ manual work is legitimate *because* it is recorded.
 - [ ] Record the rules in
       [`apps/main/README.md`](../../../platform/apps/main/README.md#manual-steps)'s
       manual-steps table — what, why, by whom, how to redo it
-- [ ] Close [#64](https://github.com/southville-running-club/src-website/issues/64) and, if
-      **E1** was created in the same sitting,
-      [#19](https://github.com/southville-running-club/src-website/issues/19)
+- [ ] Close [#64](https://github.com/southville-running-club/src-website/issues/64). `C1`
+      already covers the `/nn/` prefix E1 was for, so
+      [#19](https://github.com/southville-running-club/src-website/issues/19) can close too,
+      once [`entries-open.md`'s own step
+      0.1](entries-open.md#01--the-rate-limiting-rule-must-be-live) has said the same
 - [ ] **Correct this runbook** where reality differed from it
 
 ---
@@ -357,9 +361,9 @@ form and close to nothing against credential stuffing.
   test rather than an afternoon: four POSTs in ten seconds, and you are unblocked before you
   have finished reading the block page
 - **Step 0.4 — the captcha secret has still not been proved non-empty**
-- **Step 0.2 — outbound email.** #50's `[auth.email.smtp]` is drafted in this pull request and
-  **no confirmation email has yet arrived at a real inbox**, which is the only proof that
-  counts
+- ~~Step 0.2 — outbound email~~ — **closed 26 August 2026.** A confirmation email reached
+  two independent inboxes with SPF/DKIM/DMARC passing; see step 0.2's own checkboxes above,
+  which are the current record
 - **Google sign-in is parked**, deliberately — see [#56](https://github.com/southville-running-club/src-website/issues/56).
   It gates nothing on this page: step 0.5's Google box is conditional on the button being on,
   and it is not

@@ -73,8 +73,16 @@ names the one-hour-drift foot-gun in its own comment.
 ### Personal data is minimised at the boundary
 
 Sensitive fields are dropped **before** they reach the database, not stored and filtered
-later. Date of birth becomes a computed age; address, phone, emergency contact and medical
-information do not persist at all.
+later. Date of birth becomes a computed age.
+
+**Amended 31 August 2026 — "do not persist at all" is no longer true of three fields, and
+that is not a breach of the principle.** Phone, emergency contact and medical information
+do persist now: the entry form has carried an emergency contact and a medical note since
+Slice A, and [ADR-025](decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md)
+added the runner's own phone number on 30 August. Each one was argued for individually and
+is in the committee-settled field list at `packages/shared/src/nn-entry.ts` — that is what
+the principle actually enforces. Read this line as: **a field not already in that file is
+the stop-and-ask**, not "no sensitive field may ever be held".
 
 *Where from:* [C10](../foundations/requirements.md#c10--hold-personal-data-lawfully), and
 [the timing app already implements
@@ -88,10 +96,17 @@ any new entry surface should inherit."*
 *Where from:* [decision 002](../decisions/decision-log.md) — it is one of only two ways to
 reach the free tier's 500 MB ceiling, and the other one is race-night concurrency.
 
-### No payment code before the governance gates
+### Payment: the gate has been met, and it is not open-ended
 
-No Stripe dependency, no price in a checkout, no button that takes a card — until
-data-protection advice and treasurer-controlled payment arrangements exist.
+**Superseded 31 August 2026.** This read *"No Stripe dependency, no price in a checkout, no
+button that takes a card — until data-protection advice and treasurer-controlled payment
+arrangements exist."* The gates were met: Stripe Checkout, the webhook and the refund path
+are built and a real payment has been taken —
+[ADR-010](decisions/adr-010-webhook-writes-paid.md),
+[ADR-018](decisions/adr-018-cancelling-an-entry.md). The principle behind the gate still
+holds for anything **beyond** that shipped, audited path — a partial refund, a correction
+to a paid entry, a resend outside the outbox — which is why those stay stop-and-asks in
+[CLAUDE.md](../../CLAUDE.md) rather than becoming build decisions now that Stripe exists.
 
 *Where from:* [legal and
 governance](../foundations/requirements.md#legal-and-governance). Free-tier commercial-use
@@ -229,7 +244,10 @@ Triggers that end a build step and require a human. **Not to be resolved by infe
 including by an agent.
 
 - Any request to collect a **field beyond what is already specified**
-- Any request to **take payment**, or to link to something that does
+- Any request to **take payment beyond the built Stripe Checkout path** — a partial
+  refund, a correction to a paid entry, a resend outside the outbox, or anything else
+  CLAUDE.md's fuller list names. Taking and confirming an ordinary entry payment is built
+  and is no longer one of these
 - Any **DNS change other than an additive record**
 - A **factual claim about a race** not already supplied — date, price, distance, location
 - Anything requiring the **Supabase service role key**
@@ -255,4 +273,6 @@ including by an agent.
   setting — and that is what makes the block a trigger, rather than the value of any one flag
 
 *Where from:* the [build brief](../delivery/nn-build-brief.md#stop-and-ask), generalised
-beyond Nightingale Nightmare because none of these are specific to it.
+beyond Nightingale Nightmare because none of these are specific to it. **CLAUDE.md carries
+five further triggers**, specific to the `entries` and `identity` schemas built since this
+list was written — read both together.
