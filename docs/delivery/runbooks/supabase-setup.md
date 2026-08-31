@@ -10,9 +10,16 @@ Getting the database half of the platform deployable. **About twenty minutes**, 
 > If you find yourself clicking something in the Supabase dashboard that is not on that
 > list, stop: it probably belongs in `config.toml` or a migration, and doing it by hand
 > means the next merge overwrites it.
+>
+> **These three are not the only secrets `deploy-db.yml` needs to succeed.** It also reads
+> `SUPABASE_AUTH_CAPTCHA_SECRET` and `SUPABASE_AUTH_SMTP_PASSWORD`, sourced from Turnstile
+> and Resend rather than Supabase — [github-setup.md's five-secret
+> table](github-setup.md#5-the-five-secrets) has all five in one place. Without those two
+> the workflow fails on its own precondition check before touching the database.
 
-**Prerequisites:** you can sign in to the club's Supabase account, and you are an admin on
-the `southville-running-club` GitHub organisation.
+**Prerequisites:** you can sign in to the club's Supabase account, and you are a
+collaborator on the `southville-running-club` GitHub account —
+[a personal account, not an organisation](github-setup.md).
 
 > **The project is `ketipxpyjjglwpqazsft`, created fresh on a club-owned account on
 > 9 August 2026.** It is empty apart from what this repository puts in it.
@@ -62,11 +69,13 @@ questions: **this one is not.**
 
 ```toml
 [api]
-schemas = ["public", "graphql_public", "intake"]
+schemas = ["public", "graphql_public", "intake", "entries", "identity"]
 ```
 
 - [ ] **`club` is deliberately absent.** Even if a grant on a `club` table were wrong one
       day, PostgREST would have no route to it. Adding it is a decision, not a convenience.
+      `entries` and `identity` were added once those schemas existed — a fifth candidate
+      is the same kind of decision `club` was.
 
 > ⚠️ **`config push` sends the whole file**, not only the `[api]` block — auth, storage and
 > email settings travel with it. That is the point, and also the hazard: **anything changed
@@ -215,6 +224,10 @@ gh secret set SUPABASE_ACCESS_TOKEN --repo southville-running-club/src-website
 
 - [ ] All three appear under **Actions secrets**. Values are never displayable again — that
       is the point.
+
+**This is three of five.** `deploy-db.yml` will still fail its precondition check without
+`SUPABASE_AUTH_CAPTCHA_SECRET` and `SUPABASE_AUTH_SMTP_PASSWORD` — set those too, per
+[github-setup.md](github-setup.md#5-the-five-secrets).
 
 > **A secret that was ever committed is compromised and must be rotated, not deleted.** Git
 > history keeps it.
