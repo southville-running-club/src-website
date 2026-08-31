@@ -1,4 +1,4 @@
-# ADR-025 — An HTML part joins the outbox emails, and the text stays authoritative
+# ADR-026 — An HTML part joins the outbox emails, and the text stays authoritative
 
 **Accepted**, 31 August 2026.
 

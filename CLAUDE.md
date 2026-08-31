@@ -782,7 +782,7 @@ data, an email address** — everything else a message needs is joined from the 
 send time, so it is not a second copy of an entry for retention to chase.
 
 **Each of the four now carries an HTML part as well as text, since 31 August 2026 —
-[ADR-025](docs/architecture/decisions/adr-025-an-html-part-joins-the-outbox-emails.md)
+[ADR-026](docs/architecture/decisions/adr-026-an-html-part-joins-the-outbox-emails.md)
 reverses the plain-text-only decision `worker/email.ts` had carried in a comment rather than a
 record.** The text part is unchanged and stays authoritative; `worker/email-skin.ts` renders
 the HTML from the same `OutboxMessage` the text reads, never from the text's own output, so the

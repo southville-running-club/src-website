@@ -84,7 +84,7 @@ interface RenderedEmail {
  * text-only message from a verified domain is about as unlikely to be filtered as email gets.
  * Both still hold, which is why the text below is untouched and remains what a screen reader,
  * a text-only client, and every existing test read.
- * [ADR-025](../../../../docs/architecture/decisions/adr-025-an-html-part-joins-the-outbox-emails.md)
+ * [ADR-026](../../../../docs/architecture/decisions/adr-026-an-html-part-joins-the-outbox-emails.md)
  * is the record of reversing that decision, and the fixture-driven test in
  * `email-skin.test.ts` is what stands in for "one sentence, not two": every fact in the HTML
  * part is read off the same `OutboxMessage` this function reads, never typed a second time.
