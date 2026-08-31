@@ -2146,10 +2146,22 @@ function startListPage(
  * a result category on somebody who will not have a result. The sheet is what a marshal reads
  * at two in the morning to account for everybody on the road, and "Guide" is the fact that
  * matters there.
+ *
+ * **The null-category branch is second, and it is a row the constraints say cannot exist.**
+ * `entrants_gender_unless_guide` permits an absent race category for a guide and for nobody
+ * else, so the only caller that can reach it is one whose `role` failed to come back — a
+ * Worker reading a database from before guides existed. It answers with the same words a
+ * non-binary entrant who chose neither category gets, rather than inventing a band or
+ * throwing: the sheet must print, which is the whole lesson of the defect that made this
+ * function's parameter nullable in the first place.
  */
 function startListCategory(row: StartListExportRow): string {
-  return row.role === 'guide'
-    ? 'Guide'
+  if (row.role === 'guide') {
+    return 'Guide';
+  }
+
+  return row.gender === null
+    ? 'No category yet'
     : categoryLabel(row.age, row.gender, row.resultPlacement);
 }
 

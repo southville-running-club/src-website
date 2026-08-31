@@ -943,7 +943,15 @@ export interface StartListExportRow {
   firstName: string;
   club: string | null;
   age: number;
-  gender: (typeof NN_ENTRY_GENDERS)[number];
+  /**
+   * The race category, and **null for a guide, who is asked none** — ADR-022. A runner's is
+   * required and `entrants_gender_unless_guide` is what allows the one exception.
+   *
+   * Read through `startListCategory()` and never on its own: a guide's row says *Guide*
+   * where a category would go, because they are on the road and have to be accounted for
+   * but are not being timed.
+   */
+  gender: (typeof NN_ENTRY_GENDERS)[number] | null;
   /** Where a non-binary entrant's result counts, if anywhere — ADR-031. */
   resultPlacement: ResultPlacement;
   /**
@@ -1006,7 +1014,26 @@ const startListRowShape = z.object({
   first_name: z.string(),
   club: z.string().nullable(),
   age: z.number().int(),
-  gender: z.enum(NN_ENTRY_GENDERS),
+  // ⚠️ **Nullable because a guide is asked no race category**, and this line not being
+  // nullable took the whole start list down — the printed sheet and the CSV alike — from
+  // the day guides landed until 31 August 2026. `entrants.gender` lost its `not null` in
+  // `20260828220000_entries_guide_email_no_category.sql`, behind
+  // `entrants_gender_unless_guide`, which permits the absence for a guide and for nobody
+  // else; the two other readers of the same column (`listRowShape`, `detailEntrantShape`)
+  // were updated with it and this one was missed.
+  //
+  // **The cost was the document rather than the row.** `z.array(...).safeParse()` is
+  // all-or-nothing, so one guide in a field of 250 refused the sheet for every runner on
+  // it, and the refusal surfaced as *"the club's database could not be reached"* — false
+  // in both halves, on a healthy database, on the morning somebody needs paper at the
+  // registration desk.
+  //
+  // **Not `.catch(null)`, unlike the optional keys below.** A null here is a fact the
+  // database is entitled to state, and `startListCategory()` reads it; a value outside the
+  // three the column allows is a database this build does not understand, and refusing is
+  // the right answer to that. `packages/shared/tests/unit/admin-export.test.ts` asserts
+  // both directions.
+  gender: z.enum(NN_ENTRY_GENDERS).nullable(),
   // Same reasoning: a Worker deployed ahead of the migration finds no `result_placement`
   // key, and `.catch(null)` prints "No category yet" instead of refusing the sheet.
   result_placement: z.enum(['female', 'male']).nullable().catch(null),
