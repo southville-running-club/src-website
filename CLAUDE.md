@@ -655,6 +655,26 @@ objects and a container's message belongs to that container. `account.spec.ts`'s
 problem and links to the field it is about" runs **without** `@requires-js`, which is the half
 that would catch a `@view-transition` here. #152.
 
+⚠️ **`hidden` does not stop a control being validated, and it took the entry form down for
+every signed-in runner.** A signed-in person's address comes from their session, so the Worker
+hides the two `[data-nn-entry-typed-email]` fields and shows a fixed line instead — but the
+`required` inputs stayed in the DOM, empty and invalid. The browser will not submit a form
+holding an invalid control it cannot focus, so it refused, logged `An invalid form control with
+name='email' is not focusable` to a console nobody has open, and **sent nothing**. No request in
+`wrangler tail`, no row in `entry_purchases`, no log line, no error on the page: the button
+simply did nothing. Found on production on 31 August 2026 while rehearsing a tester payment,
+hours before entries were due to open, and the only reason it was found at all is that somebody
+was watching a Worker log for an unrelated reason. **`disabled` is the attribute that does both
+halves** — skipped by constraint validation *and* left out of the submission, which is exactly
+what the POST handler already documented for itself: *"a submission from that page carries
+neither"*. **It is not a JavaScript problem and there is no JavaScript fix**: HTML5 constraint
+validation is the browser's, so the `no-javascript` project meets it identically and the
+attribute has to come from the same server-side rewrite that hides the field. **The general
+rule: a control you hide must also be disabled, or it still votes on whether the form may be
+submitted.** `tester.test.ts` guards it at the layer that serves the markup, in both directions
+— signed in it must be `disabled`, signed out it must not be, because disabling it
+unconditionally would drop the address from every signed-out entry.
+
 **A message that appears on `focusout` can swallow the click that caused it.** The England
 Athletics box **is off the form since 29 August 2026** and the rule it cost is not — the next
 conditional field re-creates the shape exactly, which is why this stays. It was a `.field`
