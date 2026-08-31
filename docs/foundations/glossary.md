@@ -105,9 +105,14 @@ account, their address, and which roles they hold. Staff, so it opens `/admin/`;
 nothing about a race.
 
 **Session** — the signed-in state a browser holds after authenticating with Supabase Auth,
-carried as a cookie the Worker reads. Not to be confused with the twelve-hour handle cookie
+carried as three cookies the Worker reads and ending on its own — thirty minutes idle,
+twelve hours absolute — per
+[ADR-019](../architecture/decisions/adr-019-a-session-ends-on-its-own.md). **Not** the
+twelve-hour handle cookie
 [ADR-013](../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md)'s
-two-key scheme issues, which is a separate, older mechanism kept alive as a break-glass path.
+two-key scheme issued — that scheme is retired in the Worker since #57/#58, and the
+break-glass it once provided is now a second person holding `nn-admin`, granted at
+`/admin/people/` in a minute with no deploy.
 
 ## Platform and delivery
 

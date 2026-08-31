@@ -483,7 +483,9 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // job now, and a second way to mint a session is what #63 exists to remove.
     //
     // **Five more arrived with the `nn-tester` role, and none of them widens what `anon` may
-    // do — that list is still thirteen and is asserted above.** The argument for each:
+    // do — that list is asserted above, and its count has since grown independently (the
+    // outbox's two drain functions), which is why this comment no longer restates it.** The
+    // argument for each:
     //
     //   * `create_pending_purchase` and `attach_checkout_session` were already granted to
     //     `anon`, and a signed-in caller reaches PostgREST as `authenticated` rather than as
@@ -499,8 +501,9 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     //     contact, no date of birth and no Stripe reference.
     //
     //   * `cancellable_purchase` and `cancel_entry` both refuse unless the caller holds
-    //     `nn.entry.cancel`, which only `super-admin` carries. Same shape as the four reads:
-    //     the grant says "you may ask", the permission check says "you may".
+    //     `nn.entry.cancel`, which `nn-admin` carries and `super-admin` deliberately does
+    //     not — see `identity-permissions.test.ts`. Same shape as the four reads: the grant
+    //     says "you may ask", the permission check says "you may".
     //
     // `entries-tester.test.ts` re-attempts every one of these bypasses with an anonymous
     // client and with a signed-in one holding nothing, and asserts the specific refusal.
