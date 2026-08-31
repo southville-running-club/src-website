@@ -37,10 +37,11 @@ import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll'
 const MARKER = 'To be confirmed by the club';
 
 /**
- * How many values on this page are still undecided: how long an account is kept, and whether
- * deleting an account also deletes a race entry by the same person. **Filling one in is
- * supposed to fail this file**: the count drops, and updating it here is the moment somebody
- * confirms the new value came from the committee.
+ * How many values on this page are still undecided. **Zero since 31 August 2026**, and the
+ * count stays here rather than being deleted with the last of them: a value reverting to
+ * `null` is exactly the quiet failure this whole file is built around, and a constant at zero
+ * is what makes that noisy. **Filling one in is supposed to fail this file**, and so is
+ * emptying one.
  *
  * **It was three until 30 August 2026, and the third leaving is this mechanism working.** The
  * contact for data questions is `race.json`'s and was the same open decision on both notices;
@@ -48,8 +49,14 @@ const MARKER = 'To be confirmed by the club';
  * document, and this page picked the answer up without being edited — because the settled
  * facts are lifted from `race.json` rather than retyped here. Three tests in this file went
  * red on a change to a different page, which is exactly what they are for.
+ *
+ * **The last two went on 31 August 2026 — issue #179 item 2.** Neither was new wording: how
+ * long an account is kept is a description of a platform that deletes no account on its own,
+ * and what deletion does to a race entry was settled in #62, enforced by
+ * `identity.delete_me()`, and published on `/account/data/` all along. This page was the last
+ * one still calling either an open question, while people created accounts against it.
  */
-const OPEN_DECISIONS = 2;
+const OPEN_DECISIONS = 0;
 
 /** The settled facts, as they must appear. Literals, for the reason in the header. */
 const SETTLED = {
@@ -60,7 +67,12 @@ const SETTLED = {
   // committee's document gives it in full and both notices now do.
   companyNumber: '09437549',
   contact: 'info@southvillerunningclub.co.uk',
-  lastUpdated: '25 August 2026',
+  // **The page's own revision date, and it moves on every change to what it renders.** Section
+  // 8 promises the notice is updated when the club changes how it uses information, and #179
+  // item 3 established for the other notice that a date which does not move on a rendered
+  // change is a promise the page breaks. Same rule here: 31 August 2026 is when the two open
+  // values were answered.
+  lastUpdated: '31 August 2026',
 } as const;
 
 /** The notice itself. The page's sign-off sits outside it, and is not part of the count. */
@@ -91,45 +103,67 @@ test.describe("the club's privacy notice", () => {
   });
 
   // -------------------------------------------------------------------------------------
-  // The three open decisions, and the settled facts
+  // The decisions that were open, and the settled facts
   // -------------------------------------------------------------------------------------
 
   test('renders every undecided value as the marker, and never as a blank', async ({
     page,
   }) => {
-    // **This is the assertion that stops a placeholder quietly becoming a claim.** Three
-    // undecided values, three markers. Filling one in is a one-line edit in `privacy.json`
-    // or `race.json` and this count drops to two — which is the test failing *correctly*,
-    // and the reminder to update it in the same commit.
+    // **This is the assertion that stops a placeholder quietly becoming a claim**, and since
+    // 31 August 2026 it is also the one that stops an answer quietly becoming a placeholder
+    // again. `OPEN_DECISIONS` is zero: emptying a value in `privacy.json` or `race.json` puts
+    // the marker back on a published legal notice, and this is what fails when it does.
     await page.goto('/privacy/');
     const body = (await page.locator(NOTICE).textContent()) ?? '';
 
     expect(body.split(MARKER).length - 1).toBe(OPEN_DECISIONS);
   });
 
-  test('names the two decisions this notice added, rather than answering them', async ({
-    page,
-  }) => {
-    // The count above would pass if the markers were three copies of the same sentence, so
-    // this is what says *which* questions are open. Both are committee decisions and neither
-    // has a plausible default that would be safe to print: an account retention period
-    // nobody chose is a promise the club would have to keep, and a wrong answer about
-    // whether deleting an account deletes a race entry is somebody's entry deleted, or
-    // somebody's data kept, without them being told.
-    await page.goto('/privacy/');
-
+  test('answers the two questions it used to leave open', async ({ page }) => {
+    // **This test asserted the marker until 31 August 2026, and now asserts the answers** —
+    // issue #179 item 2. The count above would pass on two empty answers or two copies of the
+    // same sentence, so this is what says *which* questions are answered and how.
+    //
     // Held by `id` rather than by the words beside them: a term and its answer are two
     // elements, and whether a space survives between them is Astro's whitespace handling
     // rather than anything this page decides.
-    await expect(page.locator('#how-long-an-account-is-kept')).toHaveText(MARKER);
-    await expect(page.locator('#deleting-an-account-and-a-race-entry')).toHaveText(
-      `If you have also entered a race: ${MARKER}`,
+    await page.goto('/privacy/');
+
+    // **The retention answer is a criterion, not a period, and Article 13(2)(a) asks for one
+    // or the other.** Nothing deletes an account — no purge, no inactivity sweep — so "until
+    // you delete it" is what is true, and the sentence after it is what stops that becoming a
+    // promise the club cannot change: it commits to saying so first.
+    const retention = page.locator('#how-long-an-account-is-kept');
+    await expect(retention).toContainText('For as long as you have one');
+    await expect(retention).toContainText('kept until you delete it');
+    await expect(retention).toContainText('this notice will say so before it does');
+
+    // **The one that would be expensive to get wrong**, which is why it is asserted in three
+    // pieces rather than as one string. `identity.delete_me()` deletes the account and lets
+    // the cascades take the profile and the roles; `entries` is deliberately not keyed on
+    // `identity.people`, so a paid entry survives — and somebody who deletes an account
+    // believing their entry goes with it finds out at the start line.
+    const entries = page.locator('#deleting-an-account-and-a-race-entry');
+    await expect(entries).toContainText(
+      'If you have also entered a race: deleting your account does not delete that entry',
     );
+    await expect(entries).toContainText('you will still be on the start list');
+
+    // **And the separation, which is the half a reader gets wrong on their own.** Asking the
+    // club to erase your data is not the same act as deleting your account, and `/nn/privacy/`
+    // section 7 says an erasure request cancels the race entry. A notice that answers one
+    // without naming the other invites somebody to read the wrong answer for their situation.
+    await expect(entries).toContainText('a separate request and a different answer');
+
+    // The marker must not survive anywhere in either answer — a value half filled in is the
+    // failure `orTbc` exists to make loud.
+    await expect(retention).not.toContainText(MARKER);
+    await expect(entries).not.toContainText(MARKER);
   });
 
   test('leaves no term without an answer beneath it', async ({ page }) => {
     // The other half of the same guard. A value reaching the page as `''` would render an
-    // empty definition rather than the marker, the count above would still be three, and the
+    // empty definition rather than the marker, the count above would be unchanged, and the
     // page would read as though there were nothing to say about that row. `orTbc` refuses an
     // empty string for this reason; this is the assertion that it is actually wired up.
     await page.goto('/privacy/');
