@@ -102,3 +102,22 @@ export function medicalRetentionWording(interval: string): string | null {
     phrase(DAYS.exec(value)?.[1], 'day')
   );
 }
+
+/**
+ * The same sentence, lower-cased for the middle of one — `one month after the race`.
+ *
+ * **Three callers wanted this and two of them had written their own.** `/admin/nn/`'s
+ * `retentionWords()` did the lower-casing inline; `/nn/2026/` and `/account/data/` did not call
+ * this module at all and stated a hand-typed period instead, which is issue #172. A second
+ * exported function rather than a third re-implementation, for the reason `formatPence()`
+ * exists: the shape of a published value belongs to the one place that produces it.
+ *
+ * `null` for exactly the intervals `medicalRetentionWording` refuses, and every caller has to
+ * say what it renders instead — which is the point. A period this module cannot describe is one
+ * no page should be inventing words for.
+ */
+export function medicalRetentionClause(interval: string): string | null {
+  const wording = medicalRetentionWording(interval);
+
+  return wording === null ? null : wording.charAt(0).toLowerCase() + wording.slice(1);
+}

@@ -63,7 +63,11 @@ const SETTLED = {
   controller: 'Southville Running Club Ltd',
   companyNumber: '09437549',
   contact: 'info@southvillerunningclub.co.uk',
-  lastUpdated: '29 August 2026',
+  // **The page's own revision date, and it stopped being the committee document's on 30 August
+  // 2026.** Section 9 promises a revision date that moves when the page changes, so this
+  // tracks the page: the collection-list deletion of 31 August moved it. See the page's own
+  // header, and issue #179 item 3.
+  lastUpdated: '31 August 2026',
 } as const;
 
 test.describe('the privacy notice', () => {
@@ -268,7 +272,25 @@ test.describe('the privacy notice', () => {
     );
     expect(body).toContain('how you describe your gender');
     expect(body).toContain('we do not store full card details');
-    expect(body).toContain('cookies for website functionality and analytics');
+
+    // **Photographs and video, added 31 August 2026.** The entry terms have said since version
+    // 1 that a runner's name and photographic or video footage may be used to publicise the
+    // race and the club, and this notice said nothing about images at all — a category of data
+    // Article 13 makes mandatory information. Asserted here for the reason the four #168
+    // insertions are: what the club holds and does not say it holds is the expensive direction.
+    expect(body).toContain('Photographs and Video:');
+    expect(body).toContain('publicise the race and the club');
+
+    // **Asserted absent, and it is the only claim on this page that was ever untrue.** The
+    // collection list told 250 entrants the club runs analytics on them. There is no analytics
+    // code in `apps/main` — no gtag, no Plausible, no Fathom — and `GET /nn/2026/` sets no
+    // cookie, which is what `/privacy/` tells account holders. Deleted on 31 August 2026,
+    // issue #179 item 1, and asserted the way the postal address above is: a sentence that
+    // came out of a legal document is exactly the kind that gets pasted back from an older
+    // draft.
+    expect(body).not.toContain('analytics');
+    expect(body).not.toContain('IP address');
+
     expect(body).toContain('We do not sell your data to third parties.');
     expect(body).toContain(
       'Contractual necessity: To register you for the race and deliver event services',

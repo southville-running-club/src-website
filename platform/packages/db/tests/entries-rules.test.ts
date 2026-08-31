@@ -1016,7 +1016,7 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
     );
 
     expect(rows).toEqual([
-      // **Three of these six are not rules, and that is why they read oddly here.**
+      // **Four of these seven are not rules, and that is why they read oddly here.**
       //
       // #73's outbox trigger enforces nothing — it records that the club owes somebody an
       // email, in the same transaction as the payment, refund or transfer that made it true.
@@ -1031,6 +1031,12 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
       { tgname: 'enqueue_entry_email_after_update', relname: 'entry_purchases' },
       { tgname: 'entrant_medical_needs_consent', relname: 'entrant_medical' },
       { tgname: 'entrants_obey_their_event', relname: 'entrants' },
+      // ADR-030's, and it enforces nothing either: it issues the per-event number the printed
+      // reference is built from, `before insert` so the value is in the row that is written.
+      // A trigger rather than a line in `create_pending_purchase()` and another in
+      // `create_manual_entry()`, because a third writer would silently leave a null and a
+      // reference is not a thing a page may render half of.
+      { tgname: 'entry_purchases_assign_number', relname: 'entry_purchases' },
       { tgname: 'entry_purchases_have_their_consents', relname: 'entry_purchases' },
       // ADR-024's, and it enforces nothing either: it closes every outstanding row in
       // `entries.entry_requests` at the moment a volunteer deals with the entry. A trigger
@@ -1039,12 +1045,12 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
       { tgname: 'resolve_entry_requests_after_update', relname: 'entry_purchases' },
     ]);
     // **They are all here because the list is every non-internal trigger in the schema**, not
-    // only the rule ones — a test that named the rules alone would stop noticing a seventh. It
-    // caught this one, which is the job working; and it caught #150's insert trigger too,
-    // which is the same job working a second time.
+    // only the rule ones — a test that named the rules alone would stop noticing an eighth. It
+    // caught #150's insert trigger, and it caught ADR-030's number trigger, which is the same
+    // job working a third time.
   });
 
-  it('grants the six trigger functions to nobody at all', async () => {
+  it('grants the seven trigger functions to nobody at all', async () => {
     // They are reached only by the triggers that fire them. A grant would make them callable
     // with a key that is published in page source, and two of them read a person.
     //
@@ -1059,7 +1065,8 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
         where routine_schema = 'entries'
           and routine_name in (
             'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
-            'enqueue_entry_email', 'enqueue_entry_email_on_insert', 'resolve_entry_requests'
+            'assign_entry_number', 'enqueue_entry_email', 'enqueue_entry_email_on_insert',
+            'resolve_entry_requests'
           )
           and grantee in ('anon', 'authenticated', 'PUBLIC')`,
     );
@@ -1069,7 +1076,7 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
 
   it('pins the search_path on every trigger function, as every definer function here must', async () => {
     // An unpinned search_path on a `security definer` function is the standard Postgres
-    // escalation. **Asked of all six rather than of the three rule triggers**, because the
+    // escalation. **Asked of all seven rather than of the three rule triggers**, because the
     // property is about being a definer function and has nothing to do with enforcing a rule.
     const rows = await query<{ proname: string; proconfig: string[] | null }>(
       `select p.proname, p.proconfig
@@ -1077,12 +1084,13 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
         where n.nspname = 'entries'
           and p.proname in (
             'assert_entrant_rules', 'assert_medical_consent', 'assert_purchase_consents',
-            'enqueue_entry_email', 'enqueue_entry_email_on_insert', 'resolve_entry_requests'
+            'assign_entry_number', 'enqueue_entry_email', 'enqueue_entry_email_on_insert',
+            'resolve_entry_requests'
           )
         order by p.proname`,
     );
 
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     for (const row of rows) {
       // Postgres stores `set search_path = ''` as the two-character empty string, quotes and
       // all. Asserting the literal it really holds rather than the one the migration typed.

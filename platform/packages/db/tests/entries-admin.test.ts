@@ -559,13 +559,34 @@ describe('entries.admin_entry_list()', () => {
     expect(entries.filter((entry) => entry.has_medical)).toHaveLength(1);
   });
 
-  it('carries no email address at all', async () => {
-    // Not the entrant's, not the purchaser's. An organiser counting affiliated entries or
-    // setting out bibs does not need one, and the entries-attention runbook has the query for
-    // the rare case somebody must be contacted.
+  it('carries the address to reach each row at, and no other', async () => {
+    // **This asserted that no address was on the list, and #183 reverses it.** The old claim
+    // was that an organiser counting affiliated entries or setting out bibs does not need one
+    // — true of the start list, and not of the page a volunteer rings people from, where two
+    // runners of the same name could only be told apart by opening the entry.
+    //
+    // **What has not changed is the scope.** The read may carry the address of an entry it is
+    // listing and nothing else, so the assertion is still about *which* addresses rather than
+    // about whether any appear: the interest list's are not on it, and neither is anybody
+    // else's.
     const data = await rpc('admin_entry_list', { p_key: GATE_KEY, p_event_slug: EVENT });
+    const listed = (data as { entries: { email: string | null }[] }).entries;
 
-    expect(JSON.stringify(data)).not.toContain('@example.com');
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.some((entry) => entry.email !== null)).toBe(true);
+
+    // Every address on the wire is one of the listed rows' own — no join has brought a
+    // stranger's along.
+    const onTheWire = new Set(
+      JSON.stringify(data).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [],
+    );
+    const owned = new Set(
+      listed
+        .map((entry) => entry.email)
+        .filter((email): email is string => email !== null),
+    );
+
+    expect([...onTheWire].filter((address) => !owned.has(address))).toEqual([]);
   });
 
   it('answers no_such_event for a slug that is not one, to a caller who may ask', async () => {
@@ -1308,10 +1329,23 @@ describe('what nn-admin may then read, and that it is the same room', () => {
     expect(answer.entries.every((entry) => typeof entry.age === 'number')).toBe(true);
   });
 
-  it('carries no email address at all', async () => {
-    expect(
-      JSON.stringify(await rpcAs(nnAdmin, 'entry_list', { p_event_slug: EVENT })),
-    ).not.toContain('@example.com');
+  it('carries the same addresses the keyed door does, and no others', async () => {
+    // **The two doors read the same function**, so this is the role half of the assertion
+    // above rather than a second policy. #183 put the address on the list; what this holds is
+    // that going in by role rather than by key does not change which addresses come out.
+    const data = await rpcAs(nnAdmin, 'entry_list', { p_event_slug: EVENT });
+    const listed = (data as { entries: { email: string | null }[] }).entries;
+
+    const onTheWire = new Set(
+      JSON.stringify(data).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) ?? [],
+    );
+    const owned = new Set(
+      listed
+        .map((entry) => entry.email)
+        .filter((email): email is string => email !== null),
+    );
+
+    expect([...onTheWire].filter((address) => !owned.has(address))).toEqual([]);
   });
 
   it('refuses a kind it does not know, before it reads anything', async () => {

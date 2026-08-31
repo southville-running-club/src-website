@@ -50,6 +50,33 @@ const signInWithOAuth = vi.fn();
 const exchangeCodeForSession = vi.fn();
 const mintedVerifier = vi.fn(() => 'zz-code-verifier');
 
+/**
+ * `entries.current_entry_state()`, which `/account/data/` asks for one fact.
+ *
+ * **The page states how long a medical note is kept, and reads the period rather than typing
+ * it** — issue #172. `entries.events.medical_retention` is what the deletion cron applies, and
+ * a sentence that could not go red when that column moved is the defect this closes. The
+ * default below is the shape the real function returns for `nn-2026` today; a test that wants
+ * the unreachable-database branch overrides it.
+ */
+const entriesRpc = vi.fn(async () => ({
+  data: {
+    slug: 'nn-2026',
+    display_name: 'Nightingale Nightmare 2026',
+    state: 'pre_open',
+    event_date: '2026-11-01',
+    start_time: '11:00:00',
+    entrants_per_entry: 1,
+    capacity: 250,
+    minimum_age: 18,
+    requires_dob: true,
+    consent_version: 'nn-2026-v2',
+    medical_retention: '1 mon',
+    fees: [],
+  } as unknown,
+  error: null as unknown,
+}));
+
 vi.mock('@src/shared', async () => {
   const actual = await vi.importActual<typeof import('@src/shared')>('@src/shared');
   return {
@@ -66,6 +93,10 @@ vi.mock('@src/shared', async () => {
         updateUser,
         verifyOtp,
       },
+      // **`/account/data/` reads the public entry state through the anon client**, which is
+      // the same door `/nn/2026/` uses. Without this the page throws rather than rendering,
+      // which is how five tests found it.
+      schema: () => ({ rpc: entriesRpc }),
     }),
     createPkceClient: () => ({
       client: { auth: { signInWithOtp, signInWithOAuth, exchangeCodeForSession } },
@@ -1853,9 +1884,33 @@ describe('GET /account/data/', () => {
     expect(squashed).toContain('still be on the start list');
     expect(squashed).toContain('interest list');
 
+    // **The retention period, derived from `medical_retention` rather than typed** — #172.
+    expect(squashed).toContain('deleted automatically one month after the race');
+
     expect(markup.indexOf('does not delete')).toBeLessThan(
       markup.indexOf('Delete my account'),
     );
+  });
+
+  it('keeps the promise and drops only the period when the database cannot be reached', async () => {
+    // ⚠️ **The direction that matters on a page about somebody's rights.** The bullet still
+    // says the note is deleted on its own schedule and that deleting an account does not change
+    // when — which is what this page exists to state. Only the interval goes, because inventing
+    // a period the club could not read would be worse than not naming one.
+    signedIn();
+    entriesRpc.mockResolvedValueOnce({ data: null, error: null });
+
+    const response = await handleAccount(
+      get('/account/data/', SIGNED_IN_COOKIE),
+      ENV,
+      new URL('http://localhost:8787/account/data/'),
+    );
+
+    const squashed = (await response.text()).replace(/\s+/g, ' ');
+
+    expect(squashed).toContain('deleted automatically after the race');
+    expect(squashed).toContain('this does not change when');
+    expect(squashed).not.toContain('one month after the race');
   });
 });
 

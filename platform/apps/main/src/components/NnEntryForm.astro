@@ -1184,8 +1184,19 @@ const SUMMARY_LINKS = [
         day. Nobody else.
       </li>
       <li>
-        <strong>How long it is kept:</strong> it is deleted one month after the race, separately
-        from the rest of your entry.
+        {
+          /* **The period is painted by the Worker, from the column that enforces it.** It was
+          the string "one month" typed here, tied to nothing, on the page somebody ticks the
+          medical consent on — so `entries.events.medical_retention` could move and this promise
+          would go on being made, with nothing failing. `entry_state()` returns the interval and
+          `medicalRetentionClause()` is the one module allowed to put it into words. The shipped
+          text is the same sentence for the interval in force today: it is what a page that
+          cannot reach the database shows, which is the direction every fallback on this form
+          takes. Issue #172. */
+        }
+        <strong>How long it is kept:</strong> it is deleted <span
+          data-entry-medical-retention>one month after the race</span
+        >, separately from the rest of your entry.
       </li>
       <li>
         <strong>If you leave the box below unticked</strong>, none of this is kept at all.

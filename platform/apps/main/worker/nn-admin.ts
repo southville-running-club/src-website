@@ -18,10 +18,11 @@ import {
   fetchMedicalNote,
   entryRequestWords,
   formatLondon,
+  formatEntryReference,
   formatLondonDate,
   formatPence,
   isExportKind,
-  medicalRetentionWording,
+  medicalRetentionClause,
   ENTRY_STATUSES,
   type AdminDiscountCode,
   type AdminEntry,
@@ -991,7 +992,7 @@ function attentionSection(list: AdminEntryList, flagged: AdminEntry[]): Html {
               ${entry.feeLabel}
             </span>
             <span class="admin-mono admin-quiet">
-              entry ${shortId(entry.purchaseId)}
+              entry ${entryReference(entry, list.event.slug)}
             </span>
           </li>`,
       )}
@@ -1439,13 +1440,9 @@ function medicalAndAffiliationSection(
     </div>`;
 }
 
-/** `1 mon` → `one month after the race`, lower-cased into the sentence it sits in. */
+/** `1 mon` → `one month after the race`, or words for an interval the module will not say. */
 function retentionWords(interval: string): string {
-  const wording = medicalRetentionWording(interval);
-
-  return wording === null
-    ? 'the period the club has set'
-    : wording.charAt(0).toLowerCase() + wording.slice(1);
+  return medicalRetentionClause(interval) ?? 'the period the club has set';
 }
 
 /**
@@ -1554,6 +1551,22 @@ function entriesSection(
         <thead>
           <tr>
             <th scope="col">Runner</th>
+            ${
+              /* **`admin-col-wide`, like the other five, so the narrow layout still keeps
+                 three columns.** A fourth at 320px is what starts the table scrolling
+                 sideways, which drags the whole page with it — and an address is the longest
+                 string on this page: the club's own is 47 characters, which is the exact
+                 value that overflowed a 320px document in the sideways-scroll investigation.
+                 It folds into `admin-stack` under the runner's name with `admin-break`, the
+                 same pair the interest table's Email column has always used.
+
+                 ADR-024 built `/admin/nn/entry/` because the facts a volunteer needs on the
+                 phone were the ones that did not fit in a column, and named the address that
+                 paid as one of them. **This reverses that for one field**, because telling two
+                 runners of the same name apart is done while reading the list rather than
+                 after opening a row. Issue #183. */ null
+            }
+            <th scope="col" class="admin-col-wide">Email</th>
             <th scope="col" class="admin-col-wide">Club</th>
             <th scope="col" class="admin-col-wide">Category</th>
             <th scope="col" class="admin-col-wide">Entry</th>
@@ -1588,7 +1601,7 @@ function entriesSection(
           ${
             shown.length === 0
               ? html`<tr>
-                  <td colspan="10">Nothing matches that filter.</td>
+                  <td colspan="11">Nothing matches that filter.</td>
                 </tr>`
               : shown.map((entry) => entryRow(entry, viewer, list.entries))
           }
@@ -1676,6 +1689,12 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
     <th scope="row">
       ${runnerName(entry)}
       <span class="admin-stack">
+        ${
+          /* First in the stack, because on a phone this is the whole reason the column was
+          added: two runners with the same name, and one of them is the person on the other end
+          of the call. */ null
+        }
+        <span class="admin-mono admin-break">${entry.email ?? 'No email recorded'}</span>
         <span>${entry.club ?? 'No club'}</span>
         <span>${category ?? 'No category'}</span>
         ${
@@ -1724,6 +1743,14 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
         </span>
       </span>
     </th>
+    ${
+      /* ⚠️ **Whose address this is was decided by the database, per row.** A runner's is the
+      purchase's `purchaser_email`; a **guide's** is their own `entrants.email`, because a guide
+      has no purchase of their own. Printing the buyer's address beside a guide's name would be
+      wrong on the page a volunteer rings people from, so `read_entry_list()` resolves it and
+      this cell prints what it resolved. Never substitute another field for a null here. */ null
+    }
+    <td class="admin-col-wide admin-mono admin-break">${entry.email ?? '—'}</td>
     <td class="admin-col-wide">${entry.club ?? '—'}</td>
     <td class="admin-col-wide">
       ${category}
@@ -2441,14 +2468,32 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
       </h1>
       <p class="admin-quiet">
         ${purchase.eventName} ·
-        <span class="admin-mono">${purchase.purchaseId}</span>
+        <span class="admin-mono"
+          >${formatEntryReference({
+            eventSlug: purchase.eventSlug,
+            entryNo: purchase.entryNo,
+            createdAt: purchase.createdAt,
+            purchaseId: purchase.purchaseId,
+          })}</span
+        >
+        ${
+          /* **The purchase id underneath, because this page is where a payment is
+          reconciled.** The reference above is what a runner quotes; the id is what Stripe's
+          metadata carries and what every `admin_audit` row keys on, so a volunteer with the
+          Stripe dashboard open needs both. Only on this page: the list and the queue print the
+          reference alone, which is the string somebody is reading out. */ null
+        }
+        ${
+          purchase.entryNo === null
+            ? null
+            : html`<br /><span class="admin-mono admin-sub">${purchase.purchaseId}</span>`
+        }
       </p>
 
       ${
         /* **The reference in full, and it is the one thing on this page somebody reads out
-        loud.** `/account/entries/` and the confirmation page both print it, so it is what a
-        runner emailing the club has to name their entry by — and the list only ever shows its
-        last four characters. */ null
+        loud.** `/account/entries/` and all four emails print the same string through the same
+        function, so it is what a runner emailing the club names their entry by. */ null
       }
       ${
         open.length === 0
@@ -3209,14 +3254,39 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * The last four characters of an id, for a queue of decisions.
+ * The last four characters of an id, for somewhere a whole one would not earn its space.
  *
- * **An entry reference rather than a name**, because the attention panel is a list of things to
- * decide rather than a list of people, and a purchase id is not personal data on its own. It is
- * enough to find the row in the table below and in the runbook's query.
+ * **The attention panel does not use this any more** — see `entryReference()` below. What is
+ * left is the audit trail's actor, which is a pseudonym rather than a reference: nobody types
+ * it, nobody quotes it, and its last four characters are enough to see that two rows were
+ * written by the same person.
  */
 function shortId(id: string): string {
   return `…${id.slice(-4)}`;
+}
+
+/**
+ * What to call one entry on this surface — the same string the runner was emailed.
+ *
+ * **The attention panel used to print `…5555`**, the tail of a purchase id, and the note under
+ * it explained that the names were in the table below. That was the best a 36-character
+ * hexadecimal reference allowed. `NN2026-0042-01092026` is short enough to print whole, and
+ * printing it whole is what lets a volunteer match this queue against the email a runner is
+ * quoting at them.
+ *
+ * The tail is still the fallback for a purchase written before `entry_no` existed, because the
+ * alternative — `formatEntryReference()`'s own fallback — is the full id, which is the length
+ * this panel could not afford in the first place.
+ */
+function entryReference(entry: AdminEntry, eventSlug: string): string {
+  return entry.entryNo === null
+    ? shortId(entry.purchaseId)
+    : formatEntryReference({
+        eventSlug,
+        entryNo: entry.entryNo,
+        createdAt: entry.createdAt,
+        purchaseId: entry.purchaseId,
+      });
 }
 
 /**

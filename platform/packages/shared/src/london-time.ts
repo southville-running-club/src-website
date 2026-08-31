@@ -66,6 +66,31 @@ export function formatLondon(instant: Instant): string {
 }
 
 /**
+ * `01092026` — the London day, month and year with nothing between them.
+ *
+ * **The tail of an entry reference and nothing else.** `NN2026-0042-01092026` is what a runner
+ * quotes and a volunteer types into a search box, so the date in it has to be the day the club
+ * would say the entry was made — which is the London day, not the UTC one. An entry taken at
+ * 00:30 BST on 1 September is 23:30 UTC on 31 August, and a reference that said `31082026` would
+ * disagree with the timestamp printed beside it on `/admin/nn/entry/`.
+ *
+ * `formatToParts` rather than a formatted string with the separators stripped: `en-GB` renders
+ * `01/09/2026` today and this does not depend on it going on doing so.
+ */
+export function formatLondonCompactDate(instant: Instant): string {
+  const parts = londonFormatter({
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).formatToParts(toDate(instant));
+
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+  return `${part('day')}${part('month')}${part('year')}`;
+}
+
+/**
  * Minutes London is ahead of UTC at this instant: `60` during British Summer Time, `0`
  * during Greenwich Mean Time.
  *

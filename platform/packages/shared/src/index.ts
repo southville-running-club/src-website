@@ -1,6 +1,7 @@
 export {
   LONDON_TIME_ZONE,
   formatLondon,
+  formatLondonCompactDate,
   formatLondonDate,
   formatLondonTime,
   isBritishSummerTime,
@@ -102,6 +103,8 @@ export {
   type EntryStateResult,
   type EntryWindowState,
 } from './entry-state';
+
+export { formatEntryReference, type EntryReference } from './entry-reference';
 
 export {
   PENDING_PURCHASE_REASONS,
@@ -223,7 +226,7 @@ export {
 
 export { BOM, csvDocument, csvField, csvRow } from './csv';
 
-export { medicalRetentionWording } from './medical-retention';
+export { medicalRetentionClause, medicalRetentionWording } from './medical-retention';
 
 export {
   NN_ENTRY_CLUB_MAX_LENGTH,

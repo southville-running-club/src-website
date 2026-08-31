@@ -325,7 +325,7 @@ year it is run.
 | | |
 | --- | --- |
 | **The race's** | `name`, `distance`, `places`, `contact`, `privacy.*` — read by `/nn/` and `/nn/privacy/`. **`privacy.*` is read by `/privacy/` too**, which is not a race page at all: the controller, the registered office, the company number and the data contact are the club's facts that happen to live in this file, and both notices lifting them from one place is what stops the two disagreeing |
-| **One running's** | `date`, `dateShort`, `startTime`, `location`, `hqName`, `price`, `entriesOpen`, `entriesClose`, `transferDeadline`, `permit`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
+| **One running's** | `date`, `dateShort`, `startTime`, `location`, `hqName`, `price`, `entriesOpen`, `entriesClose`, `transferDeadline`, `permit`, `arcRules`, `schedule`, `prizes`, `finisherPrize`, `spectating`, `startFinish` — read only beneath `/nn/2026/` |
 
 **`dateShort` and `hqName` are narrow forms of `date` and `location`, and the duplication is
 deliberate.** `/nn/2026/terms/` publishes the race director's sentences verbatim, and hers use
@@ -361,7 +361,7 @@ as a blank or an invention. Two still are, and each for a different reason:
 | | |
 | --- | --- |
 | `price`, `entriesOpen` | **The database's, not this file's.** Fees live in `entries.fees.price_pence` and the window in `entries.events`, and the Worker paints them onto the entry form. These two `race.json` keys stay `null` and render "To be confirmed": duplicating a price into a content file is how two numbers start disagreeing. The transfer deadline and live capacity are undecided and have no field at all |
-| `privacy.*` | **Eight keys since 30 August 2026, and one `null`** — `emailRetention`, whether an address is kept to tell people about next year's race, which no page reads. **Seven are settled and written in**: the controller, the registered office, the company number, the one-month medical retention, the data contact, how long an entry record is kept, and the date the notice was last updated. It was nine keys and four nulls until the club had `/nn/privacy/` rewritten to reproduce the committee's privacy document word for word — that document answered `contact` and `entryRetention`, and `photographs` was **removed outright** rather than settled, because the document says nothing about photographs and there is no longer a question to leave open. **Three of the eight are read by no page.** `entryRetention` and `emailRetention` fed the per-item retention table, which came off `/nn/privacy/` with everything else that was not in the document; `medicalRetention` is kept **for the database test alone** — `packages/db/tests/entries-retention.test.ts` still ties it to `entries.events.medical_retention`, so the cron still deletes a medical note a month after the race while no published page states a period. Of the rest, `controller`, `companyNumber` and `contact` are read by both notices, `registeredOffice` by `/privacy/` alone, `lastUpdated` by `/nn/privacy/`. A wrong answer on either notice is a legal claim rather than a typo, so filling `emailRetention` in is a one-line edit here, and the two spec files count the markers |
+| `privacy.*` | **Eight keys since 30 August 2026, and one `null`** — `emailRetention`, whether an address is kept to tell people about next year's race, which no page reads. **Seven are settled and written in**: the controller, the registered office, the company number, the one-month medical retention, the data contact, how long an entry record is kept, and the date the notice was last updated. It was nine keys and four nulls until the club had `/nn/privacy/` rewritten to reproduce the committee's privacy document word for word — that document answered `contact` and `entryRetention`, and `photographs` was **removed outright** rather than settled, because the document says nothing about photographs and there is no longer a question to leave open. **Three of the eight are read by no page.** `entryRetention` and `emailRetention` fed the per-item retention table, which came off `/nn/privacy/` with everything else that was not in the document; `medicalRetention` is kept **for the database test alone** — `packages/db/tests/entries-retention.test.ts` ties it to `entries.events.medical_retention`. ⚠️ **That sentence used to end "while no published page states a period", and it was wrong** — `/nn/2026/` and `/account/data/` both stated one, in prose typed into the markup, which is issue [#172](https://github.com/southville-running-club/src-website/issues/172). Since 31 August 2026 both derive it from the column at request time rather than from this file: the entry form from `entry_state()`'s `medical_retention` and the account page from `current_entry_state()`. `/nn/privacy/` still states none, because the committee's document does not. Of the rest, `controller`, `companyNumber` and `contact` are read by both notices, `registeredOffice` by `/privacy/` alone, `lastUpdated` by `/nn/privacy/`. **`lastUpdated` is that page's own revision date rather than the committee document's**, and the two stopped being the same thing on 30 August 2026: section 9 promises a revision date that moves when the page changes, so any edit to what `/nn/privacy/` renders — a collection-list item inserted or deleted included — moves this key in the same commit. A wrong answer on either notice is a legal claim rather than a typo, so filling `emailRetention` in is a one-line edit here, and the two spec files count the markers |
 
 ### The ARC permit number, and why it is quoted three times
 
@@ -376,6 +376,13 @@ entry form, below the pay note, is the form half. **The third arrived with #142*
 instruction, which is why `nn-entry.spec.ts` asserts the form's copy **visible** rather than
 merely present: the form ships `hidden` and the Worker reveals it, so a permit line that only
 ever reached the markup would pass a `toContain` and fail what ARC actually ask for.
+
+**`arcRules` is the address of ARC's Rules of Competition**, which version 2 of the entry terms
+names beside the Event Terms & Conditions. It is read by `/nn/2026/terms/` alone. ⚠️ **It is a
+`share.google` shortlink the club does not control** — the address the race director supplied —
+in the document naming the rules a runner must abide by, so it can rot or be re-pointed by
+whoever owns it. It lives here rather than in the transcribed markup precisely so that replacing
+it with ARC's own canonical URL is a one-line edit to a data file.
 
 **At the foot of the form rather than under its heading.** ARC ask for the number to be
 quoted, not made prominent. The printed-form convention of putting it at the top exists
@@ -448,8 +455,8 @@ tidy-up here is a silent amendment to a legal instrument — suggested correctio
 as a batch and return as new copy with a new version line. `terms-single-source.test.ts` pins
 the provenance line; the copy itself is pinned in `nn-terms.spec.ts`.
 
-**The committee has not ratified it**, and the page says exactly that: *"Version 1 — published
-28 August 2026. Supplied by the race director."* Both tests assert the absence of a ratification
+**The committee has not ratified it**, and the page says exactly that: *"Version 2 — published
+31 August 2026. Supplied by the race director."* Both tests assert the absence of a ratification
 claim as hard as they assert the line itself, because a false statement of provenance on a legal
 document is worse than none.
 

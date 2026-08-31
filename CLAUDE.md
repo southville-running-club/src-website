@@ -180,7 +180,17 @@ re-run.
   whether an email address is kept to tell people about next year's race, still `null` in
   `race.json`'s `emailRetention`, which nothing reads. `entryRetention` is settled prose that
   nothing reads either, the `photographs` key is gone, and `medicalRetention` is kept only for
-  `entries-retention.test.ts`.
+  `entries-retention.test.ts`. **A second list edit was taken on 31 August 2026 and it is the
+  only deletion so far** — the *"IP address, browser type, device information, and cookies for
+  website functionality and analytics"* bullet, which was untrue: there is no analytics code in
+  `apps/main` and `GET /nn/2026/` sets no cookie, which is what `/privacy/` tells account holders.
+  Issue [#179](https://github.com/southville-running-club/src-website/issues/179) item 1.
+  **`race.json`'s `privacy.lastUpdated` is this page's own revision date now, not the committee
+  document's** — the two stopped being the same thing on 30 August, and section 9 promises a date
+  that moves when the page changes, so **every edit to what is rendered here moves it in the same
+  commit**. Item 3. ⚠️ **Three of that issue's five need the committee and are still open**: the
+  two "To be confirmed by the club" markers on `/privacy/`, an Article 9(2) condition in section
+  4, and decision 007's affiliation sentence.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
   more.** **Trigger: a partial refund, a correction to a paid entry, or a resend outside the
   outbox** — the built payment path itself (an ordinary Checkout entry, a full-refund
@@ -1028,19 +1038,32 @@ always rendered the same purchase. **The counts were already right** — they re
 grain — and **`holding` and the three exports keep their inner joins**, because capacity is
 measured in runners and a start list has nobody to put on it. #116.
 
-**The medical notes are deleted a month after the race, and the column and the JSON are tied
-together by a test.** `entries.events.medical_retention` is what the five-minute cron applies;
-`race.json`'s `privacy.medicalRetention` is the wording for that interval;
-`packages/db/tests/entries-retention.test.ts` reads both and fails unless the words are the ones
-the interval generates through `packages/shared/src/medical-retention.ts`. **Changing either one
-alone goes red.** **The tie stops at the JSON since 30 August 2026, and that is a guarantee
-lost.** `/nn/privacy/` published `medicalRetention` until the club asked for that page to be the
-committee's document word for word, and the document names no period — so the deletion is
-unchanged and **nothing published is tied to the enforced interval any more.** The key survives
-for this test alone and no page reads it. What the test used to stop — the club publishing one
-period and keeping another — is now unguarded rather than impossible, so publishing a period
-again means asking the committee for wording *and* re-establishing that tie, never assuming it
-still holds.
+**The medical notes are deleted a month after the race, and every page that says so derives the
+period.** `entries.events.medical_retention` is what the five-minute cron applies;
+`packages/shared/src/medical-retention.ts` is the one module allowed to turn that interval into
+words, through `medicalRetentionWording()` and the lower-cased `medicalRetentionClause()`;
+`race.json`'s `privacy.medicalRetention` holds the wording and
+`packages/db/tests/entries-retention.test.ts` fails unless it is what the interval generates.
+**Changing either one alone goes red.**
+
+⚠️ **This paragraph said "nothing published is tied to the enforced interval any more" and that
+was never true** — issue #172, closed 31 August 2026. It was written about `/nn/privacy/`, which
+did stop publishing a period when it became the committee's document word for word. **Two other
+live pages went on stating one**, in hand-typed prose that imported nothing: `/nn/2026/` — *the
+page the medical consent is ticked on* — and `/account/data/`. They had already drifted from each
+other in register, "one month" against "a month", which is the tell that nothing held them to a
+source. Both derive it now:
+
+| | Source | Held by |
+| --- | --- | --- |
+| `/nn/2026/` | `entry_state()`'s `medical_retention`, painted onto the form by the Worker | `entries-retention.test.ts` asserts `entry_state()` carries the column; `nn-entry-open.test.ts` asserts the words reach the markup |
+| `/account/data/` | `current_entry_state('nn')`, one RPC on that page | `account.spec.ts` asserts the whole clause |
+| `/admin/nn/` | `read_entry_list()`'s figures, via `retentionWords()` | Was already derived |
+| `/nn/privacy/` | **Publishes no period**, and that is the committee's document rather than a gap | `nn-privacy.spec.ts` |
+
+So the chain reaches a runner again. `race.json`'s key is still read by no page — it is what the
+database test compares against — and publishing a period on `/nn/privacy/` again would still mean
+asking the committee for wording *and* establishing a tie of its own.
 
 ### Routing: a race and its runnings
 
@@ -1309,6 +1332,22 @@ guides beside them rather than inside one. Counted off the rows rather than aske
 database, because the band a runner falls in is named by `packages/shared/src/age-category.ts`
 and by nothing else.
 
+**There is an Email column since 31 August 2026, and which address it shows is decided per row
+rather than per purchase.** A runner's is `entry_purchases.purchaser_email`; a **guide's** is
+their own `entrants.email`, because a guide has no purchase of their own — so
+`read_entry_list()` resolves it in a `case` and the page prints what it resolved. **Showing the
+buyer's address beside a guide's name is the one wrong answer**, on the page a volunteer rings
+people from, and a null is rendered as a dash rather than filled from anywhere else. A cancelled
+entry has no entrant at all and keeps the address that paid, which is the address the refund
+notice went to. It is `admin-col-wide admin-break`, so it folds into the runner cell below 48rem
+with the other five — an address is the longest value in the table and a fourth column at 320px
+is what starts the whole page sliding sideways. ADR-024 named the address that paid as one of
+the facts that did not fit in a column and built `/admin/nn/entry/` for them; **this reverses
+that for one field**, because telling two runners of the same name apart is done while reading
+the list. No new column is collected and no new audience sees one — it is already on the entry
+page and in two exports behind the same permission.
+[#183](https://github.com/southville-running-club/src-website/issues/183).
+
 **The medical sheet has a printable page as well as a CSV**, at `POST /admin/nn/medical-sheet/`
 — the same read and the same `medical_export` audit row. The start list has had one since it was
 written; the more sensitive of the two documents had only a file, and what a machine does with a
@@ -1340,8 +1379,24 @@ opens that page to look at.
 **`/account/entries/`'s open view shows confirmed places and nothing else.** A lapsed attempt
 beside a real ticket makes the page look broken, so a ticket is the only thing on that view.
 Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either, applied
-to a list. Every entry carries its purchase id as a reference, because somebody emailing the
-club had nothing to name one by.
+to a list. Every entry carries a reference, because somebody emailing the club had nothing to
+name one by.
+
+**That reference is `NN2026-0042-01092026` since 31 August 2026, and it was a 36-character
+purchase id** — [ADR-030](docs/architecture/decisions/adr-030-an-entry-has-a-reference-somebody-can-read-out.md).
+`entries.entry_purchases.entry_no` is a per-event number issued by a `before insert` trigger from
+a high-water mark on `entries.events.next_entry_no` — a **trigger** because two functions insert a
+purchase and a third would write a null, and a **counter** rather than `max() + 1` because a
+reference already emailed to somebody may never come to mean a different entry. ⚠️
+**`formatEntryReference()` in `packages/shared/src/entry-reference.ts` is the one place those
+parts become text**, for `formatPence()`'s reason: the string is quoted back at the club, so
+`/account/entries/`, the four outbox emails, `/admin/nn/entry/` and the attention queue have to
+print the same characters. **No SQL renders it** — the date in it is the London day, and this
+repository has exactly one path timezone conversion may take. The **purchase id stays on
+`/admin/nn/entry/` and nowhere else**, because that is where a payment is reconciled and Stripe's
+metadata and every audit row key on it. `entry_no` is nullable and the render function falls back
+to the id, which is the expand step and is why no reference already in somebody's inbox is
+invalidated.
 
 ⚠️ **What may never be dropped is the note that replaces them.** Hiding a lapsed hold with
 nothing in its place shows an empty page to somebody whose payment succeeded while the webhook

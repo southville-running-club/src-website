@@ -180,7 +180,7 @@ if (registration === undefined) {
           photographic/video footage taken during their participation may be used to
           publicise the Nightingale Nightmare and Southville Running Club, as well as for
           the fancy dress competition on the day. Tell us if you would rather not appear
-          and we will not use one we know you are in.
+          and we will not use ones we know you are in.
         </li>
         <li>
           The Race Organisers reserve the right to refuse or cancel applications,
@@ -206,9 +206,27 @@ if (registration === undefined) {
       <h2>Race Rules</h2>
 
       <ul>
+        {
+          /* **The ARC rules reference arrived with version 2, on 31 August 2026.** The
+          supplied copy reads "ARC's Rules of Competition ARC_Rules.pdf
+          https://share.google/RnTGOplAieN1hWvHL" — a document name followed by a bare URL,
+          which is how somebody writes a link in a Word document. Published here as the name
+          linked to the address: every word of the supplied clause survives, nothing is added,
+          and a bare URL in the middle of a sentence is unreadable on a phone and unusable
+          through a screen reader.
+
+          ⚠️ **The address is a `share.google` shortlink, which the club does not control.**
+          It can rot, and whoever owns it can re-point it — in a document a runner is bound by,
+          which names it as the rules they must abide by. Raised with the race director; ARC's
+          own canonical URL is the answer if there is one, and until there is, this is the
+          address the club was given. It is in `race.json` rather than in this markup so that
+          replacing it is a one-line edit to a data file rather than a change to the
+          transcribed copy. */
+        }
         <li>
-          Entrants are required to abide by these Event Terms &amp; Conditions, Race Rules
-          and Marshals' directions.
+          Entrants are required to abide by these Event Terms &amp; Conditions, ARC's
+          Rules of Competition <a href={race.arcRules}>ARC_Rules.pdf</a>, Race Rules and
+          Marshals' directions.
         </li>
         {
           /* **The collection time and the race HQ both come from `race.json`.** `09:15` is the
@@ -256,7 +274,17 @@ if (registration === undefined) {
         "Last updated: …" the same way, which is the register this belongs in — and a long
         legal document is exactly what `.nn-prose` already expresses. */
       }
-      <p>Version 1 — published 28 August 2026. Supplied by the race director.</p>
+      {
+        /* **Version 2, and the bump is not cosmetic.** `entry_purchases.consents_version`
+        records the wording a person ticked against, and
+        `20260831140000_nn_2026_terms_version_two.sql` moves `entries.events.consent_version`
+        to `nn-2026-v2` in the same change — so a purchase made before this copy landed still
+        names `nn-2026-v1` and the club can answer "which version did I agree to?" for either.
+        **Changing the copy without moving the column is the failure this pair exists to
+        prevent**, and it would be invisible: every entry would claim to have agreed to wording
+        that did not exist when it was made. */
+      }
+      <p>Version 2 — published 31 August 2026. Supplied by the race director.</p>
     </div>
 
     <footer>

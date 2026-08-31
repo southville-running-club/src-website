@@ -856,15 +856,27 @@ describe('the entries list', () => {
     expect(body).not.toContain(NEVER_STORED_EA_NUMBER);
   });
 
-  it('shows no entrant’s email address anywhere', async () => {
-    // Not the entrant's and not the purchaser's. An organiser checking numbers or setting out
-    // bibs does not need one. **The masthead comes off first**: it names the signed-in
-    // volunteer's own address, which is the whole point of it.
+  it('shows the address to reach each row at, which it deliberately did not until #183', async () => {
+    // **This asserted the opposite until 31 August 2026, and the reversal is the change.** The
+    // old claim was that an organiser checking numbers or setting out bibs does not need an
+    // address, which was true of the *start list* and not of this page: two runners with the
+    // same name could only be told apart by opening the entry, and a volunteer ringing one of
+    // them had to go looking for the number.
+    //
+    // **No new column is collected and no new audience sees one.** The address is already on
+    // `/admin/nn/entry/` and in two of the three exports, behind the same `nn.entry.read`
+    // permission. See the migration's header, and issue #183.
+    //
+    // **The masthead comes off first**: it names the signed-in volunteer's own address, which
+    // is the whole point of it, and would satisfy any assertion about an address being present.
     const body = withoutMasthead(
       await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)),
     );
 
-    expect(body).not.toContain('@example.com');
+    // The column, and the value in it. Both, because the header alone passes on a page with an
+    // empty column and the value alone passes on a page printing addresses with no label.
+    expect(body).toContain('Email');
+    expect(body).toContain('harriet@example.com');
   });
 
   it('says a note exists and never what it says', async () => {
@@ -1086,9 +1098,17 @@ describe('the panel for anything needing a human', () => {
   it('names an entry by reference rather than by name, in the queue itself', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    // The panel is a list of decisions, so it carries the last four characters of a purchase
-    // id. The names are in the table below, where a list of people belongs.
-    expect(body).toContain('entry …');
+    // The panel is a list of decisions rather than of people, so it names an entry and the
+    // names are in the table below.
+    //
+    // **It printed `entry …5555` until 31 August 2026** — the tail of a purchase id, with a
+    // footnote under the panel explaining that the names were below, because a 36-character
+    // hexadecimal reference could not be shown whole. ADR-030's reference can, and printing it
+    // whole is what lets a volunteer match this queue against the email a runner is quoting.
+    //
+    // Matched on the shape rather than on a literal: the fixture's event slug and creation date
+    // are the fixture's business, and a literal here would stop testing the moment either moved.
+    expect(body).toMatch(/entry [A-Z0-9]+-\d{4,}-\d{8}/);
   });
 });
 

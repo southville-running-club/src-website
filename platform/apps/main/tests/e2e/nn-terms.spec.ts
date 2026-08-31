@@ -64,6 +64,7 @@ const RACE = JSON.parse(
   date: string;
   dateShort: string;
   permit: string;
+  arcRules: string;
   hqName: string;
   transferDeadline: string;
   contact: string;
@@ -174,6 +175,33 @@ test.describe('the entry terms page', () => {
     expect(body).toContain(
       'These Terms & Conditions and Race Rules are subject to change by the Race Organisers.',
     );
+
+    // **Version 2's one new clause**, and the whole sentence rather than the document name —
+    // the reference is only worth anything beside the Event Terms & Conditions it sits with.
+    expect(body).toContain(
+      "Entrants are required to abide by these Event Terms & Conditions, ARC's Rules of Competition ARC_Rules.pdf, Race Rules and Marshals' directions.",
+    );
+
+    // **The publicity clause in the plural, which is version 2's other difference.** One
+    // character, and the reason it is asserted at all is that it is exactly the kind of thing a
+    // later transcription would "correct" back.
+    expect(body).toContain('we will not use ones we know you are in');
+  });
+
+  test('links the ARC rules to the address the club was given', async ({ page }) => {
+    // ⚠️ **A `share.google` shortlink the club does not control**, in the document naming the
+    // rules a runner must abide by. It is the address supplied, it is in `race.json` so that
+    // replacing it is a one-line data edit, and this asserts the two have not come apart.
+    //
+    // Asserted as an anchor rather than as text, because the supplied copy writes the document
+    // name and the bare URL side by side and a bare URL mid-sentence is unusable through a
+    // screen reader. The words survive; the address becomes the link on the name.
+    await page.goto(TERMS);
+
+    await expect(page.getByRole('link', { name: 'ARC_Rules.pdf' })).toHaveAttribute(
+      'href',
+      RACE.arcRules,
+    );
   });
 
   test('says which version it is, and claims no committee ratification', async ({
@@ -187,8 +215,12 @@ test.describe('the entry terms page', () => {
     // terms: a claim that it had would be a false statement on a legal document, so the
     // negative is asserted as hard as the positive.
     expect(body).toContain(
-      'Version 1 — published 28 August 2026. Supplied by the race director.',
+      'Version 2 — published 31 August 2026. Supplied by the race director.',
     );
+
+    // **Version 1 is gone rather than merely not asserted.** A page carrying both version lines
+    // would satisfy the line above and tell a runner nothing about which wording binds them.
+    expect(body).not.toContain('Version 1');
     expect(body).not.toContain('committee');
     expect(body).not.toContain('ratified');
   });
