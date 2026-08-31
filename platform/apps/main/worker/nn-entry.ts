@@ -14,6 +14,8 @@ import {
   priceNnEntry,
   toIsoDate,
   NN_ENTRY_DISCOUNT_REFUSED_MESSAGE,
+  NN_ENTRY_EMAIL_TAKEN_MESSAGE,
+  NN_ENTRY_EMAIL_TAKEN_SIGNED_IN_MESSAGE,
   NN_ENTRY_FIELDS,
   type DbClient,
   type EntryFee,
@@ -190,6 +192,16 @@ export type NnEntryView =
        * `create_pending_purchase()`'s, and it is enforced in Postgres whatever this says.
        */
       entered: boolean;
+
+      /**
+       * The confirmed address this person's entry will use, or null when nobody is signed in.
+       *
+       * **Rendered as a fixed line where the two email boxes would be.** The Worker
+       * substitutes it before validation whatever the submission says, so showing an editable
+       * box would be showing a control that does nothing — and a control that does nothing is
+       * how somebody comes to believe their entry went to an address it did not.
+       */
+      accountEmail: string | null;
     };
 
 /**
@@ -223,6 +235,41 @@ function entriesClientFor(env: NnEntryEnv, viewer: NnEntryViewer | null): DbClie
   return viewer === null
     ? createAnonClient(config)
     : createUserClient(config, viewer.accessToken);
+}
+
+/**
+ * The confirmed address on this access token, or null if it cannot be established.
+ *
+ * **The authority on who a signed-in buyer is.** `auth.getUser()` verifies the token against
+ * GoTrue rather than decoding it here — `worker/session.ts`'s header says why there is no
+ * signature check anywhere in this Worker — so the address returned is the one the account
+ * actually holds, not one a submission asserted.
+ *
+ * Null on any failure at all: an expired token, a network fault, a user row with no address.
+ * The caller treats every one of those the same way, because from here they are one fact —
+ * this request cannot be attributed to an account, so it must not hold a place as though it
+ * could.
+ */
+async function confirmedAddressFor(
+  env: NnEntryEnv,
+  viewer: NnEntryViewer,
+): Promise<string | null> {
+  try {
+    const { data, error } = await createUserClient(
+      { url: env.PUBLIC_SUPABASE_URL, anonKey: env.PUBLIC_SUPABASE_ANON_KEY },
+      viewer.accessToken,
+    ).auth.getUser(viewer.accessToken);
+
+    if (error || !data.user?.email) {
+      return null;
+    }
+
+    return data.user.email;
+  } catch {
+    // **Never logged with the cause.** GoTrue's error text can quote the value it rejected,
+    // which is the rule `worker/stripe.ts` and `worker/nn-signup.ts` already follow.
+    return null;
+  }
 }
 
 /**
@@ -336,6 +383,7 @@ export async function resolveNnEntryView(
       state: view.state,
       early: false,
       entered: await hasConfirmedEntry(env, viewer, eventSlug),
+      accountEmail: viewer === null ? null : await confirmedAddressFor(env, viewer),
     };
   }
 
@@ -352,6 +400,7 @@ export async function resolveNnEntryView(
       state: view.state,
       early: true,
       entered: await hasConfirmedEntry(env, viewer, eventSlug),
+      accountEmail: viewer === null ? null : await confirmedAddressFor(env, viewer),
     };
   }
 
@@ -535,6 +584,7 @@ const TEXT_FIELDS = [
   'lastName',
   'email',
   'emailConfirm',
+  'phone',
   'dobDay',
   'dobMonth',
   'dobYear',
@@ -601,6 +651,9 @@ export type NnEntryOutcome =
 function refusalOutcome(
   reason: PendingPurchaseReason,
   submitted: NnEntrySubmission,
+  /** Whether the person asking is signed in — which changes what one refusal can honestly
+   *  advise them to do. See the `email_already_entered` branch. */
+  signedIn = false,
 ): NnEntryOutcome {
   if (reason === 'sold_out') {
     return { status: 'sold-out', submitted };
@@ -629,6 +682,29 @@ function refusalOutcome(
     return {
       status: 'invalid',
       errors: { discountCode: NN_ENTRY_DISCOUNT_REFUSED_MESSAGE },
+      submitted,
+    };
+  }
+
+  // **The third ordinary mistake, and it is answered at the field for the same reason.** One
+  // address, one place — `20260830160000_entries_one_place_per_email.sql`. Not a page state
+  // and not `already-entered`: the person reading it may have entered nothing, because the
+  // rule is about the address rather than about them. Using another address fixes it, so it
+  // belongs beside the box they would change. Not logged as an error, because the form is
+  // allowed to be filled in with an address that is already spoken for.
+  if (reason === 'email_already_entered') {
+    return {
+      status: 'invalid',
+      errors: {
+        // ⚠️ **Two messages, because one of them is a dead end for half the people who see
+        // it.** A signed-in person's entry uses the address on their account and the form
+        // shows no box to change it, so "use a different email address" names the one thing
+        // they cannot do. The signed-in wording points at the place they already hold and at
+        // signing out, which are the two moves actually available.
+        email: signedIn
+          ? NN_ENTRY_EMAIL_TAKEN_SIGNED_IN_MESSAGE
+          : NN_ENTRY_EMAIL_TAKEN_MESSAGE,
+      },
       submitted,
     };
   }
@@ -702,7 +778,52 @@ export async function processNnEntry(
   }
 
   const submitted = readSubmission(form);
-  const parsed = parseNnEntry(Object.fromEntries(form), entryRulesFrom(view.state));
+
+  // **A signed-in person enters with the address they signed in as, whatever the box says.**
+  //
+  // `purchaser_email` came straight off the form for everybody, so somebody signed in could
+  // type any address at all — and every consequence of that lands somewhere they cannot see.
+  // The confirmation, the refund notice, both sides of a transfer and Stripe's own receipt all
+  // go to `purchaser_email`; `my_entries()` matches a purchase on `person_id` **or** that
+  // address, so a typo hands the second arm of that match to a stranger. The entry still
+  // appeared on their own account through `person_id`, which is exactly what made the mistake
+  // invisible from their side.
+  //
+  // **Read from the token, never from the form.** The address is whatever GoTrue says the
+  // confirmed one is for this access token — the same round trip `/account/` makes — so there
+  // is nothing here a submission can influence. A signed-out visitor is untouched and pays
+  // nothing extra, which is everybody until entries open.
+  //
+  // ⚠️ **With one place per email this is also a limit on what a signed-in person can do.**
+  // They can hold exactly one place, and they cannot use another address to enter on somebody
+  // else's behalf, because this ignores the box. Both halves are the club's decision of
+  // 30 August 2026 — see `20260830160000_entries_one_place_per_email.sql`. Somebody entering
+  // for another person signs out, or the club gives the place from `/admin/nn/`.
+  //
+  // **Applied before Zod rather than after it**, which is what makes the form honest. The two
+  // email boxes are not rendered for a signed-in person at all — `NnEntryForm` shows the
+  // address as a fixed line instead — so a submission from that page carries neither, and
+  // parsing first would refuse it with "Enter your email address" about a box that is not on
+  // the screen. Substituting first means Zod validates the address the entry will actually
+  // use, and the confirm rule compares it against itself rather than against nothing.
+  const fields: Record<string, unknown> = Object.fromEntries(form);
+
+  if (viewer !== null) {
+    const confirmed = await confirmedAddressFor(env, viewer);
+
+    if (confirmed === null) {
+      // The token verified well enough to reveal the form and will not verify now. Holding a
+      // place against an address this cannot stand behind is the one thing not to do, and
+      // saying "try again" is honest: signing in again fixes it.
+      console.error('nn-entry could not resolve the signed-in address; entry not taken');
+      return { status: 'failed', submitted };
+    }
+
+    fields.email = confirmed;
+    fields.emailConfirm = confirmed;
+  }
+
+  const parsed = parseNnEntry(fields, entryRulesFrom(view.state));
 
   if (!parsed.ok) {
     return { status: 'invalid', errors: parsed.errors, submitted };
@@ -778,7 +899,7 @@ export async function processNnEntry(
     const priced = await priceNnEntry(client, { slug: eventSlug, entry: parsed.value });
 
     if (priced.status === 'refused') {
-      return refusalOutcome(priced.reason, submitted);
+      return refusalOutcome(priced.reason, submitted, viewer !== null);
     }
 
     if (priced.status === 'priced') {
@@ -807,7 +928,7 @@ export async function processNnEntry(
   }
 
   if (outcome.status === 'refused') {
-    return refusalOutcome(outcome.reason, submitted);
+    return refusalOutcome(outcome.reason, submitted, viewer !== null);
   }
 
   const { purchase } = outcome;
@@ -1330,6 +1451,17 @@ export function renderNnEntryView(
   // telling, and after 1 September only the second exists.
   if (view.entered) {
     rewriter.on('[data-nn-entry-entered]', new RevealHandler());
+  }
+
+  // **The email field has two renderings and exactly one is shown.** Signed in, the address is
+  // the account's and the boxes come out entirely; signed out, nothing changes. Reversing this
+  // pair — leaving the boxes up beside the fixed line — is the state to avoid, because it puts
+  // an editable control next to the value that will actually be used.
+  if (view.accountEmail !== null) {
+    rewriter
+      .on('[data-nn-entry-fixed-email]', new RevealHandler())
+      .on('[data-nn-entry-account-email]', new TextHandler(view.accountEmail))
+      .on('[data-nn-entry-typed-email]', new HideHandler());
   }
 
   // The two rules the browser-side enhancement cannot read off the DOM. Neither is personal

@@ -3045,33 +3045,39 @@ async function entriesPage(
   const cancelled = result.entries.filter((entry) => entry.status === 'refunded');
 
   /**
-   * **Shown only when there is no confirmed place to show, and that exception is the design.**
+   * **A lapsed hold, and it is filed under Cancelled as of 30 August 2026.**
    *
-   * A lapsed attempt sitting beside a real ticket makes the page look broken, so once somebody
-   * holds a place it is the only thing they see. But hiding these *unconditionally* would show
-   * an **empty page** to the one person who must not get one: somebody whose payment succeeded
-   * while the webhook was late. They would read an empty page as nothing having been taken, and
-   * the next thing they would do is pay again.
+   * It used to sit underneath whichever view was open, shown only when there was no confirmed
+   * place. That was deliberate, and it produced the thing that got it changed: on
+   * `?show=cancelled` with nothing cancelled, the page said "Nothing here." and then rendered
+   * a not-completed entry directly beneath it, which is a page contradicting itself in the
+   * space of two elements. Asked for, and decided: a not-completed entry belongs in the
+   * Cancelled view.
    *
-   * So the rule is "only successful tickets, unless there are none" — clean in every case where
-   * a runner has a ticket, and never silent in the case where they might have paid for one.
+   * ⚠️ **What that placement costs, and what pays for it.** A lapsed hold is *not* a
+   * cancellation. The webhook may simply be late, in which case the place was paid for and the
+   * club will confirm it — so "Cancelled" is a heading that can be wrong about this entry in
+   * the direction that costs somebody £20, because a runner who believes their entry is gone
+   * enters again.
+   *
+   * Two things hold the line, and **neither is optional**:
+   *
+   *   1. The card's own status sentence is unchanged and still says what it knows — the entry
+   *      was not completed in time, and *if you were charged, get in touch before entering
+   *      again*. The heading is a filing decision; that sentence is the claim, and it makes
+   *      none it cannot support.
+   *   2. **The open view still says so**, below. Moving these out of the default view without
+   *      that note would hand an empty page to exactly the person the old rule existed for —
+   *      somebody whose payment succeeded while the webhook was late — and an empty page here
+   *      reads as "nothing was taken". That is the pay-twice path, and it is reachable by
+   *      doing nothing at all, because the open view is the address with no parameter on it.
    *
    * Same rule as `/nn/<year>/entry/complete/`, which may not make a negative claim either,
    * applied to a list rather than to a page.
-   *
-   * **`refunded` came out of this list when Cancelled became a view of its own**, and the two
-   * must not be merged back together. A lapsed hold is not a cancellation, and filing it under
-   * Cancelled would break the negative-claim rule in the most expensive direction — telling
-   * somebody their place was cancelled when it may in fact have been paid for while the webhook
-   * was late. It is not a third view either: `pending` and `expired` are what is left here, and
-   * they keep exactly the rule above, underneath whichever view is open.
    */
-  const unconfirmed =
-    confirmed.length > 0
-      ? []
-      : result.entries.filter(
-          (entry) => entry.status === 'pending' || entry.status === 'expired',
-        );
+  const lapsed = result.entries.filter(
+    (entry) => entry.status === 'pending' || entry.status === 'expired',
+  );
 
   /**
    * **A token per render, and the cookie that pairs with it.** The two buttons on each card are
@@ -3154,7 +3160,7 @@ async function entriesPage(
             ${
               view === 'cancelled'
                 ? html`${
-                    cancelled.length === 0
+                    cancelled.length === 0 && lapsed.length === 0
                       ? // **"Nothing here", and never "you have never cancelled an entry".**
                         // The second is a claim about a record, and a record that can be
                         // hidden by anything must not have claims made about it — the same
@@ -3163,37 +3169,44 @@ async function entriesPage(
                       : // **No token, so no form.** There is nothing to ask the club about an
                         // entry it has already cancelled and refunded, and passing null is
                         // what makes that structural rather than a rule somebody remembers.
-                        cancelled.map((entry) => entryCard(entry, false, null))
+                        html`${cancelled.map((entry) => entryCard(entry, false, null))}
+                        ${
+                          /* **Quiet, and after the refunds, because it is the less certain
+                            of the two.** A refund happened; a lapsed hold only failed to
+                            complete in time, and the payment behind it may yet arrive. Same
+                            null token — there is no form on either — but the card is dimmed
+                            so the two do not read as one kind of thing under one heading. */
+                          lapsed.map((entry) => entryCard(entry, true, null))
+                        }`
                   }`
                 : html`${confirmed.map((entry) => entryCard(entry, false, csrfToken))}
                   ${
-                    confirmed.length === 0 && unconfirmed.length === 0
-                      ? html`<p>Nothing here.</p>`
+                    confirmed.length === 0
+                      ? lapsed.length === 0
+                        ? html`<p>Nothing here.</p>`
+                        : /* ⚠️ **The pay-twice guard, and it is load-bearing.** The lapsed
+                          entries are on the other view now, so without this the person whose
+                          payment succeeded while the webhook was late meets a page with
+                          nothing on it — at the address with no parameter, which is where
+                          doing nothing takes them. An empty page here reads as "nothing was
+                          taken", and the next thing they do is enter again and pay twice.
+
+                          So the warning stays on the default view even though the entry it is
+                          about has moved: it names the state, carries the *whole* of the "you
+                          may still have been charged" sentence rather than deferring it to
+                          the card, and then points at where the record is. */
+                          html`<p class="account-note" role="status">
+                            The club has not recorded a confirmed place for you yet. It
+                            does have an entry that was not completed in time, filed under
+                            <a href="/account/entries/?show=cancelled"
+                              >cancelled race entries</a
+                            >. <strong>Read it before entering again</strong> — a payment
+                            can reach the club after the page that took it has given up,
+                            so if you were charged, get in touch rather than entering a
+                            second time.
+                          </p>`
                       : null
                   }`
-            }
-            ${
-              /* **Underneath whichever view is open, and that is the decision rather than a
-              convenience.** A lapsed hold is neither open nor cancelled, and making it a third
-              view — or filing it under Cancelled — would tell somebody their place was
-              cancelled when it may in fact have been paid for while the webhook was late.
-
-              So it keeps exactly today's rule, on both views: shown only when there are no
-              confirmed places. The reason it may not simply be hidden is the same one it has
-              always been — somebody whose payment succeeded and whose webhook was late must
-              not meet an empty page, because the next thing they do is pay again. That has to
-              hold on `?show=cancelled` too, which is an address somebody can be sent. */ null
-            }
-            ${
-              unconfirmed.length === 0
-                ? null
-                : html`<p class="account-note">
-                      The club has not recorded a confirmed place for you yet. What it
-                      does have is below — <strong>read it before entering again</strong>,
-                      because a payment can reach the club after the page that took it has
-                      given up.
-                    </p>
-                    ${unconfirmed.map((entry) => entryCard(entry, true))}`
             }`
       }
       <p><a href="/account/">Back to your account</a></p>

@@ -82,6 +82,10 @@ async function fillEntry(
     dobDay: '9',
     dobMonth: '12',
     dobYear: '1986',
+    // **Two numbers, and they are given different values on purpose.** The runner's own
+    // number and the emergency contact's are the likeliest pair on this form to be filled in
+    // the wrong way round, and a fixture where they agree cannot see it happen.
+    phone: '0117 496 0100',
     emergencyName: 'Margaret Hamilton',
     emergencyPhone: '0117 496 0000',
     entryTerms: 'accept',
@@ -108,6 +112,10 @@ async function fillEntry(
   await form.locator('#entry-dob-day').fill(values.dobDay!);
   await form.locator('#entry-dob-month').fill(values.dobMonth!);
   await form.locator('#entry-dob-year').fill(values.dobYear!);
+  // **By id.** "Phone number" is a substring of "Contact phone number" four fieldsets
+  // down, so a label match would be ambiguous — which is exactly the ambiguity the two
+  // fields are laid out to avoid for a person.
+  await form.locator('#entry-phone').fill(values.phone!);
   await form.getByLabel('Race category', { exact: true }).selectOption('female');
   await form.getByLabel('Contact name', { exact: true }).fill(values.emergencyName!);
   await form
@@ -760,6 +768,7 @@ test.describe('once entries are open', () => {
       lastName: 'Hopper',
       email: 'e2e-raw@example.com',
       emailConfirm: 'e2e-raw@example.com',
+      phone: '0117 496 0100',
       dobDay: '9',
       dobMonth: '12',
       dobYear: '1986',
@@ -1005,6 +1014,57 @@ test.describe('once entries are open', () => {
     await page.locator('[data-entry-summary-link="firstName"]').click();
 
     await expect(entry(page).getByLabel('First name', { exact: true })).toBeFocused();
+  });
+
+  test("keeps the runner's own number apart from the emergency contact's", async ({
+    page,
+  }) => {
+    // **The eighteenth field, and the failure it is laid out to avoid** — ADR-025, #168. Two
+    // phone boxes on one page are the likeliest pair on this form to be filled in the wrong
+    // way round, and the defence is distance: the runner's own number is in *Your details*
+    // with the other two ways of reaching them, and the emergency contact's is four fieldsets
+    // down under a legend that says whose it is.
+    //
+    // **Filling in a wrong number is not a failure this can catch.** What it can catch is the
+    // two boxes being wired to one another — a label that matches both, a `name` collision, a
+    // Worker echoing one value into the other on a bounce — which is what would make the
+    // separation cosmetic.
+    await page.goto(YEAR);
+    await fillEntry(page, { firstName: '   ' });
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+
+    // Echoed back after the 422, each into its own box. This is the assertion: a form that
+    // crossed the two would come back with the same number twice.
+    await expect(entry(page).locator('#entry-phone')).toHaveValue('0117 496 0100');
+    await expect(
+      entry(page).getByLabel('Contact phone number', { exact: true }),
+    ).toHaveValue('0117 496 0000');
+  });
+
+  test("will not take an entry without the runner's own number", async ({ page }) => {
+    // **Whitespace, not an empty box, and the distinction is the whole reason this passes.**
+    // The input carries `required` and the form has no `novalidate`, so a browser refuses to
+    // submit an empty one at all — nothing is posted, no message is rendered, and the test
+    // times out against a form that is working correctly. Three spaces satisfy `required` and
+    // are refused by the `.trim()` in `nnEntrySchema`, which is the rule actually under test.
+    // Every other test on this form does the same for the same reason.
+    await page.goto(YEAR);
+    await fillEntry(page, { phone: '   ' });
+    await page.getByRole('button', { name: 'Continue to payment' }).click();
+
+    // **"your own" is the whole message**, for the reason above.
+    await expect(page.locator('[data-entry-error="phone"]')).toContainText(
+      'Enter your own phone number.',
+    );
+    await expect(entry(page).locator('#entry-phone')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+
+    // And it is in the summary, in the order somebody meets it scrolling down — which is what
+    // `NN_ENTRY_FIELDS` decides and what the link has to agree with.
+    await page.locator('[data-entry-summary-link="phone"]').click();
+    await expect(entry(page).locator('#entry-phone')).toBeFocused();
   });
 
   test('marks the date of birth as one question, not three', async ({ page }) => {
@@ -1543,6 +1603,7 @@ test.describe('when the race is full', () => {
       lastName: 'Hopper',
       email: 'e2e-soldout-2@example.com',
       emailConfirm: 'e2e-soldout-2@example.com',
+      phone: '0117 496 0100',
       dobDay: '9',
       dobMonth: '12',
       dobYear: '1986',

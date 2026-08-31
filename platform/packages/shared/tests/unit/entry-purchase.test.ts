@@ -25,6 +25,10 @@ const ENTRY: NnEntry = {
   genderIdentity: 'Woman',
   club: "O'Sullivan Runners",
   feeCode: 'affiliated',
+  // **The runner's own number, deliberately different from the emergency contact's below.**
+  // A fixture where the two agree cannot catch them being mapped onto the wrong column, which
+  // is the failure this test exists to see. ADR-025.
+  phone: '0117 496 0100',
   emergencyName: 'Margaret Hamilton',
   emergencyPhone: '0117 496 0000',
   medicalNotes: 'Type 1 diabetic.',
@@ -47,6 +51,9 @@ describe('one runner, in the column names the database uses', () => {
       // that carried only the first would silently drop what somebody typed.
       gender_identity: 'Woman',
       club: "O'Sullivan Runners",
+      // Two numbers, two columns, and the fixture gives them different values so that a
+      // payload mapping one onto the other fails here rather than on a start list.
+      phone: '0117 496 0100',
       emergency_contact_name: 'Margaret Hamilton',
       emergency_contact_phone: '0117 496 0000',
       leg: null,
@@ -116,13 +123,16 @@ describe('the guide, in the same column names', () => {
       // this person without it: a runner is reachable through the address that paid, and a
       // guide has no purchase of their own.
       email: 'katherine@example.com',
-      // **Four nulls, and each is null for a reason rather than because the form did not
+      // **Five nulls, and each is null for a reason rather than because the form did not
       // ask.** `gender` is the race category and a guide is in none — asking was collecting an
       // answer nothing could use; `gender_identity` and `club` derive nothing for somebody in
-      // no category either; `leg` is a paired-race field on a solo race.
+      // no category either; `leg` is a paired-race field on a solo race; and `phone` is a
+      // third way of reaching somebody who has already given two — ADR-025 requires one of a
+      // runner and asks it of nobody else.
       gender: null,
       gender_identity: null,
       club: null,
+      phone: null,
       leg: null,
       emergency_contact_name: 'Dorothy Vaughan',
       emergency_contact_phone: '0117 496 0001',

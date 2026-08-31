@@ -85,6 +85,11 @@ function entrant(): Record<string, unknown> {
     gender: 'female',
     emergency_contact_name: 'Grace Hopper',
     emergency_contact_phone: '07700 900000',
+    // The runner's own number, which `create_pending_purchase()` has required of a
+    // runner since ADR-025 and refuses with `phone_required` without. Deliberately not
+    // the emergency contact's: a fixture where the two agree cannot catch the two being
+    // read the wrong way round.
+    phone: '07700 900001',
     role: 'runner',
   };
 }
