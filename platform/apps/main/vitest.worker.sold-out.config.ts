@@ -1,5 +1,8 @@
 import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
+// Imported rather than restated, so the binding and the digest `openEntries()` installs
+// cannot drift apart. This file runs in ordinary Node; only the value crosses into `workerd`.
+import { ENTRY_KEY } from './tests/entry-key-fixture';
 
 /**
  * The worker tests that need the race to be **full**.
@@ -29,6 +32,12 @@ export default defineConfig({
           // which is the assertion "the database refuses before any money is involved" is
           // actually made of.
           STRIPE_API_BASE: 'http://127.0.0.1:8799',
+          // **Bound for the same reason the Stripe key is: so the refusal under test is the
+          // one this file is named after.** Without it the Worker stops at "not connected
+          // yet" — a 503 — before it ever asks the database, and the sold-out assertion below
+          // would pass on a submission that never reached capacity at all. The digest is
+          // installed by `openEntries()` in this run's global setup. ADR-026, issue #178.
+          ENTRIES_ENTRY_KEY: ENTRY_KEY,
         },
       },
     }),

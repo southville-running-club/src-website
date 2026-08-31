@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * Every rule the club has, tested by **attempting the bypass** rather than by reading the
@@ -155,6 +156,10 @@ async function makeEvent(
 }
 
 beforeAll(async () => {
+  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // which refuses everything. Installing it is what makes this file's fixtures able to
+  // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
+  await installEntryKey(db);
   await removeFixtures();
   await makeEvent(OPEN);
   await makeEvent(NO_AGE, { minimumAge: null });
@@ -250,6 +255,7 @@ async function create(
   options: CreateOptions = {},
 ): Promise<{ data: Record<string, unknown> | null; errorCode: string | undefined }> {
   const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+    p_key: ENTRY_KEY,
     p_slug: slug,
     p_fee_code: options.feeCode ?? 'unaffiliated',
     p_purchaser_name: 'Ada O’Brien',
@@ -780,6 +786,7 @@ describe('what this slice deliberately left exactly as it was', () => {
     // `PGRST202` is PostgREST saying no function of that name takes those arguments. It is the
     // signature doing the work, which is the strongest form this rule can take.
     const { error } = await anon.schema('entries').rpc('create_pending_purchase', {
+      p_key: ENTRY_KEY,
       p_slug: OPEN,
       p_fee_code: 'unaffiliated',
       p_purchaser_name: 'Ada',
@@ -792,6 +799,166 @@ describe('what this slice deliberately left exactly as it was', () => {
     } as never);
 
     expect(error?.code).toBe('PGRST202');
+  });
+
+  it('will not hold a place for the published key alone, which is what #178 was', async () => {
+    // **The bypass this file exists for, and the one that could have taken race day down.**
+    // `create_pending_purchase()` is granted to anon and must stay granted — a signed-out
+    // runner reaches PostgREST as anon — and it holds a place *before* any money moves, with
+    // a live hold counting against the 250. So until 31 August 2026 this loop, with nothing
+    // but the key printed in every page's source, took the whole field in half a second for
+    // nothing: measured at 249 holds in 0.5s, and the next real runner refused `sold_out`.
+    // Cloudflare's rate-limiting rule never saw it, because PostgREST is not the Worker.
+    //
+    // **Asserted as the specific refusal, not merely as a failure.** A broken function refuses
+    // everything, which reads as every rule holding at once — the house rule this whole file
+    // is written under. `unauthorised` is the key check and nothing else. ADR-026.
+    const attempts = await Promise.all(
+      [1, 2, 3, 4, 5].map((n) =>
+        anon.schema('entries').rpc('create_pending_purchase', {
+          p_slug: OPEN,
+          p_fee_code: 'unaffiliated',
+          p_purchaser_name: `Flood ${n}`,
+          p_purchaser_email: `flood${n}@example.com`,
+          // The serial on the surname is `entrant()`'s own, and it is what lets five
+          // submissions be five different people — one runner, one place is keyed on name
+          // and date of birth, so five identical fixtures could not all be held even if the
+          // key were right, and the test would pass for the wrong reason.
+          p_entrants: [entrant()],
+          p_medical: [null],
+          p_consents: { entryTerms: true },
+        }),
+      ),
+    );
+
+    for (const { data, error } of attempts) {
+      expect(error).toBeNull();
+      expect(data).toMatchObject({ ok: false, reason: 'unauthorised' });
+    }
+
+    // **And nothing was held**, which is the half that matters. A refusal that still consumed
+    // a place would be the same denial of service wearing a different answer.
+    const [held] = await query<{ count: string }>(
+      `select count(*) as count
+         from entries.entry_purchases as purchase
+         join entries.events as event on event.id = purchase.event_id
+        where event.slug = $1 and purchase.purchaser_email like 'flood%@example.com'`,
+      [OPEN],
+    );
+
+    expect(held?.count).toBe('0');
+  });
+
+  it('will not hold a place for a wrong key either, and says the same thing', async () => {
+    // **A wrong key and no key answer identically**, so the response cannot be used to learn
+    // whether a digest is installed at all.
+    const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+      p_key: `${ENTRY_KEY}-wrong`,
+      p_slug: OPEN,
+      p_fee_code: 'unaffiliated',
+      p_purchaser_name: 'Ada',
+      p_purchaser_email: 'ada-wrong-key@example.com',
+      p_entrants: [entrant()],
+      p_medical: [null],
+      p_consents: { entryTerms: true },
+    });
+
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: false, reason: 'unauthorised' });
+  });
+
+  it('refuses the key before it discloses anything else about the event', async () => {
+    // **Ordering, asserted.** The key is checked before the slug is looked up, so a caller
+    // without one cannot use this function to find out which events exist, whether entries
+    // are open, or how many places are left. A slug nobody created still answers
+    // `unauthorised` rather than `no_such_event`.
+    const { data } = await anon.schema('entries').rpc('create_pending_purchase', {
+      p_slug: 'zz-no-such-event-at-all',
+      p_fee_code: 'unaffiliated',
+      p_purchaser_name: 'Ada',
+      p_purchaser_email: 'ada-probe@example.com',
+      p_entrants: [entrant()],
+      p_medical: [null],
+      p_consents: { entryTerms: true },
+    });
+
+    expect(data).toMatchObject({ ok: false, reason: 'unauthorised' });
+  });
+
+  it('refuses every hold while the digest is null, which is the state it ships in', async () => {
+    // **The safe direction, and the one design decision here that could have gone the other
+    // way.** Treating a null digest as "not armed yet, allow" would have kept the deployed
+    // Worker working through the deploy — and left #178 open on any day somebody forgot the
+    // secret, with a forgotten install looking exactly like a working one. Everything in this
+    // repository fails towards taking no money, so a null digest refuses everything.
+    //
+    // **Inside a transaction that rolls back**, because the files in this run share one
+    // database: clearing the row outright would take the door out from under whatever else is
+    // mid-fixture. The row lock makes any concurrent installer wait rather than see this.
+    // Called through the privileged connection rather than PostgREST for the same reason —
+    // an HTTP call could not join this transaction.
+    await query('begin');
+    try {
+      await query(
+        `update entries.webhook_secrets set key_sha256 = null where name = 'entry'`,
+      );
+
+      const rows = await query<{ result: { ok: boolean; reason?: string } }>(
+        `select entries.create_pending_purchase(
+           $1, 'unaffiliated', 'Ada', 'null-digest@example.com',
+           $2::jsonb, null, $3::jsonb, p_key => $4
+         ) as result`,
+        [
+          OPEN,
+          JSON.stringify([entrant()]),
+          JSON.stringify({ entryTerms: true }),
+          ENTRY_KEY,
+        ],
+      );
+
+      // **The correct key, and it is still refused** — which is the whole assertion. Nothing
+      // a caller presents can matter while the club has installed nothing to compare it to.
+      expect(rows[0]?.result).toEqual({ ok: false, reason: 'unauthorised' });
+    } finally {
+      await query('rollback');
+    }
+  });
+
+  it('will not hold a place that costs nothing, whatever the key', async () => {
+    // **The other half of #178, and the rule that was only ever in TypeScript.** The Worker
+    // refuses a £0 fee before it calls, so a caller that never meets the Worker never met the
+    // rule — and a free place is one Stripe cannot take a payment for, so it could only ever
+    // sit out of the 250 until it lapsed. Now the database refuses it too, before writing.
+    //
+    // **`vi_guide` deliberately keeps its price and its place in `entry_state()`** — the fee
+    // was not gated, because a gate would close nothing the key does not and would retire the
+    // Worker's own free-place backstop with it. See ADR-026.
+    //
+    // `makeEvent` builds the two fees every other test here needs, so the free one is made
+    // where it is used rather than given to every fabricated event — a £0 fee on all of them
+    // would change what `entry_state()` returns for tests that have nothing to do with this.
+    await query(
+      `insert into entries.fees (event_id, code, label, price_pence, affiliated)
+       select event.id, 'vi_guide', 'VI guide', 0, false
+         from entries.events as event
+        where event.slug = $1
+       on conflict (event_id, code) do nothing`,
+      [OPEN],
+    );
+
+    const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+      p_key: ENTRY_KEY,
+      p_slug: OPEN,
+      p_fee_code: 'vi_guide',
+      p_purchaser_name: 'Grace Hopper',
+      p_purchaser_email: 'free-place@example.com',
+      p_entrants: [entrant()],
+      p_medical: [null],
+      p_consents: { entryTerms: true },
+    });
+
+    expect(error).toBeNull();
+    expect(data).toMatchObject({ ok: false, reason: 'free_place' });
   });
 
   it('still refuses every table to the anon role, which is the assertion that outlives slices', async () => {

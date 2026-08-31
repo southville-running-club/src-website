@@ -45,6 +45,17 @@ import type { NnEntry, NnEntryGuide } from './nn-entry';
  * and `.catch()` is what makes that true without a second code path.
  */
 export const PENDING_PURCHASE_REASONS = [
+  // **First on the list because it is checked first**, before the slug is even looked up.
+  // `create_pending_purchase()` is granted to anon — a signed-out runner reaches PostgREST as
+  // anon, so it has to be — and the entry key is the only thing separating the Worker from a
+  // script holding the published key. See ADR-026 and issue #178.
+  //
+  // **Always drift when it reaches a deployed Worker**, in one of two ways, and both are
+  // operational rather than a bad submission: the secret is not installed (so no key is being
+  // sent), or the digest in `entries.webhook_secrets` does not match the one that is. The
+  // Worker refuses to call at all when the binding is missing, so this arriving means the two
+  // disagree about the *value* — which no runner can fix and no retry can help.
+  'unauthorised',
   'no_such_event',
   'closed',
   'sold_out',
@@ -90,6 +101,12 @@ export const PENDING_PURCHASE_REASONS = [
   // using another address fixes it. See `20260830160000_entries_one_place_per_email.sql` for
   // the decision, and for what it costs the couple entering on one card.
   'email_already_entered',
+  // **A total of zero, which Stripe cannot take a payment for.** The Worker refuses a £0 fee
+  // before it calls, and catches a 100% discount code on the way back, so this is the database
+  // saying the same thing to a caller that never met the Worker — and, on the Worker's own
+  // path, the earlier and cheaper of the two: no place is held at all now, where the discount
+  // backstop used to let one lapse on its own. It is rendered as the same page either way.
+  'free_place',
   'unknown',
 ] as const;
 
@@ -212,6 +229,16 @@ export interface NnPendingPurchaseInput {
   slug: string;
   entry: NnEntry;
   /**
+   * The entry key — `ENTRIES_ENTRY_KEY`, a Worker secret.
+   *
+   * **Required rather than optional, so a caller cannot forget it.** Holding a place is
+   * refused without it since ADR-026, and a call that omitted it would compile, deploy, and
+   * fail only at the moment somebody pressed the button. The Worker checks the binding exists
+   * before it builds this at all — see `worker/nn-entry.ts` — so by the time a value is here
+   * it is a real one.
+   */
+  entryKey: string;
+  /**
    * Overrides the code on the entry itself. Present because the preview and the real call
    * must send **the same** code — a page that priced one code and charged against another
    * would be a page that lied about the total.
@@ -262,6 +289,11 @@ function nnPendingPurchaseArgs(input: NnPendingPurchaseInput): CreatePendingPurc
     // absent when there is no code, which is also what lets the function's own `default null`
     // apply.
     ...(discountCode ? { p_discount_code: discountCode } : {}),
+    // **Built here rather than at either call site, which is the point of this builder.** The
+    // preview and the real call must present the same key as well as the same code: a preview
+    // that priced without one would answer `unauthorised` and send a person to a "something
+    // went wrong" page for an entry that was perfectly good.
+    p_key: input.entryKey,
   };
 }
 

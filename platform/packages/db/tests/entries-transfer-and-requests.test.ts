@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * The transfer that reported an outage, and the reason somebody gives for asking.
@@ -198,6 +199,10 @@ let newRunner: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
+  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // which refuses everything. Installing it is what makes this file's fixtures able to
+  // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
+  await installEntryKey(db);
   await removeFixtures();
   await query('delete from auth.users where email = any($1::text[])', [PEOPLE_EMAILS]);
 
@@ -276,6 +281,7 @@ async function create(
   options: CreateOptions = {},
 ): Promise<{ data: Record<string, unknown> | null; errorCode: string | undefined }> {
   const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+    p_key: ENTRY_KEY,
     p_slug: options.slug ?? EVENT,
     p_fee_code: options.feeCode ?? 'unaffiliated',
     p_purchaser_name: 'Ada O’Brien',

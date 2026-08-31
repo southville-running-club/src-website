@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * The `nn-tester` role, the permission-gated fee, the entry that belongs to somebody, and
@@ -224,6 +225,10 @@ let canceller: { id: string; client: SupabaseClient };
 
 beforeAll(async () => {
   await connected;
+  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // which refuses everything. Installing it is what makes this file's fixtures able to
+  // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
+  await installEntryKey(db);
   await removeFixtures();
 
   await makeEvent(PRE_OPEN);
@@ -325,6 +330,7 @@ async function attemptEntry(
   } = options;
 
   const { data, error } = await client.schema('entries').rpc('create_pending_purchase', {
+    p_key: ENTRY_KEY,
     p_slug: slug,
     p_fee_code: feeCode,
     p_purchaser_name: 'Ada O’Brien',

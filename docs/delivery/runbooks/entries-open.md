@@ -48,6 +48,7 @@ that cannot be undone by closing entries again afterwards.
 | **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). The first real payment must not be a stranger's |
 | ~~**The entry terms have not been written**~~ | **Met.** Published 28 August 2026 at [`/nn/2026/terms/`](https://new.southvillerunningclub.co.uk/nn/2026/terms/) and linked from the acceptance checkbox — #142. The race director's copy, verbatim. **The committee has not ratified it**, which is why the page says "Supplied by the race director" rather than claiming otherwise; that is a known state, not a blocker |
 | **Nobody has restored a backup** | [#23 item 2](https://github.com/southville-running-club/src-website/issues/23). The rows about to arrive include dates of birth, emergency contacts and — under separate consent — medical notes |
+| **`ENTRIES_ENTRY_KEY` is not installed and verified** | [Step 0.8](#08--the-entry-key-must-be-installed-and-verified). Without it every entry is refused; **with the window open and the key absent from the database, anybody can take all 250 places for nothing in half a second.** This is [#178](https://github.com/southville-running-club/src-website/issues/178) and it is the one stop condition on this page that is a live vulnerability rather than a missing preparation |
 
 ---
 
@@ -362,6 +363,66 @@ for.
       the race. Reverting to free in early October puts both back under 100/day. Either put a
       reminder in the calendar for the week of 26 October, or decide now to keep it paid
       through race day
+
+### 0.8 — the entry key must be installed and verified
+
+> **⚙️ Ops**
+
+**[#178](https://github.com/southville-running-club/src-website/issues/178) and
+[ADR-026](../../architecture/decisions/adr-026-holding-a-place-takes-a-key.md). This is the
+step that must not be done out of order.**
+
+`entries.create_pending_purchase()` is granted to the anon role — a signed-out runner reaches
+PostgREST as anon, so it has to be — and it holds a place **before** any money moves, with a
+live hold counting against the 250. The key is the only thing separating the Worker from a
+script holding the key printed in every page's source. Without it, a loop takes the whole field
+in half a second, for nothing, and Cloudflare's C1 never sees it because PostgREST is not the
+Worker.
+
+⚠️ **Install and verify before [step 3](#step-3--schedule-the-opening) sets `entries_open_at`,
+never after.** The other order is a window that is open and unprotected, which is the whole of
+#178. The digest ships **null**, which refuses every hold — so until this step is done, entries
+cannot be taken at all, and that is the safe direction rather than a fault.
+
+**1. Mint a key.** 32 random bytes, and it goes in the club password store, not in a message:
+
+```bash
+openssl rand -base64 32
+```
+
+**2. Give it to the Worker**, which prompts for the value and stores it in Cloudflare:
+
+```bash
+npx wrangler secret put ENTRIES_ENTRY_KEY --env production
+```
+
+**3. Give the database its digest — the digest, never the key.** Run this in the Supabase SQL
+editor, replacing the placeholder with the key you minted:
+
+```sql
+update entries.webhook_secrets
+   set key_sha256 = encode(sha256(convert_to('PASTE-THE-KEY-HERE', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'entry';
+```
+
+**4. Verify it, with the window still shut.** Grant yourself `nn-tester` as
+[step 2a](#2a--grant-nn-tester-to-whoever-is-rehearsing) describes and submit one entry. It must
+reach Stripe Checkout. **The two failures look different and mean different things:**
+
+| What you see | What it means |
+| --- | --- |
+| *"entries are not being taken online just now"* | The Worker has no `ENTRIES_ENTRY_KEY` bound — step 2 did not take, or the Worker has not redeployed since |
+| *"your entry could not be completed"*, with `create_pending_purchase refused — unauthorised` in the Worker log | The Worker's key and the database's digest **disagree**. Step 3 was run with a different value from step 2 |
+| Stripe Checkout | Done |
+
+**5. Confirm the door is shut to everybody else.** With the window still closed there is nothing
+to prove from outside; the assertion that the key is load-bearing lives in
+`packages/db/tests/entries-rules.test.ts`, which re-attempts the flood anonymously on every run.
+
+**Rotating it later** is the same three commands in the same order — new secret first, digest
+second — and there is a window of seconds between them in which entries are refused. Do it
+outside the entry window if there is any choice.
 
 ---
 

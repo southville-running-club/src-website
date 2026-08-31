@@ -1,5 +1,9 @@
 import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
+// **Imported rather than restated**, so the binding and the digest the global setup installs
+// cannot drift apart. This file runs in ordinary Node — only the *value* crosses into
+// `workerd` — so importing a constants module here is safe where importing `pg` would not be.
+import { ENTRY_KEY } from './tests/entry-key-fixture';
 
 /**
  * The worker tests that need the entry window **open**, and a payment page to hand over to.
@@ -40,6 +44,11 @@ export default defineConfig({
         bindings: {
           STRIPE_SECRET_KEY: 'sk_test_STUB_NOT_A_REAL_KEY_0000000000',
           STRIPE_API_BASE: 'http://127.0.0.1:8789',
+          // **The entry key, and it is the same constant the global setup installs the
+          // digest of** — imported above rather than restated, because two literals that have
+          // to agree are two literals that will not. Holding a place is refused without it
+          // since ADR-026 — issue #178.
+          ENTRIES_ENTRY_KEY: ENTRY_KEY,
         },
       },
     }),

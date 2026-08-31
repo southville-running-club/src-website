@@ -55,8 +55,10 @@ re-run.
   its own — `entry_state()` tests `entries_open_at is null` as an explicit branch before it
   compares anything, so a null open date means *never opens* rather than *no lower bound*.
   **`entries_open_at` is still null, and it is still the switch**: a date in it starts selling
-  250 places unattended, and it is gated on the live Stripe keys being in and the webhook
-  digest having been verified by a real signed event. Neither has happened; the entries-open
+  250 places unattended, and it is gated on the live Stripe keys being in, the webhook
+  digest having been verified by a real signed event, and — since #178 — **`ENTRIES_ENTRY_KEY`
+  being installed and verified first**, because opening the window before that is opening it
+  unprotected. None has happened; the entries-open
   runbook owns that moment and carries the single `update`. So the *times* are quotable
   anywhere; the *column* is a stop-and-ask. Do not invent a fact, do not infer one from a phase
   document, and do not put a plausible placeholder in markup.
@@ -172,8 +174,9 @@ re-run.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
   more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
   `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
-  may. **Three Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
-  `ENTRIES_WEBHOOK_KEY` — never in this repository, never in `wrangler.jsonc`, never in a `vars`
+  may. **Four Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `ENTRIES_WEBHOOK_KEY` and, since #178, `ENTRIES_ENTRY_KEY` without which no place can be held
+  at all — never in this repository, never in `wrangler.jsonc`, never in a `vars`
   block. A real key on a machine belongs in `apps/main/.dev.vars`, which is gitignored.
   **Registering the Stripe dashboard endpoint is still a human's job**, and it is step 5 of
   the manual steps in `apps/main/README.md` (test-mode order; the live-key swap, step 15, is
@@ -1004,8 +1007,9 @@ safe default rather than an arbitrary one**: a page that cannot reach the databa
 offer to take money, so every failure lands on the state that asks for an email address.
 
 **A valid entry holds a place and goes to Stripe Checkout.** One transaction under a
-per-event advisory lock: re-check the window, count the places gone, price it from
-`entries.fees`, write a `pending` purchase with a 31-minute hold. Then a Checkout session for
+per-event advisory lock: **check the entry key**, re-check the window, count the places gone,
+price it from `entries.fees`, refuse a total of zero, write a `pending` purchase with a
+31-minute hold. Then a Checkout session for
 exactly that amount and a 303 to it.
 
 **The Left Handed Giant code exists, is minted by a migration, and is read off `/admin/nn/`.** 10%
@@ -1123,7 +1127,7 @@ surface added:
 | | |
 | --- | --- |
 | **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()` |
-| **The entry path** | `create_pending_purchase()`, `attach_checkout_session()` |
+| **The entry path** | `create_pending_purchase()` — **takes a key**, since #178 — and `attach_checkout_session()` |
 | **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
 | **Payment** | `record_checkout_event()` — **takes a key** |
 | **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
@@ -1296,12 +1300,31 @@ parameter would be a free early entry for anybody who reads the page source. `en
 and `active` are never bypassed. `packages/db/tests/entries-tester.test.ts` re-attempts every one
 of those bypasses anonymously and as a signed-in person holding nothing.
 
-**Six functions take a key, and the key is what makes an anon grant safe.** Without one, two
+**Seven functions take a key, and the key is what makes an anon grant safe.** Without one, two
 ordinary PostgREST calls with the published anon key would buy a free entry, because
 `create_pending_purchase()` issues purchase ids on request — and the five admin reads would hand
 anybody the club's entry list. `ENTRIES_WEBHOOK_KEY` and `ENTRIES_ADMIN_KEY` are **Worker
 secrets**; the database holds only their SHA-256 digests, in `entries.webhook_secrets`, and both
 ship null, which refuses everything.
+
+⚠️ **The seventh arrived on 31 August 2026 and it is `create_pending_purchase()` itself —
+[ADR-026](docs/architecture/decisions/adr-026-holding-a-place-takes-a-key.md), issue #178.** That
+sentence above was always about two halves and only the confirming one was ever built. Holding a
+place is granted to `anon` — it must be, a signed-out runner reaches PostgREST as `anon` — and it
+holds a place *before* any money moves, with a live `pending` hold counting against the 250. So a
+loop with the key printed in every page's source took the whole field in **half a second, for
+nothing**: measured at 249 holds in 0.5s, with the next real runner refused `sold_out`.
+Cloudflare's C1 never saw it, because PostgREST is a different origin from the Worker.
+`ENTRIES_ENTRY_KEY` is the third Worker secret and a **third row** in `webhook_secrets` — one key
+opening two doors is one rotation closing both. **The anon grant list is unchanged at thirteen**;
+what changed is how many of the thirteen demand a key, and `entries.test.ts` asserts that second
+list too. **The digest ships null and refuses everything**, so the entries-open runbook's
+[step 0.8](docs/delivery/runbooks/entries-open.md#08--the-entry-key-must-be-installed-and-verified)
+installs it **before** `entries_open_at` is set — the other order is a window that is open and
+unprotected. **A £0 total is refused in the database too** (`free_place`), which the Worker
+already did and the database did not; `vi_guide` deliberately keeps its price and its place in
+`entry_state()`, because gating the fee would close nothing the key does not and would retire the
+Worker's own free-place backstop with it.
 
 **`delete_expired_medical_notes()` is the one anon-callable function that takes no key, and that
 is deliberate.** It can only delete what `/nn/privacy/` has published a promise to delete, it

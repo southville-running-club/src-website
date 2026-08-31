@@ -1,6 +1,7 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * `entries.create_pending_purchase()` — capacity, price, consent, and the race that matters.
@@ -66,6 +67,14 @@ async function removeFixtures(): Promise<void> {
   );
   await query('delete from entries.events where slug like $1', [`${FIXTURE_PREFIX}%`]);
 }
+
+// **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+// which refuses everything. Installed once rather than per test: it is a property of the
+// database this file talks to, not of any one fixture. Issue #178.
+beforeAll(async () => {
+  await connected;
+  await installEntryKey(db);
+});
 
 beforeEach(removeFixtures);
 
@@ -224,8 +233,12 @@ function call(client: Client, slug: string, options: CallOptions = {}): Promise<
 
   return client
     .query<{ result: Result }>(
+      // **`p_key` by name, after the positional arguments.** It is the tenth parameter, past
+      // `p_preview`, so a positional call would have to state a preview flag it does not care
+      // about in order to reach it. Named notation says what this is instead of counting
+      // commas — and the next parameter added cannot silently shift it. ADR-026.
       `select entries.create_pending_purchase(
-         $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8
+         $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, p_key => $9
        ) as result`,
       [
         slug,
@@ -236,6 +249,7 @@ function call(client: Client, slug: string, options: CallOptions = {}): Promise<
         medical === null ? null : JSON.stringify(medical),
         JSON.stringify(consents),
         discountCode,
+        ENTRY_KEY,
       ],
     )
     .then(({ rows }) => rows[0]!.result);
@@ -729,9 +743,9 @@ describe('how many people one entry may cover', () => {
     const notAList = await query<{ result: Result }>(
       `select entries.create_pending_purchase(
          $1, 'unaffiliated', 'Grace', 'g@example.com',
-         '{"first_name":"Grace"}'::jsonb, null, '{}'::jsonb
+         '{"first_name":"Grace"}'::jsonb, null, '{}'::jsonb, p_key => $2
        ) as result`,
-      [`${FIXTURE_PREFIX}none`],
+      [`${FIXTURE_PREFIX}none`, ENTRY_KEY],
     );
     expect(notAList[0]?.result).toEqual({ ok: false, reason: 'invalid_entrants' });
   });
@@ -1251,6 +1265,7 @@ describe('what an anonymous client can and cannot do after this slice', () => {
     await seedEvent(`${FIXTURE_PREFIX}anon`, { capacity: 5 });
 
     const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+      p_key: ENTRY_KEY,
       p_slug: `${FIXTURE_PREFIX}anon`,
       p_fee_code: 'unaffiliated',
       p_purchaser_name: 'Grace Hopper',

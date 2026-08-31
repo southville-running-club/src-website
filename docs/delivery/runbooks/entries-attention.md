@@ -231,6 +231,54 @@ resend them, which is always the better fix than applying it by hand.
 
 ---
 
+## Holds against payments — the check that finds a field being held hostage
+
+**A flag is raised by the webhook and a reconciliation needs Stripe to have taken money. This
+one needs neither**, because the failure it looks for is places disappearing with **no payment
+attempted at all** — [#178](https://github.com/southville-running-club/src-website/issues/178).
+
+Holding a place takes a key since
+[ADR-026](../../architecture/decisions/adr-026-holding-a-place-takes-a-key.md), so the
+anonymous flood that motivated this check is closed. What is *not* closed is a distributed
+attempt through the Worker, and that is deliberately not solved — see the ADR's consequences.
+So the shape stays worth watching on a busy day.
+
+```sql
+select count(*) filter (where p.status = 'paid')                        as paid,
+       count(*) filter (where p.status = 'pending'
+                          and p.hold_expires_at > now())                as live_holds,
+       count(*) filter (where p.status = 'pending'
+                          and p.hold_expires_at > now()
+                          and p.stripe_checkout_session_id is null)     as holds_never_sent,
+       e.capacity
+  from entries.entry_purchases p
+  join entries.events e on e.id = p.event_id
+ where e.slug = 'nn-2026'
+ group by e.capacity;
+```
+
+**What each column is telling you:**
+
+| | |
+| --- | --- |
+| `live_holds` climbing while `paid` does not | Ordinary on a sell-out morning for a few minutes — people take a while on the payment page. Sustained for more than one hold period, it is not ordinary |
+| `holds_never_sent` more than a handful | **The tell.** A hold with no Checkout session was created and then nothing happened — nobody was ever sent to Stripe. A flood looks exactly like this, and a genuine rush does not |
+| `live_holds + paid` at `capacity` with `paid` low | The field is full of holds nobody is paying for |
+
+**What to do.** Holds lapse on their own after 31 minutes and the five-minute cron releases
+them, so this is a denial of service that has to be *sustained* — it is not permanent damage,
+and there is nothing to undo. Confirm the shape, then look at `/admin/nn/` filtered to **Held**
+to see whether the rows are plausible people. If they are not, this is Cloudflare's problem
+rather than the database's: the rule to reach for is a tighter per-IP limit on `POST /nn/` in
+[the WAF rules](../../reference/cloudflare-waf-rules.md), which now applies to this path
+because the Worker is the only way in.
+
+⚠️ **Do not shorten the 31-minute hold to clear it faster.** It is Stripe's floor rather than
+the club's — the Checkout session's `expires_at` is set to the same timestamp — so cutting it
+makes every real submission in flight fail at once.
+
+---
+
 ## What to do if the webhook is failing entirely
 
 Symptoms: Stripe's delivery log shows 5xx on every attempt, and the club's table shows nothing

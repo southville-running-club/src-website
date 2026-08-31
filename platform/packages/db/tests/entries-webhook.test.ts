@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createHash } from 'node:crypto';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * `entries.record_checkout_event()` — the only thing in this platform that writes `paid`.
@@ -75,6 +76,10 @@ beforeEach(async () => {
     `update entries.webhook_secrets set key_sha256 = $1 where name = 'stripe'`,
     [DIGEST],
   );
+  // **The second key, and this file needs it only to build its fixtures.** Every test here is
+  // about the webhook; what changed on 31 August 2026 is that *holding* the place a webhook
+  // then confirms takes a key of its own. Issue #178, ADR-026.
+  await installEntryKey(db);
 });
 
 afterAll(async () => {
@@ -134,8 +139,9 @@ let entrantSerial = 0;
 
 async function hold(slug: string, email = 'fixture@example.com'): Promise<Created> {
   const rows = await query<{ result: Created | { ok: false; reason: string } }>(
+    // `p_key` by name — it is the tenth parameter, past `p_preview`. See ADR-026.
     `select entries.create_pending_purchase(
-       $1, 'unaffiliated', 'Grace O''Sullivan', $2, $3::jsonb, null, $4::jsonb
+       $1, 'unaffiliated', 'Grace O''Sullivan', $2, $3::jsonb, null, $4::jsonb, p_key => $5
      ) as result`,
     [
       slug,
@@ -155,6 +161,7 @@ async function hold(slug: string, email = 'fixture@example.com'): Promise<Create
         },
       ]),
       JSON.stringify({ entryTerms: true, medical: false }),
+      ENTRY_KEY,
     ],
   );
 
@@ -990,7 +997,8 @@ describe('a revival racing a fresh entry for the last place', () => {
         clients[1]!
           .query<{ result: { ok: boolean; reason?: string } }>(
             `select entries.create_pending_purchase(
-               $1, 'unaffiliated', 'Ada Lovelace', 'fresh@example.com', $2::jsonb, null, $3::jsonb
+               $1, 'unaffiliated', 'Ada Lovelace', 'fresh@example.com', $2::jsonb, null,
+               $3::jsonb, p_key => $4
              ) as result`,
             [
               `${FIXTURE_PREFIX}contend`,
@@ -1006,6 +1014,7 @@ describe('a revival racing a fresh entry for the last place', () => {
                 },
               ]),
               JSON.stringify({ entryTerms: true, medical: false }),
+              ENTRY_KEY,
             ],
           )
           .then(({ rows }) => rows[0]!.result),

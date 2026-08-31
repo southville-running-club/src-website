@@ -459,6 +459,61 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(publicly).toEqual([]);
   });
 
+  it('takes a key on every anon-callable function that would otherwise give something away', async () => {
+    // **The list that says which of the anon grants are actually protected**, and the reason
+    // it exists is #178. The grant list above says what `anon` may *ask*; this says which of
+    // those asks demand a secret the Worker holds and a script does not. A function moving
+    // off this list is a hole opening, and nothing else in the suite would have said so.
+    //
+    // **`create_pending_purchase` is the seventh, and it was the sixth's missing twin.** The
+    // webhook has taken a key since Slice B, on the argument that "two ordinary PostgREST
+    // calls would buy a free race entry" — but only the *confirming* half was ever closed.
+    // Holding a place was not, and holding is what consumes capacity: a loop with the
+    // published anon key took all 250 places in half a second, for nothing, without touching
+    // the Worker or the rate-limiting rule in front of it. ADR-026.
+    const rows = await query<{ routine_name: string }>(
+      `select distinct r.routine_name
+         from information_schema.routine_privileges as r
+         join information_schema.parameters as p
+           on p.specific_name = r.specific_name and p.specific_schema = r.specific_schema
+        where r.routine_schema = 'entries'
+          and r.grantee = 'anon'
+          and p.parameter_name = 'p_key'
+        order by r.routine_name`,
+    );
+
+    expect(rows.map((row) => row.routine_name)).toEqual([
+      'admin_entrant_medical',
+      'admin_entry_list',
+      'admin_export',
+      'admin_interest_list',
+      'admin_sign_in',
+      'claim_outbox_batch',
+      'create_pending_purchase',
+      'record_checkout_event',
+      'record_send_result',
+    ]);
+  });
+
+  it('keeps the entry key in a row of its own, so it rotates apart from the webhook key', async () => {
+    // **A third row rather than a second use of the first**, which the outbox migration
+    // already argued one table along: one key that opens two doors is one rotation that
+    // closes both. The webhook key confirms a payment; the entry key holds a place before
+    // there is a payment at all.
+    //
+    // **The digest is not asserted here, and that is deliberate.** It ships null — which
+    // refuses everything, and is the safe direction a forgotten install must land in — but
+    // the files in this run share one database and several install a test digest for the
+    // length of their own fixtures. Asserting the *value* would make this test depend on
+    // which file ran last. What the null state actually guarantees is proved in
+    // `entries-rules.test.ts`, inside a transaction that rolls back.
+    const rows = await query<{ name: string }>(
+      `select name from entries.webhook_secrets order by name`,
+    );
+
+    expect(rows.map((row) => row.name)).toEqual(['admin', 'entry', 'stripe']);
+  });
+
   it('lets authenticated execute exactly sixteen, and still no table read', async () => {
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to

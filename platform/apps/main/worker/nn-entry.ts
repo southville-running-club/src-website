@@ -115,6 +115,19 @@ import {
 export interface NnEntryEnv extends StripeEnv {
   PUBLIC_SUPABASE_URL: string;
   PUBLIC_SUPABASE_ANON_KEY: string;
+  /**
+   * The entry key — a Worker secret, never in this repository and never in `wrangler.jsonc`.
+   *
+   * **What separates the Worker from a script holding the published anon key.**
+   * `entries.create_pending_purchase()` is granted to anon because a signed-out runner reaches
+   * PostgREST as anon; without a secret in the request, that grant is 250 places to anybody
+   * who reads the page source. See ADR-026 and issue #178.
+   *
+   * **Optional in the type and required in practice**, the same shape `STRIPE_SECRET_KEY`
+   * has: unbound is a real deployment state — "not connected yet" — rather than a bug, and it
+   * is answered before a place is held rather than after.
+   */
+  ENTRIES_ENTRY_KEY?: string;
 }
 
 /**
@@ -663,6 +676,15 @@ function refusalOutcome(
     return { status: 'closed' };
   }
 
+  // **The same page as a £0 fee, because it is the same fact.** The Worker refuses a free fee
+  // before it calls at all, so this arrives from the two routes that check cannot see: a
+  // discount code that took a real price to nothing, and a fee whose price changed after the
+  // page was served. The database refuses before writing now, so — unlike the old
+  // `amountPence === 0` backstop below the call — **no place is held and none has to lapse**.
+  if (reason === 'free_place') {
+    return { status: 'free', submitted };
+  }
+
   // **Not a defect, and one of the two refusals on this path that are somebody's ordinary
   // mistake.** `create_pending_purchase()` refuses a runner who already holds a live place on
   // this event, keyed on name and date of birth — and since the guide rides on the same
@@ -713,6 +735,12 @@ function refusalOutcome(
   // below the minimum — is something `parseNnEntry` should already have caught. That it did
   // not means the schema module and the database have **drifted**, which is a defect rather
   // than a bad submission, so it is logged as one and answered honestly.
+  //
+  // **`unauthorised` lands here too, and it is the one that is not drift but deployment.** The
+  // binding is checked before the call, so this can only mean the key the Worker holds and the
+  // digest in `entries.webhook_secrets` disagree about the value — nobody entering can fix it
+  // and no retry will help. `docs/delivery/runbooks/entries-open.md` is where it is installed.
+  // The log line is what names it, because the page cannot say more than "this failed".
   console.error(`entries.create_pending_purchase refused — ${reason}`);
   return { status: 'failed', submitted };
 }
@@ -858,6 +886,19 @@ export async function processNnEntry(
     return { status: 'not-taken', submitted };
   }
 
+  // **Checked here for the same reason the Stripe key is, and rendered as the same page.**
+  // Without the entry key the database refuses to hold a place at all, so calling anyway would
+  // turn a known deployment state into `unauthorised` — a refusal that reads as a defect,
+  // gets logged as one, and tells the person their entry failed. Nothing has been stored and
+  // nothing has been charged, which is exactly what `not-taken` says. See ADR-026.
+  const entryKey = env.ENTRIES_ENTRY_KEY?.trim();
+  if (entryKey === undefined || entryKey === '') {
+    console.error(
+      'entries.create_pending_purchase called with no ENTRIES_ENTRY_KEY bound',
+    );
+    return { status: 'not-taken', submitted };
+  }
+
   // **The same client the view was resolved with.** A tester whose form was revealed by
   // `my_permissions()` and whose purchase then went through an anon client would be refused
   // by `create_pending_purchase()` with `closed` — the form on screen and the control behind
@@ -896,7 +937,11 @@ export async function processNnEntry(
   const confirmedCode = typeof confirmedFor === 'string' ? confirmedFor.trim() : '';
 
   if (parsed.value.discountCode !== null && confirmedCode !== parsed.value.discountCode) {
-    const priced = await priceNnEntry(client, { slug: eventSlug, entry: parsed.value });
+    const priced = await priceNnEntry(client, {
+      slug: eventSlug,
+      entry: parsed.value,
+      entryKey,
+    });
 
     if (priced.status === 'refused') {
       return refusalOutcome(priced.reason, submitted, viewer !== null);
@@ -918,6 +963,7 @@ export async function processNnEntry(
   const outcome = await createNnPendingPurchase(client, {
     slug: eventSlug,
     entry: parsed.value,
+    entryKey,
   });
 
   if (outcome.status === 'unavailable') {
@@ -933,9 +979,13 @@ export async function processNnEntry(
 
   const { purchase } = outcome;
 
-  // The backstop for the free case above: a hundred-per-cent discount code would zero a fee
-  // that is not itself free, and it would only be visible here. A place is held by this
-  // point and it lapses on its own.
+  // **Unreachable since ADR-026, and kept as the third lock rather than deleted.** The
+  // database refuses a zero total with `free_place` before it writes anything, so a
+  // hundred-per-cent discount code is now answered above with no place held — where this
+  // branch used to let one be held and lapse on its own. What keeps it here is that it is the
+  // only one of the three that does not depend on the migration having landed: if this Worker
+  // ever runs against a database without it, a free entry is still refused rather than sent to
+  // a Checkout session Stripe will not create. If it fires, the log line below is the tell.
   if (purchase.amountPence === 0) {
     console.error('entries.create_pending_purchase priced an entry at zero');
     return { status: 'free', submitted };

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
+import { ENTRY_KEY, installEntryKey } from './entry-key';
 
 /**
  * A guide rides on the runner's entry, and takes one of the places.
@@ -116,6 +117,7 @@ async function enter(
   serial += 1;
 
   const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+    p_key: ENTRY_KEY,
     p_slug: EVENT,
     p_fee_code: feeCode,
     p_purchaser_name: 'Ada Guided',
@@ -140,6 +142,10 @@ async function removeFixtures(): Promise<void> {
 
 beforeAll(async () => {
   await connected;
+  // **Holding a place takes the entry key since ADR-026**, and the digest ships null —
+  // which refuses everything. Installing it is what makes this file's fixtures able to
+  // hold a place at all; without it every call below answers `unauthorised`. Issue #178.
+  await installEntryKey(db);
   await removeFixtures();
 
   const event = await single<{ id: string }>(
