@@ -1,6 +1,6 @@
 import { claimOutboxBatch, createAnonClient, recordSendResult } from '@src/shared';
 
-import { sendOutboxMessage, type EmailConfig } from './email';
+import { fetchBannerAttachment, sendOutboxMessage, type EmailConfig } from './email';
 
 /**
  * Draining the email outbox — #73, and the job that actually tells a runner they have a place.
@@ -39,6 +39,8 @@ export interface EmailOutboxEnv {
   ENTRIES_WEBHOOK_KEY?: string;
   RESEND_API_KEY?: string;
   RESEND_API_BASE?: string;
+  /** Read once per run to attach the banner as a CID image — see `fetchBannerAttachment()`. */
+  ASSETS: Fetcher;
 }
 
 /** How many to attempt per run. Five minutes apart, this is 120 an hour if there is capacity. */
@@ -84,9 +86,20 @@ export async function drainEmailOutbox(env: EmailOutboxEnv): Promise<void> {
     return;
   }
 
+  // **Once per batch, not once per message.** Every send in this run wants the same file, and
+  // base64-encoding a 142KB PNG for each of up to ten messages would be pure waste. `null` on
+  // any failure — the outbox drain does not stop for a missing image, and every send below is
+  // written to cope with either shape.
+  const bannerAttachment = await fetchBannerAttachment(env.ASSETS);
+
+  if (bannerAttachment === null) {
+    console.warn('entries: banner attachment unavailable this run; sending without it');
+  }
+
   const config: EmailConfig = {
     apiKey: env.RESEND_API_KEY,
     apiBase: env.RESEND_API_BASE ?? 'https://api.resend.com',
+    bannerAttachment,
   };
 
   let sent = 0;

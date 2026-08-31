@@ -37,7 +37,7 @@
  */
 
 import { formatPence, type OutboxMessage } from '@src/shared';
-import { renderEntryEmailHtml } from './email-skin';
+import { renderEntryEmailHtml, BANNER_CONTENT_ID } from './email-skin';
 
 /** What the Worker needs before it can send anything at all. */
 export interface EmailConfig {
@@ -51,6 +51,89 @@ export interface EmailConfig {
    * living in `wrangler.jsonc` so there is no path by which it reaches a deployed Worker.
    */
   apiBase: string;
+  /**
+   * `null` when `fetchBannerAttachment()` could not read the file this run — a message must
+   * still send, so every send is written to cope with either shape rather than to assume the
+   * banner exists. Fetched once per drain batch by `email-outbox.ts`, not once per message:
+   * it is the same file for every send in the batch, and base64-encoding a 142KB PNG ten
+   * times over a five-minute cron would be pure waste.
+   */
+  bannerAttachment: BannerAttachment | null;
+}
+
+/** One inline image, shaped for Resend's `attachments` field. */
+export interface BannerAttachment {
+  filename: string;
+  /** Base64, no `data:` prefix — Resend's own field, not a browser `<img>` `src`. */
+  content: string;
+  contentType: string;
+  contentId: string;
+}
+
+/**
+ * Reads the banner PNG from the Worker's own static-assets binding and returns it ready to
+ * attach — never throws, and `null` on any failure, because a missing banner must degrade to
+ * a card with no banner row rather than block the confirmation a runner is waiting for.
+ *
+ * **Fetched from `ASSETS`, not a remote URL.** ADR-026 closed the open-tracker question this
+ * way: the banner ships as part of the message rather than as an `https://` reference, so no
+ * mail client ever makes an HTTP request to render it, and there is nothing for that request
+ * to disclose. `card()` in `email-skin.ts` references it as `cid:${BANNER_CONTENT_ID}` — the
+ * two constants have to name the same file, which is why `BANNER_CONTENT_ID` is imported
+ * rather than restated here.
+ *
+ * The host in the request URL is never resolved — `ASSETS.fetch()` serves the Worker's own
+ * bundled files by path alone, the same binding `worker/index.ts`'s `nnPage()` reads through
+ * for an internal request with nothing to build a real origin from.
+ */
+export async function fetchBannerAttachment(
+  assets: Fetcher,
+): Promise<BannerAttachment | null> {
+  let response: Response;
+
+  try {
+    response = await assets.fetch(
+      new Request('https://assets.internal/nn-email-banner-1080x566.png'),
+    );
+  } catch {
+    return null;
+  }
+
+  if (!response.ok) {
+    return null;
+  }
+
+  let bytes: ArrayBuffer;
+
+  try {
+    bytes = await response.arrayBuffer();
+  } catch {
+    return null;
+  }
+
+  return {
+    filename: 'nn-email-banner-1080x566.png',
+    content: base64(bytes),
+    contentType: 'image/png',
+    contentId: BANNER_CONTENT_ID,
+  };
+}
+
+/**
+ * A byte-at-a-time loop rather than `String.fromCharCode(...bytes)` — the spread form
+ * overflows the call stack on a buffer this size in some engines. `btoa` is a Web standard
+ * available without `nodejs_compat`'s `Buffer`, which nothing in `worker/` has needed before
+ * this and which this file's own header argues against reaching for a dependency to avoid.
+ */
+function base64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary);
 }
 
 /**
@@ -94,7 +177,7 @@ interface RenderedEmail {
  * every template is written to read correctly with no name, rather than greeting somebody as
  * "Hello ,".
  */
-function render(message: OutboxMessage): RenderedEmail | null {
+function render(message: OutboxMessage, hasBanner: boolean): RenderedEmail | null {
   const greeting =
     message.entrantFirstName === null ? 'Hello,' : `Hello ${message.entrantFirstName},`;
 
@@ -124,7 +207,7 @@ function render(message: OutboxMessage): RenderedEmail | null {
   // built.** The HTML part reads the same `OutboxMessage` the text part does — never the
   // text's own output — so the two can never state different facts and only ever differ in
   // presentation.
-  const html = renderEntryEmailHtml(message);
+  const html = renderEntryEmailHtml(message, hasBanner);
 
   switch (message.template) {
     case 'entry_confirmed':
@@ -235,7 +318,7 @@ export async function sendOutboxMessage(
   config: EmailConfig,
   message: OutboxMessage,
 ): Promise<SendOutcome> {
-  const rendered = render(message);
+  const rendered = render(message, config.bannerAttachment !== null);
 
   if (rendered === null) {
     return {
@@ -259,10 +342,12 @@ export async function sendOutboxMessage(
         // before recording it. Belt and braces, and the braces are free.
         'idempotency-key': `outbox:${message.id}`,
       },
-      // `html` is omitted rather than sent as `null` — Resend's own examples never show a
-      // null field, and an absent key is unambiguous where a null one would need guessing
-      // about. `rendered.html` is only ever null for a template `email-skin.ts` does not
-      // know, which `render()` above already refuses before this call is reached.
+      // `html` and `attachments` are both omitted rather than sent as `null` — Resend's own
+      // examples never show a null field, and an absent key is unambiguous where a null one
+      // would need guessing about. `rendered.html` is only ever null for a template
+      // `email-skin.ts` does not know, which `render()` above already refuses before this
+      // call is reached; `config.bannerAttachment` is null whenever this run could not read
+      // the file, in which case `rendered.html` was built with no banner row to attach for.
       body: JSON.stringify({
         from: FROM,
         to: [message.recipient],
@@ -270,6 +355,18 @@ export async function sendOutboxMessage(
         subject: rendered.subject,
         text: rendered.text,
         ...(rendered.html === null ? {} : { html: rendered.html }),
+        ...(config.bannerAttachment === null
+          ? {}
+          : {
+              attachments: [
+                {
+                  filename: config.bannerAttachment.filename,
+                  content: config.bannerAttachment.content,
+                  content_type: config.bannerAttachment.contentType,
+                  content_id: config.bannerAttachment.contentId,
+                },
+              ],
+            }),
       }),
       // Shorter than the refund's twenty seconds and longer than Checkout's ten: nobody is
       // waiting on this, but a cron that hangs on a provider outage is a cron that stops

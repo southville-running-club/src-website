@@ -78,16 +78,14 @@ const SERIF_VALUE = 'Georgia, serif';
 const MONO = "'Courier New', Courier, monospace";
 
 /**
- * A stable absolute URL for the campaign banner, matching the pattern the account-entries link
- * two lines below already uses — a literal, because there is no site-origin binding a Worker
- * can read (`wrangler.jsonc` has none) and the alternative is a config change well beyond this
- * slice.
- *
- * **The file itself still needs committing to `public/` before this URL resolves.** That is a
- * separate, deliberate step — see `apps/main/README.md`.
+ * The banner ships as a CID attachment, not a remote URL — ADR-026's own open-tracker question
+ * closed this way: an attachment that is already part of the message needs no HTTP fetch to
+ * render, so there is nothing for a mail client's request to disclose. `email.ts`'s
+ * `fetchBannerAttachment()` reads the same file from the Worker's own `ASSETS` binding at send
+ * time and gives its `content_id` this exact value; the two must agree, which is why this is
+ * the one export from this module the send path imports rather than a local copy.
  */
-export const BANNER_URL =
-  'https://new.southvillerunningclub.co.uk/nn-email-banner-1080x566.png';
+export const BANNER_CONTENT_ID = 'nn-email-banner';
 
 /**
  * Built from the message rather than hardcoded — the file's own rule against inventing a race
@@ -162,6 +160,14 @@ function ctaButton(label: string, href: string): string {
 interface CardParams {
   stamp: string;
   bannerAlt: string;
+  /**
+   * False when `fetchBannerAttachment()` could not read the file this run — a message must
+   * still send. The banner `<tr>` is omitted entirely rather than left pointing at an
+   * attachment that does not exist, and the stamp's `margin-top:-19px` — which assumes the
+   * banner occupies its full height above it — goes to `0` with it, or the stamp pulls up
+   * over the card's own top border instead.
+   */
+  hasBanner: boolean;
   bodyHtml: string;
   factsRowsHtml: string;
   ctaHtml: string;
@@ -172,10 +178,20 @@ interface CardParams {
 /**
  * The wrapper every send shares — banner, stamp, footer — byte-identical regardless of which
  * body, facts table or CTA is slotted in. `email-skin.test.ts` renders all four and asserts
- * exactly that.
+ * exactly that, with the banner present in both cases it checks.
  */
 function card(params: CardParams): string {
   const replyTo = escapeHtml(params.replyTo);
+
+  const bannerRow = params.hasBanner
+    ? `
+  <tr>
+    <td style="padding:0; line-height:0; font-size:0;">
+      <img src="cid:${BANNER_CONTENT_ID}" alt="${escapeHtml(params.bannerAlt)}" width="598" style="display:block; width:100%; max-width:598px; height:auto; border:0; font-family:${SERIF}; font-size:15px; line-height:1.6; color:${COLOUR.ink};">
+    </td>
+  </tr>`
+    : '';
+  const stampMarginTop = params.hasBanner ? '-19px' : '0';
 
   return `<!doctype html>
 <html lang="en-GB">
@@ -191,15 +207,10 @@ function card(params: CardParams): string {
 <!--[if mso]>
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td>
 <![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; margin:0 auto; background-color:${COLOUR.card}; border:1px solid ${COLOUR.border};">
-  <tr>
-    <td style="padding:0; line-height:0; font-size:0;">
-      <img src="${BANNER_URL}" alt="${escapeHtml(params.bannerAlt)}" width="598" style="display:block; width:100%; max-width:598px; height:auto; border:0; font-family:${SERIF}; font-size:15px; line-height:1.6; color:${COLOUR.ink};">
-    </td>
-  </tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px; margin:0 auto; background-color:${COLOUR.card}; border:1px solid ${COLOUR.border};">${bannerRow}
   <tr>
     <td bgcolor="${COLOUR.card}" style="background-color:${COLOUR.card}; padding: 0 0 0 32px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:-19px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:${stampMarginTop};">
         <tr>
           <td bgcolor="${COLOUR.oxblood}" style="background-color:${COLOUR.oxblood}; padding: 7px 16px 6px 16px; -webkit-transform: rotate(-2deg); transform: rotate(-2deg); mso-hide:all;">
             <span style="font-family:${MONO}; font-size:12px; font-weight:700; letter-spacing:2.5px; color:#FFFFFF; text-transform:uppercase;">
@@ -281,7 +292,7 @@ function confirmedHeading(firstName: string | null): string {
   );
 }
 
-function renderEntryConfirmed(message: OutboxMessage): string {
+function renderEntryConfirmed(message: OutboxMessage, hasBanner: boolean): string {
   const free = message.amountPence === 0;
   const eventName = escapeHtml(message.eventName);
   const eventDate = escapeHtml(message.eventDate);
@@ -318,6 +329,7 @@ function renderEntryConfirmed(message: OutboxMessage): string {
   return card({
     stamp: 'Entry Confirmed',
     bannerAlt: bannerAlt(message),
+    hasBanner,
     bodyHtml,
     factsRowsHtml,
     ctaHtml,
@@ -326,7 +338,7 @@ function renderEntryConfirmed(message: OutboxMessage): string {
   });
 }
 
-function renderEntryRefunded(message: OutboxMessage): string {
+function renderEntryRefunded(message: OutboxMessage, hasBanner: boolean): string {
   const free = message.amountPence === 0;
   const eventName = escapeHtml(message.eventName);
   const eventDate = escapeHtml(message.eventDate);
@@ -362,6 +374,7 @@ function renderEntryRefunded(message: OutboxMessage): string {
   return card({
     stamp: 'Entry Cancelled',
     bannerAlt: bannerAlt(message),
+    hasBanner,
     bodyHtml,
     factsRowsHtml: '',
     ctaHtml: '',
@@ -370,7 +383,7 @@ function renderEntryRefunded(message: OutboxMessage): string {
   });
 }
 
-function renderEntryTransferredOut(message: OutboxMessage): string {
+function renderEntryTransferredOut(message: OutboxMessage, hasBanner: boolean): string {
   const eventName = escapeHtml(message.eventName);
   const eventDate = escapeHtml(message.eventDate);
 
@@ -398,6 +411,7 @@ function renderEntryTransferredOut(message: OutboxMessage): string {
   return card({
     stamp: 'Place Transferred',
     bannerAlt: bannerAlt(message),
+    hasBanner,
     bodyHtml,
     factsRowsHtml,
     ctaHtml: '',
@@ -406,7 +420,7 @@ function renderEntryTransferredOut(message: OutboxMessage): string {
   });
 }
 
-function renderEntryTransferredIn(message: OutboxMessage): string {
+function renderEntryTransferredIn(message: OutboxMessage, hasBanner: boolean): string {
   const eventName = escapeHtml(message.eventName);
   const eventDate = escapeHtml(message.eventDate);
 
@@ -431,6 +445,7 @@ function renderEntryTransferredIn(message: OutboxMessage): string {
   return card({
     stamp: 'Place Received',
     bannerAlt: bannerAlt(message),
+    hasBanner,
     bodyHtml,
     factsRowsHtml: '',
     ctaHtml: '',
@@ -444,16 +459,19 @@ function renderEntryTransferredIn(message: OutboxMessage): string {
  * mirroring `render()`'s own contract in `worker/email.ts`, for the same reason: an unrecognised
  * template is a normal expand/migrate/contract intermediate state, not a crash.
  */
-export function renderEntryEmailHtml(message: OutboxMessage): string | null {
+export function renderEntryEmailHtml(
+  message: OutboxMessage,
+  hasBanner: boolean,
+): string | null {
   switch (message.template) {
     case 'entry_confirmed':
-      return renderEntryConfirmed(message);
+      return renderEntryConfirmed(message, hasBanner);
     case 'entry_refunded':
-      return renderEntryRefunded(message);
+      return renderEntryRefunded(message, hasBanner);
     case 'entry_transferred_out':
-      return renderEntryTransferredOut(message);
+      return renderEntryTransferredOut(message, hasBanner);
     case 'entry_transferred_in':
-      return renderEntryTransferredIn(message);
+      return renderEntryTransferredIn(message, hasBanner);
     default:
       return null;
   }
