@@ -196,5 +196,18 @@ export async function expectNoSidewaysScroll(
  * have stacked; `privacy.spec.ts` checks the widest block against the notice. Both readings
  * are as meaningless on an unstyled document as the overflow one — `display: block` on a table
  * row is a thing the stylesheet says — so both wait on this before they measure.
+ *
+ * **`account.spec.ts` is the third consumer, since 31 August 2026, and axe is the measurer.**
+ * Everything in this file is written about `scrollWidth`, and none of it was ever specific to
+ * overflow: an axe run reads the same unstyled document and reports the same absence of CSS as
+ * a design failure. **`target-size` is the rule that catches it** — a link in an error summary
+ * is 19px tall with no stylesheet and comfortably over the 24px minimum with one, so a bare
+ * document fails a rule the styled page passes.
+ *
+ * That took CI red on #182 against an `account.spec.ts` assertion **byte-identical to the one
+ * green on `main`**, in a run whose log also shows the web server dying mid-run — runner
+ * pressure widening a race that was always there. **Fonts are the half that matters most to
+ * axe**: a fallback face and the web font give different line boxes, so a target measured
+ * mid-swap is measured at neither size.
  */
 export { waitForStyledLayout };

@@ -1,5 +1,46 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { waitForStyledLayout } from '../sideways-scroll';
+
+/**
+ * Axe, run once the page is actually a styled page.
+ *
+ * ## Why the wait is here and not at each call site
+ *
+ * **An axe run on a bare document reports the absence of CSS as a design failure**, which is
+ * the defect `sideways-scroll.ts` was written for, one assertion type along. `readyState`
+ * reaches `interactive` before `<link rel="stylesheet">` has landed — DOMContentLoaded waits
+ * for scripts, not sheets — so an outcome block the Worker has revealed is already *visible*,
+ * `toBeVisible()` resolves, and axe then measures a document with no CSS on it.
+ *
+ * **`target-size` is the rule that catches it, and it caught CI on #182.** A link in the error
+ * summary is 19px tall unstyled and comfortably past the 24px minimum once `base.css` applies,
+ * so the bare page fails a rule the real page passes. That failure named an `account.spec.ts`
+ * assertion **byte-identical to the one green on `main`**, in a run whose log also shows the
+ * web server dying mid-run — runner pressure widening a race that was always there.
+ *
+ * **The fonts matter more here than they do for overflow.** A fallback face and the web font
+ * give different line boxes, so a target measured mid-swap is measured at neither size.
+ *
+ * ## What this is not
+ *
+ * It waits for a **defined state** — sheets applied, fonts settled, layout stopped moving —
+ * never for the violation list to come good. A page whose styled state really does violate a
+ * rule fails exactly as before. Retrying until the answer is the wanted one is the other thing
+ * entirely, and `sideways-scroll.ts`'s header is written against it.
+ *
+ * The tag list lived at nine call sites and is one thing now, so the five tags cannot drift
+ * apart between the empty state and the error state of the same form.
+ */
+async function axeViolations(page: Page) {
+  await waitForStyledLayout(page);
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+
+  return violations;
+}
 
 /**
  * `/account/`, in a real browser, exactly as somebody will meet it.
@@ -255,54 +296,42 @@ test.describe('accessibility @requires-js', () => {
     page,
   }) => {
     await page.goto('/account/sign-up/');
-    const empty = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(empty.violations).toEqual([]);
+    const empty = await axeViolations(page);
+    expect(empty).toEqual([]);
 
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page.locator('.notice-bad, .field-error').first()).toBeVisible();
 
-    const errored = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(errored.violations).toEqual([]);
+    const errored = await axeViolations(page);
+    expect(errored).toEqual([]);
   });
 
   test('the sign-in form has zero axe violations, empty and in its error state', async ({
     page,
   }) => {
     await page.goto('/account/sign-in/');
-    const empty = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(empty.violations).toEqual([]);
+    const empty = await axeViolations(page);
+    expect(empty).toEqual([]);
 
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('.notice-bad, .field-error').first()).toBeVisible();
 
-    const errored = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(errored.violations).toEqual([]);
+    const errored = await axeViolations(page);
+    expect(errored).toEqual([]);
   });
 
   test('the reset-request form has zero axe violations, empty and in its error state', async ({
     page,
   }) => {
     await page.goto('/account/reset/');
-    const empty = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(empty.violations).toEqual([]);
+    const empty = await axeViolations(page);
+    expect(empty).toEqual([]);
 
     await page.getByRole('button', { name: 'Send reset link' }).click();
     await expect(page.locator('.notice-bad, .field-error').first()).toBeVisible();
 
-    const errored = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(errored.violations).toEqual([]);
+    const errored = await axeViolations(page);
+    expect(errored).toEqual([]);
   });
 });
 
@@ -395,9 +424,7 @@ test.describe('the error summary on the account forms', () => {
       page.locator('form[action="/account/sign-up/"] .notice-bad'),
     ).toBeVisible();
 
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -453,10 +480,8 @@ test.describe('resetting a forgotten password @requires-js', () => {
 
     // The one state of this page a fixed axe test could never reach: revealed by the
     // inline script only once a real recovery link is followed.
-    const resetConfirmAxe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(resetConfirmAxe.violations).toEqual([]);
+    const resetConfirmAxe = await axeViolations(page);
+    expect(resetConfirmAxe).toEqual([]);
 
     await page.getByLabel('New password').fill(newPassword);
     await expect
@@ -566,10 +591,8 @@ test.describe('changing a password from inside an account @requires-js', () => {
     await expect(otherPage).toHaveURL(/\/account\/$/);
 
     await page.goto('/account/password/');
-    const changePasswordEmptyAxe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(changePasswordEmptyAxe.violations).toEqual([]);
+    const changePasswordEmptyAxe = await axeViolations(page);
+    expect(changePasswordEmptyAxe).toEqual([]);
 
     await page.getByLabel('Current password').fill('the-wrong-password');
     await page.getByLabel('New password').fill(newPassword);
@@ -582,10 +605,8 @@ test.describe('changing a password from inside an account @requires-js', () => {
     await page.getByRole('button', { name: 'Change password' }).click();
     await expect(page.getByText(/current password was not right/i)).toBeVisible();
 
-    const changePasswordErrorAxe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(changePasswordErrorAxe.violations).toEqual([]);
+    const changePasswordErrorAxe = await axeViolations(page);
+    expect(changePasswordErrorAxe).toEqual([]);
 
     await page.getByLabel('Current password').fill(oldPassword);
     await page.getByLabel('New password').fill(newPassword);
@@ -645,10 +666,8 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
     await expect(page.getByLabel('Your name')).toHaveValue("D'Arcy O'Malley");
     await expect(page.getByLabel('Email address')).toHaveValue(email);
 
-    const emptyAxe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(emptyAxe.violations).toEqual([]);
+    const emptyAxe = await axeViolations(page);
+    expect(emptyAxe).toEqual([]);
 
     await page.getByLabel('Gender').fill('non-binary');
     await page.getByLabel('Day').fill('15');
@@ -687,10 +706,8 @@ test.describe('the profile — name, email, gender, date of birth, address @requ
       }),
     ).toHaveAttribute('href', '#account-dob-day');
 
-    const errorAxe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(errorAxe.violations).toEqual([]);
+    const errorAxe = await axeViolations(page);
+    expect(errorAxe).toEqual([]);
 
     // Clearing every optional field, date of birth included — the previous step left a
     // real day (31 February is invalid) in place of last one; this proves a filled-in
@@ -880,12 +897,20 @@ test.describe('signing in with a link @requires-js', () => {
 
     // Two email fields and two Turnstile widgets on one page: the thing most likely to go
     // wrong here is a duplicate id, which is why `textField` grew an override.
+    // Settled first, for the reason `axeViolations` above is written out in full.
+    // The default rule set is kept here rather than the five WCAG tags — routing
+    // these through that helper would quietly change what they assert.
+    await waitForStyledLayout(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     await page.getByLabel('Where to send the link').fill('not-an-address');
     await settleTurnstile(page, 'form[action="/account/link/"]');
     await page.getByRole('button', { name: 'Email me a link' }).click();
 
+    // Settled first, for the reason `axeViolations` above is written out in full.
+    // The default rule set is kept here rather than the five WCAG tags — routing
+    // these through that helper would quietly change what they assert.
+    await waitForStyledLayout(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
 });
@@ -920,6 +945,10 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page.getByText(/Nothing is showing here yet/i)).toBeVisible();
     await expect(page.getByText(/entered with this email address/i)).toBeVisible();
 
+    // Settled first, for the reason `axeViolations` above is written out in full.
+    // The default rule set is kept here rather than the five WCAG tags — routing
+    // these through that helper would quietly change what they assert.
+    await waitForStyledLayout(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     await page.goto('/account/data/');
@@ -928,6 +957,10 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page.getByText(/race entry you have paid for/i)).toBeVisible();
     await expect(page.getByText(/still be on the start list/i)).toBeVisible();
 
+    // Settled first, for the reason `axeViolations` above is written out in full.
+    // The default rule set is kept here rather than the five WCAG tags — routing
+    // these through that helper would quietly change what they assert.
+    await waitForStyledLayout(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     // **Assert the attachment on the response, never on a download event.** The three browser
@@ -959,6 +992,10 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await page.getByRole('button', { name: 'Delete my account' }).click();
     await expect(page.getByText(/Type DELETE in the box/i)).toBeVisible();
 
+    // Settled first, for the reason `axeViolations` above is written out in full.
+    // The default rule set is kept here rather than the five WCAG tags — routing
+    // these through that helper would quietly change what they assert.
+    await waitForStyledLayout(page);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
     await page.getByLabel(/Type .*DELETE.* to confirm/i).fill('DELETE');
