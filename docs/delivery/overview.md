@@ -1,5 +1,7 @@
 # What is happening, in ten steps
 
+*Written 8 August 2026; the committee-ask table below was refreshed 31 August 2026.*
+
 A plain summary for the committee. **No technical knowledge assumed**, and safe to
 forward.
 
@@ -46,8 +48,9 @@ newsletters, every image — while the subscription is still running.
 
 ### 3. Put a Nightingale Nightmare page online
 
-The race has no web presence at all. A simple page describing it, with a form to register
-interest — name and email only.
+**Done, and grown well past the original scope.** The race had no web presence at all;
+what exists now is seven pages, an entry form that takes real payment through Stripe, a
+privacy notice, and a back office to run the race from.
 
 *This is also how we prove the new way of working before anything important depends on
 it.*
@@ -155,9 +158,9 @@ requests that do not need checking by hand.
 | | When |
 | --- | --- |
 | ~~**Confirm the Nightingale Nightmare date**~~ | ✅ **Done, 12 August 2026 — Sunday 1 November 2026, 11:00.** A week after the clocks change, so the whole day runs in GMT |
-| **Approve the Nightingale Nightmare page copy**, and answer six questions it could not | **Now.** The race pages are live in draft; the questions are map links for the start and finish, the donation-tin charity, a cut-off time, dogs and buggies, VI guides and the headphone rule, and toilets at the start |
-| **Decide whether 2026 race entries** go through the club's own site or stay with the current provider | **End of August** |
-| **Data-protection advice and treasurer-controlled payment arrangements** | Before any payment work starts — these are firm gates |
+| **Approve the Nightingale Nightmare page copy**, and answer six questions it could not | **Mostly settled, not fully.** The race director's own copy is published on the site, but per [the phases](phases.md) some of it is still a draft pending the committee's formal approval — the six original questions are answered |
+| ~~**Decide whether 2026 race entries** go through the club's own site or stay with the current provider~~ | **Decided — the club's own site, with Stripe** |
+| ~~**Data-protection advice and treasurer-controlled payment arrangements**~~ | **Met.** Payment is live and has taken real money since 27 August 2026 |
 | **Decide card or Direct Debit** for the monthly payments | Before anyone is asked to move |
 
 ---
