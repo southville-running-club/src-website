@@ -153,9 +153,20 @@ made it would be making that decision for the club, silently, every time.
 procedure that makes it true, and if the two ever disagree the notice is the one that is
 binding on the club.
 
-**Two things on that notice are still undecided**, and they are among the ones most likely to
-be asked about: how long an account is kept, and whether deleting an account also deletes a
-race entry by the same person. They render "To be confirmed by the club" and
-`privacy.spec.ts`'s `OPEN_DECISIONS` asserts the exact count. **Until they are settled this
-runbook is doing their job by hand** — which is workable for the handful of requests a running
-club receives, and is not a reason to leave them open.
+**Two things on that notice were undecided until 31 August 2026**, and they were among the ones
+most likely to be asked about: how long an account is kept, and whether deleting an account also
+deletes a race entry by the same person. Both are published now —
+[decision 009](../../decisions/decision-log.md#009--answer-the-two-open-questions-on-the-club-privacy-notice-and-carry-two-committed-sentences-onto-the-race-notice),
+issue [#179](https://github.com/southville-running-club/src-website/issues/179) item 2 — and
+`privacy.spec.ts`'s `OPEN_DECISIONS` is `0`, which now guards against an answer reverting to the
+marker rather than against a marker being filled in.
+
+⚠️ **Neither answer changes this runbook, and step 3 is why.** The notice now says that deleting
+an account does not delete a paid entry, which is what `identity.delete_me()` has always done and
+what this page has always said. **Asking the club to erase the entry itself is still a request a
+human answers**, still has the legal test attached, and is still not automatic — the notice sends
+that case to [`/nn/privacy/`](../../../platform/apps/main/src/pages/nn/privacy.astro), whose
+section 7 says an erasure request cancels the race entry. Somebody reading the two notices
+together must not be able to conclude that the self-service button does that, and the wording is
+written to keep the two acts apart. **If a request arrives that muddles them, answer the act
+rather than the word they used.**

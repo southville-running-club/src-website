@@ -133,12 +133,13 @@ re-run.
   ARC Rule 21(2)(b) the club has no record of *who* claimed affiliation, only that they paid the
   affiliated £18 — put to the committee and accepted — and what replaces the check is a sentence
   reserving the club's right to ask somebody to produce their number or other evidence of
-  affiliation. **That sentence is required on both privacy notices and it is on one.** Decision
-  007 makes it a requirement of the decision rather than a nicety, and `/nn/privacy/`'s own header
-  names ADR-023 as asking for both — but it has been on `/privacy/` only since **30 August 2026**,
-  when the club asked for `/nn/privacy/` to be the committee's document word for word and
-  everything the club had added to it came out. **That is an open gap rather than a settled
-  state**, and closing it means new wording from the committee rather than an edit here.
+  affiliation. **That sentence is required on both privacy notices and it is on both of them
+  since 31 August 2026.** Decision 007 makes it a requirement of the decision rather than a
+  nicety, and `/nn/privacy/`'s own header names ADR-023 as asking for both — but it was on
+  `/privacy/` alone from **30 August 2026**, when the club asked for `/nn/privacy/` to be the
+  committee's document word for word and everything the club had added to it came out. It went
+  back on the race notice as a **collection-list item carrying `/privacy/`'s own words**, not as
+  new wording — decision 009, issue #179 item 5 and #167.
   **Which fee is the affiliated price is
   `entries.fees.affiliated` now**, a column that says only that; `requires_ea_number` was
   carrying both facts and is false everywhere behind `fees_ea_number_not_collected`.
@@ -149,9 +150,12 @@ re-run.
   [the contract runbook](docs/delivery/runbooks/entries-ea-number-contract.md). **Asking for a
   number again is a new decision**, not a revert.
 - **`/nn/privacy/` was the committee's document word for word for part of one day, and the club
-  maintains it now.** **Trigger: any edit to that page beyond inserting or deleting a
-  collection-list item.** No sentence may be rewritten, restyled or reordered, and no section
-  added — the detail below is why, and what one exception (that list) actually permits.
+  maintains it now.** **Trigger: any edit to that page beyond inserting or deleting an item in
+  one of its lists.** No sentence may be rewritten, restyled or reordered, and no section
+  added — the detail below is why, and what the one exception (a list item) actually permits.
+  ⚠️ **The exception was "the collection list" until 31 August 2026 and is "a list" now**, in
+  that list's own voice: decision 009 put an Article 9(2)(a) condition into section 4's list of
+  legal bases as well as the affiliation item into section 2's. Prose is still untouchable.
   **Rewritten on 30 August 2026**, when the club asked for that document to be
   published verbatim; until then the page merged it with the notice it replaced. **Later the same
   day the club took edits to it itself** — #168 and
@@ -161,14 +165,23 @@ re-run.
   identity and the guide entirely, which are four things it holds and two of which are Article 9.
   The document was contradicting itself about the health data: it names health and safety as a
   basis and medical services as a party it shares with.
-  ⚠️ **What that permits is items inserted into and removed from the collection list and
+  ⚠️ **What that permits is items inserted into and removed from one of the page's lists and
   nothing else.** No sentence on that page may be rewritten, restyled, reordered or "improved",
   and no section may be added; the structure, headings and capitalisation are the committee's.
   Anything beyond insertion and deletion of list items still goes back to them and returns as new
-  wording — which is why **the affiliation sentence decision 007 asks for is still not there**.
-  **It renders no "To be confirmed by the club" marker at all now** — `nn-privacy.spec.ts` has
-  `OPEN_DECISIONS = 0`, and it is `/privacy/`, the club's own notice, that still carries the two
-  the marker is for: how long an account is kept, and whether deleting one deletes a race entry.
+  wording. **The affiliation sentence decision 007 asks for went in on 31 August 2026** as a
+  section 2 item carrying `/privacy/`'s own words, and an **Article 9(2)(a) condition** went into
+  section 4's list of legal bases the same day — decision 009, #179 items 4 and 5. That is what
+  widened the exception from *the collection list* to *a list*.
+  **It renders no "To be confirmed by the club" marker at all** — `nn-privacy.spec.ts` has
+  `OPEN_DECISIONS = 0`, and **`/privacy/` has none either since 31 August 2026**: how long an
+  account is kept and whether deleting one deletes a race entry are both answered, and
+  `privacy.spec.ts`'s `OPEN_DECISIONS = 0` now guards an answer reverting to the marker rather
+  than a marker being filled in. ⚠️ **Those two answers must not be read as one act.** The
+  self-service button on `/account/data/` leaves a paid entry alone; an **erasure request** is a
+  human decision and `/nn/privacy/` section 7 says it cancels the race entry. The wording on
+  `/privacy/` names that separation deliberately, and
+  [the data-requests runbook](docs/delivery/runbooks/data-requests.md) still owns the second.
   **Four values are interpolated from `race.json`** — the controller, the company number, the
   contact address and the date — because `/privacy/` reads the same four and the two notices may
   never disagree about who the controller is; each renders the document's own words. **What came
@@ -188,9 +201,13 @@ re-run.
   **`race.json`'s `privacy.lastUpdated` is this page's own revision date now, not the committee
   document's** — the two stopped being the same thing on 30 August, and section 9 promises a date
   that moves when the page changes, so **every edit to what is rendered here moves it in the same
-  commit**. Item 3. ⚠️ **Three of that issue's five need the committee and are still open**: the
-  two "To be confirmed by the club" markers on `/privacy/`, an Article 9(2) condition in section
-  4, and decision 007's affiliation sentence.
+  commit**. Item 3. **`privacy.json`'s `lastUpdated` is the same rule for `/privacy/`**, and it
+  moved to 31 August on the same day for the same reason. ⚠️ **All five of that issue's items are
+  closed now, and the last three were closed by the club rather than by the committee** —
+  decision 009, which says so in its own provenance and is superseded on sight by anything the
+  committee later supplies. **None of the three was new wording**: two were sentences already
+  published elsewhere on this site and the third describes a consent the entry form already
+  takes.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
   more.** **Trigger: a partial refund, a correction to a paid entry, or a resend outside the
   outbox** — the built payment path itself (an ordinary Checkout entry, a full-refund

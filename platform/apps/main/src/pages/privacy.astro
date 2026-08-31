@@ -33,13 +33,43 @@ import { orTbc } from '@src/shared/privacy';
 // the sign-in records, the role grants and the audit trail are all recorded about a person
 // and none of them is typed by one.
 //
-// ## The values that are undecided
+// ## The values that were undecided, and are not any more
 //
-// Two of them render "To be confirmed by the club" through the shared `orTbc` — how long an
-// account is kept, and whether deleting an account also deletes a race entry by the same
-// person. `privacy.spec.ts` counts the marker — two, exactly — so filling one in fails that
-// test until it is updated in the same commit, and a settled fact quietly reverting to the
-// marker fails it too.
+// **This page carried no answer to two questions until 31 August 2026** — how long an account
+// is kept, and whether deleting an account also deletes a race entry by the same person. Both
+// rendered "To be confirmed by the club" through the shared `orTbc`, on a notice people have
+// been creating accounts against since `enable_signup` went true in #49. Article 13(2)(a) makes
+// a retention period — or the criteria used to decide one — mandatory information, and the
+// marker is neither. Issue #179 item 2.
+//
+// **Neither answer was invented here, and that is what made them answerable at all.**
+//
+//  * **How long an account is kept** is a description of what the platform does. Nothing
+//    deletes an account: there is no purge, no inactivity sweep, no cron anywhere near
+//    `identity`. So the true period is "until you delete it", which is a *criterion* of the
+//    kind Article 13(2)(a) accepts where a fixed period is not possible. The value says so, and
+//    commits the club to saying so first if that ever changes — which is section 8's promise
+//    applied to the one row most likely to move.
+//  * **What deletion does to a race entry** was settled in #62 and is enforced by
+//    `identity.delete_me()`: it deletes the `auth.users` row and lets the cascades take the
+//    profile and the roles, and `entries` is deliberately not keyed on `identity.people` so a
+//    paid entry survives. `/account/data/` has published that in full, before the button, since
+//    the day it was built, and `docs/delivery/runbooks/data-requests.md` step 3 works from it.
+//    This page was the only one still calling it an open question — and the paragraph directly
+//    beneath the value already said "a race entry you have paid for above all" is what deleting
+//    an account does not remove.
+//
+// ⚠️ **The two are not the same act, and the answer has to say so.** `/nn/privacy/` section 7
+// tells entrants that *"if you request data deletion, your information will be removed and your
+// race entry will be cancelled"* — which is the erasure request a volunteer handles by hand,
+// not the self-service account deletion this page is describing. A reader who conflates them
+// either believes deleting their account cancels their race, or believes asking for erasure
+// leaves it alone. Both are wrong, and the first is wrong on the morning of a race that cannot
+// be re-run. The value names the separation and sends the second case to the race notice.
+//
+// `privacy.spec.ts` counts the marker — zero, now — so a settled fact quietly reverting to the
+// marker fails it, and so does an answer being reworded without the test being updated in the
+// same commit.
 //
 // **It was three until 30 August 2026, and the third left without this file being edited.**
 // The contact for data questions is `race.json`'s and was the same open decision on both
@@ -462,10 +492,18 @@ const club = race.privacy;
     <p>Last updated: {orTbc(privacy.lastUpdated)}</p>
   </div>
 
+  {
+    /* **The sign-off no longer points at the marker, because there is no marker.** It read
+    "anything above reading 'to be confirmed by the club' is with the committee, and this page
+    is updated when it is settled" — true while two values were open, and a dangling instruction
+    the moment they were answered on 31 August 2026. A footnote about a thing that is not on the
+    page is worse than no footnote: it invites a reader to go looking for one. What replaces it
+    is the commitment that actually holds, and it is the same one section 8 makes. */
+  }
   <footer>
     <p>
-      Southville Running Club. Anything above reading "to be confirmed by the club" is
-      with the committee, and this page is updated when it is settled.
+      Southville Running Club. This notice is updated in the same change as whatever it
+      describes, rather than afterwards.
     </p>
     <p>
       <a href="/nn/privacy/">The {race.name} privacy notice</a>
