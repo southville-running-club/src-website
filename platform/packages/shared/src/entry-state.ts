@@ -218,6 +218,59 @@ function readEntryState(
   };
 }
 
+const placesRemainingShape = z.object({
+  capacity: z.number().int().positive(),
+  remaining: z.number().int().min(0),
+});
+
+export interface PlacesRemaining {
+  capacity: number;
+  remaining: number;
+}
+
+export type PlacesRemainingResult =
+  { ok: true; value: PlacesRemaining } | { ok: false; error: string };
+
+/**
+ * How many of the 250 are left, for one running.
+ *
+ * **A display figure, read through `entries.places_remaining()` — never a second capacity
+ * count kept in this file.** The database is the only place that resolves "paid, or a
+ * pending hold that has not lapsed" into a number, exactly as it is for
+ * `entries.create_pending_purchase()`'s own check; a client-side re-derivation of that rule
+ * is the trap CLAUDE.md already names once in this schema's history.
+ *
+ * Same failure direction as `fetchEntryState`: nothing here guesses a figure it cannot
+ * support, and the caller renders nothing rather than a wrong number.
+ */
+export async function fetchPlacesRemaining(
+  client: DbClient,
+  slug: string,
+): Promise<PlacesRemainingResult> {
+  const { data, error } = await client.schema('entries').rpc('places_remaining', {
+    p_slug: slug,
+  });
+
+  if (error) {
+    return { ok: false, error: `${error.code ?? 'unknown'}: ${error.message}` };
+  }
+
+  if (data === null) {
+    return { ok: false, error: `No event with slug ${slug}` };
+  }
+
+  const parsed = placesRemainingShape.safeParse(data);
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `places_remaining returned an unexpected shape for ${slug}`,
+    };
+  }
+
+  return { ok: true, value: parsed.data };
+}
+
 /**
  * The event's date, as a page shows it — **through the one formatter this repository has**.
  *

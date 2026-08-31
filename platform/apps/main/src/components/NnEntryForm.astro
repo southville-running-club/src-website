@@ -433,52 +433,77 @@ const SUMMARY_LINKS = [
   }
   <input type="hidden" name="discountConfirmed" value="" data-entry-confirmed />
 
+  {
+    /* **The date, the start time, the distance and the closing time — everything the page's
+    own facts list already says, restated at the top of the form itself**, so somebody who
+    scrolled straight to it without reading above does not enter the wrong race by accident.
+    All four are `race.json`'s, server-rendered, present with scripting off.
+
+    **Places left is the one figure not here already.** It ships as a hidden, empty `<li>`
+    and the enhancement below fills it from a dedicated endpoint — never from a query on this
+    page's own render path. With scripting off it simply never appears, which is the honest
+    answer rather than a stale or invented one. */
+  }
+  <ul class="nn-entry-facts">
+    <li>{race.date}</li>
+    <li>Starts {race.startTime}</li>
+    <li>{race.distance}</li>
+    <li>Entries close {race.entriesClose}</li>
+    <li hidden data-entry-places-remaining></li>
+  </ul>
+
   <!-- 1 — Your details ------------------------------------------------------------- -->
   <fieldset class="nn-fieldset">
     <legend class="nn-legend">Your details</legend>
 
-    <div class="field">
-      <label class="field-label" for="entry-first-name">First name</label>
-      <p
-        class="field-error"
-        id="entry-first-name-error"
-        data-entry-error="firstName"
-        hidden
-      >
-      </p>
-      <input
-        class="field-input"
-        id="entry-first-name"
-        name="firstName"
-        type="text"
-        maxlength="60"
-        autocomplete="given-name"
-        required
-        aria-describedby="entry-first-name-error"
-        data-entry-value="firstName"
-      />
-    </div>
+    {
+      /* Side by side above ~560px, stacked below — a wrapper around the pair rather than a
+      change to either field, so nothing about how each one validates or submits moves. */
+    }
+    <div class="nn-field-row">
+      <div class="field">
+        <label class="field-label" for="entry-first-name">First name</label>
+        <p
+          class="field-error"
+          id="entry-first-name-error"
+          data-entry-error="firstName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-first-name"
+          name="firstName"
+          type="text"
+          maxlength="60"
+          autocomplete="given-name"
+          required
+          aria-describedby="entry-first-name-error"
+          data-entry-value="firstName"
+        />
+      </div>
 
-    <div class="field">
-      <label class="field-label" for="entry-last-name">Last name</label>
-      <p
-        class="field-error"
-        id="entry-last-name-error"
-        data-entry-error="lastName"
-        hidden
-      >
-      </p>
-      <input
-        class="field-input"
-        id="entry-last-name"
-        name="lastName"
-        type="text"
-        maxlength="60"
-        autocomplete="family-name"
-        required
-        aria-describedby="entry-last-name-error"
-        data-entry-value="lastName"
-      />
+      <div class="field">
+        <label class="field-label" for="entry-last-name">Last name</label>
+        <p
+          class="field-error"
+          id="entry-last-name-error"
+          data-entry-error="lastName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="entry-last-name"
+          name="lastName"
+          type="text"
+          maxlength="60"
+          autocomplete="family-name"
+          required
+          aria-describedby="entry-last-name-error"
+          data-entry-value="lastName"
+        />
+      </div>
     </div>
 
     {
@@ -581,6 +606,7 @@ const SUMMARY_LINKS = [
         id="entry-phone"
         name="phone"
         type="tel"
+        inputmode="tel"
         maxlength="40"
         autocomplete="tel"
         required
@@ -664,46 +690,150 @@ const SUMMARY_LINKS = [
     </fieldset>
 
     {
+      /* **The live category preview, moved directly beneath the date of birth it depends on
+      half of.** It used to sit below the race-category field instead, which read as the
+      preview being an output of that select rather than of both answers together. It ships
+      empty and hidden; the enhancement fills it once both the date of birth and the race
+      category are answered. With scripting off it simply never appears, and the category is
+      worked out by the server — the same answer from the same module either way.
+
+      `role="status"` plus `aria-live="polite"`: a running commentary on fields somebody is
+      still typing into, so `assertive` would interrupt them mid-keystroke rather than
+      informing them. */
+    }
+    <p class="nn-category" data-entry-category hidden role="status" aria-live="polite">
+    </p>
+
+    {
       /* **Two questions, and the split is the point — see ADR-020.** This one is the race
       category: the closed list the club awards prizes in and publishes results by, which is
       three because three is how many categories there are. "Gender" on its own over these
       three options made a dropdown into a claim about how many genders exist, and the
-      question underneath is where that is actually asked. */
+      question underneath is where that is actually asked.
+
+      **Radios, not a select — ADR-031.** A `<select>` labelled "Race category" showing
+      "Male" was the single most confusing thing on this form; a runner reads all three
+      options at once, and the answer they give is one of three genuine choices rather than
+      whichever the box happened to be scrolled to. */
     }
-    <div class="field">
-      <label class="field-label" for="entry-gender">Race category</label>
+    <fieldset class="field">
+      <legend class="field-label"
+        >Which results category do you want to be placed in?</legend
+      >
       <p class="field-hint" id="entry-gender-hint">
         Results and prizes are grouped into these categories, and this is used with your
         date of birth to work out your age category.
       </p>
       <p class="field-error" id="entry-gender-error" data-entry-error="gender" hidden></p>
-      <select
-        class="field-input"
-        id="entry-gender"
-        name="gender"
-        required
-        aria-describedby="entry-gender-hint entry-gender-error"
-      >
-        <option value="" data-entry-selected="gender:">Choose one</option>
-        <option value="female" data-entry-selected="gender:female">Female</option>
-        <option value="male" data-entry-selected="gender:male">Male</option>
-        <option value="non_binary" data-entry-selected="gender:non_binary"
-          >Non-binary</option
-        >
-      </select>
-    </div>
+      <div aria-describedby="entry-gender-hint entry-gender-error">
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-gender-male"
+            name="gender"
+            value="male"
+            required
+            data-entry-checked="gender:male"
+          />
+          <label class="field-label" for="entry-gender-male">Men's</label>
+        </div>
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-gender-female"
+            name="gender"
+            value="female"
+            required
+            data-entry-checked="gender:female"
+          />
+          <label class="field-label" for="entry-gender-female">Women's</label>
+        </div>
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-gender-non-binary"
+            name="gender"
+            value="non_binary"
+            required
+            data-entry-checked="gender:non_binary"
+          />
+          <label class="field-label" for="entry-gender-non-binary">Non-binary</label>
+        </div>
+      </div>
+    </fieldset>
 
     {
-      /* **The live category preview, and the only thing on this form that needs JavaScript.**
-      It ships empty and hidden; the enhancement fills it as the date of birth and gender are
-      typed. With scripting off it simply never appears, and the category is worked out by
-      the server — which is the same answer from the same module either way.
-
-      `aria-live="polite"` rather than `assertive`: it is a running commentary on a field
-      somebody is still typing into, and interrupting them mid-keystroke would be worse than
-      saying nothing. */
+      /* **The follow-up, asked of nobody but somebody who just chose non-binary above —
+      ADR-031.** The race runs under an ARC permit whose prize structure is two categories,
+      men's and women's, and this is the honest way to ask where a result that does not fit
+      either one should be counted: as one of the two, or as neither, with the consequence of
+      neither stated plainly rather than left to be discovered on the results page. Ships
+      visible in markup and hidden by JavaScript on load, the same as the medical textarea —
+      with scripting off it is always there, asked of everybody, and the server enforces that
+      an answer here from a female or male entrant is never read. */
     }
-    <p class="nn-category" data-entry-category hidden aria-live="polite"></p>
+    <fieldset class="field" data-entry-placement-fields>
+      <legend class="field-label">Where should your result be placed?</legend>
+      <p class="field-hint" id="entry-result-placement-hint">
+        The race is run under an ARC permit, and its prizes are awarded in a men's and a
+        women's category only. You choose where your result and your age category sit.
+      </p>
+      <p
+        class="field-error"
+        id="entry-result-placement-error"
+        data-entry-error="resultPlacement"
+        hidden
+      >
+      </p>
+      <div aria-describedby="entry-result-placement-hint entry-result-placement-error">
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-result-placement-male"
+            name="resultPlacement"
+            value="male"
+            data-entry-checked="resultPlacement:male"
+          />
+          <label class="field-label" for="entry-result-placement-male">
+            Place me in the men's results
+          </label>
+        </div>
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-result-placement-female"
+            name="resultPlacement"
+            value="female"
+            data-entry-checked="resultPlacement:female"
+          />
+          <label class="field-label" for="entry-result-placement-female">
+            Place me in the women's results
+          </label>
+        </div>
+        <div class="field-check">
+          <input
+            class="field-checkbox"
+            type="radio"
+            id="entry-result-placement-none"
+            name="resultPlacement"
+            value="none"
+            data-entry-checked="resultPlacement:none"
+          />
+          <label class="field-label" for="entry-result-placement-none">
+            Do not place me in either
+            <span class="field-hint">
+              You get a finish time and a medal. You are left out of the category rankings
+              and the prizes.
+            </span>
+          </label>
+        </div>
+      </div>
+    </fieldset>
 
     {
       /* **The open half of the question above, and it is optional in earnest.** Free text
@@ -840,7 +970,7 @@ const SUMMARY_LINKS = [
       matching is case-insensitive at both ends — `citext` in the column and `lower()` in the
       function — so the capitalisation is harmless; the autocorrect is not. */
     }
-    <div class="field">
+    <div class="field nn-discount">
       <label class="field-label" for="entry-discount-code">
         Discount code <span class="field-optional">(optional)</span>
       </label>
@@ -915,12 +1045,22 @@ const SUMMARY_LINKS = [
         id="entry-emergency-phone"
         name="emergencyPhone"
         type="tel"
+        inputmode="tel"
         maxlength="40"
         autocomplete="off"
         required
         aria-describedby="entry-emergency-phone-error"
         data-entry-value="emergencyPhone"
       />
+      {
+        /* **Non-blocking, and it never touches submission.** A number that matches the
+        runner's own is not refused — it might be exactly right, for somebody who has no
+        other number to give — so this only ever suggests. `role="status"` rather than
+        `alert`: it is a passing observation, not a problem to fix before continuing.
+        Ships empty and hidden; JS-only, and its absence with scripting off is invisible
+        because there is nothing here for the server to enforce. */
+      }
+      <p class="nn-notice-inline" data-entry-same-phone-notice hidden role="status"></p>
     </div>
   </fieldset>
 
@@ -1199,11 +1339,49 @@ const SUMMARY_LINKS = [
         >, separately from the rest of your entry.
       </li>
       <li>
-        <strong>If you leave the box below unticked</strong>, none of this is kept at all.
+        <strong>If you leave the box below unticked</strong>, nothing you type below is
+        kept at all.
       </li>
     </ul>
 
+    {
+      /* **Consent first, and the reveal is the point.** Typing a condition into a box that
+      is only deleted later is collecting it and then deleting it, not never collecting it —
+      tick-to-reveal is what makes the sentence above true rather than aspirational. This
+      checkbox is deliberately its own field, not bundled with the entry terms: consent to
+      hold special category data has to be separate to be consent at all, or nobody ever
+      declines one without declining the other.
+
+      **With scripting off the boxes below are simply visible**, and the server-side discard
+      is what makes the sentence above true either way — see `assert_medical_consent()` and
+      `parseNnEntry`'s own handling, neither of which trusts what this checkbox says the
+      browser did. */
+    }
     <div class="field">
+      <p
+        class="field-error"
+        id="entry-medical-consent-error"
+        data-entry-error="medicalConsent"
+        hidden
+      >
+      </p>
+      <div class="field-check">
+        <input
+          class="field-checkbox"
+          id="entry-medical-consent"
+          name="medicalConsent"
+          type="checkbox"
+          aria-describedby="entry-medical-consent-error"
+          data-entry-checked="medicalConsent"
+        />
+        <label class="field-label" for="entry-medical-consent">
+          I agree to the club holding the medical information I write below, and to its
+          first aiders and race organisers seeing it on race day.
+        </label>
+      </div>
+    </div>
+
+    <div class="field" data-entry-medical-fields>
       <label class="field-label" for="entry-medical-notes">
         Medical information <span class="field-optional">(optional)</span>
       </label>
@@ -1227,13 +1405,15 @@ const SUMMARY_LINKS = [
     {
       /* **The guide's notes, under the same consent and in the same section.** One medical
       consent covering both people is why this box is here rather than up in the guide's own
-      fieldset: the checkbox below says "the medical information I have written above", and
-      that sentence has to be below everything it covers or it is not true.
+      fieldset. Two reveal conditions apply at once — a guide has to be declared *and*
+      consent has to be ticked — so this carries both `data-entry-guide-fields` and
+      `data-entry-medical-fields`; `updateMedicalVisibility` runs after `updateGuideVisibility`
+      and is what makes the combination correct rather than a race between the two.
 
       Same table, same month's retention, same cron. A guide on the course at night with a
       condition the first aiders should know about is the same fact as a runner with one. */
     }
-    <div class="field" data-entry-guide-fields hidden>
+    <div class="field" data-entry-guide-fields data-entry-medical-fields hidden>
       <label class="field-label" for="entry-guide-medical-notes">
         Guide's medical information <span class="field-optional">(optional)</span>
       </label>
@@ -1252,36 +1432,6 @@ const SUMMARY_LINKS = [
         maxlength="2000"
         aria-describedby="entry-guide-medical-notes-error"
         data-entry-text="guideMedicalNotes"></textarea>
-    </div>
-
-    {
-      /* **Its own checkbox, with its own wording, and deliberately not bundled with the
-      entry terms.** Consent to hold special category data has to be separate to be consent
-      at all — a single box covering both would mean nobody ever declined one without
-      declining the other. */
-    }
-    <div class="field">
-      <p
-        class="field-error"
-        id="entry-medical-consent-error"
-        data-entry-error="medicalConsent"
-        hidden
-      >
-      </p>
-      <div class="field-check">
-        <input
-          class="field-checkbox"
-          id="entry-medical-consent"
-          name="medicalConsent"
-          type="checkbox"
-          aria-describedby="entry-medical-consent-error"
-          data-entry-checked="medicalConsent"
-        />
-        <label class="field-label" for="entry-medical-consent">
-          I agree to the club holding the medical information I have written above, and to
-          its first aiders and race organisers seeing it on race day.
-        </label>
-      </div>
     </div>
   </fieldset>
 
@@ -1445,6 +1595,11 @@ const SUMMARY_LINKS = [
     enhance(form);
   }
 
+  // Places remaining is always on the page, filled only when JavaScript runs, and shown when
+  // the fetch succeeds. This runs regardless of whether the form exists — it has nothing to do
+  // with the entry's own fields or the form's validation.
+  void updatePlacesRemaining();
+
   function enhance(entryForm: HTMLFormElement): void {
     const eventDate = parseIsoDate(entryForm.dataset.entryEventDate ?? '');
 
@@ -1472,18 +1627,28 @@ const SUMMARY_LINKS = [
     }
 
     updateCategory(entryForm, rules);
+    updatePlacementVisibility(entryForm);
     updateGuideVisibility(entryForm);
+    // After `updateGuideVisibility`, deliberately — see that function's own note on why the
+    // guide's medical notes carry both reveal conditions and the order is what makes the
+    // combination correct rather than a race between the two.
+    updateMedicalVisibility(entryForm);
     updateTotal(entryForm);
+    updateSamePhoneNotice(entryForm);
 
     entryForm.addEventListener('change', () => {
       updateCategory(entryForm, rules);
+      updatePlacementVisibility(entryForm);
       updateGuideVisibility(entryForm);
+      updateMedicalVisibility(entryForm);
       updateTotal(entryForm);
+      updateSamePhoneNotice(entryForm);
       revalidate(entryForm, rules, shown);
     });
 
     entryForm.addEventListener('input', () => {
       updateCategory(entryForm, rules);
+      updateSamePhoneNotice(entryForm);
       // Only fields that are *already* complaining are re-checked while typing. Telling
       // somebody their email address is invalid after two characters is not help.
       revalidate(entryForm, rules, shown);
@@ -1497,6 +1662,55 @@ const SUMMARY_LINKS = [
         revalidate(entryForm, rules, shown);
       }
     });
+  }
+
+  /**
+   * Fetches the one figure that is not server-rendered on this page, and shows it only on a
+   * clean, well-shaped answer.
+   *
+   * **A plain `fetch`, never the Supabase client.** The Worker is what talks to Postgres;
+   * shipping that client into the browser for one number would be the cost `nn-entry.ts`'s
+   * own header comment already argues against paying twice. The endpoint is relative to the
+   * page it is called from, so this file names no year.
+   *
+   * Silent on any failure — a network fault, a non-200, a body that does not parse — because
+   * the honest answer to "the figure could not be fetched" is the same one no-JS already
+   * gives: nothing shown, never a stale or invented number.
+   */
+  async function updatePlacesRemaining(): Promise<void> {
+    const target = document.querySelector<HTMLElement>('[data-entry-places-remaining]');
+
+    if (!target) {
+      return;
+    }
+
+    try {
+      const path = location.pathname.endsWith('/')
+        ? location.pathname
+        : `${location.pathname}/`;
+      const response = await fetch(`${path}places-remaining`);
+
+      if (!response.ok) {
+        return;
+      }
+
+      const body: unknown = await response.json();
+
+      if (
+        typeof body !== 'object' ||
+        body === null ||
+        !('remaining' in body) ||
+        typeof (body as { remaining: unknown }).remaining !== 'number'
+      ) {
+        return;
+      }
+
+      const remaining = (body as { remaining: number }).remaining;
+      target.textContent = `${remaining} ${remaining === 1 ? 'place' : 'places'} left`;
+      target.hidden = false;
+    } catch {
+      // Network failure, or a response that was not JSON at all. Left hidden either way.
+    }
   }
 
   /** Which fee codes the Worker actually revealed — the rest are not on offer. */
@@ -1609,6 +1823,11 @@ const SUMMARY_LINKS = [
     const month = read('dobMonth');
     const year = read('dobYear');
     const gender = read('gender');
+    // `'none'` — "do not place me in either" — and an unanswered radio group both read as
+    // no placement, exactly as `parseNnEntry` resolves them server-side.
+    const placementRaw = read('resultPlacement');
+    const placement: 'female' | 'male' | null =
+      placementRaw === 'female' || placementRaw === 'male' ? placementRaw : null;
 
     const dateOfBirth = parseIsoDate(
       `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
@@ -1620,18 +1839,55 @@ const SUMMARY_LINKS = [
       return;
     }
 
-    const category = deriveAgeCategory(dateOfBirth, gender as Gender, rules.eventDate);
+    const category = deriveAgeCategory(
+      dateOfBirth,
+      gender as Gender,
+      placement,
+      rules.eventDate,
+    );
 
     // Each wording is a statement of fact. Where the club has not decided something, that is
     // what it says — a category is never invented to fill the gap.
     const text = category.known
       ? `Age on race day: ${category.age}. You will run as ${category.label}.`
-      : category.reason === 'gender-has-no-categories'
-        ? `Age on race day: ${category.age}. The club has not confirmed age categories for non-binary runners.`
+      : category.reason === 'not-placed'
+        ? `Age on race day: ${category.age}. The club has not confirmed which category, if any, your result will count in.`
         : `Age on race day: ${category.age}. The club's youngest age category starts at 18.`;
 
     target.textContent = text;
     target.hidden = false;
+  }
+
+  /**
+   * A suggestion, never a refusal, when the emergency number matches the runner's own.
+   *
+   * **Digits only, compared as strings.** Not a canonical form — that is PR C's job and this
+   * form does not have it yet — just enough normalisation that "07889 270964" and
+   * "07889270964" read as the same number rather than as a coincidence of formatting that
+   * happened not to match.
+   *
+   * **Blank never matches blank.** Both fields empty is two unanswered questions, not one
+   * number given twice, and the runner has not been asked for their own number yet at the
+   * point they are filling this one in — nothing here should tell them so.
+   */
+  function updateSamePhoneNotice(entryForm: HTMLFormElement): void {
+    const notice = entryForm.querySelector<HTMLElement>('[data-entry-same-phone-notice]');
+    const own = entryForm.querySelector<HTMLInputElement>('#entry-phone');
+    const emergency = entryForm.querySelector<HTMLInputElement>('#entry-emergency-phone');
+
+    if (!notice || !own || !emergency) {
+      return;
+    }
+
+    const digitsOf = (value: string) => value.replace(/\D/g, '');
+    const ownDigits = digitsOf(own.value);
+    const emergencyDigits = digitsOf(emergency.value);
+    const matches = ownDigits !== '' && ownDigits === emergencyDigits;
+
+    notice.textContent = matches
+      ? 'This is the same as your own number. If you can, give somebody who will not be running with you.'
+      : '';
+    notice.hidden = !matches;
   }
 
   /**
@@ -1660,6 +1916,66 @@ const SUMMARY_LINKS = [
     )) {
       block.hidden = !declared.checked;
     }
+  }
+
+  /**
+   * Reveal a medical textarea only once its consent is ticked — the tick-to-reveal PR D asks
+   * for, and the reason the checkbox now sits above both boxes rather than below them.
+   *
+   * **Ships visible; this is what hides it, not the markup.** Every other reveal on this form
+   * ships `hidden` and JavaScript removes it, so that scripting-off always means "visible".
+   * This one is the other way round on purpose: with scripting off the boxes stay visible —
+   * which is what makes the list item above ("if you leave the box below unticked, nothing
+   * you type below is kept") true by the server's own discard rather than by a client-side
+   * reveal nobody can rely on.
+   *
+   * **The guide's medical notes carry a second condition, and this runs after
+   * `updateGuideVisibility` because of it.** That function's own `[data-entry-guide-fields]`
+   * loop already set this block's `hidden` from whether a guide is declared; this one
+   * overwrites it with the combination of both conditions, so a guide declared with consent
+   * still unticked stays hidden, and consent ticked with no guide declared stays hidden too.
+   */
+  function updateMedicalVisibility(entryForm: HTMLFormElement): void {
+    const consent = entryForm.querySelector<HTMLInputElement>(
+      '[data-entry-checked="medicalConsent"]',
+    );
+
+    if (!consent) {
+      return;
+    }
+
+    const guideDeclared =
+      entryForm.querySelector<HTMLInputElement>('[data-entry-checked="viGuide"]')
+        ?.checked ?? false;
+
+    for (const block of entryForm.querySelectorAll<HTMLElement>(
+      '[data-entry-medical-fields]',
+    )) {
+      const needsGuide = block.hasAttribute('data-entry-guide-fields');
+      block.hidden = !consent.checked || (needsGuide && !guideDeclared);
+    }
+  }
+
+  /**
+   * Reveal the placement follow-up only once "non-binary" is chosen above — ADR-031.
+   *
+   * **Ships visible, same as the medical textarea and for the same reason.** With scripting
+   * off every entrant meets this question; the server decides whether an answer was required
+   * — `resultPlacementMissing` fires only when `gender` is `non_binary` — and reads it only
+   * from somebody it was relevant to either way, so a female or male entrant's page simply
+   * carries a question underneath their answer that their own choice already made moot.
+   */
+  function updatePlacementVisibility(entryForm: HTMLFormElement): void {
+    const block = entryForm.querySelector<HTMLElement>('[data-entry-placement-fields]');
+    const chosenGender = entryForm.querySelector<HTMLInputElement>(
+      'input[name="gender"]:checked',
+    )?.value;
+
+    if (!block) {
+      return;
+    }
+
+    block.hidden = chosenGender !== 'non_binary';
   }
 
   /** The running total. Pence, so a percentage discount cannot introduce a rounding bug. */

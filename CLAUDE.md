@@ -78,9 +78,14 @@ re-run.
   club awards prizes in and publishes results by — labelled **"Race category"** on the form —
   and `gender_identity` beside it is the open question, on no list, that nothing derives,
   groups, sorts or publishes by. **Widening `gender` is a decision about prize lists**, because
-  every value past `female` and `male` is a category with no band to receive it; the
-  non-binary gap is still open and `ageCategoryFor()` still answers
-  `gender-has-no-categories`. `gender_identity` is on `/admin/nn/` and **nowhere else** — not
+  every value past `female` and `male` is a category with no band to receive it; that gap is
+  still open — a genuine third prize category is still the committee's decision, not a build
+  one, restated by [ADR-031](docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)
+  rather than closed by it. **What ADR-031 changed on 31 August 2026 is narrower**: a
+  non-binary entrant is now asked which of the two *existing* categories, if either, their
+  result should count in — see the entry field list below — and `ageCategoryFor()` answers
+  `not-placed` rather than `gender-has-no-categories` for the entrant who was asked and said
+  neither, or was never asked at all. `gender_identity` is on `/admin/nn/` and **nowhere else** — not
   the start list, not the three exports, never published — and `admin.spec.ts` asserts that
   absence against a *paid* fixture, which is the only kind an export carries. **The sixteenth
   was taken on 28 August 2026 and it is a person rather than a field**: a visually impaired
@@ -122,7 +127,29 @@ re-run.
   a parameter; its wrappers delegate with a null phone, which **clears** the previous runner's
   number rather than carrying it across. It is on `/admin/nn/entry/`, the printed start list, the
   start-list CSV and the affiliated export, and **not** on the entries table or the medical
-  sheet. **A nineteenth field is a new decision.**
+  sheet. **The nineteenth was taken on 31 August 2026 and it is where a non-binary entrant's
+  result should count** — `entrants.result_placement` —
+  [ADR-031](docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md).
+  Null for every female and male entrant, behind `entrants_result_placement_only_non_binary`,
+  which refuses it outright for anybody else; for a non-binary entrant it is `'female'`,
+  `'male'`, or null, behind `entrants_result_placement_shaped`. **Not a third prize category** —
+  the race is still run under two, women's and men's, and that gap is still the committee's to
+  close and is still open. What this closes is narrower: before it, a non-binary entrant's
+  category was permanently "not confirmed" with no way to change that; now they are asked
+  directly which of the two existing categories, if either, their result should count in, and
+  every band calculation reads that answer and `gender` through one resolver,
+  `effectiveCategory()` in `age-category.ts`, so nothing downstream grew a third branch.
+  **Taken on the maintainers' own authority, not the committee's** — the ADR says so in as many
+  words. It is on `/admin/nn/entry/`, as a "Placement" fact shown only for a non-binary entrant,
+  and feeds the start-list export's raw row so `startListCategory()` can resolve the one
+  "Category" column both the printed sheet and the CSV already show — but it is not its own
+  column on either document, and it is not on the affiliated or medical exports, which carry no
+  race category at all. **Cleared by a transfer, exactly like `gender_identity`** — the new
+  runner's own placement is not asked, matching the gap ADR-020 already left open for `gender`
+  and `gender_identity` at a transfer. **The admin manual-entry and transfer forms do not
+  collect it at all**, which is a stated scope boundary rather than an oversight: a volunteer
+  using either has no way to set where a non-binary runner's result should count, and would have
+  to ask separately. **A twentieth field is a new decision.**
 - **One field has come off the list, which had never happened before — the England Athletics
   number, on 29 August 2026.** **Trigger: asking for the number again is a new decision, not a
   revert.** The club asks for none and holds none: a runner states that they
@@ -770,6 +797,29 @@ guard, and it runs in all three projects. **The guide's six fields are the shape
 outing** and are built the way this paragraph says: after the checkbox that reveals them, never
 around it.
 
+**A field's own validation message can shove a *later* field out from under the click that was
+about to answer it, and turning a `<select>` into radios is what makes that visible.** Measured
+directly: leaving the phone number field with three spaces — invalid, the same way every other
+"required but blank" test on this form gets past `required` — reveals "Enter your own phone
+number." above the race-category question, shifting it down by about 28px, roughly one radio
+row. A `<select>`'s `selectOption()` never cared; `.check()` on a radio resolves a click
+coordinate first and is fragile to exactly this, which is why ADR-031's radios are what
+surfaced a race that was already there. Reproduced 2 of 3 runs on `[mobile-safari]` only, same
+`locator.check: Clicking the checkbox did not change its state` each time, gone 3 of 3 after
+the fix below — the asymmetry with Chromium matches every other WebKit-only instance of this
+shape already in this file. **Distinct from the England Athletics precedent above**: that was a
+*conditional* field's own reveal moving *itself* or an adjacent *sibling*; this is an
+*unconditional*, ordinary field's validation message — present on every field on this form —
+shifting something *below* it that the very next action is about to click. Moving the message
+does not fix it, because the same race exists for any field pair filled in visual order; the
+fix instead makes the reveal finish before the next click starts, rather than racing it as a
+side effect of that click's own implicit blur. `fillEntry()`'s shared helper in
+`nn-entry.spec.ts` now does `await phone.blur()` as its own awaited step immediately after
+filling the phone field and before checking the race-category radio — for all ~23 tests that
+call it, not only the one that first caught this, since the same shape of race is latent for
+any field left in an invalid state right before an adjacent click, whether or not a current
+test happens to exercise it.
+
 **A navigation label is not free text, because the bar's height is what pays for a defect.** The
 Nightingale Nightmare bar was unstuck by [ADR-012](docs/architecture/decisions/adr-012-one-navigation-bar.md)
 over three defects and stuck again by [ADR-014](docs/architecture/decisions/adr-014-the-bar-stays-and-the-notice-is-in-it.md),
@@ -883,6 +933,27 @@ few steps later, and `main` by then two commits ahead, with those two adding `en
 migrations underneath a branch whose green run predated them. **Re-check `git rev-parse main`
 immediately before `git checkout -b`, and put the base SHA in the first commit message**, so
 the tree a change was verified against is recorded rather than inferred.
+
+**A UK phone number is eleven digits starting `0`, with no ten-digit exception, and a brief
+that floats one is contradicting its own worked example.** The usability brief PR C shipped
+against said to accept "11 digits beginning 0, or 10 digits beginning 0 for the handful of
+old area codes that are genuinely 10" — and then, as its own example of a number that must be
+*rejected* as too short, gave `07700 90012`, which is itself ten digits. Both cannot be true
+without a lookup table of which ten-digit numbers are genuinely valid, which is exactly the
+dependency the same brief forbids (`libphonenumber` or equivalent). Eleven digits, no
+exception, is the only reading that satisfies the brief's own example, and it matches the UK
+numbering plan since the "phONEday" reforms anyway — a genuinely valid modern UK number is
+never ten digits. `normalisePhone()` in `packages/shared/src/nn-entry.ts` carries the full
+argument.
+
+**`+44 (0)7700 900123` is a real, common way to write a UK number for an international
+reader, and a normaliser that treats `+44` as always followed by ten digits will refuse it.**
+The bracketed 0 is the trunk prefix — dialled at home, dropped abroad — and it survives
+punctuation-stripping as an eleventh digit sitting right after the country code, which reads
+as one digit too many unless it is explicitly recognised and dropped.
+`packages/db/tests/entries-rules.test.ts` already used this exact shape as a fixture before
+this was noticed, at the database layer, which does not validate phone shape at all — so
+nothing failed until a form-level normaliser was checked against it.
 
 ---
 
@@ -1233,22 +1304,22 @@ charged", because the webhook may simply be late and somebody who believes it pa
 
 ### Database grants: anon and authenticated
 
-**The anon role still holds no grant on any table in `entries`.** It may call **fifteen**
-functions and nothing else — the seven the entry and payment path needs, the six the admin
+**The anon role still holds no grant on any table in `entries`.** It may call **sixteen**
+functions and nothing else — the eight the entry and payment path needs, the six the admin
 surface added, and the two the outbox's drain added later:
 
 | | |
 | --- | --- |
-| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()` |
+| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()`, `places_remaining()` |
 | **The entry path** | `create_pending_purchase()` — **takes a key**, since #178 — and `attach_checkout_session()` |
 | **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
 | **Payment** | `record_checkout_event()` — **takes a key** |
 | **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
 | **The outbox drain** | `claim_outbox_batch()`, `record_send_result()` — **both take the webhook key** |
 
-**Do not trust this table's count going forward** — it has already changed once (from seven, to
-thirteen, to fifteen) and `packages/db/tests/entries.test.ts` is what actually asserts the
-current list by name; read that rather than this table when it matters.
+**Do not trust this table's count going forward** — it has already changed three times (from
+seven, to thirteen, to fifteen, to sixteen) and `packages/db/tests/entries.test.ts` is what
+actually asserts the current list by name; read that rather than this table when it matters.
 
 **Six are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
 human, `admin_key_ok()` answers whether a string is the admin key, and `record_admin_action()`
@@ -1265,7 +1336,12 @@ which discloses nothing `entry_state()` does not, and the admin surface's six, a
 [ADR-013](docs/architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md).
 
 **`authenticated` is a second list: six, then eleven in #107, then twelve, then fourteen, then
-sixteen** — the last being `admin_entry_detail()`, ADR-024's. It is a role
+sixteen** — the last being `admin_entry_detail()`, ADR-024's — **and eighteen now**, the
+seventeenth an intermediate addition this paragraph never named and the eighteenth
+`places_remaining()`, granted alongside `anon` for the reason `entry_state()` and
+`current_entry_state()` already are: it answers the same public figure whichever role is
+asking. `packages/db/tests/entries.test.ts` is the assertion that is actually load-bearing
+here; this prose is a summary of it, not the other way round. It is a role
 anybody who registers holds, so every function on it authorises inside itself and the grant only
 says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` are there because
 a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a

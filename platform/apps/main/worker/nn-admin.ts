@@ -9,6 +9,7 @@ import {
   createManualEntry,
   createUserClient,
   csvDocument,
+  effectiveCategory,
   fetchCancellablePurchase,
   fetchCurrentEntryState,
   fetchEntryDetail,
@@ -41,6 +42,7 @@ import {
   type ManualEntrant,
   type ManualEntryReason,
   type MedicalExportRow,
+  type ResultPlacement,
   type StartListExportRow,
   type UnavailableCause,
 } from '@src/shared';
@@ -1259,13 +1261,16 @@ function bandOf(entry: AdminEntry): AgeCategoryCode | 'no-category' | 'under-18'
     return null;
   }
 
-  const category = ageCategoryFor(entry.age, entry.gender);
+  const category = ageCategoryFor(
+    entry.age,
+    effectiveCategory(entry.gender, entry.resultPlacement),
+  );
 
   if (category.known) {
     return category.code;
   }
 
-  return category.reason === 'gender-has-no-categories' ? 'no-category' : 'under-18';
+  return category.reason === 'not-placed' ? 'no-category' : 'under-18';
 }
 
 /**
@@ -1658,7 +1663,7 @@ function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Ht
       ? 'Guide'
       : entry.age === null || entry.gender === null
         ? null
-        : categoryLabel(entry.age, entry.gender);
+        : categoryLabel(entry.age, entry.gender, entry.resultPlacement);
 
   // **The England Athletics number was rendered here until 29 August 2026**, as a cell and as
   // a loud "EA number missing" in the stacked phone summary. The club stopped asking for it,
@@ -2143,7 +2148,9 @@ function startListPage(
  * matters there.
  */
 function startListCategory(row: StartListExportRow): string {
-  return row.role === 'guide' ? 'Guide' : categoryLabel(row.age, row.gender);
+  return row.role === 'guide'
+    ? 'Guide'
+    : categoryLabel(row.age, row.gender, row.resultPlacement);
 }
 
 function startListRow(row: StartListExportRow): Html {
@@ -2715,7 +2722,7 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
       ? 'Guide — in no category, not timed and not placed'
       : entrant.gender === null
         ? 'No category — no race category recorded'
-        : categoryLabel(entrant.age, entrant.gender);
+        : categoryLabel(entrant.age, entrant.gender, entrant.resultPlacement);
 
   return html`<section class="admin-entrant">
     ${
@@ -2738,6 +2745,19 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
         'Race category',
         entrant.gender === null ? null : genderLabel(entrant.gender),
       )}
+      ${
+        /* **Shown only for a non-binary entrant, and only they can have answered it.**
+        `entrants_result_placement_only_non_binary` is what makes a null here mean "female
+        or male" everywhere else on this page — ADR-031. */
+        fact(
+          'Placement',
+          entrant.gender === 'non_binary'
+            ? entrant.resultPlacement === null
+              ? 'Neither — asked, and chose not to be placed'
+              : genderLabel(entrant.resultPlacement)
+            : null,
+        )
+      }
       ${
         /* **The open question beside the closed one, and it is not a category** — ADR-020. It
         is shown here for the reason it is shown on the list: a field the club collects and
@@ -3052,18 +3072,25 @@ function auditDetailWords(detail: Record<string, unknown>): Html | null {
 /**
  * The category, named by `packages/shared/src/age-category.ts` and by nothing here.
  *
- * The two answers that are not a band are the club's own unfinished decisions rather than
- * anything the entrant did, and they are written as such: a non-binary runner has no category
- * because the club has not made any, and that is what the cell should say.
+ * **Takes `gender` and `resultPlacement` both, and resolves them the one way anything on
+ * this surface may** — `effectiveCategory()`, so the admin list, the start list and the
+ * entry-detail page can never disagree about which of the two facts they read. "No category
+ * yet" now covers both a non-binary entrant who was never asked and one who chose neither —
+ * ADR-031 — which the club's own unfinished decision about a non-binary prize band still
+ * covers either way.
  */
-export function categoryLabel(age: number, gender: Gender): string {
-  const category = ageCategoryFor(age, gender);
+export function categoryLabel(
+  age: number,
+  gender: Gender,
+  resultPlacement: ResultPlacement,
+): string {
+  const category = ageCategoryFor(age, effectiveCategory(gender, resultPlacement));
 
   if (category.known) {
     return category.label;
   }
 
-  return category.reason === 'gender-has-no-categories' ? 'No category yet' : 'Under 18';
+  return category.reason === 'not-placed' ? 'No category yet' : 'Under 18';
 }
 
 function statusFilterLabel(status: StatusFilter): string {

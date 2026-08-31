@@ -2,6 +2,7 @@ import {
   buildHealthReport,
   createAnonClient,
   expirePendingHolds,
+  fetchPlacesRemaining,
   healthReportFromFailure,
   healthResponse,
 } from '@src/shared';
@@ -15,10 +16,12 @@ import {
   isNnCoursePath,
   isNnEntryCompletePath,
   isNnMastheadPath,
+  isNnPlacesRemainingPath,
   isNnRacePath,
   isNnWebhookPath,
   isNnYearPath,
   isTimingPath,
+  nnEventSlugForPlacesRemainingPath,
   nnEventSlugForYearPath,
   nnYearPathForEventSlug,
   NN_PREFIX,
@@ -302,6 +305,13 @@ export default {
       return handleHealth(env);
     }
 
+    // Same reasoning, and it is why this is not one more thing `renderNnEntryView` paints:
+    // the personalised entry page is `private, no-store`, and this answer is neither
+    // personalised nor a page. See its own doc comment in `routing.ts`.
+    if (request.method === 'GET' && isNnPlacesRemainingPath(url.pathname)) {
+      return handlePlacesRemaining(env, url.pathname);
+    }
+
     const response = await env.ASSETS.fetch(request);
 
     // Only HTML gets rewritten, and only when it was served successfully. An asset, a
@@ -545,6 +555,49 @@ async function handleHealth(env: Env): Promise<Response> {
     // failure this endpoint can have.
     return healthResponse(healthReportFromFailure(cause));
   }
+}
+
+/**
+ * `GET /nn/<year>/places-remaining` — the one figure the entry page fetches rather than
+ * renders.
+ *
+ * **Always `anon`.** The count is the same for every viewer, so there is no `viewer`
+ * parameter to thread through and nothing gained by reading a session here — unlike the
+ * entry page itself, which is caller-aware because a tester sees a fee nobody else does.
+ *
+ * **204 on any failure, never a stale or invented number.** An unknown slug, a migration not
+ * yet landed, a database that cannot be reached — all three are the same fact to the
+ * enhancement script that calls this: nothing to show. `no-store` on that path specifically,
+ * so a transient failure is never the thing a shared cache remembers.
+ */
+async function handlePlacesRemaining(env: Env, pathname: string): Promise<Response> {
+  const slug = nnEventSlugForPlacesRemainingPath(pathname);
+
+  if (slug === null) {
+    return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+  }
+
+  const client = createAnonClient({
+    url: env.PUBLIC_SUPABASE_URL,
+    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+  });
+
+  const result = await fetchPlacesRemaining(client, slug);
+
+  if (!result.ok) {
+    return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+  }
+
+  return new Response(JSON.stringify(result.value), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      // Thirty seconds, public: the one figure on this page that is not per viewer, and the
+      // whole reason it is a separate endpoint rather than a key on the personalised render.
+      'cache-control': 'public, max-age=30',
+      'x-robots-tag': 'noindex',
+    },
+  });
 }
 
 /**

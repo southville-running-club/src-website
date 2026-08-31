@@ -182,6 +182,9 @@ interface EntrantOverrides {
   date_of_birth?: string | null;
   /** The race category — three values, and what the prize list is grouped by. */
   gender?: string | null;
+  /** Where a non-binary entrant's result counts, if anywhere. Only ever meaningful alongside
+   *  `gender: 'non_binary'` — see ADR-031. */
+  result_placement?: string | null;
   /** The open question beside it. Optional, free text, on no list. See ADR-020. */
   gender_identity?: string | null;
   club?: string | null;
@@ -475,6 +478,77 @@ describe('the race category, and the gender question beside it', () => {
       }),
     ).toBe('already_entered');
   });
+});
+
+describe('where a non-binary entrant’s result should be placed — ADR-031', () => {
+  // **Same method as the gender tests above: attempt the bypass with the anon key.** Zod
+  // validates the form; `entrants_result_placement_only_non_binary` and
+  // `entrants_result_placement_shaped` are what refuse a crafted payload that never met it.
+
+  it('stores the chosen placement for a non-binary entrant', async () => {
+    const id = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ gender: 'non_binary', result_placement: 'female' })],
+    });
+
+    const row = await single<{ gender: string; result_placement: string | null }>(
+      'select gender, result_placement from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.gender).toBe('non_binary');
+    expect(row.result_placement).toBe('female');
+  });
+
+  it('stores null for a non-binary entrant who chose neither', async () => {
+    const id = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ gender: 'non_binary', result_placement: null })],
+    });
+
+    const row = await single<{ result_placement: string | null }>(
+      'select result_placement from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.result_placement).toBeNull();
+  });
+
+  it('accepts an entry that never mentions the key at all', async () => {
+    // **The expand step, asserted, the same way `gender_identity` above already is.** A
+    // Worker deployed before this migration sends a payload with no `result_placement` in
+    // it, and that has to keep working and mean "not placed" for a non-binary entrant.
+    const id = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ gender: 'non_binary' })],
+    });
+
+    const row = await single<{ result_placement: string | null }>(
+      'select result_placement from entries.entrants where purchase_id = $1',
+      [id],
+    );
+    expect(row.result_placement).toBeNull();
+  });
+
+  it('refuses a placement given for a female or male entrant, by table constraint', async () => {
+    // **`entrants_result_placement_only_non_binary`, reached through the function's own
+    // handler.** The form never offers this question to a female or male entrant; this is
+    // the backstop for a payload that named one anyway.
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ gender: 'female', result_placement: 'male' })],
+      }),
+    ).toBe('invalid_entrants');
+  });
+
+  it('refuses a placement that is not one of the two categories', async () => {
+    // `entrants_result_placement_shaped` — the same "closed list, checked at the boundary"
+    // discipline `gender`'s own inline check already has.
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ gender: 'non_binary', result_placement: 'non_binary' })],
+      }),
+    ).toBe('invalid_entrants');
+  });
+
+  // **The transfer-clears-it test lives in `entries-transfer-and-requests.test.ts`**, where
+  // the authenticated client this rule needs already exists — this file's whole method is
+  // the anonymous bypass, and `transfer_entry()` is granted to `authenticated`, never `anon`.
 });
 
 describe('the consents an event requires', () => {

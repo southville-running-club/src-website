@@ -1000,6 +1000,12 @@ describe('entries.admin_export()', () => {
       // (`Runner phone` against `Emergency phone`) and by their position on the printed sheet,
       // where the runner's is a line under their own name. Null for a guide, who is not asked.
       'phone',
+      // **The tenth is where a non-binary entrant's result counts, if anywhere** —
+      // ADR-031 — null for every female and male entrant and for a guide, who is asked
+      // none of this. Not its own CSV column or printed field: `startListCategory()` reads
+      // it to resolve the one "Category" column both documents already show, through the
+      // same `effectiveCategory()` the entry form's own preview uses.
+      'result_placement',
       // **The eighth, and it is on the sheet a marshal reads rather than a fact about the
       // entry.** A guide is on the road and has to be accounted for, but is not timed and is
       // in no category — so the printed list and the CSV both say `Guide` where a category

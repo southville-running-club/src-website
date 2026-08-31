@@ -101,7 +101,8 @@ describe('a valid entry for a race that has just filled up', () => {
     expect(html).toMatch(/data-entry-checked="feeCode:affiliated" checked/);
     expect(html).toMatch(/data-entry-text="medicalNotes">Type 1 diabetic\./);
     expect(html).toMatch(/data-entry-checked="medicalConsent" checked/);
-    expect(html).toMatch(/<option value="female"[^>]*selected/);
+    // Radios now, not a select — ADR-031; `MarkerCheckedHandler` echoes the chosen one back.
+    expect(html).toMatch(/data-entry-checked="gender:female" checked/);
   });
 
   it('leaves the entry form on the page, with its prices, rather than hiding it', async () => {

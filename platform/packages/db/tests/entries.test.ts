@@ -334,6 +334,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'export',
       'interest_list',
       'my_entries',
+      // **The sixteenth anon-callable function, and the second whose whole job is a display
+      // figure rather than a decision.** `entry_state` answers configuration; this answers a
+      // count. Neither writes and neither takes a key, because neither discloses anything a
+      // page cannot already show.
+      'places_remaining',
       'raise_attention',
       // **The four reads, without either door, granted to nobody.** Each key-gated function
       // and its role counterpart authorise and then call the same one of these, so the two
@@ -377,7 +382,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(signatures).toEqual([9, 10, 11]);
   });
 
-  it('lets anon execute exactly fifteen of the forty-one, and never PUBLIC', async () => {
+  it('lets anon execute exactly sixteen of the forty-three, and never PUBLIC', async () => {
     // **This list went from six to seven when `current_entry_state()` was added, and from seven
     // to thirteen when the admin surface did.** That is the change this test exists to force,
     // and this is the largest it will ever have been asked to force at once — so the argument
@@ -453,6 +458,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'entry_completion_state',
       'entry_state',
       'expire_pending_holds',
+      // **The count behind the entry page's places-remaining figure, and deliberately not
+      // keyed.** It writes nothing and discloses nothing `entry_state()`'s own `capacity`
+      // does not already publish — the only thing it adds is how many of that capacity are
+      // gone, which is exactly what the page it serves is for.
+      'places_remaining',
       'record_checkout_event',
       'record_send_result',
     ]);
@@ -520,7 +530,13 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     expect(rows.map((row) => row.name)).toEqual(['admin', 'entry', 'stripe']);
   });
 
-  it('lets authenticated execute exactly sixteen, and still no table read', async () => {
+  it('lets authenticated execute exactly eighteen, and still no table read', async () => {
+    // **Eighteen, and the title was already wrong before this addition.** The list below
+    // held seventeen while this title said sixteen — a pre-existing mismatch, not one
+    // `places_remaining` made. The title is prose and the assertion below is the actual
+    // guard, so nothing depended on the count being right; but a wrong number here
+    // undermines the whole argument for keeping one, so it is corrected in the same diff
+    // that adds the eighteenth rather than left for whoever notices next.
     // **The first assertion this file has ever made about `authenticated`**, and it is here for
     // the reason the anon list above is: a slice that grants a role something should have to
     // change a list in a diff somebody reviews.
@@ -634,6 +650,10 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'export',
       'interest_list',
       'my_entries',
+      // A third alongside `entry_state` and `current_entry_state` for the same reason: it
+      // answers the same question — a public capacity figure — whether the caller is signed
+      // in or not, so it is granted to both roles rather than only to `anon`.
+      'places_remaining',
       'request_entry_action',
       // **The thirteenth, and it shares `nn.entry.cancel` rather than adding a permission.**
       // An eighth permission is a stop-and-ask, so transferring reuses the one that already
@@ -813,6 +833,9 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       export: 'v',
       interest_list: 's',
       my_entries: 's',
+      // A display figure, not a reservation — it takes no lock and writes nothing, so
+      // `stable` is the honest answer for the same reason `entry_state` is.
+      places_remaining: 's',
       // **Volatile, because it writes.** It is the only function on the runner's side of this
       // schema that changes a row, and what it changes is one word about what somebody has
       // asked for — never the entry's status, never its place.

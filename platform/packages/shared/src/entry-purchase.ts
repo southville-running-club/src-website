@@ -168,6 +168,10 @@ export function nnEntrantPayload(entry: NnEntry): Record<string, string | null> 
     last_name: entry.lastName,
     date_of_birth: toIsoDate(entry.dateOfBirth),
     gender: entry.gender,
+    // **Null unless `gender` is `non_binary`, already resolved by `parseNnEntry`.** Sent
+    // through unconditionally rather than re-checked here — `entries_result_placement_only_
+    // non_binary` is the backstop if this and `parseNnEntry` ever disagreed.
+    result_placement: entry.resultPlacement,
     gender_identity: entry.genderIdentity,
     club: entry.club,
     // **The runner's own number, and the one `nnGuidePayload` sends null for.** Required of a
@@ -208,6 +212,7 @@ export function nnGuidePayload(guide: NnEntryGuide): Record<string, string | nul
     // asking which one they would be in was collecting an answer nothing could use. A runner
     // with a null here is still refused, by `entrants_gender_unless_guide`.
     gender: null,
+    result_placement: null,
     gender_identity: null,
     club: null,
     // **Not asked, rather than not answered.** A guide gives their own email address above and

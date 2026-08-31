@@ -527,7 +527,7 @@ describe('an entry the server refuses', () => {
     }
   });
 
-  it('keeps the textarea, the select and the checkboxes as well as the text boxes', async () => {
+  it('keeps the textarea, the radios and the checkboxes as well as the text boxes', async () => {
     const response = await submit(
       goodEntry({
         firstName: '   ',
@@ -542,7 +542,10 @@ describe('an entry the server refuses', () => {
     expect(html).toMatch(/data-entry-text="medicalNotes">Type 1 diabetic\./);
     expect(html).toMatch(/data-entry-checked="medicalConsent" checked/);
     expect(html).toMatch(/data-entry-checked="entryTerms" checked/);
-    expect(html).toMatch(/<option value="female"[^>]*selected/);
+    // **Radios now, not a select — ADR-031.** `MarkerCheckedHandler` is what echoes a chosen
+    // radio back after a 422, the same mechanism the entry-type and results-placement radios
+    // use, so this is the one assertion for all of them rather than a `<select>`-specific one.
+    expect(html).toMatch(/data-entry-checked="gender:female" checked/);
   });
 
   it('marks only the fields that actually have a message', async () => {
