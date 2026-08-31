@@ -16,9 +16,24 @@ date of birth. Sits on or near the clocks-change weekend.
 
 **Event** — one running of one race in one year: "Pass the Buck 2026". The unit of the
 permanent archive. Each event has its own roster, crossings and results, and nothing is
-ever overwritten.
+ever overwritten. **Running** is the same concept used as a noun in prose ("the forthcoming
+running of race `nn`") — the schema and the tests say `event`, the writing says `running`;
+they are the same thing.
 
 **Race** — the recurring thing an event is an instance of: "Pass the Buck".
+
+**Team** — the unit of entry, even when it holds one runner. Pass the Buck's team is two
+runners entered and paid for as one transaction; Nightingale Nightmare's team is one runner
+— but both are one **purchase** with one or more **entrants** on it. Getting this wrong in a
+schema is expensive, which is why [CLAUDE.md](../../CLAUDE.md) and the [root
+README](../../README.md) both cite it as the example of a word this glossary fixes.
+
+**ARC** — the Association of Running Clubs, the affiliation body Southville Running Club's
+races run under. Issues the annual **permit** a race must display, and Rule 21(2)(b)/(c) is
+what the £2 gap between the affiliated and unaffiliated entry fees pays to ARC — see
+[decision 006](../decisions/decision-log.md#006--price-the-2026-entry-at-18-and-20-and-treat-the-2-gap-as-arcs-money).
+Not to be confused with **EA** below, which the club stopped verifying membership of —
+[decision 007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
 
 **Roster** — the list of entrants for an event, including walk-ins.
 
@@ -40,19 +55,81 @@ race-simulation checklist.
 **QGM** — Quarterly General Meeting. Where the platform proposal and its governance
 prerequisites were discussed and agreed.
 
+## Race entries
+
+The vocabulary the entries build actually runs on — added because most of it is used
+constantly in [CLAUDE.md](../../CLAUDE.md) and the delivery docs without ever being defined
+here.
+
+**Purchase** — one payment, covering one or more **entrants**. The record `entries.entry_purchases`
+holds; what a **team** actually is in this schema.
+
+**Entrant** — one runner (or **guide**, below) on a purchase. Not the same as a **person** —
+an entrant is a name on a race entry, and may or may not be linked to an account.
+
+**Place** — one of the field's fixed capacity (250 for Nightingale Nightmare 2026). A
+purchase **holds** a place from the moment it starts, whether or not it has been paid for
+yet.
+
+**Hold** — a place reserved against a pending purchase for 31 minutes, released automatically
+if payment does not complete in time. `expired` is what a lapsed hold becomes.
+
+**Fee** — what an entry costs, in pence, read from `entries.fees`. **Affiliated** and
+**unaffiliated** are the two ordinary fees; **complimentary** and **tester** are the two
+that are not sold.
+
+**Guide** — the person who runs with a visually impaired runner, entered as a second
+entrant on that runner's own purchase rather than a separate entry. Pays nothing, is in no
+prize category, and is marked on the start list.
+
+**Complimentary** — a place given rather than sold: a `paid` purchase at £0 on a £0 fee,
+assigned from `/admin/nn/` by somebody holding `nn.entry.create` —
+[ADR-028](../architecture/decisions/adr-028-a-place-can-be-given.md).
+
+**Tester** — a real £1 entry, used to prove the live payment path works before entries open,
+available only to somebody holding `nn.entry.before_open`.
+
+**Attention** — the flag a purchase gets when the webhook meets something it cannot resolve
+on its own (a payment over capacity, an amount mismatch) — see [the
+runbook](../delivery/runbooks/entries-attention.md). Somebody has to look; nothing is guessed.
+
+**Ask** (or **request**) — a runner's recorded wish to cancel or transfer their own paid
+entry, via `request_entry_action()`. Recording an ask performs nothing by itself; a
+volunteer acts on it from `/admin/nn/`.
+
+**Outbox** — the mechanism that tells a runner what happened to their entry: a database
+trigger writes the obligation to send in the same transaction as the thing it is about, and
+a five-minute cron drains it through Resend. Nothing can be lost this way; it can only be
+late.
+
+**Race category** — the closed list of three values (`female`, `male`, and the ones the
+club awards prizes and publishes results by) an entrant states. **Gender identity** is a
+separate, optional, open-text question beside it, on no list and derived by nothing — two
+questions, not one, since
+[ADR-020](../architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md).
+
+**Medical note** / **medical consent** — free-text medical information an entrant may give,
+held only under its own separate consent, in its own table, deleted a month after the race.
+Special category data under UK GDPR Article 9.
+
 ## Membership
 
 **EA** — England Athletics, the sport's national governing body. Club affiliation and
 individual runner registration.
 
-**URN** — Unique Registration Number. An England Athletics member's identifier, validated
-against name and status.
+**URN** — Unique Registration Number. An England Athletics member's identifier. ⚠️
+**Historical for race entries**: the club stopped asking for or holding a URN on race entry
+forms on 29 August 2026 — [decision
+007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers).
+Still relevant to club membership itself.
 
-**Licence-check API** — the EA service that validates a URN. Access by agreement, with a
-key. Used by race entry systems to verify registration at the point of entry.
+**Licence-check API** — the EA service that validates a URN. ⚠️ **Not used by race entries
+since decision 007** — a runner's own word decides which entry fee they pay, not a
+verification call.
 
 **myAthletics** — EA's portal, where the membership secretary holds the club's full
-member list. Source of the fallback export if API access is slow.
+member list. Still the source of the club's own membership records; no longer consulted at
+the point of a race entry.
 
 **Member fund** — the £2.50 recurring payment members make in place of 50p cash at
 sessions. Set up as a Squarespace donation fund in October 2024. Running at around **103
@@ -168,12 +245,9 @@ mail hostnames and third-party verification records.
 **Full On Sport** — the current race entry provider. 5.9% + 20p plus VAT, **added on top
 of the entry price and paid by entrants**, not by the club.
 
-**Fasthosts** — the domain registrar, authoritative DNS provider, and the club's mail
-provider (livemail), with forwarding-only mailboxes.
+**Fasthosts** — the domain registrar, and the club's mail provider (livemail). **Real
+mailboxes since decision 003** — no longer forwarding-only. Authoritative DNS moved to
+Cloudflare on 8 August 2026; Fasthosts is the registrar of record only now.
 
-**Squarespace** — the current website platform, and the current home of the £2.50 member
-fund.
-
-**Fasthosts** — the club's DNS registrar. Records currently point at Squarespace.
-
-**Squarespace** — the current website host and home of the member fund. Being replaced.
+**Squarespace** — the outgoing website platform, and the current home of the £2.50 member
+fund. Being replaced; renews automatically on 21 March 2027 if not cancelled first.
