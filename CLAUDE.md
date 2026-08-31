@@ -22,7 +22,10 @@ because a wrong guess here is expensive in money, in law, or in a race that cann
 re-run.
 
 - **A factual claim about a race** that has not been supplied — date, price, distance,
-  location, start time. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
+  location, start time. **The trigger that is actually still live here is one column:
+  `entries.events.entries_open_at`.** Almost everything else this bullet used to guard is
+  now confirmed and quotable — read on for what and where — so do not let the length below
+  suggest more is still open than really is. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
   2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
   the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
   fees are confirmed too** — **£18 affiliated, £20 unaffiliated** since 24 August 2026, £0 for
@@ -60,7 +63,10 @@ re-run.
   runbook owns that moment and carries the single `update`. So the *times* are quotable
   anywhere; the *column* is a stop-and-ask. Do not invent a fact, do not infer one from a phase
   document, and do not put a plausible placeholder in markup.
-- **Collecting a field beyond what is already specified.** Adding a database column that
+- **Collecting a field beyond what is already specified.** **Trigger: a field not already in
+  `packages/shared/src/nn-entry.ts`.** The list below is the history of how it grew to
+  eighteen fields, kept so the reasoning for each is findable — not something to re-read in
+  full before recognising the trigger. Adding a database column that
   holds personal data is a committee decision. The committee has settled the *entry* field
   list — it is `packages/shared/src/nn-entry.ts` — and **the fifteenth was taken on 28 August
   2026**: `gender_identity`, optional free text, in
@@ -116,7 +122,8 @@ re-run.
   start-list CSV and the affiliated export, and **not** on the entries table or the medical
   sheet. **A nineteenth field is a new decision.**
 - **One field has come off the list, which had never happened before — the England Athletics
-  number, on 29 August 2026.** The club asks for none and holds none: a runner states that they
+  number, on 29 August 2026.** **Trigger: asking for the number again is a new decision, not a
+  revert.** The club asks for none and holds none: a runner states that they
   are affiliated and the club takes their word for it —
   [decision 007](docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
   and [ADR-023](docs/architecture/decisions/adr-023-no-england-athletics-numbers.md). **The
@@ -140,7 +147,10 @@ re-run.
   [the contract runbook](docs/delivery/runbooks/entries-ea-number-contract.md). **Asking for a
   number again is a new decision**, not a revert.
 - **`/nn/privacy/` was the committee's document word for word for part of one day, and the club
-  maintains it now.** **Rewritten on 30 August 2026**, when the club asked for that document to be
+  maintains it now.** **Trigger: any edit to that page beyond inserting or deleting a
+  collection-list item.** No sentence may be rewritten, restyled or reordered, and no section
+  added — the detail below is why, and what one exception (that list) actually permits.
+  **Rewritten on 30 August 2026**, when the club asked for that document to be
   published verbatim; until then the page merged it with the notice it replaced. **Later the same
   day the club took edits to it itself** — #168 and
   [ADR-025](docs/architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md) —
@@ -170,7 +180,9 @@ re-run.
   nothing reads either, the `photographs` key is gone, and `medicalRetention` is kept only for
   `entries-retention.test.ts`.
 - **Taking payment and confirming it are both connected, and neither is a stop-and-ask any
-  more.** A valid entry holds a place and goes to Stripe Checkout; the webhook at
+  more.** **Trigger: a partial refund, a correction to a paid entry, or a resend outside the
+  outbox** — the built payment path itself (an ordinary Checkout entry, a full-refund
+  cancellation) is not one of these any longer; read on for what still is. A valid entry holds a place and goes to Stripe Checkout; the webhook at
   `POST /nn/stripe-webhook` is what moves a purchase to `paid`, and it is the only thing that
   may. **Three Worker secrets** — `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and
   `ENTRIES_WEBHOOK_KEY` — never in this repository, never in `wrangler.jsonc`, never in a `vars`
@@ -178,7 +190,9 @@ re-run.
   **Registering the Stripe dashboard endpoint is still a human's job**, and it is step 5 of
   the manual steps in `apps/main/README.md` (test-mode order; the live-key swap, step 15, is
   the one that is last before entries open) because it needs the production URL.
-- **Granting the anon role anything on a table, or adding a function it may execute.** The
+- **Granting the anon role anything on a table, or adding a function it may execute.**
+  **Trigger: any table grant to `anon`, or a sixteenth function beyond the fifteen named in
+  `packages/db/tests/entries.test.ts`.** The
   fifteen it may call are named, exactly, in `packages/db/tests/entries.test.ts` — **the count
   has already changed once** (it was thirteen before the outbox's two drain functions were
   added), which is the argument for reading the test rather than trusting a number in prose —
@@ -219,7 +233,10 @@ re-run.
   to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
   `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
   already produces it — the caller in `NnEntryForm.astro` is the one place that still does not.
-- **A sixth role, or an eleventh permission.** Since #107 a role is a bundle of permissions and
+- **A sixth role, or an eleventh permission.** **Trigger: exactly what the heading says** —
+  the five roles and ten permissions are asserted in
+  `packages/db/tests/identity-permissions.test.ts`, and a sixth or eleventh is a decision, not
+  a side effect. Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
   [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). **The ninth
   and tenth arrived on 29 August 2026 and they are a borrow being paid back**: `nn.email.read`
@@ -266,8 +283,13 @@ Use `./dev`, or `cd platform` first.
 ./dev up      # rebuild the database, then the whole site on http://localhost:8787
               # --keep-data skips the rebuild, when the schema is already current
 ./dev test    # the Worker and acceptance tests, then everything stopped
+./dev e2e     # one Playwright spec on one engine — the fast loop; --linux runs CI's own
+              # browser image, for when a laptop passes something CI would fail
 ./dev check   # rebuild the database, then lint, types, unit and database tests
+./dev smoke   # a handful of live assertions against production; --live is explicit about it
+./dev reset   # rebuild the database from zero without starting the site
 ./dev down    # stop the Workers and the database
+./dev logs    # tail the Worker and Stripe-stub logs from the last ./dev up
 ```
 
 **`up`, `test` and `check` all rebuild the database**, because `supabase start` applies
@@ -430,7 +452,12 @@ those are what break rendering.
 
 ## Traps that have already cost time
 
-Each of these cost an hour or more, and none is obvious from the outside.
+Each of these cost an hour or more, and none is obvious from the outside. Grouped into
+**environment, build and tooling** versus **layout, tests and cross-browser** — the two
+kinds recur through the section rather than sitting in one block each, so a heading marks
+every switch between them.
+
+### Environment, build and tooling
 
 **`opennextjs-cloudflare build` runs one of `apps/timing`'s own npm scripts.** Naming that
 script `opennextjs-cloudflare build` makes it invoke itself. It recursed 205 levels and took
@@ -481,6 +508,8 @@ across a line break arrives with a newline in the middle of it**, so `toContain(
 fails on markup that is perfectly correct. That is the `{' '}` trap one framework along. The tests
 squash whitespace before matching; the tag keeps its name because readable markup is worth more
 than exact-output assertions.
+
+### Layout, tests and cross-browser
 
 **A visually-hidden span inside a horizontally scrolling table makes the whole page scroll
 sideways.** `overflow` only clips a descendant whose containing block is inside the scroller, and
@@ -553,6 +582,8 @@ engine agrees on them; for the bytes use `page.request`, which shares the contex
 hands back a readable body everywhere. Reproduced in
 `mcr.microsoft.com/playwright:v1.62.1-noble`. `nn-admin.spec.ts`'s two export tests are the
 shape to copy.
+
+### Environment, build and tooling, again
 
 **Two pull requests merged out of timestamp order stop `db push` dead, and every symptom
 points somewhere else.** `supabase db push` refuses to insert a migration *before* one already
@@ -635,6 +666,8 @@ installed it, so `tsc -p worker` failed at the first import and no script ran it
 `astro check`, which is what `npm run typecheck` calls, excludes `worker/` by its own tsconfig.
 Nothing covered the code that takes the money. It is wired in now as `typecheck:worker`, and it
 found a real defect on its first run.
+
+### Layout, tests and cross-browser, again
 
 **A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
 no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
@@ -719,6 +752,8 @@ worse of the two because the line still looks like coverage.
 `nn-entry-complete.spec.ts`'s "a real session id reveals nothing about anybody either" is the
 shape to copy.
 
+### Environment, build and tooling, once more
+
 **`osascript -e 'quit app "Docker"'` can return cleanly while `com.docker.backend` keeps
 running**, and `open -a Docker` then reattaches to the same wedged instance rather than starting
 a new one. The symptom is every `docker` command answering `500 Internal Server Error … check if
@@ -801,10 +836,14 @@ the tree a change was verified against is recorded rather than inferred.
 
 ---
 
-## What is not built yet
+## How the entries system behaves
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no timing
-application code**.
+**This used to be titled "What is not built yet."** Almost everything below is built —
+entries, payment, the admin surface, the outbox, member accounts. The one thing genuinely
+not built is at the end of this section, so a reader looking for it does not have to read
+560 lines to find out it is one sentence.
+
+### Email and the outbox
 
 **The confirmation email is built — #73 and
 [ADR-021](docs/architecture/decisions/adr-021-the-club-tells-people-by-outbox.md).** The club
@@ -887,6 +926,8 @@ more often a spam folder. ⚠️ **"Sent today" on that page counts entry emails
 mail shares the Resend account and is not in the outbox, so the club's real usage against the
 daily cap is higher than the figure shown, and the page says so.
 
+### Rate limiting
+
 **One rate-limiting rule is live, and it is the whole of the Cloudflare layer.**
 `[auth.rate_limit]` in `packages/db/supabase/config.toml` is chosen rather than defaulted, with
 a comment per value and `tests/unit/config.test.ts` asserting each — **and the trap that decides
@@ -907,6 +948,8 @@ whose step 0.1 is what created C1 and whose remaining stop condition is step 0.3
 watched the rule fire** — and `entries-open.md`, whose step 0.1 was reconciled to C1 on 30
 August 2026: it now says plainly not to go looking for E1, since it does not exist and never
 will, and that C1's `/nn/` coverage is what already meets this step.
+
+### The admin surface
 
 **There is a staff backend at `/admin/`, and everything under it answers 404 to anybody who may
 not be there.** Signed out, a plain `registered`, the wrong role, an address nobody built — all the
@@ -976,6 +1019,8 @@ period and keeping another — is now unguarded rather than impossible, so publi
 again means asking the committee for wording *and* re-establishing that tie, never assuming it
 still holds.
 
+### Routing: a race and its runnings
+
 **A race is the recurring thing; an event is one running of it in one year, and the routes say
 so** — [ADR-011](docs/architecture/decisions/adr-011-a-race-and-its-runnings.md). Evergreen:
 `/nn/` (the race, and the interest form), `/nn/privacy/` — and `/nn/course/`, whose
@@ -990,6 +1035,8 @@ recent past one — and the Worker paints every link to a year page onto it. Pub
 row in `entries.events` plus that year's content pages, with no edit to `/nn/` and none to the
 Worker. `/nn/<year>/` is the event `nn-<year>`, and `worker/routing.ts` owns that convention as
 two functions that are inverses of each other.
+
+### The entry form and discount codes
 
 **Entries are built here, in `apps/main`** — [ADR-009](docs/architecture/decisions/adr-009-entries-in-apps-main.md)
 retired the plan to give them a repository of their own. **Both forms are on `/nn/2026/`**, and
@@ -1035,6 +1082,8 @@ every call naming the original eight as ambiguous. **A use is returned when the 
 incremented before, so 25 abandoned checkouts would have exhausted the whole allocation with
 nobody entered. **A 100% code is not the way to give a free place**: Stripe refuses a zero-total
 session and will not charge below £0.30, which is what [ADR-028](docs/architecture/decisions/adr-028-a-place-can-be-given.md) is the answer to.
+
+### Rules enforced in the database
 
 **Every rule is enforced in the database, and Zod is never the only place one lives.** Slice E
 found `create_pending_purchase` writing `ea_number` without ever consulting
@@ -1093,6 +1142,8 @@ already there is [a runbook](docs/delivery/runbooks/entries-constraints.md), bec
 validated `ADD CONSTRAINT` fails the migration if one existing row disagrees and nobody here
 can see production's.
 
+### The webhook and payment confirmation
+
 **`POST /nn/stripe-webhook` is the only thing that writes `paid`, and nothing else may.** The
 redirect back from Stripe is not proof of payment — a tab can be closed before it fires, and the
 return URL is one anybody can type. The webhook verifies Stripe's signature over the **raw
@@ -1116,9 +1167,11 @@ it and let an oversold place be sold twice.
 positive claim.** No state ever makes a negative one — a lapsed hold must never say "nothing was
 charged", because the webhook may simply be late and somebody who believes it pays twice.
 
-**The anon role still holds no grant on any table in `entries`.** It may call **thirteen**
-functions and nothing else — the seven the entry and payment path needs, and the six the admin
-surface added:
+### Database grants: anon and authenticated
+
+**The anon role still holds no grant on any table in `entries`.** It may call **fifteen**
+functions and nothing else — the seven the entry and payment path needs, the six the admin
+surface added, and the two the outbox's drain added later:
 
 | | |
 | --- | --- |
@@ -1127,6 +1180,11 @@ surface added:
 | **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
 | **Payment** | `record_checkout_event()` — **takes a key** |
 | **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
+| **The outbox drain** | `claim_outbox_batch()`, `record_send_result()` — **both take the webhook key** |
+
+**Do not trust this table's count going forward** — it has already changed once (from seven, to
+thirteen, to fifteen) and `packages/db/tests/entries.test.ts` is what actually asserts the
+current list by name; read that rather than this table when it matters.
 
 **Six are granted to nobody**: `raise_attention()` writes the flag that says a purchase needs a
 human, `admin_key_ok()` answers whether a string is the admin key, and `record_admin_action()`
@@ -1149,6 +1207,8 @@ says "you may ask". `create_pending_purchase()` and `attach_checkout_session()` 
 a signed-in caller reaches PostgREST as `authenticated` rather than as `anon` — **not** because a
 signed-in caller may do more. `my_entries()` is scoped to `auth.uid()` and the caller's confirmed
 address; `cancellable_purchase()` and `cancel_entry()` refuse without `nn.entry.cancel`.
+
+### Entry requests: asking to cancel or transfer
 
 **A twelfth arrived with the entry-request slice, and it is the first one a runner rather
 than a volunteer calls.** `request_entry_action()` records that somebody has asked the club
@@ -1209,6 +1269,8 @@ no transfer button until the club asked for one — see the paragraph above, whi
 that ask turned into. **The email half is built now, and it is not this** — #73 sends on what a
 volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody
 by email; the message goes when somebody acts on it.
+
+### Admin filtering, and the runner's own record
 
 **`/admin/nn/` filters on sets, and by default leaves out everybody who is not running** —
 `fee:tester`, `status:refunded` and `status:expired`, which on a race that fills are most of the
@@ -1288,6 +1350,8 @@ get in touch before entering again*), and the open view carries the note describ
 lapsed card is rendered quiet and *after* the refunds, because a refund happened and a lapsed
 hold merely failed to complete.
 
+### The tester role, and the Stripe key swap
+
 **Two functions in `entries` now answer differently depending on who is asking, and that is new.**
 `entry_state()` hides a fee whose `requires_permission` the caller does not hold, and
 `create_pending_purchase()` admits a `pre_open` event for a caller holding `nn.entry.before_open`.
@@ -1339,6 +1403,8 @@ Stripe `code=` are what tell them apart. Both, and the reason a hand refund in t
 makes the row permanently unreconcilable, are in
 [the key-swap runbook](docs/delivery/runbooks/entries-stripe-keys.md).
 
+### Sessions
+
 **`/account/entries/` is what tells a runner they have a place**, alongside the confirmation
 email #73 sends and Stripe's own receipt. It reads `entries.my_entries()`, which matches on
 `person_id` — set when the buyer happened to be signed in — **or** on a `purchaser_email` equal to
@@ -1367,5 +1433,9 @@ produce a £0 entry on its own. The answer is [ADR-028](docs/architecture/decisi
 re-checking capacity, the minimum age and one-runner-one-place. It is what the two Kinsi
 places and a visually impaired runner's guide's place both use now.
 
-The current state, and what is deliberately deferred, is in
-[the phases](docs/delivery/phases.md).
+### What is genuinely not built
+
+So you do not go looking for it, or assume it is missing by mistake: there is **no timing
+application code**. Nothing above this line is an exception to that — every section in this
+part of the file describes something built and live. The current state, and what is
+deliberately deferred, is in [the phases](docs/delivery/phases.md).
