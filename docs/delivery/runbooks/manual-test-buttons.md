@@ -66,6 +66,7 @@ Neither role can grant itself anything, so somebody holding `super-admin` does s
 | **0.3** | At least one **paid** entry on `nn-2026` | Either a tester payment from T17, or a place given at B32 | |
 | **0.4** | At least one **refunded** and one **expired** purchase | Needed by B4's chips and by B8. A lapsed hold arrives on its own after 31 minutes | |
 | **0.5** | At least one entry carrying a **medical note** | Needed by B17, B12 and B13 | |
+| **0.5a** | ⚠️ At least one entry carrying a **guide** | **Needed by B10 and B11, and it is the precondition this pass was written without.** A guide is asked no race category, and a start-list export with one in it is the case that broke both start-list buttons for every runner on the sheet. A field of runners only will pass B10 and B11 while proving nothing | |
 | **0.6** | At least one **failed** outbox message | Needed by B40. A `failed` row is the only status that renders a button | |
 | **0.7** | `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` bound | Everything from T16 needs them. Without them the Worker answers **503** and the pass stops at T15 | |
 | **0.8** | `ENTRIES_ENTRY_KEY` installed and verified | Since [ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md) no place can be held without it — the whole of Part A's section C fails identically if it is missing | |
@@ -184,8 +185,8 @@ these exist to stop somebody paying twice.
 | **B7** | Hide toggle — **test entries** | *Hide them* / *Show them*. Moves as a unit and carries the other group forward untouched | |
 | **B8** | Hide toggle — **refunded and lapsed** | Same. An explicit `?status=` overrules the *default* and never overrules a `hide=` somebody chose | |
 | **B9** | **Open the interest list** | `/admin/nn/interest/` | |
-| **B10** | **Print the start list** | A printable page. **A POST, because rendering it writes a `start_list_export` audit row** | |
-| **B11** | **Download as CSV** (start list) | `text/csv`, `content-disposition: attachment`, a filename. Audited the same way. **Assert the response, not a download event** — WebKit on Linux renders it in the tab | |
+| **B10** | **Print the start list** | A printable page. **A POST, because rendering it writes a `start_list_export` audit row**. ⚠️ **Run it against a field containing a guide** — see 0.5a. Their row must read *Guide* in the Category column and carry no phone number of their own | |
+| **B11** | **Download as CSV** (start list) | `text/csv`, `content-disposition: attachment`, a filename. Audited the same way, and it must agree with B10 row for row. **Assert the response, not a download event** — WebKit on Linux renders it in the tab | |
 | **B12** | **Print the medical sheet** | Special category data. Writes `medical_export` | |
 | **B13** | **Download the notes as CSV** | Same read, same audit row. **Deliberately named differently from B11** — two identical accessible names on one page are two rows a screen reader cannot tell apart | |
 | **B14** | **Download the affiliated list** | No England Athletics column — the club holds none. A guide is **excluded** | |
