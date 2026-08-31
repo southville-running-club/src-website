@@ -243,10 +243,16 @@ including by an agent.
   question until 24 August 2026 — **it is answered, in
   [ADR-015](decisions/adr-015-member-accounts-on-supabase-auth.md) and [decision
   005](../decisions/decision-log.md#005--give-the-platform-member-accounts-on-supabase-auth)**
-  — but the block itself stays a stop-and-ask: `enable_signup` still ships **off** until
-  [#49](https://github.com/southville-running-club/src-website/issues/49) turns it on as its
-  own reviewed change, and any further edit to `site_url` or a redirect URL is still a
-  production config push on the next migration, not a local setting
+  — but the block itself stays a stop-and-ask. **`enable_signup` is `true`, and has been
+  since [#49](https://github.com/southville-running-club/src-website/issues/49) turned it on
+  as its own reviewed change** — `config.toml`'s own comment on that line is where the
+  reasoning lives. This sentence said it "still ships **off**" until 30 August 2026, which
+  had been wrong since #49 merged, and it was read and believed in the meantime: a brief
+  written against it argued from a switch that was already on. **A stale line here is more
+  expensive than a stale line anywhere else in this repository**, because this is the
+  document everything else is told to read first. Any further edit to `site_url`, a redirect
+  URL or `enable_signup` is still a production config push on the next migration, not a local
+  setting — and that is what makes the block a trigger, rather than the value of any one flag
 
 *Where from:* the [build brief](../delivery/nn-build-brief.md#stop-and-ask), generalised
 beyond Nightingale Nightmare because none of these are specific to it.
