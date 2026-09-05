@@ -1168,6 +1168,11 @@ grant execute on function store.record_send_result(text, uuid, text, text, text)
 --
 -- `sales_open_at` is null, so nothing can be sold. There is no `ticket_types` row, so there
 -- is no price. Both of those are separately sufficient, and both are deliberate.
+--
+-- **Two of these facts were supplied later the same day** — the date and the venue, in
+-- `20260905110000_store_christmas_party_2026_date_and_venue.sql`. Everything this paragraph
+-- says stays true of *this* file; the point of the separate migration is that a published
+-- claim about the party has its own dated, reviewable step.
 insert into store.socials (
   slug, display_name, reply_to, consent_version, max_tickets_per_purchase
 )

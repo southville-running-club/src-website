@@ -9,18 +9,25 @@ money, and every step before it is what makes that safe.
 
 ## What ships, and why nothing is on sale
 
-`store.socials` holds one row — `christmas-party-2026` — with **every fact null**: no date, no
-time, no venue, no age limit, no capacity, and `sales_open_at` null. There is **no
-`ticket_types` row**, so there is no price.
+`store.socials` holds one row — `christmas-party-2026`. **Two of its facts are confirmed** —
+**Saturday 12 December 2026, at The Cock & Tail**, supplied on 5 September 2026 and booked since
+January.
+
+**Everything else is null**: no start or end time, no age limit, no capacity, and
+`sales_open_at` null. There is **no `ticket_types` row**, so there is no price.
 
 Either of those alone is enough to keep the ticket form hidden. Both are deliberate:
 
-* The 2026 details are **not confirmed by the committee**, and a plausible placeholder in a
-  migration would be the club announcing a party it has not agreed.
+* **The price is not confirmed**, and a plausible placeholder in a migration would be a price
+  the club is charging.
 * `sales_open_at` is the switch, and setting it starts selling tickets unattended.
 
-`/events/christmas-party-2026/` renders "the details for 2026 are still to be confirmed" and
-"tickets are not on sale yet", which is true.
+`/events/christmas-party-2026/` renders the date and the venue, says the rest is still to be
+confirmed, and says tickets are not on sale — all of which is true.
+
+⚠️ **The 2025 party is not a source for what is missing.** It ran 7:30pm–1am, cost £12 and was
+18+; carrying any of those forward because it is the obvious guess is the thing this whole
+arrangement exists to prevent. A start time is what somebody plans an evening around.
 
 ---
 
@@ -98,14 +105,16 @@ failures: Stripe retries for three days.
 
 ## 1. Confirm the details
 
-Once the committee has supplied them — and **only then**:
+**The date and the venue are already set.** They were supplied on 5 September 2026 and went in
+as their own migration, so they are in the schema rather than in anybody's `psql` history.
+
+What is left is the start and end time, the age limit and the capacity — and only once they
+have actually been supplied:
 
 ```sql
 update store.socials
-   set social_date = date '2026-12-05',
-       start_time  = time '19:30',
+   set start_time  = time '19:30',
        end_time    = time '01:00',
-       venue       = 'The Cock & Tail, Commercial Road',
        minimum_age = 18,
        capacity    = null
  where slug = 'christmas-party-2026';

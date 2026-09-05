@@ -1672,13 +1672,21 @@ and the plain word a member reads — the same split as the bar reading "Race ti
 
 ### What ships, and why it sells nothing
 
-**`store.socials` holds one row — `christmas-party-2026` — with every fact null.** No date, no
-time, no venue, no age limit, no capacity. **There is no `ticket_types` row, so there is no
-price**, and `sales_open_at` is null on top of that. Either alone keeps the form hidden; both
-are deliberate. The 2026 details are a **stop-and-ask** exactly as a race's are — the attached
-2025 page is not a source for 2026, and carrying last year's date or price forward would be the
-club announcing a party it has not agreed. Confirming them is an `update` and no deploy, which
-is what the columns are for. `packages/db/tests/store.test.ts` asserts every one of those nulls.
+**`store.socials` holds one row — `christmas-party-2026` — and two of its facts are confirmed.**
+**Saturday 12 December 2026, at The Cock & Tail**, supplied by a club volunteer on 5 September
+2026 and booked since January; they live in `social_date` and `venue`, never in markup, and
+`20260905110000_store_christmas_party_2026_date_and_venue.sql` is their own dated step.
+
+⚠️ **Everything else is still a stop-and-ask, and the 2025 page is not a source for any of it.**
+`start_time`, `end_time`, `minimum_age` and `capacity` are null, and **there is no
+`ticket_types` row, so there is no price**. Last year's party ran 7:30pm–1am, cost £12 and was
+18+ — none of those is a fact about 2026, and carrying one forward because it is the obvious
+guess is the failure this list exists to prevent: a start time is what somebody plans an evening
+around, and a price is what the club charges a card. `sales_open_at` is null on top of all of
+that, and the absent price is separately sufficient to keep the form hidden. Confirming any of
+it is an `update` and no deploy, which is what the columns are for.
+`packages/db/tests/store.test.ts` asserts the two that are set and every one that is not, as an
+exact object, so a value arriving silently turns it red.
 
 ### The grants, and what makes an eighth a decision
 

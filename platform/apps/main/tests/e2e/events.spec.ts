@@ -61,24 +61,30 @@ test.describe('the Christmas party page', () => {
     await page.goto('/events/christmas-party-2026/');
   });
 
-  test('says the details are still to be confirmed, and states none of them', async ({
-    page,
-  }) => {
+  test('shows the facts that were supplied, and none that were not', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'SRC Christmas Party 2026',
     );
 
-    await expect(page.getByText('still to be confirmed')).toBeVisible();
+    // Supplied by a club volunteer on 5 September 2026, booked since January. Painted from
+    // `store.socials`, so this passing is also proof the page is reading the database rather
+    // than carrying a date in its markup.
+    await expect(page.getByText('Saturday 12 December 2026')).toBeVisible();
+    await expect(page.getByText('The Cock & Tail')).toBeVisible();
 
-    // **The load-bearing negative.** The 2025 party was on Saturday 6 December at The Cock &
-    // Tail for £12. Not one of those is a fact about 2026, and a page that carried any of them
-    // forward would be the club announcing a party it has not agreed.
+    // **The load-bearing negative, and it is narrower than it was.** The venue is legitimately
+    // last year's venue now, so the guard is about the facts that are still *unsupplied*: the
+    // 2025 party ran 7:30pm–1am, cost £12, and was on the 6th. None of those is a fact about
+    // 2026, and a page that showed one would be the club announcing something it has not
+    // agreed — a start time is what somebody plans an evening around.
     const body = await page.content();
 
-    expect(body).not.toContain('6 December');
-    expect(body).not.toContain('Cock & Tail');
-    expect(body).not.toContain('£12');
-    expect(body).not.toMatch(/7:30pm/u);
+    expect(body, 'last year’s date must not appear').not.toContain('6 December');
+    expect(body, 'no price has been supplied').not.toContain('£12');
+    expect(body, 'no start time has been supplied').not.toMatch(/7:30pm/u);
+
+    // And the page says so, rather than leaving a blank where a time should be.
+    await expect(page.getByText('still to be confirmed')).toBeVisible();
   });
 
   test('says tickets are not on sale, and offers no form at all', async ({ page }) => {

@@ -261,7 +261,7 @@ describe('the keys, which ship refusing everything', () => {
 });
 
 describe('the 2026 Christmas party row', () => {
-  it('exists, and publishes not one fact about the occasion', async () => {
+  it('publishes the two facts that were supplied, and not one that was not', async () => {
     const rows = await query<Record<string, unknown>>(
       `select social_date, start_time, end_time, venue, minimum_age, capacity,
               sales_open_at, sales_close_at
@@ -270,15 +270,22 @@ describe('the 2026 Christmas party row', () => {
 
     expect(rows).toHaveLength(1);
 
-    // **Every one of these is null on purpose.** The attached 2025 page is not a source for
-    // 2026: last year's date, venue and price are last year's, and carrying them forward would
-    // be the club announcing a party it has not agreed. Confirming them is an `update` and no
-    // deploy — which is the whole reason they are columns.
+    // **The date and the venue were supplied by a club volunteer on 5 September 2026** —
+    // Saturday 12 December 2026 at The Cock & Tail, booked since January.
+    //
+    // **Everything else is still null on purpose, and the 2025 page is not a source for any of
+    // it.** Last year's party ran 7:30pm–1am, cost £12 and was 18+; none of those is a fact
+    // about 2026, and carrying one forward because it is the obvious guess is the failure the
+    // stop-and-ask list exists to prevent. A start time is what somebody plans an evening
+    // around and a price is what the club charges a card.
+    //
+    // Asserted as an exact object rather than field by field, so a value arriving here
+    // silently — which is precisely the thing this file exists to catch — turns it red.
     expect(rows[0]).toEqual({
-      social_date: null,
+      social_date: new Date('2026-12-12T00:00:00.000Z'),
+      venue: 'The Cock & Tail',
       start_time: null,
       end_time: null,
-      venue: null,
       minimum_age: null,
       capacity: null,
       sales_open_at: null,
@@ -298,7 +305,7 @@ describe('the 2026 Christmas party row', () => {
     expect(rows).toEqual([]);
   });
 
-  it('reads back through social_state() as pre_open, with nulls and no ticket types', async () => {
+  it('reads back through social_state() as pre_open, with no ticket types', async () => {
     const { data, error } = await anon
       .schema('store')
       .rpc('social_state', { p_slug: 'christmas-party-2026' });
@@ -307,9 +314,14 @@ describe('the 2026 Christmas party row', () => {
     expect(data?.[0]).toMatchObject({
       slug: 'christmas-party-2026',
       display_name: 'SRC Christmas Party 2026',
+      // **`pre_open` even with a date and a venue on the row**, because the sales window and
+      // the occasion's own details are different questions. `sales_open_at` is still null, and
+      // a null there reads as *never opens* rather than *no lower bound*.
       sales_state: 'pre_open',
-      social_date: null,
-      venue: null,
+      social_date: '2026-12-12',
+      venue: 'The Cock & Tail',
+      // And still nothing to sell: no price has been supplied, which is separately sufficient
+      // to keep the form hidden whatever the window says.
       ticket_types: [],
     });
   });

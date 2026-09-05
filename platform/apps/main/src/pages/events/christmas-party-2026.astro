@@ -66,10 +66,22 @@ import Base from '../../layouts/Base.astro';
   }
   <p data-social-age hidden>Entry requirements</p>
 
+  {
+    /*
+    **It does not name which details are missing, and that is deliberate.** This sentence
+    listed the date, the venue and the price — and went stale within a day, when the date and
+    the venue were supplied. The rows above each carry their own "To be confirmed", which is
+    both more precise and painted from the same columns, so there is exactly one place a
+    missing fact is announced from and it cannot disagree with itself.
+
+    Revealed whenever `socialDetailsConfirmed()` is false — the date, the venue *and* the
+    start time all present — so it takes itself down when there is nothing left to say.
+  */
+  }
   <p data-social-unconfirmed>
-    <strong>The details for 2026 are still to be confirmed.</strong> The committee has not yet
-    settled the date, the venue or the ticket price. This page will show them as soon as it
-    does — nothing here is carried over from last year.
+    <strong>Some details for 2026 are still to be confirmed.</strong> Anything above marked
+    "To be confirmed" has not been settled yet, and this page will show it as soon as it is.
+    Nothing here is carried over from last year.
   </p>
 
   {

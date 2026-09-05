@@ -153,9 +153,16 @@ schema safe rather than merely intended.
 somebody takes in a diff — the mechanism `entries.test.ts` already provides, and whose own
 count has changed three times.
 
-**The 2026 party publishes nothing.** The row exists with every fact null and no ticket type,
-so `sales_open_at` and the absent price are each separately sufficient to keep the form hidden.
-Confirming the details is an `update` and no deploy.
+**The 2026 party publishes only what has been supplied.** At the time this record was written
+the row held every fact null; later the same day a club volunteer confirmed **Saturday 12
+December 2026 at The Cock & Tail**, booked since January, and those two are now set. The start
+time, the age limit and the price are not, and **the 2025 page is not a source for them** — it
+ran 7:30pm–1am at £12 and 18+, none of which is a fact about 2026.
+
+There is still no ticket type, so `sales_open_at` and the absent price remain separately
+sufficient to keep the form hidden. **That this was one `update` in one dated migration, with no
+deploy and no markup touched, is the property the whole arrangement was for** — and it was
+exercised within a day of being built.
 
 ⚠️ **`STORE_ENTRY_KEY` must be installed and verified before `sales_open_at` is ever set.** The
 other order is a ticket window that is open and unprotected. See
