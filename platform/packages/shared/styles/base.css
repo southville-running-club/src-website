@@ -378,6 +378,52 @@ a[href^='mailto:'] {
   border-radius: 2px;
 }
 
+/* **A definition list, for a page that states a handful of facts.** `/events/<slug>/` is the
+   first of these and a race's own facts panel is the obvious next one, so it lives here rather
+   than in a scoped `<style>`: `brand.astro` is the only file in this app that carries one, and
+   it is a design showcase rather than a pattern to copy.
+
+   **A grid rather than the browser default**, whose `dd` indent reads as an accident rather
+   than as a layout. The term and the value line up in two columns once there is room, and
+   stack below that — a venue name on a 320px screen must not be squeezed into half the width,
+   which is the width at which this site's sideways-scroll guard is measured.
+
+   Every colour is a semantic token, so the dark scheme at the head of this file applies with
+   no second block here. */
+dl {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 var(--space);
+  margin: var(--space) 0;
+}
+
+dt {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--colour-muted);
+}
+
+dd {
+  margin: 0 0 0.5rem;
+}
+
+@media (min-width: 30rem) {
+  dl {
+    /* `max-content` capped by `minmax`, so a long term widens the column and a very long one
+       does not push the value off the measure. */
+    grid-template-columns: minmax(5rem, max-content) 1fr;
+  }
+
+  dt {
+    grid-column: 1;
+  }
+
+  dd {
+    grid-column: 2;
+    margin-bottom: 0.25rem;
+  }
+}
+
 .lede {
   color: var(--colour-muted);
 }

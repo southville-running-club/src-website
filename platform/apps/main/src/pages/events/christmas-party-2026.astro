@@ -5,10 +5,14 @@ import Base from '../../layouts/Base.astro';
 //
 // ## What ships in this file, and what the Worker paints
 //
-// **Every fact about the occasion is painted from `store.socials`.** Nothing about the date,
-// the time, the venue, the age limit or the price is written here — those are columns, and
-// they are null today because nobody has confirmed them. What ships is the honest state:
-// "still to be confirmed", and tickets not on sale.
+// **Every fact about the occasion is painted from `store.socials`.** Not one word about the
+// date, the time, the venue, the age limit or the price is written here — they are columns,
+// and what ships in this file is the state before any of them was supplied: every row reading
+// "To be confirmed", and tickets not on sale.
+//
+// That is not a hypothetical. All five were supplied on 5 September 2026 and went in as two
+// `update`s in two migrations, with this file untouched — which is the property the whole
+// arrangement exists for, and the reason a stale date can never be stranded in markup here.
 //
 // That is the same arrangement `/nn/<year>/` uses and it is chosen for the same reason: **a
 // page that cannot reach the database must not offer to take money.** Every failure — an
@@ -57,7 +61,7 @@ import Base from '../../layouts/Base.astro';
     <dt>Where</dt>
     <dd data-social-venue>To be confirmed</dd>
 
-    <dt>Tickets</dt>
+    <dt>Price</dt>
     <dd data-social-price>To be confirmed</dd>
   </dl>
 
@@ -84,16 +88,18 @@ import Base from '../../layouts/Base.astro';
     Nothing here is carried over from last year.
   </p>
 
-  {
-    /* **The default state, and the one production serves today.** Hidden by the Worker only
-      when the sales window is open *and* a price exists. */
-  }
-  <p data-social-closed>
-    Tickets are not on sale yet. Keep an eye on this page, or ask at a club run.
-  </p>
-
   <section aria-labelledby="tickets-heading">
     <h2 id="tickets-heading">Tickets</h2>
+
+    {
+      /* **Inside the section it is about, not above it.** It sat above this heading, which
+        left "Tickets" reading as an empty section and put the answer before the question.
+        This is the default state and the one production serves today; the Worker hides it
+        only when the sales window is open *and* a price exists. */
+    }
+    <p data-social-closed>
+      Tickets are not on sale yet. Keep an eye on this page, or ask at a club run.
+    </p>
 
     {/* Ships hidden and every control ships disabled — see this file's header. */}
     <form method="post" action="/events/christmas-party-2026/" data-social-form hidden>
@@ -214,7 +220,17 @@ import Base from '../../layouts/Base.astro';
   </section>
 
   <p>
-    Questions about the party? Email
+    {
+      /*
+      ⚠️ **`{' '}` rather than a line break, and it is not decoration.** Astro follows JSX's
+      whitespace rule: whitespace containing a newline, next to an element, is removed. So
+      `Email` on one line and `<a>` on the next renders as `Emailinfo@…` — which is what this
+      line did until it was looked at in a browser. Prettier will keep reflowing this
+      paragraph, so the space has to be a thing in the markup rather than a thing in the
+      layout. CLAUDE.md names the same trap one framework along, in `worker/html.ts`.
+    */
+    }
+    Questions about the party? Email{' '}
     <a href="mailto:info@southvillerunningclub.co.uk">info@southvillerunningclub.co.uk</a
     >.
   </p>
