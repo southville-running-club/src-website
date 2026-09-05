@@ -9,25 +9,34 @@ money, and every step before it is what makes that safe.
 
 ## What ships, and why nothing is on sale
 
-`store.socials` holds one row — `christmas-party-2026`. **Two of its facts are confirmed** —
-**Saturday 12 December 2026, at The Cock & Tail**, supplied on 5 September 2026 and booked since
-January.
+`store.socials` holds one row — `christmas-party-2026` — and almost everything about it is now
+supplied: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£12**. All of
+it was given on 5 September 2026; the booking has been held since January.
 
-**Everything else is null**: no start or end time, no age limit, no capacity, and
-`sales_open_at` null. There is **no `ticket_types` row**, so there is no price.
+⚠️ **The £12 is provisional.** It was supplied as *"I will confirm the price later, just go with
+£12 now"*, so it is what the page shows and **not a settled decision about what the club
+charges**. Re-confirming it is a stop condition on step 4 below, because that is the step where
+a figure on a page becomes a figure on a card.
 
-Either of those alone is enough to keep the ticket form hidden. Both are deliberate:
+`capacity` is null, which means no limit — nobody has said what the room holds. **`sales_open_at`
+is null**, which is what actually keeps tickets from being sold.
 
-* **The price is not confirmed**, and a plausible placeholder in a migration would be a price
-  the club is charging.
-* `sales_open_at` is the switch, and setting it starts selling tickets unattended.
+**There are two independent reasons nothing can be sold today**, and both have to be undone
+deliberately:
 
-`/events/christmas-party-2026/` renders the date and the venue, says the rest is still to be
-confirmed, and says tickets are not on sale — all of which is true.
+* `sales_open_at` is null, and a null there reads as *never opens* rather than *no lower
+  bound*. Setting it starts selling tickets unattended.
+* **None of the three Worker secrets is installed**, so even an open window could not hold a
+  ticket or record a payment.
 
-⚠️ **The 2025 party is not a source for what is missing.** It ran 7:30pm–1am, cost £12 and was
-18+; carrying any of those forward because it is the obvious guess is the thing this whole
-arrangement exists to prevent. A start time is what somebody plans an evening around.
+`/events/christmas-party-2026/` renders the date, the time, the venue, the price and the age
+limit, and says tickets are not on sale — all of which is true.
+
+⚠️ **The age limit is displayed and is not enforced.** Nothing here collects a date of birth to
+check it against, and collecting one to sell a party ticket is the minimisation breach this
+schema exists to avoid. That is what the club already does — the 2025 page stated 18+ as prose
+and the door enforced it. Asking at the point of sale is a `required_consents` entry and needs
+wording first.
 
 ---
 
@@ -105,23 +114,20 @@ failures: Stripe retries for three days.
 
 ## 1. Confirm the details
 
-**The date and the venue are already set.** They were supplied on 5 September 2026 and went in
-as their own migration, so they are in the schema rather than in anybody's `psql` history.
+**The date, the venue, the times and the age limit are already set**, in two dated migrations,
+so they are in the schema rather than in anybody's `psql` history.
 
-What is left is the start and end time, the age limit and the capacity — and only once they
-have actually been supplied:
+The only thing left is `capacity` — what the room actually holds — and only once somebody has
+said:
 
 ```sql
-update store.socials
-   set start_time  = time '19:30',
-       end_time    = time '01:00',
-       minimum_age = 18,
-       capacity    = null
- where slug = 'christmas-party-2026';
+update store.socials set capacity = 120 where slug = 'christmas-party-2026';
 ```
 
-`capacity` null means no limit. Set it to the room's real number if there is one — the count is
-in **tickets**, not purchases, so a purchase of four takes four.
+`capacity` null means no limit, which is what it is today. Set it to the room's real number if
+there is one — **the count is in tickets, not purchases**, so a purchase of four takes four.
+
+**Every value above is an illustration of the shape, not a fact.** Do not run it as written.
 
 **Every value above is an illustration of the shape, not a fact.** Do not run it as written.
 
@@ -129,17 +135,28 @@ The page picks all of this up on the next request. No deploy.
 
 ---
 
-## 2. Set the price
+## 2. Confirm the price
+
+**There is already a `standard` ticket type at £12, and it is provisional.** Changing it is an
+`update`, not a second row:
 
 ```sql
-insert into store.ticket_types (social_id, code, label, price_pence)
-select id, 'standard', 'Standard ticket', 1200
-  from store.socials where slug = 'christmas-party-2026';
+update store.ticket_types kind
+   set price_pence = 1400
+  from store.socials social
+ where social.id = kind.social_id
+   and social.slug = 'christmas-party-2026'
+   and kind.code = 'standard';
 ```
 
-**Pence, as an integer**, and this is the only definition of the price — there is deliberately
-no Stripe Product or Price object. A price held in two systems is a price that will disagree
-with itself, and the copy that is wrong will be the one in the dashboard nobody opened.
+**Pence, as an integer**, and this row is the only definition of the price — there is
+deliberately no Stripe Product or Price object. A price held in two systems is a price that will
+disagree with itself, and the copy that is wrong will be the one in the dashboard nobody opened.
+
+**Editing this is safe right up until sales open and not after.** `ticket_purchases.
+amount_pence` records what was actually charged, precisely so that a later edit here cannot
+rewrite somebody's receipt — but somebody who bought at the old price paid the old price, and
+that is a conversation rather than a query.
 
 The form still will not appear: `sales_open_at` is still null.
 
@@ -160,6 +177,23 @@ does not have what you think it has — do not go on to step 4.
 ⚠️ **This is the step that starts taking money.** Steps 0.1 to 0.4 must be done and verified
 first: opening the window before the entry key is installed is opening it unprotected, which is
 [ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md)'s finding.
+
+⚠️ **Re-confirm the price before you run this, and do not skip it because the page already
+shows one.** The £12 in `store.ticket_types` was supplied as provisional — *"I will confirm the
+price later"* — and up to this moment that has been harmless, because a figure on a page is a
+soft commitment. **From the moment this `update` lands, that integer is what a card is
+charged.** Check it against whatever the committee actually settled:
+
+```sql
+select kind.price_pence
+  from store.ticket_types kind
+  join store.socials social on social.id = kind.social_id
+ where social.slug = 'christmas-party-2026';
+```
+
+If it is not the confirmed figure, go back to step 2. **Do not open sales and fix the price
+afterwards** — the people who bought first will have paid the wrong amount, and refunding a
+difference is a partial refund, which this platform deliberately cannot make.
 
 ```sql
 update store.socials

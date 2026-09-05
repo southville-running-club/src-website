@@ -61,30 +61,44 @@ test.describe('the Christmas party page', () => {
     await page.goto('/events/christmas-party-2026/');
   });
 
-  test('shows the facts that were supplied, and none that were not', async ({ page }) => {
+  test('shows every fact the club has supplied, painted from the database', async ({
+    page,
+  }) => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'SRC Christmas Party 2026',
     );
 
-    // Supplied by a club volunteer on 5 September 2026, booked since January. Painted from
-    // `store.socials`, so this passing is also proof the page is reading the database rather
-    // than carrying a date in its markup.
+    // Supplied by a club volunteer on 5 September 2026. **None of this is in the markup** —
+    // this passing is proof the page is reading `store.socials` rather than carrying a date,
+    // a time or a price in a template, which is the property that makes confirming any of
+    // them an `update` and no deploy.
     await expect(page.getByText('Saturday 12 December 2026')).toBeVisible();
+    await expect(page.getByText('7:30pm–1am')).toBeVisible();
     await expect(page.getByText('The Cock & Tail')).toBeVisible();
+    await expect(page.getByText('£12.00')).toBeVisible();
+    await expect(page.getByText('Entry requirements: 18+')).toBeVisible();
+  });
 
-    // **The load-bearing negative, and it is narrower than it was.** The venue is legitimately
-    // last year's venue now, so the guard is about the facts that are still *unsupplied*: the
-    // 2025 party ran 7:30pm–1am, cost £12, and was on the 6th. None of those is a fact about
-    // 2026, and a page that showed one would be the club announcing something it has not
-    // agreed — a start time is what somebody plans an evening around.
+  test('takes its "to be confirmed" note down once there is nothing left to confirm', async ({
+    page,
+  }) => {
+    // The note is revealed on `socialDetailsConfirmed()` being false — the date, the venue
+    // *and* the start time all present. All three are, so it hides itself. It went stale once
+    // by naming which details were missing; it names none now, so it cannot.
+    await expect(page.getByText('still to be confirmed')).toBeHidden();
+  });
+
+  test('shows exactly one £, and never last year\u2019s date', async ({ page }) => {
     const body = await page.content();
 
-    expect(body, 'last year’s date must not appear').not.toContain('6 December');
-    expect(body, 'no price has been supplied').not.toContain('£12');
-    expect(body, 'no start time has been supplied').not.toMatch(/7:30pm/u);
+    // ⚠️ A template that writes its own `£` beside a call to `formatPence()` renders
+    // `££12.00`. This repository already carries six instances of that pattern (issue #175),
+    // and the quantity picker's labels are the seventh place it could have arrived.
+    expect(body.match(/££/gu), 'no doubled currency symbol').toBeNull();
 
-    // And the page says so, rather than leaving a blank where a time should be.
-    await expect(page.getByText('still to be confirmed')).toBeVisible();
+    // The 2025 party was on the 6th. The venue and the price are legitimately last year's
+    // now; the date is not, and a page showing it would be announcing the wrong Saturday.
+    expect(body, 'last year\u2019s date must not appear').not.toContain('6 December');
   });
 
   test('says tickets are not on sale, and offers no form at all', async ({ page }) => {

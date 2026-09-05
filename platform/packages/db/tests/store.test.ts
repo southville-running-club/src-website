@@ -261,7 +261,7 @@ describe('the keys, which ship refusing everything', () => {
 });
 
 describe('the 2026 Christmas party row', () => {
-  it('publishes the two facts that were supplied, and not one that was not', async () => {
+  it('holds every fact that has been supplied, and nothing that has not', async () => {
     const rows = await query<Record<string, unknown>>(
       `select social_date, start_time, end_time, venue, minimum_age, capacity,
               sales_open_at, sales_close_at
@@ -270,42 +270,49 @@ describe('the 2026 Christmas party row', () => {
 
     expect(rows).toHaveLength(1);
 
-    // **The date and the venue were supplied by a club volunteer on 5 September 2026** —
-    // Saturday 12 December 2026 at The Cock & Tail, booked since January.
+    // Supplied by a club volunteer on 5 September 2026 — Saturday 12 December 2026 at The
+    // Cock & Tail, 7:30pm–1am, 18+.
     //
-    // **Everything else is still null on purpose, and the 2025 page is not a source for any of
-    // it.** Last year's party ran 7:30pm–1am, cost £12 and was 18+; none of those is a fact
-    // about 2026, and carrying one forward because it is the obvious guess is the failure the
-    // stop-and-ask list exists to prevent. A start time is what somebody plans an evening
-    // around and a price is what the club charges a card.
+    // **`capacity` is null because nobody has said what the room holds**, and null means no
+    // limit — the honest reading of "not supplied", and what the 2025 page implied by never
+    // mentioning one. **`sales_open_at` is null because that is the switch**, and it stays
+    // null until the runbook's step 4.
     //
     // Asserted as an exact object rather than field by field, so a value arriving here
-    // silently — which is precisely the thing this file exists to catch — turns it red.
+    // silently — which is precisely what this file exists to catch — turns it red.
     expect(rows[0]).toEqual({
       social_date: new Date('2026-12-12T00:00:00.000Z'),
+      start_time: '19:30:00',
+      end_time: '01:00:00',
       venue: 'The Cock & Tail',
-      start_time: null,
-      end_time: null,
-      minimum_age: null,
+      minimum_age: 18,
       capacity: null,
       sales_open_at: null,
       sales_close_at: null,
     });
   });
 
-  it('has no ticket type, so there is no price and nothing can be sold', async () => {
-    const rows = await query(
-      `select kind.id from store.ticket_types kind
+  it('has one ticket type at the provisional price', async () => {
+    const rows = await query<{ code: string; price_pence: number; active: boolean }>(
+      `select kind.code, kind.price_pence, kind.active
+         from store.ticket_types kind
          join store.socials social on social.id = kind.social_id
         where social.slug = 'christmas-party-2026'`,
     );
 
-    // **Separately sufficient to `sales_open_at` being null**, and both are deliberate. A
-    // price row here would be a price the club is charging.
-    expect(rows).toEqual([]);
+    // ⚠️ **£12 was supplied as provisional** — *"I will confirm the price later, just go with
+    // £12 now"* — so this figure is what the page shows and is not a settled decision about
+    // what the club charges. It is safe today only because nothing can be sold; the moment
+    // that changes, this integer is what a card is charged, and there is deliberately no
+    // second copy of it in Stripe to disagree with.
+    expect(rows).toEqual([{ code: 'standard', price_pence: 1200, active: true }]);
   });
 
-  it('reads back through social_state() as pre_open, with no ticket types', async () => {
+  it('still cannot sell a ticket, because the window has never been opened', async () => {
+    // **The invariant that actually matters, and the one to keep asserting whatever else
+    // moves.** A price on the page is a soft commitment; a price somebody can pay is a
+    // transaction. `sales_open_at` is null, a null there reads as *never opens* rather than
+    // *no lower bound*, and that is the whole distance between the two.
     const { data, error } = await anon
       .schema('store')
       .rpc('social_state', { p_slug: 'christmas-party-2026' });
@@ -314,16 +321,30 @@ describe('the 2026 Christmas party row', () => {
     expect(data?.[0]).toMatchObject({
       slug: 'christmas-party-2026',
       display_name: 'SRC Christmas Party 2026',
-      // **`pre_open` even with a date and a venue on the row**, because the sales window and
-      // the occasion's own details are different questions. `sales_open_at` is still null, and
-      // a null there reads as *never opens* rather than *no lower bound*.
       sales_state: 'pre_open',
       social_date: '2026-12-12',
       venue: 'The Cock & Tail',
-      // And still nothing to sell: no price has been supplied, which is separately sufficient
-      // to keep the form hidden whatever the window says.
-      ticket_types: [],
+      minimum_age: 18,
+      ticket_types: [{ code: 'standard', label: 'Standard ticket', price_pence: 1200 }],
     });
+  });
+
+  it('refuses to hold a ticket even with a price and a valid ticket code', async () => {
+    // Belt to the braces above: the window is tested *before* anything else in
+    // `create_pending_purchase()`, so a caller with the published anon key and a correct
+    // ticket code still gets nowhere. (`bad_key` would also refuse this — the entry digest
+    // ships null — which is the second independent reason nothing can be sold today.)
+    const { data, error } = await anon.schema('store').rpc('create_pending_purchase', {
+      p_key: 'anything-at-all',
+      p_social_slug: 'christmas-party-2026',
+      p_ticket_code: 'standard',
+      p_purchaser_name: 'Test Person',
+      p_purchaser_email: 'test@example.com',
+      p_quantity: 1,
+    });
+
+    expect(error).toBeNull();
+    expect(data?.[0]?.ok).toBe(false);
   });
 
   it('answers nothing at all for a slug that does not exist', async () => {

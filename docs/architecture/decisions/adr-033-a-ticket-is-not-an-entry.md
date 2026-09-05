@@ -153,16 +153,20 @@ schema safe rather than merely intended.
 somebody takes in a diff — the mechanism `entries.test.ts` already provides, and whose own
 count has changed three times.
 
-**The 2026 party publishes only what has been supplied.** At the time this record was written
-the row held every fact null; later the same day a club volunteer confirmed **Saturday 12
-December 2026 at The Cock & Tail**, booked since January, and those two are now set. The start
-time, the age limit and the price are not, and **the 2025 page is not a source for them** — it
-ran 7:30pm–1am at £12 and 18+, none of which is a fact about 2026.
+**The 2026 party publishes only what has been supplied, and by the end of the day that was
+nearly all of it.** This record was written against a row with every fact null; a club volunteer
+then confirmed **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at a
+**provisional £12**.
 
-There is still no ticket type, so `sales_open_at` and the absent price remain separately
-sufficient to keep the form hidden. **That this was one `update` in one dated migration, with no
-deploy and no markup touched, is the property the whole arrangement was for** — and it was
-exercised within a day of being built.
+**Every one of those went in as an `update` in a dated migration, with no deploy and no markup
+touched — which is the property the whole arrangement was for**, exercised three times within a
+day of being built. `capacity` is still null, meaning no limit.
+
+⚠️ **The price is the one that is not settled.** It was given as *"I will confirm the price
+later"*, and that is harmless only while tickets cannot be sold: a figure on a page is a soft
+commitment, and a figure a card is charged is not. `sales_open_at` is still null and none of the
+three secrets is installed, so both halves of "cannot be sold" hold — and re-confirming the
+price is a stop condition on the runbook step that undoes them.
 
 ⚠️ **`STORE_ENTRY_KEY` must be installed and verified before `sales_open_at` is ever set.** The
 other order is a ticket window that is open and unprotected. See

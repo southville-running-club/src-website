@@ -1672,21 +1672,28 @@ and the plain word a member reads — the same split as the bar reading "Race ti
 
 ### What ships, and why it sells nothing
 
-**`store.socials` holds one row — `christmas-party-2026` — and two of its facts are confirmed.**
-**Saturday 12 December 2026, at The Cock & Tail**, supplied by a club volunteer on 5 September
-2026 and booked since January; they live in `social_date` and `venue`, never in markup, and
-`20260905110000_store_christmas_party_2026_date_and_venue.sql` is their own dated step.
+**`store.socials` holds one row — `christmas-party-2026` — and it is now nearly fully
+supplied**: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£12**. All
+of it came from a club volunteer on 5 September 2026, in two dated migrations
+(`20260905110000` and `20260905120000`), and **every value is a column rather than markup** —
+which is why confirming each was an `update` and no deploy.
 
-⚠️ **Everything else is still a stop-and-ask, and the 2025 page is not a source for any of it.**
-`start_time`, `end_time`, `minimum_age` and `capacity` are null, and **there is no
-`ticket_types` row, so there is no price**. Last year's party ran 7:30pm–1am, cost £12 and was
-18+ — none of those is a fact about 2026, and carrying one forward because it is the obvious
-guess is the failure this list exists to prevent: a start time is what somebody plans an evening
-around, and a price is what the club charges a card. `sales_open_at` is null on top of all of
-that, and the absent price is separately sufficient to keep the form hidden. Confirming any of
-it is an `update` and no deploy, which is what the columns are for.
-`packages/db/tests/store.test.ts` asserts the two that are set and every one that is not, as an
-exact object, so a value arriving silently turns it red.
+⚠️ **The £12 is provisional and was supplied as provisional** — *"I will confirm the price
+later, just go with £12 now"*. It is what the page shows and **not a settled decision about what
+the club charges**. That is safe only while tickets cannot be sold, and **re-confirming it is a
+stop condition on the runbook's step 4**, because that is where a figure on a page becomes a
+figure on a card. There is deliberately no second copy of it in Stripe to disagree with.
+
+⚠️ **`minimum_age` is displayed and enforced nowhere.** Nothing in `store` collects a date of
+birth to check it against, and collecting one to sell a party ticket is the minimisation breach
+this schema exists to avoid — the 2025 page stated 18+ as prose and the door enforced it.
+Asking at the point of sale is a `required_consents` entry and needs wording first.
+
+**`capacity` is null, meaning no limit**, and `sales_open_at` is null, which is what actually
+keeps tickets from being sold — along with none of the three Worker secrets being installed,
+which is a second, independent reason. `packages/db/tests/store.test.ts` asserts every supplied
+value as an exact object, asserts the window is still shut, and asserts that a hold is refused
+even with a valid ticket code.
 
 ### The grants, and what makes an eighth a decision
 
