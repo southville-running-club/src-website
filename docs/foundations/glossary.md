@@ -22,6 +22,24 @@ they are the same thing.
 
 **Race** — the recurring thing an event is an instance of: "Pass the Buck".
 
+**Social** — a ticketed club occasion that is **not** a race: the Christmas party, a quiz, a
+trip. It is a separate word precisely because *event* above is taken — a party is not a running
+of a race — and `store.socials` is the table. Added 5 September 2026 with
+[ADR-033](../architecture/decisions/adr-033-a-ticket-is-not-an-entry.md).
+
+⚠️ **The navigation bar and the URL both say "Events", and that is deliberate rather than a
+slip.** `/events` is the address the old Squarespace site published and Phase 5 keeps its paths,
+and *events* is the plain word a member reads. The bar has said "Race timing" over an app called
+`apps/timing` since it was written; this is the same split. **The rule is that the schema, the
+tests and this glossary say `social`** — so a table, a column or a function named `event` in
+`store` is a defect, and one named `social` in `entries` is too.
+
+**Ticket** — the unit of entry to a social, and the counterpart of an **entrant** at a race. One
+**purchase** covers one or more tickets, priced as one transaction, exactly as a Pass the Buck
+team is one purchase covering two runners. **There is no per-ticket row**: a purchase carries a
+name, an email address and a quantity, and nothing about who else is coming — a door list by
+name is a field beyond what is specified.
+
 **Team** — the unit of entry, even when it holds one runner. Pass the Buck's team is two
 runners entered and paid for as one transaction; Nightingale Nightmare's team is one runner
 — but both are one **purchase** with one or more **entrants** on it. Getting this wrong in a

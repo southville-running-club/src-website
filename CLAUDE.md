@@ -354,12 +354,13 @@ migrations only to a volume it creates — so on any machine that has run this b
 otherwise meant three different schemas. It costs tens of seconds and the local data, which is
 only ever the seed and invented fixtures.
 
-One hostname, three paths — the same locally and in production:
+One hostname, several paths — the same locally and in production:
 
 | | |
 | --- | --- |
 | `/` | The club website — `apps/main` |
 | `/nn` | Nightingale Nightmare — `apps/main` |
+| `/events` | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves *event* for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main` |
 | `/admin` | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here |
 | `/timing` | Race timing — `apps/timing`, a different Worker |
@@ -1638,3 +1639,139 @@ So you do not go looking for it, or assume it is missing by mistake: there is **
 application code**. Nothing above this line is an exception to that — every section in this
 part of the file describes something built and live. The current state, and what is
 deliberately deferred, is in [the phases](docs/delivery/phases.md).
+
+**The section below this one is the same kind of thing and is also built and live**: `store`,
+tickets to the club's socials, added 5 September 2026. It has its own list of what it
+deliberately does not do yet, which is worth reading before assuming a missing button is a
+defect.
+
+---
+
+## How tickets to a club social behave
+
+**A fourth schema arrived on 5 September 2026 and it is `store`** —
+[ADR-033](docs/architecture/decisions/adr-033-a-ticket-is-not-an-entry.md). It sells tickets to
+the club's socials, starting with the Christmas party, and it is deliberately **not** part of
+`entries`.
+
+**Why it is not a row in `entries.events`, because that is the first thing anybody will try.**
+`entries.entrants` requires `date_of_birth`, `gender`, `emergency_contact_name` and
+`emergency_contact_phone` — all four `not null`, each argued for individually, each in the
+committee-settled list at `packages/shared/src/nn-entry.ts`. A party ticket needs none of them,
+so reuse meant either **collecting them anyway** (a straight breach of *personal data is
+minimised at the boundary*, and one that looks like good engineering while it is happening) or
+**making four columns nullable on the live race path during the entry window**. Neither is worth
+a week saved.
+
+⚠️ **The word `event` is reserved and this schema may not use it.** The glossary says an event is
+one running of one race in one year, so the table is `store.socials`. **The path and the
+navigation label are still "Events"**, because that is the old Squarespace address Phase 5 keeps
+and the plain word a member reads — the same split as the bar reading "Race timing" over
+`apps/timing`. A table, column or function named `event` in `store` is a defect; so is one named
+`social` in `entries`.
+
+### What ships, and why it sells nothing
+
+**`store.socials` holds one row — `christmas-party-2026` — with every fact null.** No date, no
+time, no venue, no age limit, no capacity. **There is no `ticket_types` row, so there is no
+price**, and `sales_open_at` is null on top of that. Either alone keeps the form hidden; both
+are deliberate. The 2026 details are a **stop-and-ask** exactly as a race's are — the attached
+2025 page is not a source for 2026, and carrying last year's date or price forward would be the
+club announcing a party it has not agreed. Confirming them is an `update` and no deploy, which
+is what the columns are for. `packages/db/tests/store.test.ts` asserts every one of those nulls.
+
+### The grants, and what makes an eighth a decision
+
+**The anon role holds no grant on any of the five tables** — `socials`, `ticket_types`,
+`ticket_purchases`, `api_secrets`, `email_outbox`. It may call **seven functions** and nothing
+else:
+
+| | |
+| --- | --- |
+| **Public configuration** | `social_state()` |
+| **The ticket path** | `create_pending_purchase()` — **takes a key** — and `attach_checkout_session()` |
+| **Housekeeping** | `expire_pending_holds()` |
+| **Payment** | `record_checkout_event()` — **takes a key** |
+| **The outbox drain** | `claim_outbox_batch()`, `record_send_result()` — **both take a key** |
+
+Three more are granted to **nobody** and are reachable only from the definer functions and
+triggers that call them: `key_ok()` (an oracle for the key if it were callable),
+`issue_ticket_no()` and `enqueue_ticket_email()`.
+
+`packages/db/tests/store.test.ts` names that exact split, walks all five tables in both verbs by
+error code, and asserts RLS on with no policy anywhere. **An eighth anon-callable function is a
+decision somebody takes in a diff** — the same mechanism `entries.test.ts` provides, and whose
+own count has already changed three times. Do not trust a count in this prose; read the test.
+
+### Three secrets, and they are this schema's own
+
+`STORE_ENTRY_KEY`, `STORE_WEBHOOK_KEY` and `STORE_STRIPE_WEBHOOK_SECRET`, none of them shared
+with `entries`. **One key opening two doors is one rotation closing both**, and a compromise of
+the party ticket path must not be a compromise of the race payment path. A Stripe webhook
+endpoint carries its own signing secret per URL anyway, so `/events/stripe-webhook` could not
+have shared `/nn/`'s even if sharing had been wanted.
+
+All three ship absent and both digests in `store.api_secrets` ship **null**, which refuses
+everything — the safe direction. ⚠️ **`STORE_ENTRY_KEY` must be installed and verified before
+`sales_open_at` is ever set**: the other order is a ticket window that is open and unprotected,
+which is ADR-029's finding applied here before it was needed rather than four days after.
+[The runbook](docs/delivery/runbooks/events-tickets.md) owns that ordering.
+
+### What is carried over from the race path without being re-argued
+
+Each was learned expensively on `entries` and is applied here from the first migration:
+`POST /events/stripe-webhook` is **the only writer of `paid`**, with the same inverted failure
+direction (our failures answer 5xx and let Stripe retry; only "this is not Stripe" gets a 400);
+a payment arriving after the hold lapsed is **still `paid`**, flagged rather than refused, with
+no fifth status for it to disappear into; the obligation to send an email is written in the same
+transaction as the payment (ADR-021) and drained from `ctx.waitUntil()` with the cron as the
+retry net (ADR-032); `formatEntryReference()` and `formatPence()` are reused rather than
+re-implemented, because a second implementation of either is the defect their own headers warn
+about.
+
+**The quantity picker renders its totals server-side**, in `quantityOptionLabel()`, which is the
+one place `formatPence` is called for this page. That deliberately avoids becoming the seventh
+instance of the client-side `£`-rebuilding pattern [#175](https://github.com/southville-running-club/src-website/issues/175)
+already tracks — and it works with scripting off.
+
+### What is deliberately not built, so nobody goes looking
+
+* **No admin surface.** Reading who holds a ticket wants an **eleventh permission**, which is a
+  stop-and-ask. Until it is taken, who is coming is the runbook's queries and Stripe's dashboard.
+  **This is the biggest gap and the first thing to build next.**
+* **No cancellation or refund path.** Nothing writes `refunded`. The `ticket_refunded` template
+  and its trigger branch exist and are tested, so the mechanism is ready for the function that
+  will use it.
+* **No per-attendee names.** A purchase carries a name, an email address and a quantity. A door
+  list by name is a field beyond what is specified, and therefore a committee decision.
+* **No dietary requirements, and that is a recorded decision rather than an omission.** The 2025
+  party page collected them at booking. An allergy is health data and a religious diet reveals
+  belief, so both are Article 9 — an explicit condition, a retention period and items on both
+  privacy notices would all be needed first. **The confirmation email asks for them by reply**,
+  which puts the answer in a mailbox the club already runs. `tests/unit/events.test.ts` asserts
+  that no dietary field reaches the order however it is posted.
+* **No HTML part on the two ticket emails.** ADR-026's skin is written against a race entry, and
+  giving it a second shape to branch on is how a design system starts branching on its caller.
+  The text part is authoritative in both.
+* **The completion page reports no state at all.** It makes no positive claim about the payment
+  and — the half that costs money — **no negative one**. ⚠️ If it ever does report state, the
+  race's rule comes with it: only a recorded payment may make a positive claim, because a page
+  saying "nothing was charged" while the webhook is merely late sends somebody to pay twice.
+
+### One config change went with it
+
+**`store` is in `[api].schemas` in `packages/db/supabase/config.toml`**, added in the same change
+that creates the schema — `identity`'s precedent exactly. Without it PostgREST answers
+`PGRST106 Invalid schema: store` to every call, which is what the ticket form's first test run
+actually reported. ⚠️ It is the `[api]` block rather than `[auth]`, so it is not the stop-and-ask
+— but **the whole file still ships to production on the next merge that touches a migration with
+no partial apply**, so the ordering matters: `db push` runs first and creates the schema this
+line names.
+
+### The navigation gained a fifth label, and that was free
+
+`SITE_NAV` in `packages/shared/src/brand.ts` now has five entries. **Adding one here is not the
+layout change that renaming a label in the Nightingale bar is** — `.site-nav` is deliberately
+**not** sticky, so no `scroll-padding-top` token is keeping step with its height and nothing
+measures it; `base.css` says so at `.site-nav`. It wraps. The same edit one bar along once added
+48px and put every anchor and every keyboard focus behind the header.

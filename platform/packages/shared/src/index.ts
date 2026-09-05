@@ -262,3 +262,43 @@ export {
 } from './nn-entry';
 
 export { TO_BE_CONFIRMED, orTbc } from './privacy';
+
+export {
+  fetchSocialState,
+  socialDetailsConfirmed,
+  ticketsAreOnSale,
+  TICKET_SALES_STATES,
+  type SocialState,
+  type SocialStateResult,
+  type TicketSalesState,
+  type TicketType,
+} from './social-state';
+
+export {
+  attachTicketCheckoutSession,
+  createPendingTicketPurchase,
+  expireTicketHolds,
+  parseSocialTicket,
+  recordTicketCheckoutEvent,
+  SOCIAL_TICKET_MESSAGES,
+  TICKET_EMAIL_MAX_LENGTH,
+  TICKET_NAME_MAX_LENGTH,
+  TICKET_PURCHASE_REASONS,
+  type CheckoutRecordResult,
+  type PendingTicketPurchase,
+  type SocialTicketErrors,
+  type SocialTicketOrder,
+  type SocialTicketResult,
+  type TicketHoldSweep,
+  type TicketHoldSweepResult,
+  type TicketPurchaseInput,
+  type TicketPurchaseOutcome,
+  type TicketPurchaseReason,
+} from './social-ticket';
+
+export {
+  claimTicketOutboxBatch,
+  recordTicketSendResult,
+  ticketEmailBody,
+  type TicketOutboxMessage,
+} from './ticket-outbox';

@@ -159,10 +159,28 @@ export const SITE_BANNER = {
  *
  * `match` is a shape rather than an href — the same convention `NnNav` uses — so a section
  * marks itself current from any page inside it.
+ *
+ * `Events`, not `Socials` or `Tickets`. **The plain word, and it is deliberately not the
+ * schema's word** — the glossary reserves *event* for one running of one race in one year, so
+ * `store.socials` is what the table is called and this is what a member reads. The two are
+ * allowed to differ for the same reason this bar has always read `Race timing` over an app
+ * called `apps/timing`: a navigation label is written for whoever is looking at it.
+ *
+ * `/events` is also the address the old Squarespace site published, which Phase 5 keeps.
+ * See [ADR-033](../../../../docs/architecture/decisions/adr-033-a-ticket-is-not-an-entry.md).
+ *
+ * ## A fifth label was free, and the reason is worth keeping
+ *
+ * Adding one here is not the layout change that renaming a label in the Nightingale bar is.
+ * **That bar is stuck to the top and this one is not**, so no `scroll-padding-top` token is
+ * keeping step with its height and nothing measures it — `base.css` says so at `.site-nav`.
+ * A label here wraps onto a second row and costs nothing; the same edit one bar along once
+ * added 48px and put every anchor and every keyboard focus behind the header.
  */
 export const SITE_NAV = [
   { href: '/', label: 'Home', match: /^\/$/u },
   { href: '/nn/', label: 'Nightingale Nightmare', match: /^\/nn(\/|$)/u },
+  { href: '/events/', label: 'Events', match: /^\/events(\/|$)/u },
   { href: '/timing', label: 'Race timing', match: /^\/timing(\/|$)/u },
   { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
 ] as const;

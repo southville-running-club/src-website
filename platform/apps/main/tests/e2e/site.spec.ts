@@ -274,6 +274,10 @@ test.describe('the bar between the parts of this site', () => {
   const SECTIONS = [
     ['Home', '/'],
     ['Nightingale Nightmare', '/nn/'],
+    // **The label is "Events" and the schema's word is `social`** — the glossary reserves
+    // *event* for one running of one race in one year, and `/events` is what the old
+    // Squarespace site published. ADR-033.
+    ['Events', '/events/'],
     ['Race timing', '/timing'],
     ['Account', '/account/'],
   ] as const;

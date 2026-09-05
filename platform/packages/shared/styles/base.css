@@ -330,8 +330,9 @@ a[href^='mailto:'] {
 .site-nav ul {
   display: flex;
   /* **Wrapping rather than scrolling**, because a horizontally scrolling bar hides links with
-     no affordance saying so. Four labels, one of which is two words, fit one row from about
-     560px and take two below it — which is fine when nothing is measuring this bar's height. */
+     no affordance saying so. Five labels, one of which is two words, take one row on a wide
+     screen and two or three below — which is fine, and is only fine, because nothing is
+     measuring this bar's height. Read the note above before adding a sixth. */
   flex-wrap: wrap;
   gap: 0 calc(var(--space) * 1.25);
   margin: 0 auto;

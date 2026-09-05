@@ -86,15 +86,30 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).toContain('identity');
   });
 
-  it('exposes nothing beyond public, graphql_public, intake, entries and identity', () => {
+  it('exposes store, for tickets to the club\u2019s socials \u2014 never club', () => {
+    // ADR-033. `/events/<slug>/` calls `store.social_state()` to find out whether tickets are
+    // on sale and what the occasion's confirmed facts are, so its schema has to be routable.
+    //
+    // **The same argument that makes `entries` safe makes this safe, and it is asserted
+    // rather than assumed.** Every table in `store` has RLS on from its first migration and
+    // neither `anon` nor `authenticated` holds a grant on any of them, so PostgREST reaches
+    // Postgres and Postgres answers `42501`. `tests/store.test.ts` walks all five tables in
+    // both verbs, by error code.
+    expect(exposedSchemas()).toContain('store');
+  });
+
+  it('exposes nothing beyond public, graphql_public, intake, entries, identity and store', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
-    // silently is precisely the failure this file exists to prevent.
+    // silently is precisely the failure this file exists to prevent — and it worked: adding
+    // `store` to `config.toml` for ADR-033 turned this line red before anything else noticed,
+    // which is what a guard is supposed to do. Adding a seventh should be just as loud.
     expect(exposedSchemas().sort()).toEqual([
       'entries',
       'graphql_public',
       'identity',
       'intake',
       'public',
+      'store',
     ]);
   });
 });
