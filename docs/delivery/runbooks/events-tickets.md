@@ -22,9 +22,9 @@ is null**, which is what actually keeps tickets from being sold.
 **There are two independent reasons nothing can be sold today**, and both have to be undone
 deliberately:
 
-* `sales_open_at` is null, and a null there reads as *never opens* rather than *no lower
-  bound*. Setting it starts selling tickets unattended.
-* **None of the three Worker secrets is installed**, so even an open window could not hold a
+- `sales_open_at` is null, and a null there reads as _never opens_ rather than _no lower
+  bound_. Setting it starts selling tickets unattended.
+- **None of the three Worker secrets is installed**, so even an open window could not hold a
   ticket or record a payment.
 
 `/events/christmas-party-2026/` renders the date, the time, the venue, the price and the age
@@ -107,6 +107,75 @@ somebody pays.
 Send a test event from the Stripe dashboard and check the Worker log. **A `503 not configured`
 means a secret is missing; a `400 signature` means the wrong signing secret.** Both are safe
 failures: Stripe retries for three days.
+
+---
+
+## Going live on Friday 18 September 2026
+
+**The club's target: the page visible and tickets on sale, both on Friday 18 September.** That
+is 12 days from when this was written and 85 days before the party.
+
+⚠️ **It lands inside the Nightingale Nightmare entry window**, which runs to 17:00 on Friday
+30 October. Everything below deploys alongside live race entries, so the migration discipline
+matters more than usual: **`ls` the migrations directory after any rebase and check this
+branch's files sort last**. Two pull requests merged out of timestamp order stop `db push`
+dead — not just the offending migration, the whole push — and the symptom is race entries
+failing with _"the club's database could not be reached"_ on a database that is perfectly
+healthy. That has already cost six hours once.
+
+### The schedule
+
+| When              | What                                                                                                                                                      | Whose       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| **Now**           | Merge. Nothing is visible and nothing can be sold: `published` is false, `sales_open_at` is null, no keys are installed                                   | —           |
+| **By Fri 11 Sep** | Steps 0.1 and 0.2 — generate the three secrets, `wrangler secret put` each, install the two digests                                                       | A volunteer |
+| **By Fri 11 Sep** | Step 0.3 — create the second Stripe endpoint at `/events/stripe-webhook`, subscribed to `checkout.session.completed` only, and set its signing secret     | A volunteer |
+| **By Sun 13 Sep** | Step 0.4 — send a test event from the Stripe dashboard and watch it reach the Worker. **Until a real signed event has been seen, the digest is unproven** | A volunteer |
+| **By Sun 13 Sep** | Confirm `RESEND_API_KEY` is bound, or no confirmation email can be sent                                                                                   | A volunteer |
+| **Tue 15 Sep**    | Read the page as a member would: `/events/`, the party page, the completion page                                                                          | Either      |
+| **Thu 17 Sep**    | Re-read step 2 and confirm £10 is still the price. It is the last moment repricing is free                                                                | A volunteer |
+| **Fri 18 Sep**    | The rehearsal below, then publish, then open sales — **in that order**                                                                                    | A volunteer |
+
+### On the day
+
+**Do it in this order and not another.** Opening the window before the entry key is installed
+is opening it unprotected — [ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md)
+found that on the race path four days after shipping it.
+
+1. **Publish the page.** `update store.socials set published = true where slug = 'christmas-party-2026';`
+2. **Open sales.** Step 4 below, including its price check.
+3. **Buy one ticket yourself, with a real card.** Check Stripe shows the payment, the row
+   reaches `paid`, and the confirmation email arrives.
+4. **Refund yourself** — see below, because there is no button for it.
+5. **Then tell people.**
+
+⚠️ **There is deliberately no tester mechanism here, and it is not needed.** The race has an
+`nn-tester` role and a £1 fee because a test entry consumes one of 250 places. **A party ticket
+does not**: `capacity` is null, so a ticket bought during the rehearsal is simply a ticket
+sold. The worst case of a member finding the page in the minutes between step 2 and step 5 is
+that they have bought a ticket at the right price — which is what the page is for.
+
+### Refunding, which has no button
+
+⚠️ **Nothing in this platform writes `refunded` for a ticket.** ADR-033 records that as not
+built. So a refund is two steps by hand, and the order matters:
+
+1. **Refund in the Stripe dashboard first.** The money is what the person is waiting for.
+2. **Then update the row:**
+
+```sql
+update store.ticket_purchases
+   set status = 'refunded', refunded_at = now()
+ where id = '<purchase id>';
+```
+
+**That second statement sends the refund email on its own** — the trigger fires on the
+`paid` → `refunded` transition, exactly as it would if a function had done it. Verified against
+a real local database rather than assumed.
+
+⚠️ **A partial refund is not available at all.** `refundPayment()` sends no `amount`, so there
+is no way to return a difference — which is why the price check before opening sales is a step
+rather than a suggestion.
 
 ---
 
@@ -287,10 +356,10 @@ select status, ticket_no, quantity, amount_pence, attention, created_at, paid_at
  order by created_at desc;
 ```
 
-* `paid` — the payment is recorded. The problem is the email; carry on below.
-* `pending` — the webhook has not landed. Check the Stripe dashboard's delivery log for this
+- `paid` — the payment is recorded. The problem is the email; carry on below.
+- `pending` — the webhook has not landed. Check the Stripe dashboard's delivery log for this
   endpoint. **Do not tell them nothing was charged** until you have looked at Stripe.
-* `expired` — the hold lapsed. If Stripe shows a payment anyway, that is a late webhook and it
+- `expired` — the hold lapsed. If Stripe shows a payment anyway, that is a late webhook and it
   will still be recorded when it arrives; the purchase is never refused for being late.
 
 **Is the message owed, and what happened to it?**
@@ -301,14 +370,14 @@ select template, status, attempts, last_error, created_at, sent_at
  where purchase_id = '<id>';
 ```
 
-* No row and the purchase is `paid` — a defect. The trigger writes the row in the same
+- No row and the purchase is `paid` — a defect. The trigger writes the row in the same
   transaction as the payment, so this should be impossible.
-* `pending` with `attempts = 0` — nothing has drained. Check `RESEND_API_KEY` and
+- `pending` with `attempts = 0` — nothing has drained. Check `RESEND_API_KEY` and
   `STORE_WEBHOOK_KEY` are both set on the Worker; the drain returns silently when either is
   missing, and that is deliberate.
-* `failed` — three attempts have gone. `last_error` carries a status code and never the
+- `failed` — three attempts have gone. `last_error` carries a status code and never the
   provider's own text.
-* `sent` — the club sent it. Spam folder, almost always.
+- `sent` — the club sent it. Spam folder, almost always.
 
 **Nothing can lose a message; it can only be late.** The row is written with the payment, so
 there is always something to look at.
@@ -332,11 +401,11 @@ select id, ticket_no, attention, amount_pence, quantity, created_at
  where attention is not null and attention_resolved_at is null;
 ```
 
-| `attention` | What happened | What to do |
-| --- | --- | --- |
-| `amount_mismatch` | Stripe charged a different amount from the one recorded | Reconcile against Stripe. The purchase **is** paid — the flag is about the figure, not the payment |
-| `over_capacity` | The payment arrived when the room was full | Somebody has paid and may have no place. Decide whether to honour it or refund by hand |
-| `already_refunded` | A payment arrived for something already refunded | Reconcile in Stripe |
+| `attention`        | What happened                                           | What to do                                                                                         |
+| ------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `amount_mismatch`  | Stripe charged a different amount from the one recorded | Reconcile against Stripe. The purchase **is** paid — the flag is about the figure, not the payment |
+| `over_capacity`    | The payment arrived when the room was full              | Somebody has paid and may have no place. Decide whether to honour it or refund by hand             |
+| `already_refunded` | A payment arrived for something already refunded        | Reconcile in Stripe                                                                                |
 
 Clear it when it is dealt with:
 
@@ -351,11 +420,11 @@ update store.ticket_purchases set attention_resolved_at = now() where id = '<id>
 Stated plainly, so nobody goes looking for a button that is not there —
 [ADR-033](../../architecture/decisions/adr-033-a-ticket-is-not-an-entry.md) says why for each.
 
-* **Who is coming is `/admin/events/`**, behind `store.ticket.read`, which `src-admin` carries.
+- **Who is coming is `/admin/events/`**, behind `store.ticket.read`, which `src-admin` carries.
   The queries below still work and are what to reach for when the page cannot answer something
   — there is no export, so anything you need as a file comes from here.
-* **There is no cancel or refund button.** Refund in the Stripe dashboard, then set the row's
+- **There is no cancel or refund button.** Refund in the Stripe dashboard, then set the row's
   status by hand — the `ticket_refunded` email fires from that transition on its own.
-* **Nobody's name is held except the buyer's.** The door list is "this person, plus N".
-* **Dietary requirements are not stored.** The confirmation email asks people to reply, and the
+- **Nobody's name is held except the buyer's.** The door list is "this person, plus N".
+- **Dietary requirements are not stored.** The confirmation email asks people to reply, and the
   answers are in the club's mailbox.

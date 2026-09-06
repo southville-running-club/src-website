@@ -8,8 +8,8 @@ that single fact decides most of what follows.
 ## Before anything else
 
 **Read [`docs/architecture/principles.md`](docs/architecture/principles.md).** It is short,
-it is the part that is not under discussion, and it ends with the triggers that mean *stop
-and ask a human*. Everything below assumes it.
+it is the part that is not under discussion, and it ends with the triggers that mean _stop
+and ask a human_. Everything below assumes it.
 
 Then, if you are writing code, [`platform/README.md`](platform/README.md).
 
@@ -25,7 +25,7 @@ re-run.
   location, start time. **The trigger that is actually still live here is one column:
   `entries.events.entries_open_at`.** Almost everything else this bullet used to guard is
   now confirmed and quotable — read on for what and where — so do not let the length below
-  suggest more is still open than really is. The Nightingale Nightmare date *is* confirmed — **Sunday 1 November
+  suggest more is still open than really is. The Nightingale Nightmare date _is_ confirmed — **Sunday 1 November
   2026, start 11:00** — along with the distance, the race HQ, the schedule, the prizes and
   the spectating points; all of them live in `apps/main/src/content/race.json`. **The entry
   fees are confirmed too** — **£18 affiliated, £20 unaffiliated** since 24 August 2026, £0 for
@@ -41,12 +41,12 @@ re-run.
   two ARC ask for. It is **year-scoped like the date** and may not appear on `/nn/` or
   `/nn/privacy/`. **`site.spec.ts` asserts that only for `/nn/`**, not for `/nn/privacy/` —
   the rule is real and the guard is narrower than it reads. Note also that
-  `/nn/privacy/` says the words *"ARC permit"* in prose, deliberately, so it is the *number*
+  `/nn/privacy/` says the words _"ARC permit"_ in prose, deliberately, so it is the _number_
   that is year-scoped rather than the phrase. The 2023 number is still not a substitute for any future year's. **Still
   unconfirmed, and it may not appear anywhere:** the 2026 race director's name. **The
   transfer deadline is confirmed** — **3pm on 16th October** — supplied by the race director
   on 28 August 2026 with the entry terms, and it lives in `race.json`'s `transferDeadline`,
-  read only by `/nn/2026/terms/`. It is a *date*, not a mechanism: `transfer_entry()`
+  read only by `/nn/2026/terms/`. It is a _date_, not a mechanism: `transfer_entry()`
   enforces nothing about it, and no code anywhere reads it.
   **The entry window is ratified now** — agreed by the committee over
   WhatsApp on **Monday 24 August 2026**, the same day the race director proposed it —
@@ -56,20 +56,20 @@ re-run.
   share a UTC offset: 06:00Z and 17:00Z. **Ratifying the window is not opening it, and the two
   halves are in different states on purpose.** `entries_close_at` is applied and is inert on
   its own — `entry_state()` tests `entries_open_at is null` as an explicit branch before it
-  compares anything, so a null open date means *never opens* rather than *no lower bound*.
+  compares anything, so a null open date means _never opens_ rather than _no lower bound_.
   **`entries_open_at` is still null, and it is still the switch**: a date in it starts selling
   250 places unattended, and it is gated on the live Stripe keys being in, the webhook
   digest having been verified by a real signed event, and — since #178 — **`ENTRIES_ENTRY_KEY`
   being installed and verified first**, because opening the window before that is opening it
   unprotected. None has happened; the entries-open
-  runbook owns that moment and carries the single `update`. So the *times* are quotable
-  anywhere; the *column* is a stop-and-ask. Do not invent a fact, do not infer one from a phase
+  runbook owns that moment and carries the single `update`. So the _times_ are quotable
+  anywhere; the _column_ is a stop-and-ask. Do not invent a fact, do not infer one from a phase
   document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** **Trigger: a field not already in
   `packages/shared/src/nn-entry.ts`.** The list below is the history of how it grew to
   eighteen fields, kept so the reasoning for each is findable — not something to re-read in
   full before recognising the trigger. Adding a database column that
-  holds personal data is a committee decision. The committee has settled the *entry* field
+  holds personal data is a committee decision. The committee has settled the _entry_ field
   list — it is `packages/shared/src/nn-entry.ts` — and **the fifteenth was taken on 28 August
   2026**: `gender_identity`, optional free text, in
   [ADR-020](docs/architecture/decisions/adr-020-race-category-and-gender-are-two-questions.md).
@@ -82,12 +82,12 @@ re-run.
   still open — a genuine third prize category is still the committee's decision, not a build
   one, restated by [ADR-031](docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)
   rather than closed by it. **What ADR-031 changed on 31 August 2026 is narrower**: a
-  non-binary entrant is now asked which of the two *existing* categories, if either, their
+  non-binary entrant is now asked which of the two _existing_ categories, if either, their
   result should count in — see the entry field list below — and `ageCategoryFor()` answers
   `not-placed` rather than `gender-has-no-categories` for the entrant who was asked and said
   neither, or was never asked at all. `gender_identity` is on `/admin/nn/` and **nowhere else** — not
   the start list, not the three exports, never published — and `admin.spec.ts` asserts that
-  absence against a *paid* fixture, which is the only kind an export carries. **The sixteenth
+  absence against a _paid_ fixture, which is the only kind an export carries. **The sixteenth
   was taken on 28 August 2026 and it is a person rather than a field**: a visually impaired
   runner may declare so and enter their **guide** on the same entry —
   [ADR-022](docs/architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md). The
@@ -119,7 +119,7 @@ re-run.
   layers and in a check constraint in neither**: `parseNnEntry` refuses a blank box and
   `create_pending_purchase()` refuses a payload with `phone_required`, while
   `entrants.phone` is nullable behind `entrants_phone_shaped`, which only says what may be
-  *held*. A `role = 'guide' or phone is not null` constraint is the obvious shape and it would
+  _held_. A `role = 'guide' or phone is not null` constraint is the obvious shape and it would
   refuse the transfer and the given place the **deployed** Worker is making, which is what
   expand-migrate-contract forbids — so `transfer_entry()` and `create_manual_entry()` both take
   a null. `transfer_entry()` gained an **eleventh** argument rather than a tenth, because a
@@ -157,7 +157,7 @@ re-run.
   [decision 007](docs/decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers)
   and [ADR-023](docs/architecture/decisions/adr-023-no-england-athletics-numbers.md). **The
   £18/£20 split and the £2 levy are untouched**; only the number stopped being asked for. Under
-  ARC Rule 21(2)(b) the club has no record of *who* claimed affiliation, only that they paid the
+  ARC Rule 21(2)(b) the club has no record of _who_ claimed affiliation, only that they paid the
   affiliated £18 — put to the committee and accepted — and what replaces the check is a sentence
   reserving the club's right to ask somebody to produce their number or other evidence of
   affiliation. **That sentence is required on both privacy notices and it is on both of them
@@ -199,7 +199,7 @@ re-run.
   wording. **The affiliation sentence decision 007 asks for went in on 31 August 2026** as a
   section 2 item carrying `/privacy/`'s own words, and an **Article 9(2)(a) condition** went into
   section 4's list of legal bases the same day — decision 009, #179 items 4 and 5. That is what
-  widened the exception from *the collection list* to *a list*.
+  widened the exception from _the collection list_ to _a list_.
   **It renders no "To be confirmed by the club" marker at all** — `nn-privacy.spec.ts` has
   `OPEN_DECISIONS = 0`, and **`/privacy/` has none either since 31 August 2026**: how long an
   account is kept and whether deleting one deletes a race entry are both answered, and
@@ -221,8 +221,8 @@ re-run.
   `race.json`'s `emailRetention`, which nothing reads. `entryRetention` is settled prose that
   nothing reads either, the `photographs` key is gone, and `medicalRetention` is kept only for
   `entries-retention.test.ts`. **A second list edit was taken on 31 August 2026 and it is the
-  only deletion so far** — the *"IP address, browser type, device information, and cookies for
-  website functionality and analytics"* bullet, which was untrue: there is no analytics code in
+  only deletion so far** — the _"IP address, browser type, device information, and cookies for
+  website functionality and analytics"_ bullet, which was untrue: there is no analytics code in
   `apps/main` and `GET /nn/2026/` sets no cookie, which is what `/privacy/` tells account holders.
   Issue [#179](https://github.com/southville-running-club/src-website/issues/179) item 1.
   **`race.json`'s `privacy.lastUpdated` is this page's own revision date now, not the committee
@@ -285,7 +285,7 @@ re-run.
   `<script>` in an Astro island, re-implements the same `£`/`.00`/`'Free'` shape rather than
   importing `formatPence` — behaviourally identical today, tracked as the sixth instance of this
   pattern by [#175](https://github.com/southville-running-club/src-website/issues/175), still
-  open. Every *other* `£` anywhere in this repository, checked by grep, is inside a comment; the
+  open. Every _other_ `£` anywhere in this repository, checked by grep, is inside a comment; the
   three CSV exports carry an amount as a raw pence integer with no symbol; no SQL renders money
   to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
   `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
@@ -296,10 +296,10 @@ re-run.
   a side effect. **This said five and ten until 6 September 2026**, when the club took both at
   once: `store.ticket.read` and `src-admin`.
   ⚠️ **`src-admin` is a master role and the first this platform has had**, which is a departure
-  from everything the rest of this list describes — `super-admin` is deliberately *not* a
+  from everything the rest of this list describes — `super-admin` is deliberately _not_ a
   wildcard. What keeps it honest is that it holds its eleven permissions as **eleven explicit
   rows** rather than as a branch in `identity.has_permission()`: a wildcard would grant the
-  *twelfth* permission too, the day somebody added it, without anybody deciding. So the
+  _twelfth_ permission too, the day somebody added it, without anybody deciding. So the
   assertion file fails on every new permission until a human writes down whether directors get
   it, and **that recurring cost is the feature rather than the price**. Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
@@ -319,7 +319,7 @@ re-run.
   in that list first.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
-  one, the row-level security policy is wrong and *that* is the thing to fix.
+  one, the row-level security policy is wrong and _that_ is the thing to fix.
 - **Any change touching the timing platform** — `src-race-timing`, or the `public` and
   `private` schemas.
 - **Anything that would put a credential in the repository.**
@@ -364,14 +364,14 @@ only ever the seed and invented fixtures.
 
 One hostname, several paths — the same locally and in production:
 
-| | |
-| --- | --- |
-| `/` | The club website — `apps/main` |
-| `/nn` | Nightingale Nightmare — `apps/main` |
-| `/events` | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves *event* for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
-| `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main` |
-| `/admin` | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here |
-| `/timing` | Race timing — `apps/timing`, a different Worker |
+|            |                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`        | The club website — `apps/main`                                                                                                                                                                                                                                                                                         |
+| `/nn`      | Nightingale Nightmare — `apps/main`                                                                                                                                                                                                                                                                                    |
+| `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
+| `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
+| `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
+| `/timing`  | Race timing — `apps/timing`, a different Worker                                                                                                                                                                                                                                                                        |
 
 ---
 
@@ -390,7 +390,7 @@ reaches a browser, a Worker, or this repository.
 repository-wide. Nightingale Nightmare is raced the weekend after the clocks change; an
 hour of drift is a real foot-gun, not a theoretical one.
 
-**Personal data is minimised at the boundary.** Sensitive fields are dropped *before* they
+**Personal data is minimised at the boundary.** Sensitive fields are dropped _before_ they
 reach the database, never stored and filtered later. Date of birth becomes a computed age.
 
 **Expand, migrate, contract.** Every schema change keeps the previously deployed code
@@ -435,9 +435,9 @@ pushing.** Both volunteers are on macOS; CI is Linux, and the font metrics diffe
 assertion about position, wrapping or overflow can be honestly green on one and red on the other.
 It has now cost three separate sessions:
 
-* the radio-focus divergence and the CSV download behaviour, both already in the traps below;
-* `element is not stable` across a whole project, which took two wrong hypotheses to place;
-* `keeps the entry type that was chosen in view` — **0.1px on a Mac, 214px on the runner.**
+- the radio-focus divergence and the CSV download behaviour, both already in the traps below;
+- `element is not stable` across a whole project, which took two wrong hypotheses to place;
+- `keeps the entry type that was chosen in view` — **0.1px on a Mac, 214px on the runner.**
 
 `./dev e2e --linux` runs the browsers inside `mcr.microsoft.com/playwright:v1.62.1-noble`, the
 image and version CI installs, while the Workers and the database stay on the host and are
@@ -481,8 +481,8 @@ of the page. **The committee has not ratified those terms**, which is why the li
 say what it replaces. The history of a choice that turned out badly is worth more than a
 tidy file.
 
-**Use [the glossary](docs/foundations/glossary.md)'s words exactly.** An *event* is one
-running of one race in one year; a *race* is the recurring thing; a *team* is the unit of
+**Use [the glossary](docs/foundations/glossary.md)'s words exactly.** An _event_ is one
+running of one race in one year; a _race_ is the recurring thing; a _team_ is the unit of
 entry even when it holds one runner. Getting this wrong in a schema is expensive.
 
 **Any step done by hand is written down** — what, why, by whom, and how to redo it. That is
@@ -504,7 +504,7 @@ needs a build, which is why it waits for `test` rather than `check`. Between the
 commands run every layer CI does, which was not true until a green laptop sent a red pull
 request.
 
-**The negative case is usually the one that matters.** That an anonymous client *cannot*
+**The negative case is usually the one that matters.** That an anonymous client _cannot_
 read `club` proves more than that a member can. Assert the specific error, not merely that
 something failed — a test that passes because the table does not exist yet is a test that
 has stopped testing.
@@ -580,7 +580,7 @@ than exact-output assertions.
 **A visually-hidden span inside a horizontally scrolling table makes the whole page scroll
 sideways.** `overflow` only clips a descendant whose containing block is inside the scroller, and
 `.admin-visually-hidden` is `position: absolute` — so with no positioned ancestor its containing
-block was the *page*, it was laid out at the far edge of a 793px-wide table, and the document
+block was the _page_, it was laid out at the far edge of a 793px-wide table, and the document
 scrolled at 320px while the table scrolled correctly and the spans stayed invisible. Nothing
 looked wrong; the page just slid left under a thumb. `position: relative` on `.admin-scroll`
 makes it the containing block, measured 783 → 320. The same is waiting for any absolutely
@@ -588,13 +588,13 @@ positioned thing inside any scroller.
 
 **A component whose colours were computed against a surface it does not carry breaks silently
 the first time it is moved.** `NnSchedule` was written inside `race-day.astro`'s `.nn-card`, and
-every colour in it assumes white: the time is `--nn-blood` at a computed 9.01:1 *on that card*,
-and the row divider is `--nn-card-muted`, picked to be an almost-invisible 1.12:1 line *on that
-card*. Rendering the same markup on `/nn/2026/`'s gradient inverted both — the divider became the
+every colour in it assumes white: the time is `--nn-blood` at a computed 9.01:1 _on that card_,
+and the row divider is `--nn-card-muted`, picked to be an almost-invisible 1.12:1 line _on that
+card_. Rendering the same markup on `/nn/2026/`'s gradient inverted both — the divider became the
 loudest thing in the block, and the time became `#8f1b0f` on the radial's `#8f1b0f` centre stop.
 **1:1 by identity: not hard to read, absent** — and `background-attachment: fixed` means the
 block scrolls through the gradient's whole range rather than sitting at one value, so it passes
-*through* identity rather than merely near it. Nothing went red, because nothing was looking:
+_through_ identity rather than merely near it. Nothing went red, because nothing was looking:
 `brand.test.ts` covers the club palette and `admin-contrast.test.ts` covers the admin washes, and
 **neither reads `nn-theme.css`** — every ratio in that file's opening table is its author's word,
 and one row has already gone stale. The fix is that the component carries its own surface and
@@ -614,7 +614,7 @@ eight places, and it failed about one run in three across `nn-signup.spec.ts` an
 **DOMContentLoaded waits for scripts, not for `<link rel="stylesheet">`**, so on a page with no
 blocking script — every page here in the `no-javascript` project, and the deferred-module case
 everywhere else — `readyState` reaches `interactive` with both sheets still in flight. An outcome
-block the Worker has revealed is *visible* at that moment, so `toBeVisible()` resolves; and
+block the Worker has revealed is _visible_ at that moment, so `toBeVisible()` resolves; and
 **reading a layout property is not gated on render-blocking**, so `page.evaluate` then forces a
 synchronous layout of a bare document. Caught in the act it reads `overflow=19 client=320
 ready=interactive sheets=[]`, with one offender: `a left=8 right=339.13` holding the club's
@@ -623,13 +623,13 @@ and `base.css` has not arrived. `left=8` is the browser's default `body { margin
 tell — **`sheets=[]` and a left edge of 8 mean the measurement is the defect rather than the
 layout.** The styled page does not overflow at any width from 300 to 320, with or without the
 fonts. **This repository had already met it and paid for it twice**: `nn-privacy.spec.ts` and
-`privacy.spec.ts` each carried a two-pass reload loop naming *"an element laying out at its
-intrinsic width before the stylesheet applied, about one run in four"* — the right diagnosis and
+`privacy.spec.ts` each carried a two-pass reload loop naming _"an element laying out at its
+intrinsic width before the stylesheet applied, about one run in four"_ — the right diagnosis and
 a re-run for a fix. All eight go through `apps/main/tests/sideways-scroll.ts` now, which waits
 for a **defined state** — every render-blocking stylesheet applied, `document.fonts.status`
 settled, and the width unchanged across three samples — and never for the assertion to come
 good. **The polling has to be on Playwright's side**: `page.waitForFunction` installs its loop
-*in the page*, so with
+_in the page_, so with
 `javaScriptEnabled: false` it never runs and every call times out at ten seconds, which is how the
 first version of this fix failed. `page.evaluate` works there; `requestAnimationFrame` callbacks
 do not. The helper names the offending element on failure, which is what turned this from three
@@ -637,7 +637,7 @@ runs and an afternoon into four minutes.
 
 **The three browser engines do not agree on what an attachment is, and one of them only
 disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
-Chromium downloads it — the `download` event fires and `response.body()` is *unreadable*, because
+Chromium downloads it — the `download` event fires and `response.body()` is _unreadable_, because
 the bytes went to the downloads directory. macOS WebKit downloads it too, which is why
 `waitForEvent('download')` passed nine local runs in a row. **WebKit on a Linux runner renders it
 in the tab**: no download event ever fires, the page navigates to the endpoint, and the CSV is
@@ -652,7 +652,7 @@ shape to copy.
 ### Environment, build and tooling, again
 
 **Two pull requests merged out of timestamp order stop `db push` dead, and every symptom
-points somewhere else.** `supabase db push` refuses to insert a migration *before* one already
+points somewhere else.** `supabase db push` refuses to insert a migration _before_ one already
 applied on the remote, so a branch whose migrations are timestamped earlier than a branch that
 merged first takes the whole deploy down — `Found local migration files to be inserted before
 the last migration on remote database`, and **nothing is applied at all**, including the dozen
@@ -662,7 +662,7 @@ Nine migrations were stranded and `deploy-db.yml` failed on every run for six ho
 
 **What it looks like from the site is not a broken deploy.** The Worker deployed fine, so it
 calls functions the database has not got, PostgREST answers `PGRST202`, and every client here
-maps a PostgREST error to *"the club's database could not be reached — try again in a moment"*.
+maps a PostgREST error to _"the club's database could not be reached — try again in a moment"_.
 Both halves of that are false: the database is healthy, and retrying can never help. What a
 volunteer saw was **"That could not be read"** on the transfer form and **"That could not be
 recorded just now"** on a runner's own cancellation, on a platform where cancelling still
@@ -679,12 +679,12 @@ migration contains.** This happened again on 29 August 2026, in the pull request
 paragraph above. Four migrations were rebased onto a branch that had landed `20260829120000`;
 three were renumbered past it and the fourth was left at `20260829100000`, on the reasoning that
 it clobbered nothing — which was true, and irrelevant. **`db push` refuses on version order
-alone**, it refuses the *whole push*, and every deploy after it fails identically until somebody
+alone**, it refuses the _whole push_, and every deploy after it fails identically until somebody
 renumbers. There are two questions and they are not the same one:
 
-  * *Will `db push` accept it?* — is every version later than the remote's newest. Nothing else.
-  * *Will applying it revert something?* — does it re-create an object a later-versioned
-    migration already changed. This is the one that needs reading the diffs.
+- _Will `db push` accept it?_ — is every version later than the remote's newest. Nothing else.
+- _Will applying it revert something?_ — does it re-create an object a later-versioned
+  migration already changed. This is the one that needs reading the diffs.
 
 Answering the second and skipping the first is what a clean-looking rebase invites, because the
 second is the interesting question and the first feels like bookkeeping. **`ls` the migrations
@@ -738,12 +738,12 @@ found a real defect on its first run.
 **A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
 no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
 click on the error summary's link — silently, so the person just finds that nothing happens.
-Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting *on*, which is
+Reproduced 5/5, gone 3/3 with the rule removed, and it passes with scripting _on_, which is
 what makes it easy to ship. `nn-signup.spec.ts`'s "links from the summary to the field it is
 about" is the guard. Full note at the foot of `packages/shared/styles/nn-theme.css`.
 
 **The account forms have that summary too since 30 August 2026, and it is a second guard on the
-same trap.** They always *announced* their errors — `aria-invalid`, `aria-describedby`, a
+same trap.** They always _announced_ their errors — `aria-invalid`, `aria-describedby`, a
 `role="alert"` — so this was never a zero-violations breach; what was missing is the navigable
 list of links. It is `errorSummary()` in `worker/account.ts`, rendered as the **first child of
 each form** rather than above it, because `/account/sign-in/` has two forms with separate error
@@ -761,9 +761,9 @@ name='email' is not focusable` to a console nobody has open, and **sent nothing*
 simply did nothing. Found on production on 31 August 2026 while rehearsing a tester payment,
 hours before entries were due to open, and the only reason it was found at all is that somebody
 was watching a Worker log for an unrelated reason. **`disabled` is the attribute that does both
-halves** — skipped by constraint validation *and* left out of the submission, which is exactly
-what the POST handler already documented for itself: *"a submission from that page carries
-neither"*. **It is not a JavaScript problem and there is no JavaScript fix**: HTML5 constraint
+halves** — skipped by constraint validation _and_ left out of the submission, which is exactly
+what the POST handler already documented for itself: _"a submission from that page carries
+neither"_. **It is not a JavaScript problem and there is no JavaScript fix**: HTML5 constraint
 validation is the browser's, so the `no-javascript` project meets it identically and the
 attribute has to come from the same server-side rewrite that hides the field. **The general
 rule: a control you hide must also be disabled, or it still votes on whether the form may be
@@ -774,11 +774,11 @@ unconditionally would drop the address from every signed-out entry.
 **A message that appears on `focusout` can swallow the click that caused it.** The England
 Athletics box **is off the form since 29 August 2026** and the rule it cost is not — the next
 conditional field re-creates the shape exactly, which is why this stays. It was a `.field`
-*inside* the affiliated `.nn-fee` card, so `fieldOf` — which took
+_inside_ the affiliated `.nn-fee` card, so `fieldOf` — which took
 `closest(container)` and then the first `[data-entry-error]` beneath it — answered `eaNumber`
 for the affiliated **radio**. Leaving that radio made the England Athletics box complain about
-a number nobody had been asked for, and it did so *between the press and the release of the
-click*: 67px of message, above the other two cards, pushing them 72px down out from under the
+a number nobody had been asked for, and it did so _between the press and the release of the
+click_: 67px of message, above the other two cards, pushing them 72px down out from under the
 pointer, so no `click` ever reached the radio and **the entry type could not be changed at
 all**. **Only CI saw it, and that is the trap** — macOS and iOS WebKit leave a radio unfocused
 when it is clicked, while the GTK/WPE WebKit that `playwright install webkit` puts on a Linux
@@ -792,7 +792,7 @@ belongs to that container, not to a field nested inside it.**
 
 **A conditional field that collapses moves the control that revealed it.** The same England
 Athletics box — likewise gone, likewise still the rule — the same nesting, one layer up: it sat
-*inside* the affiliated card, so changing
+_inside_ the affiliated card, so changing
 to another entry type collapsed 277px from **above** the two cards below it. At 320px the card
 somebody had just chosen went from y=271 to y=-7 — they tapped it, and the feedback for their
 own tap was the page throwing them somewhere else. It is a plain `.field` under all three cards
@@ -806,7 +806,7 @@ guard, and it runs in all three projects. **The guide's six fields are the shape
 outing** and are built the way this paragraph says: after the checkbox that reveals them, never
 around it.
 
-**A field's own validation message can shove a *later* field out from under the click that was
+**A field's own validation message can shove a _later_ field out from under the click that was
 about to answer it, and turning a `<select>` into radios is what makes that visible.** Measured
 directly: leaving the phone number field with three spaces — invalid, the same way every other
 "required but blank" test on this form gets past `required` — reveals "Enter your own phone
@@ -817,9 +817,9 @@ surfaced a race that was already there. Reproduced 2 of 3 runs on `[mobile-safar
 `locator.check: Clicking the checkbox did not change its state` each time, gone 3 of 3 after
 the fix below — the asymmetry with Chromium matches every other WebKit-only instance of this
 shape already in this file. **Distinct from the England Athletics precedent above**: that was a
-*conditional* field's own reveal moving *itself* or an adjacent *sibling*; this is an
-*unconditional*, ordinary field's validation message — present on every field on this form —
-shifting something *below* it that the very next action is about to click. Moving the message
+_conditional_ field's own reveal moving _itself_ or an adjacent _sibling_; this is an
+_unconditional_, ordinary field's validation message — present on every field on this form —
+shifting something _below_ it that the very next action is about to click. Moving the message
 does not fix it, because the same race exists for any field pair filled in visual order; the
 fix instead makes the reveal finish before the next click starts, rather than racing it as a
 side effect of that click's own implicit blur. `fillEntry()`'s shared helper in
@@ -838,7 +838,7 @@ which answers defect 2 — arrow-keyed radios landing behind the bar in WebKit a
 to **"Race instructions"** added **48px** — a whole second row — at every width from 768px to
 1440px and again at 560px, putting the bar over its inset, which lands every anchor and every
 keyboard focus behind the header. Nothing looks wrong; the page just stops scrolling to the thing
-it was asked to scroll to. The page is still *headed* "Race instructions" and the bar says **"Race
+it was asked to scroll to. The page is still _headed_ "Race instructions" and the bar says **"Race
 info"**, which measured identical to "Race day" at all thirteen widths — the bar has always been
 allowed to be shorter than the heading, and read "Spectators" over "Watching the race" from the
 day it was written. **"Spooktators" was free.** `site.spec.ts`'s nine-width sweep is the only
@@ -877,7 +877,7 @@ into this state, because it kills the Supabase containers under a daemon that st
 **A second `./dev test` on the same machine kills the first, and the symptom is a flaky suite
 rather than a collision.** `stop_workers` kills by command-line pattern, machine-wide, with no
 notion of which run owns what — `pkill -f "wrangler dev --port 8787"`, then a bare `pkill -f
-workerd` — and `cmd_test` calls it *early*, right after the build. Those patterns are exactly
+workerd` — and `cmd_test` calls it _early_, right after the build. Those patterns are exactly
 what Playwright's `webServer` block starts, so a run dispatched before the first has finished
 takes the live run's servers out from under it: a handful of tests pass and the rest die on
 SIGTERM, with nothing in the output naming the other run. The single `.dev/test.log` and the one
@@ -887,7 +887,7 @@ on screen. **Wait for the run that was dispatched** — this is the sharp edge o
 through a subagent, because a background run that looks slow is exactly what makes somebody
 start another.
 
-⚠️ **A merely *busy* machine fails `./dev test` differently, and the signature reads as a
+⚠️ **A merely _busy_ machine fails `./dev test` differently, and the signature reads as a
 runtime bug rather than as load.** No second run is needed — parallel work of any kind is
 enough. Measured on 30 August 2026 on one unchanged tree, twice each: run alongside a
 ten-agent documentation sweep, the Worker layer died with **`Worker exited unexpectedly`
@@ -922,7 +922,7 @@ acceptance layer did not run — then stops. Closing the acceptance half of a de
 is a hand-run by one of the two people who own the key.
 
 **The prohibition and the remedy are not in conflict, and reading them as one cost a round trip
-on 30 August 2026.** "Never touch `.dev.vars`" scopes the *actor*, not the file: the file is
+on 30 August 2026.** "Never touch `.dev.vars`" scopes the _actor_, not the file: the file is
 movable, and the person moving it is the one who put a live key on the machine. An agent that
 works around this by renaming the file has taken a decision about a credential that was never
 its own to take; an agent that reports the failure and halts has done the whole of its job.
@@ -947,7 +947,7 @@ the tree a change was verified against is recorded rather than inferred.
 that floats one is contradicting its own worked example.** The usability brief PR C shipped
 against said to accept "11 digits beginning 0, or 10 digits beginning 0 for the handful of
 old area codes that are genuinely 10" — and then, as its own example of a number that must be
-*rejected* as too short, gave `07700 90012`, which is itself ten digits. Both cannot be true
+_rejected_ as too short, gave `07700 90012`, which is itself ten digits. Both cannot be true
 without a lookup table of which ten-digit numbers are genuinely valid, which is exactly the
 dependency the same brief forbids (`libphonenumber` or equivalent). Eleven digits, no
 exception, is the only reading that satisfies the brief's own example, and it matches the UK
@@ -980,7 +980,7 @@ not built is at the end of this section, so a reader looking for it does not hav
 sends four messages about an entry, and **the obligation to send one is written in the same
 transaction as the thing it is about**: an `after update` trigger on `entries.entry_purchases`
 writes a row into `entries.email_outbox` when a place is paid for, refunded, or transferred —
-two rows for a transfer, because the person it moved *away from* has an address that exists
+two rows for a transfer, because the person it moved _away from_ has an address that exists
 nowhere else once `purchaser_email` is overwritten. Delivery is separate and retryable, and
 **since [ADR-032](docs/architecture/decisions/adr-032-an-email-is-sent-when-it-is-owed.md) it
 happens as soon as the message is owed rather than at the next tick of a clock**:
@@ -1012,7 +1012,7 @@ Reply-To address moved off Gmail the same day** —
 
 **There are two triggers, because a given place skips the transition the first one watches.**
 `enqueue_entry_email()` is `after update` and its confirmation branch fires on
-`pending`/`expired` → `paid` — which is right for a place that is *held* and then paid for, and
+`pending`/`expired` → `paid` — which is right for a place that is _held_ and then paid for, and
 never fires for one `create_manual_entry()` **inserts** already `paid`. So Kinsi's two
 complimentary places and every visually impaired runner's guide were given a place and told
 nothing at all, and the silence was total: nobody chases an email they were never told to
@@ -1023,8 +1023,8 @@ rather than a fifth branch: all three existing branches compare `old` to `new`, 
 `after insert` there is no `old`. #150.
 
 ⚠️ **Two of the four templates quote an amount, and a given place is £0.** The confirmation said
-*"we have received your payment of £0.00"* and the cancellation said *"we have refunded £0.00 to
-the card you paid with"* — which names a card nobody gave, and sends somebody to check a
+_"we have received your payment of £0.00"_ and the cancellation said _"we have refunded £0.00 to
+the card you paid with"_ — which names a card nobody gave, and sends somebody to check a
 statement for a refund that is not coming. `worker/email.ts` branches on `amountPence === 0` for
 both, and `tests/unit/email.test.ts` asserts the wording each way. Nothing else about the message
 differs, because nothing else about the place does.
@@ -1038,14 +1038,14 @@ decision.
 
 **Account mail has a reply line but still no `Reply-To` header, and the split is deliberate.**
 GoTrue sends confirmations, magic links and password resets with no `Reply-To` field at all — it
-has none — from a Resend *sending* subdomain with no MX, so a reply bounces. The **confirmation**
+has none — from a Resend _sending_ subdomain with no MX, so a reply bounces. The **confirmation**
 is the one message whose body already lives in a file, `supabase/templates/confirmation.html`
 declared at `auth.email.template.confirmation`, so it now names `info@southvillerunningclub.co.uk`
 in prose. **Prose and not a `mailto:`**, because that file's own rule is one call to action and no
 second link. Giving the other three a reply line means declaring new `[auth.email.template.*]`
 blocks, which is the class of change that failed `supabase config push` on every merge from
 25 August 2026 — so it waits for the Send Email Hook, **after 1 November**. #99, and the sharpest
-case (*"I didn't change my password"*) is on the far side of that line.
+case (_"I didn't change my password"_) is on the far side of that line.
 
 ⚠️ **Resend's free tier is 100 emails a day, account-wide, against 250 places** — shared with
 every account email the site sends. On a busy entry day the queue will exceed it and the
@@ -1058,7 +1058,7 @@ two permissions since 29 August 2026**: `nn.email.read` opens the page and `nn.e
 opens the buttons, gated the way `/admin/people/` is. It was built borrowing `nn.entry.read` and
 `nn.entry.cancel`, which that migration's own header called the wrong answer — the write half
 worst of all, because "may refund an entry somebody paid for" is a strange thing to have to hold
-in order to answer *"I never got my confirmation"*. **A message that has already
+in order to answer _"I never got my confirmation"_. **A message that has already
 been sent cannot be re-sent** — the club cannot un-send an email, and "I never got it" is far
 more often a spam folder. ⚠️ **"Sent today" on that page counts entry emails only**: account
 mail shares the Resend account and is not in the outbox, so the club's real usage against the
@@ -1154,21 +1154,21 @@ words, through `medicalRetentionWording()` and the lower-cased `medicalRetention
 ⚠️ **This paragraph said "nothing published is tied to the enforced interval any more" and that
 was never true** — issue #172, closed 31 August 2026. It was written about `/nn/privacy/`, which
 did stop publishing a period when it became the committee's document word for word. **Two other
-live pages went on stating one**, in hand-typed prose that imported nothing: `/nn/2026/` — *the
-page the medical consent is ticked on* — and `/account/data/`. They had already drifted from each
+live pages went on stating one**, in hand-typed prose that imported nothing: `/nn/2026/` — _the
+page the medical consent is ticked on_ — and `/account/data/`. They had already drifted from each
 other in register, "one month" against "a month", which is the tell that nothing held them to a
 source. Both derive it now:
 
-| | Source | Held by |
-| --- | --- | --- |
-| `/nn/2026/` | `entry_state()`'s `medical_retention`, painted onto the form by the Worker | `entries-retention.test.ts` asserts `entry_state()` carries the column; `nn-entry-open.test.ts` asserts the words reach the markup |
-| `/account/data/` | `current_entry_state('nn')`, one RPC on that page | `account.spec.ts` asserts the whole clause |
-| `/admin/nn/` | `read_entry_list()`'s figures, via `retentionWords()` | Was already derived |
-| `/nn/privacy/` | **Publishes no period**, and that is the committee's document rather than a gap | `nn-privacy.spec.ts` |
+|                  | Source                                                                          | Held by                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `/nn/2026/`      | `entry_state()`'s `medical_retention`, painted onto the form by the Worker      | `entries-retention.test.ts` asserts `entry_state()` carries the column; `nn-entry-open.test.ts` asserts the words reach the markup |
+| `/account/data/` | `current_entry_state('nn')`, one RPC on that page                               | `account.spec.ts` asserts the whole clause                                                                                         |
+| `/admin/nn/`     | `read_entry_list()`'s figures, via `retentionWords()`                           | Was already derived                                                                                                                |
+| `/nn/privacy/`   | **Publishes no period**, and that is the committee's document rather than a gap | `nn-privacy.spec.ts`                                                                                                               |
 
 So the chain reaches a runner again. `race.json`'s key is still read by no page — it is what the
 database test compares against — and publishing a period on `/nn/privacy/` again would still mean
-asking the committee for wording *and* establishing a tie of its own.
+asking the committee for wording _and_ establishing a tie of its own.
 
 ### Routing: a race and its runnings
 
@@ -1219,7 +1219,7 @@ read, which is how somebody finds out what to tell Left Handed Giant. The entrie
 
 **A discount code is priced before anything is held, and the code itself is never in this
 repository.** `entries.discount_codes` was built in Slice A and left empty; it takes rows now,
-and `fee_id` is new — *"10% off an unaffiliated entry"* is two facts and `percent_off` was only
+and `fee_id` is new — _"10% off an unaffiliated entry"_ is two facts and `percent_off` was only
 one of them, so a code scoped to a fee is refused against any other. **This repository is
 public**, so a code in a migration is a published code: rows are inserted by hand from
 [the runbook](docs/delivery/runbooks/entries-discount-codes.md), twelve characters from a
@@ -1241,7 +1241,7 @@ session and will not charge below £0.30, which is what [ADR-028](docs/architect
 found `create_pending_purchase` writing `ea_number` without ever consulting
 `fees.requires_ea_number` — so two PostgREST calls with the published anon key bought an
 affiliated place with no England Athletics number, £2 under. Zod required it; **Zod is the
-form's control, not the system's**. Slice G audited every rule by *attempting the bypass* with
+form's control, not the system's**. Slice G audited every rule by _attempting the bypass_ with
 an anonymous client and found eight more, the worst being that the entry terms were not
 enforced at all: `p_consents = {}` was accepted and stored as `{}`. All nine are closed — a
 check constraint where the rule is static, a trigger where it spans tables, and the function
@@ -1255,7 +1255,7 @@ reads as every rule holding at once. **The tenth rule is "one entry per runner",
 first one a person is meant to meet.** The form claimed it in prose from the day it was written
 and nothing enforced it, so somebody who already had a place could pay again and take a second
 one out of 250 — #115. `create_pending_purchase()` now refuses with `already_entered`, keyed on
-**first name, last name and date of birth** and counting only a *live* place: `paid`, or
+**first name, last name and date of birth** and counting only a _live_ place: `paid`, or
 `pending` with a hold that has not lapsed, so an expired hold or a cancelled entry lets somebody
 try again. **Not `purchaser_email`** — that was the original decision, and it has been
 overruled; see the rule below. The check sits inside the per-event advisory lock, and
@@ -1263,8 +1263,8 @@ overruled; see the rule below. The check sits inside the per-event advisory lock
 because a suite whose runners are all the same person cannot hold two places any more.
 
 **The eleventh rule is "one place per email address", and it reverses a written decision.**
-`20260827090000`'s own header argued the address was the wrong key because *one card
-legitimately pays for a partner, and refusing that would cost a real runner a place*. The club
+`20260827090000`'s own header argued the address was the wrong key because _one card
+legitimately pays for a partner, and refusing that would cost a real runner a place_. The club
 overruled that on **30 August 2026**, and
 `20260830160000_entries_one_place_per_email.sql` refuses a second live place on one address
 with `email_already_entered` — on the entry path **and** in `transfer_entry()`, because
@@ -1304,9 +1304,8 @@ per-event advisory lock the entry path takes. [ADR-010](docs/architecture/decisi
 records the three decisions it took.
 
 **The failure direction is inverted there, and only there.** Everything else in this repository
-fails towards taking no money. By the time the webhook runs, the money has gone — so *our*
-failures answer 5xx and let Stripe retry for three days, and only "this is not Stripe" gets a
-400. A 200 on an outage drops a real payment.
+fails towards taking no money. By the time the webhook runs, the money has gone — so _our_
+failures answer 5xx and let Stripe retry for three days, and only "this is not Stripe" gets a 400. A 200 on an outage drops a real payment.
 
 **A payment that arrives after the hold lapsed is still `paid`.** It is never refused. If there
 was no room it is `paid` with `attention = 'over_capacity'`, it consumes a place, and the
@@ -1325,14 +1324,14 @@ charged", because the webhook may simply be late and somebody who believes it pa
 functions and nothing else — the eight the entry and payment path needs, the six the admin
 surface added, and the two the outbox's drain added later:
 
-| | |
-| --- | --- |
-| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()`, `places_remaining()` |
-| **The entry path** | `create_pending_purchase()` — **takes a key**, since #178 — and `attach_checkout_session()` |
-| **Housekeeping** | `expire_pending_holds()`, `delete_expired_medical_notes()` |
-| **Payment** | `record_checkout_event()` — **takes a key** |
-| **The admin surface** | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
-| **The outbox drain** | `claim_outbox_batch()`, `record_send_result()` — **both take the webhook key** |
+|                          |                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Public configuration** | `entry_state()`, `current_entry_state()`, `entry_completion_state()`, `places_remaining()`                                         |
+| **The entry path**       | `create_pending_purchase()` — **takes a key**, since #178 — and `attach_checkout_session()`                                        |
+| **Housekeeping**         | `expire_pending_holds()`, `delete_expired_medical_notes()`                                                                         |
+| **Payment**              | `record_checkout_event()` — **takes a key**                                                                                        |
+| **The admin surface**    | `admin_sign_in()`, `admin_entry_list()`, `admin_interest_list()`, `admin_entrant_medical()`, `admin_export()` — **all take a key** |
+| **The outbox drain**     | `claim_outbox_batch()`, `record_send_result()` — **both take the webhook key**                                                     |
 
 **Do not trust this table's count going forward** — it has already changed three times (from
 seven, to thirteen, to fifteen, to sixteen) and `packages/db/tests/entries.test.ts` is what
@@ -1400,7 +1399,7 @@ a volunteer acts, and a new status would make that place invisible to the count 
 twice.
 
 **And a request is a list, not a word, since 29 August 2026.** `requested_action` held one, so a
-runner who pressed *Transfer*, thought better of it and pressed *Cancel* left a record saying
+runner who pressed _Transfer_, thought better of it and pressed _Cancel_ left a record saying
 only the second — and the two want opposite things, so a volunteer seeing one of them acts on
 the wrong one about half the time. `entries.entry_requests` is the append-only record of every
 ask; the columns stay, holding the most recent, because the **Asked about** filter and every
@@ -1414,17 +1413,17 @@ request history of the runner it came **from**, addressed to them in the second 
 text and all. The reason box is 500 characters of anything. `entry_requests.owner_email` and
 `owner_person_id` are stamped at ask time and `my_entries()` filters on them — chosen over a
 `transferred_at` column because it is **the only mechanism that survives a place changing hands
-twice**: a clock answers *"was this made before the transfer"*, which is a proxy, and an owner
-answers *"whose was it"*, which is the question. **The three summary keys are derived from the
+twice**: a clock answers _"was this made before the transfer"_, which is a proxy, and an owner
+answers _"whose was it"_, which is the question. **The three summary keys are derived from the
 owned asks too, not read off the purchase columns**, and that half is not optional —
 `transfer_entry()` keeps `request_reason` deliberately, and `asksFor()` falls back to those
-columns, so filtering only the list rendered nothing *by luck*. **`/admin/nn/` is untouched and
+columns, so filtering only the list rendered nothing _by luck_. **`/admin/nn/` is untouched and
 still sees every ask**, because it is the record of why the place moved. #148, ADR pending.
 
 **Nothing in the schema acts on a request**, and the admin surface deliberately offers
 no transfer button until the club asked for one — see the paragraph above, which is what
 that ask turned into. **The email half is built now, and it is not this** — #73 sends on what a
-volunteer *does*, never on what a runner asks for. Requesting a cancellation still tells nobody
+volunteer _does_, never on what a runner asks for. Requesting a cancellation still tells nobody
 by email; the message goes when somebody acts on it.
 
 ### Admin filtering, and the runner's own record
@@ -1466,13 +1465,13 @@ downloaded `.csv` is not the club's to control.
 **A request carries the reason somebody gave**, in `entry_purchases.request_reason`: optional,
 capped at 500 characters, read on `/admin/nn/` and on the asker's own `/account/entries/` and
 **nowhere else** — never exported, for the reason `gender_identity` is not. `/account/entries/`
-states the club's position on refunds *above* the box rather than after the button: not the first
+states the club's position on refunds _above_ the box rather than after the button: not the first
 answer, looked at case by case.
 
 **An affiliated place transfers like any other now, and it could not before.**
 `transfer_entry()` cleared the previous runner's England Athletics number unconditionally, which
 `assert_entrant_rules()` refused on an affiliated entry — so **every affiliated transfer raised a
-`check_violation` that reached a volunteer as *"the club's database could not be reached"***, on a
+`check_violation` that reached a volunteer as _"the club's database could not be reached"_**, on a
 database that was perfectly healthy. Asking the new runner for a number of their own was what
 closed that, as a tenth argument with the nine-argument form kept as a wrapper. The club then
 stopped asking for numbers at all, so no fee requires one, the refusal is unreachable and the
@@ -1511,7 +1510,7 @@ invalidated.
 ⚠️ **What may never be dropped is the note that replaces them.** Hiding a lapsed hold with
 nothing in its place shows an empty page to somebody whose payment succeeded while the webhook
 was late — they read that as nothing having been taken, and enter again. So when there is no
-confirmed place and there *is* a lapsed one, the open view carries a note that names the state,
+confirmed place and there _is_ a lapsed one, the open view carries a note that names the state,
 says in full that a payment can arrive after the page that took it gave up and to get in touch
 rather than entering twice, and links to where the entry is filed. **The note is the pay-twice
 guard, not a signpost**: it carries that sentence itself rather than deferring it to the card,
@@ -1523,20 +1522,20 @@ who cancelled one entry and kept another had **no record of the cancellation on 
 at all**. `?show=cancelled` is the second view — **a URL filter rather than tabs or a second
 page**, for the reason `/admin/nn/`'s filters are: it works with scripting off, and a filtered
 view is a URL somebody can send while helping a runner work out what happened. An empty
-Cancelled view says **"Nothing here"** and never *"you have never cancelled an entry"*, which is
+Cancelled view says **"Nothing here"** and never _"you have never cancelled an entry"_, which is
 a claim about a record. #148.
 
 **A lapsed hold is filed under Cancelled, and that reverses the position this paragraph used to
-state.** It sat underneath *whichever* view was open, shown only when there were no confirmed
+state.** It sat underneath _whichever_ view was open, shown only when there were no confirmed
 places — which meant `?show=cancelled` with nothing cancelled said "Nothing here" and then
 rendered a not-completed entry directly beneath it. Asked for and decided on 30 August 2026: a
 not-completed entry goes in the Cancelled view. ⚠️ **It is not a cancellation, and the heading
 can therefore be wrong about it in the expensive direction** — the webhook may be late, the
 place may in fact be paid for, and a runner who believes their entry is gone enters again. Two
 things pay for that and **neither may be removed without putting the other back**: the card's
-own status sentence still says only what it knows (*not completed in time; if you were charged,
-get in touch before entering again*), and the open view carries the note described above. The
-lapsed card is rendered quiet and *after* the refunds, because a refund happened and a lapsed
+own status sentence still says only what it knows (_not completed in time; if you were charged,
+get in touch before entering again_), and the open view carries the note described above. The
+lapsed card is rendered quiet and _after_ the refunds, because a refund happened and a lapsed
 hold merely failed to complete.
 
 ### The tester role, and the Stripe key swap
@@ -1560,7 +1559,7 @@ ship null, which refuses everything.
 [ADR-029](docs/architecture/decisions/adr-029-holding-a-place-takes-a-key.md), issue #178.** That
 sentence above was always about two halves and only the confirming one was ever built. Holding a
 place is granted to `anon` — it must be, a signed-out runner reaches PostgREST as `anon` — and it
-holds a place *before* any money moves, with a live `pending` hold counting against the 250. So a
+holds a place _before_ any money moves, with a live `pending` hold counting against the 250. So a
 loop with the key printed in every page's source took the whole field in **half a second, for
 nothing**: measured at 249 holds in 0.5s, with the next real runner refused `sold_out`.
 Cloudflare's C1 never saw it, because PostgREST is a different origin from the Worker.
@@ -1594,7 +1593,7 @@ path is unchanged and costs nothing extra. A tester's entry is a **real** entry:
 place, appears in `/admin/nn/`, in the exports and on the start list, and it is removed with the
 cancel button rather than excluded from the thing it is testing.
 
-**Production runs on Stripe *test* keys until entries open, and that is safe rather than
+**Production runs on Stripe _test_ keys until entries open, and that is safe rather than
 sloppy** — the only person who can reach Checkout before 1 September is somebody the club granted
 `nn-tester` to. Swapping `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to live keys is the last
 manual step before the window opens, and it is in the entries-open runbook.
@@ -1602,7 +1601,7 @@ manual step before the window opens, and it is in the entries-open runbook.
 ⚠️ **Nothing may be left `paid` across that swap, and this has already cost one real payment.**
 Stripe's two modes are separate object graphs, so a key of one mode cannot refund a payment
 intent of the other — and the cancel path is Stripe first, the record second, so a mode mismatch
-answers *"Nothing was cancelled"* on a database that is perfectly healthy and leaves the place
+answers _"Nothing was cancelled"_ on a database that is perfectly healthy and leaves the place
 consumed for ever. A live payment taken on 27 August 2026 is still stranded that way (#118 item
 7), and the only occasion it can be cancelled at all is while the live pair is bound. **The
 failure is indistinguishable on the page from a restricted key missing Refunds — Write**, which
@@ -1666,8 +1665,8 @@ the club's socials, starting with the Christmas party, and it is deliberately **
 `entries.entrants` requires `date_of_birth`, `gender`, `emergency_contact_name` and
 `emergency_contact_phone` — all four `not null`, each argued for individually, each in the
 committee-settled list at `packages/shared/src/nn-entry.ts`. A party ticket needs none of them,
-so reuse meant either **collecting them anyway** (a straight breach of *personal data is
-minimised at the boundary*, and one that looks like good engineering while it is happening) or
+so reuse meant either **collecting them anyway** (a straight breach of _personal data is
+minimised at the boundary_, and one that looks like good engineering while it is happening) or
 **making four columns nullable on the live race path during the entry window**. Neither is worth
 a week saved.
 
@@ -1698,6 +1697,21 @@ birth to check it against, and collecting one to sell a party ticket is the mini
 this schema exists to avoid — the 2025 page stated 18+ as prose and the door enforced it.
 Asking at the point of sale is a `required_consents` entry and needs wording first.
 
+**The club is going live on Friday 18 September 2026** — the page visible _and_ tickets on
+sale, both that day, 85 days before the party. ⚠️ **That lands inside the Nightingale
+Nightmare entry window** (open until 17:00 on 30 October), so everything for it deploys
+alongside live race entries and the out-of-order-migration trap is the one to watch: a `db push`
+refused on version order takes the _whole_ push down, and the symptom reaching a volunteer is
+race entries answering "the club's database could not be reached". The dated schedule, the
+on-the-day order and the rehearsal are in
+[the runbook](docs/delivery/runbooks/events-tickets.md).
+
+⚠️ **There is deliberately no tester mechanism for `store`, and it is not an oversight.** The
+race needs `nn-tester` and a £1 fee because a test entry consumes one of 250 places; a party
+ticket does not, because `capacity` is null. So the rehearsal is a real purchase on the day,
+refunded afterwards — and a member who finds the page in the meantime has simply bought a
+ticket at the right price.
+
 ⚠️ **A social is invisible until somebody publishes it, and that is a fourth lock rather than
 a replacement for the other three.** `store.socials.published` defaults to **false**, so the
 party ships hidden: `/events/christmas-party-2026/` answers **404** and the link on `/events/`
@@ -1711,7 +1725,7 @@ announced, and `create_pending_purchase()` refuses one as `no_such_social` for t
 delete itself for the length of the outage.
 
 **`seed.sql` publishes it locally** so the acceptance suite can test the page it renders;
-that file never runs against production, and `store.test.ts` asserts the *column default*
+that file never runs against production, and `store.test.ts` asserts the _column default_
 rather than the current row.
 
 **`capacity` is null, meaning no limit**, and `sales_open_at` is null, which is what actually
@@ -1726,13 +1740,13 @@ even with a valid ticket code.
 `ticket_purchases`, `api_secrets`, `email_outbox`. It may call **seven functions** and nothing
 else:
 
-| | |
-| --- | --- |
-| **Public configuration** | `social_state()` |
-| **The ticket path** | `create_pending_purchase()` — **takes a key** — and `attach_checkout_session()` |
-| **Housekeeping** | `expire_pending_holds()` |
-| **Payment** | `record_checkout_event()` — **takes a key** |
-| **The outbox drain** | `claim_outbox_batch()`, `record_send_result()` — **both take a key** |
+|                          |                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| **Public configuration** | `social_state()`                                                                |
+| **The ticket path**      | `create_pending_purchase()` — **takes a key** — and `attach_checkout_session()` |
+| **Housekeeping**         | `expire_pending_holds()`                                                        |
+| **Payment**              | `record_checkout_event()` — **takes a key**                                     |
+| **The outbox drain**     | `claim_outbox_batch()`, `record_send_result()` — **both take a key**            |
 
 Three more are granted to **nobody** and are reachable only from the definer functions and
 triggers that call them: `key_ok()` (an oracle for the key if it were callable),
@@ -1776,23 +1790,23 @@ already tracks — and it works with scripting off.
 
 ### What is deliberately not built, so nobody goes looking
 
-* ~~No admin surface.~~ **Built on 6 September 2026** — `/admin/events/`, behind
+- ~~No admin surface.~~ **Built on 6 September 2026** — `/admin/events/`, behind
   `store.ticket.read`. See the section below.
-* **No cancellation or refund path.** Nothing writes `refunded`. The `ticket_refunded` template
+- **No cancellation or refund path.** Nothing writes `refunded`. The `ticket_refunded` template
   and its trigger branch exist and are tested, so the mechanism is ready for the function that
   will use it.
-* **No per-attendee names.** A purchase carries a name, an email address and a quantity. A door
+- **No per-attendee names.** A purchase carries a name, an email address and a quantity. A door
   list by name is a field beyond what is specified, and therefore a committee decision.
-* **No dietary requirements, and that is a recorded decision rather than an omission.** The 2025
+- **No dietary requirements, and that is a recorded decision rather than an omission.** The 2025
   party page collected them at booking. An allergy is health data and a religious diet reveals
   belief, so both are Article 9 — an explicit condition, a retention period and items on both
   privacy notices would all be needed first. **The confirmation email asks for them by reply**,
   which puts the answer in a mailbox the club already runs. `tests/unit/events.test.ts` asserts
   that no dietary field reaches the order however it is posted.
-* **No HTML part on the two ticket emails.** ADR-026's skin is written against a race entry, and
+- **No HTML part on the two ticket emails.** ADR-026's skin is written against a race entry, and
   giving it a second shape to branch on is how a design system starts branching on its caller.
   The text part is authoritative in both.
-* **The completion page reports no state at all.** It makes no positive claim about the payment
+- **The completion page reports no state at all.** It makes no positive claim about the payment
   and — the half that costs money — **no negative one**. ⚠️ If it ever does report state, the
   race's rule comes with it: only a recorded payment may make a positive claim, because a page
   saying "nothing was charged" while the webhook is merely late sends somebody to pay twice.
@@ -1817,17 +1831,17 @@ sales have started — a page that vanishes an occasion the moment it has no sal
 precisely when it is needed.
 
 ⚠️ **The section is gated in `worker/admin.ts` before it dispatches**, like the three beside
-it, and here that ordering is load-bearing rather than tidy: the function returns *nothing*
+it, and here that ordering is load-bearing rather than tidy: the function returns _nothing_
 rather than raising when the permission is missing, so an ungated page would render an empty
 table reading "nobody has bought a ticket yet" — disclosing the page, and stating something
 false about the club's records to somebody who cannot check it.
 
 **Non-`paid` rows are shown and labelled**, for the reason `/admin/nn/` learned expensively: a
-volunteer asking *"did Alex get a ticket"* needs to see an abandoned checkout to answer it.
+volunteer asking _"did Alex get a ticket"_ needs to see an abandoned checkout to answer it.
 
 **There is no export and no audit table**, both deliberately. `nn.entry.export` is its own
 permission because a file leaves the building, so a ticket CSV is a twelfth permission and a
-separate decision; and ADR-024 already decided that reading a *list* writes no audit row,
+separate decision; and ADR-024 already decided that reading a _list_ writes no audit row,
 because it discloses what the same permission already opens.
 
 ### One config change went with it
@@ -1857,14 +1871,14 @@ that ordinary tab order is why it needs no `aria-expanded` to be operable.
 
 Three things about it are load-bearing:
 
-* **The parent stays a real link to `/events/`**, which lists the same pages. The menu is a
+- **The parent stays a real link to `/events/`**, which lists the same pages. The menu is a
   shortcut and never the only route — which is what makes it safe to hide outright below 48rem,
   where there is no hover to open it with and the bar is already two rows.
-* ⚠️ **`position: relative` on the `<li>`.** An absolutely positioned box whose containing block
-  is the *page* is laid out against the document, and a panel wider than the viewport then makes
+- ⚠️ **`position: relative` on the `<li>`.** An absolutely positioned box whose containing block
+  is the _page_ is laid out against the document, and a panel wider than the viewport then makes
   the whole page scroll sideways, silently. This repository has already paid for exactly that
   once, with a visually-hidden span inside a scrolling admin table.
-* **The list is a constant, not a database read.** The alternative is `store.social_state()` on
+- **The list is a constant, not a database read.** The alternative is `store.social_state()` on
   every page view — `/`, `/privacy/`, every account page — to paint a menu. It costs nothing
   extra in practice, because a social already needs its own content page and is therefore
   already a deploy.
