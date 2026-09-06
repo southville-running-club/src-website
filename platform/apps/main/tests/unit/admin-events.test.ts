@@ -4,6 +4,7 @@ import {
   figures,
   salesWords,
   statusWords,
+  taken,
   type SocialRow,
   type TicketRow,
 } from '../../worker/admin-events';
@@ -158,5 +159,28 @@ describe('the sales state on the index', () => {
     // £10 is confirmed and `sales_open_at` is null — which is exactly what the index should
     // be showing a director right now.
     expect(salesWords(social({}), NOW)).toBe('Not on sale');
+  });
+});
+
+describe('rendering what the club has taken', () => {
+  it('never says "Free" when nothing has been taken', () => {
+    // ⚠️ **`formatPence(0)` is `'Free'`, which is right for a price and wrong for a total.**
+    // In a "Taken" column it reads as *this event is free* — a claim about what the club
+    // charges, on the page a director checks sales on. It was on screen before anybody
+    // noticed, which is why this assertion is phrased as the thing that must not happen.
+    expect(taken(0)).not.toBe('Free');
+    expect(taken(0)).toBe('—');
+  });
+
+  it('writes no currency symbol of its own for the zero case', () => {
+    // A hand-written `£0.00` here would be the seventh instance of the pattern issue #175
+    // tracks. A dash writes no money at all.
+    expect(taken(0)).not.toContain('£');
+  });
+
+  it('defers to formatPence for every amount that is not zero', () => {
+    expect(taken(1000)).toBe('£10.00');
+    expect(taken(7000)).toBe('£70.00');
+    expect(taken(1)).toBe('£0.01');
   });
 });

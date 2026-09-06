@@ -158,6 +158,24 @@ export function salesWords(social: SocialRow, now = Date.now()): string {
   return 'On sale';
 }
 
+/**
+ * What the club has taken, rendered for a **total** rather than for a price.
+ *
+ * ⚠️ **`formatPence(0)` is `'Free'`, and that is right for a price and wrong here.** In a
+ * "Taken" column it reads as *this event is free* rather than as *nothing has been taken* —
+ * which is a claim about what the club charges, on the page a director checks sales on, and
+ * it was on screen before anybody noticed.
+ *
+ * **A dash rather than a hand-written `£0.00`.** `formatPence()` is the one function allowed
+ * to render money to text, and writing the zero case by hand here would be the seventh
+ * instance of the pattern issue #175 already tracks — a template building its own currency
+ * string beside a call to the function that exists to build it. A dash writes no money at
+ * all, which is the only way to say "none" without saying it in pounds.
+ */
+export function taken(pence: number): string {
+  return pence === 0 ? '—' : formatPence(pence);
+}
+
 export async function handleEventsSection(
   request: Request,
   viewer: AdminViewer,
@@ -266,7 +284,7 @@ async function socialIndex(viewer: AdminViewer, cfg: SupabaseConfig): Promise<Re
                             }
                           </td>
                           <td class="admin-col-wide admin-mono">
-                            ${formatPence(social.taken_pence)}
+                            ${taken(social.taken_pence)}
                           </td>
                           <td>${salesWords(social)}</td>
                         </tr>`,
@@ -333,7 +351,7 @@ async function ticketList(
           ${totals.paidTickets === 1 ? 'ticket' : 'tickets'} paid for across
           <span class="admin-mono">${totals.paidOrders}</span>
           ${totals.paidOrders === 1 ? 'order' : 'orders'}, totalling
-          <span class="admin-mono">${formatPence(totals.takenPence)}</span>.
+          <span class="admin-mono">${taken(totals.takenPence)}</span>.
           ${
             totals.heldTickets > 0
               ? html`<span class="admin-mono">${totals.heldTickets}</span> more are held
