@@ -27,12 +27,27 @@ import Base from '../../layouts/Base.astro';
 
   <p class="lede">Club socials, parties and everything that is not a race.</p>
 
+  {
+    /* **Each item carries its slug, and the Worker hides the ones nobody may see yet.** A
+      social is unpublished until somebody publishes it, so a page built with a link to next
+      year's party cannot leak it — the link ships and is hidden per request.
+
+      The list is markup rather than painted from the database because listing published
+      socials publicly would need an eighth anon-callable function, which is a decision
+      nobody has taken. One social today; a dozen would be the moment to revisit that. */
+  }
   <ul>
-    <li>
+    <li data-social-link="christmas-party-2026">
       <a href="/events/christmas-party-2026/"><strong>SRC Christmas Party 2026</strong></a
       > — details to be confirmed
     </li>
   </ul>
+
+  {
+    /* Ships hidden and is revealed only when every link above has been hidden. A list with no
+      visible items and nothing beneath it reads as a broken page; this reads as true. */
+  }
+  <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
 
   <p>
     Looking for a race? <a href="/nn/">Nightingale Nightmare</a> is the club's own 10km off

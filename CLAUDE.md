@@ -1698,6 +1698,22 @@ birth to check it against, and collecting one to sell a party ticket is the mini
 this schema exists to avoid — the 2025 page stated 18+ as prose and the door enforced it.
 Asking at the point of sale is a `required_consents` entry and needs wording first.
 
+⚠️ **A social is invisible until somebody publishes it, and that is a fourth lock rather than
+a replacement for the other three.** `store.socials.published` defaults to **false**, so the
+party ships hidden: `/events/christmas-party-2026/` answers **404** and the link on `/events/`
+is hidden, leaving "Nothing is coming up just now". Publishing is one `update` and no deploy.
+
+**`social_state()` answers nothing for an unpublished, inactive or absent social — the three
+are deliberately indistinguishable**, so nobody can probe for an occasion the club has not
+announced, and `create_pending_purchase()` refuses one as `no_such_social` for the same reason.
+⚠️ **The Worker must not treat that as an outage**: `fetchSocialState` returns `missing` versus
+`unavailable`, and only `missing` 404s. A page that 404'd on an unreachable database would
+delete itself for the length of the outage.
+
+**`seed.sql` publishes it locally** so the acceptance suite can test the page it renders;
+that file never runs against production, and `store.test.ts` asserts the *column default*
+rather than the current row.
+
 **`capacity` is null, meaning no limit**, and `sales_open_at` is null, which is what actually
 keeps tickets from being sold — along with none of the three Worker secrets being installed,
 which is a second, independent reason. `packages/db/tests/store.test.ts` asserts every supplied

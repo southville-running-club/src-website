@@ -21,6 +21,7 @@ import {
   adminPathForNnAdminPath,
   isAccountPath,
   isAdminPath,
+  isEventsIndexPath,
   isEventsWebhookPath,
   isHealthPath,
   isNnAdminPath,
@@ -479,7 +480,27 @@ export default {
     const socialSlug = socialSlugForEventsPath(url.pathname);
 
     if (socialSlug !== null) {
-      renderSocialView(rewriter, await resolveSocialView(env, socialSlug));
+      const socialView = await resolveSocialView(env, socialSlug);
+
+      // ⚠️ **An unpublished social is a 404, and an unreachable database is not.** The first
+      // is the club not having announced this yet — the page must not exist for a member who
+      // guesses the address. The second is an outage, and 404ing it would delete a live page
+      // for as long as it lasted, which is the worse failure by far.
+      if (socialView.show === 'missing') {
+        return notFoundPage(env, request);
+      }
+
+      renderSocialView(rewriter, socialView);
+    }
+
+    // **The `/events/` index links to socials the build knows about, and the Worker hides the
+    // ones nobody may see yet.** The list is in markup rather than painted from the database
+    // because listing published socials publicly would need an eighth anon-callable function,
+    // which is a decision nobody has taken — so each link carries its slug and is asked about
+    // individually. One social today; if that ever becomes a dozen this is the thing to
+    // revisit.
+    if (isEventsIndexPath(url.pathname)) {
+      await hideUnpublishedLinks(rewriter, env, response.clone());
     }
 
     if (isNnEntryCompletePath(url.pathname)) {
@@ -497,6 +518,7 @@ export default {
       isNnRacePath(url.pathname) ||
       yearSlug !== null ||
       socialSlug !== null ||
+      isEventsIndexPath(url.pathname) ||
       isNnEntryCompletePath(url.pathname);
 
     // **A page painted for one viewer must not be handed to another.** Issue #145, defect 1.
@@ -1033,6 +1055,91 @@ async function handleNnEntry(
  *     pressed the button after they were not. An ordinary sequence rather than a mistake.
  *   * **503 when the club cannot take a payment right now** — no key, no Stripe, no database.
  */
+/**
+ * The site's own 404, served for an address the assets binding would have answered.
+ *
+ * **Fetched rather than built**, so an unpublished social gets exactly the page a mistyped
+ * address gets — the club's 404 with its own chrome, not a bare string. Indistinguishable is
+ * the point: a member who guesses the URL of a party the club has not announced learns
+ * nothing from the difference.
+ */
+async function notFoundPage(env: Env, request: Request): Promise<Response> {
+  const page = await env.ASSETS.fetch(
+    new Request(new URL('/404.html', request.url).toString(), { method: 'GET' }),
+  );
+
+  return new Response(page.body, {
+    status: 404,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+/**
+ * Hide every link on `/events/` to a social that is not published yet.
+ *
+ * The markup carries one `[data-social-link="<slug>"]` per social the build knows about; this
+ * asks the database about each and hides the ones it answers nothing for. **`hidden` on the
+ * list item**, so the item leaves the accessibility tree rather than merely going invisible.
+ *
+ * Reads the served body to find the slugs, which is why the caller passes a clone: the
+ * original is still going through `HTMLRewriter`.
+ */
+async function hideUnpublishedLinks(
+  rewriter: HTMLRewriter,
+  env: Env,
+  page: Response,
+): Promise<void> {
+  let body: string;
+
+  try {
+    body = await page.text();
+  } catch {
+    // Unreadable body: paint nothing and leave the page as shipped. The failure direction is
+    // towards showing a link that should be hidden, which is the same direction every other
+    // failure on this path takes and is the one the club can see and fix.
+    return;
+  }
+
+  const slugs = [...body.matchAll(/data-social-link="([a-z0-9-]+)"/gu)].map(
+    (match) => match[1] ?? '',
+  );
+
+  const unique = [...new Set(slugs)];
+  let hidden = 0;
+
+  for (const slug of unique) {
+    const view = await resolveSocialView(env, slug);
+
+    if (view.show === 'missing') {
+      rewriter.on(`[data-social-link='${slug}']`, new HideListItem());
+      hidden += 1;
+    }
+  }
+
+  // **Only when every link went, and only when there was at least one to go.** A list with no
+  // visible items and no sentence beneath it reads as a broken page; the sentence reads as
+  // true. It is deliberately not revealed when the database was unreachable — those views come
+  // back `unavailable` rather than `missing`, so an outage leaves the links in place and says
+  // nothing, which is the harmless direction.
+  if (unique.length > 0 && hidden === unique.length) {
+    rewriter.on('[data-social-none]', new RevealElement());
+  }
+}
+
+/** Reveals an element that ships `hidden`. */
+class RevealElement {
+  element(element: Element): void {
+    element.removeAttribute('hidden');
+  }
+}
+
+/** Hides an element outright, used for a link to something nobody may see yet. */
+class HideListItem {
+  element(element: Element): void {
+    element.setAttribute('hidden', '');
+  }
+}
+
 async function handleTicketOrder(
   form: FormData | null,
   env: Env,

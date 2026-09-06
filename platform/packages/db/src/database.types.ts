@@ -1086,6 +1086,7 @@ export type Database = {
           max_tickets_per_purchase: number
           minimum_age: number | null
           next_ticket_no: number
+          published: boolean
           reply_to: string
           required_consents: string[]
           sales_close_at: string | null
@@ -1106,6 +1107,7 @@ export type Database = {
           max_tickets_per_purchase?: number
           minimum_age?: number | null
           next_ticket_no?: number
+          published?: boolean
           reply_to: string
           required_consents?: string[]
           sales_close_at?: string | null
@@ -1126,6 +1128,7 @@ export type Database = {
           max_tickets_per_purchase?: number
           minimum_age?: number | null
           next_ticket_no?: number
+          published?: boolean
           reply_to?: string
           required_consents?: string[]
           sales_close_at?: string | null
@@ -1276,6 +1279,7 @@ export type Database = {
           paid_orders: number
           paid_tickets: number
           price_pence: number
+          published: boolean
           sales_close_at: string
           sales_open_at: string
           slug: string

@@ -110,6 +110,32 @@ failures: Stripe retries for three days.
 
 ---
 
+## Making the page visible
+
+**A social is invisible until somebody publishes it.** `store.socials.published` defaults to
+false, so the Christmas party ships hidden: `/events/christmas-party-2026/` answers **404**,
+and the link to it on `/events/` is not there — the page says "Nothing is coming up just now"
+instead.
+
+⚠️ **404, not a "coming soon" page, and that is deliberate.** An unpublished social is
+indistinguishable from one that never existed: `social_state()` answers nothing for both, so
+nobody can guess an address and learn that the club is planning something.
+
+Publishing is one `update` and no deploy:
+
+```sql
+update store.socials set published = true where slug = 'christmas-party-2026';
+```
+
+The page is live on the next request. Hiding it again is the same statement with `false`.
+
+**This is separate from selling.** A published social with no sales window is exactly the
+state the party will be in between the club announcing it and tickets going on sale — the page
+shows the date, the venue and the price, and says tickets are not on sale yet. Publishing does
+not open sales; step 4 does.
+
+---
+
 ## 1. Confirm the details
 
 **The date, the venue, the times and the age limit are already set**, in two dated migrations,

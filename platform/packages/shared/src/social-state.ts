@@ -65,8 +65,22 @@ export interface SocialState {
   ticketTypes: TicketType[];
 }
 
+/**
+ * ⚠️ **`missing` and `unavailable` are different answers and the difference is load-bearing.**
+ *
+ * `store.social_state()` returns nothing for a social that is unpublished, inactive or absent
+ * — the three are deliberately indistinguishable to an anonymous caller, so nobody can probe
+ * for an occasion the club has not announced. The page turns that into a 404.
+ *
+ * A database it could not reach is `unavailable`, and the page must **not** 404 on it: doing
+ * so would delete a live page during an outage, which is worse than showing one that cannot
+ * say whether tickets are on sale. The shipped markup already handles that — it says the
+ * details are to be confirmed and that nothing is on sale, which is wrong in the harmless
+ * direction.
+ */
 export type SocialStateResult =
-  { ok: true; value: SocialState } | { ok: false; error: string };
+  | { ok: true; value: SocialState }
+  | { ok: false; reason: 'missing' | 'unavailable'; error: string };
 
 const ticketTypeShape = z.object({
   code: z.string().min(1),
@@ -112,19 +126,32 @@ export async function fetchSocialState(
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, reason: 'unavailable', error: error.message };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
 
   if (!row) {
-    return { ok: false, error: `No social with slug ${slug}` };
+    // **Not an error.** The function answered, and its answer was "there is nothing here" —
+    // which covers unpublished, inactive and never-existed, on purpose.
+    return {
+      ok: false,
+      reason: 'missing',
+      error: `No published social with slug ${slug}`,
+    };
   }
 
   const parsed = socialStateShape.safeParse(row);
 
   if (!parsed.success) {
-    return { ok: false, error: 'The social configuration did not parse' };
+    // A shape this Worker does not understand is the database being ahead of it, not the
+    // social being absent — so it degrades to the page that sells nothing rather than to a
+    // 404 that would remove a live page.
+    return {
+      ok: false,
+      reason: 'unavailable',
+      error: 'The social configuration did not parse',
+    };
   }
 
   const value = parsed.data;

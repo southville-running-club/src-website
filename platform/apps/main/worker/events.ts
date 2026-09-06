@@ -45,6 +45,7 @@ import { createCheckoutSession, stripeConfig, type StripeEnv } from './stripe';
 /** What the page should show, once the Worker knows what the database says. */
 export type SocialView =
   | { show: 'unavailable' }
+  | { show: 'missing' }
   | {
       show: 'social';
       state: SocialState;
@@ -80,7 +81,11 @@ export async function resolveSocialView(
   const state = await fetchSocialState(client, slug);
 
   if (!state.ok) {
-    return { show: 'unavailable' };
+    // ⚠️ **Two answers, and collapsing them is the defect.** `missing` means the database
+    // said there is nothing here — unpublished, inactive or absent — and the page 404s.
+    // `unavailable` means it could not be asked, and the page must render as shipped: 404ing
+    // an outage would delete a live page for as long as it lasted.
+    return { show: state.reason === 'missing' ? 'missing' : 'unavailable' };
   }
 
   return {

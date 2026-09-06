@@ -87,11 +87,15 @@ async function makeSocial(
     `insert into store.socials (
        slug, display_name, reply_to, consent_version,
        social_date, start_time, end_time, venue, capacity,
-       sales_open_at, sales_close_at, max_tickets_per_purchase
+       sales_open_at, sales_close_at, max_tickets_per_purchase,
+       -- Explicit, because the column defaults to false: a fabricated social is hidden until
+       -- published, exactly like a real one. Forgetting it makes every fixture here refuse
+       -- with no_such_social, which is what happened the first time.
+       published
      )
      values ($1, $2, 'info@example.com', 'test-v1',
              date '2026-12-05', time '19:30', time '01:00', 'The Example Rooms', $3,
-             $4, $5, 6)`,
+             $4, $5, 6, true)`,
     [
       slug,
       `Fixture ${slug}`,

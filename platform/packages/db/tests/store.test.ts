@@ -329,8 +329,8 @@ describe('who may read who bought a ticket', () => {
     );
 
     await db.query(
-      `insert into store.socials (slug, display_name, reply_to, consent_version)
-       values ($1, 'Fixture social', 'info@example.com', 'test-v1')
+      `insert into store.socials (slug, display_name, reply_to, consent_version, published)
+       values ($1, 'Fixture social', 'info@example.com', 'test-v1', true)
        on conflict (slug) do nothing`,
       [FIXTURE_SLUG],
     );
@@ -423,6 +423,93 @@ describe('who may read who bought a ticket', () => {
 
     // One paid purchase of two, from this describe's own fixture.
     expect(fixture).toMatchObject({ paid_tickets: 2, paid_orders: 1, taken_pence: 2000 });
+  });
+
+  it('ships unpublished, whatever a laptop\u2019s seed does to it afterwards', async () => {
+    // **Asserted against the migration's default, not against the current row.** `seed.sql`
+    // publishes the party locally so the acceptance suite can test the page it renders, and
+    // that file never runs against production — so what actually decides how it goes out is
+    // the column default, and that is what this reads.
+    const rows = await query<{ column_default: string | null; is_nullable: string }>(
+      `select column_default, is_nullable
+         from information_schema.columns
+        where table_schema = 'store' and table_name = 'socials' and column_name = 'published'`,
+    );
+
+    expect(rows[0]).toEqual({ column_default: 'false', is_nullable: 'NO' });
+  });
+
+  it('shows an unpublished social to nobody, and does not say it is unpublished', async () => {
+    await query('update store.socials set published = false where slug = $1', [
+      FIXTURE_SLUG,
+    ]);
+
+    try {
+      const { data, error } = await anon
+        .schema('store')
+        .rpc('social_state', { p_slug: FIXTURE_SLUG });
+
+      // **Nothing, and indistinguishable from a slug that never existed.** Returning the row
+      // with a flag on it would leave the date, the venue and the price readable by anybody
+      // with the published anon key — which is exactly what "not visible yet" rules out.
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+
+      const absent = await anon
+        .schema('store')
+        .rpc('social_state', { p_slug: 'never-existed-at-all' });
+
+      expect(absent.data).toEqual(data);
+    } finally {
+      await query('update store.socials set published = true where slug = $1', [
+        FIXTURE_SLUG,
+      ]);
+    }
+  });
+
+  it('refuses to hold a ticket for an unpublished social, as no_such_social', async () => {
+    await query('update store.socials set published = false where slug = $1', [
+      FIXTURE_SLUG,
+    ]);
+
+    try {
+      const { data } = await anon.schema('store').rpc('create_pending_purchase', {
+        p_key: 'anything-at-all',
+        p_social_slug: FIXTURE_SLUG,
+        p_ticket_code: 'standard',
+        p_purchaser_name: 'Test Person',
+        p_purchaser_email: 'test@example.com',
+        p_quantity: 1,
+      });
+
+      // Belt to the page's braces: the form cannot be reached while a social is hidden, which
+      // is exactly why this is checked. The reason is `no_such_social` rather than one of its
+      // own, so probing cannot tell an unpublished occasion from one never created.
+      expect(data?.[0]?.ok).toBe(false);
+    } finally {
+      await query('update store.socials set published = true where slug = $1', [
+        FIXTURE_SLUG,
+      ]);
+    }
+  });
+
+  it('still shows an unpublished social to a director, and says which it is', async () => {
+    await query('update store.socials set published = false where slug = $1', [
+      FIXTURE_SLUG,
+    ]);
+
+    try {
+      const rows = await asPersonSocials(DIRECTOR);
+      const fixture = rows.find((row) => row.slug === FIXTURE_SLUG);
+
+      // **The one page that can see it either way has to say which.** Otherwise "published"
+      // is a fact nobody can check without opening `psql`.
+      expect(fixture).toMatchObject({ published: false });
+    } finally {
+      await query('update store.socials set published = true where slug = $1', [
+        FIXTURE_SLUG,
+      ]);
+    }
   });
 
   it('refuses the anon role outright, before the permission is even asked', async () => {

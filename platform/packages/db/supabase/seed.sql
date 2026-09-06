@@ -295,3 +295,22 @@ on conflict (slug) do nothing;
 insert into store.ticket_types (social_id, code, label, price_pence)
 select id, 'standard', 'Standard ticket', 800 from store.socials where slug = 'zz-social'
 on conflict (social_id, code) do nothing;
+
+-- -------------------------------------------------------------------------------------------
+-- The Christmas party is published locally and unpublished in production
+-- -------------------------------------------------------------------------------------------
+-- **`store.socials.published` defaults false and this file never runs against production**, so
+-- the party ships hidden and stays hidden until the club runs the `update` in the runbook. That
+-- is the whole point of the column, and it is asserted in `packages/db/tests/store.test.ts`
+-- against the migration's default rather than against this line.
+--
+-- It is published *here* because `/events/christmas-party-2026/` is the only social with a
+-- content page, so it is the only one the acceptance suite can test the rendering of — the
+-- date, the price, the disabled form, the 320px layout. Leaving it hidden locally would trade
+-- every one of those assertions for one that the migration's default already makes.
+--
+-- **The unpublished behaviour is covered where it is enforced**, in the database tests: that
+-- `social_state()` answers nothing, that `create_pending_purchase()` refuses `no_such_social`,
+-- and that `admin_social_list()` still shows it to a director.
+update store.socials set published = true where slug = 'christmas-party-2026';
+update store.socials set published = true where slug = 'zz-social';

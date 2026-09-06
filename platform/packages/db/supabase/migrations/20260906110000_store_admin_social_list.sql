@@ -37,6 +37,10 @@ create or replace function store.admin_social_list()
     sales_close_at timestamptz,
     capacity int,
     price_pence int,
+    -- **Deliberately not filtered on**, only reported. The whole purpose of `published` is
+    -- that a social exists before anybody can see it, so the one page that can see it either
+    -- way has to say which it is — otherwise it is a fact nobody can check without `psql`.
+    published boolean,
     paid_tickets int,
     paid_orders int,
     taken_pence int,
@@ -71,6 +75,7 @@ begin
         from store.ticket_types as kind
        where kind.social_id = social.id and kind.active
     ),
+    social.published,
     -- **Counted here rather than in the Worker**, so a social with no purchases still gets a
     -- row of zeroes instead of disappearing. `coalesce` on each, because a `left join` with
     -- no matching rows sums to null and a page showing "null tickets" is worse than one
@@ -88,7 +93,7 @@ begin
   left join store.ticket_purchases as purchase on purchase.social_id = social.id
   where social.active
   group by social.id, social.slug, social.display_name, social.social_date, social.venue,
-           social.sales_open_at, social.sales_close_at, social.capacity
+           social.sales_open_at, social.sales_close_at, social.capacity, social.published
   -- Soonest first, and an unconfirmed date last rather than first: a social with no date is
   -- the one furthest from happening, not the most urgent.
   order by social.social_date asc nulls last, social.display_name asc;
