@@ -370,6 +370,72 @@ a[href^='mailto:'] {
   text-underline-offset: 4px;
 }
 
+/* -------------------------------------------------------------------------------------------
+   The Events submenu
+   -------------------------------------------------------------------------------------------
+   **A shortcut, never the only route.** `/events/` lists the same pages, and the parent stays
+   an ordinary link to it — which is what makes it safe to hide this outright below 48rem,
+   where there is no hover to open it with and the bar is already two rows deep.
+
+   **No JavaScript, deliberately and not merely as a preference.** Every test in this suite
+   runs in a `no-javascript` project, so a scripted menu would not open there at all. `:hover`
+   is the mouse path; `:focus-within` is the keyboard one — focusing the parent link puts focus
+   inside the `<li>`, which reveals the list, which is what then makes its own links tabbable.
+   That ordinary tab order is why this needs no `aria-expanded` to be operable.
+
+   ⚠️ **`position: relative` on the `<li>` is load-bearing, not tidiness.** An absolutely
+   positioned box whose containing block is the *page* is laid out against the document, and a
+   panel wider than the viewport then makes the whole page scroll sideways — silently, with
+   nothing looking wrong. This repository has already paid for exactly that once, with a
+   visually-hidden span inside a scrolling admin table: 793px of document scroll at a 320px
+   viewport. Anchoring it here keeps the panel measured against the `<li>`.
+
+   The submenu is `display: none` below the breakpoint, so it cannot contribute width at the
+   one measurement `sideways-scroll.ts` cares about either way. */
+.site-nav-has-menu {
+  position: relative;
+}
+
+.site-nav-has-menu > ul {
+  display: none;
+}
+
+@media (min-width: 48rem) {
+  .site-nav-has-menu:hover > ul,
+  .site-nav-has-menu:focus-within > ul {
+    display: block;
+    position: absolute;
+    z-index: 10;
+    top: 100%;
+    left: 0;
+    /* Wide enough for the longest label without wrapping it, and capped so a future long one
+       cannot push the panel past the viewport on a narrow desktop window. */
+    min-width: max-content;
+    max-width: min(20rem, calc(100vw - var(--space) * 2));
+    margin: 0;
+    padding: 0.25rem 0;
+    border: 1px solid var(--colour-rule);
+    border-radius: 2px;
+    background: var(--colour-background);
+    list-style: none;
+    /* The one shadow on this bar, and it is what says "in front of" rather than "part of". */
+    box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  }
+
+  .site-nav-has-menu > ul a {
+    display: block;
+    padding: 0.5rem var(--space);
+    /* Overrides the bar's own inline-block row height: inside the panel these are stacked
+       rows rather than a horizontal strip, and 44px of vertical padding each would make a
+       two-item menu taller than the page needs. */
+    white-space: nowrap;
+  }
+
+  .site-nav-has-menu > ul a:hover {
+    background: var(--colour-surface-muted);
+  }
+}
+
 /* Matching the ring the banner's links carry, and for the same reason: the default outline is
    the one thing a theme most often loses. */
 .site-nav a:focus-visible {

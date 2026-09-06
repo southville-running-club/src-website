@@ -177,10 +177,43 @@ export const SITE_BANNER = {
  * A label here wraps onto a second row and costs nothing; the same edit one bar along once
  * added 48px and put every anchor and every keyboard focus behind the header.
  */
-export const SITE_NAV = [
+export interface SiteNavChild {
+  href: string;
+  label: string;
+}
+
+export interface SiteNavItem {
+  href: string;
+  label: string;
+  match: RegExp;
+  /**
+   * A submenu, for a section with more than one page worth reaching directly.
+   *
+   * **Optional, and only `/events/` has one.** The parent stays a real link to a real page
+   * that lists the same things — the submenu is a shortcut, never the only route, which is
+   * what lets it be hidden outright on a narrow screen where there is no hover to open it
+   * with.
+   *
+   * **A constant rather than a database read.** The alternative is
+   * `store.social_state()` on every page view, and that is a round trip on `/`, `/privacy/`
+   * and every account page to paint a menu — the same trade `/nn/`'s bar makes and does not
+   * obviously win here. It costs nothing extra in practice: a social already needs its own
+   * content page, so it is already a deploy.
+   */
+  children?: readonly SiteNavChild[];
+}
+
+export const SITE_NAV: readonly SiteNavItem[] = [
   { href: '/', label: 'Home', match: /^\/$/u },
   { href: '/nn/', label: 'Nightingale Nightmare', match: /^\/nn(\/|$)/u },
-  { href: '/events/', label: 'Events', match: /^\/events(\/|$)/u },
+  {
+    href: '/events/',
+    label: 'Events',
+    match: /^\/events(\/|$)/u,
+    children: [
+      { href: '/events/christmas-party-2026/', label: 'SRC Christmas Party 2026' },
+    ],
+  },
   { href: '/timing', label: 'Race timing', match: /^\/timing(\/|$)/u },
   { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
-] as const;
+];

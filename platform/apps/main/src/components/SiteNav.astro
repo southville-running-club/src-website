@@ -22,11 +22,30 @@ const pathname = Astro.url.pathname;
 <nav class="site-nav" aria-label="Southville Running Club">
   <ul>
     {
-      SITE_NAV.map(({ href, label, match }) => (
-        <li>
+      SITE_NAV.map(({ href, label, match, children }) => (
+        <li class={children ? 'site-nav-has-menu' : undefined}>
           <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
             {label}
           </a>
+          {/* **A nested list, and the parent stays a link to a real page.** This is a
+              shortcut rather than the only route — `/events/` lists the same things — which
+              is what makes it safe to hide outright below 48rem, where there is no hover to
+              open it with and the bar is already two rows.
+
+              **Opened by `:hover` and `:focus-within`, with no JavaScript.** Focusing the
+              parent link puts focus inside the `<li>`, which reveals the list, which is what
+              then makes its own links tabbable — the ordinary keyboard path, and the reason
+              this needs no `aria-expanded` to operate. The `no-javascript` project runs every
+              test in this suite, so a scripted menu would simply not open there. */}
+          {children && (
+            <ul>
+              {children.map((child) => (
+                <li>
+                  <a href={child.href}>{child.label}</a>
+                </li>
+              ))}
+            </ul>
+          )}
         </li>
       ))
     }

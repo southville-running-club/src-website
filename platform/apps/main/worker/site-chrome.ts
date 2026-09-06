@@ -157,8 +157,13 @@ export function siteFooter(): Html {
  *
  * **`src/components/SiteNav.astro` is this function's opposite number**, and the split is the
  * same one the banner has: one is Astro, one is a template literal in a Worker, so they share
- * `SITE_NAV` rather than a component. The tags are duplicated; the links and the labels cannot
- * drift.
+ * `SITE_NAV` rather than a component. The tags are duplicated; the links, the labels **and the
+ * submenu** cannot drift, because all three come out of that one constant.
+ *
+ * **The submenu is markup in two places and behaviour in one.** Both renderers emit a nested
+ * `<ul>` and neither decides when it opens — `base.css` does, on `:hover` and `:focus-within`,
+ * with no JavaScript on either side. `site.spec.ts` asserts both front doors offer the same
+ * links, which is what catches one of these two being edited alone.
  *
  * **On `/account/*` and nowhere else the Worker renders.** `/admin/` has its own bar, painted
  * per request from `identity.my_roles()` so nobody is offered a section that would 404 at them
@@ -172,11 +177,21 @@ export function siteNav(pathname: string): Html {
   return html`<nav class="site-nav" aria-label="Southville Running Club">
     <ul>
       ${SITE_NAV.map(
-        ({ href, label, match }) =>
-          html`<li>
+        ({ href, label, match, children }) =>
+          html`<li ${children ? raw('class="site-nav-has-menu"') : ''}>
             <a href="${href}" ${match.test(pathname) ? raw('aria-current="page"') : ''}>
               ${label}
             </a>
+            ${
+              children === undefined
+                ? ''
+                : html`<ul>
+                    ${children.map(
+                      (child) =>
+                        html`<li><a href="${child.href}">${child.label}</a></li>`,
+                    )}
+                  </ul>`
+            }
           </li>`,
       )}
     </ul>

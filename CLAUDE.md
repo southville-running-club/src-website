@@ -1790,3 +1790,24 @@ layout change that renaming a label in the Nightingale bar is** — `.site-nav` 
 **not** sticky, so no `scroll-padding-top` token is keeping step with its height and nothing
 measures it; `base.css` says so at `.site-nav`. It wraps. The same edit one bar along once added
 48px and put every anchor and every keyboard focus behind the header.
+
+**`Events` carries a submenu, and it is CSS only.** `SiteNavItem.children` is an optional list
+on that one entry; both renderers emit a nested `<ul>` and neither decides when it opens —
+`base.css` does, on `:hover` and `:focus-within`. **That is not a preference: every test in this
+suite runs in a `no-javascript` project**, so a scripted menu would not open there at all.
+Focusing the parent link reveals the list, which is what then makes its own links tabbable, and
+that ordinary tab order is why it needs no `aria-expanded` to be operable.
+
+Three things about it are load-bearing:
+
+* **The parent stays a real link to `/events/`**, which lists the same pages. The menu is a
+  shortcut and never the only route — which is what makes it safe to hide outright below 48rem,
+  where there is no hover to open it with and the bar is already two rows.
+* ⚠️ **`position: relative` on the `<li>`.** An absolutely positioned box whose containing block
+  is the *page* is laid out against the document, and a panel wider than the viewport then makes
+  the whole page scroll sideways, silently. This repository has already paid for exactly that
+  once, with a visually-hidden span inside a scrolling admin table.
+* **The list is a constant, not a database read.** The alternative is `store.social_state()` on
+  every page view — `/`, `/privacy/`, every account page — to paint a menu. It costs nothing
+  extra in practice, because a social already needs its own content page and is therefore
+  already a deploy.

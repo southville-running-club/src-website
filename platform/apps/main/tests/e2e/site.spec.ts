@@ -314,6 +314,106 @@ test.describe('the bar between the parts of this site', () => {
     await expect(nav.locator('[aria-current="page"]')).toHaveText('Home');
   });
 
+  test.describe('the Events submenu', () => {
+    /**
+     * **A shortcut, never the only route.** `/events/` lists the same pages and the parent
+     * stays an ordinary link to it — which is what makes it safe to hide the menu outright on
+     * a narrow screen, where there is no hover to open it with.
+     *
+     * **Nothing here is tagged `@requires-js`, deliberately.** The menu is CSS only, so it has
+     * to work in the `no-javascript` project — and that project is the whole reason it is CSS
+     * only. A scripted menu would simply not open there.
+     */
+
+    test('is a real link to a real page, not a menu button', async ({ page }) => {
+      await page.goto('/');
+
+      const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+
+      // If the parent were a `<button>` the section would be unreachable with the menu shut,
+      // which is the usual way this pattern goes wrong.
+      await expect(
+        nav.getByRole('link', { name: 'Events', exact: true }),
+      ).toHaveAttribute('href', '/events/');
+    });
+
+    test('opens on hover, and on keyboard focus of the parent', async ({ page }) => {
+      await page.setViewportSize({ width: 1100, height: 800 });
+      await page.goto('/');
+
+      const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+      const parent = nav.getByRole('link', { name: 'Events', exact: true });
+      const child = nav.getByRole('link', { name: 'SRC Christmas Party 2026' });
+
+      await expect(child).toBeHidden();
+
+      await parent.hover();
+      await expect(child).toBeVisible();
+
+      // **The keyboard path, and it is the half that makes this usable without a mouse.**
+      // Focusing the parent puts focus inside the `<li>`, which is what `:focus-within`
+      // reveals — and revealing it is what makes the child's own link tabbable. That ordinary
+      // tab order is why the menu needs no `aria-expanded` to be operable.
+      await page.mouse.move(0, 0);
+      await expect(child).toBeHidden();
+
+      await parent.focus();
+      await expect(child).toBeVisible();
+      await expect(child).toHaveAttribute('href', '/events/christmas-party-2026/');
+    });
+
+    test('is hidden on a narrow screen, where there is no hover to open it', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 320, height: 720 });
+      await page.goto('/');
+
+      const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+
+      await nav.getByRole('link', { name: 'Events', exact: true }).focus();
+
+      // Nothing is lost: `/events/` lists the same pages, and the parent still goes there.
+      await expect(
+        nav.getByRole('link', { name: 'SRC Christmas Party 2026' }),
+      ).toBeHidden();
+    });
+
+    test('does not make the page scroll sideways when it is open', async ({ page }) => {
+      await page.setViewportSize({ width: 800, height: 800 });
+      await page.goto('/');
+
+      await page
+        .getByRole('navigation', { name: 'Southville Running Club' })
+        .getByRole('link', { name: 'Events', exact: true })
+        .focus();
+
+      // ⚠️ **The defect this repository has already paid for once.** An absolutely positioned
+      // box whose containing block is the *page* is laid out against the document, and a panel
+      // wider than the viewport then makes the whole page scroll sideways — silently, with
+      // nothing looking wrong. `position: relative` on the `<li>` is what anchors it.
+      await expectNoSidewaysScroll(page, 'the club bar with the Events menu open');
+    });
+
+    test('appears on both front doors, so the two renderers cannot drift', async ({
+      page,
+    }) => {
+      // One is Astro and one is a template literal in a Worker; they share `SITE_NAV` rather
+      // than a component, so this is what catches one of them being edited alone.
+      for (const path of ['/', '/account/sign-in/']) {
+        await page.setViewportSize({ width: 1100, height: 800 });
+        await page.goto(path);
+
+        const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+
+        await nav.getByRole('link', { name: 'Events', exact: true }).focus();
+        await expect(
+          nav.getByRole('link', { name: 'SRC Christmas Party 2026' }),
+          `${path} offers the submenu`,
+        ).toBeVisible();
+      }
+    });
+  });
+
   test('**stays off the campaign pages**, which have their own bar', async ({ page }) => {
     // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
     // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
