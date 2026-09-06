@@ -93,14 +93,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
      * a race.** ADR-033 shipped `store` with no admin surface and named that its biggest gap;
      * this is the link to what closed it.
      *
-     * **Labelled "Tickets" over a path of `/admin/events/`**, and the split is the same one
-     * the public bar makes: the glossary reserves *event* for one running of one race, the
-     * old Squarespace address was `/events`, and what a volunteer opens this page to see is a
-     * list of tickets. `/admin/nn/` is labelled "Nightingale Nightmare" for the same reason —
-     * the path is the section and the label is what somebody is looking for.
+     * **"Events", matching the page's own heading and the public bar's label.** It said
+     * "Tickets" while the section was a single flat list of every ticket sold; the section is
+     * a list of socials now, with the tickets one level in, so the label follows the page
+     * rather than the table it used to be.
+     *
+     * The glossary still reserves *event* for one running of one race — this is the same
+     * public-word/schema-word split `/events/` makes, one surface along.
      */
     href: `${ADMIN_PREFIX}/events/`,
-    label: 'Tickets',
+    label: 'Events',
     permission: 'store.ticket.read',
   },
   {

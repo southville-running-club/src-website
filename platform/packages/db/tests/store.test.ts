@@ -106,6 +106,12 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       // `anon`.** It authorises inside itself against `store.ticket.read` — the eleventh
       // permission, taken on 6 September 2026 — which is the shape every read on the admin
       // surface takes: the grant says "you may ask" and `identity.has_permission()` answers.
+      // **Two admin reads, both on `authenticated` and neither on `anon`.**
+      // `admin_social_list` is the index — every social with what has been sold against it —
+      // and `admin_ticket_list` is one social's buyers. The index exists as its own function
+      // rather than as a group-by over the other because **a social with no tickets sold
+      // would not appear at all**, and that is the state every social starts in.
+      'admin_social_list',
       'admin_ticket_list',
       // The outbox drain's two, both keyed.
       'attach_checkout_session',
@@ -148,13 +154,14 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     ]);
   });
 
-  it('lets authenticated — and only authenticated — execute the admin read', async () => {
+  it('lets authenticated — and only authenticated — execute the two admin reads', async () => {
     const rows = await query<{ grantee: string }>(
       `select grantee
          from information_schema.routine_privileges
-        where routine_schema = 'store' and routine_name = 'admin_ticket_list'
+        where routine_schema = 'store'
+          and routine_name in ('admin_ticket_list', 'admin_social_list')
           and grantee in ('anon', 'authenticated', 'PUBLIC')
-        order by grantee`,
+        order by routine_name, grantee`,
     );
 
     // **`anon` must not be on this list.** The anon key is published in page source, so a
@@ -162,7 +169,7 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     // credential anybody can read out of the page. The permission check inside the function
     // would still refuse, but defence in depth is the whole arrangement: `anon` cannot even
     // ask.
-    expect(rows.map((row) => row.grantee)).toEqual(['authenticated']);
+    expect(rows.map((row) => row.grantee)).toEqual(['authenticated', 'authenticated']);
   });
 
   it('lets nobody at all execute the two triggers and the key oracle', async () => {
@@ -274,6 +281,29 @@ describe('who may read who bought a ticket', () => {
     }
   }
 
+  async function asPersonSocials(personId: string): Promise<
+    {
+      slug: string;
+      display_name: string;
+      price_pence: number | null;
+      paid_tickets: number;
+    }[]
+  > {
+    await query('begin');
+
+    try {
+      await query("select set_config('role', 'authenticated', true)");
+      await query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+
+      return await query('select * from store.admin_social_list()');
+    } finally {
+      await query('rollback');
+    }
+  }
+
   beforeAll(async () => {
     await connected;
 
@@ -368,6 +398,31 @@ describe('who may read who bought a ticket', () => {
       amount_pence: 2000,
       status: 'paid',
     });
+  });
+
+  it('lists a social with no tickets sold rather than dropping it', async () => {
+    // **The reason `admin_social_list()` is its own function.** Grouping the ticket rows would
+    // make a social with no sales vanish — which is the state every social starts in, and
+    // exactly when somebody is checking whether sales have started.
+    const rows = await asPersonSocials(DIRECTOR);
+    const party = rows.find((row) => row.slug === 'christmas-party-2026');
+
+    expect(party).toMatchObject({
+      display_name: 'SRC Christmas Party 2026',
+      price_pence: 1000,
+      paid_tickets: 0,
+      paid_orders: 0,
+      taken_pence: 0,
+      held_tickets: 0,
+    });
+  });
+
+  it('counts against the social the tickets were bought for', async () => {
+    const rows = await asPersonSocials(DIRECTOR);
+    const fixture = rows.find((row) => row.slug === FIXTURE_SLUG);
+
+    // One paid purchase of two, from this describe's own fixture.
+    expect(fixture).toMatchObject({ paid_tickets: 2, paid_orders: 1, taken_pence: 2000 });
   });
 
   it('refuses the anon role outright, before the permission is even asked', async () => {

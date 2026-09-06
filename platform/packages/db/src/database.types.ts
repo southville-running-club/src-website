@@ -1267,6 +1267,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_social_list: {
+        Args: never
+        Returns: {
+          capacity: number
+          display_name: string
+          held_tickets: number
+          paid_orders: number
+          paid_tickets: number
+          price_pence: number
+          sales_close_at: string
+          sales_open_at: string
+          slug: string
+          social_date: string
+          taken_pence: number
+          venue: string
+        }[]
+      }
       admin_ticket_list: {
         Args: { p_social_slug?: string }
         Returns: {

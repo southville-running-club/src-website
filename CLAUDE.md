@@ -1783,15 +1783,22 @@ already tracks — and it works with scripting off.
 
 ### The admin surface, and the master role that reads it
 
-**`/admin/events/` lists who has bought a ticket**, behind **`store.ticket.read`** — the
-eleventh permission, taken 6 September 2026, which closed the gap ADR-033 named as this
-schema's biggest. It shows a name, an email address and a quantity, which is **everything
-`store` holds about a buyer**: unlike `/admin/nn/`, which had to decide what not to render,
-this page renders the row.
+**`/admin/events/` is two pages**, behind **`store.ticket.read`** — the eleventh permission,
+taken 6 September 2026, which closed the gap ADR-033 named as this schema's biggest. The index
+is every social with what has been sold against it; `/admin/events/<slug>/` is one social's
+buyers. It shows a name, an email address and a quantity, which is **everything `store` holds
+about a buyer**: unlike `/admin/nn/`, which had to decide what not to render, this page renders
+the row.
 
-**`store.admin_ticket_list()` is granted to `authenticated` and authorises inside itself.** The
+**Two functions, both granted to `authenticated` and both authorising inside themselves.** The
 anon list is unchanged at seven — `packages/db/tests/store.test.ts` asserts `anon` is refused
 `42501` on the grant, before the permission is ever asked.
+
+⚠️ **`admin_social_list()` is its own function rather than a group-by over the ticket rows**,
+and the reason is the case that matters: **a social with no tickets sold would not appear at
+all**. That is the state every social starts in and exactly when somebody is checking whether
+sales have started — a page that vanishes an occasion the moment it has no sales is empty
+precisely when it is needed.
 
 ⚠️ **The section is gated in `worker/admin.ts` before it dispatches**, like the three beside
 it, and here that ordering is load-bearing rather than tidy: the function returns *nothing*

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { figures, statusWords, type TicketRow } from '../../worker/admin-events';
+import {
+  figures,
+  salesWords,
+  statusWords,
+  type SocialRow,
+  type TicketRow,
+} from '../../worker/admin-events';
 
 /**
  * The arithmetic and the wording on `/admin/events/`.
@@ -90,5 +96,67 @@ describe('the status wording', () => {
     // A database ahead of this Worker — the expand/migrate/contract seam. A row nobody can
     // read is better than a row nobody can see.
     expect(statusWords('part_refunded')).toBe('part_refunded');
+  });
+});
+
+describe('the sales state on the index', () => {
+  const social = (over: Partial<SocialRow>): SocialRow => ({
+    slug: 'christmas-party-2026',
+    display_name: 'SRC Christmas Party 2026',
+    social_date: '2026-12-12',
+    venue: 'The Cock & Tail',
+    sales_open_at: null,
+    sales_close_at: null,
+    capacity: null,
+    price_pence: 1000,
+    paid_tickets: 0,
+    paid_orders: 0,
+    taken_pence: 0,
+    held_tickets: 0,
+    ...over,
+  });
+
+  const NOW = Date.parse('2026-10-15T12:00:00Z');
+
+  it('distinguishes the two reasons a social is not selling', () => {
+    // **The whole value of this column.** A window that has not opened is waiting on the
+    // runbook; a missing price is waiting on the committee. One wording for both would send
+    // a volunteer to the wrong place — and the party spent a day in each state.
+    expect(salesWords(social({ price_pence: null }), NOW)).toBe('No price set');
+    expect(salesWords(social({ sales_open_at: null }), NOW)).toBe('Not on sale');
+  });
+
+  it('says which comes first when neither is ready', () => {
+    // A social with no price *and* no window reports the price, because that is the one a
+    // person decides — the window is a consequence of it.
+    expect(salesWords(social({ price_pence: null, sales_open_at: null }), NOW)).toBe(
+      'No price set',
+    );
+  });
+
+  it('reads the window against now, in both directions', () => {
+    expect(salesWords(social({ sales_open_at: '2026-11-01T07:00:00Z' }), NOW)).toBe(
+      'Opens later',
+    );
+
+    expect(salesWords(social({ sales_open_at: '2026-10-01T07:00:00Z' }), NOW)).toBe(
+      'On sale',
+    );
+
+    expect(
+      salesWords(
+        social({
+          sales_open_at: '2026-09-01T07:00:00Z',
+          sales_close_at: '2026-10-01T17:00:00Z',
+        }),
+        NOW,
+      ),
+    ).toBe('Closed');
+  });
+
+  it('is the party’s real state today: priced, and not on sale', () => {
+    // £10 is confirmed and `sales_open_at` is null — which is exactly what the index should
+    // be showing a director right now.
+    expect(salesWords(social({}), NOW)).toBe('Not on sale');
   });
 });

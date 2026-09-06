@@ -235,9 +235,12 @@ Then refund it in the Stripe dashboard.
 
 ## Who has bought a ticket
 
-`/admin/events/`, if you hold `src-admin` (or any role carrying `store.ticket.read`). It shows
-every purchase — paid, held and abandoned — with the buyer's name, their email address and how
-many tickets, plus what the club has taken.
+`/admin/events/`, if you hold `src-admin` (or any role carrying `store.ticket.read`).
+
+The index lists every social with what has been sold against it, and whether it is selling —
+**"No price set" and "Not on sale" are different answers**, because one is waiting on the
+committee and the other on step 4 below. Click through to a social for its buyers: every
+purchase, paid, held and abandoned, with the name, the email address and how many tickets.
 
 **A director grants the role at `/admin/people/`.** It takes a minute and no deploy.
 
