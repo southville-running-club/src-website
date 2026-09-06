@@ -1,13 +1,19 @@
 -- The 2026 Christmas party: the times, the age limit, and a **provisional** price.
 --
--- Supplied by a club volunteer on 5 September 2026: **7:30pm–1am**, **£12**, **18+**.
+-- Supplied by a club volunteer on 5 September 2026: **7:30pm–1am**, **18+**, and a price.
+--
+-- **The price is £10.** It was £12 when this migration was first written and was changed on
+-- 6 September, before any of it had been deployed — so this file states the current figure
+-- rather than carrying a correction after it. **That it has already moved once is the
+-- clearest evidence it is not settled.**
 --
 -- ---------------------------------------------------------------------------------------
 -- ⚠️ The price is provisional, and it was supplied as provisional
 -- ---------------------------------------------------------------------------------------
--- The volunteer's words were *"I will confirm the price later, just go with £12 now"*. So the
--- £12 below is what the page should show today and **is not a confirmed decision about what
--- the club charges**.
+-- The volunteer's words when the figure was first given were *"I will confirm the price later,
+-- just go with £12 now"*, and nothing since has confirmed one — the change to £10 came with no
+-- statement that it is final. So the £10 below is what the page should show today and **is not
+-- a confirmed decision about what the club charges**.
 --
 -- **That is safe only while tickets cannot be sold, and today they cannot**: `sales_open_at`
 -- is null, and none of the three Worker secrets is installed, so no card can be charged
@@ -54,7 +60,7 @@ update store.socials
 -- that is wrong will be the one in the dashboard nobody opened. It is passed as `price_data`
 -- when a Checkout session is created, read inside the same transaction that held the ticket.
 insert into store.ticket_types (social_id, code, label, price_pence)
-select social.id, 'standard', 'Standard ticket', 1200
+select social.id, 'standard', 'Standard ticket', 1000
   from store.socials as social
  where social.slug = 'christmas-party-2026'
     on conflict (social_id, code) do update set price_pence = excluded.price_pence;

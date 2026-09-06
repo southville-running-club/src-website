@@ -10,11 +10,12 @@ money, and every step before it is what makes that safe.
 ## What ships, and why nothing is on sale
 
 `store.socials` holds one row — `christmas-party-2026` — and almost everything about it is now
-supplied: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£12**. All of
+supplied: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£10**. All of
 it was given on 5 September 2026; the booking has been held since January.
 
-⚠️ **The £12 is provisional.** It was supplied as *"I will confirm the price later, just go with
-£12 now"*, so it is what the page shows and **not a settled decision about what the club
+⚠️ **The £10 is provisional.** It was first given as £12 — *"I will confirm the price later,
+just go with £12 now"* — and changed to £10 the following day with no statement that the new
+figure is final. It is what the page shows and **not a settled decision about what the club
 charges**. Re-confirming it is a stop condition on step 4 below, because that is the step where
 a figure on a page becomes a figure on a card.
 
@@ -137,12 +138,12 @@ The page picks all of this up on the next request. No deploy.
 
 ## 2. Confirm the price
 
-**There is already a `standard` ticket type at £12, and it is provisional.** Changing it is an
+**There is already a `standard` ticket type at £10, and it is provisional.** Changing it is an
 `update`, not a second row:
 
 ```sql
 update store.ticket_types kind
-   set price_pence = 1400
+   set price_pence = 1200
   from store.socials social
  where social.id = kind.social_id
    and social.slug = 'christmas-party-2026'
@@ -198,7 +199,7 @@ first: opening the window before the entry key is installed is opening it unprot
 [ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md)'s finding.
 
 ⚠️ **Re-confirm the price before you run this, and do not skip it because the page already
-shows one.** The £12 in `store.ticket_types` was supplied as provisional — *"I will confirm the
+shows one.** The £10 in `store.ticket_types` was supplied as provisional — *"I will confirm the
 price later"* — and up to this moment that has been harmless, because a figure on a page is a
 soft commitment. **From the moment this `update` lands, that integer is what a card is
 charged.** Check it against whatever the committee actually settled:

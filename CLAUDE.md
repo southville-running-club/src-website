@@ -1673,14 +1673,16 @@ and the plain word a member reads — the same split as the bar reading "Race ti
 ### What ships, and why it sells nothing
 
 **`store.socials` holds one row — `christmas-party-2026` — and it is now nearly fully
-supplied**: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£12**. All
+supplied**: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£10**. All
 of it came from a club volunteer on 5 September 2026, in two dated migrations
 (`20260905110000` and `20260905120000`), and **every value is a column rather than markup** —
 which is why confirming each was an `update` and no deploy.
 
-⚠️ **The £12 is provisional and was supplied as provisional** — *"I will confirm the price
-later, just go with £12 now"*. It is what the page shows and **not a settled decision about what
-the club charges**. That is safe only while tickets cannot be sold, and **re-confirming it is a
+⚠️ **The £10 is provisional.** It was £12 when first supplied — *"I will confirm the price
+later, just go with £12 now"* — and was changed to £10 on 6 September with no statement that the
+new figure is final. It is what the page shows and **not a settled decision about what the club
+charges**; that it has already moved once is the argument for re-confirming it rather than
+against. That is safe only while tickets cannot be sold, and **re-confirming it is a
 stop condition on the runbook's step 4**, because that is where a figure on a page becomes a
 figure on a card. There is deliberately no second copy of it in Stripe to disagree with.
 

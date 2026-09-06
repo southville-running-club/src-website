@@ -42,7 +42,7 @@ Each was argued for individually and each is in the committee-settled field list
 `packages/shared/src/nn-entry.ts`. **A party ticket needs none of them.** So reusing `entries`
 meant one of exactly two things:
 
-* **Collect them anyway** — ask somebody buying a £12 party ticket for their date of birth and
+* **Collect them anyway** — ask somebody buying a £10 party ticket for their date of birth and
   their next of kin. That is a straight breach of *personal data is minimised at the boundary*,
   and it is the kind of breach that looks like good engineering while it is happening.
 * **Make the four columns nullable** — which removes, from the live race path, during the entry
@@ -156,7 +156,8 @@ count has changed three times.
 **The 2026 party publishes only what has been supplied, and by the end of the day that was
 nearly all of it.** This record was written against a row with every fact null; a club volunteer
 then confirmed **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at a
-**provisional £12**.
+**provisional £10** — first given as £12 and changed the
+following day, which is itself the clearest evidence the figure is not settled.
 
 **Every one of those went in as an `update` in a dated migration, with no deploy and no markup
 touched — which is the property the whole arrangement was for**, exercised three times within a

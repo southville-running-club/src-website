@@ -300,12 +300,14 @@ describe('the 2026 Christmas party row', () => {
         where social.slug = 'christmas-party-2026'`,
     );
 
-    // ⚠️ **£12 was supplied as provisional** — *"I will confirm the price later, just go with
-    // £12 now"* — so this figure is what the page shows and is not a settled decision about
-    // what the club charges. It is safe today only because nothing can be sold; the moment
+    // ⚠️ **£10, and provisional.** It was £12 when this row was first written and was changed
+    // on 6 September with no statement that the new figure is final — so it is what the page
+    // shows and is not a settled decision about what the club charges. **That it has already
+    // moved once is the argument for re-confirming it before sales open**, which is a stop
+    // condition on the runbook's step 4. It is safe today only because nothing can be sold; the moment
     // that changes, this integer is what a card is charged, and there is deliberately no
     // second copy of it in Stripe to disagree with.
-    expect(rows).toEqual([{ code: 'standard', price_pence: 1200, active: true }]);
+    expect(rows).toEqual([{ code: 'standard', price_pence: 1000, active: true }]);
   });
 
   it('still cannot sell a ticket, because the window has never been opened', async () => {
@@ -325,7 +327,7 @@ describe('the 2026 Christmas party row', () => {
       social_date: '2026-12-12',
       venue: 'The Cock & Tail',
       minimum_age: 18,
-      ticket_types: [{ code: 'standard', label: 'Standard ticket', price_pence: 1200 }],
+      ticket_types: [{ code: 'standard', label: 'Standard ticket', price_pence: 1000 }],
     });
   });
 

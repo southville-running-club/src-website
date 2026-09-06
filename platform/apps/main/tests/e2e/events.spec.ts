@@ -75,7 +75,7 @@ test.describe('the Christmas party page', () => {
     await expect(page.getByText('Saturday 12 December 2026')).toBeVisible();
     await expect(page.getByText('7:30pm–1am')).toBeVisible();
     await expect(page.getByText('The Cock & Tail')).toBeVisible();
-    await expect(page.getByText('£12.00')).toBeVisible();
+    await expect(page.getByText('£10.00')).toBeVisible();
     await expect(page.getByText('Entry requirements: 18+')).toBeVisible();
   });
 
@@ -111,7 +111,7 @@ test.describe('the Christmas party page', () => {
     const body = await page.content();
 
     // ⚠️ A template that writes its own `£` beside a call to `formatPence()` renders
-    // `££12.00`. This repository already carries six instances of that pattern (issue #175),
+    // `££10.00`. This repository already carries six instances of that pattern (issue #175),
     // and the quantity picker's labels are the seventh place it could have arrived.
     expect(body.match(/££/gu), 'no doubled currency symbol').toBeNull();
 
