@@ -290,10 +290,18 @@ re-run.
   to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
   `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
   already produces it — the caller in `NnEntryForm.astro` is the one place that still does not.
-- **A sixth role, or an eleventh permission.** **Trigger: exactly what the heading says** —
-  the five roles and ten permissions are asserted in
-  `packages/db/tests/identity-permissions.test.ts`, and a sixth or eleventh is a decision, not
-  a side effect. Since #107 a role is a bundle of permissions and
+- **A seventh role, or a twelfth permission.** **Trigger: exactly what the heading says** —
+  the **six** roles and **eleven** permissions are asserted in
+  `packages/db/tests/identity-permissions.test.ts`, and a seventh or twelfth is a decision, not
+  a side effect. **This said five and ten until 6 September 2026**, when the club took both at
+  once: `store.ticket.read` and `src-admin`.
+  ⚠️ **`src-admin` is a master role and the first this platform has had**, which is a departure
+  from everything the rest of this list describes — `super-admin` is deliberately *not* a
+  wildcard. What keeps it honest is that it holds its eleven permissions as **eleven explicit
+  rows** rather than as a branch in `identity.has_permission()`: a wildcard would grant the
+  *twelfth* permission too, the day somebody added it, without anybody deciding. So the
+  assertion file fails on every new permission until a human writes down whether directors get
+  it, and **that recurring cost is the feature rather than the price**. Since #107 a role is a bundle of permissions and
   code checks the permission, never a role name —
   [ADR-017](docs/architecture/decisions/adr-017-permissions-are-what-code-checks.md). **The ninth
   and tenth arrived on 29 August 2026 and they are a borrow being paid back**: `nn.email.read`
@@ -1752,9 +1760,8 @@ already tracks — and it works with scripting off.
 
 ### What is deliberately not built, so nobody goes looking
 
-* **No admin surface.** Reading who holds a ticket wants an **eleventh permission**, which is a
-  stop-and-ask. Until it is taken, who is coming is the runbook's queries and Stripe's dashboard.
-  **This is the biggest gap and the first thing to build next.**
+* ~~No admin surface.~~ **Built on 6 September 2026** — `/admin/events/`, behind
+  `store.ticket.read`. See the section below.
 * **No cancellation or refund path.** Nothing writes `refunded`. The `ticket_refunded` template
   and its trigger branch exist and are tested, so the mechanism is ready for the function that
   will use it.
@@ -1773,6 +1780,32 @@ already tracks — and it works with scripting off.
   and — the half that costs money — **no negative one**. ⚠️ If it ever does report state, the
   race's rule comes with it: only a recorded payment may make a positive claim, because a page
   saying "nothing was charged" while the webhook is merely late sends somebody to pay twice.
+
+### The admin surface, and the master role that reads it
+
+**`/admin/events/` lists who has bought a ticket**, behind **`store.ticket.read`** — the
+eleventh permission, taken 6 September 2026, which closed the gap ADR-033 named as this
+schema's biggest. It shows a name, an email address and a quantity, which is **everything
+`store` holds about a buyer**: unlike `/admin/nn/`, which had to decide what not to render,
+this page renders the row.
+
+**`store.admin_ticket_list()` is granted to `authenticated` and authorises inside itself.** The
+anon list is unchanged at seven — `packages/db/tests/store.test.ts` asserts `anon` is refused
+`42501` on the grant, before the permission is ever asked.
+
+⚠️ **The section is gated in `worker/admin.ts` before it dispatches**, like the three beside
+it, and here that ordering is load-bearing rather than tidy: the function returns *nothing*
+rather than raising when the permission is missing, so an ungated page would render an empty
+table reading "nobody has bought a ticket yet" — disclosing the page, and stating something
+false about the club's records to somebody who cannot check it.
+
+**Non-`paid` rows are shown and labelled**, for the reason `/admin/nn/` learned expensively: a
+volunteer asking *"did Alex get a ticket"* needs to see an abandoned checkout to answer it.
+
+**There is no export and no audit table**, both deliberately. `nn.entry.export` is its own
+permission because a file leaves the building, so a ticket CSV is a twelfth permission and a
+separate decision; and ADR-024 already decided that reading a *list* writes no audit row,
+because it discloses what the same permission already opens.
 
 ### One config change went with it
 

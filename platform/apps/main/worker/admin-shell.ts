@@ -89,6 +89,22 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
   {
     /**
+     * **`store.ticket.read`, which is the eleventh permission and the first that is not about
+     * a race.** ADR-033 shipped `store` with no admin surface and named that its biggest gap;
+     * this is the link to what closed it.
+     *
+     * **Labelled "Tickets" over a path of `/admin/events/`**, and the split is the same one
+     * the public bar makes: the glossary reserves *event* for one running of one race, the
+     * old Squarespace address was `/events`, and what a volunteer opens this page to see is a
+     * list of tickets. `/admin/nn/` is labelled "Nightingale Nightmare" for the same reason —
+     * the path is the section and the label is what somebody is looking for.
+     */
+    href: `${ADMIN_PREFIX}/events/`,
+    label: 'Tickets',
+    permission: 'store.ticket.read',
+  },
+  {
+    /**
      * **The read, not the grant.** The page is a list of people that some of its readers may
      * also change, and `people-admin` may only read it — so the permission that opens the
      * link has to be the one that opens the table. Naming `identity.role.grant` here would
@@ -108,7 +124,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  * **`registered` is not one of them, and that is the whole of the 404 rule.** Everybody with an
  * account holds `registered`; holding it means being signed in and nothing else.
  */
-export const STAFF_ROLES = ['nn-admin', 'people-admin', 'super-admin'] as const;
+export const STAFF_ROLES = [
+  'nn-admin',
+  'people-admin',
+  // **The club's master role, for directors** — the sixth role, taken on 6 September 2026. It
+  // is on this list for the ordinary reason any staff role is: it opens pages behind the
+  // door. What makes it different from the four beside it is only how much it carries once
+  // through, which is `identity.role_permissions`' business rather than this list's.
+  'src-admin',
+  'super-admin',
+] as const;
 
 /**
  * Whether somebody may be in the backend at all.

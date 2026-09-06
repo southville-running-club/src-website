@@ -233,6 +233,18 @@ Then refund it in the Stripe dashboard.
 
 ---
 
+## Who has bought a ticket
+
+`/admin/events/`, if you hold `src-admin` (or any role carrying `store.ticket.read`). It shows
+every purchase — paid, held and abandoned — with the buyer's name, their email address and how
+many tickets, plus what the club has taken.
+
+**A director grants the role at `/admin/people/`.** It takes a minute and no deploy.
+
+The rest of this section is the SQL behind the same questions, for when the page is not enough.
+
+---
+
 ## When somebody says they paid and heard nothing
 
 **Check in this order.**
@@ -310,8 +322,9 @@ update store.ticket_purchases set attention_resolved_at = now() where id = '<id>
 Stated plainly, so nobody goes looking for a button that is not there —
 [ADR-033](../../architecture/decisions/adr-033-a-ticket-is-not-an-entry.md) says why for each.
 
-* **There is no admin page for tickets.** Who is coming is this runbook's queries and Stripe's
-  dashboard. Building one wants an eleventh permission, which is a stop-and-ask.
+* **Who is coming is `/admin/events/`**, behind `store.ticket.read`, which `src-admin` carries.
+  The queries below still work and are what to reach for when the page cannot answer something
+  — there is no export, so anything you need as a file comes from here.
 * **There is no cancel or refund button.** Refund in the Stripe dashboard, then set the row's
   status by hand — the `ticket_refunded` email fires from that transition on its own.
 * **Nobody's name is held except the buyer's.** The door list is "this person, plus N".

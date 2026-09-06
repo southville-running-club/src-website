@@ -12,6 +12,7 @@ import {
 import { handleNnSection } from './nn-admin';
 import { handlePeopleSection } from './admin-people';
 import { handleEmailsSection } from './admin-emails';
+import { handleEventsSection } from './admin-events';
 import { readSession } from './session';
 import { adminSegments } from './routing';
 import type { StripeEnv } from './stripe';
@@ -197,6 +198,20 @@ export async function handleAdmin(
     // never got my confirmation"* had to be trusted with that first.
     response = can(viewer, 'nn.email.read')
       ? await handleEmailsSection(request, viewer, cfg, path.slice(1), secure)
+      : notFound();
+  } else if (path[0] === 'events') {
+    // **Gated here, before the section runs**, like the three around it. Without this the
+    // page would render for anybody who got through the door — and because
+    // `store.admin_ticket_list()` returns *nothing* rather than raising when the permission
+    // is missing, what they would see is an empty table reading "nobody has bought a ticket
+    // yet". That is worse than a 404 twice over: it discloses that the page exists, and it
+    // makes a false statement about the club's records to somebody who cannot check it.
+    //
+    // There is no second permission for buttons inside, because there are no buttons: the
+    // section reads and does nothing else, and a `store.ticket.cancel` would guard a door
+    // that has not been built.
+    response = can(viewer, 'store.ticket.read')
+      ? await handleEventsSection(request, viewer, cfg, path.slice(1))
       : notFound();
   } else if (path[0] === 'people') {
     // **The read opens the section; the grant opens the buttons inside it.** `people-admin`

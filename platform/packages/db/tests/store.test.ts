@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 
@@ -102,6 +102,11 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.proname)).toEqual([
+      // **The admin read, and the only function here granted to `authenticated` rather than
+      // `anon`.** It authorises inside itself against `store.ticket.read` — the eleventh
+      // permission, taken on 6 September 2026 — which is the shape every read on the admin
+      // surface takes: the grant says "you may ask" and `identity.has_permission()` answers.
+      'admin_ticket_list',
       // The outbox drain's two, both keyed.
       'attach_checkout_session',
       'claim_outbox_batch',
@@ -141,6 +146,23 @@ describe('exactly which functions exist here, and exactly who may call them', ()
       'record_send_result',
       'social_state',
     ]);
+  });
+
+  it('lets authenticated — and only authenticated — execute the admin read', async () => {
+    const rows = await query<{ grantee: string }>(
+      `select grantee
+         from information_schema.routine_privileges
+        where routine_schema = 'store' and routine_name = 'admin_ticket_list'
+          and grantee in ('anon', 'authenticated', 'PUBLIC')
+        order by grantee`,
+    );
+
+    // **`anon` must not be on this list.** The anon key is published in page source, so a
+    // grant here would put the club's ticket buyers — names and email addresses — behind a
+    // credential anybody can read out of the page. The permission check inside the function
+    // would still refuse, but defence in depth is the whole arrangement: `anon` cannot even
+    // ask.
+    expect(rows.map((row) => row.grantee)).toEqual(['authenticated']);
   });
 
   it('lets nobody at all execute the two triggers and the key oracle', async () => {
@@ -207,6 +229,160 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     for (const row of rows) {
       expect(row.proconfig?.join(',')).toContain('search_path=');
     }
+  });
+});
+
+describe('who may read who bought a ticket', () => {
+  /**
+   * **The eleventh permission, tested at the layer that enforces it.**
+   *
+   * These fixtures write `auth.users` directly and set `request.jwt.claims` by hand rather
+   * than signing anybody up through GoTrue. That is deliberate and is not a shortcut: what is
+   * being tested is `identity.has_permission()` inside a `security definer` function, and
+   * `set_config('request.jwt.claims', …)` is exactly how PostgREST presents a signed-in caller
+   * to Postgres. Going through GoTrue would test the sign-up flow as well, which
+   * `identity-permissions.test.ts` already does — and would make this file depend on a captcha
+   * secret that a laptop does not have.
+   *
+   * Every case runs in a transaction that is rolled back, so nothing here outlives the test.
+   */
+  const NOBODY = '11111111-1111-4111-8111-111111111111';
+  const DIRECTOR = '22222222-2222-4222-8222-222222222222';
+
+  /**
+   * **A fabricated social, never `christmas-party-2026`.** The first version of this attached
+   * a ticket type to the real row and turned four assertions elsewhere in this file red — the
+   * ones that say the party has exactly one ticket type at exactly £10. That is those
+   * assertions working: the real row's shape is a published fact and a fixture has no business
+   * changing it.
+   */
+  const FIXTURE_SLUG = 'test-social-permissions';
+
+  async function asPerson<T>(personId: string): Promise<T[]> {
+    await query('begin');
+
+    try {
+      await query("select set_config('role', 'authenticated', true)");
+      await query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+
+      return await query<T>('select * from store.admin_ticket_list($1)', [FIXTURE_SLUG]);
+    } finally {
+      await query('rollback');
+    }
+  }
+
+  beforeAll(async () => {
+    await connected;
+
+    for (const [id, email] of [
+      [NOBODY, 'store-nobody@example.com'],
+      [DIRECTOR, 'store-director@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'src-admin', $1) on conflict do nothing`,
+      [DIRECTOR],
+    );
+
+    await db.query(
+      `insert into store.socials (slug, display_name, reply_to, consent_version)
+       values ($1, 'Fixture social', 'info@example.com', 'test-v1')
+       on conflict (slug) do nothing`,
+      [FIXTURE_SLUG],
+    );
+    await db.query(
+      `insert into store.ticket_types (social_id, code, label, price_pence)
+       select id, 'standard', 'Standard ticket', 1000 from store.socials where slug = $1
+       on conflict (social_id, code) do nothing`,
+      [FIXTURE_SLUG],
+    );
+    await db.query(
+      `insert into store.ticket_purchases
+         (social_id, ticket_type_id, status, amount_pence, quantity,
+          purchaser_name, purchaser_email, consents_version, paid_at)
+       select social.id, kind.id, 'paid', 2000, 2,
+              'Alex Example', 'permission-fixture@example.com', 'test-v1', now()
+         from store.socials social
+         join store.ticket_types kind on kind.social_id = social.id
+        where social.slug = $1`,
+      [FIXTURE_SLUG],
+    );
+  });
+
+  afterAll(async () => {
+    await connected;
+    // Purchases first: `ticket_purchases.social_id` has no cascade, deliberately.
+    await db.query(
+      `delete from store.ticket_purchases
+        where social_id in (select id from store.socials where slug = $1)`,
+      [FIXTURE_SLUG],
+    );
+    await db.query('delete from store.socials where slug = $1', [FIXTURE_SLUG]);
+    await db.query('delete from identity.role_grants where person_id = $1', [DIRECTOR]);
+    await db.query('delete from auth.users where id = any($1::uuid[])', [
+      [NOBODY, DIRECTOR],
+    ]);
+  });
+
+  it('answers a signed-in person holding nothing with no rows at all', async () => {
+    // **Nothing, rather than an error.** The page above this answers 404 to anybody who may
+    // not be there, and a distinguishable refusal here would tell them the door exists.
+    //
+    // ⚠️ That is also why `worker/admin.ts` gates the section on the permission *before*
+    // dispatching: an ungated page would render this empty answer as "nobody has bought a
+    // ticket yet", which discloses the page and states something false about the club's
+    // records to somebody who cannot check it.
+    expect(await asPerson(NOBODY)).toEqual([]);
+  });
+
+  it('answers a src-admin with the buyer, their address and how many', async () => {
+    const rows = await asPerson<{
+      purchaser_name: string;
+      purchaser_email: string;
+      quantity: number;
+      amount_pence: number;
+      status: string;
+    }>(DIRECTOR);
+
+    // Everything the club holds about a buyer, which is three things — see ADR-033 on why
+    // there is no date of birth, no medical note and no per-attendee list to leave out.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      purchaser_name: 'Alex Example',
+      purchaser_email: 'permission-fixture@example.com',
+      quantity: 2,
+      amount_pence: 2000,
+      status: 'paid',
+    });
+  });
+
+  it('refuses the anon role outright, before the permission is even asked', async () => {
+    const { error } = await anon
+      .schema('store')
+      .rpc('admin_ticket_list', { p_social_slug: FIXTURE_SLUG });
+
+    // The published anon key must not reach a list of members' email addresses even to be
+    // told no.
+    //
+    // **`42501`, the same code every table in this schema answers anon with** — PostgREST
+    // routes the call and Postgres refuses it on the missing `execute` grant, so the function
+    // body never runs and `identity.has_permission()` is never consulted. That is the order
+    // that matters: the grant refuses before the permission is asked.
+    expect(error?.code).toBe('42501');
   });
 });
 

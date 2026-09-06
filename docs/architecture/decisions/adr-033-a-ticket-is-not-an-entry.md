@@ -110,10 +110,12 @@ migration rather than after an incident:
 
 Stated so nobody goes looking, and so the next slice knows what it is picking up.
 
-**No admin surface.** Reading who holds a ticket wants an eleventh permission, and
-[CLAUDE.md](../../../CLAUDE.md) makes that a stop-and-ask. Until it is taken, the record of who
-is coming is the outbox and Stripe's own dashboard. This is the biggest gap, and it is the
-first thing to build next.
+~~**No admin surface.**~~ **Built on 6 September 2026, and it was the first thing built next
+as this record predicted.** `/admin/events/` lists who has bought a ticket, behind
+`store.ticket.read` — the eleventh permission — which the club took together with a sixth role,
+`src-admin`, its first master role. The page shows a name, an email address and a quantity,
+which is everything this schema holds. There is still no export: `nn.entry.export` is its own
+permission because a file leaves the building, so a ticket CSV is a twelfth decision.
 
 **No cancellation or refund path.** `store.record_checkout_event()` writes `paid`; nothing
 writes `refunded`. The `ticket_refunded` template and its trigger branch exist and are tested,

@@ -1267,6 +1267,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_ticket_list: {
+        Args: { p_social_slug?: string }
+        Returns: {
+          amount_pence: number
+          attention: string
+          created_at: string
+          paid_at: string
+          purchase_id: string
+          purchaser_email: string
+          purchaser_name: string
+          quantity: number
+          social_name: string
+          social_slug: string
+          status: string
+          ticket_no: number
+        }[]
+      }
       attach_checkout_session: {
         Args: { p_purchase_id: string; p_session_id: string }
         Returns: boolean
