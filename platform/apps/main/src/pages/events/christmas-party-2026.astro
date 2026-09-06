@@ -48,6 +48,40 @@ import Base from '../../layouts/Base.astro';
   </p>
 
   {
+    /*
+      **The club's own poster, and it is the one place on this page a fact is not painted from
+      the database.**
+
+      ⚠️ **The date and the venue are baked into the artwork.** Everything else here reads
+      `store.socials`, so confirming or changing a fact is an `update` and no deploy — but this
+      image cannot be updated that way. If the committee ever moves the party, **the poster
+      goes stale silently while the text beside it corrects itself**, which is the worse half:
+      a visitor believes the picture. Regenerating it is a step in the runbook for exactly that
+      reason, and the generator has a details-free variant for the case where a date is in
+      doubt.
+
+      **An `<img>` rather than a CSS background**, which is the opposite of what the two
+      campaign pages do — `nn/index.astro` says a decorative image is a background "because it
+      is decoration that states nothing". This one states plenty, so it is content.
+
+      **The alt text says what the picture is, not what it says.** The date and the venue are
+      in real text directly below, and repeating them here would make a screen reader read the
+      party twice; what a non-sighted reader actually gains from this element is knowing there
+      is a poster and roughly what is on it.
+
+      `width` and `height` are the intrinsic pixel size, so the browser reserves the right box
+      before the file arrives and the facts below do not jump down the page as it loads.
+    */
+  }
+  <img
+    src="/src-christmas-party-2026-1080.webp"
+    width="1080"
+    height="1080"
+    alt="The club's Christmas party poster — a running Santa and club runners among snowflakes and Christmas trees."
+    class="social-poster"
+  />
+
+  {
     /* **The facts, each painted only when the database holds one.** A cell whose column is
       null keeps the words below, which are true. Nothing here falls back to last year. */
   }

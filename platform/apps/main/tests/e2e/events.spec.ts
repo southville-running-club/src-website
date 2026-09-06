@@ -79,6 +79,25 @@ test.describe('the Christmas party page', () => {
     await expect(page.getByText('Entry requirements: 18+')).toBeVisible();
   });
 
+  test('carries the club poster, described rather than transcribed', async ({ page }) => {
+    const poster = page.getByRole('img', { name: /Christmas party poster/iu });
+
+    await expect(poster).toBeVisible();
+    await expect(poster).toHaveAttribute('src', '/src-christmas-party-2026-1080.webp');
+
+    // **Intrinsic dimensions, so the facts below do not jump down the page as it loads.**
+    await expect(poster).toHaveAttribute('width', '1080');
+    await expect(poster).toHaveAttribute('height', '1080');
+
+    // **The alt says what the picture is, not what it says.** The date and the venue are in
+    // real text directly below; repeating them here would read the party out twice to a
+    // screen reader, and what is actually gained from this element is knowing it is a poster.
+    const alt = (await poster.getAttribute('alt')) ?? '';
+
+    expect(alt.length).toBeGreaterThan(20);
+    expect(alt, 'the alt does not transcribe the date').not.toMatch(/12 December|Cock/iu);
+  });
+
   test('takes its "to be confirmed" note down once there is nothing left to confirm', async ({
     page,
   }) => {

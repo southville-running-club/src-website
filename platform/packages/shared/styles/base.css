@@ -444,6 +444,39 @@ a[href^='mailto:'] {
   border-radius: 2px;
 }
 
+/* **Images never overflow their column, and until the Christmas party poster there was no
+   `<img>` on a content page to prove it.** `brand.astro` carries a 64px favicon and the two
+   campaign pages use CSS backgrounds — the note at `nn/index.astro` says a decorative image is
+   a background "because it is decoration that states nothing" — so a full-width raster had
+   never been laid out here at all.
+
+   Without this, a 1080px asset is 1080px wide at a 320px viewport and the whole document
+   scrolls sideways, which is the defect `sideways-scroll.ts` measures for. `height: auto`
+   keeps the aspect ratio while the intrinsic `width`/`height` attributes still reserve the
+   right box, so the page does not jump as it loads. */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* The Christmas party poster, and anything square the club publishes next.
+
+   **Capped well below the measure.** At the full 38rem a 1:1 image is a 600px square that
+   pushes every fact below the fold on a laptop — the poster is an invitation to read the
+   details, not a substitute for them. Left-aligned with the prose rather than centred, because
+   everything else on these pages is. */
+.social-poster {
+  display: block;
+  /* ⚠️ **`min()`, not a bare `24rem`, and the difference is a sideways-scrolling page.**
+     A class beats a type selector on specificity, so `max-width: 24rem` here overrides the
+     `img` rule above rather than combining with it — and 24rem is 384px, which at a 320px
+     viewport is 64px of document scrolling sideways under a thumb. Caught by
+     `events.spec.ts`'s 320px guard in all three projects, which is what that test is for. */
+  max-width: min(24rem, 100%);
+  margin: var(--space) 0;
+  border-radius: 4px;
+}
+
 /* **A definition list, for a page that states a handful of facts.** `/events/<slug>/` is the
    first of these and a race's own facts panel is the obvious next one, so it lives here rather
    than in a scoped `<style>`: `brand.astro` is the only file in this app that carries one, and
