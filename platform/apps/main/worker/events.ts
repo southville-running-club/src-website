@@ -530,20 +530,6 @@ export async function processTicketOrder(
   url: URL,
   slug: string,
 ): Promise<TicketOrderOutcome> {
-  const stripe = stripeConfig(env);
-
-  if (stripe === null) {
-    // **Nothing is written.** A missing key is a deployment state, not a buyer's problem, and
-    // holding a ticket here would consume a place against a payment that can never be taken.
-    return { status: 'stopped', reason: 'unavailable' };
-  }
-
-  const entryKey = env.STORE_ENTRY_KEY?.trim();
-
-  if (!entryKey) {
-    return { status: 'stopped', reason: 'unavailable' };
-  }
-
   const view = await resolveSocialView(env, slug);
 
   if (view.show !== 'social') {
@@ -561,6 +547,27 @@ export async function processTicketOrder(
     // **What they typed goes back with the problems**, minus the fields nobody should see
     // returned. `readSubmitted` already narrows to the boxes this form has.
     return { status: 'invalid', errors: parsed.errors, submitted };
+  }
+
+  // **The configuration checks come after validation, and the order is the decision.** They
+  // used to be first, on the reasoning that a Worker which cannot take a payment should never
+  // hold a ticket — right about *writes*, wrong about the person. Validation writes nothing,
+  // so no ticket is held either way; what the old order actually did was answer "tickets
+  // cannot be bought just now" to somebody who had left the form blank, hiding a mistake they
+  // could fix behind one they could not.
+  //
+  // Nothing above this line writes and nothing below it is reached with an invalid
+  // submission, so the property that mattered is intact.
+  const stripe = stripeConfig(env);
+
+  if (stripe === null) {
+    return { status: 'stopped', reason: 'unavailable' };
+  }
+
+  const entryKey = env.STORE_ENTRY_KEY?.trim();
+
+  if (!entryKey) {
+    return { status: 'stopped', reason: 'unavailable' };
   }
 
   const client = createAnonClient({

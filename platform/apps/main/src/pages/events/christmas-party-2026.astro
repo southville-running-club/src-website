@@ -151,7 +151,13 @@ import Base from '../../layouts/Base.astro';
         `packages/shared/styles/nn-theme.css`.
       */
       }
-      <div role="alert" data-social-error-summary hidden>
+      <div
+        class="notice notice-bad"
+        role="alert"
+        data-social-error-summary
+        tabindex="-1"
+        hidden
+      >
         <h3>There is a problem</h3>
         <ul>
           <li><a href="#purchaserName" data-social-error="purchaserName" hidden></a></li>
@@ -163,16 +169,25 @@ import Base from '../../layouts/Base.astro';
         </ul>
       </div>
 
-      <p role="alert" data-social-refusal hidden></p>
+      <p class="notice notice-bad" role="alert" data-social-refusal hidden></p>
 
       <div class="field">
-        <label for="purchaserName">Your name</label>
+        <label class="field-label" for="purchaserName">Your name</label>
+        <p
+          class="field-error"
+          id="purchaserName-error"
+          data-social-error="purchaserName"
+          hidden
+        >
+        </p>
         <input
+          class="field-input"
           id="purchaserName"
           name="purchaserName"
           type="text"
           autocomplete="name"
           maxlength="120"
+          aria-describedby="purchaserName-error"
           required
           disabled
           data-social-field="purchaserName"
@@ -180,18 +195,19 @@ import Base from '../../layouts/Base.astro';
       </div>
 
       <div class="field">
-        <label for="email">Your email address</label>
-        {
-          /* The confirmation email is the ticket, which is why this is asked for twice. */
-        }
-        <p id="email-hint">We will send your ticket confirmation here.</p>
+        <label class="field-label" for="email">Your email address</label>
+        <p class="field-hint" id="email-hint">
+          We will send your ticket confirmation here.
+        </p>
+        <p class="field-error" id="email-error" data-social-error="email" hidden></p>
         <input
+          class="field-input"
           id="email"
           name="email"
           type="email"
           autocomplete="email"
           maxlength="254"
-          aria-describedby="email-hint"
+          aria-describedby="email-error email-hint"
           required
           disabled
           data-social-field="email"
@@ -199,13 +215,23 @@ import Base from '../../layouts/Base.astro';
       </div>
 
       <div class="field">
-        <label for="emailConfirm">Type your email address again</label>
+        <label class="field-label" for="emailConfirm">Type your email address again</label
+        >
+        <p
+          class="field-error"
+          id="emailConfirm-error"
+          data-social-error="emailConfirm"
+          hidden
+        >
+        </p>
         <input
+          class="field-input"
           id="emailConfirm"
           name="emailConfirm"
           type="email"
           autocomplete="email"
           maxlength="254"
+          aria-describedby="emailConfirm-error"
           required
           disabled
           data-social-field="emailConfirm"
@@ -213,7 +239,9 @@ import Base from '../../layouts/Base.astro';
       </div>
 
       <div class="field">
-        <label for="quantity">How many tickets</label>
+        <label class="field-label" for="quantity">How many tickets</label>
+        <p class="field-error" id="quantity-error" data-social-error="quantity" hidden>
+        </p>
         {
           /*
           **The options ship empty and the Worker fills them**, exactly as the fee cards and
@@ -232,7 +260,14 @@ import Base from '../../layouts/Base.astro';
           `£` is the pattern issue #175 already tracks six instances of.
         */
         }
-        <select id="quantity" name="quantity" required disabled>
+        <select
+          class="field-input"
+          id="quantity"
+          name="quantity"
+          aria-describedby="quantity-error"
+          required
+          disabled
+        >
           {
             Array.from({ length: 20 }, (_unused, index) => (
               <option value={index + 1} data-social-quantity={index + 1} />
@@ -247,7 +282,7 @@ import Base from '../../layouts/Base.astro';
       }
       <input type="hidden" name="ticketCode" value="" disabled data-social-ticket-code />
 
-      <button type="submit" disabled>Buy tickets</button>
+      <button class="button" type="submit" disabled>Buy tickets</button>
 
       <p>You will be taken to Stripe to pay. The club never sees your card details.</p>
     </form>
