@@ -498,6 +498,11 @@ describe('grantable_roles', () => {
       'nn-tester',
       'people-admin',
       'registered',
+      // **The sixth, and it has to be here as well as in the three lists above.** This is the
+      // catalogue `/admin/people/` renders its dropdown and its legend from, so a role missing
+      // here is a role nobody can grant — which is how a master role ends up existing and
+      // being unreachable.
+      'src-admin',
       'super-admin',
     ]);
 
@@ -508,6 +513,15 @@ describe('grantable_roles', () => {
 
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
+
+    // **The master role's eleven travel with it too**, which is the whole of what a volunteer
+    // granting it can see before they hand it over. `/admin/people/`'s legend renders this
+    // list, so a director granting `src-admin` from a bare slug would be granting medical-note
+    // access without it appearing anywhere on the screen.
+    const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
+    expect(masterRole?.permissions).toHaveLength(11);
+    expect(masterRole?.permissions).toContain('store.ticket.read');
+    expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });
 });
 

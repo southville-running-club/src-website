@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 
@@ -102,11 +105,10 @@ describe('exactly which functions exist here, and exactly who may call them', ()
     );
 
     expect(rows.map((row) => row.proname)).toEqual([
-      // **The admin read, and the only function here granted to `authenticated` rather than
-      // `anon`.** It authorises inside itself against `store.ticket.read` — the eleventh
-      // permission, taken on 6 September 2026 — which is the shape every read on the admin
-      // surface takes: the grant says "you may ask" and `identity.has_permission()` answers.
-      // **Two admin reads, both on `authenticated` and neither on `anon`.**
+      // **Two admin reads, both on `authenticated` and neither on `anon`.** Each authorises
+      // inside itself against `store.ticket.read` — the eleventh permission, taken on
+      // 6 September 2026 — which is the shape every read on the admin surface takes: the
+      // grant says "you may ask" and `identity.has_permission()` answers.
       // `admin_social_list` is the index — every social with what has been sold against it —
       // and `admin_ticket_list` is one social's buyers. The index exists as its own function
       // rather than as a group-by over the other because **a social with no tickets sold
@@ -529,17 +531,48 @@ describe('who may read who bought a ticket', () => {
 });
 
 describe('the keys, which ship refusing everything', () => {
-  it('holds a null digest for both, so nothing can be held and nothing can be paid', async () => {
-    const rows = await query<{ name: string; key_sha256: string | null }>(
-      'select name, key_sha256 from store.api_secrets order by name',
+  it('ships both digests null, whatever a laptop\u2019s seed does to them afterwards', () => {
+    // **Read out of the migration, not off the row.** `seed.sql` installs both digests locally
+    // so the ticket path runs end to end against the Stripe stub, and that file never runs
+    // against production — so the row on this machine says nothing about how it ships. What
+    // decides that is the insert below, which names only `name` and therefore leaves
+    // `key_sha256` null.
+    //
+    // The first version of this asserted the row and passed until the seed was written, then
+    // failed for a reason that had nothing to do with what it was guarding. Same trap the
+    // `published` default assertion above avoids, met from the other side.
+    const migration = readFileSync(
+      fileURLToPath(
+        new URL(
+          '../supabase/migrations/20260905100000_create_store_schema.sql',
+          import.meta.url,
+        ),
+      ),
+      'utf8',
     );
 
-    // **Null is the shipped state and it is the safe one.** A deployment where nobody has
-    // installed a key sells no tickets, rather than selling them to anybody.
-    expect(rows).toEqual([
-      { name: 'entry', key_sha256: null },
-      { name: 'stripe', key_sha256: null },
-    ]);
+    const insert = /insert into store\.api_secrets \(([^)]*)\)\s*values([^;]*);/u.exec(
+      migration,
+    );
+
+    expect(insert, 'the seeding insert is still spelled this way').not.toBeNull();
+
+    // Only the name column. A `key_sha256` here would be a credential digest in a public
+    // repository as well as a door that ships open.
+    expect(insert![1]!.trim()).toBe('name');
+    expect(insert![2]).toContain("('entry')");
+    expect(insert![2]).toContain("('stripe')");
+    expect(insert![2]).not.toMatch(/[0-9a-f]{64}/u);
+  });
+
+  it('holds a row for each of the two keys and no others', async () => {
+    const rows = await query<{ name: string }>(
+      'select name from store.api_secrets order by name',
+    );
+
+    // Two doors, and a third would be a third rotation — see the migration on why holding a
+    // ticket and confirming one are guarded separately.
+    expect(rows.map((row) => row.name)).toEqual(['entry', 'stripe']);
   });
 
   it('refuses to hold a ticket when no entry key is installed', async () => {
