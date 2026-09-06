@@ -153,21 +153,19 @@ schema safe rather than merely intended.
 somebody takes in a diff — the mechanism `entries.test.ts` already provides, and whose own
 count has changed three times.
 
-**The 2026 party publishes only what has been supplied, and by the end of the day that was
-nearly all of it.** This record was written against a row with every fact null; a club volunteer
-then confirmed **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at a
-**provisional £10** — first given as £12 and changed the
-following day, which is itself the clearest evidence the figure is not settled.
+**The 2026 party publishes only what has been supplied, and within a day that was all of it.**
+This record was written against a row with every fact null; a club volunteer then confirmed
+**Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£10** — the price given
+as a provisional £12 on 5 September and settled at £10 on 6 September,
+[decision 010](../../decisions/decision-log.md).
 
 **Every one of those went in as an `update` in a dated migration, with no deploy and no markup
-touched — which is the property the whole arrangement was for**, exercised three times within a
-day of being built. `capacity` is still null, meaning no limit.
+touched — which is the property the whole arrangement was for**, exercised four times within two
+days of being built. `capacity` is still null, meaning no limit.
 
-⚠️ **The price is the one that is not settled.** It was given as *"I will confirm the price
-later"*, and that is harmless only while tickets cannot be sold: a figure on a page is a soft
-commitment, and a figure a card is charged is not. `sales_open_at` is still null and none of the
-three secrets is installed, so both halves of "cannot be sold" hold — and re-confirming the
-price is a stop condition on the runbook step that undoes them.
+**Nothing can be sold yet, and that is two independent locks rather than one.** `sales_open_at`
+is null, and none of the three Worker secrets is installed. Undoing either is a deliberate act
+in the runbook.
 
 ⚠️ **`STORE_ENTRY_KEY` must be installed and verified before `sales_open_at` is ever set.** The
 other order is a ticket window that is open and unprotected. See

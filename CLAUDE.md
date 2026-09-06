@@ -1678,13 +1678,12 @@ of it came from a club volunteer on 5 September 2026, in two dated migrations
 (`20260905110000` and `20260905120000`), and **every value is a column rather than markup** —
 which is why confirming each was an `update` and no deploy.
 
-⚠️ **The £10 is provisional.** It was £12 when first supplied — *"I will confirm the price
-later, just go with £12 now"* — and was changed to £10 on 6 September with no statement that the
-new figure is final. It is what the page shows and **not a settled decision about what the club
-charges**; that it has already moved once is the argument for re-confirming it rather than
-against. That is safe only while tickets cannot be sold, and **re-confirming it is a
-stop condition on the runbook's step 4**, because that is where a figure on a page becomes a
-figure on a card. There is deliberately no second copy of it in Stripe to disagree with.
+**The £10 is confirmed** — decision 010, settled on 6 September 2026 after a day as a
+provisional £12. It lives in `store.ticket_types.price_pence` and nowhere else: it is passed as
+`price_data` at Checkout, so there is deliberately no Stripe Price object to disagree with it.
+Repricing is an `update` and no deploy, and **the practical window for it closes the day sales
+open** — `ticket_purchases.amount_pence` records what was actually charged, so an edit cannot
+rewrite a receipt, but somebody who bought at the old price paid it.
 
 ⚠️ **`minimum_age` is displayed and enforced nowhere.** Nothing in `store` collects a date of
 birth to check it against, and collecting one to sell a party ticket is the minimisation breach

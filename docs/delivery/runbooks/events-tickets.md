@@ -13,11 +13,8 @@ money, and every step before it is what makes that safe.
 supplied: **Saturday 12 December 2026 at The Cock & Tail, 7:30pm–1am, 18+**, at **£10**. All of
 it was given on 5 September 2026; the booking has been held since January.
 
-⚠️ **The £10 is provisional.** It was first given as £12 — *"I will confirm the price later,
-just go with £12 now"* — and changed to £10 the following day with no statement that the new
-figure is final. It is what the page shows and **not a settled decision about what the club
-charges**. Re-confirming it is a stop condition on step 4 below, because that is the step where
-a figure on a page becomes a figure on a card.
+**The £10 is confirmed** — decision 010, settled on 6 September 2026 after a day as a
+provisional £12.
 
 `capacity` is null, which means no limit — nobody has said what the room holds. **`sales_open_at`
 is null**, which is what actually keeps tickets from being sold.
@@ -138,7 +135,7 @@ The page picks all of this up on the next request. No deploy.
 
 ## 2. Confirm the price
 
-**There is already a `standard` ticket type at £10, and it is provisional.** Changing it is an
+**There is already a `standard` ticket type at the confirmed £10.** Changing it is an
 `update`, not a second row:
 
 ```sql
@@ -198,11 +195,11 @@ commits), and replace the file.
 first: opening the window before the entry key is installed is opening it unprotected, which is
 [ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md)'s finding.
 
-⚠️ **Re-confirm the price before you run this, and do not skip it because the page already
-shows one.** The £10 in `store.ticket_types` was supplied as provisional — *"I will confirm the
-price later"* — and up to this moment that has been harmless, because a figure on a page is a
-soft commitment. **From the moment this `update` lands, that integer is what a card is
-charged.** Check it against whatever the committee actually settled:
+⚠️ **Check the price on the page is the price that was agreed, before you run this.** It is
+£10 and confirmed, so this is a verification rather than a decision — but it is the last moment
+it is cheap. **From the moment this `update` lands, that integer is what a card is charged**,
+there is deliberately no second copy of it in Stripe to compare against, and repricing after
+somebody has bought means they paid the old price:
 
 ```sql
 select kind.price_pence
@@ -211,9 +208,9 @@ select kind.price_pence
  where social.slug = 'christmas-party-2026';
 ```
 
-If it is not the confirmed figure, go back to step 2. **Do not open sales and fix the price
-afterwards** — the people who bought first will have paid the wrong amount, and refunding a
-difference is a partial refund, which this platform deliberately cannot make.
+Expect `1000`. If it is anything else, go back to step 2 — **do not open sales and fix the
+price afterwards**, because refunding a difference is a partial refund, which this platform
+deliberately cannot make.
 
 ```sql
 update store.socials

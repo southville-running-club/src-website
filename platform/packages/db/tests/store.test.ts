@@ -292,7 +292,7 @@ describe('the 2026 Christmas party row', () => {
     });
   });
 
-  it('has one ticket type at the provisional price', async () => {
+  it('has one ticket type at the confirmed price', async () => {
     const rows = await query<{ code: string; price_pence: number; active: boolean }>(
       `select kind.code, kind.price_pence, kind.active
          from store.ticket_types kind
@@ -300,13 +300,10 @@ describe('the 2026 Christmas party row', () => {
         where social.slug = 'christmas-party-2026'`,
     );
 
-    // ⚠️ **£10, and provisional.** It was £12 when this row was first written and was changed
-    // on 6 September with no statement that the new figure is final — so it is what the page
-    // shows and is not a settled decision about what the club charges. **That it has already
-    // moved once is the argument for re-confirming it before sales open**, which is a stop
-    // condition on the runbook's step 4. It is safe today only because nothing can be sold; the moment
-    // that changes, this integer is what a card is charged, and there is deliberately no
-    // second copy of it in Stripe to disagree with.
+    // **£10, confirmed on 6 September 2026** — decision 010. It was a provisional £12 for a
+    // day, which is why this assertion exists as an exact object rather than a lower bound:
+    // the price is what a card is charged, there is deliberately no second copy of it in
+    // Stripe to disagree with, and a value drifting here would drift silently.
     expect(rows).toEqual([{ code: 'standard', price_pence: 1000, active: true }]);
   });
 

@@ -1,34 +1,31 @@
--- The 2026 Christmas party: the times, the age limit, and a **provisional** price.
+-- The 2026 Christmas party: the times, the age limit, and the ticket price.
 --
 -- Supplied by a club volunteer on 5 September 2026: **7:30pm–1am**, **18+**, and a price.
 --
--- **The price is £10.** It was £12 when this migration was first written and was changed on
--- 6 September, before any of it had been deployed — so this file states the current figure
--- rather than carrying a correction after it. **That it has already moved once is the
--- clearest evidence it is not settled.**
+-- **The price is £10, and it is confirmed** — given as a provisional £12 on 5 September,
+-- changed to £10 on 6 September and confirmed as settled the same day. None of it had been
+-- deployed in between, so this file states the agreed figure rather than carrying two
+-- corrections after it. See decision 010.
 --
 -- ---------------------------------------------------------------------------------------
--- ⚠️ The price is provisional, and it was supplied as provisional
+-- The price, and why it lives only here
 -- ---------------------------------------------------------------------------------------
--- The volunteer's words when the figure was first given were *"I will confirm the price later,
--- just go with £12 now"*, and nothing since has confirmed one — the change to £10 came with no
--- statement that it is final. So the £10 below is what the page should show today and **is not
--- a confirmed decision about what the club charges**.
+-- **£10 a ticket, confirmed 6 September 2026** — decision 010, which also records what that
+-- is against: the 2025 party sold 86 orders at £12 for £1,140, so the same turnout at £10
+-- takes about £190 less before fees.
 --
--- **That is safe only while tickets cannot be sold, and today they cannot**: `sales_open_at`
--- is null, and none of the three Worker secrets is installed, so no card can be charged
--- anything at all. What this row does is put a figure on a page somebody reads and plans
--- around — a soft commitment rather than a transaction.
+-- **This row is the only definition of the price.** It is passed as `price_data` when a
+-- Checkout session is created, so what the club charges is what this row says at that
+-- moment — there is deliberately no Stripe Product or Price object, because a price held in
+-- two systems is a price that will disagree with itself and the copy that is wrong will be
+-- the one in the dashboard nobody opened.
 --
--- **It stops being safe at exactly one moment: opening sales.** From then on this integer is
--- what a card is charged, and there is deliberately no second copy of it in Stripe to
--- disagree with. So the entries in the runbook that open the window carry re-confirming this
--- as a stop condition, and `docs/delivery/runbooks/events-tickets.md` step 4 will not let
--- somebody walk past it.
---
--- Changing it is an `update` on this row and no deploy. A price that has already been *sold*
--- at is a different matter — `ticket_purchases.amount_pence` records what was actually
--- charged, precisely so that a later edit here cannot rewrite somebody's receipt.
+-- Changing it is an `update` on this row and no deploy. A price already *sold* at is a
+-- different matter: `ticket_purchases.amount_pence` records what was actually charged,
+-- precisely so a later edit here cannot rewrite somebody's receipt — but somebody who bought
+-- at the old price paid the old price, and that is a conversation rather than a query. **The
+-- practical window for repricing closes the day sales open**, which is decision 010's exit
+-- cost and is the same shape as decision 006's for the race.
 --
 -- ---------------------------------------------------------------------------------------
 -- The age limit is displayed and is not enforced, deliberately
