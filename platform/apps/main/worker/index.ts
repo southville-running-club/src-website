@@ -205,6 +205,21 @@ interface Env {
    * secret anyway, which is why `/events/stripe-webhook` could not have shared `/nn/`'s even
    * if sharing had been wanted.
    *
+   * ⚠️ **`STRIPE_SECRET_KEY` is NOT one of the three, and is deliberately shared with the race
+   * path.** There is one club Stripe account, so there is one secret key: `processTicketOrder`
+   * calls the same `stripeConfig(env)` the entry path does, and a ticket payment lands in the
+   * same place a race entry does. That is the intended behaviour and not an oversight — a
+   * second Stripe account would be a second set of payouts, a second reconciliation and a
+   * second thing to keep in test or live mode.
+   *
+   * **What that couples, and it is worth knowing before the party goes on sale:** the test/live
+   * mode swap is one decision for both. Tickets cannot charge a real card until
+   * `STRIPE_SECRET_KEY` is a live key, and making it one puts the race on live keys at the same
+   * moment. `apps/main/README.md`'s step 15 owns that, and
+   * [the key-swap runbook](../../../docs/delivery/runbooks/entries-stripe-keys.md) carries the
+   * rule that matters: **nothing may be left `paid` across the swap**, because the two modes
+   * are separate object graphs and a key of one cannot refund a payment intent of the other.
+   *
    * All three are optional and all three ship absent, which is a real and safe state: with no
    * entry key nothing can hold a ticket, and with no webhook secret nothing can be marked
    * paid. Never in `wrangler.jsonc`, never in a `vars` block, never in this repository.

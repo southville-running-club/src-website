@@ -1760,7 +1760,17 @@ own count has already changed three times. Do not trust a count in this prose; r
 ### Three secrets, and they are this schema's own
 
 `STORE_ENTRY_KEY`, `STORE_WEBHOOK_KEY` and `STORE_STRIPE_WEBHOOK_SECRET`, none of them shared
-with `entries`. **One key opening two doors is one rotation closing both**, and a compromise of
+with `entries`.
+
+⚠️ **`STRIPE_SECRET_KEY` is not one of the three and IS shared with the race path**, which this
+paragraph used to leave to inference. There is one club Stripe account, so there is one secret
+key — `processTicketOrder` calls the same `stripeConfig(env)` the entry path does, and a ticket
+payment lands where a race entry does. **The consequence is that test-to-live is one decision
+for both**: tickets cannot charge a real card until that key is live, and making it live puts
+the race on live keys in the same moment. Production is on **sandbox** values today (README
+step 2, "Done — sandbox value"; step 15, the swap, is pending), and
+[the key-swap runbook](docs/delivery/runbooks/entries-stripe-keys.md) carries the rule that
+nothing may be left `paid` across it. **One key opening two doors is one rotation closing both**, and a compromise of
 the party ticket path must not be a compromise of the race payment path. A Stripe webhook
 endpoint carries its own signing secret per URL anyway, so `/events/stripe-webhook` could not
 have shared `/nn/`'s even if sharing had been wanted.
