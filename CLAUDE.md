@@ -57,12 +57,19 @@ re-run.
   halves are in different states on purpose.** `entries_close_at` is applied and is inert on
   its own — `entry_state()` tests `entries_open_at is null` as an explicit branch before it
   compares anything, so a null open date means _never opens_ rather than _no lower bound_.
-  **`entries_open_at` is still null, and it is still the switch**: a date in it starts selling
-  250 places unattended, and it is gated on the live Stripe keys being in, the webhook
-  digest having been verified by a real signed event, and — since #178 — **`ENTRIES_ENTRY_KEY`
-  being installed and verified first**, because opening the window before that is opening it
-  unprotected. None has happened; the entries-open
-  runbook owns that moment and carries the single `update`. So the _times_ are quotable
+  ⚠️ **`entries_open_at` is set and the race is selling — this file said otherwise until
+  7 September 2026, and that staleness was read and reported from.** Confirmed against
+  production that day: `GET /nn/2026/places-remaining/` answered
+  `{"capacity":250,"remaining":140}`, so **110 places were sold**, and `/nn/2026/` serves the
+  entry form rather than the interest form. Everything that gated the window is therefore
+  done — the live Stripe keys, the webhook digest verified by a real signed event, and
+  `ENTRIES_ENTRY_KEY` installed. **The exact date each was performed is not recorded here**;
+  only that all of them were, because the window could not have opened otherwise.
+
+  **The lesson is the one `apps/main/README.md`'s own step 1 already carries**: *"a status
+  column nobody revisits is worse than no status column"*. Four rows in that table and this
+  paragraph all said "pending" about things that had been live for days, and an agent asked
+  what was left to do answered from them. So the _times_ are quotable
   anywhere; the _column_ is a stop-and-ask. Do not invent a fact, do not infer one from a phase
   document, and do not put a plausible placeholder in markup.
 - **Collecting a field beyond what is already specified.** **Trigger: a field not already in
@@ -1195,9 +1202,9 @@ a hidden `form` field is what tells them apart — this paragraph used to say th
 counts and was wrong on both. `/nn/` carries no form at all; a POST there falls past every
 predicate to the assets binding and answers **405**. The page carries two states and the Worker
 reveals one, decided per request rather than by a deploy.
-`entries.events.entries_open_at` is `null` today — **still, and deliberately, with the window
-ratified** — so production serves the interest form on `/nn/2026/` and the entry form stays
-hidden. `entries_close_at` is set and changes none of that. **The shipped-visible half is the
+⚠️ **`entries.events.entries_open_at` is set and production serves the entry form** — 110 of
+250 places sold as at 7 September 2026. This paragraph said the opposite until then; see the
+stop-and-ask list above for how that was confirmed and why it mattered. `entries_close_at` is set and changes none of that. **The shipped-visible half is the
 safe default rather than an arbitrary one**: a page that cannot reach the database must not
 offer to take money, so every failure lands on the state that asks for an email address.
 

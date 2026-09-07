@@ -115,13 +115,24 @@ failures: Stripe retries for three days.
 **The club's target: the page visible and tickets on sale, both on Friday 18 September.** That
 is 12 days from when this was written and 85 days before the party.
 
-⚠️ **It lands inside the Nightingale Nightmare entry window**, which runs to 17:00 on Friday
-30 October. Everything below deploys alongside live race entries, so the migration discipline
-matters more than usual: **`ls` the migrations directory after any rebase and check this
-branch's files sort last**. Two pull requests merged out of timestamp order stop `db push`
-dead — not just the offending migration, the whole push — and the symptom is race entries
-failing with _"the club's database could not be reached"_ on a database that is perfectly
-healthy. That has already cost six hours once.
+⚠️ **The race is selling right now.** Confirmed against production on 7 September 2026:
+`/nn/2026/places-remaining/` answered `{"capacity":250,"remaining":140}` — **110 places sold,
+on live Stripe keys**. Everything below therefore deploys onto a platform taking real money
+from real runners, which changes two things:
+
+- **The migration discipline is not theoretical.** `ls` the migrations directory after any
+  rebase and check this branch's files sort last. Two pull requests merged out of timestamp
+  order stop `db push` dead — not the offending migration, _the whole push_ — and the symptom
+  reaching a volunteer is race entries failing with _"the club's database could not be
+  reached"_ on a database that is perfectly healthy. Six hours, once already, with nobody
+  paying at the time. Now somebody would be.
+- **The Stripe side is already live, which removes the biggest unknown.** `STRIPE_SECRET_KEY`
+  is shared with the race and is a live key, so tickets will charge real cards the moment the
+  three store secrets are in. ⚠️ **The new webhook endpoint must therefore be created in live
+  mode** — a test-mode endpoint is a different object with a different signing secret, and one
+  created in the wrong mode simply never fires. The symptom is a ticket paid for in Stripe and
+  never confirmed on the site.
+
 
 ### The schedule
 
@@ -131,7 +142,7 @@ healthy. That has already cost six hours once.
 | **By Fri 11 Sep** | Steps 0.1 and 0.2 — generate the three secrets, `wrangler secret put` each, install the two digests                                                       | A volunteer |
 | **By Fri 11 Sep** | Step 0.3 — create the second Stripe endpoint at `/events/stripe-webhook`, subscribed to `checkout.session.completed` only, and set its signing secret     | A volunteer |
 | **By Sun 13 Sep** | Step 0.4 — send a test event from the Stripe dashboard and watch it reach the Worker. **Until a real signed event has been seen, the digest is unproven** | A volunteer |
-| **By Sun 13 Sep** | Confirm `RESEND_API_KEY` is bound, or no confirmation email can be sent                                                                                   | A volunteer |
+| — | ~~Confirm `RESEND_API_KEY` is bound~~ — **already done**, 25 August 2026. The race path uses the same key, and the ticket drain authenticates with `STORE_WEBHOOK_KEY` rather than a new Resend credential | — |
 | **Tue 15 Sep**    | Read the page as a member would: `/events/`, the party page, the completion page                                                                          | Either      |
 | **Thu 17 Sep**    | Re-read step 2 and confirm £10 is still the price. It is the last moment repricing is free                                                                | A volunteer |
 | **Fri 18 Sep**    | The rehearsal below, then publish, then open sales — **in that order**                                                                                    | A volunteer |
