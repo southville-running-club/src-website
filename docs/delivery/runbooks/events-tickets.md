@@ -46,12 +46,20 @@ Three, and they are `store`'s own rather than shared with `entries`. That is
 [ADR-033](../../architecture/decisions/adr-033-a-ticket-is-not-an-entry.md): one key opening two
 doors is one rotation closing both.
 
+⚠️ **`--env production --config apps/main/wrangler.jsonc`, run from `platform/`, and all of it
+matters.** `wrangler.jsonc` declares the live Worker under `env.production` as
+`src-main-production`; without those flags the secret is set on the default `src-main`
+environment instead, which is not what serves the site. **It reports success either way** —
+the ticket path simply stays dead, `create_pending_purchase()` keeps answering `bad_key`, and
+nothing says why. This runbook had the flags missing until 7 September 2026; the race's own
+step 16 has always carried them, and is the form to copy.
+
 ```bash
-cd platform/apps/main && npx wrangler secret put STORE_ENTRY_KEY
+cd platform && npx wrangler secret put STORE_ENTRY_KEY --env production --config apps/main/wrangler.jsonc
 ```
 
 ```bash
-cd platform/apps/main && npx wrangler secret put STORE_WEBHOOK_KEY
+cd platform && npx wrangler secret put STORE_WEBHOOK_KEY --env production --config apps/main/wrangler.jsonc
 ```
 
 Generate each with 32 random bytes, and **never commit either**:
@@ -90,7 +98,7 @@ Subscribe it to **`checkout.session.completed`** and nothing else. Take the sign
 gives you and set it:
 
 ```bash
-cd platform/apps/main && npx wrangler secret put STORE_STRIPE_WEBHOOK_SECRET
+cd platform && npx wrangler secret put STORE_STRIPE_WEBHOOK_SECRET --env production --config apps/main/wrangler.jsonc
 ```
 
 ⚠️ **This is a second endpoint, not a second subscription on the race's.** The signing secret is
