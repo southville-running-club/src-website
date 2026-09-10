@@ -1,0 +1,310 @@
+---
+import Base from '../../layouts/Base.astro';
+
+// `/events/christmas-party-2026/` — the club's Christmas party, and its ticket form.
+//
+// ## What ships in this file, and what the Worker paints
+//
+// **Every fact about the occasion is painted from `store.socials`.** Not one word about the
+// date, the time, the venue, the age limit or the price is written here — they are columns,
+// and what ships in this file is the state before any of them was supplied: every row reading
+// "To be confirmed", and tickets not on sale.
+//
+// That is not a hypothetical. All five were supplied on 5 September 2026 and went in as two
+// `update`s in two migrations, with this file untouched — which is the property the whole
+// arrangement exists for, and the reason a stale date can never be stranded in markup here.
+//
+// That is the same arrangement `/nn/<year>/` uses and it is chosen for the same reason: **a
+// page that cannot reach the database must not offer to take money.** Every failure — an
+// unreachable database, a migration that has not landed, a slug that does not exist — leaves
+// this markup exactly as it is, which sells nothing and claims nothing.
+//
+// ## ⚠️ The form ships hidden AND disabled, and both are load-bearing
+//
+// `hidden` does not stop a control being validated. A `required` input inside a hidden
+// container is still constrained, still empty and still invalid, so the browser silently
+// refuses to submit the form the control is in — no request, no row, no visible error. That
+// took the live entry form down for every signed-in runner on 31 August 2026, and it was found
+// by accident. `worker/events.ts` clears both together and never one alone.
+//
+// ## What is deliberately not asked for
+//
+// The 2025 party page asked people to state dietary requirements while booking. This form does
+// not, and the confirmation email asks for them by reply instead: an allergy is health data and
+// a religious diet reveals belief, so both are Article 9 and both would need an explicit
+// condition, a retention period, and items on two privacy notices before one could be stored.
+// See ADR-033.
+---
+
+<Base
+  title="SRC Christmas Party 2026 — Southville Running Club"
+  description="The Southville Running Club Christmas party. Details to be confirmed."
+>
+  <h1 data-social-name>SRC Christmas Party 2026</h1>
+
+  <p class="lede">
+    One of the big events in the Southville Running Club calendar — our annual Christmas
+    party.
+  </p>
+
+  {
+    /*
+      **The club's own poster, and it is the one place on this page a fact is not painted from
+      the database.**
+
+      ⚠️ **The date and the venue are baked into the artwork.** Everything else here reads
+      `store.socials`, so confirming or changing a fact is an `update` and no deploy — but this
+      image cannot be updated that way. If the committee ever moves the party, **the poster
+      goes stale silently while the text beside it corrects itself**, which is the worse half:
+      a visitor believes the picture. Regenerating it is a step in the runbook for exactly that
+      reason, and the generator has a details-free variant for the case where a date is in
+      doubt.
+
+      **An `<img>` rather than a CSS background**, which is the opposite of what the two
+      campaign pages do — `nn/index.astro` says a decorative image is a background "because it
+      is decoration that states nothing". This one states plenty, so it is content.
+
+      **The alt text says what the picture is, not what it says.** The date and the venue are
+      in real text directly below, and repeating them here would make a screen reader read the
+      party twice; what a non-sighted reader actually gains from this element is knowing there
+      is a poster and roughly what is on it.
+
+      `width` and `height` are the intrinsic pixel size, so the browser reserves the right box
+      before the file arrives and the facts below do not jump down the page as it loads.
+    */
+  }
+  <img
+    src="/src-christmas-party-2026-1080.webp"
+    width="1080"
+    height="1080"
+    alt="The club's Christmas party poster — a running Santa and club runners among snowflakes and Christmas trees."
+    class="social-poster"
+  />
+
+  {
+    /* **The facts, each painted only when the database holds one.** A cell whose column is
+      null keeps the words below, which are true. Nothing here falls back to last year. */
+  }
+  <dl>
+    <dt>Date</dt>
+    <dd data-social-date>To be confirmed</dd>
+
+    <dt>Time</dt>
+    <dd data-social-times>To be confirmed</dd>
+
+    <dt>Where</dt>
+    <dd data-social-venue>To be confirmed</dd>
+
+    <dt>Price</dt>
+    <dd data-social-price>To be confirmed</dd>
+  </dl>
+
+  {
+    /* Ships hidden: an age limit is a fact about the occasion and there is not one recorded. */
+  }
+  <p data-social-age hidden>Entry requirements</p>
+
+  {
+    /*
+    **It does not name which details are missing, and that is deliberate.** This sentence
+    listed the date, the venue and the price — and went stale within a day, when the date and
+    the venue were supplied. The rows above each carry their own "To be confirmed", which is
+    both more precise and painted from the same columns, so there is exactly one place a
+    missing fact is announced from and it cannot disagree with itself.
+
+    Revealed whenever `socialDetailsConfirmed()` is false — the date, the venue *and* the
+    start time all present — so it takes itself down when there is nothing left to say.
+  */
+  }
+  <p data-social-unconfirmed>
+    <strong>Some details for 2026 are still to be confirmed.</strong> Anything above marked
+    "To be confirmed" has not been settled yet, and this page will show it as soon as it is.
+    Nothing here is carried over from last year.
+  </p>
+
+  <section aria-labelledby="tickets-heading">
+    <h2 id="tickets-heading">Tickets</h2>
+
+    {
+      /* **Inside the section it is about, not above it.** It sat above this heading, which
+        left "Tickets" reading as an empty section and put the answer before the question.
+        This is the default state and the one production serves today; the Worker hides it
+        only when the sales window is open *and* a price exists. */
+    }
+    <p data-social-closed>
+      Tickets are not on sale yet. Keep an eye on this page, or ask at a club run.
+    </p>
+
+    {/* Ships hidden and every control ships disabled — see this file's header. */}
+    <form method="post" action="/events/christmas-party-2026/" data-social-form hidden>
+      {
+        /*
+        **The error summary is the first child of the form, not a block above it.** A
+        container's message belongs to that container, and this page could grow a second form.
+        Each item links to the field it is about, which is the half that makes it navigable
+        rather than merely announced.
+
+        ⚠️ Do not add a CSS `@view-transition` to this page. Four lines of it, with no
+        JavaScript at all, made the overlay swallow the click on exactly this kind of link
+        after a 422 — silently, so the person just finds that nothing happens. It passes with
+        scripting on, which is what makes it easy to ship. The note is at the foot of
+        `packages/shared/styles/nn-theme.css`.
+      */
+      }
+      <div
+        class="notice notice-bad"
+        role="alert"
+        data-social-error-summary
+        tabindex="-1"
+        hidden
+      >
+        <h3>There is a problem</h3>
+        <ul>
+          <li><a href="#purchaserName" data-social-error="purchaserName" hidden></a></li>
+          <li><a href="#email" data-social-error="email" hidden></a></li>
+          <li><a href="#emailConfirm" data-social-error="emailConfirm" hidden></a></li>
+          <li><a href="#quantity" data-social-error="quantity" hidden></a></li>
+          <li><a href="#ticketCode" data-social-error="ticketCode" hidden></a></li>
+          <li><span data-social-error="consents" hidden></span></li>
+        </ul>
+      </div>
+
+      <p class="notice notice-bad" role="alert" data-social-refusal hidden></p>
+
+      <div class="field">
+        <label class="field-label" for="purchaserName">Your name</label>
+        <p
+          class="field-error"
+          id="purchaserName-error"
+          data-social-error="purchaserName"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="purchaserName"
+          name="purchaserName"
+          type="text"
+          autocomplete="name"
+          maxlength="120"
+          aria-describedby="purchaserName-error"
+          required
+          disabled
+          data-social-field="purchaserName"
+        />
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="email">Your email address</label>
+        <p class="field-hint" id="email-hint">
+          We will send your ticket confirmation here.
+        </p>
+        <p class="field-error" id="email-error" data-social-error="email" hidden></p>
+        <input
+          class="field-input"
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          maxlength="254"
+          aria-describedby="email-error email-hint"
+          required
+          disabled
+          data-social-field="email"
+        />
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="emailConfirm">Type your email address again</label
+        >
+        <p
+          class="field-error"
+          id="emailConfirm-error"
+          data-social-error="emailConfirm"
+          hidden
+        >
+        </p>
+        <input
+          class="field-input"
+          id="emailConfirm"
+          name="emailConfirm"
+          type="email"
+          autocomplete="email"
+          maxlength="254"
+          aria-describedby="emailConfirm-error"
+          required
+          disabled
+          data-social-field="emailConfirm"
+        />
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="quantity">How many tickets</label>
+        <p class="field-error" id="quantity-error" data-social-error="quantity" hidden>
+        </p>
+        {
+          /*
+          **The options ship empty and the Worker fills them**, exactly as the fee cards and
+          the previous-years pills do — because the alternative is assembling markup from data
+          with `setInnerContent(..., { html: true })`, and there is deliberately no such call
+          anywhere in this repository to audit.
+
+          **Twenty of them, because that is `max_tickets_per_purchase`'s own check
+          constraint.** Shipping fewer would silently cap an occasion the database would have
+          allowed; the Worker removes the ones above whatever this occasion actually permits,
+          so the markup and the constraint cannot disagree.
+
+          Each label carries the total for that quantity, built by `quantityOptionLabel` with
+          `formatPence` — so the price shown and the price charged multiply the same
+          `price_pence`, and it works with scripting off. A client script that writes its own
+          `£` is the pattern issue #175 already tracks six instances of.
+        */
+        }
+        <select
+          class="field-input"
+          id="quantity"
+          name="quantity"
+          aria-describedby="quantity-error"
+          required
+          disabled
+        >
+          {
+            Array.from({ length: 20 }, (_unused, index) => (
+              <option value={index + 1} data-social-quantity={index + 1} />
+            ))
+          }
+        </select>
+      </div>
+
+      {
+        /* Which ticket type, painted by the Worker from `store.ticket_types`. Hidden because
+          there is one price; it becomes a visible choice the day there is more than one. */
+      }
+      <input type="hidden" name="ticketCode" value="" disabled data-social-ticket-code />
+
+      <button class="button" type="submit" disabled>Buy tickets</button>
+
+      <p>You will be taken to Stripe to pay. The club never sees your card details.</p>
+    </form>
+  </section>
+
+  <p>
+    {
+      /*
+      ⚠️ **`{' '}` rather than a line break, and it is not decoration.** Astro follows JSX's
+      whitespace rule: whitespace containing a newline, next to an element, is removed. So
+      `Email` on one line and `<a>` on the next renders as `Emailinfo@…` — which is what this
+      line did until it was looked at in a browser. Prettier will keep reflowing this
+      paragraph, so the space has to be a thing in the markup rather than a thing in the
+      layout. CLAUDE.md names the same trap one framework along, in `worker/html.ts`.
+    */
+    }
+    Questions about the party? Email{' '}
+    <a href="mailto:info@southvillerunningclub.co.uk">info@southvillerunningclub.co.uk</a
+    >.
+  </p>
+
+  <footer>
+    <p>Southville Running Club.</p>
+  </footer>
+</Base>

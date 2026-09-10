@@ -2,15 +2,27 @@ import {
   buildHealthReport,
   createAnonClient,
   expirePendingHolds,
+  expireTicketHolds,
   fetchPlacesRemaining,
   healthReportFromFailure,
   healthResponse,
 } from '@src/shared';
 import { drainEmailOutbox } from './email-outbox';
+import { drainTicketOutbox } from './store-outbox';
+import { handleStoreWebhook } from './store-webhook';
+import {
+  processTicketOrder,
+  renderSocialView,
+  resolveSocialView,
+  refusalMessage,
+  type TicketOrderOutcome,
+} from './events';
 import {
   adminPathForNnAdminPath,
   isAccountPath,
   isAdminPath,
+  isEventsIndexPath,
+  isEventsWebhookPath,
   isHealthPath,
   isNnAdminPath,
   isNnCoursePath,
@@ -23,7 +35,9 @@ import {
   isTimingPath,
   nnEventSlugForPlacesRemainingPath,
   nnEventSlugForYearPath,
+  eventsSocialPath,
   nnYearPathForEventSlug,
+  socialSlugForEventsPath,
   NN_PREFIX,
 } from './routing';
 import { handleAdmin } from './admin';
@@ -182,6 +196,42 @@ interface Env {
    */
   ENTRIES_ENTRY_KEY?: string;
   /**
+   * **The `store` schema's own three secrets**, and they are separate from the four above on
+   * purpose rather than by omission.
+   *
+   * `store` holds its own key digests in `store.api_secrets`, so a compromise of the party
+   * ticket path is not a compromise of the race payment path — and a rotation of one does not
+   * close the other. A Stripe webhook endpoint is configured per URL with its own signing
+   * secret anyway, which is why `/events/stripe-webhook` could not have shared `/nn/`'s even
+   * if sharing had been wanted.
+   *
+   * ⚠️ **`STRIPE_SECRET_KEY` is NOT one of the three, and is deliberately shared with the race
+   * path.** There is one club Stripe account, so there is one secret key: `processTicketOrder`
+   * calls the same `stripeConfig(env)` the entry path does, and a ticket payment lands in the
+   * same place a race entry does. That is the intended behaviour and not an oversight — a
+   * second Stripe account would be a second set of payouts, a second reconciliation and a
+   * second thing to keep in test or live mode.
+   *
+   * **What that couples, and it is worth knowing before the party goes on sale:** the test/live
+   * mode swap is one decision for both. Tickets cannot charge a real card until
+   * `STRIPE_SECRET_KEY` is a live key, and making it one puts the race on live keys at the same
+   * moment. `apps/main/README.md`'s step 15 owns that, and
+   * [the key-swap runbook](../../../docs/delivery/runbooks/entries-stripe-keys.md) carries the
+   * rule that matters: **nothing may be left `paid` across the swap**, because the two modes
+   * are separate object graphs and a key of one cannot refund a payment intent of the other.
+   *
+   * All three are optional and all three ship absent, which is a real and safe state: with no
+   * entry key nothing can hold a ticket, and with no webhook secret nothing can be marked
+   * paid. Never in `wrangler.jsonc`, never in a `vars` block, never in this repository.
+   *
+   * ⚠️ `STORE_ENTRY_KEY` must be installed and verified **before** `store.socials.
+   * sales_open_at` is ever set. The other order is a ticket window that is open and
+   * unprotected — ADR-029's finding, and the reason that column ships null.
+   */
+  STORE_ENTRY_KEY?: string;
+  STORE_WEBHOOK_KEY?: string;
+  STORE_STRIPE_WEBHOOK_SECRET?: string;
+  /**
    * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
    * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*
    * key, never appears in this repository: GoTrue holds it, via
@@ -227,6 +277,43 @@ export default {
       // keeps the webhook's own timing unchanged — Stripe retries on a slow answer, and a
       // confirmation email is not a thing worth risking that for.
       nudgeOutbox(ctx, env);
+
+      return response;
+    }
+
+    // **The shop's own webhook, and its own secrets.** Matched before the social path below,
+    // and `socialSlugForEventsPath` excludes this word outright, so the two can never collide
+    // — a future predicate that widened one of them would otherwise turn payment confirmations
+    // into form submissions, silently. Same reasoning, and same ordering, as `/nn/` above.
+    if (request.method === 'POST' && isEventsWebhookPath(url.pathname)) {
+      const response = await handleStoreWebhook(request, env);
+
+      // Stripe's answer goes back first and the send happens behind it, exactly as the race
+      // webhook does: this is the transition into `paid`, so the trigger has just written the
+      // one message somebody is sitting there waiting for — and a confirmation email is not
+      // worth risking Stripe's own retry timing for.
+      nudgeTicketOutbox(ctx, env);
+
+      return response;
+    }
+
+    // **The ticket form.** Before the assets binding, because the binding will not answer a
+    // POST at all — anything reaching it is already lost.
+    const orderSlug =
+      request.method === 'POST' ? socialSlugForEventsPath(url.pathname) : null;
+
+    if (orderSlug !== null) {
+      const response = await handleTicketOrder(
+        await readForm(request),
+        env,
+        url,
+        orderSlug,
+      );
+
+      // A refused order enqueues nothing, so this costs one query that comes back empty on
+      // the unhappy paths — the price of not threading "did that write a row?" back out
+      // through every branch.
+      nudgeTicketOutbox(ctx, env);
 
       return response;
     }
@@ -398,6 +485,39 @@ export default {
       }
     }
 
+    // **The club's socials.** Read per request, so confirming a date or opening ticket sales
+    // is an `update` and no deploy — the property `entries.events` was built for and the whole
+    // reason none of these facts is in the markup.
+    //
+    // Every failure paints nothing, which leaves the shipped page: details to be confirmed,
+    // and tickets not on sale. A page that cannot reach the database must not offer to take
+    // money.
+    const socialSlug = socialSlugForEventsPath(url.pathname);
+
+    if (socialSlug !== null) {
+      const socialView = await resolveSocialView(env, socialSlug);
+
+      // ⚠️ **An unpublished social is a 404, and an unreachable database is not.** The first
+      // is the club not having announced this yet — the page must not exist for a member who
+      // guesses the address. The second is an outage, and 404ing it would delete a live page
+      // for as long as it lasted, which is the worse failure by far.
+      if (socialView.show === 'missing') {
+        return notFoundPage(env, request);
+      }
+
+      renderSocialView(rewriter, socialView);
+    }
+
+    // **The `/events/` index links to socials the build knows about, and the Worker hides the
+    // ones nobody may see yet.** The list is in markup rather than painted from the database
+    // because listing published socials publicly would need an eighth anon-callable function,
+    // which is a decision nobody has taken — so each link carries its slug and is asked about
+    // individually. One social today; if that ever becomes a dozen this is the thing to
+    // revisit.
+    if (isEventsIndexPath(url.pathname)) {
+      await hideUnpublishedLinks(rewriter, env, response.clone());
+    }
+
     if (isNnEntryCompletePath(url.pathname)) {
       // **What the club has recorded, and never what the redirect implies.** The `confirming`
       // block ships visible, so an unreachable database paints nothing and the page says what
@@ -412,6 +532,8 @@ export default {
       race !== null ||
       isNnRacePath(url.pathname) ||
       yearSlug !== null ||
+      socialSlug !== null ||
+      isEventsIndexPath(url.pathname) ||
       isNnEntryCompletePath(url.pathname);
 
     // **A page painted for one viewer must not be handed to another.** Issue #145, defect 1.
@@ -520,6 +642,28 @@ export default {
       }
     }
 
+    // **The shop's own sweep, and it must not be able to stop the race's.** Same three
+    // properties as above: if this never runs again nobody is turned away and nothing is
+    // double-sold, because the capacity count only counts a hold while it is still in the
+    // future. What it does is stop an abandoned checkout reading as `pending` for ever, and
+    // surface anything the ticket webhook could not resolve on its own.
+    const tickets = await expireTicketHolds(client);
+
+    if (!tickets.ok) {
+      console.error(`store.expire_pending_holds failed — ${tickets.error}`);
+    } else {
+      if (tickets.expired > 0) {
+        console.warn(`store.expire_pending_holds released ${tickets.expired} hold(s)`);
+      }
+
+      if (tickets.attention > 0) {
+        console.error(
+          `store: ${tickets.attention} ticket purchase(s) need a human, oldest ${tickets.attentionOldestHours}h. ` +
+            'Somebody may have paid and have no ticket. See docs/delivery/runbooks/events-tickets.md',
+        );
+      }
+    }
+
     // **The published retention promise, kept — and it is not behind the sweep's failure.**
     // `/nn/privacy/` says a medical note is deleted separately from and sooner than the rest of
     // an entry; this is the thing that does it, and it rides on the schedule that already exists
@@ -549,6 +693,13 @@ export default {
     // Third rather than first, and for the same reason the medical sweep is second: a job
     // that talks to a third party must not decide whether a legal retention obligation runs.
     await drainEmailOutbox(env);
+
+    // **The ticket outbox, on the same terms and last for the same reason.** Its rows are
+    // drained by `nudgeTicketOutbox()` the moment the webhook that owed them finishes, so
+    // normally this is one call that comes back with nothing; what it exists for is the send
+    // that did not happen. Fourth rather than first because a job that talks to a third party
+    // must not decide whether the medical retention sweep above it runs.
+    await drainTicketOutbox(env);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -907,6 +1058,175 @@ async function handleNnEntry(
  * `trailingSlash: 'always'` means there is only ever the one. Round-tripped through the slug
  * rather than patched onto `url.pathname`, so there is one rule and it is `routing.ts`'s.
  */
+/**
+ * Take a ticket order, and answer with a payment page or with what is wrong.
+ *
+ * The same status vocabulary the entry form uses, and for the same reasons:
+ *
+ *   * **303 on success**, because POST/Redirect/GET — and this one leaves the site, so the
+ *     browser must not keep it. The URL is one person's payment page.
+ *   * **422 when the submission was wrong**, with what they typed handed back.
+ *   * **409 when the world moved**: somebody opened the page while tickets were on sale and
+ *     pressed the button after they were not. An ordinary sequence rather than a mistake.
+ *   * **503 when the club cannot take a payment right now** — no key, no Stripe, no database.
+ */
+/**
+ * The site's own 404, served for an address the assets binding would have answered.
+ *
+ * **Fetched rather than built**, so an unpublished social gets exactly the page a mistyped
+ * address gets — the club's 404 with its own chrome, not a bare string. Indistinguishable is
+ * the point: a member who guesses the URL of a party the club has not announced learns
+ * nothing from the difference.
+ */
+async function notFoundPage(env: Env, request: Request): Promise<Response> {
+  const page = await env.ASSETS.fetch(
+    new Request(new URL('/404.html', request.url).toString(), { method: 'GET' }),
+  );
+
+  return new Response(page.body, {
+    status: 404,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+/**
+ * Hide every link on `/events/` to a social that is not published yet.
+ *
+ * The markup carries one `[data-social-link="<slug>"]` per social the build knows about; this
+ * asks the database about each and hides the ones it answers nothing for. **`hidden` on the
+ * list item**, so the item leaves the accessibility tree rather than merely going invisible.
+ *
+ * Reads the served body to find the slugs, which is why the caller passes a clone: the
+ * original is still going through `HTMLRewriter`.
+ */
+async function hideUnpublishedLinks(
+  rewriter: HTMLRewriter,
+  env: Env,
+  page: Response,
+): Promise<void> {
+  let body: string;
+
+  try {
+    body = await page.text();
+  } catch {
+    // Unreadable body: paint nothing and leave the page as shipped. The failure direction is
+    // towards showing a link that should be hidden, which is the same direction every other
+    // failure on this path takes and is the one the club can see and fix.
+    return;
+  }
+
+  const slugs = [...body.matchAll(/data-social-link="([a-z0-9-]+)"/gu)].map(
+    (match) => match[1] ?? '',
+  );
+
+  const unique = [...new Set(slugs)];
+  let hidden = 0;
+
+  for (const slug of unique) {
+    const view = await resolveSocialView(env, slug);
+
+    if (view.show === 'missing') {
+      rewriter.on(`[data-social-link='${slug}']`, new HideListItem());
+      hidden += 1;
+    }
+  }
+
+  // **Only when every link went, and only when there was at least one to go.** A list with no
+  // visible items and no sentence beneath it reads as a broken page; the sentence reads as
+  // true. It is deliberately not revealed when the database was unreachable — those views come
+  // back `unavailable` rather than `missing`, so an outage leaves the links in place and says
+  // nothing, which is the harmless direction.
+  if (unique.length > 0 && hidden === unique.length) {
+    rewriter.on('[data-social-none]', new RevealElement());
+  }
+}
+
+/** Reveals an element that ships `hidden`. */
+class RevealElement {
+  element(element: Element): void {
+    element.removeAttribute('hidden');
+  }
+}
+
+/** Hides an element outright, used for a link to something nobody may see yet. */
+class HideListItem {
+  element(element: Element): void {
+    element.setAttribute('hidden', '');
+  }
+}
+
+async function handleTicketOrder(
+  form: FormData | null,
+  env: Env,
+  url: URL,
+  slug: string,
+): Promise<Response> {
+  const outcome: TicketOrderOutcome = await processTicketOrder(form, env, url, slug);
+
+  if (outcome.status === 'redirect') {
+    return new Response(null, {
+      status: 303,
+      headers: { location: outcome.url, 'cache-control': 'no-store' },
+    });
+  }
+
+  const page = await env.ASSETS.fetch(
+    new Request(new URL(eventsSocialPath(slug), url).toString(), { method: 'GET' }),
+  );
+
+  if (!page.ok) {
+    return page;
+  }
+
+  // **The view is resolved and painted every time, before anything else.** The form section
+  // ships hidden and this POST did not go through the GET path that reveals it — so without
+  // this the person would be handed a page with their errors on it and no form to fix them in.
+  const view = await resolveSocialView(env, slug);
+
+  // What to add to the view depends on the outcome, and it is only ever addable to a view that
+  // resolved. An `unavailable` view has nowhere to put an error and paints nothing anyway,
+  // which is the right answer: it is the page that sells nothing.
+  const painted =
+    view.show === 'social' && outcome.status === 'invalid'
+      ? { ...view, errors: outcome.errors, submitted: outcome.submitted }
+      : view.show === 'social' && outcome.status === 'stopped'
+        ? { ...view, refusal: refusalMessage(outcome.reason) }
+        : view;
+
+  const rewriter = new HTMLRewriter();
+  renderSocialView(rewriter, painted);
+
+  // **422 when the submission was wrong**, with what they typed handed back.
+  if (outcome.status === 'invalid') {
+    return typedPage(rewriter.transform(page), 422);
+  }
+
+  // **409 when the world moved**: somebody opened the page while tickets were on sale and
+  // pressed the button after they were not. An ordinary sequence rather than a mistake.
+  if (outcome.status === 'closed') {
+    return typedPage(rewriter.transform(page), 409);
+  }
+
+  // **409 where the request was understood and refused, 503 where something is genuinely
+  // unavailable.** `sold_out` is the first kind: the submission was fine and the state of the
+  // world says no. A key nobody installed is the second, and it is the club's fault rather
+  // than the buyer's — which is also why `refusalMessage` gives all three deployment faults
+  // one wording rather than naming which of the club's own pieces is missing.
+  return typedPage(rewriter.transform(page), outcome.reason === 'sold_out' ? 409 : 503);
+}
+
+/**
+ * Drain the ticket outbox behind the response, so a confirmation goes out as soon as it is
+ * owed rather than at the next tick of the five-minute cron — ADR-032, for `store`.
+ *
+ * `waitUntil` is a best effort and a `429` stops a batch, so the cron is still the retry net.
+ * **Removing that call makes a failed send permanent**, which is the one outcome the outbox
+ * exists to rule out.
+ */
+function nudgeTicketOutbox(ctx: ExecutionContext, env: Env): void {
+  ctx.waitUntil(drainTicketOutbox(env));
+}
+
 function yearPath(url: URL): string {
   const slug = nnEventSlugForYearPath(url.pathname);
   return slug === null ? `${NN_PREFIX}/` : (nnYearPathForEventSlug(slug) ?? url.pathname);

@@ -386,3 +386,99 @@ export function isAccountPath(pathname: string): boolean {
 export function accountSegments(pathname: string): string[] {
   return pathname.slice(ACCOUNT_PREFIX.length).split('/').filter(Boolean);
 }
+
+// -------------------------------------------------------------------------------------------
+// /events — tickets to the club's socials
+// -------------------------------------------------------------------------------------------
+// **"Events" is the public word and `social` is the schema word**, and the two differ on
+// purpose. The glossary reserves *event* for one running of one race in one year, so the
+// Christmas party may not be one however convenient the word is — but `/events` is what the
+// old Squarespace site published and Phase 5 keeps its addresses, so that is the path. The
+// navigation bar already reads "Race info" over a page headed "Race instructions"; this is
+// the same split one layer down. See ADR-033.
+
+export const EVENTS_PREFIX = '/events';
+
+/**
+ * Where Stripe posts a ticket payment.
+ *
+ * **Its own endpoint rather than `/nn/stripe-webhook`**, because the two schemas hold their
+ * own keys and a Stripe endpoint is configured per URL: one webhook serving both would mean a
+ * ticket payment and a race payment sharing a secret, and a rotation of either closing both.
+ *
+ * **Matched before the social path below**, and the slug matcher excludes this word outright
+ * so the two can never collide — a future predicate that widened one of them would otherwise
+ * turn payment confirmations into form submissions, silently. That is the ordering `/nn/`
+ * states rather than relies on, for the same reason.
+ *
+ * Both spellings, because the caller is Stripe and the URL is typed into a dashboard once by
+ * hand. A trailing slash mistyped there would mean every ticket confirmation posting into a
+ * 404, discovered only by somebody who paid and heard nothing.
+ */
+export const EVENTS_WEBHOOK_PATH = `${EVENTS_PREFIX}/stripe-webhook`;
+
+export function isEventsWebhookPath(pathname: string): boolean {
+  return pathname === EVENTS_WEBHOOK_PATH || pathname === `${EVENTS_WEBHOOK_PATH}/`;
+}
+
+/** `/events/` and `/events` — the list of what the club has on. */
+export function isEventsIndexPath(pathname: string): boolean {
+  return pathname === EVENTS_PREFIX || pathname === `${EVENTS_PREFIX}/`;
+}
+
+/**
+ * The reserved words directly beneath `/events/` that are not a social.
+ *
+ * A list rather than a check at each call site, so adding a second endpoint here cannot
+ * quietly become a slug somebody could register.
+ */
+const EVENTS_RESERVED = new Set(['stripe-webhook']);
+
+const EVENTS_SOCIAL_PATH = /^\/events\/([a-z0-9][a-z0-9-]*)\/?$/;
+
+/**
+ * The social slug for a page path, or `null` if this is not one.
+ *
+ * The pattern is exactly `store.socials.slug`'s own check constraint, so a path that parses
+ * here is one the database could hold — and a path that does not is refused before it becomes
+ * a query.
+ */
+export function socialSlugForEventsPath(pathname: string): string | null {
+  const slug = EVENTS_SOCIAL_PATH.exec(pathname)?.[1];
+
+  if (slug === undefined || EVENTS_RESERVED.has(slug)) {
+    return null;
+  }
+
+  return slug;
+}
+
+export function isEventsSocialPath(pathname: string): boolean {
+  return socialSlugForEventsPath(pathname) !== null;
+}
+
+/** Where a social's page lives, given its slug. The inverse of the above. */
+export function eventsSocialPath(slug: string): string {
+  return `${EVENTS_PREFIX}/${slug}/`;
+}
+
+const EVENTS_COMPLETE_PATH = /^\/events\/([a-z0-9][a-z0-9-]*)\/complete\/?$/;
+
+/**
+ * Where Stripe sends somebody back to — **under the social they bought a ticket to**, for the
+ * reason `/nn/<year>/entry/complete/` sits under its running: a return page is where somebody
+ * who has just paid finds out whether the club knows it, and a Checkout session's return URL
+ * should name the thing it was for.
+ */
+export function socialSlugForCompletePath(pathname: string): string | null {
+  const slug = EVENTS_COMPLETE_PATH.exec(pathname)?.[1];
+  return slug === undefined || EVENTS_RESERVED.has(slug) ? null : slug;
+}
+
+export function isEventsCompletePath(pathname: string): boolean {
+  return socialSlugForCompletePath(pathname) !== null;
+}
+
+export function eventsCompletePath(slug: string): string {
+  return `${EVENTS_PREFIX}/${slug}/complete/`;
+}

@@ -330,8 +330,9 @@ a[href^='mailto:'] {
 .site-nav ul {
   display: flex;
   /* **Wrapping rather than scrolling**, because a horizontally scrolling bar hides links with
-     no affordance saying so. Four labels, one of which is two words, fit one row from about
-     560px and take two below it — which is fine when nothing is measuring this bar's height. */
+     no affordance saying so. Five labels, one of which is two words, take one row on a wide
+     screen and two or three below — which is fine, and is only fine, because nothing is
+     measuring this bar's height. Read the note above before adding a sixth. */
   flex-wrap: wrap;
   gap: 0 calc(var(--space) * 1.25);
   margin: 0 auto;
@@ -369,12 +370,157 @@ a[href^='mailto:'] {
   text-underline-offset: 4px;
 }
 
+/* -------------------------------------------------------------------------------------------
+   The Events submenu
+   -------------------------------------------------------------------------------------------
+   **A shortcut, never the only route.** `/events/` lists the same pages, and the parent stays
+   an ordinary link to it — which is what makes it safe to hide this outright below 48rem,
+   where there is no hover to open it with and the bar is already two rows deep.
+
+   **No JavaScript, deliberately and not merely as a preference.** Every test in this suite
+   runs in a `no-javascript` project, so a scripted menu would not open there at all. `:hover`
+   is the mouse path; `:focus-within` is the keyboard one — focusing the parent link puts focus
+   inside the `<li>`, which reveals the list, which is what then makes its own links tabbable.
+   That ordinary tab order is why this needs no `aria-expanded` to be operable.
+
+   ⚠️ **`position: relative` on the `<li>` is load-bearing, not tidiness.** An absolutely
+   positioned box whose containing block is the *page* is laid out against the document, and a
+   panel wider than the viewport then makes the whole page scroll sideways — silently, with
+   nothing looking wrong. This repository has already paid for exactly that once, with a
+   visually-hidden span inside a scrolling admin table: 793px of document scroll at a 320px
+   viewport. Anchoring it here keeps the panel measured against the `<li>`.
+
+   The submenu is `display: none` below the breakpoint, so it cannot contribute width at the
+   one measurement `sideways-scroll.ts` cares about either way. */
+.site-nav-has-menu {
+  position: relative;
+}
+
+.site-nav-has-menu > ul {
+  display: none;
+}
+
+@media (min-width: 48rem) {
+  .site-nav-has-menu:hover > ul,
+  .site-nav-has-menu:focus-within > ul {
+    display: block;
+    position: absolute;
+    z-index: 10;
+    top: 100%;
+    left: 0;
+    /* Wide enough for the longest label without wrapping it, and capped so a future long one
+       cannot push the panel past the viewport on a narrow desktop window. */
+    min-width: max-content;
+    max-width: min(20rem, calc(100vw - var(--space) * 2));
+    margin: 0;
+    padding: 0.25rem 0;
+    border: 1px solid var(--colour-rule);
+    border-radius: 2px;
+    background: var(--colour-background);
+    list-style: none;
+    /* The one shadow on this bar, and it is what says "in front of" rather than "part of". */
+    box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  }
+
+  .site-nav-has-menu > ul a {
+    display: block;
+    padding: 0.5rem var(--space);
+    /* Overrides the bar's own inline-block row height: inside the panel these are stacked
+       rows rather than a horizontal strip, and 44px of vertical padding each would make a
+       two-item menu taller than the page needs. */
+    white-space: nowrap;
+  }
+
+  .site-nav-has-menu > ul a:hover {
+    background: var(--colour-surface-muted);
+  }
+}
+
 /* Matching the ring the banner's links carry, and for the same reason: the default outline is
    the one thing a theme most often loses. */
 .site-nav a:focus-visible {
   outline: 3px solid var(--colour-accent);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* **Images never overflow their column, and until the Christmas party poster there was no
+   `<img>` on a content page to prove it.** `brand.astro` carries a 64px favicon and the two
+   campaign pages use CSS backgrounds — the note at `nn/index.astro` says a decorative image is
+   a background "because it is decoration that states nothing" — so a full-width raster had
+   never been laid out here at all.
+
+   Without this, a 1080px asset is 1080px wide at a 320px viewport and the whole document
+   scrolls sideways, which is the defect `sideways-scroll.ts` measures for. `height: auto`
+   keeps the aspect ratio while the intrinsic `width`/`height` attributes still reserve the
+   right box, so the page does not jump as it loads. */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* The Christmas party poster, and anything square the club publishes next.
+
+   **Capped well below the measure.** At the full 38rem a 1:1 image is a 600px square that
+   pushes every fact below the fold on a laptop — the poster is an invitation to read the
+   details, not a substitute for them. Left-aligned with the prose rather than centred, because
+   everything else on these pages is. */
+.social-poster {
+  display: block;
+  /* ⚠️ **`min()`, not a bare `24rem`, and the difference is a sideways-scrolling page.**
+     A class beats a type selector on specificity, so `max-width: 24rem` here overrides the
+     `img` rule above rather than combining with it — and 24rem is 384px, which at a 320px
+     viewport is 64px of document scrolling sideways under a thumb. Caught by
+     `events.spec.ts`'s 320px guard in all three projects, which is what that test is for. */
+  max-width: min(24rem, 100%);
+  margin: var(--space) 0;
+  border-radius: 4px;
+}
+
+/* **A definition list, for a page that states a handful of facts.** `/events/<slug>/` is the
+   first of these and a race's own facts panel is the obvious next one, so it lives here rather
+   than in a scoped `<style>`: `brand.astro` is the only file in this app that carries one, and
+   it is a design showcase rather than a pattern to copy.
+
+   **A grid rather than the browser default**, whose `dd` indent reads as an accident rather
+   than as a layout. The term and the value line up in two columns once there is room, and
+   stack below that — a venue name on a 320px screen must not be squeezed into half the width,
+   which is the width at which this site's sideways-scroll guard is measured.
+
+   Every colour is a semantic token, so the dark scheme at the head of this file applies with
+   no second block here. */
+dl {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 var(--space);
+  margin: var(--space) 0;
+}
+
+dt {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--colour-muted);
+}
+
+dd {
+  margin: 0 0 0.5rem;
+}
+
+@media (min-width: 30rem) {
+  dl {
+    /* `max-content` capped by `minmax`, so a long term widens the column and a very long one
+       does not push the value off the measure. */
+    grid-template-columns: minmax(5rem, max-content) 1fr;
+  }
+
+  dt {
+    grid-column: 1;
+  }
+
+  dd {
+    grid-column: 2;
+    margin-bottom: 0.25rem;
+  }
 }
 
 .lede {

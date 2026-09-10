@@ -1001,6 +1001,416 @@ export type Database = {
       [_ in never]: never
     }
   }
+  store: {
+    Tables: {
+      api_secrets: {
+        Row: {
+          key_sha256: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          key_sha256?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          key_sha256?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          provider_message_id: string | null
+          purchase_id: string
+          recipient: string
+          sent_at: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          purchase_id: string
+          recipient: string
+          sent_at?: string | null
+          status?: string
+          template: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          purchase_id?: string
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      socials: {
+        Row: {
+          active: boolean
+          capacity: number | null
+          consent_version: string
+          created_at: string
+          display_name: string
+          end_time: string | null
+          id: string
+          max_tickets_per_purchase: number
+          minimum_age: number | null
+          next_ticket_no: number
+          published: boolean
+          reply_to: string
+          required_consents: string[]
+          sales_close_at: string | null
+          sales_open_at: string | null
+          slug: string
+          social_date: string | null
+          start_time: string | null
+          venue: string | null
+        }
+        Insert: {
+          active?: boolean
+          capacity?: number | null
+          consent_version: string
+          created_at?: string
+          display_name: string
+          end_time?: string | null
+          id?: string
+          max_tickets_per_purchase?: number
+          minimum_age?: number | null
+          next_ticket_no?: number
+          published?: boolean
+          reply_to: string
+          required_consents?: string[]
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          slug: string
+          social_date?: string | null
+          start_time?: string | null
+          venue?: string | null
+        }
+        Update: {
+          active?: boolean
+          capacity?: number | null
+          consent_version?: string
+          created_at?: string
+          display_name?: string
+          end_time?: string | null
+          id?: string
+          max_tickets_per_purchase?: number
+          minimum_age?: number | null
+          next_ticket_no?: number
+          published?: boolean
+          reply_to?: string
+          required_consents?: string[]
+          sales_close_at?: string | null
+          sales_open_at?: string | null
+          slug?: string
+          social_date?: string | null
+          start_time?: string | null
+          venue?: string | null
+        }
+        Relationships: []
+      }
+      ticket_purchases: {
+        Row: {
+          amount_pence: number
+          attention: string | null
+          attention_resolved_at: string | null
+          consents: Json
+          consents_version: string
+          created_at: string
+          hold_expires_at: string | null
+          id: string
+          paid_at: string | null
+          person_id: string | null
+          purchaser_email: string
+          purchaser_name: string
+          quantity: number
+          refunded_at: string | null
+          social_id: string
+          status: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          ticket_no: number | null
+          ticket_type_id: string
+        }
+        Insert: {
+          amount_pence: number
+          attention?: string | null
+          attention_resolved_at?: string | null
+          consents?: Json
+          consents_version: string
+          created_at?: string
+          hold_expires_at?: string | null
+          id?: string
+          paid_at?: string | null
+          person_id?: string | null
+          purchaser_email: string
+          purchaser_name: string
+          quantity: number
+          refunded_at?: string | null
+          social_id: string
+          status: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          ticket_no?: number | null
+          ticket_type_id: string
+        }
+        Update: {
+          amount_pence?: number
+          attention?: string | null
+          attention_resolved_at?: string | null
+          consents?: Json
+          consents_version?: string
+          created_at?: string
+          hold_expires_at?: string | null
+          id?: string
+          paid_at?: string | null
+          person_id?: string | null
+          purchaser_email?: string
+          purchaser_name?: string
+          quantity?: number
+          refunded_at?: string | null
+          social_id?: string
+          status?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          ticket_no?: number | null
+          ticket_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_purchases_social_id_fkey"
+            columns: ["social_id"]
+            isOneToOne: false
+            referencedRelation: "socials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_purchases_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_types: {
+        Row: {
+          active: boolean
+          code: string
+          id: string
+          label: string
+          price_pence: number
+          social_id: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          id?: string
+          label: string
+          price_pence: number
+          social_id: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          id?: string
+          label?: string
+          price_pence?: number
+          social_id?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_types_social_id_fkey"
+            columns: ["social_id"]
+            isOneToOne: false
+            referencedRelation: "socials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      admin_social_list: {
+        Args: never
+        Returns: {
+          capacity: number
+          display_name: string
+          held_tickets: number
+          paid_orders: number
+          paid_tickets: number
+          price_pence: number
+          published: boolean
+          sales_close_at: string
+          sales_open_at: string
+          slug: string
+          social_date: string
+          taken_pence: number
+          venue: string
+        }[]
+      }
+      admin_ticket_list: {
+        Args: { p_social_slug?: string }
+        Returns: {
+          amount_pence: number
+          attention: string
+          created_at: string
+          paid_at: string
+          purchase_id: string
+          purchaser_email: string
+          purchaser_name: string
+          quantity: number
+          social_name: string
+          social_slug: string
+          status: string
+          ticket_no: number
+        }[]
+      }
+      attach_checkout_session: {
+        Args: { p_purchase_id: string; p_session_id: string }
+        Returns: boolean
+      }
+      claim_outbox_batch: {
+        Args: { p_key: string; p_limit?: number }
+        Returns: {
+          amount_pence: number
+          attempts: number
+          id: string
+          purchase_created_at: string
+          purchase_id: string
+          purchaser_name: string
+          quantity: number
+          recipient: string
+          reply_to: string
+          social_date: string
+          social_name: string
+          social_slug: string
+          template: string
+          ticket_no: number
+        }[]
+      }
+      create_pending_purchase: {
+        Args: {
+          p_consents?: Json
+          p_key: string
+          p_person_id?: string
+          p_preview?: boolean
+          p_purchaser_email: string
+          p_purchaser_name: string
+          p_quantity: number
+          p_social_slug: string
+          p_ticket_code: string
+        }
+        Returns: {
+          amount_pence: number
+          hold_expires_at: string
+          ok: boolean
+          purchase_id: string
+          quantity: number
+          reason: string
+          ticket_label: string
+        }[]
+      }
+      expire_pending_holds: {
+        Args: never
+        Returns: {
+          attention: number
+          attention_oldest_hours: number
+          expired: number
+        }[]
+      }
+      key_ok: { Args: { p_key: string; p_name: string }; Returns: boolean }
+      record_checkout_event: {
+        Args: {
+          p_amount_total?: number
+          p_event_type?: string
+          p_key: string
+          p_payment_intent?: string
+          p_session_id: string
+        }
+        Returns: {
+          ok: boolean
+          result: string
+        }[]
+      }
+      record_send_result: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_key: string
+          p_provider_message_id?: string
+          p_status: string
+        }
+        Returns: boolean
+      }
+      social_state: {
+        Args: { p_slug: string }
+        Returns: {
+          capacity: number
+          consent_version: string
+          display_name: string
+          end_time: string
+          max_tickets_per_purchase: number
+          minimum_age: number
+          required_consents: string[]
+          sales_close_at: string
+          sales_open_at: string
+          sales_state: string
+          slug: string
+          social_date: string
+          start_time: string
+          ticket_types: Json
+          tickets_remaining: number
+          venue: string
+        }[]
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
@@ -1131,6 +1541,9 @@ export const Constants = {
     Enums: {},
   },
   intake: {
+    Enums: {},
+  },
+  store: {
     Enums: {},
   },
 } as const

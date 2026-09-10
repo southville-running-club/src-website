@@ -240,3 +240,77 @@ insert into entries.entrant_medical (entrant_id, notes, created_at) values
     '2026-08-01T09:00:00Z'
   )
 on conflict (entrant_id) do nothing;
+
+-- ===========================================================================================
+-- store — the local keys, and a fabricated social that is actually on sale
+-- ===========================================================================================
+-- **Local only.** This file runs on `db reset` and never against production, where both
+-- digests in `store.api_secrets` ship null and refuse everything until a human installs a real
+-- key by hand. Written as `sha256(...)` of a literal so what opens the door is readable here
+-- rather than being a hash somebody has to reverse — the same choice the entries block above
+-- makes and for the same reason.
+--
+-- **`apps/main`'s preview script passes these same two strings**, so the ticket path runs end
+-- to end on a laptop against `scripts/stripe-stub.mjs`, exactly as the entry path has since
+-- Slice C. Without them the Worker has no `STORE_ENTRY_KEY`, `create_pending_purchase()`
+-- answers `bad_key`, and the form is untestable outside a unit test.
+update store.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-store-entry-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'entry';
+
+update store.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-store-webhook-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'stripe';
+
+-- -------------------------------------------------------------------------------------------
+-- A fabricated social, on sale, which `christmas-party-2026` is deliberately not
+-- -------------------------------------------------------------------------------------------
+-- **`zz-social` and never `christmas-party-2026`**, which is the rule the `zz-admin` race
+-- above follows and for the identical reason: opening sales on the real party — even locally —
+-- would make `social_state('christmas-party-2026')` answer something other than what
+-- production answers, and `packages/db/tests/store.test.ts` asserts that real row's shape as a
+-- published fact. A fixture has no business changing it.
+--
+-- So this is the row a laptop buys a ticket to. It has a price, an open window and a small
+-- capacity, so the sold-out path is reachable without inserting 250 of anything.
+insert into store.socials (
+  slug, display_name, reply_to, consent_version,
+  social_date, start_time, end_time, venue, capacity, minimum_age,
+  sales_open_at, sales_close_at, max_tickets_per_purchase
+)
+values (
+  'zz-social',
+  'ZZ Test Social (local only)',
+  'info@example.com',
+  'zz-social-v1',
+  date '2026-12-19', time '19:00', time '23:30', 'The Example Rooms', 20, 18,
+  timestamptz '2026-01-01 00:00:00+00',
+  timestamptz '2099-01-01 00:00:00+00',
+  6
+)
+on conflict (slug) do nothing;
+
+insert into store.ticket_types (social_id, code, label, price_pence)
+select id, 'standard', 'Standard ticket', 800 from store.socials where slug = 'zz-social'
+on conflict (social_id, code) do nothing;
+
+-- -------------------------------------------------------------------------------------------
+-- The Christmas party is published locally and unpublished in production
+-- -------------------------------------------------------------------------------------------
+-- **`store.socials.published` defaults false and this file never runs against production**, so
+-- the party ships hidden and stays hidden until the club runs the `update` in the runbook. That
+-- is the whole point of the column, and it is asserted in `packages/db/tests/store.test.ts`
+-- against the migration's default rather than against this line.
+--
+-- It is published *here* because `/events/christmas-party-2026/` is the only social with a
+-- content page, so it is the only one the acceptance suite can test the rendering of — the
+-- date, the price, the disabled form, the 320px layout. Leaving it hidden locally would trade
+-- every one of those assertions for one that the migration's default already makes.
+--
+-- **The unpublished behaviour is covered where it is enforced**, in the database tests: that
+-- `social_state()` answers nothing, that `create_pending_purchase()` refuses `no_such_social`,
+-- and that `admin_social_list()` still shows it to a director.
+update store.socials set published = true where slug = 'christmas-party-2026';
+update store.socials set published = true where slug = 'zz-social';

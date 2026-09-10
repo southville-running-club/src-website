@@ -159,10 +159,61 @@ export const SITE_BANNER = {
  *
  * `match` is a shape rather than an href — the same convention `NnNav` uses — so a section
  * marks itself current from any page inside it.
+ *
+ * `Events`, not `Socials` or `Tickets`. **The plain word, and it is deliberately not the
+ * schema's word** — the glossary reserves *event* for one running of one race in one year, so
+ * `store.socials` is what the table is called and this is what a member reads. The two are
+ * allowed to differ for the same reason this bar has always read `Race timing` over an app
+ * called `apps/timing`: a navigation label is written for whoever is looking at it.
+ *
+ * `/events` is also the address the old Squarespace site published, which Phase 5 keeps.
+ * See [ADR-033](../../../../docs/architecture/decisions/adr-033-a-ticket-is-not-an-entry.md).
+ *
+ * ## A fifth label was free, and the reason is worth keeping
+ *
+ * Adding one here is not the layout change that renaming a label in the Nightingale bar is.
+ * **That bar is stuck to the top and this one is not**, so no `scroll-padding-top` token is
+ * keeping step with its height and nothing measures it — `base.css` says so at `.site-nav`.
+ * A label here wraps onto a second row and costs nothing; the same edit one bar along once
+ * added 48px and put every anchor and every keyboard focus behind the header.
  */
-export const SITE_NAV = [
+export interface SiteNavChild {
+  href: string;
+  label: string;
+}
+
+export interface SiteNavItem {
+  href: string;
+  label: string;
+  match: RegExp;
+  /**
+   * A submenu, for a section with more than one page worth reaching directly.
+   *
+   * **Optional, and only `/events/` has one.** The parent stays a real link to a real page
+   * that lists the same things — the submenu is a shortcut, never the only route, which is
+   * what lets it be hidden outright on a narrow screen where there is no hover to open it
+   * with.
+   *
+   * **A constant rather than a database read.** The alternative is
+   * `store.social_state()` on every page view, and that is a round trip on `/`, `/privacy/`
+   * and every account page to paint a menu — the same trade `/nn/`'s bar makes and does not
+   * obviously win here. It costs nothing extra in practice: a social already needs its own
+   * content page, so it is already a deploy.
+   */
+  children?: readonly SiteNavChild[];
+}
+
+export const SITE_NAV: readonly SiteNavItem[] = [
   { href: '/', label: 'Home', match: /^\/$/u },
   { href: '/nn/', label: 'Nightingale Nightmare', match: /^\/nn(\/|$)/u },
+  {
+    href: '/events/',
+    label: 'Events',
+    match: /^\/events(\/|$)/u,
+    children: [
+      { href: '/events/christmas-party-2026/', label: 'SRC Christmas Party 2026' },
+    ],
+  },
   { href: '/timing', label: 'Race timing', match: /^\/timing(\/|$)/u },
   { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
-] as const;
+];

@@ -3,8 +3,13 @@ import {
   accountSegments,
   adminPathForNnAdminPath,
   adminSegments,
+  eventsCompletePath,
+  eventsSocialPath,
   isAccountPath,
   isAdminPath,
+  isEventsIndexPath,
+  isEventsSocialPath,
+  isEventsWebhookPath,
   isNnAdminPath,
   isNnCoursePath,
   isNnEntryCompletePath,
@@ -21,6 +26,8 @@ import {
   NN_PREFIX,
   NN_RACE_SLUG,
   TIMING_PREFIX,
+  socialSlugForCompletePath,
+  socialSlugForEventsPath,
 } from '../../worker/routing';
 
 /**
@@ -407,5 +414,70 @@ describe('adminPathForNnAdminPath', () => {
 
     expect(moved.every((path) => isAdminPath(path))).toBe(true);
     expect(moved.every((path) => adminSegments(path)[0] === 'nn')).toBe(true);
+  });
+});
+
+describe('/events — the club’s socials', () => {
+  it('matches the index at both spellings', () => {
+    expect(isEventsIndexPath('/events/')).toBe(true);
+    expect(isEventsIndexPath('/events')).toBe(true);
+    expect(isEventsIndexPath('/events/christmas-party-2026/')).toBe(false);
+  });
+
+  it('reads the slug off a social page, at both spellings', () => {
+    expect(socialSlugForEventsPath('/events/christmas-party-2026/')).toBe(
+      'christmas-party-2026',
+    );
+    expect(socialSlugForEventsPath('/events/christmas-party-2026')).toBe(
+      'christmas-party-2026',
+    );
+  });
+
+  it('takes only the shape store.socials.slug could actually hold', () => {
+    // The pattern is that column's own check constraint, so a path that parses here is one the
+    // database could hold — and a path that does not is refused before it becomes a query.
+    expect(socialSlugForEventsPath('/events/Christmas-Party/')).toBeNull();
+    expect(socialSlugForEventsPath('/events/-leading-hyphen/')).toBeNull();
+    expect(socialSlugForEventsPath('/events/a/b/')).toBeNull();
+    expect(socialSlugForEventsPath('/events/')).toBeNull();
+  });
+
+  it('never mistakes the webhook for a social, in either direction', () => {
+    // ⚠️ **The collision that would matter.** `/events/stripe-webhook` is a POST endpoint and
+    // `/events/<slug>/` is a POST form; if the slug matcher claimed the webhook, every payment
+    // confirmation would arrive at the ticket form and be answered 422 — silently, with the
+    // money already taken. The reserved word is excluded outright rather than relying on the
+    // order the two predicates happen to be tested in.
+    expect(isEventsWebhookPath('/events/stripe-webhook')).toBe(true);
+    expect(isEventsWebhookPath('/events/stripe-webhook/')).toBe(true);
+
+    expect(socialSlugForEventsPath('/events/stripe-webhook')).toBeNull();
+    expect(socialSlugForEventsPath('/events/stripe-webhook/')).toBeNull();
+    expect(isEventsSocialPath('/events/stripe-webhook')).toBe(false);
+
+    expect(isEventsWebhookPath('/events/christmas-party-2026/')).toBe(false);
+  });
+
+  it('keeps the return page under the social it was for', () => {
+    expect(socialSlugForCompletePath('/events/christmas-party-2026/complete/')).toBe(
+      'christmas-party-2026',
+    );
+    // And the social matcher does not claim it — it is one segment deeper.
+    expect(socialSlugForEventsPath('/events/christmas-party-2026/complete/')).toBeNull();
+    expect(socialSlugForCompletePath('/events/stripe-webhook/complete/')).toBeNull();
+  });
+
+  it('round-trips a slug through both path builders', () => {
+    expect(socialSlugForEventsPath(eventsSocialPath('christmas-party-2026'))).toBe(
+      'christmas-party-2026',
+    );
+    expect(socialSlugForCompletePath(eventsCompletePath('christmas-party-2026'))).toBe(
+      'christmas-party-2026',
+    );
+  });
+
+  it('leaves the race paths alone', () => {
+    expect(socialSlugForEventsPath('/nn/2026/')).toBeNull();
+    expect(isEventsIndexPath('/nn/')).toBe(false);
   });
 });

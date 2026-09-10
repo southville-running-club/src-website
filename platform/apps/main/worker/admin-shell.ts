@@ -89,6 +89,24 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
   {
     /**
+     * **`store.ticket.read`, which is the eleventh permission and the first that is not about
+     * a race.** ADR-033 shipped `store` with no admin surface and named that its biggest gap;
+     * this is the link to what closed it.
+     *
+     * **"Events", matching the page's own heading and the public bar's label.** It said
+     * "Tickets" while the section was a single flat list of every ticket sold; the section is
+     * a list of socials now, with the tickets one level in, so the label follows the page
+     * rather than the table it used to be.
+     *
+     * The glossary still reserves *event* for one running of one race — this is the same
+     * public-word/schema-word split `/events/` makes, one surface along.
+     */
+    href: `${ADMIN_PREFIX}/events/`,
+    label: 'Events',
+    permission: 'store.ticket.read',
+  },
+  {
+    /**
      * **The read, not the grant.** The page is a list of people that some of its readers may
      * also change, and `people-admin` may only read it — so the permission that opens the
      * link has to be the one that opens the table. Naming `identity.role.grant` here would
@@ -108,7 +126,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  * **`registered` is not one of them, and that is the whole of the 404 rule.** Everybody with an
  * account holds `registered`; holding it means being signed in and nothing else.
  */
-export const STAFF_ROLES = ['nn-admin', 'people-admin', 'super-admin'] as const;
+export const STAFF_ROLES = [
+  'nn-admin',
+  'people-admin',
+  // **The club's master role, for directors** — the sixth role, taken on 6 September 2026. It
+  // is on this list for the ordinary reason any staff role is: it opens pages behind the
+  // door. What makes it different from the four beside it is only how much it carries once
+  // through, which is `identity.role_permissions`' business rather than this list's.
+  'src-admin',
+  'super-admin',
+] as const;
 
 /**
  * Whether somebody may be in the backend at all.

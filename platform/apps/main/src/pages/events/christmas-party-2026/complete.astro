@@ -1,0 +1,63 @@
+---
+import Base from '../../../layouts/Base.astro';
+
+// Where Stripe sends somebody back to after paying for a ticket.
+//
+// ## It makes no claim about the payment, and that is the whole design
+//
+// **The redirect back from Stripe is not proof of payment.** A tab can be closed before it
+// fires, and this URL is one anybody can type. So this page reports nothing about the
+// purchase: it does not say a payment succeeded, and — the half that actually costs money —
+// **it never says one did not**.
+//
+// That second rule is the one `/nn/<year>/entry/complete/` was built around: a page that says
+// "nothing was charged" when the webhook is merely late sends somebody to pay a second time.
+// Here it is enforced by having nothing to get wrong. The page reads no state at all.
+//
+// ## Why it does not read the recorded state, unlike the race's version
+//
+// The race's completion page asks `entries.entry_completion_state()` and reports what the club
+// has recorded. Doing the same here would mean an eighth anon-callable function in `store`,
+// which CLAUDE.md makes a decision somebody takes in a diff rather than a side effect — and
+// the confirmation email covers the same ground for a ticket, because a ticket has no start
+// list to be on and nothing to check beyond "did the club get my money".
+//
+// **If this page ever does report state, the rule above comes with it**: only a recorded
+// payment may make a positive claim, and no state may make a negative one.
+---
+
+<Base
+  title="Thank you — SRC Christmas Party 2026"
+  description="Your Southville Running Club Christmas party ticket."
+>
+  <h1>Thank you</h1>
+
+  <p class="lede">
+    If your payment went through, a confirmation email is on its way to the address you
+    gave.
+  </p>
+
+  <p>
+    It carries your reference, and it is the thing to keep — bring it, or just give your
+    name on the door. If you or anybody you are bringing has dietary requirements, reply
+    to that email and let us know.
+  </p>
+
+  {
+    /* **No negative claim anywhere on this page.** "It has not arrived" is not the same as
+      "you were not charged", and a confirmation can legitimately be a few minutes behind a
+      payment. Telling somebody to get in touch is the only safe advice here, because the one
+      thing that must not happen is a second payment for the same ticket. */
+  }
+  <p>
+    Nothing in your inbox after an hour? Check your spam folder first, then email
+    <a href="mailto:info@southvillerunningclub.co.uk">info@southvillerunningclub.co.uk</a>
+    rather than buying again — we can find your payment.
+  </p>
+
+  <p><a href="/events/christmas-party-2026/">Back to the party page</a></p>
+
+  <footer>
+    <p>Southville Running Club.</p>
+  </footer>
+</Base>

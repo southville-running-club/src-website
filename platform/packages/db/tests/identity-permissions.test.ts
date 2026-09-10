@@ -162,6 +162,13 @@ describe('the shape of the model', () => {
       'nn-tester',
       'people-admin',
       'registered',
+      // **The sixth, and the first master role this platform has had.** The club asked for one
+      // for its directors on 6 September 2026, which is a departure from the design every
+      // other line in this file describes — `super-admin` below is deliberately *not* a
+      // wildcard, and until now nothing was. What keeps it honest is that it holds its
+      // permissions as eleven explicit rows rather than as a branch in `has_permission()`, so
+      // a twelfth permission fails this file until somebody decides whether directors get it.
+      'src-admin',
       'super-admin',
     ]);
   });
@@ -198,6 +205,15 @@ describe('the shape of the model', () => {
       'nn.entry.export',
       'nn.entry.read',
       'nn.entry.read_medical',
+      // **The eleventh, and the first that is not about a race.** `store.ticket.read` opens
+      // `/admin/events/`, which lists who has bought a ticket to a club social. It was a
+      // stop-and-ask and the club took it on 6 September 2026 — ADR-033 had named the missing
+      // admin surface as this schema's biggest gap.
+      //
+      // **There is deliberately no `store.ticket.cancel` beside it.** Nothing in `store`
+      // refunds a ticket yet, and a permission guarding a door that does not exist is a
+      // permission nobody can reason about.
+      'store.ticket.read',
     ]);
   });
 
@@ -242,6 +258,30 @@ describe('the shape of the model', () => {
       'nn-admin → nn.entry.read_medical',
       'nn-tester → nn.entry.before_open',
       'people-admin → identity.person.read',
+      // **Eleven rows, and the count is the point.** `src-admin` is the club's master role for
+      // directors, and "everything" is spelled out here rather than implemented as a wildcard
+      // in `identity.has_permission()`. A wildcard would grant the *next* permission too — the
+      // twelfth, added for some unrelated feature, reaching every director the moment it was
+      // created and without anybody deciding it should.
+      //
+      // So this list is what a master role costs: it has to be re-confirmed, here, every time
+      // the platform grows a capability. **That is the feature.**
+      //
+      // ⚠️ `nn.entry.read_medical` is Article 9 health data. It is not a new disclosure —
+      // `nn-admin` has carried it since the admin surface was built and every read is audited
+      // — but the set of people holding it is now "every director". Deleting this one line and
+      // the matching row in `20260906100000` is the whole of the change if that is reconsidered.
+      'src-admin → identity.person.read',
+      'src-admin → identity.role.grant',
+      'src-admin → nn.email.read',
+      'src-admin → nn.email.resend',
+      'src-admin → nn.entry.before_open',
+      'src-admin → nn.entry.cancel',
+      'src-admin → nn.entry.create',
+      'src-admin → nn.entry.export',
+      'src-admin → nn.entry.read',
+      'src-admin → nn.entry.read_medical',
+      'src-admin → store.ticket.read',
       'super-admin → identity.person.read',
       'super-admin → identity.role.grant',
     ]);
@@ -458,6 +498,11 @@ describe('grantable_roles', () => {
       'nn-tester',
       'people-admin',
       'registered',
+      // **The sixth, and it has to be here as well as in the three lists above.** This is the
+      // catalogue `/admin/people/` renders its dropdown and its legend from, so a role missing
+      // here is a role nobody can grant — which is how a master role ends up existing and
+      // being unreachable.
+      'src-admin',
       'super-admin',
     ]);
 
@@ -468,6 +513,15 @@ describe('grantable_roles', () => {
 
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
+
+    // **The master role's eleven travel with it too**, which is the whole of what a volunteer
+    // granting it can see before they hand it over. `/admin/people/`'s legend renders this
+    // list, so a director granting `src-admin` from a bare slug would be granting medical-note
+    // access without it appearing anywhere on the screen.
+    const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
+    expect(masterRole?.permissions).toHaveLength(11);
+    expect(masterRole?.permissions).toContain('store.ticket.read');
+    expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });
 });
 
