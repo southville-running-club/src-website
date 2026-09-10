@@ -101,9 +101,72 @@ jobs:
         # surviving until the next full re-read finds it by hand.
         run: python3 tools/check-no-live-subdomains.py
 
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # The top-level default is platform/ — this job works from the repository root, because
+    # the paths it classifies are repository-relative.
+    defaults:
+      run:
+        working-directory: .
+
+    # **Why a job rather than `on: pull_request: paths-ignore:`.**
+    #
+    # A workflow filtered out by `paths` never produces its check runs at all. Once a check
+    # is required — issue #210 — "never produced" is indistinguishable from "not finished
+    # yet", and a documentation-only pull request can never merge. A **job** skipped by an
+    # `if:` condition still reports, as skipped, which a required check treats as satisfied.
+    #
+    # So the workflow keeps triggering on every pull request and the expensive job opts out.
+    #
+    # **Why plain git rather than a paths-filter action.** Every action used here is
+    # `actions/*`. A third-party action in the pipeline that builds the code taking the
+    # money is a supply-chain decision, and `git diff` is four lines.
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Both sides of the comparison have to be present as objects. The default depth of
+          # 1 fetches neither.
+          fetch-depth: 0
+
+      - name: Classify the changed paths
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "changed files:"
+          echo "$changed" | sed 's/^/  /'
+
+          # Anything that is not prose is code. Markdown is never a build input here —
+          # `apps/main`'s content collection is JSON, Prettier ignores `*.md` by an explicit
+          # rule in `.prettierignore`, and ESLint does not read it. The docs job runs on
+          # every pull request regardless, so link checking is never skipped.
+          code=$(echo "$changed" | grep -vE '(^docs/|^\.claude/|\.md$)' || true)
+
+          if [ -n "$code" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "→ running the full suite"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "→ documentation only; the full suite is skipped"
+          fi
+
   verify:
     name: Lint, types, tests, build
     runs-on: ubuntu-latest
+    needs: changes
+    # Skipped outright on a documentation-only pull request. Measured over eleven green
+    # runs, this job is a median of 17 minutes — acceptance tests are 59-68% of it and
+    # starting Postgres is another ~100 seconds — and a change to a markdown file cannot
+    # affect any of it. Sharding the acceptance step is the other half of #209 and is not
+    # done here.
+    if: needs.changes.outputs.code == 'true'
     # **40 rather than 25, because 25 does not fit what this job is now allowed to do.**
     #
     # Measured on run 32868682059, a green one: setup to the end of `Install browsers` is
