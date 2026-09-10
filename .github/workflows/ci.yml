@@ -156,35 +156,16 @@ jobs:
             echo "code=false" >> "$GITHUB_OUTPUT"
             echo "→ documentation only; the full suite is skipped"
           fi
-
   verify:
-    name: Lint, types, tests, build
+    name: Lint, types and tests
     runs-on: ubuntu-latest
     needs: changes
-    # Skipped outright on a documentation-only pull request. Measured over eleven green
-    # runs, this job is a median of 17 minutes — acceptance tests are 59-68% of it and
-    # starting Postgres is another ~100 seconds — and a change to a markdown file cannot
-    # affect any of it. Sharding the acceptance step is the other half of #209 and is not
-    # done here.
+    # Skipped outright on a documentation-only pull request - see the `changes` job.
     if: needs.changes.outputs.code == 'true'
-    # **40 rather than 25, because 25 does not fit what this job is now allowed to do.**
-    #
-    # Measured on run 32868682059, a green one: setup to the end of `Install browsers` is
-    # ~8 minutes, the serial config 2.7, the base config 5.7. Each is retried once
-    # independently, so the budget the step can legitimately ask for is
-    # 8 + (2.7 × 2) + (5.7 × 2) = **24.8** — under 25 by twelve seconds, on a shared runner,
-    # with both retries firing. That is not a ceiling, it is a coin toss: that same run used
-    # 21.4 minutes with only *one* retry.
-    #
-    # Losing the toss is worse than losing the time. The job is killed part-way through a
-    # retry and the run reports `The operation was canceled`, which reads as somebody pressing
-    # a button rather than as a suite worth looking at — which is exactly how run 32862836535
-    # was misread.
-    #
-    # This is a ceiling, not consumption: a green run is ~18 minutes and bills ~18. It is
-    # raised only as far as the paths that actually occur need, because a genuinely hung job
-    # now bills 40 against a 2,000-minute monthly allowance already close to spent.
-    timeout-minutes: 40
+    # **20 rather than the 40 this job used to need**, because acceptance is no longer in
+    # it. Measured on the green run 34523912941: everything this job still does came to
+    # ~6 minutes including the Supabase start. 20 is a ceiling for a hang, not a budget.
+    timeout-minutes: 20
 
     env:
       # Pinned for the same reason the timing app pins it: without this the suite passes
@@ -214,61 +195,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: platform/.nvmrc
-          cache: npm
-          cache-dependency-path: platform/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Start the local Supabase stack
-        working-directory: platform/packages/db
-        env:
-          # **`public.ecr.aws` rate limits by IP address, and the address is not ours.**
-          #
-          # `supabase start` pulls a dozen images — Postgres, GoTrue, Kong, PostgREST,
-          # Storage, postgres-meta, Studio, Realtime, Mailpit, Vector, Logflare, edge-runtime
-          # — and by default from AWS's public registry, which counts them against the
-          # runner's address. A GitHub-hosted runner shares that address with whatever else is
-          # on the machine, so the allowance can be gone before this job starts, spent by
-          # strangers, and the run dies here with `toomanyrequests: Rate exceeded`. Twice so
-          # far: run 31787327668 on 14 August and run 32868948264 today, the latter nineteen
-          # times in one job with the CLI's own backoff exhausted. Nothing about the change
-          # under test is involved, and the Acceptance step's retry cannot help — this fails
-          # before a single test runs.
-          #
-          # **GitHub's own registry publishes the same images at the same tags and does not
-          # rate limit public pulls.** All twelve were checked by manifest before this was
-          # relied on. It needs no credential, which is the property worth having: a fix that
-          # depends on a secret is one that silently stops working the day the secret is
-          # rotated, and there is no secret here to rotate.
-          #
-          # Being an env var rather than a flag is the CLI's own interface for this, and it
-          # travels to every `supabase` invocation in this step without changing the command.
-          #
-          # If GHCR is ever missing a tag the CLI wants, `docker.io` is the other published
-          # value, and unsetting this restores the default.
-          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
-        run: npx supabase start
-
-      - name: Export the local Supabase credentials
-        working-directory: platform/packages/db
-        # All three are the fixed local-stack values, not secrets. `SUPABASE_DB_URL` is the
-        # privileged connection the seed tests use to check what is *in* a table while the
-        # anon client checks what can be *reached* — testing an access boundary from one
-        # side only proves half of it.
-        run: |
-          echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
-          echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
-          echo "SUPABASE_DB_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
-
-      # ---------------------------------------------------------------------------------
-      # The gates, in order. Cheapest first, so a formatting slip does not wait on
-      # Playwright.
-      # ---------------------------------------------------------------------------------
+      - uses: ./.github/actions/bootstrap
 
       - name: Lint and format
         run: npm run lint
@@ -315,18 +242,6 @@ jobs:
           sleep 5
           npx supabase db reset
 
-      - name: Build
-        run: npm run build
-
-      - name: Bundle the Workers
-        # `opennextjs-cloudflare build` for apps/timing — the artefact that actually
-        # deploys, so it is worth failing on here rather than on Cloudflare.
-        #
-        # A separate step from `build` on purpose: OpenNext produces the Next.js output by
-        # running the package's own `build` script, so the two must never be the same
-        # script. They were, once, and it recursed until the machine died.
-        run: npm run build:worker
-
       - name: Worker tests
         # Inside the real Workers runtime via Miniflare, against the real build output.
         run: npm run test:worker
@@ -336,6 +251,86 @@ jobs:
       # rather than on `package-lock.json`, which changes on any dependency bump and would
       # discard them for a reason that has nothing to do with them. Read from the installed
       # package, so the key follows what `^1.62.1` actually resolved to.
+
+      - name: Stop the local Supabase stack
+        # Nothing stopped it before, on success or on failure. On a hosted runner that costs
+        # nothing — the VM is destroyed with the job — but "nothing torn down" is only ever one
+        # runner change away from being the reason the next run cannot bind 54322, and a
+        # cleanup that exists is cheaper than the afternoon spent working out why.
+        #
+        # `always()`, so a failed suite still tidies up, and `|| true` because a cleanup step
+        # must never be the thing that turns a run red.
+        if: always()
+        working-directory: platform/packages/db
+        run: npx supabase stop --no-backup || true
+
+  acceptance:
+    name: Acceptance (${{ matrix.id }})
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    # **The other half of #209.** Acceptance was 597 of the 1004 seconds of a green run -
+    # 59% - and it was serialised behind lint, types, unit, database and Worker tests that
+    # have nothing to do with it. Two changes, one shape:
+    #
+    #   * it runs beside `verify` rather than after it, and
+    #   * the two Playwright configs run on a runner each rather than one after the other.
+    #
+    # The configs partition the specs exactly: `playwright.config.serial.ts` matches
+    # `nn-entry.spec.ts` and `nn-signup.spec.ts`, and the base config's own `testIgnore`
+    # names those two. Nothing is dropped and nothing runs twice - which is the property to
+    # re-check if either config's `testMatch` or `testIgnore` is ever edited.
+    #
+    # **A runner each is also the reliability half.** One job was starting a dozen Supabase
+    # containers, two `workerd` servers and three browser projects on one 2-core box for 17
+    # minutes, and the failure that produced was `workerd` dying mid-suite - which surfaces
+    # as whatever assertion happened to be running, so it reads as a regression rather than
+    # as load. Runs 34523453143 and 34523912941 both died that way on branches that changed
+    # four markdown files and one workflow file respectively, and both passed on a re-run.
+    timeout-minutes: 25
+
+    strategy:
+      # **`fail-fast: false`**, because the two configs answer different questions. Killing
+      # the base config because the serial one failed hides every other spec's result, and
+      # the whole point of the split is finding out about both in one run.
+      fail-fast: false
+      matrix:
+        include:
+          - id: serial
+            config: playwright.config.serial.ts
+          - id: base
+            config: playwright.config.ts
+
+    env:
+      # Pinned for the same reason the timing app pins it: without this the suite passes
+      # or fails depending on the runner's timezone, and Nightingale Nightmare is raced
+      # the weekend after the clocks change.
+      TZ: UTC
+      # Cloudflare's own published testing secret — "always passes", documented at
+      # developers.cloudflare.com/turnstile/troubleshooting/testing — not the club's real
+      # one. `config.toml`'s `[auth.captcha]` reads `env(SUPABASE_AUTH_CAPTCHA_SECRET)`, and
+      # the Supabase CLI validates that substitution at startup: unset here, `supabase
+      # start` fails before a single test runs. This is job-level so every step that
+      # touches the Supabase CLI — start, reset, gen types — has it, not only the first.
+      SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
+      # `config.toml`'s `[auth.email.smtp]` (#50) reads `env(SUPABASE_AUTH_SMTP_PASSWORD)` and
+      # the CLI validates it at `supabase start`, same as the captcha secret above. **Never
+      # the club's real Resend key**: the fixtures sign up at `example.com` addresses, so a
+      # working credential here would have CI attempt real delivery to a domain that bounces
+      # by definition — spending the club's sending reputation on every pipeline run.
+      #
+      # ⚠️ **This exact shape is what failed once already.** On port 465 a placeholder here
+      # produced `AuthRetryableFetchError … status: 500` from every `auth.signUp()` in
+      # `entries-admin.test.ts`, `identity-sessions.test.ts` and `identity.test.ts`. The
+      # premise — that `[local_smtp]` intercepts everything so this is never dialled — is
+      # unproven, and the `dev` script carries the full note and the experiment that settles
+      # it. **If this job goes red on those three files, that is the answer, not a flake.**
+      SUPABASE_AUTH_SMTP_PASSWORD: 'local-development-only-not-a-real-key'
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/bootstrap
+
       - name: Resolve the Playwright version
         id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -345,6 +340,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
+          # **Both acceptance shards share this key on purpose.** They restore the same
+          # browsers, and on a miss both install and both try to save - the second gets
+          # `Cache already exists` as a warning, not a failure. One copy of three browser
+          # engines is what should be cached; keying it per shard would store it twice and
+          # halve the hit rate for no benefit.
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install browsers
@@ -363,6 +363,8 @@ jobs:
           fi
 
       - name: Acceptance tests
+        env:
+          PW_CONFIG: ${{ matrix.config }}
         # Playwright, including axe at **zero** violations. Not "few" — any threshold
         # above zero becomes the new normal within a month, and 70% of visitors are on a
         # phone.
@@ -461,15 +463,13 @@ jobs:
             npx playwright test --config="$config"
           }
 
-          status=0
-          run_suite playwright.config.serial.ts || status=1
-          run_suite playwright.config.ts || status=1
-          exit "$status"
+          run_suite "$PW_CONFIG"
 
       # `always()`, because the question this answers — where the suite spends its time — is
       # at its most useful when nothing is wrong. A summary that appears only on a red run is
       # one nobody reads until they are already busy with something else. Both configs' reports
       # are passed together, so the table covers the whole suite rather than the second half.
+
       - name: Where the suite spent its time
         if: always()
         run: python3 ../tools/suite-timing.py playwright-report/results-*.json >> "$GITHUB_STEP_SUMMARY"
@@ -531,7 +531,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.id }}
           path: platform/playwright-report/
           retention-days: 7
 

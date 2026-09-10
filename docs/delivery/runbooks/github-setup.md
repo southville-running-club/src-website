@@ -219,8 +219,13 @@ changing it.
 
 ## 6. Prove it
 
-- [ ] Open a pull request. **`Lint, types, tests, build`** runs and passes — eight gates
-      including a real Postgres and migrations applied from zero.
+- [ ] Open a pull request. Four checks run and pass: **`Documentation`**,
+      **`What changed`**, **`Lint, types and tests`** — a real Postgres, migrations applied
+      from zero, and the Worker runtime — and **`Acceptance (serial)`** and
+      **`Acceptance (base)`**, which are Playwright and axe on a runner each.
+      On a documentation-only pull request the last three report as **skipped**, which is
+      deliberate: a skipped job still reports, so it satisfies a required check, where a
+      workflow filtered out by `paths` would never report at all.
 - [ ] **Actions → Deploy database → Run workflow.** It checks all five secrets first and
       fails immediately with `Missing repository secrets: …` if any is absent, rather than
       with a Supabase CLI error several steps later.
