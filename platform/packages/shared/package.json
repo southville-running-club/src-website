@@ -22,7 +22,9 @@
     "./timing/bib": "./src/timing/bib.ts",
     "./timing/anomaly": "./src/timing/anomaly.ts",
     "./timing/results": "./src/timing/results.ts",
-    "./timing/rows": "./src/timing/rows.ts"
+    "./timing/rows": "./src/timing/rows.ts",
+    "./timing/awards": "./src/timing/awards.ts",
+    "./timing/categories": "./src/timing/categories.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
