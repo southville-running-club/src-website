@@ -98,11 +98,16 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).toContain('store');
   });
 
-  it('exposes nothing beyond public, graphql_public, intake, entries, identity and store', () => {
+  it('exposes nothing beyond public, graphql_public, intake, entries, identity, store and timing', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
     // silently is precisely the failure this file exists to prevent — and it worked: adding
     // `store` to `config.toml` for ADR-033 turned this line red before anything else noticed,
-    // which is what a guard is supposed to do. Adding a seventh should be just as loud.
+    // which is what a guard is supposed to do.
+    //
+    // **`timing` is the seventh, and it was as loud as promised.** Added on 11 September 2026
+    // for one object — `timing.results_for_event()`, the read behind `/nn/<year>/results/` —
+    // and deliberately absent until that function existed. Every `timing` table refuses both
+    // roles; `tests/timing.test.ts` is what asserts it.
     expect(exposedSchemas().sort()).toEqual([
       'entries',
       'graphql_public',
@@ -110,6 +115,7 @@ describe('what the Data API can route to', () => {
       'intake',
       'public',
       'store',
+      'timing',
     ]);
   });
 });
