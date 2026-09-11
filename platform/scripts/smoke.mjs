@@ -133,14 +133,22 @@ const CHECKS = [
     },
   },
   {
-    name: 'race timing is served at /timing',
+    name: 'race timing answers at /timing, and refuses an anonymous visitor',
     url: `${SITE}/timing`,
     proves:
-      'the path route beats the custom domain, so a second Worker answers on one hostname',
+      'the path route beats the custom domain, so a second Worker answers on one hostname - ' +
+      'and that Worker keeps /timing to staff',
     check: async (response) => {
-      if (response.status !== 200) return `expected 200, got ${response.status}`;
+      // **404, not 200, since 11 September 2026.** `/timing` is staff-only and this check
+      // runs signed out. What still has to be proved is that the *timing* Worker gave the
+      // 404 rather than the club's side - which would mean the route had stopped winning -
+      // and only the timing Worker's own layout links a stylesheet under `/timing/_next/`.
+      if (response.status !== 404)
+        return `expected 404 for a signed-out visitor, got ${response.status}`;
       const body = await response.text();
-      if (!body.includes('Race timing')) return 'the page is not the timing page';
+      if (!body.includes('/timing/_next/')) {
+        return 'the 404 did not come from the timing Worker - the path route may have stopped winning';
+      }
       return null;
     },
   },

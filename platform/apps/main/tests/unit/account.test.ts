@@ -251,7 +251,8 @@ describe('the club chrome, on every account page', () => {
     expect(markup).toContain(
       '<nav class="site-nav" aria-label="Southville Running Club">',
     );
-    for (const href of ['/', '/nn/', '/timing', '/account/']) {
+    // No `/timing`: it is staff-only since 11 September 2026 and has left the bar.
+    for (const href of ['/', '/nn/', '/account/']) {
       expect(markup, `the bar must link ${href}`).toContain(`href="${href}"`);
     }
   });
