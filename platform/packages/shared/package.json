@@ -20,7 +20,9 @@
     "./privacy": "./src/privacy.ts",
     "./age-category": "./src/age-category.ts",
     "./timing/bib": "./src/timing/bib.ts",
-    "./timing/anomaly": "./src/timing/anomaly.ts"
+    "./timing/anomaly": "./src/timing/anomaly.ts",
+    "./timing/results": "./src/timing/results.ts",
+    "./timing/rows": "./src/timing/rows.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
