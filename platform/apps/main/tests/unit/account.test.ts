@@ -1792,7 +1792,7 @@ describe('POST /account/google/', () => {
       new URL('http://localhost:8787/account/google/'),
     );
 
-    const call = signInWithOAuth.mock.calls[0][0] as {
+    const call = signInWithOAuth.mock.calls[0]![0] as {
       options: { redirectTo: string };
     };
     expect(call.options.redirectTo).toContain('/account/callback/');

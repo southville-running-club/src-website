@@ -10,8 +10,9 @@
     "build": "astro build",
     "preview": "wrangler dev --port 8787 --var STRIPE_SECRET_KEY:sk_test_STUB_NOT_A_REAL_KEY_0000000000 --var STRIPE_API_BASE:http://127.0.0.1:8789 --var ENTRIES_ADMIN_KEY:local-development-only-not-a-real-key --var ENTRIES_ENTRY_KEY:zz-worker-entry-key-not-a-real-one --var STORE_ENTRY_KEY:zz-store-entry-key-not-a-real-one --var STORE_WEBHOOK_KEY:zz-store-webhook-key-not-a-real-one --var STORE_STRIPE_WEBHOOK_SECRET:whsec_zz_store_not_a_real_secret",
     "deploy": "wrangler deploy",
-    "typecheck": "astro check && npm run typecheck:worker",
+    "typecheck": "astro check && npm run typecheck:worker && npm run typecheck:tests",
     "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
+    "typecheck:tests": "tsc -p tests/tsconfig.json --noEmit && tsc -p tests/unit/tsconfig.json --noEmit",
     "test:worker": "vitest run --config vitest.worker.config.ts && vitest run --config vitest.worker.entries-open.config.ts && vitest run --config vitest.worker.sold-out.config.ts && vitest run --config vitest.worker.webhook.config.ts && vitest run --config vitest.worker.admin.config.ts"
   },
   "dependencies": {

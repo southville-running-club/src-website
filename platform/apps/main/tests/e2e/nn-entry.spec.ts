@@ -153,8 +153,11 @@ async function fillEntry(
  * `page.route` works at the network layer, so this is as true in the `no-javascript` project
  * as anywhere else.
  */
-function blockStripePage(page: Page): Promise<void> {
-  return page.route('https://checkout.stripe.com/**', (route) =>
+async function blockStripePage(page: Page): Promise<void> {
+  // `await`ed rather than returned: `page.route()` resolves to a `Disposable` in this
+  // Playwright, and handing that back as a `Promise<void>` is a type error the callers do
+  // not want to know about. Nothing here disposes the route - it lasts the test.
+  await page.route('https://checkout.stripe.com/**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'text/html',
@@ -1311,10 +1314,12 @@ test.describe('once entries are open', () => {
         // total, which the browser may scroll into view. That scroll is not this test's
         // subject; a card being shoved by something expanding above it is.
         let documentTop = 0;
-        let node = card;
+        // `offsetTop` and `offsetParent` are `HTMLElement`'s, not `Element`'s, and
+        // `offsetParent` is typed as the latter - so the walk needs both ends narrowed.
+        let node: HTMLElement | null = card as HTMLElement;
         while (node !== null) {
           documentTop += node.offsetTop;
-          node = node.offsetParent;
+          node = node.offsetParent as HTMLElement | null;
         }
 
         return { top, bottom, documentTop, viewport: window.innerHeight };
@@ -1397,10 +1402,12 @@ test.describe('once entries are open', () => {
         // box did twice. That shows up as the offset from the top of the document changing,
         // and nothing else does.
         let documentTop = 0;
-        let node = input;
+        // `offsetTop` and `offsetParent` are `HTMLElement`'s, not `Element`'s, and
+        // `offsetParent` is typed as the latter - so the walk needs both ends narrowed.
+        let node: HTMLElement | null = input as HTMLElement;
         while (node !== null) {
           documentTop += node.offsetTop;
-          node = node.offsetParent;
+          node = node.offsetParent as HTMLElement | null;
         }
 
         return { top, bottom, documentTop, viewport: window.innerHeight };
