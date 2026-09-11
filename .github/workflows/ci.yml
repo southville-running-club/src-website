@@ -304,21 +304,27 @@ jobs:
         # Setup is paid per shard - ~165s of bootstrap plus ~41s of browsers - so the
         # arithmetic is `206 + 560/N + 22`:
         #
-        # **Four now, and three was right at the time.** Measured on run 34586998429, the
-        # first green run of the split: base-1 453s, base-2 430s, base-3 304s, serial 389s.
-        # Of each of those, 228s is fixed cost - 162s of bootstrap, 44s of browsers, 22s of
-        # teardown - so base-1 spent 218s on tests against base-3's 76s.
+        # **Three, and a fourth was tried and reverted - do not add one back.**
         #
-        # **That spread is the thing to watch, not the shard count.** Playwright shards by
-        # spec file, balancing test counts rather than durations, so a shard holding one slow
-        # file is slow however many shards there are. **The floor for this config is its
-        # largest single spec**, because a file is never split. A fourth shard is cheap and
-        # can only help or be neutral - but if the next run still shows one shard far ahead of
-        # the others, the answer is not a fifth: it is to find the file and look at it.
+        # Run 34586998429 at N=3: base-1 453s, base-2 430s, base-3 304s. Of each, 228s is
+        # fixed cost - bootstrap, browsers, teardown - so base-1 spent 218s on tests against
+        # base-3's 76s, and a fourth shard looked like the obvious answer to that spread.
         #
-        # `Where the suite spent its time` already prints a per-file, per-project table from
-        # this shard's own report, so "which files landed in the slow shard" is a question
-        # this job answers about itself rather than one somebody has to go and measure.
+        # Run 34591783294 at N=4 says it is not. **base-1's test time went 218s to 216s.**
+        # The new shard took 38s of work off base-3 and base-4 finished in four minutes,
+        # while the critical path did not move at all - and the extra job made `Install
+        # browsers` slower for everyone, 44s to 58s, five runners now racing for one cache
+        # entry. Wall clock 7m33s before, 7m35s after.
+        #
+        # **Playwright shards by spec file, and a file is never split**, so the floor for
+        # this config is its largest single spec. base-1 holds it. Sharding cannot go below
+        # that number and every shard past three pays setup to redistribute work that was
+        # never the problem.
+        #
+        # **The next move is the file, not the matrix.** `Where the suite spent its time`
+        # prints a per-file, per-project table from this shard's own report - and it is
+        # `tee`d into the log as well as the step summary, so `gh run view --log` can answer
+        # "which file" without opening a browser.
         #
         # Playwright shards by spec file, balancing test counts, so the three are close but
         # not equal. Each shard runs its own setup against its own Supabase, which is why
@@ -328,16 +334,13 @@ jobs:
             config: playwright.config.serial.ts
           - id: base-1
             config: playwright.config.ts
-            shard: 1/4
+            shard: 1/3
           - id: base-2
             config: playwright.config.ts
-            shard: 2/4
+            shard: 2/3
           - id: base-3
             config: playwright.config.ts
-            shard: 3/4
-          - id: base-4
-            config: playwright.config.ts
-            shard: 4/4
+            shard: 3/3
 
     env:
       # Pinned for the same reason the timing app pins it: without this the suite passes
@@ -528,7 +531,10 @@ jobs:
 
       - name: Where the suite spent its time
         if: always()
-        run: python3 ../tools/suite-timing.py playwright-report/results-*.json >> "$GITHUB_STEP_SUMMARY"
+        # `tee` rather than `>>`: the table is the one artefact that says which spec file is
+        # expensive, and until now it existed only on the summary page - invisible to
+        # `gh run view --log` and to anyone triaging from a terminal.
+        run: python3 ../tools/suite-timing.py playwright-report/results-*.json | tee -a "$GITHUB_STEP_SUMMARY"
 
       # **The reason the web server exited is written to a file nobody has ever read.** When
       # `wrangler dev` dies it prints `✘ [ERROR]` with an empty message and then
