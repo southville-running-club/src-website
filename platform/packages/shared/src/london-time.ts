@@ -50,6 +50,26 @@ export function formatLondonTime(instant: Instant): string {
   );
 }
 
+/**
+ * `19:17:42` — the same 24-hour clock, to the second.
+ *
+ * **Seconds because this one is for race timing.** A crossing is captured to the millisecond
+ * and a marshal comparing a duplicate against the card in front of them needs more than the
+ * minute; `formatLondonTime` is for a start time, where seconds would be noise.
+ *
+ * It lives here rather than beside its caller for the reason everything in this file does:
+ * this is the one module permitted to convert, and ESLint bans a bare `toLocale*String`
+ * everywhere else. The timing code arrived doing exactly that — see `timing/anomaly.ts`.
+ */
+export function formatLondonClock(instant: Instant): string {
+  return londonFormatter({
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(toDate(instant));
+}
+
 /** `1 November 2026 at 09:00 GMT` — the form to show a runner. */
 export function formatLondon(instant: Instant): string {
   return londonFormatter({
