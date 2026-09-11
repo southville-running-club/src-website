@@ -1,5 +1,5 @@
 /**
- * The registration import, copied with the module it guards — **including the assertions that
+ * The registration import for a **relay**, copied with the module it guards — **including the assertions that
  * the dropped columns are dropped**, which are the ones that matter.
  */
 
@@ -25,7 +25,7 @@ function findingKinds(findings: Finding[]) {
 }
 
 describe('parseRegistrationCsv — scrubbed fixture', () => {
-  const result = parseRegistrationCsv(SCRUBBED, RACE_DAY_ISO);
+  const result = parseRegistrationCsv(SCRUBBED, RACE_DAY_ISO, 'relay');
 
   it('parses to 6 teams', () => {
     expect(result.teams).toHaveLength(6);
@@ -123,7 +123,7 @@ describe('parseRegistrationCsv — scrubbed fixture', () => {
 });
 
 describe('parseRegistrationCsv — malformed fixture', () => {
-  const result = parseRegistrationCsv(MALFORMED, RACE_DAY_ISO);
+  const result = parseRegistrationCsv(MALFORMED, RACE_DAY_ISO, 'relay');
 
   it('has blocking findings', () => {
     expect(result.hasBlocking).toBe(true);
@@ -200,7 +200,7 @@ describe('parseRegistrationCsv — malformed fixture', () => {
 
 describe('parseRegistrationCsv — edge cases', () => {
   it('handles empty input gracefully', () => {
-    const r = parseRegistrationCsv('', RACE_DAY_ISO);
+    const r = parseRegistrationCsv('', RACE_DAY_ISO, 'relay');
     expect(r.teams).toHaveLength(0);
     expect(r.totalRows).toBe(0);
   });
@@ -208,7 +208,7 @@ describe('parseRegistrationCsv — edge cases', () => {
   it('handles header-only input (no data rows)', () => {
     const headerOnly =
       'EventName,EntryType,Firstname,Lastname,Email,Gender,PurchaseOrderId\n';
-    const r = parseRegistrationCsv(headerOnly, RACE_DAY_ISO);
+    const r = parseRegistrationCsv(headerOnly, RACE_DAY_ISO, 'relay');
     expect(r.teams).toHaveLength(0);
     expect(r.hasBlocking).toBe(false);
   });
@@ -217,7 +217,7 @@ describe('parseRegistrationCsv — edge cases', () => {
     const csv =
       'Firstname,Lastname,Email,Gender,DOB,OwnerMember,PurchaseOrderId\n' +
       'Test,Person,test@example.test,M,not-a-date,Test Person,PO1\n';
-    const r = parseRegistrationCsv(csv, RACE_DAY_ISO);
+    const r = parseRegistrationCsv(csv, RACE_DAY_ISO, 'relay');
     const invalid = r.findings.find((f) => f.kind === 'invalid-dob');
     expect(invalid).toBeDefined();
     expect(invalid!.severity).toBe('warn');
@@ -231,7 +231,7 @@ describe('parseRegistrationCsv — edge cases', () => {
     const csv =
       'Firstname,Lastname,Email,Gender,OwnerMember,PurchaseOrderId,\n' +
       'Test,Person,test@example.test,M,Test Person,PO1,\n';
-    const r = parseRegistrationCsv(csv, RACE_DAY_ISO);
+    const r = parseRegistrationCsv(csv, RACE_DAY_ISO, 'relay');
     expect(findingKinds(r.findings)).not.toContain('unexpected-columns');
   });
 });

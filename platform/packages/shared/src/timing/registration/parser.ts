@@ -33,17 +33,23 @@
  * The `DD/MM/YYYY` parse and its findings stay here, because they are about this CSV rather
  * than about ages.
  *
- * ## ⚠️ What it does not yet know
+ * ## ⚠️ It takes the race format, and that is not decoration
  *
- * **The race format.** `parseRegistrationCsv` groups rows into teams and treats a one-runner
- * group as a `lone-runner` warning — *"to be paired on the day"* — which is right for a relay
- * and wrong for Nightingale Nightmare, where one runner per entry is the whole race. On a
- * full solo field that is 250 warnings about nothing. Teaching it the format is the next
- * change; this one is the port.
+ * Pass the Buck is a relay and Nightingale Nightmare is solo, and the two do not agree on how
+ * many runners an entry has. Read as a relay, a full solo field produces 250 `lone-runner`
+ * warnings — *"to be paired on the day"* — about nothing, and **a preview that always warns is
+ * a preview nobody reads**. Read as solo, a relay's second runner would be silently dropped.
+ *
+ * So `format` is a required argument rather than a defaulted one. There is no sensible default
+ * here: whichever way it fell, one of the club's two races would be misread.
  */
 
 import Papa from 'papaparse';
 import { ageOn, type CivilDate } from '../../age-category';
+import type { TimingEvent } from '../rows';
+
+/** The race shape this import is for. `timing.events.format`, and the same two values. */
+type EventFormat = TimingEvent['format'];
 import type { Finding, ParsedRunner, ParsedTeam, ParseResult } from './types';
 
 // Known columns in the Full On Sport CSV. Anything outside this set is
@@ -132,6 +138,7 @@ const REQUIRED_RUNNER_FIELDS = ['Firstname', 'Lastname', 'Email', 'Gender'] as c
 export function parseRegistrationCsv(
   csvText: string,
   eventStartAtIso: string,
+  format: EventFormat,
 ): ParseResult {
   const findings: Finding[] = [];
 
@@ -303,18 +310,33 @@ export function parseRegistrationCsv(
   for (const poId of groupOrder) {
     const grp = groups.get(poId)!;
 
-    if (grp.length > 2) {
+    // ⚠️ **How many runners an entry may have is the race's question, not the parser's.**
+    //
+    // Pass the Buck is a relay: two runners per entry, and one is somebody waiting to be
+    // paired on the day. Nightingale Nightmare is solo: **one runner per entry is the entire
+    // race**, and a second one is the data being wrong.
+    //
+    // Read as a relay, a full solo field produces 250 `lone-runner` warnings about nothing -
+    // which is worse than useless, because a preview that always warns is a preview nobody
+    // reads. So the rule is chosen by `format`, and neither race is told the other's news.
+    const maxRunners = format === 'solo' ? 1 : 2;
+
+    if (grp.length > maxRunners) {
       findings.push({
         severity: 'block',
         kind: 'multi-row-team',
-        message: `Team ${poId} has ${grp.length} rows (rows ${grp.map((r) => r.rowIndex).join(', ')}). A team must have at most 2 runners.`,
+        message:
+          format === 'solo'
+            ? `Team ${poId} has ${grp.length} rows (rows ${grp.map((r) => r.rowIndex).join(', ')}). A solo entry has one runner.`
+            : `Team ${poId} has ${grp.length} rows (rows ${grp.map((r) => r.rowIndex).join(', ')}). A team must have at most 2 runners.`,
         purchaseOrderId: poId,
       });
-      // Don't build a team for >2-row groups — the data shape is broken.
+      // Don't build a team for an over-full group — the data shape is broken.
       continue;
     }
 
-    if (grp.length === 1) {
+    // A lone runner is only news on a relay. On a solo race it is the race.
+    if (format === 'relay' && grp.length === 1) {
       findings.push({
         severity: 'warn',
         kind: 'lone-runner',
