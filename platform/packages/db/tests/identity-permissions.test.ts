@@ -547,6 +547,12 @@ describe('grantable_roles', () => {
       // being unreachable.
       'src-admin',
       'super-admin',
+      // **The seventh and eighth have to be here as well**, for the reason the note above
+      // gives about the sixth: this is the catalogue `/admin/people/` renders its dropdown
+      // from, and a role missing here is a role nobody can grant. A `timing-marshal` that
+      // exists and cannot be handed to anybody is a race with no marshals.
+      'timing-admin',
+      'timing-marshal',
     ]);
 
     // **The permissions travel with it**, which is what stops `/admin/people/` offering a
@@ -557,12 +563,16 @@ describe('grantable_roles', () => {
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
 
-    // **The master role's eleven travel with it too**, which is the whole of what a volunteer
-    // granting it can see before they hand it over. `/admin/people/`'s legend renders this
-    // list, so a director granting `src-admin` from a bare slug would be granting medical-note
-    // access without it appearing anywhere on the screen.
+    // **The master role's seventeen travel with it too**, which is the whole of what a
+    // volunteer granting it can see before they hand it over. `/admin/people/`'s legend
+    // renders this list, so a director granting `src-admin` from a bare slug would be granting
+    // medical-note access without it appearing anywhere on the screen.
+    //
+    // ⚠️ **Eleven until 11 September 2026**, when ADR-036 added the six timing permissions.
+    // This count is exactly what the explicit-rows design exists to make somebody change by
+    // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
-    expect(masterRole?.permissions).toHaveLength(11);
+    expect(masterRole?.permissions).toHaveLength(17);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });
