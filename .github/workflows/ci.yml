@@ -304,15 +304,21 @@ jobs:
         # Setup is paid per shard - ~165s of bootstrap plus ~41s of browsers - so the
         # arithmetic is `206 + 560/N + 22`:
         #
-        #   N=1  791s   the critical path
-        #   N=2  508s   still the critical path
-        #   N=3  415s   **serial's 465s becomes the critical path**
-        #   N=4  392s   buys nothing; serial is still 465s
+        # **Four now, and three was right at the time.** Measured on run 34586998429, the
+        # first green run of the split: base-1 453s, base-2 430s, base-3 304s, serial 389s.
+        # Of each of those, 228s is fixed cost - 162s of bootstrap, 44s of browsers, 22s of
+        # teardown - so base-1 spent 218s on tests against base-3's 76s.
         #
-        # **Three, because that is where sharding stops helping.** A fourth runner would
-        # shorten a job that is no longer the longest one. Going below ~7m45s from here means
-        # sharding `serial` by browser project - a different axis from the one that forces
-        # `workers: 1` on it - and that is only worth doing if eight minutes proves too slow.
+        # **That spread is the thing to watch, not the shard count.** Playwright shards by
+        # spec file, balancing test counts rather than durations, so a shard holding one slow
+        # file is slow however many shards there are. **The floor for this config is its
+        # largest single spec**, because a file is never split. A fourth shard is cheap and
+        # can only help or be neutral - but if the next run still shows one shard far ahead of
+        # the others, the answer is not a fifth: it is to find the file and look at it.
+        #
+        # `Where the suite spent its time` already prints a per-file, per-project table from
+        # this shard's own report, so "which files landed in the slow shard" is a question
+        # this job answers about itself rather than one somebody has to go and measure.
         #
         # Playwright shards by spec file, balancing test counts, so the three are close but
         # not equal. Each shard runs its own setup against its own Supabase, which is why
@@ -322,13 +328,16 @@ jobs:
             config: playwright.config.serial.ts
           - id: base-1
             config: playwright.config.ts
-            shard: 1/3
+            shard: 1/4
           - id: base-2
             config: playwright.config.ts
-            shard: 2/3
+            shard: 2/4
           - id: base-3
             config: playwright.config.ts
-            shard: 3/3
+            shard: 3/4
+          - id: base-4
+            config: playwright.config.ts
+            shard: 4/4
 
     env:
       # Pinned for the same reason the timing app pins it: without this the suite passes

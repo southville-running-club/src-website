@@ -219,12 +219,12 @@ changing it.
 
 ## 6. Prove it
 
-- [ ] Open a pull request. Seven checks run and pass: **`Documentation`**,
+- [ ] Open a pull request. Eight checks run and pass: **`Documentation`**,
       **`What changed`**, **`Lint, types and tests`** — a real Postgres, migrations applied
-      from zero, and the Worker runtime — and four acceptance jobs,
-      **`Acceptance (serial)`** plus **`Acceptance (base-1)`** to **`(base-3)`**, which are
+      from zero, and the Worker runtime — and five acceptance jobs,
+      **`Acceptance (serial)`** plus **`Acceptance (base-1)`** to **`(base-4)`**, which are
       Playwright and axe on a runner each.
-      On a documentation-only pull request the last five report as **skipped**, which is
+      On a documentation-only pull request the last six report as **skipped**, which is
       deliberate: a skipped job still reports, so it satisfies a required check, where a
       workflow filtered out by `paths` would never report at all.
 - [ ] **Actions → Deploy database → Run workflow.** It checks all five secrets first and
