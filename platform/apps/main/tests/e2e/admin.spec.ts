@@ -1000,6 +1000,25 @@ test.describe('one entry in full', () => {
       .getByRole('button', { name: /Details/ })
       .click();
 
+    // ⚠️ **Wait for the detail page before reading the markup, or read the list instead.**
+    //
+    // Details is a form that POSTs, so the click navigates. `page.content()` with nothing
+    // between them can capture the *list* — and the list is close enough to pass two of the
+    // three assertions below, which is what made this look like a flake rather than a race:
+    //
+    //   * the entry reference is in the row, so the regex matches;
+    //   * the purchase id is in the row's own hidden `purchaseId` input, so `toContain`
+    //     matches;
+    //   * and only the name disagrees, because the list renders `runnerName()` — surname
+    //     first, `"Ferreira, Kin"` — while the detail page renders `"Kin Ferreira"`.
+    //
+    // So it failed on exactly one assertion, on `mobile-safari` only, on branches carrying no
+    // application code, and passed on re-run. The sibling test above already waits on this
+    // heading; this one did not.
+    await expect(
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
+    ).toBeVisible();
+
     const markup = await undecoratedMarkup(page);
 
     // **Both references, and this is the only page that carries both.** The readable one is
