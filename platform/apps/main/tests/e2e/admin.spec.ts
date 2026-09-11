@@ -274,10 +274,17 @@ async function undecoratedMarkup(page: Page): Promise<string> {
   return (await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '');
 }
 
-const axe = (page: Page) => await waitForStyledLayout(page);
-new AxeBuilder({ page })
-  .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-  .analyze();
+const axe = async (page: Page) => {
+  // The wait is inside the helper rather than at its eight call sites, so a ninth cannot
+  // forget it. See `../sideways-scroll.ts`: axe reads an unstyled document exactly as the
+  // overflow assertions did, and `target-size` is the rule that reports the missing CSS as
+  // a design failure.
+  await waitForStyledLayout(page);
+
+  return new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+};
 
 // -------------------------------------------------------------------------------------------
 // The door
