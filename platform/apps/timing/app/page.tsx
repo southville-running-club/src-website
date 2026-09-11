@@ -4,9 +4,15 @@
  * ## What changed
  *
  * This was a public holding page, linked from the club's front door and the navigation bar. It
- * is behind `(staff)/layout.tsx` now, so everybody else receives an ordinary 404 and the links
- * to it are gone — `/timing` is where race-day tools will live, and a runner has no use for a
- * page that exists only to say they are not ready.
+ * is behind `middleware.ts` now, so everybody else receives an ordinary 404 and the links to it
+ * are gone — `/timing` is where race-day tools will live, and a runner has no use for a page
+ * that exists only to say they are not ready.
+ *
+ * ⚠️ **This page must not gate itself, and the temptation to add a belt-and-braces check here is
+ * the mistake that was already made.** The gate was a `notFound()` in a layout wrapping this
+ * page; thrown during a dynamic render it returns an empty error shell rather than the
+ * not-found page, so signed out there was no `<h1>`, no banner and no footer in the HTML. The
+ * middleware's own header carries the measurements. Refusal happens before this file runs.
  *
  * So this page is written for somebody holding a `timing.*` permission, and it tells them the
  * truth: they are in the right place, and the tools are being built here.

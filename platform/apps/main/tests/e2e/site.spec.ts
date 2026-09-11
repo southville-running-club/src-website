@@ -1911,8 +1911,16 @@ test.describe('race timing, at /timing', () => {
     // unstyled and half-broken — the failure that looks like a CSS bug and is not.
     //
     // Signed out, this is the refusal page — and it is still styled, because the 404 renders
-    // through the timing Worker's own layout rather than as a bare response. That is exactly
-    // why the gate uses `notFound()` and not middleware.
+    // through the timing Worker's own layout rather than as a bare response.
+    //
+    // ⚠️ **That is what the gate had to be built around, and this assertion is what caught the
+    // first attempt.** A `notFound()` thrown from a layout looks like the obvious answer and
+    // fails here: thrown during a dynamic render — reading cookies makes it dynamic — it
+    // returns an empty `<html id="__next_error__">` shell with the page in the streamed
+    // payload, so there was no stylesheet, no banner and no `h1` in the HTML at all. The gate
+    // is middleware that **rewrites** a refused request to an address matching no route, so
+    // Next serves its prerendered not-found page. `apps/timing/middleware.ts` carries the
+    // measurements.
     await page.goto('/timing');
 
     const background = await page

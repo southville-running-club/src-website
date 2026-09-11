@@ -41,11 +41,19 @@ that simulation passes.
 
 ## What it proves, and who can see it
 
-**`/timing` is staff-only since 11 September 2026.** `app/(staff)/layout.tsx` reads the
-session and answers 404 to anybody without a `timing.*` permission — the signed-out public
-included — and nothing links to it any more. The refusal is Next's `notFound()` rendered
-through the root layout, so it keeps the banner, the footer and this Worker's own
-stylesheet, and reads exactly like an address that does not exist.
+**`/timing` is staff-only since 11 September 2026.** `middleware.ts` reads the session and
+refuses anybody without a `timing.*` permission — the signed-out public included — and
+nothing links to it any more.
+
+⚠️ **A refused request is rewritten to an address that matches no route**, so Next serves its
+prerendered not-found page: real server-rendered HTML, status 404, with the banner, the
+footer and the privacy notice on it, byte for byte what a genuinely missing address returns.
+
+**It does not throw `notFound()`, and that was learned the expensive way.** Thrown during a
+dynamic render — reading cookies makes it dynamic — `notFound()` returns an empty
+`<html id="__next_error__">` shell with the whole page in the streamed payload for the client
+to render. Signed out, that page had no `<h1>`, no banner and no footer in its HTML, so with
+JavaScript off it was blank. The file's own header carries the measurements.
 
 ⚠️ **It reads the session and never writes one.** Cloudflare dispatches `/timing/*` here at
 the edge, so `apps/main` cannot gate these requests — but only `apps/main` mints, refreshes
