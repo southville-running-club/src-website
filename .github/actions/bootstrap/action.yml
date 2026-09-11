@@ -62,19 +62,17 @@ runs:
         # If GHCR is ever missing a tag the CLI wants, `docker.io` is the other published
         # value, and unsetting this restores the default.
         SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
-      run: npx supabase start
-
-    - name: Export the local Supabase credentials
-      shell: bash
-      working-directory: platform/packages/db
-      # All three are the fixed local-stack values, not secrets. `SUPABASE_DB_URL` is the
-      # privileged connection the seed tests use to check what is *in* a table while the
-      # anon client checks what can be *reached* — testing an access boundary from one
-      # side only proves half of it.
+      # **Launched here and waited for further down, so the ~97 seconds it takes overlaps
+      # the build instead of preceding it.** Nothing between the two touches the database.
+      #
+      # Detached properly - `nohup`, stdin closed, both streams to a file - because a child
+      # still holding the step's stdout makes the runner hang at the end of the job. The
+      # exit status is written to a file because each `run:` is its own shell, so the
+      # waiting step cannot `wait` on a process it did not start.
       run: |
-        echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
-        echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
-        echo "SUPABASE_DB_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+        nohup bash -c 'npx supabase start > /tmp/supabase-start.log 2>&1; echo $? > /tmp/supabase-start.rc' \
+          > /dev/null 2>&1 < /dev/null &
+        echo "supabase start launched in the background"
 
     - name: Build
       shell: bash
@@ -91,3 +89,37 @@ runs:
       # running the package's own `build` script, so the two must never be the same
       # script. They were, once, and it recursed until the machine died.
       run: npm run build:worker
+
+    - name: Wait for the Supabase stack
+      shell: bash
+      working-directory: platform/packages/db
+      # The other half of the launch above. Polls for the status file rather than for a
+      # port, so a stack that fails to come up is reported as a failure here with its own
+      # log rather than as a confusing timeout in whatever runs next.
+      run: |
+        for _ in $(seq 1 300); do
+          [ -f /tmp/supabase-start.rc ] && break
+          sleep 1
+        done
+
+        if [ ! -f /tmp/supabase-start.rc ]; then
+          echo "::error::supabase start did not finish within five minutes" >&2
+          cat /tmp/supabase-start.log || true
+          exit 1
+        fi
+
+        rc=$(cat /tmp/supabase-start.rc)
+        cat /tmp/supabase-start.log
+        exit "$rc"
+
+    - name: Export the local Supabase credentials
+      shell: bash
+      working-directory: platform/packages/db
+      # All three are the fixed local-stack values, not secrets. `SUPABASE_DB_URL` is the
+      # privileged connection the seed tests use to check what is *in* a table while the
+      # anon client checks what can be *reached* — testing an access boundary from one
+      # side only proves half of it.
+      run: |
+        echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+        echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+        echo "SUPABASE_DB_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"

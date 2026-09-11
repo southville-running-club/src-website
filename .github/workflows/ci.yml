@@ -304,15 +304,27 @@ jobs:
         # Setup is paid per shard - ~165s of bootstrap plus ~41s of browsers - so the
         # arithmetic is `206 + 560/N + 22`:
         #
-        #   N=1  791s   the critical path
-        #   N=2  508s   still the critical path
-        #   N=3  415s   **serial's 465s becomes the critical path**
-        #   N=4  392s   buys nothing; serial is still 465s
+        # **Three, and a fourth was tried and reverted - do not add one back.**
         #
-        # **Three, because that is where sharding stops helping.** A fourth runner would
-        # shorten a job that is no longer the longest one. Going below ~7m45s from here means
-        # sharding `serial` by browser project - a different axis from the one that forces
-        # `workers: 1` on it - and that is only worth doing if eight minutes proves too slow.
+        # Run 34586998429 at N=3: base-1 453s, base-2 430s, base-3 304s. Of each, 228s is
+        # fixed cost - bootstrap, browsers, teardown - so base-1 spent 218s on tests against
+        # base-3's 76s, and a fourth shard looked like the obvious answer to that spread.
+        #
+        # Run 34591783294 at N=4 says it is not. **base-1's test time went 218s to 216s.**
+        # The new shard took 38s of work off base-3 and base-4 finished in four minutes,
+        # while the critical path did not move at all - and the extra job made `Install
+        # browsers` slower for everyone, 44s to 58s, five runners now racing for one cache
+        # entry. Wall clock 7m33s before, 7m35s after.
+        #
+        # **Playwright shards by spec file, and a file is never split**, so the floor for
+        # this config is its largest single spec. base-1 holds it. Sharding cannot go below
+        # that number and every shard past three pays setup to redistribute work that was
+        # never the problem.
+        #
+        # **The next move is the file, not the matrix.** `Where the suite spent its time`
+        # prints a per-file, per-project table from this shard's own report - and it is
+        # `tee`d into the log as well as the step summary, so `gh run view --log` can answer
+        # "which file" without opening a browser.
         #
         # Playwright shards by spec file, balancing test counts, so the three are close but
         # not equal. Each shard runs its own setup against its own Supabase, which is why
@@ -519,7 +531,10 @@ jobs:
 
       - name: Where the suite spent its time
         if: always()
-        run: python3 ../tools/suite-timing.py playwright-report/results-*.json >> "$GITHUB_STEP_SUMMARY"
+        # `tee` rather than `>>`: the table is the one artefact that says which spec file is
+        # expensive, and until now it existed only on the summary page - invisible to
+        # `gh run view --log` and to anyone triaging from a terminal.
+        run: python3 ../tools/suite-timing.py playwright-report/results-*.json | tee -a "$GITHUB_STEP_SUMMARY"
 
       # **The reason the web server exited is written to a file nobody has ever read.** When
       # `wrangler dev` dies it prints `✘ [ERROR]` with an empty message and then
