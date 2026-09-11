@@ -44,6 +44,7 @@ export type TimingEvent = {
 
 /** The unit of entry — a relay pair or a single solo runner. */
 export type TimingTeam = {
+  id: string;
   team_number: string | null;
   bib_leg1: string | null;
   bib_leg2: string | null;
@@ -62,4 +63,37 @@ export type TimingCrossing = {
   anomaly_flag: boolean | null;
   resolved_at: string | null;
   resolved_action: string | null;
+};
+
+/**
+ * One participant. Leg 1 or leg 2 of a relay pair, or the single runner of a solo entry.
+ *
+ * ⚠️ **`age_on_day` is here and a date of birth is not, and that is the whole design.** The
+ * registration parser drops date of birth, address, phone, emergency contact and medical
+ * information *at the boundary* and computes the age against the race date — so the database
+ * never holds them. That is
+ * [C10](../../../../../docs/foundations/requirements.md#c10--hold-personal-data-lawfully), and
+ * it is the same sentence as *personal data is minimised at the boundary*.
+ *
+ * It is also, conveniently, exactly what `ageCategoryFor(age, category)` in
+ * [`age-category.ts`](../age-category.ts) asks for — so the club's prize bands read the
+ * minimised column directly rather than needing the thing that was deliberately thrown away.
+ */
+export type TimingRunner = {
+  id: string;
+  /** 1 or 2. A solo entry has leg 1 only. */
+  leg: number;
+  /** As the import found it: `'M'` / `'F'`, or something it did not recognise. */
+  gender: string;
+  /** Computed against the race date at import, never stored as a birth date. */
+  age_on_day: number | null;
+  /**
+   * Carried for display rather than for computation, and named here for that reason alone.
+   *
+   * `awards.ts` never reads these - it hands the whole runner row back, and the prize-giving
+   * screen prints the name of whoever won. Leaving them out would make the winner an id, and
+   * force every caller to join the name back on for the one thing an award is *for*.
+   */
+  firstname: string;
+  lastname: string;
 };
