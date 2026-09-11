@@ -170,6 +170,17 @@ describe('the shape of the model', () => {
       // a twelfth permission fails this file until somebody decides whether directors get it.
       'src-admin',
       'super-admin',
+      // **The seventh and eighth, taken on 11 September 2026** —
+      // `docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md`. They
+      // replace `src-race-timing`'s `staff_assignments`, which was a second answer to the
+      // question ADR-017 already answered.
+      //
+      // ⚠️ **Neither is on `STAFF_ROLES`**, so neither opens `/admin/`. Race-day capture lives
+      // at `/timing`, and a marshal — a volunteer with a phone at a line for two hours — is
+      // emphatically not staff. `nn-tester` is the precedent for a role holding a permission
+      // and opening no back office.
+      'timing-admin',
+      'timing-marshal',
     ]);
   });
 
@@ -214,6 +225,16 @@ describe('the shape of the model', () => {
       // refunds a ticket yet, and a permission guarding a door that does not exist is a
       // permission nobody can reason about.
       'store.ticket.read',
+      // **The twelfth to seventeenth, for the timing rewrite** — ADR-036. Six rather than one
+      // because they are six different powers, and the split is what lets the club put
+      // somebody on a line without also letting them publish results or import an entry list
+      // full of names, emails and ages.
+      'timing.crossing.record',
+      'timing.crossing.resolve',
+      'timing.event.manage',
+      'timing.marshal.assign',
+      'timing.registration.import',
+      'timing.result.publish',
     ]);
   });
 
@@ -282,8 +303,30 @@ describe('the shape of the model', () => {
       'src-admin → nn.entry.read',
       'src-admin → nn.entry.read_medical',
       'src-admin → store.ticket.read',
+      // **The six the master role gained on 11 September 2026.** This is the decision the
+      // explicit-rows design exists to force: a wildcard would have handed directors all six
+      // the moment they were created, without anybody saying so. The club's directors get
+      // them; this file is where that was written down.
+      'src-admin → timing.crossing.record',
+      'src-admin → timing.crossing.resolve',
+      'src-admin → timing.event.manage',
+      'src-admin → timing.marshal.assign',
+      'src-admin → timing.registration.import',
+      'src-admin → timing.result.publish',
       'super-admin → identity.person.read',
       'super-admin → identity.role.grant',
+      // **`timing-admin` runs a race; `timing-marshal` records crossings and nothing else.**
+      //
+      // ⚠️ The marshal's single permission is the point. That phone is used in a crowd, often
+      // by somebody who joined that morning — and `timing.marshals` narrows it again to the
+      // race they were rostered to, checked *after* this permission rather than instead of it.
+      'timing-admin → timing.crossing.record',
+      'timing-admin → timing.crossing.resolve',
+      'timing-admin → timing.event.manage',
+      'timing-admin → timing.marshal.assign',
+      'timing-admin → timing.registration.import',
+      'timing-admin → timing.result.publish',
+      'timing-marshal → timing.crossing.record',
     ]);
   });
 
@@ -504,6 +547,12 @@ describe('grantable_roles', () => {
       // being unreachable.
       'src-admin',
       'super-admin',
+      // **The seventh and eighth have to be here as well**, for the reason the note above
+      // gives about the sixth: this is the catalogue `/admin/people/` renders its dropdown
+      // from, and a role missing here is a role nobody can grant. A `timing-marshal` that
+      // exists and cannot be handed to anybody is a race with no marshals.
+      'timing-admin',
+      'timing-marshal',
     ]);
 
     // **The permissions travel with it**, which is what stops `/admin/people/` offering a
@@ -514,12 +563,16 @@ describe('grantable_roles', () => {
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
 
-    // **The master role's eleven travel with it too**, which is the whole of what a volunteer
-    // granting it can see before they hand it over. `/admin/people/`'s legend renders this
-    // list, so a director granting `src-admin` from a bare slug would be granting medical-note
-    // access without it appearing anywhere on the screen.
+    // **The master role's seventeen travel with it too**, which is the whole of what a
+    // volunteer granting it can see before they hand it over. `/admin/people/`'s legend
+    // renders this list, so a director granting `src-admin` from a bare slug would be granting
+    // medical-note access without it appearing anywhere on the screen.
+    //
+    // ⚠️ **Eleven until 11 September 2026**, when ADR-036 added the six timing permissions.
+    // This count is exactly what the explicit-rows design exists to make somebody change by
+    // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
-    expect(masterRole?.permissions).toHaveLength(11);
+    expect(masterRole?.permissions).toHaveLength(17);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });
