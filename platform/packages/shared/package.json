@@ -18,7 +18,8 @@
     "./design-tokens.json": "./design-tokens.json",
     "./nn-entry": "./src/nn-entry.ts",
     "./privacy": "./src/privacy.ts",
-    "./age-category": "./src/age-category.ts"
+    "./age-category": "./src/age-category.ts",
+    "./timing/bib": "./src/timing/bib.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
