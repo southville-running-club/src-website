@@ -24,7 +24,9 @@
     "./timing/results": "./src/timing/results.ts",
     "./timing/rows": "./src/timing/rows.ts",
     "./timing/awards": "./src/timing/awards.ts",
-    "./timing/categories": "./src/timing/categories.ts"
+    "./timing/categories": "./src/timing/categories.ts",
+    "./timing/registration/bib-assignment": "./src/timing/registration/bib-assignment.ts",
+    "./timing/registration/pairing": "./src/timing/registration/pairing.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
