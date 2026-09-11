@@ -1135,6 +1135,28 @@ test.describe('the exports', () => {
       await page.getByRole('button', { name: button }).click();
       const csv = await response;
 
+      // ⚠️ **The click navigates on WebKit, and that navigation outlives these assertions.**
+      //
+      // The header above this test explains why the *bytes* are not read from a download
+      // event — Chromium downloads the CSV, macOS WebKit downloads it, and **WebKit on Linux
+      // renders it in the tab**. What it does not say is the consequence for the page: on the
+      // engine that renders it, the click is an ordinary navigation, and awaiting the response
+      // does not await that.
+      //
+      // So the next iteration's `page.goto(OVERSOLD)` starts while the export navigation is
+      // still in flight, and Playwright refuses the collision:
+      //
+      //   page.goto: Navigation to ".../admin/nn/entries/zz-admin-worker/" is interrupted by
+      //   another navigation to ".../admin/nn/export/"
+      //
+      // Only `mobile-safari` on a Linux runner sees it, and only when the two happen to
+      // overlap — which is why it arrived as an intermittent red on a pull request that
+      // changed no application code at all.
+      //
+      // Waiting for `load` costs nothing on the engines that download instead: no navigation
+      // starts, the page is already loaded, and this resolves immediately.
+      await page.waitForLoadState('load');
+
       expect(csv.status(), button).toBe(200);
       expect(csv.headers()['content-type']).toContain('text/csv');
       expect(csv.headers()['content-disposition']).toContain(
