@@ -210,4 +210,64 @@ export async function expectNoSidewaysScroll(
  * axe**: a fallback face and the web font give different line boxes, so a target measured
  * mid-swap is measured at neither size.
  */
+/**
+ * Read a measurement once it has stopped changing.
+ *
+ * ## The defect this exists to remove
+ *
+ * `nn-entry.spec.ts`'s two "keeps it in view" tests take a `getBoundingClientRect()` reading
+ * before an interaction and another immediately after, and assert about the difference. There
+ * is nothing between the interaction and the second reading. Revealing a conditional block
+ * makes the browser scroll the new content into view — measured at 296px on WebKit at 320px —
+ * and that scroll is not instantaneous just because `scroll-behavior: smooth` was removed:
+ * the reveal is a class change, the layout and the scroll land over the following frames, and
+ * `page.evaluate` will happily read the rect in the middle of them.
+ *
+ * What that produces is a number that is neither the before nor the after. It failed twice in
+ * four days on branches carrying no application code — `expect(24).toBeLessThan(24)` on
+ * `mobile-safari`, and `expect(-716.15625).toBeGreaterThanOrEqual(0)` on `chromium` — and
+ * passed unmodified on a re-run both times. **-716px is not a boundary flake**; it is a rect
+ * read while the document was somewhere else.
+ *
+ * ## What it waits for, and what it must never wait for
+ *
+ * A **stable** reading: the same value three consecutive samples apart, on a page that is
+ * already styled and whose fonts have settled. Not a **passing** one.
+ *
+ * That distinction is the whole discipline, and `waitForStyledLayout` above is written against
+ * the same line. If the control genuinely ends up off the screen and stays there, this returns
+ * that and the assertion fails — which is the defect these tests exist to catch. Sampling
+ * until the number is the one the test wanted would convert a real layout defect into a slow
+ * pass, and is what this deliberately does not do.
+ *
+ * Falls through on timeout with the most recent reading rather than throwing, for the reason
+ * `waitForStyledLayout` does: the caller's own assertion names the page, the measurement and
+ * the expectation, and a timeout here would name none of them.
+ */
+export async function readWhenSettled<T>(page: Page, read: () => Promise<T>): Promise<T> {
+  await waitForStyledLayout(page);
+
+  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
+  let latest = await read();
+  let previous: string | null = null;
+  let agreements = 0;
+
+  while (Date.now() < deadline) {
+    const serialised = JSON.stringify(latest);
+
+    if (serialised === previous) {
+      agreements += 1;
+      if (agreements >= SETTLED_SAMPLES - 1) return latest;
+    } else {
+      agreements = 0;
+    }
+
+    previous = serialised;
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_INTERVAL_MS));
+    latest = await read();
+  }
+
+  return latest;
+}
+
 export { waitForStyledLayout };

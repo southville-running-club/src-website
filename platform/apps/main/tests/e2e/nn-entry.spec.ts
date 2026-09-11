@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import {
+  expectNoSidewaysScroll,
+  readWhenSettled,
+  waitForStyledLayout,
+} from '../sideways-scroll';
 import AxeBuilder from '@axe-core/playwright';
 import { closeEntries, openEntries } from '../entries-window';
 import { clearPurchases, purchases, restoreCapacity, sellOut } from '../entries-db';
@@ -1330,7 +1334,7 @@ test.describe('once entries are open', () => {
       .check();
 
     await page.locator('[data-entry-fee="unaffiliated"]').scrollIntoViewIfNeeded();
-    const before = await cardPosition();
+    const before = await readWhenSettled(page, cardPosition);
 
     // **Unaffiliated rather than the VI guide card this used to choose**, which no longer
     // exists. The rule under test is unchanged: changing the chosen entry type must not move
@@ -1339,7 +1343,7 @@ test.describe('once entries are open', () => {
       .getByLabel(/^Unaffiliated/)
       .check();
 
-    const after = await cardPosition();
+    const after = await readWhenSettled(page, cardPosition);
 
     // On the screen, both edges of it — within a pixel, because `scrollIntoViewIfNeeded`
     // places the card flush with the fold and sub-pixel layout then puts its bottom a third of
@@ -1413,9 +1417,9 @@ test.describe('once entries are open', () => {
         return { top, bottom, documentTop, viewport: window.innerHeight };
       });
 
-    const before = await positionOf();
+    const before = await readWhenSettled(page, positionOf);
     await box.check();
-    const after = await positionOf();
+    const after = await readWhenSettled(page, positionOf);
 
     // Still on the screen, both edges of it. This is the "in view" half of the name, and it
     // is a real assertion: the browser may scroll, but it may not leave the control somewhere
