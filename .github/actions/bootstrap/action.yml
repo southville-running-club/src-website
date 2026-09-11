@@ -1,0 +1,93 @@
+name: Bootstrap
+description: >-
+  Everything both `verify` and `acceptance` need before they can do anything different:
+  Node, the workspace install, a running Supabase stack with its credentials exported, and
+  a build of both Workers.
+
+# **Why a composite action rather than the same steps twice.**
+#
+# Splitting acceptance out of `verify` (#209) leaves two jobs sharing six steps, three of
+# which carry comments that cost a red pipeline each to write - the GHCR registry override,
+# the privileged database URL and why both Workers are bundled rather than assumed. Copied
+# into two jobs those drift, and the copy that drifts is the one nobody is reading when it
+# matters.
+#
+# **A composite action does not inherit the workflow's `defaults.run`**, so every step here
+# names its own `shell` and `working-directory`. The workflow's default is `platform`; two
+# of these run in `platform/packages/db` and say so.
+#
+# `checkout` is deliberately NOT here. It is one line, it is the first step of every job,
+# and hiding it makes a workflow harder to read rather than easier.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: platform/.nvmrc
+        cache: npm
+        cache-dependency-path: platform/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: platform
+      run: npm ci
+
+    - name: Start the local Supabase stack
+      shell: bash
+      working-directory: platform/packages/db
+      env:
+        # **`public.ecr.aws` rate limits by IP address, and the address is not ours.**
+        #
+        # `supabase start` pulls a dozen images — Postgres, GoTrue, Kong, PostgREST,
+        # Storage, postgres-meta, Studio, Realtime, Mailpit, Vector, Logflare, edge-runtime
+        # — and by default from AWS's public registry, which counts them against the
+        # runner's address. A GitHub-hosted runner shares that address with whatever else is
+        # on the machine, so the allowance can be gone before this job starts, spent by
+        # strangers, and the run dies here with `toomanyrequests: Rate exceeded`. Twice so
+        # far: run 31787327668 on 14 August and run 32868948264 today, the latter nineteen
+        # times in one job with the CLI's own backoff exhausted. Nothing about the change
+        # under test is involved, and the Acceptance step's retry cannot help — this fails
+        # before a single test runs.
+        #
+        # **GitHub's own registry publishes the same images at the same tags and does not
+        # rate limit public pulls.** All twelve were checked by manifest before this was
+        # relied on. It needs no credential, which is the property worth having: a fix that
+        # depends on a secret is one that silently stops working the day the secret is
+        # rotated, and there is no secret here to rotate.
+        #
+        # Being an env var rather than a flag is the CLI's own interface for this, and it
+        # travels to every `supabase` invocation in this step without changing the command.
+        #
+        # If GHCR is ever missing a tag the CLI wants, `docker.io` is the other published
+        # value, and unsetting this restores the default.
+        SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+      run: npx supabase start
+
+    - name: Export the local Supabase credentials
+      shell: bash
+      working-directory: platform/packages/db
+      # All three are the fixed local-stack values, not secrets. `SUPABASE_DB_URL` is the
+      # privileged connection the seed tests use to check what is *in* a table while the
+      # anon client checks what can be *reached* — testing an access boundary from one
+      # side only proves half of it.
+      run: |
+        echo "SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+        echo "SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+        echo "SUPABASE_DB_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')" >> "$GITHUB_ENV"
+
+    - name: Build
+      shell: bash
+      working-directory: platform
+      run: npm run build
+
+    - name: Bundle the Workers
+      shell: bash
+      working-directory: platform
+      # `opennextjs-cloudflare build` for apps/timing — the artefact that actually
+      # deploys, so it is worth failing on here rather than on Cloudflare.
+      #
+      # A separate step from `build` on purpose: OpenNext produces the Next.js output by
+      # running the package's own `build` script, so the two must never be the same
+      # script. They were, once, and it recursed until the machine died.
+      run: npm run build:worker
