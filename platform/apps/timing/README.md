@@ -39,12 +39,37 @@ port lands before Nightingale Nightmare 2026, gated on a full manual race simula
 real application, `src-race-timing`, still runs from Vercel and stays the fallback until
 that simulation passes.
 
-## What it proves
+## What it proves, and who can see it
 
-One page, server-rendered on every request, showing a timestamp read from Postgres. That
-establishes: the OpenNext build produces a working Worker, the custom domain resolves with
-a certificate, Node compatibility is sufficient for `@supabase/supabase-js`, and the Worker
-can reach the database. Every later failure in the port is then application code.
+**`/timing` is staff-only since 11 September 2026.** `middleware.ts` reads the session and
+refuses anybody without a `timing.*` permission — the signed-out public included — and
+nothing links to it any more.
+
+⚠️ **A refused request is rewritten to an address that matches no route**, so Next serves its
+prerendered not-found page: real server-rendered HTML, status 404, with the banner, the
+footer and the privacy notice on it, byte for byte what a genuinely missing address returns.
+
+**It does not throw `notFound()`, and that was learned the expensive way.** Thrown during a
+dynamic render — reading cookies makes it dynamic — `notFound()` returns an empty
+`<html id="__next_error__">` shell with the whole page in the streamed payload for the client
+to render. Signed out, that page had no `<h1>`, no banner and no footer in its HTML, so with
+JavaScript off it was blank. The file's own header carries the measurements.
+
+⚠️ **It reads the session and never writes one.** Cloudflare dispatches `/timing/*` here at
+the edge, so `apps/main` cannot gate these requests — but only `apps/main` mints, refreshes
+or slides a session. This refuses anything it is not sure of instead: no access token, a
+missing or expired `src_ax`, or a failed `identity.my_permissions()` call. It can therefore
+never extend a session; a volunteer whose token lapsed is put right by opening any page on
+the club's side. The cookie names come from `@src/shared/session-cookies`, because a name two
+Workers have to agree on should exist once.
+
+**`/timing/health` stays public**, outside the route group. It is what `scripts/smoke.mjs`
+reads daily against production, and what Playwright waits on before running anything — a
+readiness check does not accept a 404, so gating it would stop every test from starting.
+
+The deployment half it originally proved still holds: the OpenNext build produces a working
+Worker, the path route beats `apps/main`'s Custom Domain on one hostname, and the Worker
+reaches the database.
 
 ## The three build scripts, and why they must not be merged
 

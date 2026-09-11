@@ -41,10 +41,10 @@ test.describe('the club website', () => {
     await expect(
       content.getByRole('link', { name: /Nightingale Nightmare/ }),
     ).toHaveAttribute('href', '/nn/');
-    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveAttribute(
-      'href',
-      '/timing',
-    );
+    // **And not to `/timing`**, which is staff-only since 11 September 2026 and answers 404
+    // to anybody without a `timing.*` permission. Linking a runner there would send them to a
+    // page saying there is nothing there.
+    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveCount(0);
   });
 });
 
@@ -278,7 +278,8 @@ test.describe('the bar between the parts of this site', () => {
     // *event* for one running of one race in one year, and `/events` is what the old
     // Squarespace site published. ADR-033.
     ['Events', '/events/'],
-    ['Race timing', '/timing'],
+    // **No "Race timing"** since 11 September 2026: `/timing` is staff-only and answers 404
+    // to anybody without a `timing.*` permission, so it left the bar.
     ['Account', '/account/'],
   ] as const;
 
@@ -1874,29 +1875,52 @@ test.describe('the address the course page used to live at', () => {
 });
 
 test.describe('race timing, at /timing', () => {
-  test('is reachable on the same origin as the website', async ({ page, baseURL }) => {
-    // The assertion the whole path-based arrangement exists for: a second Worker,
-    // answering on one hostname, with no cross-origin hop and no redirect away.
-    await page.goto('/');
-    const websiteOrigin = new URL(page.url()).origin;
+  /**
+   * **Staff-only since 11 September 2026**, so these run as the signed-out visitor every
+   * runner is — and what they see is a refusal, on purpose.
+   *
+   * The arrangement being tested has not changed: a second Worker answering on one hostname,
+   * with no cross-origin hop and no redirect away. What changed is that the answer to a
+   * stranger is a 404. It has to be the **timing Worker's** 404, rendered through its own
+   * layout — a 404 from the club's side would mean the path route had stopped winning — and it
+   * has to read exactly like an address that does not exist, because a 403 would tell somebody
+   * probing the site that this one is a door.
+   */
+  test('refuses a signed-out visitor, on the same origin, from the timing Worker', async ({
+    page,
+    baseURL,
+  }) => {
+    const response = await page.goto('/timing');
 
-    // Scoped to `main` since the navigation arrived — the bar carries this link too, and an
-    // unscoped match is two elements. The bar's own link is covered by its own test; this one
-    // is about the hop between two Workers on one origin, so either would do and the page's
-    // own content is the one that was always meant.
-    await page
-      .locator('main')
-      .getByRole('link', { name: /Race timing/ })
-      .click();
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    // The same sentence the club's side uses, so the refusal discloses nothing.
+    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
-    expect(new URL(page.url()).origin).toBe(websiteOrigin);
+    // No redirect away, and no cross-origin hop.
+    expect(new URL(page.url()).pathname).toBe('/timing');
     expect(new URL(page.url()).origin).toBe(new URL(baseURL!).origin);
+
+    // And it was the timing Worker that answered: only its layout links a stylesheet under
+    // `/timing/_next/`.
+    expect(await page.content()).toContain('/timing/_next/');
   });
 
   test('is styled, so basePath is doing its job', async ({ page }) => {
     // Without `basePath: '/timing'` the app serves but its assets 404, and it arrives
     // unstyled and half-broken — the failure that looks like a CSS bug and is not.
+    //
+    // Signed out, this is the refusal page — and it is still styled, because the 404 renders
+    // through the timing Worker's own layout rather than as a bare response.
+    //
+    // ⚠️ **That is what the gate had to be built around, and this assertion is what caught the
+    // first attempt.** A `notFound()` thrown from a layout looks like the obvious answer and
+    // fails here: thrown during a dynamic render — reading cookies makes it dynamic — it
+    // returns an empty `<html id="__next_error__">` shell with the page in the streamed
+    // payload, so there was no stylesheet, no banner and no `h1` in the HTML at all. The gate
+    // is middleware that **rewrites** a refused request to an address matching no route, so
+    // Next serves its prerendered not-found page. `apps/timing/middleware.ts` carries the
+    // measurements.
     await page.goto('/timing');
 
     const background = await page
@@ -1962,7 +1986,9 @@ test.describe('accessibility', () => {
     ['the race instructions', '/nn/2026/race-day/'],
     ['the spooktators page', '/nn/2026/spectators/'],
     ['the return page', '/nn/2026/entry/complete/'],
-    ['race timing', '/timing'],
+    // Signed out, `/timing` is the timing Worker's 404 — which is what every runner who types
+    // the address sees, so it has to pass axe as much as any page with content on it.
+    ['race timing, refused', '/timing'],
     // **The brand page earns its place in this list more than any other page here.** It is
     // the only one that renders every token, on every surface, at body size — so a colour
     // that fails is caught by axe whether or not any real page happens to use it yet.

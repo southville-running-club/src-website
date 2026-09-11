@@ -214,6 +214,8 @@ export const SITE_NAV: readonly SiteNavItem[] = [
       { href: '/events/christmas-party-2026/', label: 'SRC Christmas Party 2026' },
     ],
   },
-  { href: '/timing', label: 'Race timing', match: /^\/timing(\/|$)/u },
+  // **No `/timing` entry, since 11 September 2026.** It is staff-only now — the timing
+  // Worker answers 404 to anybody without a `timing.*` permission — so a link to it on every
+  // page would send runners to a page that says there is nothing there.
   { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
 ];

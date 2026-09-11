@@ -1,29 +1,29 @@
 /**
- * The `/timing` holding page.
+ * `/timing`, for the people allowed to see it.
  *
- * ## What this used to be
+ * ## What changed
  *
- * A status table. `<h1>Race timing</h1>`, then "this page exists to prove the path it will
- * move onto", then "What this page proves", then a `<dl>` of the database timestamp, a
- * pipeline-check marker, the runtime it was served by and the name of the workspace
- * directory. It did prove those things, and it was linked from the club's front door as
- * "live results and marshal screens".
+ * This was a public holding page, linked from the club's front door and the navigation bar. It
+ * is behind `middleware.ts` now, so everybody else receives an ordinary 404 and the links to it
+ * are gone — `/timing` is where race-day tools will live, and a runner has no use for a page
+ * that exists only to say they are not ready.
  *
- * **Somebody following that link is a runner, not a maintainer.** The two round trips moved
- * to `/timing/health`, where the smoke test reads them, and this became a page that says the
- * one thing its visitor came to find out.
+ * ⚠️ **This page must not gate itself, and the temptation to add a belt-and-braces check here is
+ * the mistake that was already made.** The gate was a `notFound()` in a layout wrapping this
+ * page; thrown during a dynamic render it returns an empty error shell rather than the
+ * not-found page, so signed out there was no `<h1>`, no banner and no footer in the HTML. The
+ * middleware's own header carries the measurements. Refusal happens before this file runs.
  *
- * ## What it does not say
+ * So this page is written for somebody holding a `timing.*` permission, and it tells them the
+ * truth: they are in the right place, and the tools are being built here.
  *
- * No date, and no promise that results will appear *here*. The port is gated on the race
- * simulation and the existing deployment stays live until that passes
- * ([ADR-008](docs/architecture/decisions/adr-008-timing-port-before-the-race.md)) — so "results
- * for this year's race will be on this page" is a claim this repository is not in a position
- * to make. Where to look on the day is the club's to announce when it knows.
+ * ## What it still does not say
  *
- * Static, unlike its predecessor: with no database call left on the rendering path there is
- * nothing here to render per request, and a holding page is the most cacheable thing a site
- * has.
+ * No date, and no promise about when capture or results will work. The rewrite is gated on a
+ * full manual race simulation —
+ * [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+ * — and a date written here before that passes is a claim this repository is not in a position
+ * to make.
  */
 export default function Page() {
   return (
@@ -31,30 +31,18 @@ export default function Page() {
       <h1>Race timing</h1>
 
       <p className="lede">
-        This is where Southville Running Club&rsquo;s race timing will live — live results
-        while a race is running, and the finish times afterwards.
+        You are signed in with access to the club&rsquo;s race-timing system.
       </p>
 
       <p>
-        <strong>It is not open yet.</strong> The club is moving its timing system onto
-        this address, and there is nothing to see here until that is finished. Nothing you
-        are looking for is missing; it has not arrived.
+        The race-day tools &mdash; importing an entry list, capturing runners at the line,
+        and publishing results &mdash; are being built here. Nothing on this page records
+        or changes anything yet.
       </p>
 
       <p>
-        The club will say where to find results for a particular race when that race is
-        announced.
+        <a href="/">Southville Running Club</a>
       </p>
-
-      <footer>
-        <p>
-          <a href="/nn/">Nightingale Nightmare</a> — the club&rsquo;s Halloween trail
-          race.
-        </p>
-        <p>
-          <a href="/">Southville Running Club</a>
-        </p>
-      </footer>
     </>
   );
 }

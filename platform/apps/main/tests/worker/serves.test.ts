@@ -45,11 +45,13 @@ describe('the club website', () => {
     expect(page).toContain('name="robots" content="noindex"');
   });
 
-  it('links to both of the things that already exist', async () => {
+  it('links to the race, and not to the timing app it keeps to staff', async () => {
     const page = await (await SELF.fetch(`${SITE}/`)).text();
 
     expect(page).toContain('href="/nn/"');
-    expect(page).toContain('href="/timing"');
+    // Staff-only since 11 September 2026: the timing Worker answers 404 to everybody without
+    // a `timing.*` permission, so a public link to it is a link to "nothing here".
+    expect(page).not.toContain('href="/timing"');
   });
 
   it('serves the privacy notice, and reaches it from the footer of an ordinary page', async () => {

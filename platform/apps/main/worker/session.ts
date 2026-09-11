@@ -92,11 +92,19 @@
  */
 
 import { createAnonClient, type SupabaseConfig } from '@src/shared';
+import {
+  ACCESS_COOKIE,
+  EXPIRY_COOKIE,
+  REFRESH_COOKIE,
+  parseSessionExpiry,
+} from '@src/shared/session-cookies';
 import { cookieValue } from './cookies';
 
-export const ACCESS_COOKIE = 'src_at';
-export const REFRESH_COOKIE = 'src_rt';
-export const EXPIRY_COOKIE = 'src_ax';
+// Re-exported, so every existing importer - `session.test.ts` among them - keeps working
+// unchanged. The names live in `@src/shared/session-cookies` now because `apps/timing` reads
+// the same session to gate `/timing`, and a cookie name two Workers have to agree on should
+// exist once.
+export { ACCESS_COOKIE, EXPIRY_COOKIE, REFRESH_COOKIE };
 
 /** Refresh proactively once the access token is this close to expiring. */
 const REFRESH_WINDOW_SECONDS = 60;
@@ -205,7 +213,7 @@ function authTimeOf(token: string): number | null {
  *  every caller treats as "this session has no deadline and has therefore expired" — the
  *  safe direction, and the one an edited cookie lands in. */
 function parseExpiry(raw: string | null): number | null {
-  return raw !== null && /^\d+$/.test(raw) ? Number(raw) : null;
+  return parseSessionExpiry(raw);
 }
 
 function sessionCookie(

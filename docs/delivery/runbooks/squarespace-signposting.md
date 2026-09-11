@@ -111,12 +111,11 @@ committee decision, not a technical one.
 
 ## One open question, deliberately not answered here
 
-**A nav item for the timing app, as well as the forwarder.** The `/timing` mapping exists
-so the address can be given to somebody who needs it. A menu entry is a different claim —
-it says *this is ready for you* — and the timing application is unbuilt until
-[the port](../../architecture/decisions/adr-008-timing-port-before-the-race.md). `/timing`
-now says so itself, in as many words. Add the nav entry when it has results on it, not
-before.
+**A nav item for the timing app — answered on 11 September 2026: never.** `/timing` is
+staff-only now; the timing Worker answers 404 to anybody without a `timing.*` permission, so
+a public menu entry would send every visitor to a page that says "Not found". Race results
+for the public will be published on the race's own year page, `/nn/<year>/results/`, and
+that — not `/timing` — is what a nav entry should point at once there are results to show.
 
 **Nothing about Nightingale Nightmare itself.** The nav item says the race's name and
 nothing else, because the date, the price and the distance are unconfirmed and are a
@@ -158,14 +157,21 @@ http://southvillerunningclub.co.uk/nn
 https://southvillerunningclub.co.uk/timing
   301 → https://www.southvillerunningclub.co.uk/timing  the same Squarespace normalisation
   302 → https://new.southvillerunningclub.co.uk/timing  the mapping — note: no trailing slash
-  200                                                   the timing app, reaching the database
+  404                                                   the timing app, refusing a signed-out visitor
 ```
 
-> **That last line is a record of 13 August 2026 and is no longer how you would check it.**
-> `/timing` reported its own database connection on the page back then; it is a holding page
-> now, and the two round trips answer at `/timing/health` instead. The hops above are
-> unchanged — only what the final `200` contains. Re-verify reachability with
-> `curl -sS https://new.southvillerunningclub.co.uk/timing/health`.
+> **That last line changed on 11 September 2026, from `200` to `404`, and it is meant to.**
+> `/timing` is staff-only: the timing Worker answers 404 to anybody without a `timing.*`
+> permission, and a `curl` is signed out. The two hops before it are unchanged. Re-verify
+> reachability — that the timing Worker is answering at all — with
+> `curl -sS https://new.southvillerunningclub.co.uk/timing/health`, which stays public.
+>
+> ⚠️ **This mapping now sends the public to a page that says "Not found".** Anybody following
+> `southvillerunningclub.co.uk/timing` from the old site lands on the timing Worker's 404. It
+> is a Squarespace setting rather than anything in this repository, so it is a hand step:
+> either **remove the `/timing` mapping** in Squarespace, or **point it at `/nn/`**, where race
+> information for the public actually lives. Until one of those is done, the old address
+> still works — it just no longer leads anywhere a runner can use.
 
 **A third hop is the failure to watch for.** It means a mapping is pointing at the
 non-canonical form of its target and every visitor is paying for the correction. Reproduce

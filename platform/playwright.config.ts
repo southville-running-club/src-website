@@ -217,7 +217,11 @@ export default defineConfig({
         },
         {
           command: 'npm run preview --workspace=apps/timing',
-          url: 'http://localhost:8788/timing',
+          // `/timing/health`, not `/timing`. The page is staff-only since 11 September 2026
+          // and answers 404 to an anonymous request - and a readiness check does not accept
+          // a 404, so waiting on the page would mean the timing server never reported ready
+          // and no test ran at all. The health route is public on purpose.
+          url: 'http://localhost:8788/timing/health',
           reuseExistingServer: !process.env.CI,
           timeout: 90_000,
           stdout: 'ignore',

@@ -18,6 +18,7 @@
     "./design-tokens.json": "./design-tokens.json",
     "./nn-entry": "./src/nn-entry.ts",
     "./privacy": "./src/privacy.ts",
+    "./session-cookies": "./src/session-cookies.ts",
     "./age-category": "./src/age-category.ts",
     "./timing/bib": "./src/timing/bib.ts",
     "./timing/anomaly": "./src/timing/anomaly.ts",

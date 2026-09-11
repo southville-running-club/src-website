@@ -378,7 +378,7 @@ One hostname, several paths — the same locally and in production:
 | `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
-| `/timing`  | Race timing — `apps/timing`, a different Worker                                                                                                                                                                                                                                                                        |
+| `/timing`  | Race timing — `apps/timing`, a different Worker. **Staff-only since 11 September 2026**: it answers 404 to anybody without a `timing.*` permission, the signed-out public included, and is linked from nowhere. `/timing/health` stays public for the smoke test                                                       |
 
 ---
 
