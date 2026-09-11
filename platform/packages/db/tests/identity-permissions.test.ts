@@ -159,6 +159,10 @@ describe('the shape of the model', () => {
     // would let a super-admin record a membership claim the system cannot back.
     expect(rows.map((row) => row.slug)).toEqual([
       'nn-admin',
+      // **The ninth, taken on 11 September 2026 on the club's instruction** — results on
+      // `/nn/<year>/results/`, hidden behind `nn-results` until they are published. A role
+      // for looking: it opens no back office and is not on `STAFF_ROLES`.
+      'nn-results',
       'nn-tester',
       'people-admin',
       'registered',
@@ -216,6 +220,10 @@ describe('the shape of the model', () => {
       'nn.entry.export',
       'nn.entry.read',
       'nn.entry.read_medical',
+      // **The eighteenth**, carried by `nn-results` and `src-admin`. Deliberately not by
+      // `timing-admin`: running a race and seeing its results before they are public are
+      // different powers, and the club asked for the second to sit behind its own role.
+      'nn.results.read',
       // **The eleventh, and the first that is not about a race.** `store.ticket.read` opens
       // `/admin/events/`, which lists who has bought a ticket to a club social. It was a
       // stop-and-ask and the club took it on 6 September 2026 — ADR-033 had named the missing
@@ -277,6 +285,7 @@ describe('the shape of the model', () => {
       'nn-admin → nn.entry.export',
       'nn-admin → nn.entry.read',
       'nn-admin → nn.entry.read_medical',
+      'nn-results → nn.results.read',
       'nn-tester → nn.entry.before_open',
       'people-admin → identity.person.read',
       // **Eleven rows, and the count is the point.** `src-admin` is the club's master role for
@@ -302,6 +311,8 @@ describe('the shape of the model', () => {
       'src-admin → nn.entry.export',
       'src-admin → nn.entry.read',
       'src-admin → nn.entry.read_medical',
+      // The explicit-rows design forcing the decision again: directors see results early.
+      'src-admin → nn.results.read',
       'src-admin → store.ticket.read',
       // **The six the master role gained on 11 September 2026.** This is the decision the
       // explicit-rows design exists to force: a wildcard would have handed directors all six
@@ -538,6 +549,10 @@ describe('grantable_roles', () => {
     expect(answer.ok).toBe(true);
     expect(answer.roles.map((role) => role.slug)).toEqual([
       'nn-admin',
+      // **The ninth, taken on 11 September 2026 on the club's instruction** — results on
+      // `/nn/<year>/results/`, hidden behind `nn-results` until they are published. A role
+      // for looking: it opens no back office and is not on `STAFF_ROLES`.
+      'nn-results',
       'nn-tester',
       'people-admin',
       'registered',
@@ -563,7 +578,7 @@ describe('grantable_roles', () => {
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
 
-    // **The master role's seventeen travel with it too**, which is the whole of what a
+    // **The master role's eighteen travel with it too**, which is the whole of what a
     // volunteer granting it can see before they hand it over. `/admin/people/`'s legend
     // renders this list, so a director granting `src-admin` from a bare slug would be granting
     // medical-note access without it appearing anywhere on the screen.
@@ -572,7 +587,7 @@ describe('grantable_roles', () => {
     // This count is exactly what the explicit-rows design exists to make somebody change by
     // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
-    expect(masterRole?.permissions).toHaveLength(17);
+    expect(masterRole?.permissions).toHaveLength(18);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });

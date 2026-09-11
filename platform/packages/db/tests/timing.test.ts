@@ -79,9 +79,12 @@ describe('the shape of the schema', () => {
     expect(rows).toEqual([]);
   });
 
-  it('is not reachable through PostgREST, because it is not an exposed schema', async () => {
-    // Belt to the braces above: `config.toml`'s `[api].schemas` deliberately omits `timing`,
-    // so even a grant made in error would have no route. This asserts the grant half.
+  it('grants no table to anon or authenticated, now that the schema is exposed', async () => {
+    // **The belt, and since 11 September 2026 it is the only one.** `timing` was absent from
+    // `config.toml`'s `[api].schemas` until `results_for_event()` needed a route; now PostgREST
+    // can reach every table here, and what stops it is that neither role holds a grant on any
+    // of them. This is the assertion that makes exposing the schema safe rather than intended —
+    // the same one `store.test.ts` makes for `store`.
     const { rows } = await db.query<{ count: string }>(
       `select count(*)::text as count
          from information_schema.role_table_grants
@@ -225,5 +228,172 @@ describe('bib resolution agrees with bib.ts', () => {
     );
 
     expect(rows[0]?.team_id).toBeNull();
+  });
+});
+
+describe('the one read, and who may call it', () => {
+  /**
+   * `timing.results_for_event()` is the only thing in this schema either role may call — the
+   * read behind `/nn/<year>/results/`, which authorises inside itself against
+   * `nn.results.read`.
+   *
+   * ⚠️ **The bib trigger function must not be on this list.** It is reachable from its trigger
+   * and nothing else; a grant on it would be a function anybody could call to probe how bibs
+   * resolve. The migration that added the read revokes it from both roles defensively, and this
+   * is what says that held.
+   */
+  it('grants exactly one function, results_for_event, and only to authenticated', async () => {
+    const { rows } = await db.query<{ routine_name: string; grantee: string }>(
+      `select routine_name, grantee
+         from information_schema.role_routine_grants
+        where routine_schema = 'timing' and grantee in ('anon', 'authenticated', 'PUBLIC')
+        order by routine_name, grantee`,
+    );
+
+    expect(rows).toEqual([
+      { routine_name: 'results_for_event', grantee: 'authenticated' },
+    ]);
+  });
+
+  /**
+   * The refusal, asserted as the specific answer rather than as "something went wrong". A
+   * connection with no token has no `auth.uid()`, so `identity.has_permission()` is false and
+   * the function answers `null` — not an error, and not the results.
+   */
+  it('answers null to a caller without nn.results.read, rather than the results', async () => {
+    const { rows } = await db.query<{ results: unknown }>(
+      `select timing.results_for_event('nn-2026') as results`,
+    );
+
+    expect(rows[0]?.results).toBeNull();
+  });
+});
+
+describe('the one read, for somebody who holds nn.results.read', () => {
+  /**
+   * **The positive case, at the layer that enforces it.** The fixtures write `auth.users`
+   * directly and set `request.jwt.claims` by hand — `store.test.ts`'s pattern, and for its
+   * reason: what is under test is `identity.has_permission()` inside a `security definer`
+   * function, and `set_config('request.jwt.claims', …)` is exactly how PostgREST presents a
+   * signed-in caller to Postgres. Every call runs in a transaction that is rolled back.
+   *
+   * ⚠️ **The minimisation assertion is the one that matters most.** The fixture runner has an
+   * email address and a club, and the answer must carry neither: a results page needs a name,
+   * a gender and an age, and data minimisation applies to what is read as much as to what is
+   * stored.
+   */
+  const RESULTS_READER = '33333333-3333-4333-8333-333333333333';
+  const NOBODY = '44444444-4444-4444-8444-444444444444';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000b1';
+  const TEAM_ID = '00000000-0000-4000-8000-0000000000b2';
+  const SLUG = 'zz-timing-results';
+
+  type ResultsAnswer = {
+    event: { slug: string; format: string };
+    teams: { team_number: string | null; runners: Record<string, unknown>[] }[];
+    crossings: { bib: string | null }[];
+  };
+
+  async function asPerson(personId: string): Promise<ResultsAnswer | null> {
+    await db.query('begin');
+
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+
+      const { rows } = await db.query<{ results: ResultsAnswer | null }>(
+        'select timing.results_for_event($1) as results',
+        [SLUG],
+      );
+
+      return rows[0]?.results ?? null;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [RESULTS_READER, 'timing-results-reader@example.com'],
+      [NOBODY, 'timing-results-nobody@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'nn-results', $1) on conflict do nothing`,
+      [RESULTS_READER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Results Fixture', 'solo', '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '42')`,
+      [TEAM_ID, EVENT_ID],
+    );
+    await db.query(
+      `insert into timing.runners
+         (team_id, leg, firstname, lastname, gender, email, club_name, age_on_day)
+       values ($1, 1, 'Ada', 'Lovelace', 'F', 'ada.lovelace@example.com', 'Fixture Harriers', 34)`,
+      [TEAM_ID],
+    );
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '42', '2026-11-01T11:40:00Z')`,
+      [EVENT_ID],
+    );
+  });
+
+  afterAll(async () => {
+    // The event cascades to its teams, runners and crossings. `auth.users` is left, as
+    // `store.test.ts` leaves its own: fixed ids and `on conflict do nothing` make a re-run safe.
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = $1', [
+      RESULTS_READER,
+    ]);
+  });
+
+  it('returns the event, its teams with their runners, and its crossings', async () => {
+    const results = await asPerson(RESULTS_READER);
+
+    expect(results).not.toBeNull();
+    expect(results?.event).toMatchObject({ slug: SLUG, format: 'solo' });
+    expect(results?.teams).toHaveLength(1);
+    expect(results?.teams[0]?.team_number).toBe('42');
+    expect(results?.teams[0]?.runners[0]).toMatchObject({
+      firstname: 'Ada',
+      lastname: 'Lovelace',
+      gender: 'F',
+      age_on_day: 34,
+    });
+    expect(results?.crossings).toEqual([expect.objectContaining({ bib: '42' })]);
+  });
+
+  it('carries no email address and no club, because a results page needs neither', async () => {
+    const text = JSON.stringify(await asPerson(RESULTS_READER));
+
+    expect(text).not.toContain('ada.lovelace@example.com');
+    expect(text).not.toContain('Fixture Harriers');
+    expect(text).not.toMatch(/"email"|"club_name"/);
+  });
+
+  it('answers null to a signed-in person who does not hold the permission', async () => {
+    expect(await asPerson(NOBODY)).toBeNull();
   });
 });

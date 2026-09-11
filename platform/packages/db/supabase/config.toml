@@ -23,8 +23,9 @@ port = 54321
 # answers `42501`. `tests/entries.test.ts` asserts that on every table, which is what makes
 # exposing the schema safe rather than merely intended.
 #
-# `public` holds the timing platform's tables and is migrated from `src-race-timing`.
-# See docs/architecture/decisions/adr-002-schema-layout.md
+# `public` holds no application table. It used to be where the timing platform's tables were
+# going to live; ADR-035 wrote them into `timing` instead, and `check-migration-scope.mjs`
+# keeps `public` empty.
 #
 # `identity` — ADR-015's schema for the account and role — is added in the same migration
 # that creates it (#51), not before: exposing a schema PostgREST cannot find is untested,
@@ -41,13 +42,22 @@ port = 54321
 # PostgREST routes the request and Postgres answers `42501`. `tests/store.test.ts` walks all
 # five tables and asserts exactly that, both verbs, by error code.
 #
+# `timing` — ADR-035's race-timing model — is exposed for **one object**:
+# `timing.results_for_event()`, the read behind `/nn/<year>/results/`, which authorises inside
+# itself against `nn.results.read`. It was deliberately absent until that function existed,
+# because nothing needed to reach the schema. **The argument that makes exposing `store` safe
+# holds here and is asserted**: every `timing` table has RLS on with no policy and no grant to
+# `anon` or `authenticated`, so PostgREST routes a request and Postgres answers `42501`.
+# `tests/timing.test.ts` walks all six tables. Added on 11 September 2026, inside the
+# Nightingale Nightmare entry window — as `store` was on 5 September, with entries selling.
+#
 # ⚠️ **This whole file ships to production on the next merge that touches a migration, and
 # there is no partial apply** — a rejected value here would take `[auth]`'s `site_url`, the
 # redirect allowlist and the captcha secret down with it while `db push`, which runs first,
 # went on succeeding. That is issue #79 and it cost four red deploys. This edit is additive
 # and names a schema `db push` will have created moments earlier, which is the only ordering
 # in which it is safe.
-schemas = ["public", "graphql_public", "intake", "entries", "identity", "store"]
+schemas = ["public", "graphql_public", "intake", "entries", "identity", "store", "timing"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
