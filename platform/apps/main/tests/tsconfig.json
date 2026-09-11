@@ -1,0 +1,24 @@
+{
+  // **The acceptance specs and the fixtures they share.**
+  //
+  // `apps/main/tsconfig.json` excludes `tests` outright and `worker/tsconfig.json` covers
+  // only `../tests/worker/**`, so until this file existed nothing typechecked `tests/e2e`
+  // or the helpers beside it. That is the gap `apps/main/README.md` already records one
+  // directory along - *"the Worker was not typechecked at all until Slice E … nothing
+  // covered the code that takes the money"* - and it is closed the same way, with a
+  // tsconfig next to the code and a script that runs it.
+  //
+  // **`DOM` is the whole reason this is separate from the unit config.** A `page.evaluate()`
+  // callback is compiled here but runs in the browser, so `document`, `Element` and
+  // `getComputedStyle` have to resolve - and `@cloudflare/workers-types` declares its own
+  // `Element`, the HTMLRewriter one, which shadows the DOM's and takes `offsetTop` with it.
+  // The two cannot share a program, which is the same reason `worker/` has a tsconfig of
+  // its own rather than a section in `apps/main`'s.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["e2e/**/*.ts", "*.ts"]
+}

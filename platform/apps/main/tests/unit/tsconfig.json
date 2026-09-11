@@ -1,0 +1,19 @@
+{
+  // **The unit tests, which import Worker modules and therefore need Worker types.**
+  //
+  // Separate from `../tsconfig.json` because these reach into `apps/main/worker/*.ts` -
+  // `nn-entry.ts` alone pulls in twenty-one `HTMLRewriter` references - and that type comes
+  // from `@cloudflare/workers-types`, whose `Element` is not the DOM's. One program cannot
+  // hold both.
+  //
+  // **`node` is named alongside it and must stay.** Declaring `types` at all replaces the
+  // default of "every package under `@types`", so omitting `node` here breaks `node:fs`,
+  // `node:url` and `import.meta.url` in five files that read fixtures off disk.
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["**/*.ts"]
+}

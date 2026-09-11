@@ -288,7 +288,7 @@ describe('one wrapper, four bodies', () => {
     const footers = TEMPLATES.map((template) => footerOf(render(template)));
 
     expect(footers.every((footer) => footer === footers[0])).toBe(true);
-    expect(footers[0].length).toBeGreaterThan(0);
+    expect(footers[0]!.length).toBeGreaterThan(0);
   });
 });
 
