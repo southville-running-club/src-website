@@ -19,7 +19,8 @@
     "./nn-entry": "./src/nn-entry.ts",
     "./privacy": "./src/privacy.ts",
     "./age-category": "./src/age-category.ts",
-    "./timing/bib": "./src/timing/bib.ts"
+    "./timing/bib": "./src/timing/bib.ts",
+    "./timing/anomaly": "./src/timing/anomaly.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
