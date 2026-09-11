@@ -26,6 +26,12 @@
  * unreachable branch in prize logic is a thing somebody later has to work out is unreachable.
  */
 
+import {
+  AGE_CATEGORY_CODES,
+  ageCategoryFor,
+  ageCategoryLabel,
+  type AgeCategoryCode,
+} from '../age-category';
 import { deriveCategory, type PairCategory } from './categories';
 import { buildResults, sortResults, teamRaceStatus, type Result } from './results';
 import type { TimingCrossing, TimingEvent, TimingRunner, TimingTeam } from './rows';
@@ -51,6 +57,18 @@ export type AwardKind =
   | 'smallest_spread'
   | 'fastest_individual_male'
   | 'fastest_individual_female'
+  // The club's own prize list for a **solo** race, from `/nn/`: four age bands awarded to
+  // female and male runners. Eight kinds rather than one parameterised kind, because every
+  // other award here is a named constant with its own title and subtitle and a prize list is
+  // read aloud rather than computed.
+  | 'solo_female_senior'
+  | 'solo_female_vet40'
+  | 'solo_female_vet50'
+  | 'solo_female_vet60'
+  | 'solo_male_senior'
+  | 'solo_male_vet40'
+  | 'solo_male_vet50'
+  | 'solo_male_vet60'
   | 'random_draw_1'
   | 'random_draw_2';
 
@@ -173,6 +191,87 @@ function attach(
   const team = byId.get(result.team.id);
   if (!team) return null;
   return { result, team };
+}
+
+/**
+ * The gender the club places a result in, from whatever the entry import recorded.
+ *
+ * The timing model's `runners.gender` is a free string off the Full On Sport CSV — `'M'` or
+ * `'F'` in practice — so this normalises the way `deriveCategory` does and answers `null` for
+ * anything it does not recognise rather than guessing.
+ *
+ * ⚠️ **A `null` here means no prize, and that is the safe direction.** Guessing puts somebody
+ * in the wrong band, which is discovered at the presentation.
+ *
+ * There is deliberately no non-binary branch. [ADR-031](../../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)
+ * asks a non-binary **entrant** where their result should count and stores the answer in
+ * `entries.entrants.result_placement`; nothing in the timing model carries it. When the two
+ * are joined, that answer is what should arrive here — through `effectiveCategory()`, which
+ * already exists — rather than a second rule invented in this file.
+ */
+function placedGender(gender: string): 'female' | 'male' | null {
+  const code = gender.trim().toUpperCase();
+  if (code === 'M') return 'male';
+  if (code === 'F') return 'female';
+  return null;
+}
+
+/**
+ * The eight solo category prizes, in the order the club's prize list gives them.
+ *
+ * Derived from `AGE_CATEGORY_CODES` rather than typed out, so a band added to the club's list
+ * appears here without this file being edited — and so the bands cannot drift from the ones
+ * `/nn/` publishes and the entry form already uses.
+ */
+const SOLO_CATEGORY_AWARDS: Array<{
+  kind: AwardKind;
+  title: string;
+  subtitle: string;
+  gender: 'female' | 'male';
+  code: AgeCategoryCode;
+}> = (['female', 'male'] as const).flatMap((gender) =>
+  AGE_CATEGORY_CODES.map((code) => ({
+    kind: `solo_${gender}_${code}` as AwardKind,
+    title: `${gender === 'female' ? 'Women' : 'Men'}'s ${ageCategoryLabel(code)}`,
+    subtitle: `Fastest ${gender} runner in the ${ageCategoryLabel(code)} band`,
+    gender,
+    code,
+  })),
+);
+
+/**
+ * Fastest finisher in one age band on a solo race.
+ *
+ * `finished` arrives pre-sorted ascending by total time, so the first match is the winner —
+ * the same assumption every other finder in this file makes.
+ *
+ * A team whose runner has no recorded age, or a gender the import did not recognise, is in no
+ * band and wins nothing. That is the same answer `deriveCategory` gives a relay pair it cannot
+ * classify, and for the same reason.
+ */
+function findFastestSoloInCategory(
+  finished: Array<{ result: Result; team: TeamWithRunners }>,
+  gender: 'female' | 'male',
+  code: AgeCategoryCode,
+): TeamWinner | null {
+  for (const entry of finished) {
+    const runner = entry.team.runners[0];
+    if (runner === undefined || entry.team.runners.length !== 1) continue;
+    if (runner.age_on_day === null) continue;
+    if (placedGender(runner.gender) !== gender) continue;
+
+    const band = ageCategoryFor(runner.age_on_day, gender);
+    if (!band.known || band.code !== code) continue;
+    if (entry.result.totalMs === null) continue;
+
+    return {
+      type: 'team',
+      team: entry.team,
+      metricMs: entry.result.totalMs,
+      metricLabel: formatHms(entry.result.totalMs),
+    };
+  }
+  return null;
 }
 
 function findFastestPairInCategory(
@@ -343,14 +442,33 @@ export function computeAwards(
     });
   }
 
-  // 4–6: fastest pair in each category.
-  for (const def of CATEGORY_AWARDS) {
-    awards.push({
-      kind: def.kind,
-      title: def.title,
-      subtitle: def.subtitle,
-      winner: findFastestPairInCategory(finished, def.category),
-    });
+  // 4–6: the category prizes, and **which list depends on the race**.
+  //
+  // ⚠️ Pass the Buck is a relay and Nightingale Nightmare is solo, and they do not award the
+  // same prizes. The pair categories are derived from two runners' genders, so on a solo race
+  // `deriveCategory` answers null for every team and all three would render as prizes with no
+  // winner — three empty rows on a results page, for categories the race does not have.
+  //
+  // So the relay gets its three pair categories and a solo race gets the club's eight age
+  // bands, which is the prize list `/nn/` publishes.
+  if (isRelay) {
+    for (const def of CATEGORY_AWARDS) {
+      awards.push({
+        kind: def.kind,
+        title: def.title,
+        subtitle: def.subtitle,
+        winner: findFastestPairInCategory(finished, def.category),
+      });
+    }
+  } else {
+    for (const def of SOLO_CATEGORY_AWARDS) {
+      awards.push({
+        kind: def.kind,
+        title: def.title,
+        subtitle: def.subtitle,
+        winner: findFastestSoloInCategory(finished, def.gender, def.code),
+      });
+    }
   }
 
   // 7–8: spread extremes.
