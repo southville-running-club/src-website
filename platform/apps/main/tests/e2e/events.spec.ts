@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
  * `/events/` — the club's socials, and the Christmas party's page.
@@ -48,6 +48,7 @@ test.describe('the events section', () => {
     await page.goto('/events/');
 
     // Zero, not "few". Any threshold above zero becomes the new normal within a month.
+    await waitForStyledLayout(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -184,6 +185,7 @@ test.describe('the Christmas party page', () => {
   });
 
   test('has no accessibility violations @requires-js', async ({ page }) => {
+    await waitForStyledLayout(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -211,6 +213,7 @@ test.describe('the page somebody lands on after paying', () => {
   test('has no accessibility violations @requires-js', async ({ page }) => {
     await page.goto('/events/christmas-party-2026/complete/');
 
+    await waitForStyledLayout(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();

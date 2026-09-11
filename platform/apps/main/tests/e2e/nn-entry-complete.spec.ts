@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { clearPurchases, clearWebhookKey, seedPurchase } from '../entries-db';
-import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 import {
   FIXTURE_AMOUNT_PENCE,
   FIXTURE_EMAIL,
@@ -281,6 +281,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('the confirmed state has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
     expect(violations).toEqual([]);
@@ -289,6 +290,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('the pending state has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(`/nn/2026/entry/complete/?session=${PENDING_SESSION_ID}`);
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
     expect(violations).toEqual([]);
@@ -299,6 +301,7 @@ test.describe('the page Stripe returns somebody to', () => {
     // be struggling with**, which is the same argument the entry form's error state makes.
     await page.goto(`/nn/2026/entry/complete/?session=${LAPSED_SESSION_ID}`);
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
     expect(violations).toEqual([]);
@@ -308,6 +311,7 @@ test.describe('the page Stripe returns somebody to', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 
     expect(violations).toEqual([]);

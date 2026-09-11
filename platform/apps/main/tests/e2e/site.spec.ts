@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
  * The whole site, in a real browser, on one origin — exactly as the public will meet it.
@@ -1973,6 +1973,7 @@ test.describe('accessibility', () => {
       // and 70% of visitors are on a phone.
       await page.goto(path);
 
+      await waitForStyledLayout(page);
       const { violations } = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
         .analyze();

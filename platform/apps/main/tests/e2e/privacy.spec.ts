@@ -358,6 +358,7 @@ test.describe("the club's privacy notice", () => {
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto('/privacy/');
 
+    await waitForStyledLayout(page);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();

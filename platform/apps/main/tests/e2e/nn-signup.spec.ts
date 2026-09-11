@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
  * The page the interest form is on — the running it is an interest in.
@@ -158,6 +158,7 @@ test.describe('accessibility of the form', () => {
 
     await expect(page.locator('[data-signup-summary]')).toBeVisible();
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
@@ -176,6 +177,7 @@ test.describe('accessibility of the form', () => {
 
     await expect(page.locator('[data-signup-ack]')).toBeVisible();
 
+    await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
