@@ -1124,38 +1124,38 @@ test.describe('the exports', () => {
     // **All three, each behind its own button on its own panel**, because each is a different
     // disclosure: the affiliated list, race morning's start list, and the medical sheet, which
     // is special category data and is taken on purpose.
+    // ⚠️ **A fresh tab per button, because the click navigates on WebKit.**
+    //
+    // The header above this test explains why the *bytes* are not read from a download event —
+    // Chromium downloads the CSV, macOS WebKit downloads it, and **WebKit on Linux renders it
+    // in the tab**. The consequence for the page is the part that cost two red runs: on the
+    // engine that renders it, the click is an ordinary navigation, and awaiting the *response*
+    // does not await that.
+    //
+    // So the next iteration's `page.goto(OVERSOLD)` raced a navigation still in flight:
+    //
+    //   page.goto: Navigation to ".../admin/nn/entries/zz-admin-worker/" is interrupted by
+    //   another navigation to ".../admin/nn/export/"
+    //
+    // **`waitForLoadState('load')` was tried first and is not a fix.** It resolves immediately
+    // against the already-loaded page whenever the export navigation has not started yet, so
+    // it narrows the window rather than closing it — which is why the same error came back in
+    // a later run on a different pull request.
+    //
+    // A tab per button removes the coupling instead of timing it. Nothing can leak into the
+    // next iteration because there is no next iteration on this page. The context is shared,
+    // so the sign-in above still applies.
     for (const [button, kind] of [
       ['Download as CSV', 'start-list'],
       ['Download the affiliated list', 'ea'],
       ['Download the notes as CSV', 'medical'],
     ] as const) {
-      await page.goto(OVERSOLD);
+      const tab = await page.context().newPage();
+      await tab.goto(OVERSOLD);
 
-      const response = page.waitForResponse((r) => r.url().endsWith('/admin/nn/export/'));
-      await page.getByRole('button', { name: button }).click();
+      const response = tab.waitForResponse((r) => r.url().endsWith('/admin/nn/export/'));
+      await tab.getByRole('button', { name: button }).click();
       const csv = await response;
-
-      // ⚠️ **The click navigates on WebKit, and that navigation outlives these assertions.**
-      //
-      // The header above this test explains why the *bytes* are not read from a download
-      // event — Chromium downloads the CSV, macOS WebKit downloads it, and **WebKit on Linux
-      // renders it in the tab**. What it does not say is the consequence for the page: on the
-      // engine that renders it, the click is an ordinary navigation, and awaiting the response
-      // does not await that.
-      //
-      // So the next iteration's `page.goto(OVERSOLD)` starts while the export navigation is
-      // still in flight, and Playwright refuses the collision:
-      //
-      //   page.goto: Navigation to ".../admin/nn/entries/zz-admin-worker/" is interrupted by
-      //   another navigation to ".../admin/nn/export/"
-      //
-      // Only `mobile-safari` on a Linux runner sees it, and only when the two happen to
-      // overlap — which is why it arrived as an intermittent red on a pull request that
-      // changed no application code at all.
-      //
-      // Waiting for `load` costs nothing on the engines that download instead: no navigation
-      // starts, the page is already loaded, and this resolves immediately.
-      await page.waitForLoadState('load');
 
       expect(csv.status(), button).toBe(200);
       expect(csv.headers()['content-type']).toContain('text/csv');
@@ -1164,6 +1164,10 @@ test.describe('the exports', () => {
       );
       // Nothing between the Worker and the person may keep a copy of a file of entrants.
       expect(csv.headers()['cache-control']).toBe('no-store');
+
+      // Closed with the export navigation possibly still in flight, which is fine: the page is
+      // discarded either way, and that is the whole point of using one.
+      await tab.close();
     }
   });
 
