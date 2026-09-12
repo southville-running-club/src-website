@@ -244,14 +244,17 @@ describe('what may be called, and by whom', () => {
    *   * `results_for_event` — `nn.results.read`, the read behind `/nn/<year>/results/`;
    *   * `create_event` and `import_registration` — `timing.event.manage` and
    *     `timing.registration.import`, the write path an entry list arrives through;
-   *   * `event_roster` — `timing.registration.import`, reading back what landed.
+   *   * `event_roster` — `timing.registration.import`, reading back what landed;
+   *   * `list_events` and `event_detail` — `timing.event.manage`, the two reads the events
+   *     hub is built from, both answering `null` when refused;
+   *   * `update_event` — `timing.event.manage`, correcting a race **before** it starts.
    *
    * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
    * trigger is reachable from its trigger and nothing else; a grant on it would be a function
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these four functions, and only to authenticated', async () => {
+  it('grants exactly these seven functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -261,9 +264,12 @@ describe('what may be called, and by whom', () => {
 
     expect(rows).toEqual([
       { routine_name: 'create_event', grantee: 'authenticated' },
+      { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
+      { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
+      { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
   });
 
@@ -437,5 +443,302 @@ describe('the one read, for somebody who holds nn.results.read', () => {
 
   it('answers null to a signed-in person who does not hold the permission', async () => {
     expect(await asPerson(NOBODY)).toBeNull();
+  });
+});
+
+/**
+ * The events hub's two reads and its one write — #247.
+ *
+ * Same fixture style as the results block above and for the same reason: what is under test is
+ * `identity.has_permission()` inside a `security definer` function, and
+ * `set_config('request.jwt.claims', …)` is how PostgREST presents a signed-in caller to
+ * Postgres. Every call runs in a transaction that is rolled back.
+ *
+ * ⚠️ **The negative cases come first deliberately.** That a `timing-admin` can read a list
+ * proves less than that a `timing-marshal` cannot — a marshal is on the timing system, holds a
+ * `timing.*` permission, and is refused because it is not *this* one. A door that opened to
+ * any timing permission would pass every positive test in this block.
+ */
+describe('listing, reading and correcting an event', () => {
+  const MANAGER = '55555555-5555-4555-8555-555555555555';
+  const MARSHAL = '66666666-6666-4666-8666-666666666666';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000c1';
+  const TEAM_ID = '00000000-0000-4000-8000-0000000000c2';
+  const STARTED_ID = '00000000-0000-4000-8000-0000000000c3';
+  const SLUG = 'zz-timing-events';
+  const STARTED_SLUG = 'zz-timing-events-started';
+
+  /** Runs one statement as a given person, inside a transaction that is always rolled back. */
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  const listAs = (person: string) =>
+    asPerson<unknown>(person, 'select timing.list_events() as answer', []);
+
+  const detailAs = (person: string, slug = SLUG) =>
+    asPerson<Record<string, unknown> | null>(
+      person,
+      'select timing.event_detail($1) as answer',
+      [slug],
+    );
+
+  const updateAs = (
+    person: string,
+    slug: string,
+    name: string | null,
+    startAt: string | null,
+    distance: number | null = null,
+    notes: string | null = null,
+  ) =>
+    asPerson<{ ok: boolean; reason?: string; slug?: string }>(
+      person,
+      'select timing.update_event($1, $2, $3, $4, $5) as answer',
+      [slug, name, startAt, distance, notes],
+    );
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MANAGER, 'timing-events-manager@example.com'],
+      [MARSHAL, 'timing-events-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2)
+       on conflict do nothing`,
+      [MANAGER, MARSHAL],
+    );
+
+    for (const id of [EVENT_ID, STARTED_ID]) {
+      await db.query('delete from timing.events where id = $1', [id]);
+    }
+
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, distance_m, course_notes)
+       values ($1, $2, 'Events Fixture', 'solo', '2026-11-01T11:00:00Z', 10000, 'Two laps')`,
+      [EVENT_ID, SLUG],
+    );
+
+    // A race that has already gone off, which is what `update_event` must refuse.
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Already Started', 'solo',
+               '2026-11-01T11:00:00Z', '2026-11-01T11:02:00Z')`,
+      [STARTED_ID, STARTED_SLUG],
+    );
+
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '7')`,
+      [TEAM_ID, EVENT_ID],
+    );
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname)
+       values ($1, 1, 'Grace', 'Hopper')`,
+      [TEAM_ID],
+    );
+    // Three crossings: one clean, one anomaly still open, one anomaly already resolved. The
+    // third is what stops `open_anomalies` being satisfied by `count(*) where anomaly_flag`.
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at, anomaly_flag, resolved_at)
+       values ($1, '7', '2026-11-01T11:40:00Z', false, null),
+              ($1, '7', '2026-11-01T11:41:00Z', true, null),
+              ($1, '7', '2026-11-01T11:42:00Z', true, '2026-11-01T12:00:00Z')`,
+      [EVENT_ID],
+    );
+    await db.query(
+      `insert into timing.marshals (event_id, user_id) values ($1, $2)
+       on conflict do nothing`,
+      [EVENT_ID, MARSHAL],
+    );
+  });
+
+  afterAll(async () => {
+    for (const id of [EVENT_ID, STARTED_ID]) {
+      await db.query('delete from timing.events where id = $1', [id]);
+    }
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [MANAGER, MARSHAL],
+    ]);
+  });
+
+  describe('who is refused', () => {
+    it('answers null to a marshal, who is timing staff and still may not', async () => {
+      expect(await listAs(MARSHAL)).toBeNull();
+      expect(await detailAs(MARSHAL)).toBeNull();
+    });
+
+    it('refuses a marshal the update, with a reason rather than a raised error', async () => {
+      // A writer says why; a reader says nothing. The asymmetry is deliberate — a form needs
+      // words, and a read must not disclose that the slug exists.
+      expect(
+        await updateAs(MARSHAL, SLUG, 'Renamed by a marshal', '2026-11-01T11:00:00Z'),
+      ).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('leaves the event untouched when the update was refused', async () => {
+      await updateAs(MARSHAL, SLUG, 'Renamed by a marshal', '2026-11-01T11:00:00Z');
+
+      // Read back as somebody who may, so a refusal that silently wrote cannot hide behind
+      // the refusal that the marshal also gets on the read.
+      expect((await detailAs(MANAGER))?.['name']).toBe('Events Fixture');
+    });
+
+    /**
+     * `null` for "no such event" and `null` for "you may not" are the same answer on purpose,
+     * so a slug cannot be probed for existence by somebody holding nothing.
+     */
+    it('gives a manager the same null for a slug that does not exist', async () => {
+      expect(await detailAs(MANAGER, 'zz-no-such-event-at-all')).toBeNull();
+      expect(await detailAs(MARSHAL, 'zz-no-such-event-at-all')).toBeNull();
+    });
+  });
+
+  describe('what a manager reads', () => {
+    it('lists the event, with the figures the index sorts on', async () => {
+      const events = (await listAs(MANAGER)) as Record<string, unknown>[];
+
+      const mine = events.find((e) => e['slug'] === SLUG);
+
+      expect(mine).toMatchObject({
+        name: 'Events Fixture',
+        format: 'solo',
+        teams: 1,
+        open_anomalies: 1,
+      });
+    });
+
+    it('counts the field, the crossings and only the anomalies still open', async () => {
+      const detail = await detailAs(MANAGER);
+
+      expect(detail).toMatchObject({
+        slug: SLUG,
+        name: 'Events Fixture',
+        distance_m: 10000,
+        course_notes: 'Two laps',
+        editable: true,
+      });
+
+      // Three crossings, two flagged, one of those resolved — so one is open. A count written
+      // as `where anomaly_flag` alone would say two here, and that is the whole point of the
+      // third fixture row.
+      expect(detail?.['counts']).toEqual({
+        teams: 1,
+        runners: 1,
+        crossings: 3,
+        open_anomalies: 1,
+        marshals: 1,
+      });
+    });
+
+    it('says a race that has gone off is not editable', async () => {
+      const detail = await detailAs(MANAGER, STARTED_SLUG);
+
+      expect(detail?.['editable']).toBe(false);
+      expect(detail?.['actually_started_at']).not.toBeNull();
+    });
+  });
+
+  describe('what a manager may change, and when', () => {
+    it('applies a correction before the race starts', async () => {
+      // One transaction: the update and the read-back both roll back, so the fixture the rest
+      // of this block reads is untouched.
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MANAGER],
+        );
+
+        const { rows: wrote } = await db.query<{ answer: { ok: boolean } }>(
+          'select timing.update_event($1, $2, $3, $4, $5) as answer',
+          [SLUG, '  Corrected Name  ', '2026-11-01T10:30:00Z', 10500, null],
+        );
+        expect(wrote[0]?.answer).toEqual({ ok: true, slug: SLUG });
+
+        const { rows: read } = await db.query<{ answer: Record<string, unknown> }>(
+          'select timing.event_detail($1) as answer',
+          [SLUG],
+        );
+
+        // Trimmed, exactly as `create_event` trims — and `course_notes` really is cleared by
+        // passing null, which is what makes this a whole-record update rather than a patch.
+        expect(read[0]?.answer).toMatchObject({
+          name: 'Corrected Name',
+          distance_m: 10500,
+          course_notes: null,
+        });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * ⚠️ **The rule this function exists to enforce.** Every split is measured against
+     * `coalesce(actually_started_at, start_at)`, so moving the start after the gun rewrites
+     * every derived time in the race.
+     */
+    it('refuses the whole update once the race has actually started', async () => {
+      expect(
+        await updateAs(MANAGER, STARTED_SLUG, 'Too late', '2026-11-01T09:00:00Z'),
+      ).toEqual({ ok: false, reason: 'already_started' });
+    });
+
+    it('refuses a blank name and a missing start, rather than storing them', async () => {
+      expect(await updateAs(MANAGER, SLUG, '   ', '2026-11-01T11:00:00Z')).toEqual({
+        ok: false,
+        reason: 'incomplete',
+      });
+      expect(await updateAs(MANAGER, SLUG, 'Fine', null)).toEqual({
+        ok: false,
+        reason: 'incomplete',
+      });
+    });
+
+    it('refuses a distance the table would refuse anyway, in words a form can print', async () => {
+      expect(await updateAs(MANAGER, SLUG, 'Fine', '2026-11-01T11:00:00Z', 0)).toEqual({
+        ok: false,
+        reason: 'invalid_distance',
+      });
+    });
+
+    it('says so plainly when the slug names nothing', async () => {
+      expect(
+        await updateAs(
+          MANAGER,
+          'zz-no-such-event-at-all',
+          'Fine',
+          '2026-11-01T11:00:00Z',
+        ),
+      ).toEqual({ ok: false, reason: 'no_such_event' });
+    });
   });
 });
