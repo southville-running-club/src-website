@@ -21,7 +21,8 @@
 #                   wrapping or overflow — those differ by font metrics, and a green Mac
 #                   has twice meant a red CI:
 #                     ./dev e2e --linux --config=playwright.config.serial.ts
-#   ./dev check     rebuild the database, then lint, types, unit and database tests
+#   ./dev check     rebuild the database, then lint, types, generated types, unit and
+#                   database tests
 #                   — no browsers, no builds
 #   ./dev smoke     the live-site assertions, against localhost
 #                   --live checks the deployed site at new.southvillerunningclub.co.uk
@@ -702,6 +703,18 @@ cmd_check() {
   step "Migrations stay inside club, intake and entries"
   (cd "$PLATFORM" && npm run db:migrations:check-scope >/dev/null)
   ok "no migration touches public or private"
+
+  # ⚠️ **This step is here because CI had it and `check` did not**, which is a divergence that
+  # fails in the one direction that wastes a round trip: green on a laptop, red on the runner,
+  # on a file nobody thought they had touched. `database.types.ts` is generated, so any
+  # migration adding a function or a column makes it stale — and the failure it prevents is
+  # silent, types describing a schema the database no longer has.
+  #
+  # It costs a second and needs no extra setup: `cmd_reset_quiet` above has already rebuilt
+  # the database from this checkout's migrations, which is exactly what the generator reads.
+  step "Generated types are current"
+  (cd "$PLATFORM" && npm run db:types:check >/dev/null)
+  ok "database.types.ts matches the schema"
 
   step "Unit and database tests"
   export_supabase_env
