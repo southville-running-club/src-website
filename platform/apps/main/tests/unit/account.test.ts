@@ -1850,6 +1850,170 @@ function signedIn(): void {
   getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
 }
 
+// -----------------------------------------------------------------------------------------
+// #244 — /account/keep-alive/
+// -----------------------------------------------------------------------------------------
+
+/**
+ * The one sanctioned way to slide ADR-019's idle window without somebody looking at a page.
+ *
+ * It exists for one caller: the marshal screen on `/timing`, which Cloudflare dispatches to a
+ * different Worker at the edge — so a marshal capturing crossings for ninety minutes sends
+ * *this* Worker nothing, and only this Worker writes a session cookie. Ninety minutes is the
+ * length of Nightingale Nightmare and thirty is the idle window, which is the whole problem.
+ *
+ * ⚠️ **Every test here is about what it does *not* do.** The happy path is one line of code;
+ * what is worth pinning is that it mints nothing, that it never redirects, and that its status
+ * is the same whoever asks.
+ */
+describe('GET /account/keep-alive/', () => {
+  function keepAlive(cookie?: string): Promise<Response> {
+    return handleAccount(
+      get('/account/keep-alive/', cookie),
+      ENV,
+      new URL('http://localhost:8787/account/keep-alive/'),
+    );
+  }
+
+  function setCookiesOf(response: Response): string[] {
+    return response.headers.getSetCookie ? response.headers.getSetCookie() : [];
+  }
+
+  it('slides the window for a live session, and says nothing else', async () => {
+    signedIn();
+
+    const response = await keepAlive(SIGNED_IN_COOKIE);
+
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe('');
+
+    // Three cookies, re-issued — that *is* the sliding window; a `Max-Age` has to be sent
+    // again to slide. And a live one, not a cleared one.
+    const setCookies = setCookiesOf(response);
+    expect(setCookies).toHaveLength(3);
+    expect(setCookies.filter((c) => c.includes('Max-Age=0'))).toHaveLength(0);
+    expect(setCookies.some((c) => c.startsWith('src_at='))).toBe(true);
+    expect(setCookies.some((c) => c.startsWith('src_rt='))).toBe(true);
+    expect(setCookies.some((c) => /^src_ax=\d{10}/.test(c))).toBe(true);
+  });
+
+  /**
+   * **The security property, and the reason this route is three lines rather than thirty.**
+   * There is no branch in it that creates a session. A visitor with no cookies is not given
+   * one — if this ever mints, an unauthenticated poll becomes a way to be issued a session.
+   */
+  it('refuses to mint: no session in, no cookie out', async () => {
+    const response = await keepAlive();
+
+    expect(response.status).toBe(204);
+    expect(setCookiesOf(response)).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **This is the case that made the route need its own branch ahead of the timed-out
+   * guard.** Every other address under `/account/` answers a stale session with a 303 to the
+   * sign-in page, which is right for a page somebody arrived at and wrong for a poll: `fetch`
+   * follows a 303 by default, so the marshal screen would quietly download an HTML document
+   * it cannot use and learn nothing from a response it was told to ignore.
+   *
+   * The cookies still clear, and `readSession` still revokes at GoTrue on the way past — the
+   * session really has ended. What does not happen is the redirect.
+   */
+  it('does not redirect a timed-out session, and clears its cookies', async () => {
+    setSession.mockResolvedValue({ error: null });
+    signOut.mockResolvedValue({ error: null });
+
+    const stale = [
+      `src_at=${HEALTHY_ACCESS_TOKEN}`,
+      'src_rt=zz-refresh-token',
+      `src_ax=${Math.floor(Date.now() / 1000) - 1}`,
+    ].join('; ');
+
+    const response = await keepAlive(stale);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('location')).toBeNull();
+    expect(setCookiesOf(response).filter((c) => c.includes('Max-Age=0'))).toHaveLength(3);
+
+    // Ended at Supabase, not merely forgotten here — ADR-019's "an expiry revokes".
+    expect(signOut).toHaveBeenCalled();
+  });
+
+  /**
+   * **The status is the same whoever asks, and that is deliberate.** A route answering one
+   * status for a live session and another for none is an oracle for whether a copied cookie
+   * jar is still good. The caller needs no such signal: what tells a marshal screen the
+   * session has gone is its next sync failing.
+   */
+  it('answers 204 to all three of signed in, signed out and timed out', async () => {
+    setSession.mockResolvedValue({ error: null });
+    signOut.mockResolvedValue({ error: null });
+    signedIn();
+
+    const stale = [
+      `src_at=${HEALTHY_ACCESS_TOKEN}`,
+      'src_rt=zz-refresh-token',
+      `src_ax=${Math.floor(Date.now() / 1000) - 1}`,
+    ].join('; ');
+
+    const statuses = [
+      (await keepAlive(SIGNED_IN_COOKIE)).status,
+      (await keepAlive()).status,
+      (await keepAlive(stale)).status,
+    ];
+
+    expect(statuses).toEqual([204, 204, 204]);
+  });
+
+  it('is never cached, and never indexed', async () => {
+    signedIn();
+
+    const response = await keepAlive(SIGNED_IN_COOKIE);
+
+    // A cached keep-alive is a keep-alive that stops keeping anything alive: the cookies
+    // are on the response, so a shared cache holding one would hand somebody else's.
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+  });
+
+  /**
+   * Nothing here changes state, so there is nothing for `worker/csrf.ts` to protect and a
+   * POST would imply there were. It falls through to the ordinary 404 rather than being
+   * answered — the same shape every other wrong-method address under `/account/` has.
+   */
+  it('is GET only', async () => {
+    signedIn();
+
+    const response = await handleAccount(
+      new Request('http://localhost:8787/account/keep-alive/', {
+        method: 'POST',
+        headers: { cookie: SIGNED_IN_COOKIE },
+      }),
+      ENV,
+      new URL('http://localhost:8787/account/keep-alive/'),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  /**
+   * `accountSegments` strips empty segments, so both spellings reach the same branch. Pinned
+   * because the caller is a `fetch` in another application written by somebody who will not
+   * be reading this file, and a 404 on the slashless form would be a silent no-op.
+   */
+  it('answers with or without the trailing slash', async () => {
+    signedIn();
+
+    const response = await handleAccount(
+      get('/account/keep-alive', SIGNED_IN_COOKIE),
+      ENV,
+      new URL('http://localhost:8787/account/keep-alive'),
+    );
+
+    expect(response.status).toBe(204);
+  });
+});
+
 describe('GET /account/data/', () => {
   it('is not reachable signed out', async () => {
     const response = await handleAccount(

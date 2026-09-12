@@ -226,6 +226,21 @@ export async function handleAccount(
   // reason this is a list rather than `session === null`: intercepting `/account/sign-in/`
   // or a magic link's callback with a stale cookie would break the very flow somebody is on
   // their way to when they arrive holding one.
+  // **The keep-alive is answered before the timed-out guard, and it is neither kind of
+  // address that guard sorts between.** It is not a page somebody arrives at, so there is no
+  // sign-in page to explain anything on; and it is not *for* the signed out, so it does not
+  // belong on `SIGNED_OUT_ADDRESSES` either — putting it there would read as "this address
+  // welcomes a visitor with no session", which is the opposite of what it does. It answers
+  // here, ahead of both.
+  //
+  // ⚠️ **Without this, a timed-out marshal's poll would be answered with a 303 to an HTML
+  // sign-in page**, which `fetch` follows by default: the page would silently download a
+  // document it cannot use, and the only signal that the session had ended would be a
+  // response the caller was told to ignore.
+  if (request.method === 'GET' && segments.length === 1 && segments[0] === 'keep-alive') {
+    return keepAlive(refreshedCookies);
+  }
+
   if (timedOut && !SIGNED_OUT_ADDRESSES.has(segments[0] ?? '')) {
     return redirectTo('/account/sign-in/?timed-out=ok', secure, refreshedCookies);
   }
@@ -909,6 +924,52 @@ function signInPage(
 // -----------------------------------------------------------------------------------------
 // /account/sign-out/
 // -----------------------------------------------------------------------------------------
+
+/**
+ * `GET /account/keep-alive/` — the one sanctioned way to slide ADR-019's idle window without
+ * a person looking at a page. It exists for the marshal screen on `/timing`.
+ *
+ * ## Why this route is on `apps/main` and not on the timing Worker
+ *
+ * **Only `apps/main`'s Worker mints, refreshes or slides a session** — `apps/timing`'s
+ * middleware says so about itself, in as many words, and that is the property that keeps every
+ * line of cookie-writing code in one file. But Cloudflare dispatches `/timing/*` to the other
+ * Worker at the edge, so a marshal capturing crossings for ninety minutes never sends this one
+ * a request, and their thirty-minute idle window closes underneath them mid-race.
+ *
+ * `/timing` and `/account/` are the **same origin**, so the cookies are the marshal's own and
+ * a request from that page carries them. One route here, called from there, is the whole fix.
+ *
+ * ## It does not mint, and that is the security property
+ *
+ * There is no branch in here that creates a session. It calls `readSession` — which the
+ * handler above has already done — and hands back whatever cookies that produced. So:
+ *
+ * | Who is asking | What `readSession` produced | What they get |
+ * | --- | --- | --- |
+ * | A live session | three cookies, fresh `Max-Age` | 204, window slid |
+ * | A session past a deadline | three cleared cookies, revoked at GoTrue | 204, cookies dropped |
+ * | Nobody | no cookies at all | 204, nothing set |
+ *
+ * ⚠️ **The status is 204 in all three cases deliberately.** A route that answered differently
+ * for a live session than for none is an oracle for whether a cookie jar is still good, which
+ * is a thing worth knowing to somebody holding a copied one and worth nothing to anybody else.
+ * The caller does not need the distinction: what tells a marshal screen the session has gone
+ * is its next sync failing, not this.
+ *
+ * ⚠️ **This can hold a session open up to the twelve-hour absolute deadline, and that is the
+ * cost ADR-019 names rather than one hidden here.** A poll every five minutes is activity as
+ * far as the idle window is concerned. What keeps it honest is on the caller's side — the page
+ * polls only while it is *visible* and only when there has been a tap or a sync in the last
+ * twenty-five minutes — and the absolute deadline is not slidable by anything, including this.
+ *
+ * **GET only**, matched in the dispatcher above. Nothing here changes state, so there is
+ * nothing for `worker/csrf.ts` to protect and a POST would imply there were; anything that is
+ * not a GET falls through to the ordinary 404 at the foot of `handleAccount`.
+ */
+function keepAlive(refreshedCookies: string[]): Response {
+  return noContent(refreshedCookies);
+}
 
 async function handleSignOut(
   request: Request,
@@ -2836,6 +2897,26 @@ function page(
     status: options.status ?? 200,
     headers,
   });
+}
+
+/**
+ * 204, no body, and whatever cookies the session read produced.
+ *
+ * `secure` is not a parameter here on purpose: `redirectTo` takes one and ignores it, and
+ * copying that would spread a dead argument. The cookies are already built — `readSession`
+ * decides `Secure` when it makes them.
+ */
+function noContent(cookies: string[]): Response {
+  const headers = new Headers({
+    'cache-control': 'no-store',
+    'x-robots-tag': 'noindex, nofollow',
+  });
+
+  for (const cookie of cookies) {
+    headers.append('set-cookie', cookie);
+  }
+
+  return new Response(null, { status: 204, headers });
 }
 
 function redirectTo(location: string, secure: boolean, cookies: string[]): Response {
