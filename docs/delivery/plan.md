@@ -46,7 +46,11 @@ race-ready by mid-October.** **Race day Sunday 1 November 2026, 11:00** — conf
    own login, not a shared one.
 10. **Turn on two-factor authentication** on all three, and on **Squarespace Payments,
     where it is currently switched off.**
-11. **Move the race-timing repository** into the club GitHub organisation.
+11. ~~**Move the race-timing repository** into the club GitHub organisation.~~ — **not
+    happening.** [ADR-034](../architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+    rewrites the timing app in this repository instead; `bindalshah/src-race-timing` stays
+    where it is, serving production, until it is switched off. What replaces this step is
+    the export at step 40a and the decommission at the end of Phase 4.
 
 > **Stop if steps 3 or 4 fail.** Everything after this assumes the club has a working
 > address of its own.
@@ -171,34 +175,54 @@ Nightingale Nightmare 2026 is timed on it** —
 [ADR-008](../architecture/decisions/adr-008-timing-port-before-the-race.md), which reverses
 the earlier *"after the race, not before"* recorded here.
 
-> The [risk constraint](../foundations/requirements.md#risk) is honoured by **the rehearsal
-> and the fallback, not by the calendar**. The [race
-> simulation](phases.md#the-gate-on-phase-4) is the sign-off, mid-October is chosen so it
-> has a fortnight behind it, and **the existing Vercel deployment stays live until the
-> simulation passes.** If it does not pass, the race runs on Vercel and no further decision
-> is needed.
+> The [risk constraint](../foundations/requirements.md#risk) is honoured by **the rehearsal,
+> not by the calendar or by a fallback**. The [race
+> simulation](phases.md#the-gate-on-phase-4) is the sign-off and mid-October is chosen so it
+> has a fortnight behind it.
+>
+> ⚠️ **The fallback sentence here is superseded.**
+> [ADR-034](../architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+> retires the standing Vercel deployment: under a rewrite the two are different code against
+> different projects, so *"the race runs on Vercel"* is not a decision anybody can take on the
+> day. **The gate decides scope, not host** — a failed simulation cuts the Durable Objects
+> leaderboard back to Supabase Realtime and is re-run. What replaces the fallback is that
+> nothing is switched off until the simulation passes.
 
 > **This phase depends on steps 23–36 having happened.** The app is Next.js using Node APIs,
 > so it needs `@opennextjs/cloudflare`, which targets **Workers** — and **Workers custom
 > domains require an active Cloudflare zone**. See
 > [the ordering problem](phases.md#phase-2--move-the-nameservers).
 
-40. **Port the app to Workers** with `@opennextjs/cloudflare`, and **move the repository into
-    the monorepo** — into the club organisation *first*, then connect Cloudflare, or the git
-    link desyncs.
+40. **Write the app in `apps/timing`** with `@opennextjs/cloudflare`, using
+    `bindalshah/src-race-timing` as the specification and copying only its tested pure domain
+    logic. *Not a port and not a repository move — ADR-034. The ladder of issues is
+    [#257](https://github.com/southville-running-club/src-website/issues/257).*
+40a. ⚠️ **Export the old Supabase project by hand, before anything else touches it.** The free
+    tier has no automated backups and `ovpvzabtjxbszsqschqy` holds Pass the Buck 2026, the only
+    race history the club has. *This is the stop condition on the decommission, and it is owed
+    to a human with the login —
+    [#197](https://github.com/southville-running-club/src-website/issues/197).*
 41. **Add the route `new.southvillerunningclub.co.uk/timing/*`** to the timing Worker — a
     route, not a custom domain, so it needs no DNS record of its own.
 42. **Update the Supabase Auth redirect addresses** and anything with the old domain written
     into it. *Magic links break silently if this is missed.*
 43. **Rebuild the live leaderboard on Durable Objects**, not Supabase Realtime. *Realtime
     caps at 200 concurrent connections and Pro is £237/yr; hibernatable WebSockets on the
-    free plan make this close to free. This is a rebuild, not a port.*
+    free plan make this close to free. This is a rebuild, not a port.* ⚠️ **Staff-only in
+    2026** —
+    [ADR-038](../architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md).
+    *And it is the slice ADR-034 cuts if step 44 fails.*
 44. **Run a full manual race simulation** — multiple devices, real connectivity loss, the
     real race date. *No test suite replaces it, and it is the sign-off.*
 
-> **Three things a port must not break:** the IndexedDB offline queue and its
+> **Three things the rewrite may not improve:** the IndexedDB offline queue and its
 > idempotent-upsert contract; the TypeScript/SQL lockstep on bib resolution; and the
-> `Europe/London` pinning.
+> `Europe/London` pinning. *Each looks improvable and is not — see
+> [the phase](phases.md#three-things-the-rewrite-may-not-improve).*
+>
+> **And one step this phase now ends with:** decommission Vercel and the old project, once the
+> simulation passes and the export at 40a is stored. ADR-034 puts that inside this phase's
+> "done" where ADR-008 left it outside.
 
 ## Phase 5 · Stand up the new site alongside the old ⚠️ *the highest-value step in the plan*
 

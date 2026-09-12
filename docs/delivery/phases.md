@@ -390,14 +390,22 @@ key-gated database functions that #57 deliberately left in place.
 
 **Deadline: race-ready by mid-October 2026.** It runs Nightingale Nightmare.
 
-Off Vercel, onto Workers, reading the **same Supabase project** as NN.
+⚠️ **This phase was written as a *port* and it is a *rewrite*.**
+[ADR-034](../architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+supersedes [ADR-008](../architecture/decisions/adr-008-timing-port-before-the-race.md) in
+full — both its port framing and its standing Vercel fallback — and
+[ADR-035](../architecture/decisions/adr-035-the-timing-schema-joins-this-project.md) puts the
+new tables in a `timing` schema **in this project**. The application is written here, to this
+repository's conventions, using `bindalshah/src-race-timing` as the **specification rather
+than the source**. What survives from the original framing is the gate and the three things
+that may not break; the sections below are marked where they changed.
 
 | | |
 | --- | --- |
-| **`@opennextjs/cloudflare`** on Workers | Not Pages — `@cloudflare/next-on-pages` is deprecated and Edge-runtime only |
-| **The repository joins the monorepo** | **Move it into the club org *first*, then connect Cloudflare** — doing it after desyncs the git link |
+| **`@opennextjs/cloudflare`** on Workers | Not Pages — `@cloudflare/next-on-pages` is deprecated and Edge-runtime only. Re-argued and kept by [ADR-037](../architecture/decisions/adr-037-timing-stays-on-next-under-opennext.md) |
+| ~~**The repository joins the monorepo**~~ | **Superseded.** No repository move, no `git filter-repo`, no transfer prerequisite. `bindalshah/src-race-timing` stays where it is, serving production, until it is switched off — ADR-034 |
 | **`new.<apex>/timing`** | A **route** on the same hostname, not a custom domain. Needs `basePath: '/timing'`, and the service worker scope moves with it — [ADR-007](../architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md) |
-| **Same database** | One project, schema-separated. Nothing migrates |
+| **One database, two projects converging** | The `timing` schema is in **this** project, from its first migration. The old project `ovpvzabtjxbszsqschqy` still holds Pass the Buck 2026 and is **imported from, once, later** — see [the runbook](runbooks/supabase-setup.md). *"Nothing migrates"* was true of the schema and never of the data |
 
 ### Do the deployment half first
 
@@ -410,8 +418,11 @@ route and Supabase connectivity with a page that has nothing in it. Then the por
 has to prove the application half, and every failure after that is application code.
 
 This cost an afternoon and was the single best thing available for de-risking the
-deadline. What remains for Phase 4 is the application half: the port itself, described
-below.
+deadline. What remains for Phase 4 is the application half — **written here rather than
+ported**, and broken into a ladder of issues under
+[#257](https://github.com/southville-running-club/src-website/issues/257), which is where the
+current state of the rewrite actually lives. The rest of this section is the standing shape
+of the phase, not a task list.
 
 ### The gate on Phase 4
 
@@ -421,13 +432,21 @@ it](../foundations/glossary.md#platform-and-delivery), and the timing app's own 
 two-marshal path is still only partially verified.
 
 **Mid-October is the deadline so the simulation has a fortnight behind it.** If the simulation
-finds something in the last week, there needs to be room to fix it — and the fallback is the
-existing Vercel deployment, which stays available until the simulation passes.
+finds something in the last week, there needs to be room to fix it.
 
-### Three things the port must not break
+⚠️ **The Vercel fallback is gone, and what the gate decides changed with it.** Under a rewrite
+the two deployments are different code against different projects, so keeping Vercel warm would
+mean maintaining a second implementation of the club's most safety-critical surface
+indefinitely — a continuity liability rather than a mitigation. **The gate now decides scope,
+not host.** There is no other host. If the simulation fails, the thing that gets cut is the
+Durable Objects leaderboard, not the platform — ADR-034.
+
+### Three things the rewrite may not improve
 
 From the [architecture review](../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know),
-each learned the hard way:
+each learned the hard way, and carried through ADR-034 unchanged. **"May not improve" rather
+than "must not break"** is the stronger reading and the intended one: each of these looks
+improvable and is not:
 
 1. **The IndexedDB offline queue** and its idempotent-upsert contract.
 2. **The TypeScript/SQL lockstep** on bib resolution.
@@ -435,12 +454,15 @@ each learned the hard way:
 
 ### Known work beyond a straight port
 
+**This table survives the rewrite framing** — it is what ADR-034 keeps from ADR-008's phase,
+because each row is a fact about the application rather than about how it gets here.
+
 | | |
 | --- | --- |
-| **The live leaderboard** | **Durable Objects, not Supabase Realtime.** Realtime caps at 200 concurrent; hibernatable WebSockets on the free plan make this close to free. A rebuild, not a port |
+| **The live leaderboard** | **Durable Objects, not Supabase Realtime.** Realtime caps at 200 concurrent; hibernatable WebSockets on the free plan make this close to free. A rebuild, not a port. ⚠️ **Staff-only in 2026** — [ADR-038](../architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md) supersedes the public-leaderboard assumption this row carried from the old application. The public sees nothing about a running race; `/nn/<year>/results/` after publication is the only public surface, so [C6](../foundations/requirements.md#c6--show-live-race-progress-to-spectators) is **not met in 2026** and that is recorded rather than re-scoped |
 | **Solo-race gaps** | The leaderboard derivation is relay-shaped; **age-band categories do not exist yet** and NN needs them |
 | **Multi-event hardcoding** | `LOCATION_LABEL = "Ashton Court"` and evening-start copy |
-| **Bundle size and CPU limits** | 3 MB compressed on free Workers, 10 ms CPU. Unmeasured for this app |
+| **Bundle size and CPU limits** | 3 MB compressed on free Workers, 10 ms CPU. **Still unmeasured for this app** — [#199](https://github.com/southville-running-club/src-website/issues/199), and it is deliberately the first thing on the ladder because the answer can change the plan and becomes a money question for the committee if it fails |
 
 ---
 

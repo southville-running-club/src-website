@@ -24,16 +24,30 @@ collaborator on the `southville-running-club` GitHub account —
 > **The project is `ketipxpyjjglwpqazsft`, created fresh on a club-owned account on
 > 9 August 2026.** It is empty apart from what this repository puts in it.
 >
-> **This is not the project the timing platform runs on.** That one — `ovpvzabtjxbszsqschqy`,
-> under a personal account — still holds Pass the Buck 2026's data and is
-> [the club's single most valuable asset](../../reference/timing-app-review.md#governance-findings).
+> **This is not the project the *old* timing platform runs on.** That one —
+> `ovpvzabtjxbszsqschqy`, under a personal account — still holds Pass the Buck 2026's data and
+> is [the club's single most valuable asset](../../reference/timing-app-review.md#governance-findings).
 > Nothing here touches it.
 >
-> **The consequence, and it is deferred rather than solved:** until the timing platform is
-> ported onto this project, there is no race data here for a results archive to derive
-> from, so [C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
-> cannot be met. That port is [Phase 4](../phases.md#phase-4--the-timing-app-on-cloudflare),
-> and it is the moment the two databases become one.
+> ⚠️ **The two projects converge by import, not by sharing, and they never both run the
+> platform.** This used to read as though the timing app would be *pointed* at this project one
+> day. It will not: under
+> [ADR-035](../../architecture/decisions/adr-035-the-timing-schema-joins-this-project.md) the
+> timing tables are written **here**, into a `timing` schema, from their first migration — they
+> exist in this project already. The old project stays authoritative for the old application
+> until it is switched off, and its rows arrive by **a one-shot import, later, after the new
+> application works**. Then it is deleted. At no point do two applications share one project.
+>
+> **So the C2 consequence is narrower than it was, and still real:** the schema is here and
+> [C2](../../foundations/requirements.md#c2--publish-race-results-permanently-and-automatically)
+> is met for races timed on the new platform — `/nn/<year>/results/` exists and reads
+> `timing.results_for_event()`. What is still missing is the **history**: Pass the Buck 2026
+> is not here until that import runs. Phase 4 is where both happen.
+>
+> ⚠️ **Nothing about the old project may be done by an agent.** Exporting it is
+> [#197](https://github.com/southville-running-club/src-website/issues/197) and it is owed to a
+> human with the login — the free tier has no automated backups, so a manual export taken
+> before any of this starts is the only mitigation there is.
 >
 > One thing that gets easier meanwhile: with no `public`/`private` schemas here yet,
 > [ADR-002's rule about two repositories sharing one migration
@@ -285,6 +299,6 @@ principle: every schema change must keep the previously deployed code working.
 **No migrations during a race-week [change freeze](../../foundations/glossary.md#platform-and-delivery).**
 
 **`supabase db reset` is a local command.** It drops everything and rebuilds from
-migrations. Today that would cost this project's sign-ups; after the timing platform is
-ported onto it, it would cost the club its race history. There is no version of this
-runbook where you run it against production.
+migrations. Today that would cost this project's sign-ups and every entry sold; after the
+Pass the Buck import runs, it would cost the club its race history as well. There is no
+version of this runbook where you run it against production.
