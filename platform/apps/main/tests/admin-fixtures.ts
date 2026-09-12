@@ -126,6 +126,22 @@ export const LAPSED_EMAIL = 'zz-admin-worker-lapsed@example.com';
  */
 export const NN_RESULTS_EMAIL = 'zz-admin-worker-results@example.com';
 
+/**
+ * Timing staff, for `/timing`'s own pages — #247 and #245.
+ *
+ * ⚠️ **Deliberately NOT in `FIXTURE_PEOPLE_EMAILS`, and that is the whole point.** These two
+ * are seeded by `timing-staff-db.ts`, which `timing.spec.ts` owns; `admin-db.ts` never creates
+ * or deletes them. Two specs seeding the same addresses against one database is what produced
+ * `AuthApiError: User already registered` in a `beforeAll` — see that file's header. The names
+ * live here because both files need them, and nothing else.
+ *
+ * Neither is any of the club-side fixtures above: granting a timing role to one of those would
+ * quietly delete `admin.spec.ts`'s "different doors" assertions, which are the other half of
+ * the boundary.
+ */
+export const TIMING_ADMIN_EMAIL = 'zz-admin-worker-timing-admin@example.com';
+export const TIMING_MARSHAL_EMAIL = 'zz-admin-worker-timing-marshal@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,

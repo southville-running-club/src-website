@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
+import { CSRF_COOKIE, CSRF_FIELD, forgetSessions, signInAs } from './sign-in';
 import {
   expectNoSidewaysScroll as expectNoSidewaysScrollAt,
   waitForStyledLayout,
@@ -140,109 +141,20 @@ const ACTIONS = `${NN}entries/${ACTIONS_EVENT_SLUG}/`;
  */
 const LOCAL_GATE_KEY = 'local-development-only-not-a-real-key';
 
-/** `worker/csrf.ts`'s two names, written out rather than imported — see the file header. */
-const CSRF_COOKIE = 'src_csrf';
-const CSRF_FIELD = 'csrf_token';
-
-/**
- * Cloudflare's own published dummy response token.
- *
- * Accepted because `[auth.captcha]`'s secret locally and in CI is the matching published
- * "always passes" dummy secret — see `packages/db/supabase/config.toml` and
- * developers.cloudflare.com/turnstile/troubleshooting/testing. It authenticates nothing and
- * means nothing anywhere else.
- */
-const DUMMY_TURNSTILE_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
-
 /** A well-formed uuid that names nobody, for the refusal the page has to say words about. */
 const NOBODY_AT_ALL = '0b0b0b0b-0000-4000-8000-0000000000ff';
 
 test.beforeAll(async () => {
   await seedAdminFixtures(LOCAL_GATE_KEY);
+  // The people were just re-created, so any jar cached by another spec names somebody who no
+  // longer exists. See `forgetSessions`.
+  forgetSessions();
 });
 
 test.afterAll(async () => {
   // Put the local key back rather than nulling it, for the reason `LOCAL_GATE_KEY` gives.
   await clearAdminFixtures(LOCAL_GATE_KEY);
 });
-
-/**
- * One real sign-in per email, for the whole file — not one per test.
- *
- * **This file used to authenticate fresh in `beforeEach` and at nearly every call site**,
- * which is 36 real round trips through `/account/sign-in/` for 44 tests, each one a genuine
- * GoTrue password check — deliberately slow, because that is what resists a credential-
- * stuffing attempt. `workers: 1` runs the whole 699-test suite through one browser and one
- * `wrangler dev` process, so that cost does not parallelise away; it is sustained load on one
- * long-lived server, on top of everything the rest of the suite already asks of it. Two CI
- * runs, both on a fresh runner, both otherwise green through four full browser projects, died
- * mid-`mobile-safari` with the Worker unreachable — consistent with load finally outrunning a
- * resource ceiling `ci.yml`'s own comment already names as tight for this suite.
- *
- * **A cookie jar is not the account; it is the proof that one exists.** Reusing a captured
- * session across many tests is not the same shortcut a fabricated token would be — the sign-in
- * still goes through the real form, the real CSRF token and the real Turnstile field, once per
- * person, and every test after that is still exercising `/admin/`'s own session and role
- * check on every request, exactly as before. What stops happening is proving the door works
- * over and over on the way to testing something else entirely.
- */
-/** `Cookie[]`, derived from `Page` rather than named — `playwright-core`'s own type is not
- *  re-exported from `@playwright/test`. */
-type SessionCookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;
-
-const sessionCookies = new Map<string, Promise<SessionCookies>>();
-
-/** The real round trip, run exactly once per email — see `signInAs` above it. */
-async function realSignIn(page: Page, email: string): Promise<void> {
-  // The GET is what mints the double-submit token and sets its cookie; the POST has to echo
-  // the same value back, which is the whole of the CSRF control.
-  const form = await page.request.get('/account/sign-in/');
-  expect(form.status(), 'the sign-in page must be served').toBe(200);
-
-  const token = (await page.context().cookies()).find(
-    (cookie) => cookie.name === CSRF_COOKIE,
-  )?.value;
-
-  expect(token, 'the sign-in page must mint a CSRF token').toBeTruthy();
-
-  const signedIn = await page.request.post('/account/sign-in/', {
-    form: {
-      [CSRF_FIELD]: token ?? '',
-      email,
-      password: ADMIN_PASSWORD,
-      'cf-turnstile-response': DUMMY_TURNSTILE_TOKEN,
-    },
-  });
-
-  expect(signedIn.status(), `signing in as ${email} was refused`).toBe(200);
-  expect(new URL(signedIn.url()).pathname, `signing in as ${email} did not land`).toBe(
-    '/account/',
-  );
-}
-
-/**
- * Sign somebody in — for real, the first time this email is asked for; from the cache after
- * that.
- *
- * **The cookies are the browser context's**, so everything after this is that person until
- * the next call. The jar is cleared first so switching people mid-test — the two-context
- * grant test, and the "gives a role the same 404" test that signs in twice on one page —
- * cannot leave half of a previous session behind, cached session or fresh one alike.
- */
-async function signInAs(page: Page, email: string): Promise<void> {
-  await page.context().clearCookies();
-
-  const cached = sessionCookies.get(email);
-
-  if (cached === undefined) {
-    const captured = realSignIn(page, email).then(() => page.context().cookies());
-    sessionCookies.set(email, captured);
-    await captured;
-    return;
-  }
-
-  await page.context().addCookies(await cached);
-}
 
 /**
  * The document must not scroll sideways. Ever, at any width, on any of these pages.
