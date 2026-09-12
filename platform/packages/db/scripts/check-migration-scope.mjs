@@ -69,7 +69,10 @@ const QUALIFIED_REF = new RegExp(`\\b(${FORBIDDEN_SCHEMAS.join('|')})\\.`, 'gi')
 // DDL or grants that name the schema itself: `schema public`. This is what catches
 // `create schema public`, `drop schema public cascade`, and `grant usage on schema
 // public to ...` — none of which this repository may ever propose.
-const SCHEMA_TARGET = new RegExp(`\\bschema\\s+(${FORBIDDEN_SCHEMAS.join('|')})\\b`, 'gi');
+const SCHEMA_TARGET = new RegExp(
+  `\\bschema\\s+(${FORBIDDEN_SCHEMAS.join('|')})\\b`,
+  'gi',
+);
 
 function stripLineComments(sql) {
   return sql
