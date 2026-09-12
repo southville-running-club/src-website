@@ -1,0 +1,103 @@
+/*
+ * `/nn/<year>/results/` — the results table.
+ *
+ * **The club brand, not `nn-theme.css`, and that is a decision rather than an omission.** The
+ * campaign theme is the race's own horror palette, written for pages a runner reads before
+ * entering; this page is a staff tool behind `nn.results.read`, and it is read on a phone at
+ * the finish. It also carries the trap that stylesheet's own footer records — colours computed
+ * against a surface the component does not carry — and a table of times has no business
+ * inheriting it. Same reasoning as `nn-admin.css`: a tool is in the club brand.
+ *
+ * ⚠️ **Every colour here is a `--src-*` token and there is not one hex value**, so the club
+ * palette is the only thing that decides them and a contrast check has one place to look.
+ */
+
+.results-page {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.results-meta {
+  color: var(--src-slate);
+  margin: 0 0 1.5rem;
+}
+
+/*
+ * ⚠️ **`position: relative` is load-bearing and is not decoration.** `overflow` only clips a
+ * descendant whose containing block is inside the scroller — so an absolutely positioned child
+ * (a visually hidden span, say) is otherwise laid out against the *page*, and the whole
+ * document scrolls sideways under a thumb while the table itself scrolls correctly and nothing
+ * looks wrong. This repository has already paid for exactly that once, in the admin table.
+ */
+.results-scroll {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--src-rule);
+  border-radius: var(--src-radius-card);
+  background: var(--src-paper);
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.results-table th,
+.results-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--src-rule);
+  white-space: nowrap;
+}
+
+.results-table th {
+  background: var(--src-surface-muted);
+  color: var(--src-ink);
+  font-weight: 600;
+}
+
+.results-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/*
+ * Times and positions line up in a column only if their digits share a width — otherwise a
+ * finishing time jitters against the row above it as results land.
+ */
+.results-num {
+  font-family: var(--src-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.results-name {
+  white-space: normal;
+}
+
+.results-status {
+  color: var(--src-slate);
+}
+
+/* A row the marshals are still looking at — said in words as well as in colour. */
+.results-suspect {
+  color: var(--src-error);
+  font-weight: 600;
+}
+
+.results-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--src-slate);
+}
+
+@media (max-width: 40rem) {
+  .results-page {
+    padding: 1rem 0.75rem 2.5rem;
+  }
+
+  .results-table th,
+  .results-table td {
+    padding: 0.5rem;
+  }
+}

@@ -11,6 +11,7 @@
     "./styles/nn-theme.css": "./styles/nn-theme.css",
     "./styles/nn-admin.css": "./styles/nn-admin.css",
     "./styles/account.css": "./styles/account.css",
+    "./styles/nn-results.css": "./styles/nn-results.css",
     "./account": "./src/account.ts",
     "./brand": "./src/brand.ts",
     "./social": "./src/social.ts",

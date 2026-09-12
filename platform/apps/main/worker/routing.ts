@@ -291,6 +291,40 @@ export function nnEventSlugForPlacesRemainingPath(pathname: string): string | nu
 }
 
 /**
+ * One running's results — `/nn/2026/results/`.
+ *
+ * **Locked behind `nn.results.read` and answering 404 to everybody else**, which is why this
+ * is a Worker address rather than a page in `dist/`: a file in the assets binding is readable
+ * by anyone who types its name, and the club has not decided how or when a result is
+ * published.
+ *
+ * ⚠️ **`/nn/results.css` is deliberately not beneath this**, the same trap `/nn/admin.css` and
+ * `/account.css` both document. The year group is four digits, so the stylesheet cannot match
+ * — it has no year in it — and it falls past the Worker to the assets binding where it lives.
+ * Treat this as a prefix instead and every results page renders unstyled.
+ */
+const NN_RESULTS_PATH = /^\/nn\/(\d{4})\/results\/?$/;
+
+export function isNnResultsPath(pathname: string): boolean {
+  return NN_RESULTS_PATH.test(pathname);
+}
+
+/** Where one running's results live. `/nn/2026/` → `/nn/2026/results/`. */
+export function nnResultsPath(yearPath: string): string {
+  return `${yearPath}results/`;
+}
+
+/**
+ * The event slug this address is asking about — its own extraction, for the reason
+ * `nnEventSlugForPlacesRemainingPath` gives: `NN_YEAR_PATH` is anchored to the bare year page
+ * and answers `null` here on purpose.
+ */
+export function nnEventSlugForResultsPath(pathname: string): string | null {
+  const year = NN_RESULTS_PATH.exec(pathname)?.[1];
+  return year === undefined ? null : `${NN_RACE_SLUG}-${year}`;
+}
+
+/**
  * Where the admin surface used to live — **now nothing but redirects**.
  *
  * #58 moved the whole surface to `/admin/nn/`, because the club's back office had become one

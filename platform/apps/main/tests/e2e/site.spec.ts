@@ -1989,6 +1989,11 @@ test.describe('accessibility', () => {
     // Signed out, `/timing` is the timing Worker's 404 — which is what every runner who types
     // the address sees, so it has to pass axe as much as any page with content on it.
     ['race timing, refused', '/timing'],
+    // And the same for a race's results, which are locked behind `nn.results.read` until the
+    // club decides how a Nightingale Nightmare result is published. This is the club's own
+    // Worker refusing rather than the timing one, through a stylesheet neither of the pages
+    // above uses — so it is a third rendering path, and axe has to see it.
+    ['the results page, refused', '/nn/2026/results/'],
     // **The brand page earns its place in this list more than any other page here.** It is
     // the only one that renders every token, on every surface, at body size — so a colour
     // that fails is caught by axe whether or not any real page happens to use it yet.
