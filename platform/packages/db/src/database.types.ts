@@ -1706,7 +1706,20 @@ export type Database = {
         Args: { p_event_slug: string; p_rows: Json }
         Returns: Json
       }
+      known_crossings: { Args: { p_event_slug: string }; Returns: Json }
       list_events: { Args: never; Returns: Json }
+      record_crossing: {
+        Args: {
+          p_anomaly_flag?: boolean
+          p_anomaly_reason?: string
+          p_bib: string
+          p_captured_at: string
+          p_event_slug: string
+          p_id: string
+          p_source?: string
+        }
+        Returns: Json
+      }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
       roster_for_event: { Args: { p_event_slug: string }; Returns: Json }
       unassign_marshal: {

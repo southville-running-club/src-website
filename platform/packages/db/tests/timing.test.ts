@@ -249,14 +249,16 @@ describe('what may be called, and by whom', () => {
    *     hub is built from, both answering `null` when refused;
    *   * `update_event` — `timing.event.manage`, correcting a race **before** it starts;
    *   * `roster_for_event`, `assignable_marshals`, `assign_marshal` and `unassign_marshal` —
-   *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission.
+   *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission;
+   *   * `record_crossing` and `known_crossings` — `timing.crossing.record` **and** a roster
+   *     row, the write path #203 syncs against and the read it de-duplicates from.
    *
    * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
    * trigger is reachable from its trigger and nothing else; a grant on it would be a function
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these eleven functions, and only to authenticated', async () => {
+  it('grants exactly these thirteen functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -271,7 +273,9 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
+      { routine_name: 'known_crossings', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
+      { routine_name: 'record_crossing', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'unassign_marshal', grantee: 'authenticated' },
@@ -1126,6 +1130,413 @@ describe('the marshal roster', () => {
       } finally {
         await db.query('rollback');
       }
+    });
+  });
+});
+
+/**
+ * The crossing write path — #251, the contract #203's offline queue syncs against.
+ *
+ * ⚠️ **Idempotency is the property, and it is not "the second call does nothing".** It is that
+ * the second call **succeeds** — a queue that got back an error on a retry of a row that had
+ * already landed would retry for ever, or retire the card as failed and show "Manual review"
+ * for a crossing that is in the database. Both assertions are here.
+ */
+describe('recording a crossing', () => {
+  const MARSHAL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+  const ADMIN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
+  const OFF_ROSTER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000e1';
+  const TEAM_ID = '00000000-0000-4000-8000-0000000000e2';
+  const SLUG = 'zz-timing-crossings';
+
+  type Envelope = { ok: boolean; reason?: string; id?: string };
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  const recordAs = (
+    person: string,
+    id: string,
+    bib: string | null,
+    capturedAt = '2026-11-01T11:30:00Z',
+    slug = SLUG,
+    source = 'tap',
+  ) =>
+    asPerson<Envelope>(
+      person,
+      'select timing.record_crossing($1, $2, $3, $4, $5) as answer',
+      [id, slug, bib, capturedAt, source],
+    );
+
+  const knownAs = (person: string, slug = SLUG) =>
+    asPerson<Record<string, unknown>[] | null>(
+      person,
+      'select timing.known_crossings($1) as answer',
+      [slug],
+    );
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MARSHAL, 'timing-crossing-marshal@example.com'],
+      [ADMIN, 'timing-crossing-admin@example.com'],
+      [OFF_ROSTER, 'timing-crossing-offroster@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-marshal', $1), ($2, 'timing-admin', $2),
+              ($3, 'timing-marshal', $3)
+       on conflict do nothing`,
+      [MARSHAL, ADMIN, OFF_ROSTER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Crossing Fixture', 'solo', '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '311')`,
+      [TEAM_ID, EVENT_ID],
+    );
+
+    // Only the marshal is rostered. The admin deliberately is not — see ADR-036.
+    await db.query(
+      'insert into timing.marshals (event_id, user_id) values ($1, $2) on conflict do nothing',
+      [EVENT_ID, MARSHAL],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [MARSHAL, ADMIN, OFF_ROSTER],
+    ]);
+  });
+
+  describe('who may write', () => {
+    /**
+     * ⚠️ **ADR-036's rule, and the old application's bug.** A `timing-admin` holds
+     * `timing.crossing.record` and is still refused on a race they are not rostered to. The
+     * old app let a global admin bypass the roster; an admin who is going to stand at the line
+     * adds themselves with `assign_marshal()`.
+     */
+    it('refuses an admin who is not on this roster', async () => {
+      expect(
+        await recordAs(ADMIN, '11111111-1111-4111-8111-111111111111', '311'),
+      ).toEqual({
+        ok: false,
+        reason: 'not_on_roster',
+      });
+    });
+
+    it('refuses a marshal who is not on this roster either', async () => {
+      expect(
+        await recordAs(OFF_ROSTER, '11111111-1111-4111-8111-111111111112', '311'),
+      ).toEqual({ ok: false, reason: 'not_on_roster' });
+    });
+
+    it('writes nothing when it refuses', async () => {
+      await recordAs(ADMIN, '11111111-1111-4111-8111-111111111113', '311');
+
+      const { rows } = await db.query<{ n: string }>(
+        'select count(*) as n from timing.crossings where id = $1',
+        ['11111111-1111-4111-8111-111111111113'],
+      );
+      expect(rows[0]?.n).toBe('0');
+    });
+
+    it('refuses a slug that names nothing, without saying whether the roster would have', async () => {
+      expect(
+        await recordAs(
+          MARSHAL,
+          '11111111-1111-4111-8111-111111111114',
+          '311',
+          '2026-11-01T11:30:00Z',
+          'zz-no-such-race',
+        ),
+      ).toEqual({ ok: false, reason: 'no_such_event' });
+    });
+
+    it('answers null on the read to everybody who may not write', async () => {
+      expect(await knownAs(ADMIN)).toBeNull();
+      expect(await knownAs(OFF_ROSTER)).toBeNull();
+    });
+  });
+
+  describe('the same tap, sent more than once', () => {
+    const ID = '22222222-2222-4222-8222-222222222221';
+
+    it('writes one row and calls the retry a success', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+
+        const first = await db.query<{ answer: Envelope }>(
+          'select timing.record_crossing($1, $2, $3, $4) as answer',
+          [ID, SLUG, '311', '2026-11-01T11:30:00Z'],
+        );
+        const second = await db.query<{ answer: Envelope }>(
+          'select timing.record_crossing($1, $2, $3, $4) as answer',
+          [ID, SLUG, '311', '2026-11-01T11:30:00Z'],
+        );
+
+        // Both `ok`. A queue that got an error on the retry would either loop for ever or
+        // show "Manual review" for a crossing that is in the database.
+        expect(first.rows[0]?.answer).toEqual({ ok: true, id: ID });
+        expect(second.rows[0]?.answer).toEqual({ ok: true, id: ID });
+
+        await db.query("select set_config('role', 'postgres', true)");
+        const { rows } = await db.query<{ n: string }>(
+          'select count(*) as n from timing.crossings where id = $1',
+          [ID],
+        );
+        expect(rows[0]?.n).toBe('1');
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * ⚠️ **The reason it is `do nothing` and not `do update`.** A marshal's phone draining an
+     * hour-old queue must not overwrite a bib an admin has corrected in the meantime.
+     */
+    it('does not overwrite a bib an admin has corrected since', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        await db.query('select timing.record_crossing($1, $2, $3, $4)', [
+          ID,
+          SLUG,
+          '311',
+          '2026-11-01T11:30:00Z',
+        ]);
+
+        // The admin's correction, applied directly the way the resolve surface will.
+        await db.query("select set_config('role', 'postgres', true)");
+        await db.query('update timing.crossings set bib = $2 where id = $1', [ID, '312']);
+
+        // The phone retries with what it recorded at the time.
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        const retry = await db.query<{ answer: Envelope }>(
+          'select timing.record_crossing($1, $2, $3, $4) as answer',
+          [ID, SLUG, '311', '2026-11-01T11:30:00Z'],
+        );
+        expect(retry.rows[0]?.answer).toMatchObject({ ok: true });
+
+        await db.query("select set_config('role', 'postgres', true)");
+        const { rows } = await db.query<{ bib: string }>(
+          'select bib from timing.crossings where id = $1',
+          [ID],
+        );
+        // The correction survives. This is the assertion.
+        expect(rows[0]?.bib).toBe('312');
+      } finally {
+        await db.query('rollback');
+      }
+    });
+  });
+
+  describe('what lands, and what the trigger makes of it', () => {
+    it('attributes the crossing to the caller and keeps the phone clock', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        await db.query('select timing.record_crossing($1, $2, $3, $4)', [
+          '33333333-3333-4333-8333-333333333331',
+          SLUG,
+          '311',
+          '2026-11-01T11:33:20Z',
+        ]);
+
+        await db.query("select set_config('role', 'postgres', true)");
+        const { rows } = await db.query<{
+          marshal_id: string;
+          team_id: string | null;
+          captured_at: Date;
+        }>(
+          'select marshal_id, team_id, captured_at from timing.crossings where id = $1',
+          ['33333333-3333-4333-8333-333333333331'],
+        );
+
+        // `marshal_id` is `auth.uid()` and never a parameter — a client that could name the
+        // marshal could attribute somebody else's work.
+        expect(rows[0]?.marshal_id).toBe(MARSHAL);
+        // The trigger resolved the bib to the team.
+        expect(rows[0]?.team_id).toBe(TEAM_ID);
+        // Nothing server-side replaced the time the phone recorded.
+        expect(rows[0]?.captured_at.toISOString()).toBe('2026-11-01T11:33:20.000Z');
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * **An anomaly flags and never blocks.** A marshal at a finish line cannot stop to argue
+     * with a validator, so a bib matching nothing is stored with `team_id` null and no error.
+     */
+    it('stores an unknown bib rather than refusing it', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        const wrote = await db.query<{ answer: Envelope }>(
+          'select timing.record_crossing($1, $2, $3, $4) as answer',
+          ['33333333-3333-4333-8333-333333333332', SLUG, '999', '2026-11-01T11:35:00Z'],
+        );
+        expect(wrote.rows[0]?.answer).toMatchObject({ ok: true });
+
+        await db.query("select set_config('role', 'postgres', true)");
+        const { rows } = await db.query<{ team_id: string | null; bib: string }>(
+          'select team_id, bib from timing.crossings where id = $1',
+          ['33333333-3333-4333-8333-333333333332'],
+        );
+        expect(rows[0]?.bib).toBe('999');
+        expect(rows[0]?.team_id).toBeNull();
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * A bib is an opaque string, exact equality only — ADR-034's second unimprovable thing.
+     * `"0311"` is not `"311"`, so it resolves to no team rather than to this one.
+     */
+    it('does not treat a leading zero as the same bib', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        await db.query('select timing.record_crossing($1, $2, $3, $4)', [
+          '33333333-3333-4333-8333-333333333333',
+          SLUG,
+          '0311',
+          '2026-11-01T11:36:00Z',
+        ]);
+
+        await db.query("select set_config('role', 'postgres', true)");
+        const { rows } = await db.query<{ team_id: string | null }>(
+          'select team_id from timing.crossings where id = $1',
+          ['33333333-3333-4333-8333-333333333333'],
+        );
+        expect(rows[0]?.team_id).toBeNull();
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('refuses a source that is not a tap or a manual entry', async () => {
+      expect(
+        await recordAs(
+          MARSHAL,
+          '33333333-3333-4333-8333-333333333334',
+          '311',
+          '2026-11-01T11:37:00Z',
+          SLUG,
+          'guesswork',
+        ),
+      ).toEqual({ ok: false, reason: 'invalid_source' });
+    });
+
+    it('refuses a call with no id and no time', async () => {
+      expect(await recordAs(MARSHAL, null as unknown as string, '311')).toMatchObject({
+        ok: false,
+        reason: 'incomplete',
+      });
+    });
+  });
+
+  describe('what the screen reads back', () => {
+    it('gives a rostered marshal the bibs and times, and no marshal identity', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [MARSHAL],
+        );
+        await db.query('select timing.record_crossing($1, $2, $3, $4)', [
+          '44444444-4444-4444-8444-444444444441',
+          SLUG,
+          '311',
+          '2026-11-01T11:38:00Z',
+        ]);
+
+        const { rows } = await db.query<{ answer: Record<string, unknown>[] }>(
+          'select timing.known_crossings($1) as answer',
+          [SLUG],
+        );
+
+        expect(rows[0]?.answer).toEqual([
+          expect.objectContaining({ bib: '311', anomaly_flag: false }),
+        ]);
+
+        // Who recorded it is on the table for an admin resolving an anomaly. It is not a
+        // fact a marshal screen needs in order to de-duplicate.
+        expect(JSON.stringify(rows[0]?.answer)).not.toContain('marshal');
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('is an empty array on a race with nothing recorded, not null', async () => {
+      // Null means "you may not" here. A race that has had no taps yet is a different and
+      // perfectly ordinary answer, and the screen must not read one as the other.
+      expect(await knownAs(MARSHAL)).toEqual([]);
     });
   });
 });
