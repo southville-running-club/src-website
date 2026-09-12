@@ -109,6 +109,23 @@ export const ENTRANT_EMAIL = 'zz-admin-worker-entrant@example.com';
  */
 export const LAPSED_EMAIL = 'zz-admin-worker-lapsed@example.com';
 
+/**
+ * Somebody who holds `nn-results`, and nothing else.
+ *
+ * **An eighth fixture person rather than a role hung on an existing one.** `nn-results` opens
+ * `/nn/<year>/results/` and nothing at all besides — it is not on `STAFF_ROLES` — so the thing
+ * worth proving is that a person holding *only* it gets the results page and is still a
+ * stranger everywhere else. Granting it to `NN_ADMIN_EMAIL` would have proved neither half:
+ * that person already opens the back office, so "the results page rendered" would not say
+ * which role let them in.
+ *
+ * It is also why `REGISTERED_EMAIL` is the one refused in `nn-results.test.ts` — a confirmed
+ * account with no role is what a member of the club is, and the page must 404 for them **with
+ * a real field sitting behind it**, which is the only arrangement that can tell a permission
+ * check from an empty database.
+ */
+export const NN_RESULTS_EMAIL = 'zz-admin-worker-results@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
@@ -117,6 +134,7 @@ export const FIXTURE_PEOPLE_EMAILS = [
   PEOPLE_ADMIN_EMAIL,
   ENTRANT_EMAIL,
   LAPSED_EMAIL,
+  NN_RESULTS_EMAIL,
 ] as const;
 
 /**

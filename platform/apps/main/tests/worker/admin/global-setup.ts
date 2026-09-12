@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { clearAdminFixtures, medicalReadAudit, seedAdminFixtures } from '../../admin-db';
+import { clearTimingFixtures, seedTimingFixtures } from '../../timing-db';
 
 /**
  * The state the admin run needs, set rather than assumed, and put back afterwards.
@@ -49,6 +50,12 @@ let bridge: Server | null = null;
 export async function setup(): Promise<void> {
   await seedAdminFixtures();
 
+  // **The `timing` rows `nn-results.test.ts` reads, and they are this run's fixtures for the
+  // same reason everything else here is**: they need `pg`, which does not run in `workerd`, and
+  // they are global state. They are separate from `seedAdminFixtures` because Playwright calls
+  // that one too and has no use for them — `/nn/2099/results/` is asserted nowhere else.
+  await seedTimingFixtures();
+
   const server = createServer((_request, response) => {
     medicalReadAudit()
       .then((rows) => {
@@ -83,5 +90,6 @@ export async function teardown(): Promise<void> {
     });
   }
 
+  await clearTimingFixtures();
   await clearAdminFixtures(null);
 }
