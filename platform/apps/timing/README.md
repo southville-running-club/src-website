@@ -12,7 +12,7 @@ here at the edge and never reaches `apps/main`.
 [ADR-007](../../../docs/architecture/decisions/adr-007-one-hostname-paths-not-subdomains.md)
 records why, and what it costs.
 
-Two consequences the port has to carry:
+Two consequences the rewrite has to carry:
 
 **`basePath: '/timing'`** in `next.config.ts`. The application's routes stay written as
 root paths (`/live/…`, `/admin/…`, `/marshal/…`) and Next prefixes them at build time. One
@@ -32,12 +32,26 @@ on purpose — and it is done.** The phases document asked for exactly this:
 > route and Supabase connectivity with a page that has nothing in it. Then the port only
 > has to prove the application half, and every failure after that is application code.
 
-**No timing application code lives here yet**, and none should until the port happens
-deliberately. Per
-[ADR-008](../../../docs/architecture/decisions/adr-008-timing-port-before-the-race.md), the
-port lands before Nightingale Nightmare 2026, gated on a full manual race simulation — the
-real application, `src-race-timing`, still runs from Vercel and stays the fallback until
-that simulation passes.
+⚠️ **This said "no timing application code lives here yet, and none should until the port
+happens deliberately" — and both halves are now wrong.**
+[ADR-034](../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+supersedes ADR-008 in full: the platform is **rewritten here** rather than ported, using
+`bindalshah/src-race-timing` as the specification rather than the source, and writing timing
+code in this repository is ordinary work under the ordinary rules.
+
+What exists so far is the `timing` schema
+([ADR-035](../../../docs/architecture/decisions/adr-035-the-timing-schema-joins-this-project.md)),
+the pure domain logic ported with its tests in `packages/shared/src/timing/`, this holding
+page behind a `timing.*` permission, and `/nn/<year>/results/` reading
+`timing.results_for_event()`. **Nothing that touches a race as it happens is built** — no
+crossing capture, no marshal screen, no countdown, and no published result. The ladder of
+what "done" means is
+[#257](https://github.com/southville-running-club/src-website/issues/257).
+
+**The gate is unchanged and the fallback is gone.** A full manual race simulation still signs
+this off — multiple devices, real connectivity loss, the real race date. There is no second
+host: `src-race-timing` keeps serving production, untouched, until it is switched off, and a
+failed simulation cuts the Durable Objects leaderboard rather than the platform.
 
 ## What it proves, and who can see it
 
