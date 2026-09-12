@@ -126,6 +126,19 @@ export const LAPSED_EMAIL = 'zz-admin-worker-lapsed@example.com';
  */
 export const NN_RESULTS_EMAIL = 'zz-admin-worker-results@example.com';
 
+/**
+ * Timing staff, for `/timing`'s own pages — #247 and #245.
+ *
+ * ⚠️ **Two people rather than one, and neither is any of the club-side fixtures above.** The
+ * whole point of `admin.spec.ts`'s "different doors" block is that `nn-admin`, `people-admin`,
+ * `super-admin` and a plain `registered` account all get the ordinary 404 at `/timing` — so
+ * granting a timing role to any of them would quietly delete those assertions. And `/timing`'s
+ * own pages need both a `timing-admin`, who may manage an event, and a `timing-marshal`, who
+ * holds a `timing.*` permission and must still be refused the admin addresses.
+ */
+export const TIMING_ADMIN_EMAIL = 'zz-admin-worker-timing-admin@example.com';
+export const TIMING_MARSHAL_EMAIL = 'zz-admin-worker-timing-marshal@example.com';
+
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
   REGISTERED_EMAIL,
@@ -135,6 +148,8 @@ export const FIXTURE_PEOPLE_EMAILS = [
   ENTRANT_EMAIL,
   LAPSED_EMAIL,
   NN_RESULTS_EMAIL,
+  TIMING_ADMIN_EMAIL,
+  TIMING_MARSHAL_EMAIL,
 ] as const;
 
 /**

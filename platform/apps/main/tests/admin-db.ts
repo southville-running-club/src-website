@@ -9,6 +9,8 @@ import {
   NN_ADMIN_EMAIL,
   NN_RESULTS_EMAIL,
   NN_TESTER_EMAIL,
+  TIMING_ADMIN_EMAIL,
+  TIMING_MARSHAL_EMAIL,
   PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
@@ -584,6 +586,8 @@ async function seedFixturePeople(): Promise<void> {
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
     [NN_RESULTS_EMAIL]: 'nn-results',
+    [TIMING_ADMIN_EMAIL]: 'timing-admin',
+    [TIMING_MARSHAL_EMAIL]: 'timing-marshal',
     [ENTRANT_EMAIL]: null,
     [LAPSED_EMAIL]: null,
   };
