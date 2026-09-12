@@ -1684,6 +1684,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_event: {
+        Args: {
+          p_course_notes?: string
+          p_distance_m?: number
+          p_format: string
+          p_name: string
+          p_slug: string
+          p_start_at: string
+        }
+        Returns: Json
+      }
+      event_roster: { Args: { p_event_slug: string }; Returns: Json }
+      import_registration: {
+        Args: { p_event_slug: string; p_rows: Json }
+        Returns: Json
+      }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
     }
     Enums: {
