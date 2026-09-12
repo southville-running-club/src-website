@@ -1563,13 +1563,21 @@ describe('what the tables refuse regardless of who is asking', () => {
   it('refuses a paid purchase with no paid_at, and an unpaid one that has one', async () => {
     // The two facts always travel together. A `paid` row with a null timestamp is the kind
     // of thing only a reconciliation finds, months later.
+    //
+    // ⚠️ **`hold_expires_at` is supplied so that the constraint under test is the one that
+    // answers.** `entry_purchases_hold_when_pending` arrived on 12 September 2026 and refuses a
+    // `pending` row that does not say when its place goes back — so the `pending` case below
+    // started failing on *that* name instead, which reads as this rule being broken when it is
+    // the fixture that is. Two constraints, both real, and a row has to satisfy the other one to
+    // be a test of this one.
     const insert = (status: string, paidAt: string | null) =>
       query(
         `insert into entries.entry_purchases (
            event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
-           consents, consent_version, paid_at
+           consents, consent_version, paid_at, hold_expires_at
          )
-         select e.id, $1, 1700, f.id, 'zz@example.com', 'Zed Zero', '{}'::jsonb, 'v1', $2
+         select e.id, $1, 1700, f.id, 'zz@example.com', 'Zed Zero', '{}'::jsonb, 'v1', $2,
+                now() + interval '31 minutes'
            from entries.events e
            join entries.fees f on f.event_id = e.id and f.code = 'unaffiliated'
           where e.slug = 'nn-2026'`,
@@ -1590,10 +1598,11 @@ describe('what the tables refuse regardless of who is asking', () => {
     const purchase = await query<{ id: string }>(
       `insert into entries.entry_purchases (
          event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
-         consents, consent_version
+         consents, consent_version, hold_expires_at
        )
        select e.id, 'pending', 1700, f.id, 'zz-cascade@example.com', 'Zed Cascade',
-              '{"entryTerms":true,"medical":true}'::jsonb, 'v1'
+              '{"entryTerms":true,"medical":true}'::jsonb, 'v1',
+              now() + interval '31 minutes'
          from entries.events e
          join entries.fees f on f.event_id = e.id and f.code = 'unaffiliated'
         where e.slug = 'nn-2026'
@@ -1649,10 +1658,10 @@ describe('what the tables refuse regardless of who is asking', () => {
     const purchase = await query<{ id: string }>(
       `insert into entries.entry_purchases (
          event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
-         consents, consent_version
+         consents, consent_version, hold_expires_at
        )
        select e.id, 'pending', 1500, f.id, 'zz-ea@example.com', 'Zed Ea',
-              '{"entryTerms":true}'::jsonb, 'v1'
+              '{"entryTerms":true}'::jsonb, 'v1', now() + interval '31 minutes'
          from entries.events e
          join entries.fees f on f.event_id = e.id and f.code = 'affiliated'
         where e.slug = 'nn-2026'

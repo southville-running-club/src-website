@@ -1290,10 +1290,28 @@ reads as every rule holding at once. **The tenth rule is "one entry per runner",
 first one a person is meant to meet.** The form claimed it in prose from the day it was written
 and nothing enforced it, so somebody who already had a place could pay again and take a second
 one out of 250 — #115. `create_pending_purchase()` now refuses with `already_entered`, keyed on
-**first name, last name and date of birth** and counting only a _live_ place: `paid`, or
-`pending` with a hold that has not lapsed, so an expired hold or a cancelled entry lets somebody
-try again. **Not `purchaser_email`** — that was the original decision, and it has been
-overruled; see the rule below. The check sits inside the per-event advisory lock, and
+**first name, last name and date of birth**. ⚠️ **What it counts as a place changed on
+12 September 2026 and the old answer is the one people remember**: it was `paid`, or `pending`
+with a hold that had not lapsed. It is **`paid`** now, plus a live hold belonging to _somebody
+else_ — because a live hold naming one of this submission's own people is **superseded** rather
+than counted, which is [ADR-040](docs/architecture/decisions/adr-040-a-runners-own-hold-yields.md).
+An expired hold and a cancelled entry have always let somebody try again; what did not was the
+thirty-one minutes before a hold lapsed, and **that was the reported bug**. Somebody who reached
+Stripe and did not pay was refused by both one-place rules and told *"this runner already has a
+place in this race"*, which was false, with the page's only advice pointing at an empty
+`/account/entries/`. By the time a volunteer looked, the sweep had run and `/admin/nn/` said
+"Hold expired" — so the refusal got remembered against a status that never refused anything, and
+"stop letting an expired entry block a new one" was a fix to code that already did that. **The
+superseded hold is expired, its place and its discount use go back, and the runner's next
+attempt goes through.** ⚠️ **It takes the address *and* the runner together, and each half alone
+was tried and broke something** — the address alone lets one partner on a shared card expire the
+other's live hold mid-checkout, and the runner alone let a **stranger** do it by entering with
+that person as their visually impaired guide, which `entries-guides.test.ts` caught as an
+accepted duplicate. So only the person coming back to their own abandoned checkout supersedes
+anything, **no existing test needed its fixtures changed**, and `create_manual_entry()` and
+`transfer_entry()` are deliberately unchanged. **Not
+`purchaser_email`** — that was the original decision, and it has been overruled; see the rule
+below. The check sits inside the per-event advisory lock, and
 **every database fixture that enters more than once now carries a serial on the surname**,
 because a suite whose runners are all the same person cannot hold two places any more.
 
@@ -1307,6 +1325,11 @@ otherwise the transfer form is the way round the entry form. ⚠️ **The cost i
 than solved**: a couple on one card, a parent entering two children, and anybody entering for
 somebody with no address of their own are refused at the moment they pay. **If that starts
 happening the answer is to revisit the decision, not to add an exception to the function.**
+⚠️ **ADR-040 is not that exception, and the distinction is the whole of why it was written the
+way it was.** It narrows which _rows_ both rules count — a live hold whose purchaser is this
+submission's own, naming one of this submission's own people — and it lets nobody new in: a
+**different** runner on an address that already holds a place is refused exactly as they were on
+30 August 2026, and the couple on one card still pay the full cost of that rule.
 **`create_manual_entry()` is deliberately exempt** — giving a place away is a volunteer
 deciding one at a time, and the club's complimentary places and a visually impaired runner's
 guide are exactly what a blanket address rule would refuse. **Name and date of birth stay**:

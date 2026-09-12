@@ -60,8 +60,12 @@ const OPEN = 'zzrules-open';
 const NO_AGE = 'zzrules-no-age';
 const PAIR = 'zzrules-pair';
 const NO_CONSENTS = 'zzrules-no-consents';
+/** **One place, so a second hold is the difference between full and not.** Every other event
+ *  here has a capacity far above anything this file enters, for the reason `makeEvent` gives —
+ *  which is exactly why the one test that needs a full race needs an event of its own. */
+const ONE_PLACE = 'zzrules-one-place';
 
-const FIXTURE_SLUGS = [OPEN, NO_AGE, PAIR, NO_CONSENTS] as const;
+const FIXTURE_SLUGS = [OPEN, NO_AGE, PAIR, NO_CONSENTS, ONE_PLACE] as const;
 
 /** The event date every fixture is run on, so the age boundaries below are readable. */
 const EVENT_DATE = '2027-06-01';
@@ -114,12 +118,14 @@ async function makeEvent(
     minimumAge?: number | null;
     entrantsPerEntry?: number;
     requiredConsents?: string[];
+    capacity?: number;
   } = {},
 ): Promise<string> {
   const {
     minimumAge = 18,
     entrantsPerEntry = 1,
     requiredConsents = ['entryTerms'],
+    capacity = 5000,
   } = options;
 
   // The capacity below is far above anything this file enters, deliberately: a fixture that
@@ -131,7 +137,7 @@ async function makeEvent(
        entries_open_at, entries_close_at, minimum_age, requires_dob, from_address,
        consent_version, active, required_consents
      ) values (
-       $1, 'zzrules', $2, $3::date, time '11:00', $4, 5000,
+       $1, 'zzrules', $2, $3::date, time '11:00', $4, $7,
        now() - interval '1 hour', now() + interval '1 hour', $5, true,
        'rules@example.com', 'zzrules-v1', true, $6::text[]
      ) returning id`,
@@ -142,6 +148,7 @@ async function makeEvent(
       entrantsPerEntry,
       minimumAge,
       requiredConsents,
+      capacity,
     ],
   );
 
@@ -165,6 +172,7 @@ beforeAll(async () => {
   await makeEvent(NO_AGE, { minimumAge: null });
   await makeEvent(PAIR, { entrantsPerEntry: 2 });
   await makeEvent(NO_CONSENTS, { requiredConsents: [] });
+  await makeEvent(ONE_PLACE, { capacity: 1 });
 });
 
 afterAll(async () => {
@@ -280,6 +288,36 @@ async function create(
 }
 
 /**
+ * The same call, priced and asked to write nothing — `p_preview => true`.
+ *
+ * **It has to answer what the real submission a moment later answers**, which is why the
+ * superseding below is computed in a preview as well: a preview that refused
+ * `already_entered` while the real call took the money would be telling one person two things
+ * about one fact.
+ */
+async function preview(
+  slug: string,
+  options: CreateOptions = {},
+): Promise<{ data: Record<string, unknown> | null; errorCode: string | undefined }> {
+  const { data, error } = await anon.schema('entries').rpc('create_pending_purchase', {
+    p_key: ENTRY_KEY,
+    p_slug: slug,
+    p_fee_code: options.feeCode ?? 'unaffiliated',
+    p_purchaser_name: 'Ada O’Brien',
+    p_purchaser_email: options.email ?? `ada-${(purchaserSerial += 1)}@example.com`,
+    p_entrants: options.entrants ?? [entrant()],
+    p_medical: options.medical ?? [null],
+    p_consents:
+      options.consents === undefined
+        ? { entryTerms: true, medical: false }
+        : options.consents,
+    p_preview: true,
+  });
+
+  return { data: data as Record<string, unknown> | null, errorCode: error?.code };
+}
+
+/**
  * The reason the database gave, with a Postgres error treated as a failure of the test rather
  * than as a refusal. See the note at the top of this file — this assertion is the reason the
  * suite cannot go green on a function that is broken for everybody.
@@ -300,6 +338,33 @@ async function acceptedPurchaseId(
   expect(errorCode).toBeUndefined();
   expect(data?.ok, `expected acceptance, got ${JSON.stringify(data)}`).toBe(true);
   return data?.purchase_id as string;
+}
+
+/**
+ * An entry that has actually been paid for — a held place, then the transition the webhook
+ * makes.
+ *
+ * **Used by exactly one test, and that is the measure of how narrow ADR-040 is.** A submission
+ * supersedes a *live* hold its own purchaser left behind, so the one thing that needs a fixture
+ * of its own is proving a **confirmed** place is never superseded. Every other fixture on this
+ * page goes on holding a `pending` one and goes on being refused, because superseding takes the
+ * address **and** the runner and no existing fixture supplies both.
+ *
+ * `hold_expires_at` is left alone deliberately: a real `paid` row keeps the hold it was sold
+ * under, and a fixture that clears it would be the one shape production never takes.
+ */
+async function paidPurchaseId(
+  slug: string,
+  options: CreateOptions = {},
+): Promise<string> {
+  const purchaseId = await acceptedPurchaseId(slug, options);
+
+  await query(
+    `update entries.entry_purchases set status = 'paid', paid_at = now() where id = $1`,
+    [purchaseId],
+  );
+
+  return purchaseId;
 }
 
 // =========================================================================================
@@ -1063,6 +1128,7 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
         where n.nspname = 'entries'
           and c.conname in (
             'entry_purchases_consents_are_boolean',
+            'entry_purchases_hold_when_pending',
             'entry_purchases_purchaser_email_shape',
             'entrants_date_of_birth_plausible',
             'entrants_emergency_phone_has_digits'
@@ -1074,6 +1140,15 @@ describe('the constraints and triggers, as the catalogue holds them', () => {
       'entrants_date_of_birth_plausible',
       'entrants_emergency_phone_has_digits',
       'entry_purchases_consents_are_boolean',
+      // **The fifth, added 12 September 2026.** A `pending` purchase holds a place, so it has
+      // to say when the place goes back: without this, a null `hold_expires_at` reads as a
+      // hold that never lapses — blocking that runner and that address for the rest of the
+      // year — and `expire_pending_holds()` only expires holds that have a date, so nothing
+      // could ever clear it. `store.ticket_purchases` was given the same rule on its first
+      // day. Listing it here is what keeps
+      // `docs/delivery/runbooks/entries-constraints.md` honest about how many there are to
+      // validate.
+      'entry_purchases_hold_when_pending',
       'entry_purchases_purchaser_email_shape',
     ]);
     expect(rows.every((row) => row.convalidated === false)).toBe(true);
@@ -1313,7 +1388,10 @@ describe('one runner, one place', () => {
   it('is not fooled by a different email, because the purchaser is not the entrant', async () => {
     const runner = entrant({ last_name: 'Payer' });
 
-    await acceptedPurchaseId(OPEN, { entrants: [runner], email: 'first@example.com' });
+    await acceptedPurchaseId(OPEN, {
+      entrants: [runner],
+      email: 'first@example.com',
+    });
 
     // **The key is the runner, not the card**, and this rule is still keyed that way — which
     // is what this asserts. Two addresses, one runner, refused on the *name*.
@@ -1376,5 +1454,165 @@ describe('one runner, one place', () => {
     );
 
     await acceptedPurchaseId(OPEN, { entrants: [runner] });
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// A runner's own live hold is superseded, not counted against them
+// -----------------------------------------------------------------------------------------
+/**
+ * **The bug, in the words it was reported in: "their entry says Hold expired and they are not
+ * allowed to buy a new one."**
+ *
+ * Half of that was never true — `expired` has never blocked anybody, and the two tests above
+ * about a lapsed hold have always said so. What refused them is the 31 minutes *before* the
+ * sweep reaches it: a `pending` hold with time left counted as a place in both rules, so
+ * somebody who reached Stripe and did not pay was told *"This runner already has a place in
+ * this race"* and pointed at an entries list with nothing on it. By the time a volunteer looked,
+ * the status said "Hold expired", and the refusal got remembered against the wrong state.
+ *
+ * `20260912130000_entries_a_runners_own_hold_yields.sql` and ADR-040. The tests here are the
+ * four things that had to become true together, and the two that had to stay true.
+ */
+describe("a runner's own live hold", () => {
+  it('is superseded by their next submission rather than refusing it', async () => {
+    const runner = entrant({ last_name: 'CameBack' });
+    const first = await acceptedPurchaseId(OPEN, {
+      entrants: [runner],
+      email: 'cameback@example.com',
+    });
+
+    // **The hold is live — no clock is wound on, and that is the whole point.** Every other
+    // test on this page that lets somebody enter twice lapses the first hold first. This one
+    // does not: the person is back on the form inside the 31 minutes, which is the ordinary
+    // case and was the refused one.
+    const second = await acceptedPurchaseId(OPEN, {
+      entrants: [runner],
+      email: 'cameback@example.com',
+    });
+
+    expect(second).not.toBe(first);
+
+    // The place went back, in the state the sweep would have written. `/admin/nn/` reads "Hold
+    // expired" for this row, which is what a volunteer needs it to say.
+    const previous = await single<{ status: string }>(
+      `select status from entries.entry_purchases where id = $1`,
+      [first],
+    );
+
+    expect(previous.status).toBe('expired');
+  });
+
+  it('is not superseded by a submission from a different address', async () => {
+    // **The narrowing this decision accepts, asserted so that it stays a decision.** Somebody
+    // who abandoned a checkout and comes back typing another address waits for their hold to
+    // lapse, exactly as before. Superseding on the runner alone would have covered them — and
+    // would have let a *stranger* expire their hold, by entering with this person as their
+    // guide, which is `entries-guides.test.ts`'s "refuses a guide who already holds a place of
+    // their own" and is what caught it. A signed-in runner cannot reach this case at all: their
+    // address comes from their session rather than from the form.
+    const runner = entrant({ last_name: 'NewAddress' });
+
+    await acceptedPurchaseId(OPEN, {
+      entrants: [runner],
+      email: 'first-try@example.com',
+    });
+
+    expect(
+      await refusalFor(OPEN, { entrants: [runner], email: 'second-try@example.com' }),
+    ).toBe('already_entered');
+  });
+
+  it('does not let a paid place be superseded, which is the rule itself', async () => {
+    // **The case that must not break, and the reason this is keyed on `pending` alone.** A
+    // confirmed place is a place: superseding it would refund nothing, tell nobody, and quietly
+    // sell the same runner a second entry out of 250.
+    const runner = entrant({ last_name: 'AlreadyPaid' });
+
+    await paidPurchaseId(OPEN, { entrants: [runner], email: 'paid-place@example.com' });
+
+    expect(
+      await refusalFor(OPEN, { entrants: [runner], email: 'paid-place@example.com' }),
+    ).toBe('already_entered');
+
+    // And no second row was written — a refused submission writes nothing at all.
+    const only = await single<{ count: string }>(
+      `select count(*) from entries.entry_purchases as purchase
+         where purchase.purchaser_email = 'paid-place@example.com'`,
+    );
+
+    expect(only.count).toBe('1');
+  });
+
+  it("does not touch somebody else's hold on a shared address", async () => {
+    // ⚠️ **The reason this is keyed on the runner and not on `purchaser_email`.** Two partners
+    // on one address, the first of them on Stripe's page right now: an address-keyed rule would
+    // have let the second submission expire the first one's live hold and leave them paying for
+    // a place that had gone back. The 30 August 2026 decision stands instead — the second runner
+    // is refused — and the first person's hold is still there afterwards.
+    const partner = await acceptedPurchaseId(OPEN, {
+      entrants: [entrant({ first_name: 'Ada', last_name: 'OneCard' })],
+      email: 'one-card@example.com',
+    });
+
+    expect(
+      await refusalFor(OPEN, {
+        entrants: [entrant({ first_name: 'Grace', last_name: 'OneCard-Two' })],
+        email: 'one-card@example.com',
+      }),
+    ).toBe('email_already_entered');
+
+    const held = await single<{ status: string }>(
+      `select status from entries.entry_purchases where id = $1`,
+      [partner],
+    );
+
+    expect(held.status).toBe('pending');
+  });
+
+  it('hands the place back, so a full race has room for the second attempt', async () => {
+    // **The half that would have looked like a fix without being one.** Unblocking both rules
+    // and leaving the dead hold in the capacity count means the same runner is refused by the
+    // same row with a different word on the page — `sold_out` instead of `already_entered`.
+    //
+    // `ONE_PLACE` has a capacity of exactly one, so the first hold is the whole race.
+    const runner = entrant({ last_name: 'LastPlace' });
+
+    await acceptedPurchaseId(ONE_PLACE, {
+      entrants: [runner],
+      email: 'last@example.com',
+    });
+
+    await acceptedPurchaseId(ONE_PLACE, {
+      entrants: [runner],
+      email: 'last@example.com',
+    });
+  });
+
+  it('is superseded without writing anything when the call is a preview', async () => {
+    // **A preview has to answer what the real submission a moment later answers**, or one of
+    // them says "you already have a place" and the other takes the money. So it excludes the
+    // same hold from the same rules — and, being a preview, expires nothing.
+    const runner = entrant({ last_name: 'Previewed' });
+    const held = await acceptedPurchaseId(OPEN, {
+      entrants: [runner],
+      email: 'previewed@example.com',
+    });
+
+    const { data, errorCode } = await preview(OPEN, {
+      entrants: [runner],
+      email: 'previewed@example.com',
+    });
+
+    expect(errorCode).toBeUndefined();
+    expect(data?.ok, `expected a priced preview, got ${JSON.stringify(data)}`).toBe(true);
+    expect(data?.preview).toBe(true);
+
+    const still = await single<{ status: string }>(
+      `select status from entries.entry_purchases where id = $1`,
+      [held],
+    );
+
+    expect(still.status).toBe('pending');
   });
 });

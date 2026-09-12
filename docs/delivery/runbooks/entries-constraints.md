@@ -1,19 +1,30 @@
 # Validating the entries constraints
 
 **One command per constraint, run once, after somebody has looked at the table.** It converts
-four `NOT VALID` check constraints into ordinary validated ones. Nothing is broken until it is
-done, and nothing breaks if it is never done — this is the second half of a deliberate two-step,
-not a repair.
+**five** `NOT VALID` check constraints into ordinary validated ones. Nothing is broken until it
+is done, and nothing breaks if it is never done — this is the second half of a deliberate
+two-step, not a repair.
+
+⚠️ **It was four until 12 September 2026**, and `entry_purchases_hold_when_pending` is the fifth.
+It arrived with a different change rather than with Slice G, so the four-then-five split runs
+through this whole document: the *reasoning* below is Slice G's, and the fifth's is its own.
+`packages/db/tests/entries-rules.test.ts` asserts the list by name and is what makes a sixth
+appear here rather than be forgotten.
 
 Serves [Phase 3](../phases.md#phase-3--nightingale-nightmare-live). Reasoning:
-[`20260823140000_entries_rules_enforced.sql`](../../../platform/packages/db/supabase/migrations/20260823140000_entries_rules_enforced.sql).
+[`20260823140000_entries_rules_enforced.sql`](../../../platform/packages/db/supabase/migrations/20260823140000_entries_rules_enforced.sql)
+for the first four, and
+[`20260912130000_entries_a_runners_own_hold_yields.sql`](../../../platform/packages/db/supabase/migrations/20260912130000_entries_a_runners_own_hold_yields.sql)
+plus [ADR-040](../../architecture/decisions/adr-040-a-runners-own-hold-yields.md) for the
+fifth.
 
 ---
 
 ## Why there is a second step at all
 
 Slice G moved nine rules out of Zod and into the database. Four of them are ordinary check
-constraints, and a check constraint can be added two ways:
+constraints — and one more joined them later, for the same reason and by the same rule — and a
+check constraint can be added two ways:
 
 | | What it does | What it costs |
 | --- | --- | --- |
@@ -42,6 +53,9 @@ its recent history.
 
 - [ ] The migration `20260823140000_entries_rules_enforced.sql` has been applied to the
       project you are about to run this against. `supabase migration list` says so.
+- [ ] So has `20260912130000_entries_a_runners_own_hold_yields.sql`, which adds the fifth. If
+      only the first is applied, skip the fifth constraint everywhere below — it is not there
+      to validate, and `validate constraint` on a constraint that does not exist errors.
 - [ ] You are in the **Supabase SQL editor for the production project**, or connected with
       `psql`. This needs no service role key and no application credential.
 - [ ] You have five minutes. There is no half-done state, but there is no point stopping in
@@ -74,6 +88,12 @@ select 'entrants_emergency_phone_has_digits',
        count(*)
   from entries.entrants
  where length(regexp_replace(emergency_contact_phone, '[^0-9]', '', 'g')) < 7
+union all
+-- The fifth. A pending purchase holds a place, so it has to say when the place goes back.
+select 'entry_purchases_hold_when_pending',
+       count(*)
+  from entries.entry_purchases
+ where status = 'pending' and hold_expires_at is null
 order by 1;
 ```
 
@@ -91,6 +111,14 @@ before anything is edited:
 - **`purchaser_email_shape`** — an address the confirmation will never reach.
 - **`date_of_birth_plausible`** — almost certainly a typed year, and it changes an age category.
 - **`emergency_phone_has_digits`** — the number somebody would be rung on.
+- **`hold_when_pending`** — ⚠️ **this one is not a typo or an import, it is a live defect.** A
+  `pending` purchase with no `hold_expires_at` is a hold that never lapses: it counts against
+  the 250 for ever, `expire_pending_holds()` can never reach it because that function only
+  expires holds that have a date, and until 12 September 2026 it also blocked that runner and
+  that address from entering again permanently. **Do not leave it alone.** Find out which
+  purchase it is, whether it was ever paid, and whether somebody has been trying to enter — the
+  runner is the person to ask. Setting the row to `expired` hands the place back; doing that
+  before understanding it discards the evidence of how the row got there.
 
 Leave the constraint `not valid`. It is still protecting every new write, which is the half that
 matters most, and the rows are still there to be understood.
@@ -106,6 +134,7 @@ alter table entries.entry_purchases validate constraint entry_purchases_consents
 alter table entries.entry_purchases validate constraint entry_purchases_purchaser_email_shape;
 alter table entries.entrants validate constraint entrants_date_of_birth_plausible;
 alter table entries.entrants validate constraint entrants_emergency_phone_has_digits;
+alter table entries.entry_purchases validate constraint entry_purchases_hold_when_pending;
 ```
 
 **`validate constraint` takes only SHARE UPDATE EXCLUSIVE.** It does not block reads and it does
@@ -126,6 +155,7 @@ select conname, convalidated
  where n.nspname = 'entries'
    and conname in (
      'entry_purchases_consents_are_boolean',
+     'entry_purchases_hold_when_pending',
      'entry_purchases_purchaser_email_shape',
      'entrants_date_of_birth_plausible',
      'entrants_emergency_phone_has_digits'
@@ -133,7 +163,7 @@ select conname, convalidated
  order by conname;
 ```
 
-All four `convalidated` must be `true`.
+All five `convalidated` must be `true` — four, if the fifth's migration is not applied yet.
 
 - [ ] Record what you did, when, and what step 1 reported, in
       [`apps/main/README.md`](../../../platform/apps/main/README.md)'s manual steps — that is
@@ -152,7 +182,7 @@ on 29 August 2026, and what replaced it is a plain check constraint that ships *
 the migration empties the column immediately above it, so there is nothing here to scan.) There is nothing to scan, nothing that can fail on deploy, and nothing to
 validate afterwards.
 
-It is also their limitation, and it is precisely why the four constraints exist alongside them:
+It is also their limitation, and it is precisely why the five constraints exist alongside them:
 **a trigger cannot tell you the rows you already have are fine.** That is the sentence this
 runbook exists to be able to say.
 
@@ -164,6 +194,7 @@ runbook exists to be able to say.
 identical before and after, and dropping it is the ordinary way back.
 
 ```sql
+alter table entries.entry_purchases drop constraint entry_purchases_hold_when_pending;
 alter table entries.entry_purchases drop constraint entry_purchases_consents_are_boolean;
 ```
 

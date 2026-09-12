@@ -300,6 +300,15 @@ describe('every rule about a runner is a rule about their guide', () => {
   });
 
   it('refuses a guide who already holds a place of their own', async () => {
+    // ⚠️ **This test is also what constrains ADR-040's superseding, and it is the only thing
+    // that was.** A submission supersedes a live hold its own purchaser left behind, and the
+    // first draft keyed that on the runner alone — on the reasoning that the runner is the
+    // identity both one-place rules already use. This went red as an *accepted* duplicate,
+    // which is the whole failure in one line: a guide rides on somebody **else's** entry, so
+    // keying on the runner let a stranger's submission expire this person's live hold and then
+    // take a place that should have been refused. The superseding takes the purchaser's address
+    // as well for that reason. **If this ever starts passing for the wrong reason, check the key
+    // before the fixture.**
     const solo = person('runner', { first_name: 'Katherine', last_name: 'Twice' });
     expect(((await enter([solo], {})) as Created).ok).toBe(true);
 
