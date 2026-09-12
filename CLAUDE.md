@@ -362,7 +362,8 @@ Use `./dev`, or `cd platform` first.
 ./dev test    # the Worker and acceptance tests, then everything stopped
 ./dev e2e     # one Playwright spec on one engine — the fast loop; --linux runs CI's own
               # browser image, for when a laptop passes something CI would fail
-./dev check   # rebuild the database, then lint, types, unit and database tests
+./dev check   # rebuild the database, then lint, types, generated types, unit and database
+              # tests — the same six steps as CI's "Lint, types and tests" job
 ./dev smoke   # a handful of live assertions against production; --live is explicit about it
 ./dev reset   # rebuild the database from zero without starting the site
 ./dev down    # stop the Workers and the database
@@ -523,6 +524,20 @@ Postgres, the Workers runtime via Miniflare, and Playwright with axe.
 needs a build, which is why it waits for `test` rather than `check`. Between them the two
 commands run every layer CI does, which was not true until a green laptop sent a red pull
 request.
+
+⚠️ **It stopped being true a second time, and the same way: `./dev check` was missing CI's
+"Generated types are current" step until 12 September 2026.** `database.types.ts` is
+generated, so any migration adding a function or a column makes it stale — and a green
+`./dev check` could still send a red pull request, on a file nobody thought they had touched.
+It runs `db:types:check` now, in CI's own order. **The general rule that keeps costing time:
+a step CI runs and `./dev` does not is a divergence that fails in the expensive direction**,
+because the laptop is where it is cheap to find out.
+
+⚠️ **And a scoped run is not this gate.** `vitest run <one file>` while iterating is the loop;
+`./dev check` is what says the branch is green. Scoping to a new test file hid a sibling
+assertion — `timing.test.ts`'s list of granted functions, which went red on CI the moment a
+migration added three — and 17 passing tests read exactly like 1,838 passing tests until the
+runner disagreed.
 
 **The negative case is usually the one that matters.** That an anonymous client _cannot_
 read `club` proves more than that a member can. Assert the specific error, not merely that
