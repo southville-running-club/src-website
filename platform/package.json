@@ -37,8 +37,8 @@
     "prepare": "cd .. && node platform/node_modules/husky/bin.js .husky || true"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,astro}": "eslint --fix",
-    "*.{js,jsx,ts,tsx,astro,json,md,css,yml,yaml}": "prettier --write"
+    "*.{js,mjs,cjs,jsx,ts,tsx,astro}": "eslint --fix",
+    "*.{js,mjs,cjs,jsx,ts,tsx,astro,json,md,css,yml,yaml}": "prettier --write"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
