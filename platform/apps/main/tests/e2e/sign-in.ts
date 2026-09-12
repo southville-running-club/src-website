@@ -32,7 +32,8 @@ import { ADMIN_PASSWORD } from '../admin-fixtures';
  * stops happening is proving the door works on the way to testing something else.
  *
  * The cache is module-scoped, so it is per Playwright worker. With `workers: 1` that is one
- * sign-in per email per run.
+ * sign-in per email per run — **and, now that two specs share this module, one cache across
+ * both of them.** See {@link forgetSessions}, which is the half that makes that safe.
  */
 
 /**
@@ -59,6 +60,27 @@ const DUMMY_TURNSTILE_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 type SessionCookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;
 
 const sessionCookies = new Map<string, Promise<SessionCookies>>();
+
+/**
+ * Throw the cached jars away.
+ *
+ * ⚠️ **Every spec that seeds fixture people must call this, and CI is what proved it.**
+ * `clearAdminFixtures()` deletes the `auth.users` rows in a spec's `afterAll`; the next spec's
+ * `beforeAll` signs the same addresses up again and GoTrue mints **new ids**. A jar cached
+ * before that points at a person who no longer exists — the cookie still parses, the session
+ * still looks live, and every permission check behind it silently answers no.
+ *
+ * The symptom is not a sign-in failure. It is a **404 on a page that should have opened**,
+ * somewhere else entirely, in whichever spec happened to run second: `admin.spec.ts`'s CSV
+ * export came back 404 on one shard and passed on the other three, because only that shard
+ * ran both specs in that order.
+ *
+ * This did not exist while the cache was private to one spec file, which is the cost of
+ * sharing it and is cheaper than two files seeding the same people.
+ */
+export function forgetSessions(): void {
+  sessionCookies.clear();
+}
 
 /** The real round trip, run exactly once per email — see `signInAs` below it. */
 async function realSignIn(page: Page, email: string): Promise<void> {

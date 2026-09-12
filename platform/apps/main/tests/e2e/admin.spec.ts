@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
-import { CSRF_COOKIE, CSRF_FIELD, signInAs } from './sign-in';
+import { CSRF_COOKIE, CSRF_FIELD, forgetSessions, signInAs } from './sign-in';
 import {
   expectNoSidewaysScroll as expectNoSidewaysScrollAt,
   waitForStyledLayout,
@@ -146,6 +146,9 @@ const NOBODY_AT_ALL = '0b0b0b0b-0000-4000-8000-0000000000ff';
 
 test.beforeAll(async () => {
   await seedAdminFixtures(LOCAL_GATE_KEY);
+  // The people were just re-created, so any jar cached by another spec names somebody who no
+  // longer exists. See `forgetSessions`.
+  forgetSessions();
 });
 
 test.afterAll(async () => {

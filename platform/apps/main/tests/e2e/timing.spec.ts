@@ -9,7 +9,7 @@ import {
 } from '../admin-fixtures';
 import { RESULTS_EVENT_NAME, RESULTS_EVENT_SLUG } from '../timing-fixtures';
 import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
-import { signInAs } from './sign-in';
+import { forgetSessions, signInAs } from './sign-in';
 
 /**
  * `/timing`'s own pages, in a real browser — #247.
@@ -41,6 +41,9 @@ const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 test.beforeAll(async () => {
   await seedAdminFixtures();
   await seedTimingFixtures();
+  // The people were just re-created, so any jar cached by another spec names somebody who no
+  // longer exists. See `forgetSessions`.
+  forgetSessions();
 });
 
 test.afterAll(async () => {
