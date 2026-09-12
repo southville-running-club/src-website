@@ -2228,3 +2228,68 @@ test.describe('open and cancelled entries on a runner’s own page', () => {
     await expect(page.getByText(OWNED_LAST_NAME)).toBeVisible();
   });
 });
+
+/**
+ * The boundary between the club's two role families — #243.
+ *
+ * `site.spec.ts` asserts that a **signed-out** visitor gets the ordinary 404 at `/timing`, and
+ * that has been true since 11 September 2026. The case it cannot make is the one that actually
+ * distinguishes a permission check from an "is anybody signed in" check: **somebody holding a
+ * real role on the club's side, signed in, with a live session, holding nothing in `timing`.**
+ * Before #243 the timing door tested for any permission whose slug begins `timing.`, so this
+ * always passed — and it would go on passing if that test were ever loosened to "holds any
+ * permission at all", which is exactly the mistake `isStaff()`'s own comment warns about one
+ * application along.
+ *
+ * **It lives in this file rather than `site.spec.ts` deliberately.** These assertions need a
+ * seeded person, a real sign-in and a live cookie jar; this file already has all three, and
+ * `signInAs` is module-private to it. Standing the same machinery up in a second spec would
+ * mean two files seeding and clearing admin fixtures against one database — which
+ * `admin-db.ts`'s own header records as having bitten this suite once already.
+ *
+ * ⚠️ **What this does not cover, and #245 is where it lands.** Only `/timing/` is served
+ * today. A marshal being refused `/timing/events/` cannot be asserted here yet, because that
+ * address 404s for everybody — `apps/timing/tests/unit/access.test.ts` covers the table that
+ * decides it, and the acceptance half waits for a page to exist.
+ */
+test.describe('the club side and the timing app are different doors', () => {
+  for (const [who, email] of [
+    ['a Nightingale Nightmare admin', NN_ADMIN_EMAIL],
+    ['a people admin', PEOPLE_ADMIN_EMAIL],
+    ['a super admin', SUPER_ADMIN_EMAIL],
+    ['an ordinary registered member', REGISTERED_EMAIL],
+  ] as const) {
+    test(`${who} gets the ordinary 404 at /timing`, async ({ page }) => {
+      await signInAs(page, email);
+
+      const response = await page.goto('/timing');
+
+      expect(response?.status(), `${email} at /timing`).toBe(404);
+
+      // **Byte-for-byte the signed-out refusal**, which is the property: a 403, a different
+      // heading, or an "awaiting authorisation" panel would all disclose that the address
+      // exists and that this person is close to being allowed in.
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+      await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+
+      // And it was the timing Worker that answered, not a redirect back to the club's side.
+      expect(new URL(page.url()).pathname).toBe('/timing');
+      expect(await page.content()).toContain('/timing/_next/');
+    });
+  }
+
+  /**
+   * The session really is live — otherwise every assertion above passes for the boring reason
+   * that nobody is signed in at all, and the whole block stops testing the thing it names.
+   */
+  test('and the session doing that is a real one', async ({ page }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+
+    expect((await page.goto('/admin/nn/'))?.status(), 'nn-admin at its own page').toBe(
+      200,
+    );
+    expect((await page.goto('/timing'))?.status(), 'the same session at /timing').toBe(
+      404,
+    );
+  });
+});
