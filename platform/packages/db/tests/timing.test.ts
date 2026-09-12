@@ -301,7 +301,7 @@ describe('the one read, for somebody who holds nn.results.read', () => {
   const SLUG = 'zz-timing-results';
 
   type ResultsAnswer = {
-    event: { slug: string; format: string };
+    event: Record<string, unknown> & { slug: string; format: string };
     teams: { team_number: string | null; runners: Record<string, unknown>[] }[];
     crossings: { bib: string | null }[];
   };
@@ -395,6 +395,36 @@ describe('the one read, for somebody who holds nn.results.read', () => {
       age_on_day: 34,
     });
     expect(results?.crossings).toEqual([expect.objectContaining({ bib: '42' })]);
+  });
+
+  /**
+   * ⚠️ **The two columns every derived time is measured against, asserted as *present* rather
+   * than by value.** `raceStartIso()` is `actually_started_at ?? start_at`, so a key this
+   * function stopped building would arrive as `undefined`, coalesce to the scheduled start, and
+   * make every split on the results page wrong by however long the start slipped — with no
+   * error anywhere and a table that looks entirely plausible. A coalesce cannot distinguish
+   * "no delayed start" from "the column was not sent", which is why the key has to be checked
+   * and not only the value.
+   *
+   * `finished_at` goes with them because `nn-results.ts` names it in the payload it reads;
+   * `format` is asserted above, and it is what decides whether a bib derives with a leg prefix.
+   */
+  it('carries the timestamps a derived time is measured against, as keys', async () => {
+    const results = await asPerson(RESULTS_READER);
+
+    expect(Object.keys(results?.event ?? {}).sort()).toEqual([
+      'actually_started_at',
+      'finished_at',
+      'format',
+      'name',
+      'slug',
+      'start_at',
+    ]);
+
+    // This fixture's start was not delayed, so the column is null and `start_at` is what a
+    // split would be measured from — which is the fallback working, not the key missing.
+    expect(results?.event.actually_started_at).toBeNull();
+    expect(results?.event.start_at).not.toBeNull();
   });
 
   it('carries no email address and no club, because a results page needs neither', async () => {

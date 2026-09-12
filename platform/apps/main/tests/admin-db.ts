@@ -7,6 +7,7 @@ import {
   REGISTERED_EMAIL,
   ENTRANT_EMAIL,
   NN_ADMIN_EMAIL,
+  NN_RESULTS_EMAIL,
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
@@ -582,6 +583,7 @@ async function seedFixturePeople(): Promise<void> {
     [SUPER_ADMIN_EMAIL]: 'super-admin',
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
+    [NN_RESULTS_EMAIL]: 'nn-results',
     [ENTRANT_EMAIL]: null,
     [LAPSED_EMAIL]: null,
   };
