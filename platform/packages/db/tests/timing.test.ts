@@ -247,14 +247,16 @@ describe('what may be called, and by whom', () => {
    *   * `event_roster` — `timing.registration.import`, reading back what landed;
    *   * `list_events` and `event_detail` — `timing.event.manage`, the two reads the events
    *     hub is built from, both answering `null` when refused;
-   *   * `update_event` — `timing.event.manage`, correcting a race **before** it starts.
+   *   * `update_event` — `timing.event.manage`, correcting a race **before** it starts;
+   *   * `roster_for_event`, `assignable_marshals`, `assign_marshal` and `unassign_marshal` —
+   *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission.
    *
    * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
    * trigger is reachable from its trigger and nothing else; a grant on it would be a function
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these seven functions, and only to authenticated', async () => {
+  it('grants exactly these eleven functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -263,12 +265,16 @@ describe('what may be called, and by whom', () => {
     );
 
     expect(rows).toEqual([
+      { routine_name: 'assign_marshal', grantee: 'authenticated' },
+      { routine_name: 'assignable_marshals', grantee: 'authenticated' },
       { routine_name: 'create_event', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
+      { routine_name: 'roster_for_event', grantee: 'authenticated' },
+      { routine_name: 'unassign_marshal', grantee: 'authenticated' },
       { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
   });
@@ -739,6 +745,387 @@ describe('listing, reading and correcting an event', () => {
           '2026-11-01T11:00:00Z',
         ),
       ).toEqual({ ok: false, reason: 'no_such_event' });
+    });
+  });
+});
+
+/**
+ * The per-event marshal roster — #245, under ADR-036.
+ *
+ * ⚠️ **The whole point is that this is a scope and not an authority.** Whether somebody may
+ * record a crossing at all is `timing.crossing.record` in `identity`; this table says *which
+ * races*, checked after the permission. So the assertion that matters most is that a person
+ * without that permission **cannot be put on a roster at all** — a row saying otherwise would
+ * be a roster that had quietly granted something.
+ */
+describe('the marshal roster', () => {
+  const ASSIGNER = '77777777-7777-4777-8777-777777777777';
+  const MARSHAL = '88888888-8888-4888-8888-888888888888';
+  const OUTSIDER = '99999999-9999-4999-8999-999999999999';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000d1';
+  const SLUG = 'zz-timing-roster';
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  type Envelope = { ok: boolean; reason?: string };
+
+  const rosterAs = (person: string, slug = SLUG) =>
+    asPerson<Record<string, unknown> | null>(
+      person,
+      'select timing.roster_for_event($1) as answer',
+      [slug],
+    );
+
+  const pickerAs = (person: string) =>
+    asPerson<Record<string, unknown>[] | null>(
+      person,
+      'select timing.assignable_marshals() as answer',
+      [],
+    );
+
+  const assignAs = (actor: string, subject: string, slug = SLUG) =>
+    asPerson<Envelope>(actor, 'select timing.assign_marshal($1, $2) as answer', [
+      slug,
+      subject,
+    ]);
+
+  const unassignAs = (actor: string, subject: string, slug = SLUG) =>
+    asPerson<Envelope>(actor, 'select timing.unassign_marshal($1, $2) as answer', [
+      slug,
+      subject,
+    ]);
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [ASSIGNER, 'timing-roster-assigner@example.com'],
+      [MARSHAL, 'timing-roster-marshal@example.com'],
+      [OUTSIDER, 'timing-roster-outsider@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        `insert into identity.people (id) values ($1) on conflict (id) do nothing`,
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2), ($3, 'registered', $3)
+       on conflict do nothing`,
+      [ASSIGNER, MARSHAL, OUTSIDER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Roster Fixture', 'solo', '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [ASSIGNER, MARSHAL, OUTSIDER],
+    ]);
+  });
+
+  describe('who may look and who may act', () => {
+    it('answers null to a marshal, who may capture and may not assign', async () => {
+      expect(await rosterAs(MARSHAL)).toBeNull();
+      expect(await pickerAs(MARSHAL)).toBeNull();
+    });
+
+    it('refuses a marshal both writes, with a reason', async () => {
+      expect(await assignAs(MARSHAL, MARSHAL)).toEqual({ ok: false, reason: 'refused' });
+      expect(await unassignAs(MARSHAL, MARSHAL)).toEqual({
+        ok: false,
+        reason: 'refused',
+      });
+    });
+
+    it('gives the same null for a slug that does not exist', async () => {
+      expect(await rosterAs(ASSIGNER, 'zz-no-such-roster')).toBeNull();
+      expect(await rosterAs(MARSHAL, 'zz-no-such-roster')).toBeNull();
+    });
+  });
+
+  /**
+   * ⚠️ **ADR-036 in one assertion.** The roster narrows a permission; it cannot grant one. A
+   * function that wrote the row anyway would produce a person who is on a race roster and
+   * still cannot record anything — a state with no meaning, discovered at a finish line.
+   */
+  describe('the roster cannot grant a permission', () => {
+    it('refuses somebody who does not hold timing.crossing.record', async () => {
+      expect(await assignAs(ASSIGNER, OUTSIDER)).toEqual({
+        ok: false,
+        reason: 'not_a_marshal',
+      });
+    });
+
+    it('writes no row when it refuses', async () => {
+      await assignAs(ASSIGNER, OUTSIDER);
+
+      const { rows } = await db.query<{ n: string }>(
+        'select count(*) as n from timing.marshals where event_id = $1 and user_id = $2',
+        [EVENT_ID, OUTSIDER],
+      );
+      expect(rows[0]?.n).toBe('0');
+    });
+
+    /**
+     * A revoked role is not a permission. `role_grants.revoked_at` is set rather than the row
+     * deleted — `identity.audit` names a grant by its row — so a join that forgot it would
+     * quietly re-admit everybody who ever held the role.
+     */
+    it('refuses somebody whose marshal role has been revoked', async () => {
+      await db.query(
+        `update identity.role_grants set revoked_at = now()
+          where person_id = $1 and role = 'timing-marshal'`,
+        [MARSHAL],
+      );
+      try {
+        expect(await assignAs(ASSIGNER, MARSHAL)).toEqual({
+          ok: false,
+          reason: 'not_a_marshal',
+        });
+
+        // Gone from the picker too — but the picker is not empty, because the assigner
+        // holds `timing-admin`, which carries all six timing permissions including
+        // `timing.crossing.record`. See the block below.
+        const ids = ((await pickerAs(ASSIGNER)) ?? []).map((p) => p['person_id']);
+        expect(ids).not.toContain(MARSHAL);
+      } finally {
+        await db.query(
+          `update identity.role_grants set revoked_at = null
+            where person_id = $1 and role = 'timing-marshal'`,
+          [MARSHAL],
+        );
+      }
+    });
+  });
+
+  describe('the picker', () => {
+    it('offers only people holding timing.crossing.record', async () => {
+      const ids = ((await pickerAs(ASSIGNER)) ?? []).map((p) => p['person_id']);
+
+      expect(ids).toContain(MARSHAL);
+      expect(ids).not.toContain(OUTSIDER);
+    });
+
+    /**
+     * ⚠️ **A `timing-admin` is in the picker, and that is the requirement rather than a leak.**
+     * `timing-admin` carries all six timing permissions, `timing.crossing.record` among them,
+     * so an admin genuinely may capture — and #245 is explicit that one who is going to stand
+     * at the line **adds themselves**, because ADR-036 checks the roster after the permission
+     * for everybody and the old application's global-admin bypass is what that replaces.
+     *
+     * This assertion is here because the first version of this test asserted the opposite and
+     * failed, which is the useful direction for a test to fail in.
+     */
+    it('includes an admin, who may capture and must still be rostered to do it', async () => {
+      const ids = ((await pickerAs(ASSIGNER)) ?? []).map((p) => p['person_id']);
+
+      expect(ids).toContain(ASSIGNER);
+    });
+
+    it('carries an address, because identifying one person is its whole job', async () => {
+      const people = (await pickerAs(ASSIGNER)) ?? [];
+      const marshal = people.find((p) => p['person_id'] === MARSHAL);
+
+      // `identity.people.name` is null until #61, so without this the list is
+      // indistinguishable rows and the failure mode is assigning the wrong person.
+      expect(marshal).toMatchObject({ email: 'timing-roster-marshal@example.com' });
+    });
+
+    /**
+     * It is not `identity.list_people()` with a filter — that is a different and much larger
+     * question, behind `identity.person.read`, which this caller need not hold.
+     */
+    it('is not the club, however many people have accounts', async () => {
+      const ids = ((await pickerAs(ASSIGNER)) ?? []).map((p) => p['person_id']);
+
+      // A registered member with an account and no timing permission is not offered.
+      expect(ids).not.toContain(OUTSIDER);
+    });
+  });
+
+  describe('assigning, and taking somebody off again', () => {
+    it('adds a marshal, audits it, and is idempotent on a second ask', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [ASSIGNER],
+        );
+
+        const first = await db.query<{ answer: Envelope }>(
+          'select timing.assign_marshal($1, $2) as answer',
+          [SLUG, MARSHAL],
+        );
+        expect(first.rows[0]?.answer).toMatchObject({ ok: true });
+
+        // Asked twice: still one row, because the primary key says so.
+        await db.query('select timing.assign_marshal($1, $2)', [SLUG, MARSHAL]);
+
+        // ⚠️ **Back to the owning role before reading a table directly.** `authenticated`
+        // holds no grant on any table in `timing` — that is the property `timing.test.ts`
+        // asserts a few blocks up — so a verification read left under the impersonated role
+        // fails with `permission denied`, which looks like a broken function and is not one.
+        await db.query("select set_config('role', 'postgres', true)");
+
+        const { rows } = await db.query<{ n: string }>(
+          'select count(*) as n from timing.marshals where event_id = $1 and user_id = $2',
+          [EVENT_ID, MARSHAL],
+        );
+        expect(rows[0]?.n).toBe('1');
+
+        // Both asks audited. "Somebody asked for this person to be on this roster" is the
+        // fact worth keeping, and a second ask is not a different intention.
+        const audit = await db.query<{ n: string }>(
+          `select count(*) as n from timing.admin_actions
+            where event_id = $1 and action = 'marshal_assigned'`,
+          [EVENT_ID],
+        );
+        expect(audit.rows[0]?.n).toBe('2');
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('says so rather than claiming success when the person was never on the roster', async () => {
+      expect(await unassignAs(ASSIGNER, MARSHAL)).toEqual({
+        ok: false,
+        reason: 'not_on_roster',
+      });
+    });
+
+    /**
+     * ⚠️ **The case #245 names explicitly.** `crossings.marshal_id` is `on delete set null`
+     * against `auth.users`, which is for an account that is gone. A roster change is not that:
+     * somebody taken off a roster at 11:40 has not un-seen the runners who crossed at 11:30.
+     */
+    it('leaves the crossings a removed marshal recorded exactly as they were', async () => {
+      await db.query('begin');
+      try {
+        await db.query(
+          'insert into timing.marshals (event_id, user_id) values ($1, $2)',
+          [EVENT_ID, MARSHAL],
+        );
+        await db.query(
+          `insert into timing.crossings (event_id, marshal_id, bib, captured_at)
+           values ($1, $2, '11', '2026-11-01T11:30:00Z')`,
+          [EVENT_ID, MARSHAL],
+        );
+
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [ASSIGNER],
+        );
+
+        const { rows: off } = await db.query<{ answer: Envelope }>(
+          'select timing.unassign_marshal($1, $2) as answer',
+          [SLUG, MARSHAL],
+        );
+        expect(off[0]?.answer).toMatchObject({ ok: true });
+
+        // See the note above: `authenticated` may not read these tables directly.
+        await db.query("select set_config('role', 'postgres', true)");
+
+        const { rows } = await db.query<{ marshal_id: string | null; bib: string }>(
+          'select marshal_id, bib from timing.crossings where event_id = $1',
+          [EVENT_ID],
+        );
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.bib).toBe('11');
+        // Still attributed. This is the assertion, not the row count.
+        expect(rows[0]?.marshal_id).toBe(MARSHAL);
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('reads the roster back with a name key, null until #61 writes one', async () => {
+      await db.query('begin');
+      try {
+        await db.query(
+          'insert into timing.marshals (event_id, user_id) values ($1, $2)',
+          [EVENT_ID, MARSHAL],
+        );
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [ASSIGNER],
+        );
+
+        const { rows } = await db.query<{
+          answer: { marshals: Record<string, unknown>[] };
+        }>('select timing.roster_for_event($1) as answer', [SLUG]);
+
+        expect(rows[0]?.answer.marshals).toEqual([
+          expect.objectContaining({ person_id: MARSHAL, name: null }),
+        ]);
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * A roster is who is at the line, not how to contact them. The picker carries an address
+     * because identifying somebody is its whole job; this must not.
+     */
+    it('carries no email address at all', async () => {
+      await db.query('begin');
+      try {
+        await db.query(
+          'insert into timing.marshals (event_id, user_id) values ($1, $2)',
+          [EVENT_ID, MARSHAL],
+        );
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [ASSIGNER],
+        );
+
+        const { rows } = await db.query<{ answer: unknown }>(
+          'select timing.roster_for_event($1) as answer',
+          [SLUG],
+        );
+        const text = JSON.stringify(rows[0]?.answer);
+
+        expect(text).not.toContain('timing-roster-marshal@example.com');
+        expect(text).not.toMatch(/"email"/);
+      } finally {
+        await db.query('rollback');
+      }
     });
   });
 });
