@@ -1675,8 +1675,12 @@ the platform is being **rewritten here** rather than moved, so what exists now i
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
 **What is genuinely not built is everything that touches a race as it happens**: nothing
-captures a crossing, nothing imports an entry list, there is no marshal or countdown screen,
-and no result is published to anybody. **There is also no timing data** — every table is
+captures a crossing, there is no marshal or countdown screen, and no result is published to
+anybody. ⚠️ **The entry list is half done** — `timing.create_event()`,
+`timing.import_registration()` and `timing.event_roster()` exist behind
+`timing.event.manage` and `timing.registration.import`, so an entry list *can* be imported by
+something that calls them, and **nothing calls them yet**: the upload, preview and reconcile
+screens are still #202's other half. **There is also no timing data** — every table is
 empty, so the results page renders "Nothing has been captured for this race yet" to the few
 people who may open it at all. The current state, and what is deliberately deferred, is in
 [the phases](docs/delivery/phases.md).
