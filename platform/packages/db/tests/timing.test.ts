@@ -231,18 +231,27 @@ describe('bib resolution agrees with bib.ts', () => {
   });
 });
 
-describe('the one read, and who may call it', () => {
+describe('what may be called, and by whom', () => {
   /**
-   * `timing.results_for_event()` is the only thing in this schema either role may call — the
-   * read behind `/nn/<year>/results/`, which authorises inside itself against
-   * `nn.results.read`.
+   * **The exact list, so a fifth is a decision somebody takes in a diff rather than a side
+   * effect** — `entries.test.ts`'s mechanism, and this assertion has already done its job
+   * once: it went red the moment the registration import added three functions, which is
+   * precisely what it is for.
    *
-   * ⚠️ **The bib trigger function must not be on this list.** It is reachable from its trigger
-   * and nothing else; a grant on it would be a function anybody could call to probe how bibs
-   * resolve. The migration that added the read revokes it from both roles defensively, and this
-   * is what says that held.
+   * Every one of them authorises *inside itself* against a permission, so the grant only says
+   * "you may ask":
+   *
+   *   * `results_for_event` — `nn.results.read`, the read behind `/nn/<year>/results/`;
+   *   * `create_event` and `import_registration` — `timing.event.manage` and
+   *     `timing.registration.import`, the write path an entry list arrives through;
+   *   * `event_roster` — `timing.registration.import`, reading back what landed.
+   *
+   * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
+   * trigger is reachable from its trigger and nothing else; a grant on it would be a function
+   * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
+   * this is what says that held.
    */
-  it('grants exactly one function, results_for_event, and only to authenticated', async () => {
+  it('grants exactly these four functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -251,6 +260,9 @@ describe('the one read, and who may call it', () => {
     );
 
     expect(rows).toEqual([
+      { routine_name: 'create_event', grantee: 'authenticated' },
+      { routine_name: 'event_roster', grantee: 'authenticated' },
+      { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
     ]);
   });
