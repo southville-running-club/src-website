@@ -6,6 +6,7 @@ import {
   EXPIRY_COOKIE,
   parseSessionExpiry,
 } from '@src/shared/session-cookies';
+import { holdsPermissionFor, surfaceFor } from './lib/access';
 
 /**
  * The door to `/timing`: staff with a timing permission, and an ordinary 404 for everybody
@@ -56,7 +57,24 @@ import {
  * ⚠️ **It never refreshes, so it can never extend a session.** A volunteer whose token lapsed
  * after thirty idle minutes is refused here and put right by opening any page on the club's
  * side. A small cost on the safe side, and it keeps the only code that writes a session cookie
- * in one file.
+ * in one file. Since [#244](https://github.com/southville-running-club/src-website/issues/244)
+ * a marshal's page keeps its own session alive by polling `/account/keep-alive/` on the club's
+ * Worker, which is the same origin — so the one case where thirty minutes was genuinely too
+ * short is answered without this file learning to write a cookie.
+ *
+ * ## Why the permission check is here and not in each page — #243
+ *
+ * ⚠️ **This door used to admit anybody holding *any* `timing.*` permission**, which was right
+ * for a holding page and wrong the moment a page does something: a `timing-marshal` holds one
+ * permission and reached every address a `timing-admin` did. The obvious fix is for each page
+ * to check itself, and **a page in this application cannot refuse** — see the section above:
+ * `notFound()` from a dynamic render produces a blank page with JavaScript off, which is what
+ * moved the gate here in the first place.
+ *
+ * So the refusal stays in the one place that has a proven mechanism, and what each page would
+ * have checked lives in `lib/access.ts` as a table. `surfaceFor()` says what an address
+ * demands; an address with no row is refused, so adding a page without adding a row is a page
+ * that does not open rather than one that opens to anybody.
  */
 
 /**
@@ -65,15 +83,22 @@ import {
  */
 const REFUSED_PATH = '/__refused';
 
-async function holdsATimingPermission(request: NextRequest): Promise<boolean> {
+/**
+ * What this request's session holds, or `null` for every reason there is: no access token, a
+ * deadline that is missing, unreadable or past, or a permission read that failed.
+ *
+ * `null` rather than an empty array, so "this person holds nothing" and "we could not find
+ * out" cannot be confused by a caller. Both refuse, and only one is worth a log line.
+ */
+async function permissionsOf(request: NextRequest): Promise<string[] | null> {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   if (!accessToken) {
-    return false;
+    return null;
   }
 
   const deadline = parseSessionExpiry(request.cookies.get(EXPIRY_COOKIE)?.value);
   if (deadline === null || deadline <= Math.floor(Date.now() / 1000)) {
-    return false;
+    return null;
   }
 
   const { env } = getCloudflareContext();
@@ -89,20 +114,47 @@ async function holdsATimingPermission(request: NextRequest): Promise<boolean> {
     console.error(
       `timing: permission read unavailable — ${error.code}: ${error.message}`,
     );
+    return null;
+  }
+
+  return Array.isArray(data)
+    ? data.filter((p): p is string => typeof p === 'string')
+    : [];
+}
+
+async function mayOpen(request: NextRequest): Promise<boolean> {
+  // Asked **before** the session is read, because an address nobody has written a rule for is
+  // refused whoever is asking, and there is no reason to call Supabase to find that out.
+  const surface = surfaceFor(request.nextUrl.pathname);
+  if (surface === null) {
     return false;
   }
 
-  // **Any** `timing.*` permission opens the door. Which parts of `/timing` a person may then
-  // use is each page's own question, asked against the specific permission — ADR-017: code
-  // checks the permission, never a role name.
-  return (
-    Array.isArray(data) &&
-    data.some((p) => typeof p === 'string' && p.startsWith('timing.'))
-  );
+  const permissions = await permissionsOf(request);
+  if (permissions === null) {
+    return false;
+  }
+
+  if (!holdsPermissionFor(permissions, surface)) {
+    return false;
+  }
+
+  // ⚠️ **An address whose roster scope is not yet enforceable is refused, not admitted.**
+  // ADR-036 makes `timing.marshals` a scope checked *after* the permission, and reading it
+  // needs a function that does not exist —
+  // [#245](https://github.com/southville-running-club/src-website/issues/245). The choice here
+  // is between admitting on the permission alone until then, and refusing until the second
+  // half exists. **Refusing is the only one that cannot be shipped by accident**: the other
+  // leaves a door that is open by omission, discovered when a marshal opens somebody else's
+  // event. It costs nothing today, because no page is served under `/timing/marshal/` at all.
+  //
+  // #245 replaces this branch with the roster read. The `rosterScoped` flag exists so that
+  // removing it is a deliberate act rather than a line somebody deletes while passing.
+  return !surface.rosterScoped;
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
-  if (await holdsATimingPermission(request)) {
+  if (await mayOpen(request)) {
     return NextResponse.next();
   }
 
