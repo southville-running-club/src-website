@@ -327,8 +327,13 @@ re-run.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and _that_ is the thing to fix.
-- **Any change touching the timing platform** — `src-race-timing`, or the `public` and
-  `private` schemas.
+- **Any change touching the *old* timing platform** — the `bindalshah/src-race-timing`
+  repository, or the `public` and `private` schemas it owns. ⚠️ **The `timing` schema in this
+  repository is not that, and is ordinary work**: under
+  [ADR-034](docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+  the platform is being rewritten here rather than moved, so writing `timing` tables, the
+  ported logic in `packages/shared/src/timing/` and `apps/timing` needs no permission this
+  list does not already give. Reaching into the old one still does.
 - **Anything that would put a credential in the repository.**
 - **Changing `[auth]` in `packages/db/supabase/config.toml`.** It ships to production on
   every merge that touches a migration, and there is **no partial apply** — a rejected value
@@ -374,7 +379,7 @@ One hostname, several paths — the same locally and in production:
 |            |                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`        | The club website — `apps/main`                                                                                                                                                                                                                                                                                         |
-| `/nn`      | Nightingale Nightmare — `apps/main`                                                                                                                                                                                                                                                                                    |
+| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read`** and answers 404 to everybody else, the signed-out public included, because the club has not decided how or when a result is published                                                                                                                                                                                                                                                                                    |
 | `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
@@ -404,10 +409,18 @@ reach the database, never stored and filtered later. Date of birth becomes a com
 working. Roll code back; roll schema forward. This is load-bearing rather than good
 practice here — nothing sequences the migration against the Cloudflare deploy.
 
-**The timing platform is not touched by website work.** Not its tables, not its policies,
-not its repository, until the port happens deliberately. That includes the `private` schema,
-which is why `entries`' one helper function lives in `entries` with a pinned `search_path`
-rather than where the timing platform keeps its own.
+**The *old* timing platform is not touched by website work.** Not its tables, not its
+policies, not its repository. That includes the `private` schema, which is why `entries`' one
+helper function lives in `entries` with a pinned `search_path` rather than where the old
+platform keeps its own.
+
+⚠️ **"until the port happens deliberately" is what this used to end with, and the port is
+happening**: [ADR-034](docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+rewrites it here rather than moving it, and
+[ADR-035](docs/architecture/decisions/adr-035-the-timing-schema-joins-this-project.md) puts the
+new tables in a `timing` schema — **not `public`, and there is no `private` schema here**. The
+sentence above is about the platform still running on Vercel; the schema in this repository is
+ordinary work under the same rules as `entries` and `store`.
 
 **Zero accessibility violations**, not "few". Any threshold above zero becomes the new
 normal within a month.
@@ -1649,10 +1662,24 @@ places and a visually impaired runner's guide's place both use now.
 
 ### What is genuinely not built
 
-So you do not go looking for it, or assume it is missing by mistake: there is **no timing
-application code**. Nothing above this line is an exception to that — every section in this
-part of the file describes something built and live. The current state, and what is
-deliberately deferred, is in [the phases](docs/delivery/phases.md).
+⚠️ **This said "there is no timing application code" until 12 September 2026, and that
+stopped being true in stages rather than all at once** — which is exactly how a line like it
+goes stale unnoticed. Under
+[ADR-034](docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+the platform is being **rewritten here** rather than moved, so what exists now is:
+
+- the **`timing` schema** — six tables, RLS on with no policy (ADR-035);
+- the **pure logic**, ported with its assertions, in `packages/shared/src/timing/` — bibs,
+  anomalies, results, awards, categories and the registration parser;
+- **`apps/timing`**, a holding page behind a `timing.*` permission (ADR-036, ADR-037);
+- **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
+
+**What is genuinely not built is everything that touches a race as it happens**: nothing
+captures a crossing, nothing imports an entry list, there is no marshal or countdown screen,
+and no result is published to anybody. **There is also no timing data** — every table is
+empty, so the results page renders "Nothing has been captured for this race yet" to the few
+people who may open it at all. The current state, and what is deliberately deferred, is in
+[the phases](docs/delivery/phases.md).
 
 **The section below this one is the same kind of thing and is also built and live**: `store`,
 tickets to the club's socials, added 5 September 2026. It has its own list of what it

@@ -29,6 +29,7 @@ import {
   isNnEntryCompletePath,
   isNnMastheadPath,
   isNnPlacesRemainingPath,
+  isNnResultsPath,
   isNnRacePath,
   isNnWebhookPath,
   isNnYearPath,
@@ -41,6 +42,7 @@ import {
   NN_PREFIX,
 } from './routing';
 import { handleAdmin } from './admin';
+import { handleNnResults } from './nn-results';
 import { handleAccount } from './account';
 import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
@@ -417,6 +419,15 @@ export default {
     // personalised nor a page. See its own doc comment in `routing.ts`.
     if (request.method === 'GET' && isNnPlacesRemainingPath(url.pathname)) {
       return handlePlacesRemaining(env, url.pathname);
+    }
+
+    // **Before the assets binding, because there is deliberately nothing at this address in
+    // `dist/`.** A results page emitted as a file is readable by anybody who types its name,
+    // and this one is locked behind `nn.results.read` until the club decides how a
+    // Nightingale Nightmare result is published. It renders per viewer and answers 404 to
+    // everybody else — see `nn-results.ts` for why the refusal is a 404 and not a 403.
+    if (request.method === 'GET' && isNnResultsPath(url.pathname)) {
+      return handleNnResults(request, env, url);
     }
 
     const response = await env.ASSETS.fetch(request);

@@ -1411,6 +1411,288 @@ export type Database = {
       [_ in never]: never
     }
   }
+  timing: {
+    Tables: {
+      admin_actions: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          detail: Json | null
+          event_id: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          event_id?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          event_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crossings: {
+        Row: {
+          anomaly_flag: boolean
+          anomaly_reason: string | null
+          bib: string | null
+          captured_at: string
+          created_at: string
+          event_id: string
+          id: string
+          marshal_id: string | null
+          resolved_action: string | null
+          resolved_at: string | null
+          source: string
+          team_id: string | null
+        }
+        Insert: {
+          anomaly_flag?: boolean
+          anomaly_reason?: string | null
+          bib?: string | null
+          captured_at: string
+          created_at?: string
+          event_id: string
+          id?: string
+          marshal_id?: string | null
+          resolved_action?: string | null
+          resolved_at?: string | null
+          source?: string
+          team_id?: string | null
+        }
+        Update: {
+          anomaly_flag?: boolean
+          anomaly_reason?: string | null
+          bib?: string | null
+          captured_at?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          marshal_id?: string | null
+          resolved_action?: string | null
+          resolved_at?: string | null
+          source?: string
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crossings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crossings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          actually_started_at: string | null
+          course_notes: string | null
+          created_at: string
+          distance_m: number | null
+          finished_at: string | null
+          format: string
+          id: string
+          name: string
+          slug: string
+          start_at: string
+        }
+        Insert: {
+          actually_started_at?: string | null
+          course_notes?: string | null
+          created_at?: string
+          distance_m?: number | null
+          finished_at?: string | null
+          format: string
+          id?: string
+          name: string
+          slug: string
+          start_at: string
+        }
+        Update: {
+          actually_started_at?: string | null
+          course_notes?: string | null
+          created_at?: string
+          distance_m?: number | null
+          finished_at?: string | null
+          format?: string
+          id?: string
+          name?: string
+          slug?: string
+          start_at?: string
+        }
+        Relationships: []
+      }
+      marshals: {
+        Row: {
+          created_at: string
+          event_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marshals_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      runners: {
+        Row: {
+          age_on_day: number | null
+          club_name: string | null
+          created_at: string
+          email: string | null
+          firstname: string
+          gender: string | null
+          id: string
+          is_captain: boolean
+          lastname: string
+          leg: number
+          team_id: string
+        }
+        Insert: {
+          age_on_day?: number | null
+          club_name?: string | null
+          created_at?: string
+          email?: string | null
+          firstname: string
+          gender?: string | null
+          id?: string
+          is_captain?: boolean
+          lastname: string
+          leg: number
+          team_id: string
+        }
+        Update: {
+          age_on_day?: number | null
+          club_name?: string | null
+          created_at?: string
+          email?: string | null
+          firstname?: string
+          gender?: string | null
+          id?: string
+          is_captain?: boolean
+          lastname?: string
+          leg?: number
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runners_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          bib_leg1: string | null
+          bib_leg2: string | null
+          category: string | null
+          created_at: string
+          csv_row_index: number | null
+          dnf_at: string | null
+          entry_type: string | null
+          event_id: string
+          id: string
+          name: string | null
+          purchase_order_id: string | null
+          race_status: string | null
+          team_number: string | null
+        }
+        Insert: {
+          bib_leg1?: string | null
+          bib_leg2?: string | null
+          category?: string | null
+          created_at?: string
+          csv_row_index?: number | null
+          dnf_at?: string | null
+          entry_type?: string | null
+          event_id: string
+          id?: string
+          name?: string | null
+          purchase_order_id?: string | null
+          race_status?: string | null
+          team_number?: string | null
+        }
+        Update: {
+          bib_leg1?: string | null
+          bib_leg2?: string | null
+          category?: string | null
+          created_at?: string
+          csv_row_index?: number | null
+          dnf_at?: string | null
+          entry_type?: string | null
+          event_id?: string
+          id?: string
+          name?: string | null
+          purchase_order_id?: string | null
+          race_status?: string | null
+          team_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      results_for_event: { Args: { p_event_slug: string }; Returns: Json }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
@@ -1544,6 +1826,9 @@ export const Constants = {
     Enums: {},
   },
   store: {
+    Enums: {},
+  },
+  timing: {
     Enums: {},
   },
 } as const

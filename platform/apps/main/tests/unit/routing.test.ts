@@ -14,10 +14,13 @@ import {
   isNnCoursePath,
   isNnEntryCompletePath,
   isNnRacePath,
+  isNnResultsPath,
   isNnYearPath,
   isTimingPath,
   nnAdminSegments,
   nnEntryCompletePath,
+  nnEventSlugForResultsPath,
+  nnResultsPath,
   nnEventSlugForYearPath,
   nnYearPathForEventSlug,
   ACCOUNT_PREFIX,
@@ -479,5 +482,50 @@ describe('/events — the club’s socials', () => {
   it('leaves the race paths alone', () => {
     expect(socialSlugForEventsPath('/nn/2026/')).toBeNull();
     expect(isEventsIndexPath('/nn/')).toBe(false);
+  });
+});
+
+describe("one running's results, at /nn/<year>/results/", () => {
+  it("matches a year page's results, with or without the trailing slash", () => {
+    expect(isNnResultsPath('/nn/2026/results/')).toBe(true);
+    expect(isNnResultsPath('/nn/2026/results')).toBe(true);
+    expect(isNnResultsPath('/nn/2027/results/')).toBe(true);
+  });
+
+  it('does not swallow /nn/results.css, which is a real file in dist/', () => {
+    // **The trap `/nn/admin.css` and `/account.css` both document, a third time.** The
+    // stylesheet is the race's rather than one running's, so it carries no year — and it has
+    // to reach the assets binding. Treat this predicate as a prefix and every results page
+    // renders unstyled, with nothing failing to say why.
+    expect(isNnResultsPath('/nn/results.css')).toBe(false);
+    expect(isNnResultsPath('/nn/results/')).toBe(false);
+  });
+
+  it('claims nothing that is not a four-digit year', () => {
+    expect(isNnResultsPath('/nn/results')).toBe(false);
+    expect(isNnResultsPath('/nn/26/results/')).toBe(false);
+    expect(isNnResultsPath('/nn/20266/results/')).toBe(false);
+    // Deeper addresses are somebody else's, and a prefix match would take them.
+    expect(isNnResultsPath('/nn/2026/results/team/1/')).toBe(false);
+    expect(isNnResultsPath('/nn/2026/')).toBe(false);
+    expect(isNnResultsPath('/nn/2026/race-day/')).toBe(false);
+  });
+
+  it('names the event the address is asking about', () => {
+    expect(nnEventSlugForResultsPath('/nn/2026/results/')).toBe('nn-2026');
+    expect(nnEventSlugForResultsPath('/nn/2027/results')).toBe('nn-2027');
+  });
+
+  it('answers null for an address it does not match', () => {
+    // The half that matters: a caller that forgets to check `isNnResultsPath` first must not
+    // be handed a plausible-looking slug for an address this is not about.
+    expect(nnEventSlugForResultsPath('/nn/2026/')).toBeNull();
+    expect(nnEventSlugForResultsPath('/nn/results.css')).toBeNull();
+  });
+
+  it('round-trips a year path through the builder', () => {
+    expect(nnResultsPath('/nn/2026/')).toBe('/nn/2026/results/');
+    expect(isNnResultsPath(nnResultsPath('/nn/2026/'))).toBe(true);
+    expect(nnEventSlugForResultsPath(nnResultsPath('/nn/2026/'))).toBe('nn-2026');
   });
 });

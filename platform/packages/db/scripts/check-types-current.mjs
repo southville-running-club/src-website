@@ -38,7 +38,11 @@ try {
       'typescript',
       '--local',
       '--schema',
-      'club,intake,entries,identity,store',
+      // ⚠️ **The same list as `db:types` in package.json, and the two must agree.** They are
+      // separate strings in separate files: widen one and CI regenerates a different set of
+      // schemas than a volunteer does, so the committed file is stale or spuriously dirty
+      // depending on which ran last. `timing` joined both on 12 September 2026.
+      'club,intake,entries,identity,store,timing',
     ],
     { cwd: packageRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   );
