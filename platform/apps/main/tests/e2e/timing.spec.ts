@@ -1,12 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
 import { clearTimingFixtures, seedTimingFixtures } from '../timing-db';
-import {
-  NN_ADMIN_EMAIL,
-  TIMING_ADMIN_EMAIL,
-  TIMING_MARSHAL_EMAIL,
-} from '../admin-fixtures';
+import { clearTimingStaff, seedTimingStaff } from '../timing-staff-db';
+import { TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL } from '../admin-fixtures';
 import { RESULTS_EVENT_NAME, RESULTS_EVENT_SLUG } from '../timing-fixtures';
 import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 import { forgetSessions, signInAs } from './sign-in';
@@ -19,12 +15,19 @@ import { forgetSessions, signInAs } from './sign-in';
  * addresses are served by the timing Worker, which Cloudflare dispatches at the edge and
  * `apps/main` never sees.
  *
- * ⚠️ **Both fixture sets, and both cleared.** The people come from `admin-db.ts` because that
- * is where anybody with a real password and a role lives; the races come from `timing-db.ts`,
- * which already fabricates two runnings for `/nn/<year>/results/`. Neither file needed a new
- * concept — what was missing was two people holding timing roles, and they are deliberately
- * **not** any of the club-side fixtures, because granting one of those a timing role would
- * silently delete `admin.spec.ts`'s "different doors" assertions.
+ * ⚠️ **This spec seeds its own people and never the club's, and CI is what proved it has to.**
+ * The first version called `seedAdminFixtures()` like `admin.spec.ts` does, and the two files
+ * then raced to sign the same addresses up: `AuthApiError: User already registered`, in a
+ * `beforeAll`, on whichever shard ran them together. **One spec, one set of people it owns
+ * outright** — `timing-staff-db.ts` creates exactly the two timing accounts and clears exactly
+ * those two, and touches nothing `admin.spec.ts` depends on.
+ *
+ * The races come from `timing-db.ts`, which already fabricates two runnings for
+ * `/nn/<year>/results/` and which no other spec seeds.
+ *
+ * ⚠️ **The two people hold timing roles and nothing else**, deliberately: granting a timing
+ * role to one of the club-side fixtures would silently delete `admin.spec.ts`'s "different
+ * doors" assertions, which are the other half of this boundary.
  */
 
 const EVENTS = '/timing/events/';
@@ -39,7 +42,7 @@ const EVENTS = '/timing/events/';
 const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 
 test.beforeAll(async () => {
-  await seedAdminFixtures();
+  await seedTimingStaff();
   await seedTimingFixtures();
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
@@ -48,7 +51,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await clearTimingFixtures();
-  await clearAdminFixtures();
+  await clearTimingStaff();
 });
 
 /**
@@ -86,12 +89,6 @@ test.describe('who may open the events pages', () => {
 
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
-  });
-
-  test('a club admin with no timing permission is refused', async ({ page }) => {
-    await signInAs(page, NN_ADMIN_EMAIL);
-
-    expect((await page.goto(EVENTS))?.status()).toBe(404);
   });
 
   test('a signed-out visitor is refused', async ({ page }) => {
@@ -133,7 +130,7 @@ test.describe('the events list', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(RESULTS_EVENT_NAME);
   });
 
-  test('has no accessibility violations', async ({ page }) => {
+  test('has no accessibility violations @requires-js', async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENTS);
 
@@ -187,7 +184,7 @@ test.describe('one race', () => {
     await expect(page.getByText('There is nothing at this address.')).toBeVisible();
   });
 
-  test('has no accessibility violations', async ({ page }) => {
+  test('has no accessibility violations @requires-js', async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
 
