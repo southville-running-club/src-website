@@ -1684,6 +1684,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_marshal: {
+        Args: { p_event_slug: string; p_person_id: string }
+        Returns: Json
+      }
+      assignable_marshals: { Args: never; Returns: Json }
       create_event: {
         Args: {
           p_course_notes?: string
@@ -1703,6 +1708,11 @@ export type Database = {
       }
       list_events: { Args: never; Returns: Json }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
+      roster_for_event: { Args: { p_event_slug: string }; Returns: Json }
+      unassign_marshal: {
+        Args: { p_event_slug: string; p_person_id: string }
+        Returns: Json
+      }
       update_event: {
         Args: {
           p_course_notes?: string
