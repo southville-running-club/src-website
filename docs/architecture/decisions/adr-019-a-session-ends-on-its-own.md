@@ -75,6 +75,49 @@ working if `amr` ever stops arriving; the claim is what makes it mean something 
 `/logout` with the session's tokens on the way out, exactly as `/account/sign-out/` does, so the
 refresh token is dead rather than merely absent from one browser.
 
+### The one sanctioned keep-alive — added 12 September 2026, for the marshal screen
+
+**`GET /account/keep-alive/` slides the idle window without anybody looking at a page**, and it
+is the only thing that may. It calls `readSession` and answers **204** with whatever cookies
+that produced — three fresh ones for a live session, three cleared ones for a session past a
+deadline, and **none at all for a caller who has none**. There is no branch in it that creates a
+session, which is the property worth checking if it is ever touched: a route that minted would
+turn an unauthenticated poll into a way of being issued one.
+
+**Why it had to exist.** Cloudflare dispatches `/timing/*` to a different Worker at the edge,
+and that Worker's middleware says of itself that it *"never refreshes, so it can never extend a
+session"* — deliberately, so the only code that writes a session cookie stays in one file. A
+marshal capturing crossings at Nightingale Nightmare is on `/timing` for about ninety minutes
+and sends `apps/main` nothing in all that time, so the thirty-minute window above closes
+underneath them **mid-race**, and every capture from then on fails. `/timing` and `/account/` are
+the same origin, so one route here, called from there, fixes it without a second place that
+mints sessions, a session exception for one permission, or a capture token of its own — the
+three options [#244](https://github.com/southville-running-club/src-website/issues/244) set out.
+
+⚠️ **It partially undoes the inactivity guarantee, and that is the honest cost rather than an
+oversight.** A poll every five minutes *is* activity as far as a sliding window is concerned, so
+a page left polling holds a session open until the **absolute** deadline — which nothing,
+including this, can slide. Two things keep it to what was intended:
+
+- **What counts as active is defined on the caller's side**: the marshal screen polls only while
+  the page is **visible** and only when there has been a tap or a sync in the last twenty-five
+  minutes. A tab left open on a table at a finish line is idle, and lapses exactly as this
+  record intends.
+- **Twelve hours still ends it.** A race morning fits inside that; a phone left in a pocket
+  overnight does not.
+
+⚠️ **A marshal offline for more than thirty minutes comes back signed out, and that is
+accepted.** Cookies carry `Max-Age`, and a browser deletes an expired one offline as readily as
+online — a keep-alive cannot run with no signal, and queueing one to send later would be
+asserting activity that did not happen. Nothing is lost when it happens: the capture queue is
+IndexedDB keyed to the origin rather than to the session, so the marshal signs in again and the
+drain empties it. The race-night runbook says that in one sentence and the simulation does it
+once on purpose.
+
+**The status is 204 whoever asks.** Answering one status for a live session and another for none
+would be an oracle for whether a copied cookie jar is still good, and the caller needs no such
+signal — what tells the marshal screen a session has ended is its next sync failing.
+
 **A person is told why.** Every `/account/` address that needs a session sends a timed-out
 visitor to `/account/sign-in/?timed-out=ok`, which says they were signed out because the session
 had been open a while and that nothing has been lost. It does not say *how long*, which would
@@ -137,7 +180,8 @@ that is currently short.
 
 **Three cookies, not two, and `Set-Cookie` on every authenticated response.** A sliding window
 has to be re-issued to slide. Nothing edge-caches a response carrying `Set-Cookie`, and the
-account and admin pages are built per request anyway.
+account and admin pages are built per request anyway — and since 12 September 2026 the same is
+true of a 204 carrying nothing else, which is what `/account/keep-alive/` is.
 
 **An expiry costs a GoTrue call, and that is bounded rather than free.** Revoking on the way out
 means one `/logout` per expired session presented — and where the access token has itself
