@@ -66,12 +66,13 @@ re-run.
   `ENTRIES_ENTRY_KEY` installed. **The exact date each was performed is not recorded here**;
   only that all of them were, because the window could not have opened otherwise.
 
-  **The lesson is the one `apps/main/README.md`'s own step 1 already carries**: *"a status
-  column nobody revisits is worse than no status column"*. Four rows in that table and this
+  **The lesson is the one `apps/main/README.md`'s own step 1 already carries**: _"a status
+  column nobody revisits is worse than no status column"_. Four rows in that table and this
   paragraph all said "pending" about things that had been live for days, and an agent asked
   what was left to do answered from them. So the _times_ are quotable
   anywhere; the _column_ is a stop-and-ask. Do not invent a fact, do not infer one from a phase
   document, and do not put a plausible placeholder in markup.
+
 - **Collecting a field beyond what is already specified.** **Trigger: a field not already in
   `packages/shared/src/nn-entry.ts`.** The list below is the history of how it grew to
   eighteen fields, kept so the reasoning for each is findable — not something to re-read in
@@ -327,7 +328,7 @@ re-run.
 - **Any DNS change that is not an additive record.**
 - **Anything that would need the Supabase service role key.** If a build appears to want
   one, the row-level security policy is wrong and _that_ is the thing to fix.
-- **Any change touching the *old* timing platform** — the `bindalshah/src-race-timing`
+- **Any change touching the _old_ timing platform** — the `bindalshah/src-race-timing`
   repository, or the `public` and `private` schemas it owns. ⚠️ **The `timing` schema in this
   repository is not that, and is ordinary work**: under
   [ADR-034](docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
@@ -398,7 +399,7 @@ One hostname, several paths — the same locally and in production:
 |            |                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`        | The club website — `apps/main`                                                                                                                                                                                                                                                                                         |
-| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read`** and answers 404 to everybody else, the signed-out public included, because the club has not decided how or when a result is published                                                                                                                                                                                                                                                                                    |
+| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read`** and answers 404 to everybody else, the signed-out public included, because the club has not decided how or when a result is published                                                                                |
 | `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
@@ -428,7 +429,7 @@ reach the database, never stored and filtered later. Date of birth becomes a com
 working. Roll code back; roll schema forward. This is load-bearing rather than good
 practice here — nothing sequences the migration against the Cloudflare deploy.
 
-**The *old* timing platform is not touched by website work.** Not its tables, not its
+**The _old_ timing platform is not touched by website work.** Not its tables, not its
 policies, not its repository. That includes the `private` schema, which is why `entries`' one
 helper function lives in `entries` with a pinned `search_path` rather than where the old
 platform keeps its own.
@@ -606,7 +607,7 @@ CI cannot reproduce it.** Next generates a union of the app's routes at build ti
 rebuilding, and `tsc` says
 `Type '`/events/${string}/start`' is not assignable to type 'UrlObject | RouteImpl<…>'` — about
 a route that exists, from a link that is right. **With no `.next/types` at all the check is
-permissive**, which is why CI — a fresh checkout that lint-and-typechecks *before* it builds —
+permissive**, which is why CI — a fresh checkout that lint-and-typechecks _before_ it builds —
 goes green on the same commit, and why `./dev check`, which also does not build, only fails on
 a machine that has built once before. `npm run build:next --workspace apps/timing` and run it
 again. The tell is that the type it refuses and the type it wants read identically.
@@ -1326,13 +1327,13 @@ else_ — because a live hold naming one of this submission's own people is **su
 than counted, which is [ADR-040](docs/architecture/decisions/adr-040-a-runners-own-hold-yields.md).
 An expired hold and a cancelled entry have always let somebody try again; what did not was the
 thirty-one minutes before a hold lapsed, and **that was the reported bug**. Somebody who reached
-Stripe and did not pay was refused by both one-place rules and told *"this runner already has a
-place in this race"*, which was false, with the page's only advice pointing at an empty
+Stripe and did not pay was refused by both one-place rules and told _"this runner already has a
+place in this race"_, which was false, with the page's only advice pointing at an empty
 `/account/entries/`. By the time a volunteer looked, the sweep had run and `/admin/nn/` said
 "Hold expired" — so the refusal got remembered against a status that never refused anything, and
 "stop letting an expired entry block a new one" was a fix to code that already did that. **The
 superseded hold is expired, its place and its discount use go back, and the runner's next
-attempt goes through.** ⚠️ **It takes the address *and* the runner together, and each half alone
+attempt goes through.** ⚠️ **It takes the address _and_ the runner together, and each half alone
 was tried and broke something** — the address alone lets one partner on a shared card expire the
 other's live hold mid-checkout, and the runner alone let a **stranger** do it by entering with
 that person as their visually impaired guide, which `entries-guides.test.ts` caught as an
@@ -1758,7 +1759,7 @@ the platform is being **rewritten here** rather than moved, so what exists now i
 - **`/timing/marshal/<slug>/`** — the capture screen (#203), behind `timing.crossing.record`
   **and** a `timing.marshals` row for that race. ⚠️ **It is the one surface on this platform
   that genuinely needs JavaScript**, because an offline queue in IndexedDB has nothing to
-  degrade to — so its no-script fallback is a *sentence*, server-rendered, telling a marshal to
+  degrade to — so its no-script fallback is a _sentence_, server-rendered, telling a marshal to
   write the bib and the time on paper. **The queue model is the decision everything else
   follows from**: a full-width button timestamps immediately and the bib is typed afterwards on
   a keypad, because at the line the scarce resource is the moment rather than the marshal's
@@ -1771,20 +1772,44 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   holds an access token — it posts to `…/sync` on the timing Worker, which calls
   `record_crossing()` with the cookie session (#244) — and `public/sw.js` caches the screen so a
   reload with no signal does not strand somebody on a course;
+- **`/timing/events/<slug>/anomalies/` and `/crossings/`** — the two surfaces where a human
+  turns a flagged capture into a fact (#252), both behind `timing.crossing.resolve`, which had
+  existed since `20260911100000` and gated nothing until then. ⚠️ **The triage list is a union
+  of two populations and the second is the one a flag-only query hides**: a _flagged_ capture,
+  and an **orphan** whose bib matched no team — `record_crossing()` stores an unknown bib and
+  never refuses one, so nothing marks those. ⚠️ **Every write is a compare-and-swap, because two
+  volunteers on one triage list is the normal case rather than the edge one**, and the loser is
+  told rather than silently overwritten. `resolve_crossing()` latches on `resolved_at is null`;
+  `edit_crossing()` **cannot**, because a row that was never flagged carries that null for ever,
+  so it swaps on the values the editor was looking at — which is why they are two functions
+  rather than one. An edit sets the bib and lets the trigger re-derive the team, and **an edited
+  bib that still matches nothing legitimately stays an orphan**, which the page says out loud.
+  A discard is reversible and `buildResults()` already excludes one, falling through to the next
+  undiscarded capture for that bib;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
-**What is genuinely not built is what happens to a crossing after it is recorded**: nothing
-resolves an anomaly, nothing marks a DNS, DNF or DQ, nothing finishes a race, and no result is
-published to anybody. ⚠️ **"No countdown screen" is what this said until #250**, and **"there
+**What is genuinely not built is what happens to a crossing after it is _resolved_**: nothing
+marks a DNS, DNF or DQ, nothing finishes a race, and no result is published to anybody. ⚠️
+**"nothing resolves an anomaly" is what this said until #252**, which is the third such line to
+go stale in three days. ⚠️ **"No countdown screen" is what this said until #250**, and **"there
 is no marshal capture screen" is what it said until #203** — twice in two days, which is the
 pattern rather than the exception. ⚠️ **"Nothing captures a crossing" was already half wrong
 before that**: `timing.record_crossing()` landed with #251 and nothing called it for a day.
-The roster page (#245) decides *who may* capture on a race, which is ADR-036's scope checked
-after the permission; #203 is what a rostered marshal captures *on*.
+The roster page (#245) decides _who may_ capture on a race, which is ADR-036's scope checked
+after the permission; #203 is what a rostered marshal captures _on_.
+
+⚠️ **Two check constraints on `timing.crossings` arrived with #252 and the issue said they
+already existed.** They did not: `20260911140000` declared `resolved_at` and `resolved_action`
+as two bare nullable columns with nothing tying them together and no value check on the second.
+`crossings_resolution_coherent` makes them null together or set together — a capture that is
+resolved without saying _how_ means nothing — and `crossings_resolved_action_shaped` pins the
+three actions. **They are validated rather than `NOT VALID`**, unlike `entries`' four, because
+`timing` holds no production data at all and there is no row to disagree. The constraint found a
+test fixture writing an incoherent row on its first run, which is the argument for it.
 
 ⚠️ **The door stopped refusing `rosterScoped` addresses outright on 13 September 2026, and the
 flag is still there.** `middleware.ts` refused `/timing/marshal/…` on sight while nothing could
-answer *"am I on this roster"* for the marshal asking — #245's four roster functions are all
+answer _"am I on this roster"_ for the marshal asking — #245's four roster functions are all
 behind `timing.marshal.assign`, an admin's permission. `timing.marshal_event()` is that read:
 the same two checks `record_crossing()` makes, in the same order, answering `null`
 indistinguishably for no permission, no such race and not rostered. It also carries the race's
@@ -1800,8 +1825,8 @@ Full On Sport CSV uploads for Pass the Buck's archive and for a race entered som
 and #249's page half — a bib per leg, an override control and "Assign bibs" — is on the same
 screen along with the walk-in desk form. ⚠️ **Nothing about an uploaded file is kept, and that
 is a stop-and-ask left open rather than an answer.** #202 says files go in R2 and never in
-Postgres, *and that whether the raw file is kept at all is a data-minimisation question to
-answer before the first upload* — it has not been answered, so the route handler parses in
+Postgres, _and that whether the raw file is kept at all is a data-minimisation question to
+answer before the first upload_ — it has not been answered, so the route handler parses in
 memory and lets the file go. **Which is why the preview is a second submit of the same form**
 rather than a stored parse, and why the findings cross the redirect as a severity, a finding
 kind and row numbers, re-worded in the club's own voice by

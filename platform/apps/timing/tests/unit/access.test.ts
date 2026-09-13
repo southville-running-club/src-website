@@ -115,6 +115,10 @@ describe('an address nobody has written a rule for', () => {
     // ⚠️ **`start` has exactly one action since #250 and `registration` has two since #202**,
     // and every other spelling under either is still refused — which is the half that keeps
     // this table from widening a whole section at a time.
+    // #252's two sections have one action each; everything else under them is still refused.
+    ['/events/nn-2026/anomalies/resolve'],
+    ['/events/nn-2026/anomalies/update/again'],
+    ['/events/nn-2026/crossings/delete'],
     ['/events/nn-2026/start/begin'],
     ['/events/nn-2026/start/update/again'],
     ['/events/nn-2026/registration/delete'],
@@ -302,6 +306,55 @@ describe('who may open what', () => {
   it('does not mistake a permission that merely mentions timing', () => {
     expect(canOpen(['nn.timing.read'], '/')).toBe(false);
     expect(canOpen(['timings.event.manage'], '/')).toBe(false);
+  });
+});
+
+describe('the two addresses the resolution surfaces post to', () => {
+  /**
+   * [#252](https://github.com/southville-running-club/src-website/issues/252). ⚠️ **Two
+   * addresses rather than one, and the reason is in the database rather than in the form**: the
+   * triage list's compare-and-swap latches on `resolved_at is null` and the log's cannot,
+   * because a row that was never flagged carries that null for ever. One address branching on
+   * which latch it meant is how the wrong one gets used on the wrong surface.
+   */
+  it.each([['/events/nn-2026/anomalies/update'], ['/events/nn-2026/crossings/update']])(
+    '%s is gated, rather than being a hole beside a gated page',
+    (path) => {
+      expect(surfaceFor(path)).not.toBeNull();
+      expect(canOpen(MARSHAL, path)).toBe(false);
+      expect(canOpen(NN_ADMIN, path)).toBe(false);
+      expect(canOpen([], path)).toBe(false);
+      expect(canOpen(ADMIN, path)).toBe(true);
+    },
+  );
+
+  it('demands exactly what the page it posts from demands', () => {
+    for (const section of ['anomalies', 'crossings']) {
+      expect(surfaceFor(`/events/nn-2026/${section}/update`)?.permission).toBe(
+        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+      );
+    }
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/events/ptb-2026/anomalies/update')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/events/ptb-2026/crossings/update')?.eventSlug).toBe('ptb-2026');
+  });
+
+  /**
+   * ⚠️ **Neither is roster-scoped, and the asymmetry with the capture screen is deliberate.**
+   * Recording a crossing is scoped to the race somebody is standing on (ADR-036); resolving one
+   * is an admin's act from a desk, and `timing.crossing.resolve` is the whole of it.
+   */
+  it('is not roster-scoped, unlike the capture screen', () => {
+    for (const path of [
+      '/events/nn-2026/anomalies',
+      '/events/nn-2026/anomalies/update',
+      '/events/nn-2026/crossings',
+      '/events/nn-2026/crossings/update',
+    ]) {
+      expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
+    }
   });
 });
 

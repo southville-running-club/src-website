@@ -484,3 +484,160 @@ export async function clearCaptureEvent(project: string): Promise<void> {
     ]);
   });
 }
+
+/**
+ * The race the anomaly and timing-log tests resolve against — #252.
+ *
+ * ## ⚠️ Re-seeded per test rather than per project, and that is the lesson from #203
+ *
+ * `seedCaptureEvent`'s header argues for one race per Playwright project. These tests need one
+ * step more: every one of them **writes a resolution**, and a resolution is irreversible from
+ * the page's point of view — a capture marked valid cannot be marked valid again, and the
+ * second attempt answers `already_resolved`. Sharing captures between tests in one project
+ * would make each test depend on which of its siblings had run first, which is exactly the
+ * order dependency the capture screen's spec shipped with and CI caught.
+ *
+ * So {@link seedAnomalyCrossings} deletes and re-writes the captures, and the spec calls it in
+ * a `beforeEach`. The event and its team are per project and are created once.
+ */
+export function anomalyEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives: a slug of that shape can never be
+  // reached by `nnEventSlugForResultsPath`, so no results address can name one of these.
+  return `zz-anomaly-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/** The team on this race, and therefore the only bib that resolves to anybody. */
+export const ANOMALY_TEAM_NUMBER = '311';
+
+/** A second team on the same race, so a corrected bib has somewhere real to land. */
+export const ANOMALY_SECOND_TEAM_NUMBER = '312';
+
+/** A bib no team carries, so a capture holding it is an orphan for ever. */
+export const ANOMALY_ORPHAN_BIB = '999';
+
+/** The marshal's own words on the flagged capture, rendered verbatim by the triage page. */
+export const ANOMALY_REASON = 'Duplicate bib 311 — already captured at 11:20:00';
+
+export async function seedAnomalyEvent(project: string): Promise<void> {
+  const slug = anomalyEventSlug(project);
+  await clearAnomalyEvent(project);
+
+  await withClient(async (db) => {
+    const id = fixtureEventId(slug);
+
+    // **Started**, because the timing log marks a capture recorded before the gun and one of
+    // the tests reads that marker.
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, $3, 'solo', '2026-11-01T11:00:00Z'::timestamptz,
+               '2026-11-01T11:00:00Z'::timestamptz)`,
+      [id, slug, `Anomaly fixture ${project}`],
+    );
+
+    // ⚠️ **Two teams, and the second one exists so a correction can land.** With one team the
+    // only bib that resolves is the one already on the capture, so *every* edit a test could
+    // make would orphan the row — and the log's "corrects a bib" test asserted plain success
+    // against a page that correctly said the new bib matched nothing.
+    await db.query(
+      `insert into timing.teams (event_id, team_number) values ($1, $2), ($1, $3)`,
+      [id, ANOMALY_TEAM_NUMBER, ANOMALY_SECOND_TEAM_NUMBER],
+    );
+  });
+
+  await seedAnomalyCrossings(project);
+}
+
+/**
+ * Three captures, re-written from scratch: one flagged, one orphan, one clean.
+ *
+ * ⚠️ **The ids are fixed and the audit rows are cleared with them.**
+ * `timing.admin_actions.event_id` is `on delete set null`, so an action outlives the race it was
+ * about — deliberately — and a test asserting "resolved once" would count a previous run's row
+ * as well. `packages/db/tests/timing.test.ts` pays for the same thing in its own fixture.
+ */
+export async function seedAnomalyCrossings(project: string): Promise<void> {
+  const slug = anomalyEventSlug(project);
+  const eventId = fixtureEventId(slug);
+
+  const flagged = anomalyCrossingId(project, 'flagged');
+  const orphan = anomalyCrossingId(project, 'orphan');
+  const clean = anomalyCrossingId(project, 'clean');
+
+  await withClient(async (db) => {
+    await db.query('delete from timing.crossings where event_id = $1', [eventId]);
+    await db.query(
+      `delete from timing.admin_actions
+        where detail ->> 'crossing_id' = any($1::text[])`,
+      [[flagged, orphan, clean]],
+    );
+
+    await db.query(
+      `insert into timing.crossings
+         (id, event_id, bib, captured_at, anomaly_flag, anomaly_reason)
+       values ($1, $4, $7, '2026-11-01T11:30:00Z'::timestamptz, true, $8),
+              ($2, $4, $5, '2026-11-01T11:31:00Z'::timestamptz, false, null),
+              ($3, $4, $6, '2026-11-01T11:32:00Z'::timestamptz, false, null)`,
+      [
+        flagged,
+        orphan,
+        clean,
+        eventId,
+        ANOMALY_ORPHAN_BIB,
+        ANOMALY_TEAM_NUMBER,
+        ANOMALY_TEAM_NUMBER,
+        ANOMALY_REASON,
+      ],
+    );
+  });
+}
+
+/**
+ * One capture's id, **per project** — deterministic and invented, the way every id here is.
+ *
+ * ⚠️ **These were three fixed constants and CI refused them within a minute.** Each project gets
+ * its own race, but a crossing's primary key is global: `seedAnomalyCrossings` deletes
+ * `where event_id = …`, so it never touches the other project's rows, and inserting the same
+ * three ids answered `duplicate key value violates unique constraint "crossings_pkey"` in a
+ * `beforeEach` — which takes a whole project down and reads as a broken application rather than
+ * two fixtures colliding. **The rule is the one this file states three times already**: anything
+ * a second project can be holding at the same moment has to carry the project in its key.
+ */
+export function anomalyCrossingId(
+  project: string,
+  which: 'flagged' | 'orphan' | 'clean',
+): string {
+  const suffix = { flagged: 1, orphan: 2, clean: 3 }[which];
+  let hash = 0;
+  for (const char of project) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return `0a0a0a0a-0000-4000-8000-${hash.toString(16).padStart(8, '0')}${String(suffix).padStart(4, '0')}`;
+}
+
+/** What the database now says about one capture — the assertion the page cannot make itself. */
+export async function anomalyCrossing(id: string): Promise<{
+  bib: string | null;
+  resolved_action: string | null;
+  team_id: string | null;
+} | null> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<{
+      bib: string | null;
+      resolved_action: string | null;
+      team_id: string | null;
+    }>('select bib, resolved_action, team_id from timing.crossings where id = $1', [id]);
+
+    return rows[0] ?? null;
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearAnomalyEvent(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [
+      anomalyEventSlug(project),
+    ]);
+  });
+}

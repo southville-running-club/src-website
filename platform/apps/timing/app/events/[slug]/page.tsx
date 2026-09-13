@@ -135,9 +135,9 @@ export default async function EventPage({
         "the next action and nothing that is not yet possible", and linking to a page that does
         not exist is precisely the old application's bug: its marshal navigation carried a
         "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
-        the start screen since #250 and the entry list since #202, so all three are linked.
-        Finishing is #253 and results are #205 — each adds its own link here when its page
-        exists.
+        the start screen since #250, the entry list since #202 and the two resolution surfaces
+        since #252, so all five are linked. Finishing is #253 and results are #205 — each adds
+        its own link here when its page exists.
 
         The link is unconditional because this address demands `timing.event.manage` and the
         roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
@@ -171,6 +171,27 @@ export default async function EventPage({
             ? 'Start this race'
             : 'The start of this race'}
         </Link>
+      </p>
+
+      {/*
+        ⚠️ **The count above is a figure and this is the queue it counts** — #252. The two are
+        deliberately not one link with a number in it: the anomalies page shows *orphans* as
+        well as flagged captures, and `event_detail`'s `open_anomalies` counts only the flagged
+        half, so a link reading "3 anomalies" would disagree with the page it opened.
+
+        Both demand `timing.crossing.resolve`, which is a fourth permission again — see the
+        note above about what has to change here if these ever come apart in practice.
+      */}
+      <h2>During and after the race</h2>
+
+      <p>
+        <Link href={`/events/${event.slug}/anomalies`}>
+          Captures waiting to be resolved
+        </Link>
+      </p>
+
+      <p>
+        <Link href={`/events/${event.slug}/crossings`}>Timing log for this race</Link>
       </p>
 
       {event.editable ? null : (

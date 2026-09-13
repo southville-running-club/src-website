@@ -1,12 +1,22 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import {
+  anomalyCrossing,
+  anomalyCrossingId,
+  anomalyEventSlug,
+  ANOMALY_ORPHAN_BIB,
+  ANOMALY_REASON,
+  ANOMALY_SECOND_TEAM_NUMBER,
+  ANOMALY_TEAM_NUMBER,
   captureCrossings,
   captureEventSlug,
+  clearAnomalyEvent,
   clearCaptureEvent,
   clearRosterEvent,
   clearStartEvents,
   rosterEventSlug,
+  seedAnomalyCrossings,
+  seedAnomalyEvent,
   seedCaptureEvent,
   seedRosterEvent,
   seedStartEvents,
@@ -87,6 +97,8 @@ test.beforeAll(async ({}, testInfo) => {
   // #203's capture race. ⚠️ **After the staff**, because it looks the marshal up by address in
   // order to put them on the roster.
   await seedCaptureEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
+  // #252's race. Its captures are re-seeded per test — `seedAnomalyEvent`'s header says why.
+  await seedAnomalyEvent(testInfo.project.name);
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
@@ -113,6 +125,7 @@ test.afterAll(async ({}, testInfo) => {
   await clearRosterEvent(rosterEventSlug(testInfo.project.name));
   await clearStartEvents(testInfo.project.name);
   await clearCaptureEvent(testInfo.project.name);
+  await clearAnomalyEvent(testInfo.project.name);
   await clearTimingStaff();
 });
 
@@ -1494,5 +1507,336 @@ test.describe('recording a crossing', () => {
     await expect(page.getByText('No bib yet')).toBeVisible();
 
     await expectNoSidewaysScroll(page, 'the timing capture screen at 320px');
+  });
+});
+
+/**
+ * Resolving an anomaly, and correcting the timing log —
+ * [#252](https://github.com/southville-running-club/src-website/issues/252).
+ *
+ * ⚠️ **Every test here re-seeds its captures**, because every one of them writes a resolution
+ * and a resolution cannot be made twice: the second attempt answers `already_resolved`, which
+ * is correct and would make each test depend on which sibling ran first. That is the order
+ * dependency the capture screen's block shipped with and CI caught; `seedAnomalyEvent`'s header
+ * carries the argument.
+ *
+ * The **concurrency** rules — two volunteers resolving one capture, and the log's value-based
+ * compare-and-swap — are `packages/db/tests/timing.test.ts`'s, where two committed writes can
+ * actually race. What is here is what only a browser can say: that the door holds on both
+ * pages and both write addresses, and that the round trip a volunteer performs works.
+ */
+const anomaliesPath = (project: string): string =>
+  `/timing/events/${anomalyEventSlug(project)}/anomalies`;
+
+const crossingsPath = (project: string): string =>
+  `/timing/events/${anomalyEventSlug(project)}/crossings`;
+
+test.describe('who may resolve an anomaly', () => {
+  /**
+   * ⚠️ **`timing-marshal` holds `timing.crossing.record` and not `timing.crossing.resolve`.**
+   * Recording a crossing and deciding what one means are two different powers, and a marshal
+   * who could quietly discard their own flagged capture is the thing this separation prevents.
+   */
+  test('a timing-marshal is refused both pages and both addresses they post to', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+
+    for (const path of [
+      anomaliesPath(testInfo.project.name),
+      crossingsPath(testInfo.project.name),
+    ]) {
+      const shown = await page.goto(path);
+      expect(shown?.status(), path).toBe(404);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+      // The half a page test cannot reach: only the POST changes a record of who finished.
+      const posted = await page.request.post(`${path}/update`, {
+        form: {
+          intent: 'discarded',
+          crossing_id: anomalyCrossingId(testInfo.project.name, 'flagged'),
+        },
+        maxRedirects: 0,
+      });
+      expect(posted.status(), `${path}/update`).toBe(404);
+    }
+
+    // Nothing moved.
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
+      resolved_action: null,
+    });
+  });
+
+  test('a signed-out visitor is refused all four', async ({ page }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this whole
+    // file signs in from, which is a `beforeAll` concern.
+    await page.context().clearCookies();
+
+    for (const path of [
+      anomaliesPath(testInfo.project.name),
+      crossingsPath(testInfo.project.name),
+    ]) {
+      expect((await page.goto(path))?.status(), path).toBe(404);
+      expect(
+        (
+          await page.request.post(`${path}/update`, {
+            form: {
+              intent: 'discarded',
+              crossing_id: anomalyCrossingId(testInfo.project.name, 'flagged'),
+            },
+            maxRedirects: 0,
+          })
+        ).status(),
+        `${path}/update`,
+      ).toBe(404);
+    }
+  });
+});
+
+test.describe('the triage list', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await seedAnomalyCrossings(testInfo.project.name);
+  });
+
+  /**
+   * ⚠️ **Two populations, and the orphan is the one a flag-only query would hide.**
+   * `record_crossing()` stores a bib matching no team and never refuses it, because a validator
+   * at the line loses the moment — so nothing marks it, and a page showing only `anomaly_flag`
+   * would look finished while a runner sat unmatched to anybody.
+   */
+  test('shows the flagged capture and the orphan nothing flagged', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies');
+    await expect(
+      page.getByRole('heading', { name: '2 captures are waiting' }),
+    ).toBeVisible();
+
+    // The marshal's own words, rendered as they were stored — there is no kind to switch on.
+    await expect(page.getByText(ANOMALY_REASON)).toBeVisible();
+    await expect(
+      page.getByText(
+        /matches no team on this race, so the capture counts towards nobody/,
+      ),
+    ).toBeVisible();
+
+    /*
+     * The clean capture is not a question and is not here — asserted as the number of cards
+     * rather than as the number of times a bib appears.
+     *
+     * ⚠️ **`getByText('Bib 311')` matched twice and the second match was the anomaly's own
+     * reason.** Playwright's `getByText` with a plain string is a **case-insensitive substring**
+     * match, so it found the `Bib 311` on the card *and* the "Duplicate bib 311 — already
+     * captured at 11:20:00" the marshal's screen wrote. Here that failed loudly; the direction
+     * to worry about is the other one, where a substring assertion passes on markup that does
+     * not say what the test thinks it says.
+     */
+    await expect(page.locator('.triage-card')).toHaveCount(2);
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${anomalyEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Captures waiting to be resolved' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies');
+  });
+
+  test('marks a capture valid, and it leaves the queue', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    // The flagged capture is the first card — `open_anomalies` is oldest first.
+    await page.getByRole('button', { name: 'Mark valid' }).first().click();
+
+    await expect(page.getByText(/Marked as valid/)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: '1 capture is waiting' }),
+    ).toBeVisible();
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
+      resolved_action: 'marked_valid',
+    });
+  });
+
+  /**
+   * The orphan's whole point: correcting the bib is what attaches the capture to a runner. The
+   * trigger re-derives the team — nothing here resolves one by hand.
+   */
+  test('corrects an orphan’s bib and attaches it to a team', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    const orphanCard = page.locator('.triage-card', { hasText: ANOMALY_ORPHAN_BIB });
+    await orphanCard.getByLabel('Corrected bib').fill(ANOMALY_TEAM_NUMBER);
+    await orphanCard.getByRole('button', { name: 'Save corrected bib' }).click();
+
+    await expect(page.getByText(/The bib has been corrected/)).toBeVisible();
+
+    const after = await anomalyCrossing(
+      anomalyCrossingId(testInfo.project.name, 'orphan'),
+    );
+    expect(after).toMatchObject({ bib: ANOMALY_TEAM_NUMBER, resolved_action: 'edited' });
+    expect(after?.team_id).not.toBeNull();
+  });
+
+  /**
+   * ⚠️ **Resolved and incomplete at once, and the page has to say both.** The admin has
+   * recorded what they believe the bib was, and `record_crossing()` keeps an unknown bib
+   * deliberately — but a screen that reported plain success would look like it had finished the
+   * job, when what has to change next is the entry list.
+   */
+  test('says so when a corrected bib still matches no team', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    const orphanCard = page.locator('.triage-card', { hasText: ANOMALY_ORPHAN_BIB });
+    await orphanCard.getByLabel('Corrected bib').fill('888');
+    await orphanCard.getByRole('button', { name: 'Save corrected bib' }).click();
+
+    await expect(page.getByText(/still matches no team on this race/)).toBeVisible();
+    await expect(page.getByText(/check the entry list/)).toBeVisible();
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/anomalies');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing anomalies page at 320px');
+  });
+});
+
+test.describe('the timing log', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await seedAnomalyCrossings(testInfo.project.name);
+  });
+
+  /**
+   * ⚠️ **A log that hid what had been taken out would be a log nobody could audit from** — and
+   * restoring a discard is only possible if somebody can see it. So this shows resolved and
+   * discarded rows, which is exactly what the triage list does not.
+   */
+  test('discards a capture and restores it again', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(anomaliesPath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Discard' }).first().click();
+    await expect(page.getByText(/Discarded\./)).toBeVisible();
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
+      resolved_action: 'discarded',
+    });
+
+    await page.goto(crossingsPath(testInfo.project.name));
+    const discarded = page.locator('.triage-card', {
+      hasText: 'Discarded — counts towards nothing',
+    });
+    await expect(discarded).toHaveCount(1);
+
+    await discarded.getByRole('button', { name: 'Restore this capture' }).click();
+    await expect(page.getByText(/Restored\./)).toBeVisible();
+
+    // Both columns cleared together, which is what the coherence check demands.
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
+      resolved_action: null,
+    });
+  });
+
+  test('corrects a bib that was never flagged at all', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    // ⚠️ This row's `resolved_at` is null and always will be, which is why the log takes a
+    // different compare-and-swap from the triage list. The database tests hold that; this holds
+    // that a volunteer can actually do it.
+    const clean = page.locator('.triage-card', { hasText: 'Recorded' }).first();
+    await clean.getByLabel('Bib').fill(ANOMALY_SECOND_TEAM_NUMBER);
+    await clean.getByRole('button', { name: 'Save this bib' }).click();
+
+    // ⚠️ **Corrected onto the race's *other* team on purpose.** The first version typed a bib
+    // no team carried, so the page correctly answered "still matches no team" and the test
+    // asserted plain success — the assertion was wrong rather than the page.
+    await expect(page.getByText('Saved.')).toBeVisible();
+  });
+
+  test('searches by bib, and the searched view is a URL somebody can send', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    await page.getByLabel('Search by bib or team number').fill(ANOMALY_ORPHAN_BIB);
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`q=${ANOMALY_ORPHAN_BIB}`));
+    await expect(page.locator('.triage-card')).toHaveCount(1);
+    await expect(page.getByText(`Bib ${ANOMALY_ORPHAN_BIB}`)).toBeVisible();
+  });
+
+  test('says so when nothing carries the bib somebody searched for', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${crossingsPath(testInfo.project.name)}?q=4242`);
+
+    // A claim about this race's record, not "no results" — the page says which bib it looked for.
+    await expect(page.getByText(/No capture on this race carries the bib/)).toBeVisible();
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing log at 320px');
   });
 });
