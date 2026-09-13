@@ -252,6 +252,10 @@ describe('what may be called, and by whom', () => {
    *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission;
    *   * `record_crossing` and `known_crossings` — `timing.crossing.record` **and** a roster
    *     row, the write path #203 syncs against and the read it de-duplicates from;
+   *   * `assign_bibs`, `set_bib_override` and `add_walk_in` — `timing.registration.import`,
+   *     #249. ⚠️ **`effective_bib` is deliberately not among them**: it is the shared
+   *     definition the collision guard and the parity test use, reachable from the definer
+   *     functions and from nothing else, exactly as `resolve_crossing_team_id` is;
    *   * `import_from_entries` — `timing.registration.import`, ADR-039's roster crossing from
    *     `entries`. ⚠️ **This is the one that reads another application's schema**, so the
    *     permission check is the only thing between that grant and every entrant the club
@@ -262,7 +266,7 @@ describe('what may be called, and by whom', () => {
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these fourteen functions, and only to authenticated', async () => {
+  it('grants exactly these seventeen functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -271,6 +275,8 @@ describe('what may be called, and by whom', () => {
     );
 
     expect(rows).toEqual([
+      { routine_name: 'add_walk_in', grantee: 'authenticated' },
+      { routine_name: 'assign_bibs', grantee: 'authenticated' },
       { routine_name: 'assign_marshal', grantee: 'authenticated' },
       { routine_name: 'assignable_marshals', grantee: 'authenticated' },
       { routine_name: 'create_event', grantee: 'authenticated' },
@@ -283,6 +289,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'record_crossing', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
+      { routine_name: 'set_bib_override', grantee: 'authenticated' },
       { routine_name: 'unassign_marshal', grantee: 'authenticated' },
       { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
