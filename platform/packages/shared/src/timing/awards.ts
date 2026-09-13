@@ -33,6 +33,7 @@ import {
   type AgeCategoryCode,
 } from '../age-category';
 import { deriveCategory, type PairCategory } from './categories';
+import { placementFor } from './gender';
 import { buildResults, sortResults, teamRaceStatus, type Result } from './results';
 import type { TimingCrossing, TimingEvent, TimingRunner, TimingTeam } from './rows';
 
@@ -194,26 +195,34 @@ function attach(
 }
 
 /**
- * The gender the club places a result in, from whatever the entry import recorded.
+ * The gender the club places a result in.
  *
- * The timing model's `runners.gender` is a free string off the Full On Sport CSV — `'M'` or
- * `'F'` in practice — so this normalises the way `deriveCategory` does and answers `null` for
- * anything it does not recognise rather than guessing.
+ * ⚠️ **This used to be a local `'M'` / `'F'` test, and its own comment named what was
+ * missing**: *"When the two are joined, that answer is what should arrive here — through
+ * `effectiveCategory()`, which already exists — rather than a second rule invented in this
+ * file."* [ADR-039](../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md)
+ * joined them, so `placementFor()` in `gender.ts` is now that one resolver and this file has
+ * no gender rule of its own.
  *
- * ⚠️ **A `null` here means no prize, and that is the safe direction.** Guessing puts somebody
- * in the wrong band, which is discovered at the presentation.
- *
- * There is deliberately no non-binary branch. [ADR-031](../../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)
- * asks a non-binary **entrant** where their result should count and stores the answer in
- * `entries.entrants.result_placement`; nothing in the timing model carries it. When the two
- * are joined, that answer is what should arrive here — through `effectiveCategory()`, which
- * already exists — rather than a second rule invented in this file.
+ * **A `null` here means no prize, and that is the safe direction.** Guessing puts somebody in
+ * the wrong band, which is discovered at the presentation.
  */
-function placedGender(gender: string): 'female' | 'male' | null {
-  const code = gender.trim().toUpperCase();
-  if (code === 'M') return 'male';
-  if (code === 'F') return 'female';
-  return null;
+function placedGender(runner: {
+  gender: string;
+  result_placement: 'female' | 'male' | null;
+}) {
+  return placementFor(runner.gender, runner.result_placement);
+}
+
+/**
+ * ⚠️ **A guide is on the start line and in no prize category** —
+ * [ADR-022](../../../../../docs/architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md).
+ * They take one of the 250, run the course and wear a bib, so they appear everywhere a runner
+ * does *except* a prize list. Excluded here rather than at the import, because the roster is
+ * the truthful record of who ran.
+ */
+function isGuide(runner: { role?: string }): boolean {
+  return runner.role === 'guide';
 }
 
 /**
@@ -258,7 +267,8 @@ function findFastestSoloInCategory(
     const runner = entry.team.runners[0];
     if (runner === undefined || entry.team.runners.length !== 1) continue;
     if (runner.age_on_day === null) continue;
-    if (placedGender(runner.gender) !== gender) continue;
+    if (isGuide(runner)) continue;
+    if (placedGender(runner) !== gender) continue;
 
     const band = ageCategoryFor(runner.age_on_day, gender);
     if (!band.known || band.code !== code) continue;
@@ -358,12 +368,13 @@ function enumerateRunnerLegs(
 
 function findFastestIndividual(
   legs: RunnerLegEntry[],
-  gender: 'M' | 'F',
+  gender: 'female' | 'male',
   excludeRunnerIds: Set<string>,
 ): RunnerWinner | null {
   const eligible = legs.filter(
     (l) =>
-      l.runner.gender.trim().toUpperCase() === gender &&
+      !isGuide(l.runner) &&
+      placedGender(l.runner) === gender &&
       !excludeRunnerIds.has(l.runner.id),
   );
   if (eligible.length === 0) return null;
@@ -500,13 +511,13 @@ export function computeAwards(
     kind: 'fastest_individual_male',
     title: 'Fastest Male Leg',
     subtitle: 'Fastest single leg by a male runner not already winning',
-    winner: findFastestIndividual(legs, 'M', excludeRunnerIds),
+    winner: findFastestIndividual(legs, 'male', excludeRunnerIds),
   });
   awards.push({
     kind: 'fastest_individual_female',
     title: 'Fastest Female Leg',
     subtitle: 'Fastest single leg by a female runner not already winning',
-    winner: findFastestIndividual(legs, 'F', excludeRunnerIds),
+    winner: findFastestIndividual(legs, 'female', excludeRunnerIds),
   });
 
   // 11–12: random spot prizes. Pool = finished teams that haven't been

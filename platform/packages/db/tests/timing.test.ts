@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -251,14 +251,18 @@ describe('what may be called, and by whom', () => {
    *   * `roster_for_event`, `assignable_marshals`, `assign_marshal` and `unassign_marshal` —
    *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission;
    *   * `record_crossing` and `known_crossings` — `timing.crossing.record` **and** a roster
-   *     row, the write path #203 syncs against and the read it de-duplicates from.
+   *     row, the write path #203 syncs against and the read it de-duplicates from;
+   *   * `import_from_entries` — `timing.registration.import`, ADR-039's roster crossing from
+   *     `entries`. ⚠️ **This is the one that reads another application's schema**, so the
+   *     permission check is the only thing between that grant and every entrant the club
+   *     holds — which is why the bypass block below posts every `entrants` column at it.
    *
    * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
    * trigger is reachable from its trigger and nothing else; a grant on it would be a function
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these thirteen functions, and only to authenticated', async () => {
+  it('grants exactly these fourteen functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -272,6 +276,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'create_event', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
+      { routine_name: 'import_from_entries', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'known_crossings', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
@@ -1538,5 +1543,588 @@ describe('recording a crossing', () => {
       // perfectly ordinary answer, and the screen must not read one as the other.
       expect(await knownAs(MARSHAL)).toEqual([]);
     });
+  });
+});
+
+/**
+ * The Nightingale roster crossing from `entries` — #248, under
+ * [ADR-039](../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md).
+ *
+ * ⚠️ **This is the first function on this platform to read across two application schemas**,
+ * and it is `security definer`, so it sees rows its caller cannot. The permission check is the
+ * only thing standing between `timing.registration.import` and every entrant the club holds.
+ * That is why the block below is weighted the way it is: the refusals and the carry list come
+ * first, and the happy path — which is the easy part — comes after.
+ */
+describe('the roster, from the schema that already holds it', () => {
+  const IMPORTER = '66666666-6666-4666-8666-666666666661';
+  const NOBODY = '66666666-6666-4666-8666-666666666662';
+  const TIMING_EVENT = '00000000-0000-4000-8000-0000000000e1';
+  const ENTRIES_EVENT = '00000000-0000-4000-8000-0000000000e2';
+  const SLUG = 'zz-import-2026';
+  /** The civil race date the ages below are computed against. */
+  const RACE_DATE = '2026-11-01';
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      // ⚠️ **Rolled back, so the impersonation does not leak — and so nothing this function
+      // wrote survives either.** Every test that needs to *read back* what the import did runs
+      // it through `importAndKeep` below instead.
+      await db.query('rollback');
+    }
+  }
+
+  type Envelope = { ok: boolean; reason?: string; [key: string]: unknown };
+
+  const importAs = (person: string, slug = SLUG) =>
+    asPerson<Envelope>(person, 'select timing.import_from_entries($1) as answer', [slug]);
+
+  /**
+   * The import, committed, so the rows it wrote can be read back.
+   *
+   * `set_config(..., true)` is transaction-local and `asPerson` rolls back, which is right for
+   * asserting an *answer* and useless for asserting an *effect*. Here the role is set and reset
+   * around a committed call instead.
+   */
+  async function importAndKeep(person: string, slug = SLUG): Promise<Envelope> {
+    await db.query("select set_config('role', 'authenticated', false)");
+    await db.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, false)",
+      [person],
+    );
+    try {
+      const { rows } = await db.query<{ answer: Envelope }>(
+        'select timing.import_from_entries($1) as answer',
+        [slug],
+      );
+      return rows[0]!.answer;
+    } finally {
+      // Back to `postgres` before anything reads a `timing` table directly: `authenticated`
+      // holds no grant on any of them, so a verification read left under the impersonated role
+      // fails with `permission denied for table runners`, which reads as a broken function and
+      // is not one. #265 paid for this once already.
+      await db.query("select set_config('role', 'postgres', false)");
+      await db.query("select set_config('request.jwt.claims', null, false)");
+    }
+  }
+
+  /**
+   * `consents` carries the medical consent as well as the entry terms, because one test stores
+   * a medical note — `assert_medical_consent()` refuses one whose purchase did not record it,
+   * which is the rule that makes the note and its lawful basis inseparable. Every other test
+   * here is unaffected by the extra key.
+   */
+  async function newPurchase(email: string): Promise<string> {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into entries.entry_purchases (
+         event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
+         consents, consent_version, paid_at
+       )
+       select $1, 'paid', 1800, f.id, $2, 'Fixture Buyer', '{"entryTerms":true,"medical":true}'::jsonb,
+              'fixture-v1', now()
+         from entries.fees f
+        where f.event_id = $1
+        limit 1
+       returning id`,
+      [ENTRIES_EVENT, email],
+    );
+    return rows[0]!.id;
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [IMPORTER, 'timing-import-importer@example.com'],
+      [NOBODY, 'timing-import-nobody@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'registered', $2)
+       on conflict do nothing`,
+      [IMPORTER, NOBODY],
+    );
+
+    await db.query('delete from timing.events where id = $1', [TIMING_EVENT]);
+    await db.query('delete from entries.events where id = $1', [ENTRIES_EVENT]);
+
+    // **The two schemas are joined on the slug**, so both fixtures carry the same one.
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Import Fixture', 'solo', $3::timestamptz)`,
+      [TIMING_EVENT, SLUG, `${RACE_DATE}T11:00:00Z`],
+    );
+    await db.query(
+      `insert into entries.events (
+         id, slug, display_name, event_date, start_time, capacity,
+         from_address, consent_version, race_slug, minimum_age
+       ) values ($1, $2, 'Import Fixture', $3::date, '11:00', 250,
+                 'fixture@example.com', 'fixture-v1', 'zz-import', 18)`,
+      [ENTRIES_EVENT, SLUG, RACE_DATE],
+    );
+    await db.query(
+      `insert into entries.fees (event_id, code, label, price_pence)
+       values ($1, 'unaffiliated', 'Unaffiliated', 1800)`,
+      [ENTRIES_EVENT],
+    );
+  });
+
+  afterEach(async () => {
+    // Each test owns the whole field. Deleting the purchases cascades to the entrants, and
+    // deleting the teams cascades to the runners.
+    await db.query('delete from timing.teams where event_id = $1', [TIMING_EVENT]);
+    await db.query('delete from entries.entry_purchases where event_id = $1', [
+      ENTRIES_EVENT,
+    ]);
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [TIMING_EVENT]);
+    await db.query('delete from entries.events where id = $1', [ENTRIES_EVENT]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [IMPORTER, NOBODY],
+    ]);
+  });
+
+  describe('who may run it', () => {
+    it('refuses a signed-in person who holds nothing, and reads nothing first', async () => {
+      await newPurchase('refused@example.com');
+
+      const answer = await importAs(NOBODY);
+
+      expect(answer).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('refuses an anonymous caller the same way', async () => {
+      const { rows } = await db.query<{ answer: Envelope }>(
+        'select timing.import_from_entries($1) as answer',
+        [SLUG],
+      );
+
+      expect(rows[0]?.answer).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('names a missing timing event rather than raising', async () => {
+      expect(await importAs(IMPORTER, 'zz-no-such-race')).toEqual({
+        ok: false,
+        reason: 'no_such_event',
+      });
+    });
+
+    /**
+     * A `timing` event with no `entries` event of the same slug is Pass the Buck's shape — a
+     * race timed here that was never entered here. It is not an error a caller can retry, so
+     * it is named rather than raised.
+     */
+    it('names a timing race that entries has never heard of', async () => {
+      await db.query(
+        `insert into timing.events (slug, name, format, start_at)
+         values ('zz-timing-only', 'Timing Only', 'solo', now())
+         on conflict (slug) do nothing`,
+      );
+
+      expect(await importAs(IMPORTER, 'zz-timing-only')).toEqual({
+        ok: false,
+        reason: 'no_such_entries_event',
+      });
+
+      await db.query(`delete from timing.events where slug = 'zz-timing-only'`);
+    });
+  });
+
+  /**
+   * ⚠️ **The block that matters most.** ADR-039 writes down what may cross and what may not,
+   * and this is the assertion that the SQL agrees with the record. It posts a *complete*
+   * entrant — every column the club holds, all populated — and then asserts each forbidden one
+   * arrived nowhere. `entries-rules.test.ts`'s shape: attempt the bypass, assert the specific
+   * outcome, never assert the text of a rule.
+   */
+  describe('what it carries, and what it must never', () => {
+    async function importOneFullEntrant(): Promise<Record<string, unknown>> {
+      const purchaseId = await newPurchase('carries@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender, club,
+           emergency_contact_name, emergency_contact_phone,
+           gender_identity, phone, role, result_placement
+         ) values (
+           $1, 'Wilhelmina', 'O''Rourke', date '1986-12-09', 'female', 'Southville RC',
+           'Kinsi Next-Of-Kin', '0117 496 0001',
+           'zz-gender-identity-must-not-travel', '07700900123', 'runner', null
+         )`,
+        [purchaseId],
+      );
+      await db.query(
+        `insert into entries.entrant_medical (entrant_id, notes)
+         select id, 'zz-medical-note-must-not-travel' from entries.entrants
+          where purchase_id = $1`,
+        [purchaseId],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<Record<string, unknown>>(
+        `select r.* from timing.runners r
+           join timing.teams t on t.id = r.team_id
+          where t.event_id = $1`,
+        [TIMING_EVENT],
+      );
+      return rows[0]!;
+    }
+
+    it('carries the name, the club and the category', async () => {
+      const runner = await importOneFullEntrant();
+
+      expect(runner.firstname).toBe('Wilhelmina');
+      expect(runner.lastname).toBe("O'Rourke");
+      expect(runner.club_name).toBe('Southville RC');
+      expect(runner.gender).toBe('female');
+      expect(runner.role).toBe('runner');
+    });
+
+    /**
+     * The date of birth is read to compute this and discarded in the same expression. 1986-12-09
+     * against a 2026-11-01 race day is 39 — the birthday has not happened yet that year, which
+     * is the case a naive year subtraction gets wrong.
+     */
+    it('carries an age computed on the race date, and no date of birth', async () => {
+      const runner = await importOneFullEntrant();
+
+      expect(runner.age_on_day).toBe(39);
+      expect(Object.keys(runner)).not.toContain('date_of_birth');
+    });
+
+    /**
+     * ⚠️ **The whole point of ADR-039's carry list.** Every one of these is somebody's
+     * decision — three of them are ADRs — and a roster row is none of the places they belong.
+     * Asserted against the rendered row rather than against the function's text, so widening
+     * the `select` inside it would fail here.
+     */
+    it('carries no forbidden column anywhere on the row', async () => {
+      const runner = await importOneFullEntrant();
+      const serialised = JSON.stringify(runner);
+
+      expect(serialised).not.toContain('zz-gender-identity-must-not-travel');
+      expect(serialised).not.toContain('zz-medical-note-must-not-travel');
+      expect(serialised).not.toContain('07700900123');
+      expect(serialised).not.toContain('Kinsi Next-Of-Kin');
+      expect(serialised).not.toContain('0117 496 0001');
+      expect(serialised).not.toContain('1986-12-09');
+      expect(serialised).not.toContain('1986');
+    });
+
+    /**
+     * A runner is reachable through `purchaser_email`, which is a **purchase** fact.
+     * `entrants.email` is a guide's own address and null for a runner, so a roster row for a
+     * runner carries no address at all.
+     */
+    it('carries no address for a runner', async () => {
+      const runner = await importOneFullEntrant();
+
+      expect(runner.email).toBeNull();
+      expect(JSON.stringify(runner)).not.toContain('carries@example.com');
+    });
+  });
+
+  describe('a non-binary entrant, and a guide', () => {
+    /**
+     * ADR-031's answer has to arrive, or every non-binary entrant falls to "not placed" on the
+     * timing side — the exact gap ADR-031 closed in `entries`, re-opened one schema along.
+     */
+    it('carries where a non-binary entrant asked to be placed', async () => {
+      const purchaseId = await newPurchase('placed@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone, result_placement
+         ) values ($1, 'Alex', 'Placement', date '1990-01-01', 'non_binary',
+                   'Kin', '0117 496 0002', 'female')`,
+        [purchaseId],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<{ gender: string; result_placement: string }>(
+        `select r.gender, r.result_placement from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+        [TIMING_EVENT],
+      );
+
+      expect(rows[0]).toEqual({ gender: 'non_binary', result_placement: 'female' });
+    });
+
+    /**
+     * ADR-022: a guide rides on the runner's entry, takes one of the 250 and runs the course.
+     * They are leg 2 so they get a bib of their own, and they carry **their own** address,
+     * because a guide has no purchase to be reached through.
+     */
+    it('puts a guide on the same entry as leg two, with their own address', async () => {
+      const purchaseId = await newPurchase('vi-runner@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone, role, email
+         ) values
+           ($1, 'Vi', 'Runner', date '1990-01-01', 'female', 'Kin', '0117 496 0003',
+            'runner', null),
+           ($1, 'Gwen', 'Guide', date '1992-02-02', null, 'Kin', '0117 496 0004',
+            'guide', 'gwen-guide@example.com')`,
+        [purchaseId],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<{
+        leg: number;
+        firstname: string;
+        role: string;
+        email: string | null;
+      }>(
+        `select r.leg, r.firstname, r.role, r.email from timing.runners r
+           join timing.teams t on t.id = r.team_id
+          where t.event_id = $1 order by r.leg`,
+        [TIMING_EVENT],
+      );
+
+      expect(rows).toEqual([
+        { leg: 1, firstname: 'Vi', role: 'runner', email: null },
+        { leg: 2, firstname: 'Gwen', role: 'guide', email: 'gwen-guide@example.com' },
+      ]);
+    });
+  });
+
+  describe('running it again', () => {
+    it('is a no-op on an unchanged field, and creates nothing twice', async () => {
+      const purchaseId = await newPurchase('again@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone
+         ) values ($1, 'Same', 'Runner', date '1990-01-01', 'male', 'Kin', '0117 496 0005')`,
+        [purchaseId],
+      );
+
+      const first = await importAndKeep(IMPORTER);
+      const second = await importAndKeep(IMPORTER);
+
+      expect(first.teams_created).toBe(1);
+      expect(second.teams_created).toBe(0);
+      expect(second.teams_updated).toBe(1);
+
+      const { rows } = await db.query<{ count: string }>(
+        `select count(*)::text as count from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+        [TIMING_EVENT],
+      );
+      expect(rows[0]?.count).toBe('1');
+    });
+
+    /**
+     * ⚠️ **The assertion the whole re-run design exists for.** Re-importing after bibs are
+     * assigned must never renumber a field against numbers already printed and pinned on.
+     */
+    it('never touches team_number or either bib override', async () => {
+      const purchaseId = await newPurchase('bibbed@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone
+         ) values ($1, 'Bib', 'Holder', date '1990-01-01', 'male', 'Kin', '0117 496 0006')`,
+        [purchaseId],
+      );
+      await importAndKeep(IMPORTER);
+      await db.query(
+        `update timing.teams set team_number = '42', bib_leg1 = '0311', race_status = 'dns'
+          where event_id = $1`,
+        [TIMING_EVENT],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<{
+        team_number: string;
+        bib_leg1: string;
+        race_status: string;
+      }>(
+        `select team_number, bib_leg1, race_status from timing.teams where event_id = $1`,
+        [TIMING_EVENT],
+      );
+
+      expect(rows[0]).toEqual({
+        team_number: '42',
+        bib_leg1: '0311',
+        race_status: 'dns',
+      });
+    });
+
+    /**
+     * A transfer replaces the runner on that entry and leaves the entry — and its bib — alone.
+     * Simulated at the table rather than through `transfer_entry()`, which re-checks a dozen
+     * rules that are not what this test is about.
+     */
+    it('replaces the runner after a transfer and leaves the bib alone', async () => {
+      const purchaseId = await newPurchase('transferred@example.com');
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone
+         ) values ($1, 'First', 'Runner', date '1990-01-01', 'male', 'Kin', '0117 496 0007')`,
+        [purchaseId],
+      );
+      await importAndKeep(IMPORTER);
+      await db.query(`update timing.teams set team_number = '7' where event_id = $1`, [
+        TIMING_EVENT,
+      ]);
+
+      await db.query('delete from entries.entrants where purchase_id = $1', [purchaseId]);
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone
+         ) values ($1, 'Second', 'Runner', date '1991-01-01', 'female', 'Kin', '0117 496 0008')`,
+        [purchaseId],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<{ firstname: string; team_number: string }>(
+        `select r.firstname, t.team_number from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+        [TIMING_EVENT],
+      );
+
+      expect(rows).toEqual([{ firstname: 'Second', team_number: '7' }]);
+    });
+
+    /**
+     * ⚠️ **A refunded entry's team goes, and it has to.** `cancel_entry()` deletes the entrants
+     * and sets the purchase to `refunded`, so the import simply does not reach it — but a team
+     * written on a previous run would linger, holding a place on the start list for somebody
+     * who is not running.
+     */
+    it('removes the team of an entry that was refunded', async () => {
+      const staying = await newPurchase('staying@example.com');
+      const leaving = await newPurchase('leaving@example.com');
+      for (const [id, name] of [
+        [staying, 'Staying'],
+        [leaving, 'Leaving'],
+      ]) {
+        await db.query(
+          `insert into entries.entrants (
+             purchase_id, first_name, last_name, date_of_birth, gender,
+             emergency_contact_name, emergency_contact_phone
+           ) values ($1, $2, 'Runner', date '1990-01-01', 'male', 'Kin', '0117 496 0009')`,
+          [id, name],
+        );
+      }
+      await importAndKeep(IMPORTER);
+
+      await db.query('delete from entries.entrants where purchase_id = $1', [leaving]);
+      await db.query(
+        `update entries.entry_purchases set status = 'refunded', paid_at = null where id = $1`,
+        [leaving],
+      );
+
+      const answer = await importAndKeep(IMPORTER);
+
+      expect(answer.teams_removed).toBe(1);
+      const { rows } = await db.query<{ firstname: string }>(
+        `select r.firstname from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+        [TIMING_EVENT],
+      );
+      expect(rows).toEqual([{ firstname: 'Staying' }]);
+    });
+
+    /**
+     * ⚠️ **A roster that arrived by CSV must survive this.** The removal above is scoped to
+     * teams whose anchor is a purchase of *this* `entries` event; a blanket "delete what I did
+     * not just write" would empty Pass the Buck's field the first time somebody ran the import
+     * on the wrong slug. This is that guard, asserted rather than trusted.
+     */
+    it('leaves a team that did not come from entries alone', async () => {
+      await db.query(
+        `insert into timing.teams (event_id, purchase_order_id, name)
+         values ($1, 'FOS-CSV-0001', 'From a CSV')`,
+        [TIMING_EVENT],
+      );
+
+      await importAndKeep(IMPORTER);
+
+      const { rows } = await db.query<{ purchase_order_id: string }>(
+        `select purchase_order_id from timing.teams where event_id = $1`,
+        [TIMING_EVENT],
+      );
+
+      expect(rows).toEqual([{ purchase_order_id: 'FOS-CSV-0001' }]);
+    });
+  });
+
+  /**
+   * Only a `paid` entry is on a start line. A held place that was never paid for, and one whose
+   * hold lapsed, are both people who are not running.
+   */
+  it('imports only the entries somebody actually paid for', async () => {
+    const paid = await newPurchase('paid@example.com');
+    const { rows: pendingRows } = await db.query<{ id: string }>(
+      `insert into entries.entry_purchases (
+         event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
+         consents, consent_version, hold_expires_at
+       )
+       select $1, 'pending', 1800, f.id, 'pending@example.com', 'Held', '{"entryTerms":true}'::jsonb,
+              'fixture-v1', now() + interval '31 minutes'
+         from entries.fees f where f.event_id = $1 limit 1
+       returning id`,
+      [ENTRIES_EVENT],
+    );
+
+    for (const [id, name] of [
+      [paid, 'Paid'],
+      [pendingRows[0]!.id, 'Pending'],
+    ]) {
+      await db.query(
+        `insert into entries.entrants (
+           purchase_id, first_name, last_name, date_of_birth, gender,
+           emergency_contact_name, emergency_contact_phone
+         ) values ($1, $2, 'Runner', date '1990-01-01', 'male', 'Kin', '0117 496 0010')`,
+        [id, name],
+      );
+    }
+
+    await importAndKeep(IMPORTER);
+
+    const { rows } = await db.query<{ firstname: string }>(
+      `select r.firstname from timing.runners r
+         join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+      [TIMING_EVENT],
+    );
+
+    expect(rows).toEqual([{ firstname: 'Paid' }]);
   });
 });

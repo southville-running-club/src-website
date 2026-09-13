@@ -83,8 +83,29 @@ export type TimingRunner = {
   id: string;
   /** 1 or 2. A solo entry has leg 1 only. */
   leg: number;
-  /** As the import found it: `'M'` / `'F'`, or something it did not recognise. */
+  /**
+   * `entries`' vocabulary — `'female'`, `'male'`, `'non_binary'` — since
+   * [ADR-039](../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md).
+   *
+   * ⚠️ **Read it through `normaliseTimingGender()` in `gender.ts` and never by comparing
+   * strings here.** Rows written before that decision spell it `'M'` / `'F'`, and Pass the
+   * Buck's archive is a whole race of them; that file carries the expand-migrate-contract
+   * argument for why reading still accepts both and writing does not.
+   */
   gender: string;
+  /**
+   * [ADR-031](../../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)'s
+   * answer, carried across by `import_from_entries()`. Null for everybody else, and null for a
+   * roster that arrived by CSV — which has no such question on it.
+   */
+  result_placement: 'female' | 'male' | null;
+  /**
+   * `'runner'` or `'guide'` — [ADR-022](../../../../../docs/architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md).
+   *
+   * A guide runs the course and takes one of the 250, so they get a bib and appear on the
+   * start line; they are in **no category and no prize**. `awards.ts` excludes them.
+   */
+  role: string;
   /** Computed against the race date at import, never stored as a birth date. */
   age_on_day: number | null;
   /**

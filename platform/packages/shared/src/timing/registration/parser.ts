@@ -46,6 +46,7 @@
 
 import Papa from 'papaparse';
 import { ageOn, type CivilDate } from '../../age-category';
+import { normaliseTimingGender } from '../gender';
 import type { TimingEvent } from '../rows';
 
 /** The race shape this import is for. `timing.events.format`, and the same two values. */
@@ -226,7 +227,16 @@ export function parseRegistrationCsv(
       purchase_order_id,
       firstname: (row['Firstname'] ?? '').trim(),
       lastname: (row['Lastname'] ?? '').trim(),
-      gender: (row['Gender'] ?? '').trim(),
+      // ⚠️ **Mapped into `entries`' vocabulary here, at the parser boundary**, which is
+      // where this file already drops everything it must not carry —
+      // [ADR-039](../../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md).
+      // The CSV says `'M'` / `'F'`; `timing.runners.gender` says `'female'` / `'male'`, and a
+      // column written in two vocabularies by two importers is the restated-closed-list trap
+      // in data form — whichever importer ran last would decide what the prize list says.
+      //
+      // An unrecognised value becomes the **empty string rather than a guess**, which reads
+      // back as no prize band. `gender.ts` carries the argument for that direction.
+      gender: normaliseTimingGender(row['Gender'] ?? '') ?? '',
       email: (row['Email'] ?? '').trim(),
       club_name: nullIfEmpty((row['ClubName'] ?? '').trim()),
       age_on_day: computeAgeOnDay(row['DOB'] ?? '', eventStartDate, rowIndex, findings),
