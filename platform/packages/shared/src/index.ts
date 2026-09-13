@@ -1,6 +1,7 @@
 export {
   LONDON_TIME_ZONE,
   formatLondon,
+  formatLondonClock,
   formatLondonCompactDate,
   formatLondonDate,
   formatLondonTime,

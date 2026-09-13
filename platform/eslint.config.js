@@ -83,4 +83,28 @@ export default [
     },
     rules: { 'no-console': 'off' },
   },
+  {
+    /**
+     * The `/timing` service worker — [#203](https://github.com/southville-running-club/src-website/issues/203).
+     *
+     * ⚠️ **It is plain JavaScript in `public/` on purpose and cannot become anything else.** A
+     * service worker is registered by name, so it may not be bundled and given a build hash;
+     * `apps/timing/public/sw.js` is served at `/timing/sw.js`, which is what gives it the
+     * `/timing/` scope with no `Service-Worker-Allowed` header.
+     *
+     * So the globals have to be declared here rather than by a `tsconfig` — and `/* eslint-env
+     * serviceworker *\/` is not the answer either: that syntax was removed in ESLint 9, which
+     * is what the first version of this file was told, by name.
+     */
+    files: ['apps/timing/public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        clients: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
 ];

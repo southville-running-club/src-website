@@ -369,3 +369,118 @@ export async function clearStartEvents(project: string): Promise<void> {
     ]);
   });
 }
+
+/**
+ * The race the capture screen's tests record against — #203.
+ *
+ * ## ⚠️ One per project, and this one has to be, more than any before it
+ *
+ * `seedRosterEvent`'s argument applies and goes further. Every other fixture here is read, or
+ * writes one column; **these tests write crossings**, and a crossing's anomaly is judged
+ * against every other crossing on the same race. Two projects sharing a race would not merely
+ * race each other — the *second* project's first bib would be flagged as a duplicate of the
+ * first project's, which is a failure that reads as a broken anomaly rule.
+ *
+ * ## `relay`, unlike every other fixture here, and on purpose
+ *
+ * The roster and start fixtures are `solo`, where a bib is a whole team number and nothing is
+ * read out of its first digit. This one is `relay`, because that is where `format` is
+ * load-bearing: `147` is leg 1 of team 47, `247` is leg 2 of the same team, and the screen
+ * flags a leg 2 with no handover recorded. A `solo` fixture could not tell a screen that
+ * guessed the format from one that read it.
+ *
+ * **Started, with a team on it.** A crossing's trigger resolves a bib to a team, so a race
+ * with no teams would record every crossing with `team_id` null — which is a legitimate state
+ * and not the one worth testing against.
+ */
+export function captureEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives: a slug of that shape can never be
+  // reached by `nnEventSlugForResultsPath`, so no results address can name one of these.
+  return `zz-capture-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/** The team on it, and therefore the bibs `147` and `247` resolve to. */
+export const CAPTURE_TEAM_NUMBER = '47';
+
+/**
+ * Create the race and put one person on its roster.
+ *
+ * ⚠️ **The marshal is rostered and the admin deliberately is not.** ADR-036 makes the roster a
+ * scope checked *after* the permission, for everybody — and `timing-admin` carries
+ * `timing.crossing.record`, so an admin who is refused this race is the only thing that proves
+ * the roster is being checked at all rather than the permission being checked twice.
+ *
+ * Must run **after** `seedTimingStaff()`, which is what creates the account this looks up.
+ */
+export async function seedCaptureEvent(
+  project: string,
+  marshalEmail: string,
+): Promise<void> {
+  const slug = captureEventSlug(project);
+  await clearCaptureEvent(project);
+
+  await withClient(async (db) => {
+    const id = fixtureEventId(slug);
+
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, $3, 'relay', '2026-10-25T00:00:00Z'::timestamptz,
+               '2026-10-25T00:30:00Z'::timestamptz)`,
+      [id, slug, `Capture fixture ${project}`],
+    );
+
+    await db.query(`insert into timing.teams (event_id, team_number) values ($1, $2)`, [
+      id,
+      CAPTURE_TEAM_NUMBER,
+    ]);
+
+    const { rows } = await db.query<{ id: string }>(
+      'select id from auth.users where email = $1',
+      [marshalEmail],
+    );
+    const marshalId = rows[0]?.id;
+    if (marshalId === undefined) {
+      throw new Error(`no auth.users row for ${marshalEmail} — seed the staff first`);
+    }
+
+    await db.query('insert into timing.marshals (event_id, user_id) values ($1, $2)', [
+      id,
+      marshalId,
+    ]);
+  });
+}
+
+/** What this race has recorded, oldest first — the assertion the screen cannot make itself. */
+export async function captureCrossings(
+  project: string,
+): Promise<
+  { id: string; bib: string | null; anomaly_flag: boolean; team_id: string | null }[]
+> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<{
+      id: string;
+      bib: string | null;
+      anomaly_flag: boolean;
+      team_id: string | null;
+    }>(
+      `select c.id, c.bib, c.anomaly_flag, c.team_id
+         from timing.crossings c
+         join timing.events e on e.id = c.event_id
+        where e.slug = $1
+        order by c.captured_at`,
+      [captureEventSlug(project)],
+    );
+
+    return rows;
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearCaptureEvent(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [
+      captureEventSlug(project),
+    ]);
+  });
+}

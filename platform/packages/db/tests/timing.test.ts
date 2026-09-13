@@ -252,6 +252,11 @@ describe('what may be called, and by whom', () => {
    *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission;
    *   * `record_crossing` and `known_crossings` — `timing.crossing.record` **and** a roster
    *     row, the write path #203 syncs against and the read it de-duplicates from;
+   *   * `marshal_event` — the same two checks, #203. ⚠️ **It exists because none of the four
+   *     roster functions above answers *"am I on this roster"* to the marshal asking** — every
+   *     one of them is behind `timing.marshal.assign`, which is an admin's permission. It is
+   *     what `middleware.ts` calls to stop refusing `/timing/marshal/<slug>/` outright, and it
+   *     carries the race's `format` because bibs parse differently on a relay and a solo;
    *   * `assign_bibs`, `set_bib_override` and `add_walk_in` — `timing.registration.import`,
    *     #249. ⚠️ **`effective_bib` is deliberately not among them**: it is the shared
    *     definition the collision guard and the parity test use, reachable from the definer
@@ -270,7 +275,7 @@ describe('what may be called, and by whom', () => {
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these nineteen functions, and only to authenticated', async () => {
+  it('grants exactly these twenty functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -291,6 +296,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'known_crossings', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
+      { routine_name: 'marshal_event', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
@@ -1555,6 +1561,71 @@ describe('recording a crossing', () => {
       // Null means "you may not" here. A race that has had no taps yet is a different and
       // perfectly ordinary answer, and the screen must not read one as the other.
       expect(await knownAs(MARSHAL)).toEqual([]);
+    });
+  });
+
+  /**
+   * `marshal_event()` — #203, the read that lets `middleware.ts` stop refusing
+   * `/timing/marshal/<slug>/` outright.
+   *
+   * ⚠️ **It is asserted beside `record_crossing()` on purpose, against the same three
+   * people.** The door and the write have to agree about who is on this roster: a door that
+   * admitted somebody the write then refuses is a marshal tapping a button all morning into a
+   * queue that can never drain. Sharing the fixtures is what makes a divergence show up as a
+   * failure here rather than on a start line.
+   */
+  describe('the race a marshal is allowed to see', () => {
+    const eventAs = (person: string, slug = SLUG) =>
+      asPerson<Record<string, unknown> | null>(
+        person,
+        'select timing.marshal_event($1) as answer',
+        [slug],
+      );
+
+    it('gives a rostered marshal the facts the capture screen reasons from', async () => {
+      // ⚠️ **`format` is derived from the fixture rather than written down as a literal.** It
+      // is the load-bearing field — `parseBib()` reads a relay bib leg-first and a solo bib
+      // whole — so a literal that happened to match would go on passing after somebody changed
+      // the fixture, which is the way this assertion would most plausibly stop testing.
+      const { rows } = await db.query<{ format: string; name: string }>(
+        'select format, name from timing.events where slug = $1',
+        [SLUG],
+      );
+
+      expect(await eventAs(MARSHAL)).toMatchObject({
+        slug: SLUG,
+        format: rows[0]?.format,
+        name: rows[0]?.name,
+      });
+    });
+
+    it('carries no counts, no course notes and no distance', async () => {
+      // The negative half, and the one that goes stale silently: this is the weakest timing
+      // permission there is, so a column added to `event_detail()` must not arrive here by
+      // somebody copying a `select *`.
+      const answer = await eventAs(MARSHAL);
+
+      expect(Object.keys(answer ?? {}).sort()).toEqual([
+        'actually_started_at',
+        'finished_at',
+        'format',
+        'name',
+        'slug',
+        'start_at',
+      ]);
+    });
+
+    it('answers null to somebody holding the permission but not on this roster', async () => {
+      // ADR-036: the roster is a scope checked after the permission, for everybody. The admin
+      // here holds `timing.crossing.record` through `timing-admin` and is still refused.
+      expect(await eventAs(OFF_ROSTER)).toBeNull();
+      expect(await eventAs(ADMIN)).toBeNull();
+    });
+
+    it('answers the same null for a race that does not exist', async () => {
+      // Indistinguishable from the refusal above, deliberately: otherwise the door is an
+      // oracle for which slugs name a race.
+      expect(await eventAs(MARSHAL, 'zz-no-such-race')).toBeNull();
     });
   });
 });

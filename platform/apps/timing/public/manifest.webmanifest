@@ -1,0 +1,18 @@
+{
+  "name": "Southville Running Club — race timing",
+  "short_name": "SRC timing",
+  "description": "Record crossings at a Southville Running Club race.",
+  "start_url": "/timing/",
+  "scope": "/timing/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#00c85a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

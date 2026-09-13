@@ -932,3 +932,149 @@ footer {
   color: var(--colour-muted);
   font-size: 0.9375rem;
 }
+
+/* ---------------------------------------------------------------------------------------
+ * The marshal capture screen — `/timing/marshal/<slug>/`, #203
+ *
+ * ⚠️ **Every colour here is an existing `--colour-*` name and there is not one literal.**
+ * `NnSchedule` is the trap this avoids: a component whose colours were computed against a
+ * surface it did not carry inverted the moment it was moved, and one pairing reached 1:1 — not
+ * hard to read, absent. Nothing below states a colour of its own, so this screen cannot be
+ * left behind by a palette change and there is no new pairing to compute.
+ *
+ * The sizes are the decision. This is read at arm's length, outdoors, in November, by somebody
+ * wearing gloves: the tap target is the whole width and the keypad keys are well over the 24px
+ * WCAG floor, because the floor is for a warm room.
+ * --------------------------------------------------------------------------------------- */
+.capture {
+  margin: calc(var(--space) * 1.5) 0;
+}
+
+/* The one control on the screen. `.button-wide` already makes it full width; this makes it
+   taller still, because it is pressed without looking and a miss costs a runner's time. */
+.capture-tap {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+  font-size: 1.375rem;
+}
+
+.capture-hint,
+.capture-when {
+  color: var(--colour-muted);
+}
+
+.capture-queue {
+  margin: var(--space) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capture-card {
+  margin-bottom: var(--space);
+  padding: var(--space);
+  border: 1px solid var(--colour-rule);
+  /* The state is on the left edge, the way `.notice` carries its tone — one convention on this
+     platform rather than two. `currentColor` would make it invisible; each state below names a
+     token. */
+  border-left-width: 5px;
+  border-radius: 6px;
+}
+
+/* Queued and syncing are the ordinary states and deliberately quiet: a marshal with no signal
+   is having a completely normal morning, and twenty loud cards would hide the one that is
+   not. */
+.capture-card-queued,
+.capture-card-syncing {
+  border-left-color: var(--colour-rule);
+}
+
+/* The card that is being typed into. Accent, because it is the one thing wanting attention. */
+.capture-card-open {
+  border-left-color: var(--colour-accent);
+}
+
+.capture-card-failed {
+  border-left-color: var(--colour-error);
+}
+
+.capture-time {
+  margin: 0;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.capture-time-label {
+  color: var(--colour-muted);
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.capture-card-bib {
+  margin-left: 0.75rem;
+}
+
+.capture-state,
+.capture-state-detail,
+.capture-anomaly-note {
+  margin: 0.375rem 0 0;
+  color: var(--colour-muted);
+}
+
+/* The bib as it is being typed, big enough to check against the number on a vest. */
+.capture-bib {
+  margin: 0.5rem 0;
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.capture-anomaly {
+  margin: 0.5rem 0;
+}
+
+/* ⚠️ `minmax(0, 1fr)` rather than `1fr`. A grid track's default minimum is `auto`, so a key
+   whose label is wider than its share — "Delete a digit" — would push the row past the
+   viewport and slide a 320px page sideways, which is a failure this repository has paid for
+   more than once. */
+.capture-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.capture-key {
+  min-height: 3.5rem;
+  font-size: 1.25rem;
+}
+
+.capture-key-wide {
+  grid-column: span 2;
+  font-size: 1rem;
+}
+
+.capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* A control that must be reachable and must not compete with Confirm. Text on the page's own
+   background, so its contrast is the body's and cannot drift. */
+.button-quiet {
+  border-color: var(--colour-rule);
+  background: transparent;
+  color: var(--colour-text);
+  font-weight: 400;
+}
+
+/* A disabled Confirm is a bib that is not a bib yet. Muted rather than faded to transparency,
+   which is how a disabled control ends up at 2:1 against its own background. */
+.button:disabled {
+  border-color: var(--colour-rule);
+  background: var(--colour-surface-muted);
+  color: var(--colour-muted);
+  cursor: not-allowed;
+}
