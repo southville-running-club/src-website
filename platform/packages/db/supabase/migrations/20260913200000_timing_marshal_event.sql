@@ -3,8 +3,8 @@
 -- ==========================================================================================
 --
 -- Issue [#203](https://github.com/southville-running-club/src-website/issues/203), under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
--- and [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+-- and [ADR-036](../../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
 --
 -- ## The gap this closes, which is older than this issue
 --
