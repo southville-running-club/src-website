@@ -1425,7 +1425,20 @@ test.describe('recording a crossing', () => {
     await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible({
       timeout: 20_000,
     });
-    await expect(page.getByText(`Bib ${BIB_RELOAD}`)).toBeVisible({ timeout: 20_000 });
+    // ⚠️ **`exact` because the anomaly note names the bib too**, which is what the next
+    // assertion is about — the first version of this matched both and failed strict mode.
+    await expect(page.getByText(`Bib ${BIB_RELOAD}`, { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    /*
+     * ⚠️ **The anomaly came back with it, which is the half that is easy to lose.** The verdict
+     * is frozen at confirm time and never recomputed — on the client or in the database — so a
+     * card restored from IndexedDB has to carry the words the marshal was actually looking at.
+     * A screen that re-derived it here would answer against a race that has moved on, and would
+     * do it silently.
+     */
+    await expect(page.getByText(/no handover recorded for team 88/)).toBeVisible();
   });
 
   /**
