@@ -1314,6 +1314,7 @@ export type Database = {
         Returns: {
           amount_pence: number
           attempts: number
+          end_time: string
           id: string
           purchase_created_at: string
           purchase_id: string
@@ -1324,8 +1325,10 @@ export type Database = {
           social_date: string
           social_name: string
           social_slug: string
+          start_time: string
           template: string
           ticket_no: number
+          venue: string
         }[]
       }
       create_pending_purchase: {

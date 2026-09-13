@@ -375,6 +375,24 @@ migrations only to a volume it creates — so on any machine that has run this b
 otherwise meant three different schemas. It costs tens of seconds and the local data, which is
 only ever the seed and invented fixtures.
 
+⚠️ **They rebuild the database and they do not re-read `config.toml`, and `./dev down` does not
+either.** `[api].schemas` reaches PostgREST as `PGRST_DB_SCHEMAS` on the container, set when
+`supabase start` **creates** it — so a stack booted on one branch keeps that branch's schema
+list across every `./dev up`, `./dev reset` and `./dev down` that follows, including after a
+checkout that changes the file. The symptom is a suite that fails with **`PGRST106 Invalid
+schema: <name>`** naming a schema the working tree plainly exposes, on a branch that did not
+touch the file — which reads as a broken migration or a bad merge, and is neither. Compare the
+two directly before believing anything else:
+
+```bash
+grep '^schemas' platform/packages/db/supabase/config.toml
+docker inspect $(docker ps --format '{{.Names}}' | grep rest) --format '{{range .Config.Env}}{{println .}}{{end}}' | grep PGRST_DB_SCHEMAS
+```
+
+**`npx supabase stop` from `platform/packages/db`, then `./dev up`** is what actually recreates
+it. It cost fifteen red database tests on 13 September 2026, on a branch whose diff was two
+functions and a skin.
+
 One hostname, several paths — the same locally and in production:
 
 |            |                                                                                                                                                                                                                                                                                                                        |
@@ -1959,9 +1977,18 @@ already tracks — and it works with scripting off.
   privacy notices would all be needed first. **The confirmation email asks for them by reply**,
   which puts the answer in a mailbox the club already runs. `tests/unit/events.test.ts` asserts
   that no dietary field reaches the order however it is posted.
-- **No HTML part on the two ticket emails.** ADR-026's skin is written against a race entry, and
-  giving it a second shape to branch on is how a design system starts branching on its caller.
-  The text part is authoritative in both.
+- ~~No HTML part on the two ticket emails.~~ **The confirmation has one since 13 September
+  2026** — [ADR-041](docs/architecture/decisions/adr-041-the-ticket-confirmation-gets-a-skin-of-its-own.md),
+  the change ADR-033 deferred when it called a ticket skin "a separate change". It is a **second
+  skin**, `worker/ticket-email-skin.ts`, and not a widened `email-skin.ts` — which is the thing
+  ADR-033 actually ruled out and which still knows nothing about a ticket. The text part is
+  unchanged and stays authoritative: both render from the same `TicketOutboxMessage` and never
+  from each other, so the two may differ in presentation and never in the facts.
+  **`ticket_refunded` is still text alone**, deliberately — no cancellation design was supplied,
+  the skin returns `null` for it, and that message sends as text rather than not at all.
+  ⚠️ **The banner is attached as a `cid:` image, not hotlinked**, which is ADR-026's open-tracker
+  position rather than a new one; **which artwork is keyed by slug** in `SOCIAL_BANNERS`, and a
+  slug that is not in that map gets no banner and still gets its email.
 - **The completion page reports no state at all.** It makes no positive claim about the payment
   and — the half that costs money — **no negative one**. ⚠️ If it ever does report state, the
   race's rule comes with it: only a recorded payment may make a positive claim, because a page
