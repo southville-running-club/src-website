@@ -344,9 +344,18 @@ async function mayEnterEarly(
  * the busiest page of the year has to be earned.
  *
  * **`paid` only.** A `pending` hold is not a place, and telling somebody mid-payment that they
- * already have one is how they abandon a checkout they were about to finish. The database rule
- * is broader — it counts a live hold too, because two simultaneous submissions must not both
- * succeed — but a *notice* may only claim what is settled.
+ * already have one is how they abandon a checkout they were about to finish. A *notice* may only
+ * claim what is settled.
+ *
+ * **The database rule used to be broader than this and now agrees with it**, which is worth
+ * saying because this comment was the record of the disagreement. It counted a live hold too, on
+ * the reasoning that two simultaneous submissions must not both succeed — right about two
+ * people, wrong about one person coming back to their own abandoned checkout, who was refused
+ * for thirty-one minutes and told *"this runner already has a place"*. Since ADR-040 a
+ * submission supersedes a live hold naming one of its own people, so `create_pending_purchase()`
+ * refuses on a `paid` place as well, and a hold belonging to **somebody else** — the same
+ * address, a different runner — which this notice still does not and should not claim anything
+ * about.
  *
  * **Never throws, and a failure is silence.** This is a courtesy on top of a rule that is
  * enforced in Postgres regardless; a database that could not be reached must not take the

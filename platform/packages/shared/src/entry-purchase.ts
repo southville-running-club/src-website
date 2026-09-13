@@ -88,6 +88,14 @@ export const PENDING_PURCHASE_REASONS = [
   // one worked, which is a thing the confirmation page cannot reassure them about and the
   // absent confirmation email cannot either. So it gets its own notice rather than folding
   // into `failed`, and the notice points at `/account/entries/`.
+  //
+  // ⚠️ **It means a `paid` place since ADR-040, and it used to mean a live hold as well** —
+  // which is what made the notice's own first sentence, *"this runner already has a place in
+  // this race"*, false for the thirty-one minutes after somebody abandoned a checkout. A
+  // submission now supersedes a live hold naming one of its own people, so what is left for
+  // this reason to describe is a confirmed place, and the notice is true of every case that
+  // reaches it. **That is why the notice may keep pointing at `/account/entries/`**: there is
+  // now always something there to find.
   'already_entered',
   // **The second reason a person is meant to meet, and it is a different sentence from the
   // one above.** `already_entered` says *you* already hold a place, keyed on name and date of
@@ -100,6 +108,12 @@ export const PENDING_PURCHASE_REASONS = [
   // `invalid_discount` is answered beside the code box: it is a thing about one field, and
   // using another address fixes it. See `20260830160000_entries_one_place_per_email.sql` for
   // the decision, and for what it costs the couple entering on one card.
+  //
+  // **ADR-040 narrowed which rows it counts and deliberately did not touch the rule.** A live
+  // hold naming one of this submission's *own* people is superseded rather than counted, so a
+  // runner returning to their own abandoned checkout no longer meets this on the way past the
+  // rule above. A **different** runner on an address that already holds a place still does —
+  // that is the 30 August 2026 trade, still in force, still keyed on the address.
   'email_already_entered',
   // **A total of zero, which Stripe cannot take a payment for.** The Worker refuses a £0 fee
   // before it calls, and catches a 100% discount code on the way back, so this is the database

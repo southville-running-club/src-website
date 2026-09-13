@@ -209,6 +209,13 @@ describe('every purchase is given a number', () => {
     // the advisory lock the entry path already holds; this is what makes a duplicate impossible
     // even from a path that forgets to take it. Asserted by setting the number explicitly,
     // which is the one thing the trigger stands aside for.
+    //
+    // ⚠️ **`hold_expires_at` is supplied so that the index is what answers.** A `pending` row
+    // has had to say when its place goes back since 12 September 2026
+    // (`entry_purchases_hold_when_pending`), and without it this row is refused `23514` before
+    // it ever reaches the unique index — a check violation where the test asserts `23505`, which
+    // reads as the index being missing when it is the fixture that is incomplete. Two
+    // constraints, both real, and a row has to satisfy the other one to be a test of this one.
     const event = await single<{ id: string }>(
       'select id from entries.events where slug = $1',
       [EVENTS[0]],
@@ -218,12 +225,12 @@ describe('every purchase is given a number', () => {
       query(
         `insert into entries.entry_purchases (
            event_id, entry_no, status, amount_pence, fee_id, purchaser_email, purchaser_name,
-           consents, consent_version
+           consents, consent_version, hold_expires_at
          ) values (
            $1, 1, 'pending', 2000,
            (select id from entries.fees where event_id = $1 and code = 'unaffiliated'),
            'zzref-clash@example.com', 'Clashing Place',
-           '{"entryTerms": true}'::jsonb, 'zzref-v1'
+           '{"entryTerms": true}'::jsonb, 'zzref-v1', now() + interval '31 minutes'
          )`,
         [event.id],
       ),
