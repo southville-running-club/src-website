@@ -2,11 +2,11 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import {
   anomalyCrossing,
+  anomalyCrossingId,
   anomalyEventSlug,
-  ANOMALY_FLAGGED_ID,
   ANOMALY_ORPHAN_BIB,
-  ANOMALY_ORPHAN_ID,
   ANOMALY_REASON,
+  ANOMALY_SECOND_TEAM_NUMBER,
   ANOMALY_TEAM_NUMBER,
   captureCrossings,
   captureEventSlug,
@@ -1552,14 +1552,19 @@ test.describe('who may resolve an anomaly', () => {
 
       // The half a page test cannot reach: only the POST changes a record of who finished.
       const posted = await page.request.post(`${path}/update`, {
-        form: { intent: 'discarded', crossing_id: ANOMALY_FLAGGED_ID },
+        form: {
+          intent: 'discarded',
+          crossing_id: anomalyCrossingId(testInfo.project.name, 'flagged'),
+        },
         maxRedirects: 0,
       });
       expect(posted.status(), `${path}/update`).toBe(404);
     }
 
     // Nothing moved.
-    expect(await anomalyCrossing(ANOMALY_FLAGGED_ID)).toMatchObject({
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
       resolved_action: null,
     });
   });
@@ -1577,7 +1582,10 @@ test.describe('who may resolve an anomaly', () => {
       expect(
         (
           await page.request.post(`${path}/update`, {
-            form: { intent: 'discarded', crossing_id: ANOMALY_FLAGGED_ID },
+            form: {
+              intent: 'discarded',
+              crossing_id: anomalyCrossingId(testInfo.project.name, 'flagged'),
+            },
             maxRedirects: 0,
           })
         ).status(),
@@ -1641,7 +1649,9 @@ test.describe('the triage list', () => {
     await expect(
       page.getByRole('heading', { name: '1 capture is waiting' }),
     ).toBeVisible();
-    expect(await anomalyCrossing(ANOMALY_FLAGGED_ID)).toMatchObject({
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
       resolved_action: 'marked_valid',
     });
   });
@@ -1662,7 +1672,9 @@ test.describe('the triage list', () => {
 
     await expect(page.getByText(/The bib has been corrected/)).toBeVisible();
 
-    const after = await anomalyCrossing(ANOMALY_ORPHAN_ID);
+    const after = await anomalyCrossing(
+      anomalyCrossingId(testInfo.project.name, 'orphan'),
+    );
     expect(after).toMatchObject({ bib: ANOMALY_TEAM_NUMBER, resolved_action: 'edited' });
     expect(after?.team_id).not.toBeNull();
   });
@@ -1734,7 +1746,9 @@ test.describe('the timing log', () => {
 
     await page.getByRole('button', { name: 'Discard' }).first().click();
     await expect(page.getByText(/Discarded\./)).toBeVisible();
-    expect(await anomalyCrossing(ANOMALY_FLAGGED_ID)).toMatchObject({
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
       resolved_action: 'discarded',
     });
 
@@ -1748,7 +1762,9 @@ test.describe('the timing log', () => {
     await expect(page.getByText(/Restored\./)).toBeVisible();
 
     // Both columns cleared together, which is what the coherence check demands.
-    expect(await anomalyCrossing(ANOMALY_FLAGGED_ID)).toMatchObject({
+    expect(
+      await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'flagged')),
+    ).toMatchObject({
       resolved_action: null,
     });
   });
@@ -1761,9 +1777,12 @@ test.describe('the timing log', () => {
     // different compare-and-swap from the triage list. The database tests hold that; this holds
     // that a volunteer can actually do it.
     const clean = page.locator('.triage-card', { hasText: 'Recorded' }).first();
-    await clean.getByLabel('Bib').fill('312');
+    await clean.getByLabel('Bib').fill(ANOMALY_SECOND_TEAM_NUMBER);
     await clean.getByRole('button', { name: 'Save this bib' }).click();
 
+    // ⚠️ **Corrected onto the race's *other* team on purpose.** The first version typed a bib
+    // no team carried, so the page correctly answered "still matches no team" and the test
+    // asserted plain success — the assertion was wrong rather than the page.
     await expect(page.getByText('Saved.')).toBeVisible();
   });
 
