@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -259,6 +259,14 @@ describe('what may be called, and by whom', () => {
    *     latches**: the triage list swaps on `resolved_at is null` and the log cannot, since a
    *     row that was never flagged carries that null for ever. The concurrency block at the
    *     foot of this file is what actually holds that;
+   *   * `team_status_list`, `set_race_status`, `finish_event` and `reopen_event` —
+   *     `timing.event.manage`, #253. ⚠️ **`set_race_status()` audits the reversal as well as the
+   *     setting**, which the old application did not: a runner disputing a disqualification is
+   *     owed the record of it being lifted as much as the record of it being applied. ⚠️
+   *     **Neither finishing function gates anything** — `record_crossing()` and the resolution
+   *     functions are untouched by `finished_at`, because the last runner's crossing arrives
+   *     after the race director has called it, and the block at the foot of this file asserts
+   *     exactly that;
    *   * `marshal_event` — the same two checks, #203. ⚠️ **It exists because none of the four
    *     roster functions above answers *"am I on this roster"* to the marshal asking** — every
    *     one of them is behind `timing.marshal.assign`, which is an admin's permission. It is
@@ -282,7 +290,7 @@ describe('what may be called, and by whom', () => {
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these twenty-five functions, and only to authenticated', async () => {
+  it('grants exactly these twenty-nine functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -301,6 +309,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'edit_crossing', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
+      { routine_name: 'finish_event', grantee: 'authenticated' },
       { routine_name: 'import_from_entries', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'known_crossings', grantee: 'authenticated' },
@@ -308,12 +317,15 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'marshal_event', grantee: 'authenticated' },
       { routine_name: 'open_anomalies', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
+      { routine_name: 'reopen_event', grantee: 'authenticated' },
       { routine_name: 'resolve_crossing', grantee: 'authenticated' },
       { routine_name: 'restore_crossing', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'set_bib_override', grantee: 'authenticated' },
+      { routine_name: 'set_race_status', grantee: 'authenticated' },
       { routine_name: 'start_event', grantee: 'authenticated' },
+      { routine_name: 'team_status_list', grantee: 'authenticated' },
       { routine_name: 'unassign_marshal', grantee: 'authenticated' },
       { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
@@ -3306,6 +3318,398 @@ describe('resolving an anomaly and correcting the log', () => {
       } finally {
         await db.query('rollback');
       }
+    });
+  });
+});
+
+/**
+ * Race status, and finishing — #253.
+ *
+ * ⚠️ **Two assertions here are the ones that matter and neither is about the happy path**: that
+ * **lifting** a status is audited as loudly as applying one, and that finishing **gates
+ * nothing**. The old application audited a disqualification and not its reversal, which is
+ * exactly backwards for the person disputing it; and a finish that refused a crossing would lose
+ * the last runner's result, because the last crossing always arrives after somebody has called
+ * the race.
+ */
+describe('race status and finishing', () => {
+  const MANAGER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaac01';
+  const MARSHAL_ONLY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaac02';
+  const EVENT_ID = '00000000-0000-4000-8000-000000000f01';
+  const TEAM_ID = '00000000-0000-4000-8000-000000000f02';
+  const SLUG = 'zz-timing-finishing';
+
+  type Envelope = { ok: boolean; reason?: string; [key: string]: unknown };
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /** Committed, because the reversal has to see what the setting wrote. See #252's helper. */
+  async function asPersonCommitted<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query("select set_config('role', 'authenticated', false)");
+    await db.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, false)",
+      [personId],
+    );
+
+    try {
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      // ⚠️ `authenticated` holds no grant on any table in `timing`, so a verification read left
+      // under the impersonated role answers `permission denied`. This file warns about it twice.
+      await db.query("select set_config('role', 'postgres', false)");
+      await db.query("select set_config('request.jwt.claims', null, false)");
+    }
+  }
+
+  async function resetRace(): Promise<void> {
+    await db.query('update timing.events set finished_at = null where id = $1', [
+      EVENT_ID,
+    ]);
+    await db.query('update timing.teams set race_status = null where id = $1', [TEAM_ID]);
+    await db.query(
+      "delete from timing.admin_actions where event_id = $1 and action in ('race_status_set', 'race_finished', 'race_reopened')",
+      [EVENT_ID],
+    );
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MANAGER, 'timing-finish-manager@example.com'],
+      [MARSHAL_ONLY, 'timing-finish-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2)
+       on conflict do nothing`,
+      [MANAGER, MARSHAL_ONLY],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Finishing Fixture', 'solo', '2026-11-01T11:00:00Z',
+               '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '501')`,
+      [TEAM_ID, EVENT_ID],
+    );
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname)
+       values ($1, 1, 'Ada', 'Lovelace')`,
+      [TEAM_ID],
+    );
+    // The manager is rostered so the never-a-gate assertion can record a crossing as them.
+    await db.query(
+      'insert into timing.marshals (event_id, user_id) values ($1, $2) on conflict do nothing',
+      [EVENT_ID, MANAGER],
+    );
+  });
+
+  beforeEach(resetRace);
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from identity.people where id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from auth.users where id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+  });
+
+  describe('marking a team', () => {
+    it.each([['dns'], ['dnf'], ['dq']])('records %s', async (status) => {
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.set_race_status($1, $2, $3) as answer',
+          [SLUG, TEAM_ID, status],
+        ),
+      ).toMatchObject({ ok: true, race_status: status, changed: true });
+
+      const { rows } = await db.query<{ race_status: string | null }>(
+        'select race_status from timing.teams where id = $1',
+        [TEAM_ID],
+      );
+      expect(rows[0]?.race_status).toBe(status);
+    });
+
+    /**
+     * ⚠️ **The assertion #253 exists to add.** The old application noted that undoing a DQ was
+     * not audited; a runner disputing one is owed the record of it being lifted as much as the
+     * record of it being applied.
+     */
+    it('audits the reversal with both sides, not only the setting', async () => {
+      await asPersonCommitted(
+        MANAGER,
+        'select timing.set_race_status($1, $2, $3) as answer',
+        [SLUG, TEAM_ID, 'dq'],
+      );
+      await asPersonCommitted(
+        MANAGER,
+        'select timing.set_race_status($1, $2, $3) as answer',
+        [SLUG, TEAM_ID, null],
+      );
+
+      const { rows } = await db.query<{ detail: Record<string, unknown> }>(
+        `select detail from timing.admin_actions
+          where event_id = $1 and action = 'race_status_set'
+          order by created_at`,
+        [EVENT_ID],
+      );
+
+      expect(rows).toHaveLength(2);
+      expect(rows[0]?.detail).toMatchObject({ before: null, after: 'dq' });
+      expect(rows[1]?.detail).toMatchObject({ before: 'dq', after: null });
+    });
+
+    it('writes no audit row when nothing moved', async () => {
+      // Pressing "clear" on a team with no status is an ordinary thing to do twice, and it is
+      // not a failure — but it is not a decision either, so it is not in the trail.
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.set_race_status($1, $2, $3) as answer',
+          [SLUG, TEAM_ID, null],
+        ),
+      ).toMatchObject({ ok: true, changed: false });
+
+      const { rows } = await db.query<{ n: string }>(
+        `select count(*) as n from timing.admin_actions
+          where event_id = $1 and action = 'race_status_set'`,
+        [EVENT_ID],
+      );
+      expect(rows[0]?.n).toBe('0');
+    });
+
+    it('refuses a status nobody has defined', async () => {
+      expect(
+        await asPerson(MANAGER, 'select timing.set_race_status($1, $2, $3) as answer', [
+          SLUG,
+          TEAM_ID,
+          'withdrawn',
+        ]),
+      ).toEqual({ ok: false, reason: 'invalid_status' });
+    });
+
+    it('refuses a team that is not on the race in the address', async () => {
+      // ⚠️ Scoped to the event as well as the team id: a team id alone would let a volunteer on
+      // one race's page change a team on another, invisibly.
+      expect(
+        await asPerson(MANAGER, 'select timing.set_race_status($1, $2, $3) as answer', [
+          'zz-no-such-race',
+          TEAM_ID,
+          'dnf',
+        ]),
+      ).toEqual({ ok: false, reason: 'no_such_event' });
+    });
+  });
+
+  describe('finishing', () => {
+    it('is idempotent, and the second press gets the winning time', async () => {
+      const first = await asPersonCommitted<Envelope>(
+        MANAGER,
+        'select timing.finish_event($1) as answer',
+        [SLUG],
+      );
+      const second = await asPersonCommitted<Envelope>(
+        MANAGER,
+        'select timing.finish_event($1) as answer',
+        [SLUG],
+      );
+
+      expect(first).toMatchObject({ ok: true });
+      // `start_event()`'s rule: the losing device shows the same moment rather than an error.
+      expect(second).toMatchObject({ ok: false, reason: 'already_finished' });
+      expect(second.finished_at).toBe(first.finished_at);
+    });
+
+    /**
+     * ⚠️ **The never-a-gate assertion**, and the one that would cost a real result if it ever
+     * went red. The last runner crosses after the race director has called it.
+     */
+    it('does not stop a crossing being recorded afterwards', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.finish_event($1) as answer', [
+        SLUG,
+      ]);
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.record_crossing($1, $2, $3, $4) as answer',
+          ['cccccccc-0000-4000-8000-000000000001', SLUG, '501', '2026-11-01T12:30:00Z'],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    it('does not stop a status being set afterwards', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.finish_event($1) as answer', [
+        SLUG,
+      ]);
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.set_race_status($1, $2, $3) as answer',
+          [SLUG, TEAM_ID, 'dnf'],
+        ),
+      ).toMatchObject({ ok: true, changed: true });
+    });
+
+    it('reopens, and refuses to reopen a race that was not finished', async () => {
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reopen_event($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'not_finished' });
+
+      await asPersonCommitted(MANAGER, 'select timing.finish_event($1) as answer', [
+        SLUG,
+      ]);
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reopen_event($1) as answer',
+          [SLUG],
+        ),
+      ).toMatchObject({ ok: true });
+
+      const { rows } = await db.query<{ finished_at: string | null }>(
+        'select finished_at from timing.events where id = $1',
+        [EVENT_ID],
+      );
+      expect(rows[0]?.finished_at).toBeNull();
+    });
+
+    it('audits both the finish and the reopening', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.finish_event($1) as answer', [
+        SLUG,
+      ]);
+      await asPersonCommitted(MANAGER, 'select timing.reopen_event($1) as answer', [
+        SLUG,
+      ]);
+
+      const { rows } = await db.query<{ action: string }>(
+        `select action from timing.admin_actions
+          where event_id = $1 and action in ('race_finished', 'race_reopened')
+          order by created_at`,
+        [EVENT_ID],
+      );
+
+      expect(rows.map((r) => r.action)).toEqual(['race_finished', 'race_reopened']);
+    });
+  });
+
+  describe('who may do any of it', () => {
+    it('refuses every write to somebody holding only timing.crossing.record', async () => {
+      for (const [sql, params] of [
+        ['select timing.set_race_status($1, $2, $3) as answer', [SLUG, TEAM_ID, 'dq']],
+        ['select timing.finish_event($1) as answer', [SLUG]],
+        ['select timing.reopen_event($1) as answer', [SLUG]],
+      ] as const) {
+        expect(await asPerson(MARSHAL_ONLY, sql, [...params]), sql).toEqual({
+          ok: false,
+          reason: 'refused',
+        });
+      }
+
+      expect(
+        await asPerson(MARSHAL_ONLY, 'select timing.team_status_list($1) as answer', [
+          SLUG,
+        ]),
+      ).toBeNull();
+    });
+
+    it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query('select timing.finish_event($1)', [SLUG]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+  });
+
+  describe('the list the status page reads', () => {
+    it('carries the runners, with a guide marked as one', async () => {
+      const teams = await asPerson<Record<string, unknown>[]>(
+        MANAGER,
+        'select timing.team_status_list($1) as answer',
+        [SLUG],
+      );
+
+      expect(teams).toHaveLength(1);
+      expect(teams[0]).toMatchObject({ team_number: '501', race_status: null });
+      expect(teams[0]?.runners).toEqual([
+        expect.objectContaining({ leg: 1, firstname: 'Ada', lastname: 'Lovelace' }),
+      ]);
+    });
+
+    it('searches by team number and by name', async () => {
+      for (const term of ['501', 'Lovelace', 'ada']) {
+        const found = await asPerson<Record<string, unknown>[]>(
+          MANAGER,
+          'select timing.team_status_list($1, $2) as answer',
+          [SLUG, term],
+        );
+        expect(found, term).toHaveLength(1);
+      }
+
+      expect(
+        await asPerson<Record<string, unknown>[]>(
+          MANAGER,
+          'select timing.team_status_list($1, $2) as answer',
+          [SLUG, 'Hopper'],
+        ),
+      ).toEqual([]);
     });
   });
 });

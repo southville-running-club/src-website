@@ -141,6 +141,17 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
    */
   anomalies: { update: 'timing.crossing.resolve' },
   crossings: { update: 'timing.crossing.resolve' },
+  /**
+   * DNS, DNF, DQ and finishing — [#253](https://github.com/southville-running-club/src-website/issues/253).
+   *
+   * Both demand `timing.event.manage`, the section's own. ⚠️ **They are two addresses because
+   * they are two different things being changed**, not because the permission differs: `status`
+   * writes a label onto one team, and `finish` writes a label onto the race. One address taking
+   * both would be a route handler deciding which from a hidden field, on a page where the two
+   * mistakes are "the wrong runner is disqualified" and "the race is declared over".
+   */
+  status: { update: 'timing.event.manage' },
+  finish: { update: 'timing.event.manage' },
 };
 
 /**

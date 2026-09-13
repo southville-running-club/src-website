@@ -119,6 +119,10 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/anomalies/resolve'],
     ['/events/nn-2026/anomalies/update/again'],
     ['/events/nn-2026/crossings/delete'],
+    // #253's two sections have one action each; everything else under them is still refused.
+    ['/events/nn-2026/status/set'],
+    ['/events/nn-2026/finish/now'],
+    ['/events/nn-2026/finish/update/again'],
     ['/events/nn-2026/start/begin'],
     ['/events/nn-2026/start/update/again'],
     ['/events/nn-2026/registration/delete'],
@@ -355,6 +359,38 @@ describe('the two addresses the resolution surfaces post to', () => {
     ]) {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
     }
+  });
+});
+
+describe('the two addresses status and finishing post to', () => {
+  /**
+   * [#253](https://github.com/southville-running-club/src-website/issues/253). Two addresses
+   * rather than one because they change two different things — a label on a runner and a label
+   * on the race — and on this pair the mistakes are "the wrong person is disqualified" and "the
+   * race is declared over".
+   */
+  it.each([['/events/nn-2026/status/update'], ['/events/nn-2026/finish/update']])(
+    '%s is gated, rather than being a hole beside a gated page',
+    (path) => {
+      expect(surfaceFor(path)).not.toBeNull();
+      expect(canOpen(MARSHAL, path)).toBe(false);
+      expect(canOpen(NN_ADMIN, path)).toBe(false);
+      expect(canOpen([], path)).toBe(false);
+      expect(canOpen(ADMIN, path)).toBe(true);
+    },
+  );
+
+  it('demands exactly what the page it posts from demands', () => {
+    for (const section of ['status', 'finish']) {
+      expect(surfaceFor(`/events/nn-2026/${section}/update`)?.permission).toBe(
+        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+      );
+    }
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/events/ptb-2026/status/update')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/events/ptb-2026/finish/update')?.eventSlug).toBe('ptb-2026');
   });
 });
 
