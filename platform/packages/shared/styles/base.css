@@ -896,6 +896,38 @@ footer {
   cursor: pointer;
 }
 
+/* The one control on a screen somebody is looking at in the cold, on a phone, with a start
+   line in front of them — `/timing/events/<slug>/start/`, #250. Full width because it is the
+   only thing on the page that does anything, and a 44px-tall button somewhere in the middle
+   of a column is a target to find rather than a target to hit.
+
+   ⚠️ **No colour of its own, deliberately.** It inherits every one of `.button`'s, so a
+   palette change cannot leave this one behind — the trap `NnSchedule` paid for was a component
+   whose colours were computed against a surface it did not carry. */
+.button-wide {
+  display: block;
+  width: 100%;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  font-size: 1.125rem;
+  text-align: center;
+}
+
+/* A countdown or an elapsed clock, rendered large enough to read at arm's length.
+
+   `tabular-nums` is the load-bearing half: without it the digits are proportionally spaced,
+   so a clock ticking through 11:11:11 to 11:22:22 changes width every second and the text
+   beside it jitters. `overflow-wrap` keeps a long elapsed time from pushing a 320px page
+   sideways, which is the failure this repository has paid for more than once. */
+.race-clock {
+  margin: calc(var(--space) * 0.5) 0;
+  font-size: clamp(2rem, 12vw, 3rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
 .signup-privacy {
   color: var(--colour-muted);
   font-size: 0.9375rem;

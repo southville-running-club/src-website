@@ -1707,6 +1707,7 @@ export type Database = {
         Returns: Json
       }
       assignable_marshals: { Args: never; Returns: Json }
+      clear_start: { Args: { p_event_slug: string }; Returns: Json }
       create_event: {
         Args: {
           p_course_notes?: string
@@ -1759,6 +1760,7 @@ export type Database = {
         }
         Returns: Json
       }
+      start_event: { Args: { p_event_slug: string }; Returns: Json }
       unassign_marshal: {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json

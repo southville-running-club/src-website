@@ -103,6 +103,9 @@ const EVENT_SECTIONS: Record<string, string> = {
  */
 const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
   marshals: { update: 'timing.marshal.assign' },
+  // #250. One address for both presses — starting a race and clearing a false start are the
+  // same `timing.event.manage` and the same screen, and the `intent` field is what says which.
+  start: { update: 'timing.event.manage' },
 };
 
 /** This application's own base path, as `next.config.ts` sets it. */
