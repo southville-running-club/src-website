@@ -1786,12 +1786,32 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   bib that still matches nothing legitimately stays an orphan**, which the page says out loud.
   A discard is reversible and `buildResults()` already excludes one, falling through to the next
   undiscarded capture for that bib;
+- **`/timing/events/<slug>/status/` and `/finish/`** — DNS, DNF and DQ, and calling a race
+  finished (#253), both behind `timing.event.manage`. ⚠️ **A status is a label on top of
+  crossings and never a change to one**: DNS suppresses every derived time, and **DNF and DQ keep
+  leg A**, because a captured fact stays captured. ⚠️ **`set_race_status()` audits the reversal
+  as well as the setting** — the old application audited a disqualification and not its lifting,
+  which is exactly backwards for the runner disputing it — and writes no audit row at all when
+  nothing moved, because pressing "clear" on an unmarked runner is not a decision. ⚠️ **Finishing
+  is reversible, a label, and never a gate**: `record_crossing()`, the resolution functions and
+  `set_race_status()` are all untouched by `finished_at`, because the last runner's crossing
+  arrives after the race director has called it, and the finish page says so under the button.
+  `finish_event()` is idempotent by its own `where` like `start_event()`, answering the losing
+  press with the winning time;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
-**What is genuinely not built is what happens to a crossing after it is _resolved_**: nothing
-marks a DNS, DNF or DQ, nothing finishes a race, and no result is published to anybody. ⚠️
-**"nothing resolves an anomaly" is what this said until #252**, which is the third such line to
-go stale in three days. ⚠️ **"No countdown screen" is what this said until #250**, and **"there
+**What is genuinely not built is publication**: no result reaches anybody, and nothing wipes a
+rehearsal. ⚠️ **"nothing resolves an anomaly" is what this said until #252 and "nothing marks a
+DNS, DNF or DQ, nothing finishes a race" until #253** — four such lines have gone stale in three
+days, which is the pattern rather than the exception.
+
+⚠️ **`reopen_event()` is not refused while results are published, and that is a decision rather
+than a gap.** #253 asks for the guard; `timing.events` has **no `results_published_at` column**,
+because publication is [#241](https://github.com/southville-running-club/src-website/issues/241),
+which owns the column and the state machine — and #253's own text calls that ordering *"the one
+ordering #241 enforces"*. Two migrations had already declined to invent it rather than render a
+lifecycle state nothing can reach, and `20260913240000`'s header records the decision. **#241
+adds the guard in the change that makes publication reachable.** ⚠️ **"No countdown screen" is what this said until #250**, and **"there
 is no marshal capture screen" is what it said until #203** — twice in two days, which is the
 pattern rather than the exception. ⚠️ **"Nothing captures a crossing" was already half wrong
 before that**: `timing.record_crossing()` landed with #251 and nothing called it for a day.

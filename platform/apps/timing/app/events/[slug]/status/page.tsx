@@ -122,8 +122,8 @@ export default async function StatusPage({
 
       <p>
         Marking somebody changes what the results say about them and{' '}
-        <strong>never touches what was captured</strong>. A runner who did not finish keeps any
-        handover time a marshal recorded; they simply have no finishing time.
+        <strong>never touches what was captured</strong>. A runner who did not finish
+        keeps any handover time a marshal recorded; they simply have no finishing time.
       </p>
 
       <form method="get" className="log-search">

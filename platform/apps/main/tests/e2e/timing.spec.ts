@@ -12,14 +12,20 @@ import {
   captureEventSlug,
   clearAnomalyEvent,
   clearCaptureEvent,
+  clearStatusEvent,
   clearRosterEvent,
   clearStartEvents,
   rosterEventSlug,
+  resetStatusRace,
   seedAnomalyCrossings,
   seedAnomalyEvent,
   seedCaptureEvent,
   seedRosterEvent,
   seedStartEvents,
+  seedStatusEvent,
+  statusEventSlug,
+  statusRaceState,
+  STATUS_TEAMS,
   seedTimingFixtures,
   startEventSlug,
   CAPTURE_TEAM_NUMBER,
@@ -99,6 +105,8 @@ test.beforeAll(async ({}, testInfo) => {
   await seedCaptureEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
   // #252's race. Its captures are re-seeded per test — `seedAnomalyEvent`'s header says why.
   await seedAnomalyEvent(testInfo.project.name);
+  // #253's race. Its labels are reset per test — `seedStatusEvent`'s header says why.
+  await seedStatusEvent(testInfo.project.name);
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
@@ -126,6 +134,7 @@ test.afterAll(async ({}, testInfo) => {
   await clearStartEvents(testInfo.project.name);
   await clearCaptureEvent(testInfo.project.name);
   await clearAnomalyEvent(testInfo.project.name);
+  await clearStatusEvent(testInfo.project.name);
   await clearTimingStaff();
 });
 
@@ -1838,5 +1847,267 @@ test.describe('the timing log', () => {
     await page.goto(crossingsPath(testInfo.project.name));
 
     await expectNoSidewaysScroll(page, 'the timing log at 320px');
+  });
+});
+
+/**
+ * Race status, and finishing — [#253](https://github.com/southville-running-club/src-website/issues/253).
+ *
+ * ⚠️ **Every test resets the race**, because finishing is a property of the race rather than of
+ * a row: one test calling it would change what every sibling sees. `seedStatusEvent`'s header
+ * carries the argument.
+ *
+ * The audit rules live in `packages/db/tests/timing.test.ts`, where a committed write can be
+ * read back. What is here is the door, and the round trip a volunteer performs.
+ */
+const statusPath = (project: string): string =>
+  `/timing/events/${statusEventSlug(project)}/status`;
+
+const finishPath = (project: string): string =>
+  `/timing/events/${statusEventSlug(project)}/finish`;
+
+test.describe('who may mark a runner or finish a race', () => {
+  /**
+   * ⚠️ **A `timing-marshal` records crossings and decides nothing about them.** Disqualifying a
+   * runner and declaring a race over are `timing.event.manage`, and the separation is the point.
+   */
+  test('a timing-marshal is refused both pages and both addresses they post to', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+
+    for (const path of [
+      statusPath(testInfo.project.name),
+      finishPath(testInfo.project.name),
+    ]) {
+      const shown = await page.goto(path);
+      expect(shown?.status(), path).toBe(404);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+      const posted = await page.request.post(`${path}/update`, {
+        form: {
+          intent: 'finish',
+          status: 'dq',
+          team_id: '00000000-0000-4000-8000-000000000001',
+        },
+        maxRedirects: 0,
+      });
+      expect(posted.status(), `${path}/update`).toBe(404);
+    }
+
+    const state = await statusRaceState(testInfo.project.name);
+    expect(state.finished).toBe(false);
+    expect(state.statuses[STATUS_TEAMS[0].number]).toBeNull();
+  });
+
+  test('a signed-out visitor is refused all four', async ({ page }, testInfo) => {
+    await page.context().clearCookies();
+
+    for (const path of [
+      statusPath(testInfo.project.name),
+      finishPath(testInfo.project.name),
+    ]) {
+      expect((await page.goto(path))?.status(), path).toBe(404);
+      expect(
+        (
+          await page.request.post(`${path}/update`, {
+            form: { intent: 'finish' },
+            maxRedirects: 0,
+          })
+        ).status(),
+        `${path}/update`,
+      ).toBe(404);
+    }
+  });
+});
+
+test.describe('marking a runner', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetStatusRace(testInfo.project.name);
+  });
+
+  test('records a DNF and then lifts it', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race status');
+
+    const card = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
+    await card.getByRole('button', { name: 'Did not finish' }).click();
+
+    // ⚠️ The wording says what happens to the result, not merely that it was recorded — and it
+    // says the captured facts survive, which is the half people are surprised by.
+    await expect(page.getByText(/Recorded as did not finish/)).toBeVisible();
+    await expect(page.getByText(/stays captured/)).toBeVisible();
+
+    expect(
+      (await statusRaceState(testInfo.project.name)).statuses[STATUS_TEAMS[0].number],
+    ).toBe('dnf');
+
+    const marked = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
+    await marked.getByRole('button', { name: /^Lift did not finish/ }).click();
+
+    await expect(page.getByText(/That has been lifted/)).toBeVisible();
+    expect(
+      (await statusRaceState(testInfo.project.name)).statuses[STATUS_TEAMS[0].number],
+    ).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Offered only when there is something to lift.** A "clear" beside an unmarked runner is
+   * a button that does nothing, on a page where every other button changes a result.
+   */
+  test('offers no way to lift a status nobody has', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await expect(page.getByRole('button', { name: /^Lift / })).toHaveCount(0);
+  });
+
+  test('leaves everybody else alone', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await page
+      .locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname })
+      .getByRole('button', { name: 'Disqualify' })
+      .click();
+    await expect(page.getByText(/Recorded as disqualified/)).toBeVisible();
+
+    const state = await statusRaceState(testInfo.project.name);
+    expect(state.statuses[STATUS_TEAMS[0].number]).toBe('dq');
+    expect(state.statuses[STATUS_TEAMS[1].number]).toBeNull();
+  });
+
+  test('searches by name, and the searched view is a URL somebody can send', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await page
+      .getByLabel('Search by bib, team number or name')
+      .fill(STATUS_TEAMS[1].lastname);
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`q=${STATUS_TEAMS[1].lastname}`));
+    await expect(page.locator('.triage-card')).toHaveCount(1);
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Mark somebody DNS, DNF or DQ' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race status');
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(statusPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing race-status page at 320px');
+  });
+});
+
+test.describe('finishing a race', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetStatusRace(testInfo.project.name);
+  });
+
+  /**
+   * ⚠️ **The sentence that stops somebody putting their phone away.** A volunteer who reads
+   * "finished" as "closed" stops capturing, and the last runner's crossing arrives after the
+   * race director has called it. It is asserted on the page *and* in the outcome.
+   */
+  test('finishes, and says in the same breath that crossings still work', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(finishPath(testInfo.project.name));
+
+    await expect(page.getByText(/label, not a cut-off/)).toBeVisible();
+    await page.getByRole('button', { name: 'Finish this race' }).click();
+
+    await expect(page.getByText(/This race is finished/).first()).toBeVisible();
+    await expect(page.getByText(/Crossings can still be recorded/).first()).toBeVisible();
+    expect((await statusRaceState(testInfo.project.name)).finished).toBe(true);
+  });
+
+  test('takes it back again', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(finishPath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Finish this race' }).click();
+    await page
+      .getByRole('button', { name: 'This race is not finished after all' })
+      .click();
+
+    await expect(page.getByText(/no longer marked finished/)).toBeVisible();
+    expect((await statusRaceState(testInfo.project.name)).finished).toBe(false);
+  });
+
+  test('offers one button at a time, never both', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(finishPath(testInfo.project.name));
+
+    // Same rule as the start screen: there is never a page with two buttons on it, which is what
+    // keeps a cold thumb from finding the wrong one.
+    await expect(page.getByRole('button', { name: 'Finish this race' })).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: 'This race is not finished after all' }),
+    ).toHaveCount(0);
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Finish this race' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finish');
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/finish');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(finishPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(finishPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing finish page at 320px');
   });
 });

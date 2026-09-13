@@ -641,3 +641,101 @@ export async function clearAnomalyEvent(project: string): Promise<void> {
     ]);
   });
 }
+
+/**
+ * The race the status and finishing tests mark up — #253.
+ *
+ * ⚠️ **Re-seeded per test, like #252's**, and for a sharper version of the same reason: every
+ * test here writes a label that the next one would read. Finishing in particular is a property
+ * of the *race* rather than of a row, so one test calling it would change what every sibling
+ * sees. {@link resetStatusRace} clears the race's `finished_at`, every team's `race_status` and
+ * the audit rows, and the spec calls it in a `beforeEach`.
+ */
+export function statusEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives.
+  return `zz-status-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/** Two teams, so a search can exclude one and a marked team can sit beside an unmarked one. */
+export const STATUS_TEAMS = [
+  { number: '501', firstname: 'Ada', lastname: 'Lovelace' },
+  { number: '502', firstname: 'Grace', lastname: 'Hopper' },
+] as const;
+
+export async function seedStatusEvent(project: string): Promise<void> {
+  const slug = statusEventSlug(project);
+  await clearStatusEvent(project);
+
+  await withClient(async (db) => {
+    const id = fixtureEventId(slug);
+
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, $3, 'solo', '2026-11-01T11:00:00Z'::timestamptz,
+               '2026-11-01T11:00:00Z'::timestamptz)`,
+      [id, slug, `Status fixture ${project}`],
+    );
+
+    for (const team of STATUS_TEAMS) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into timing.teams (event_id, team_number) values ($1, $2) returning id`,
+        [id, team.number],
+      );
+      await db.query(
+        `insert into timing.runners (team_id, leg, firstname, lastname)
+         values ($1, 1, $2, $3)`,
+        [rows[0]!.id, team.firstname, team.lastname],
+      );
+    }
+  });
+}
+
+/** Back to an unfinished race with nobody marked, and no audit rows from a previous test. */
+export async function resetStatusRace(project: string): Promise<void> {
+  const eventId = fixtureEventId(statusEventSlug(project));
+
+  await withClient(async (db) => {
+    await db.query('update timing.events set finished_at = null where id = $1', [
+      eventId,
+    ]);
+    await db.query('update timing.teams set race_status = null where event_id = $1', [
+      eventId,
+    ]);
+    await db.query('delete from timing.admin_actions where event_id = $1', [eventId]);
+  });
+}
+
+/** What the database now says about one team, and about the race. */
+export async function statusRaceState(
+  project: string,
+): Promise<{ finished: boolean; statuses: Record<string, string | null> }> {
+  const eventId = fixtureEventId(statusEventSlug(project));
+
+  return withClient(async (db) => {
+    const event = await db.query<{ finished_at: string | null }>(
+      'select finished_at from timing.events where id = $1',
+      [eventId],
+    );
+    const teams = await db.query<{ team_number: string; race_status: string | null }>(
+      'select team_number, race_status from timing.teams where event_id = $1',
+      [eventId],
+    );
+
+    const statuses: Record<string, string | null> = {};
+    for (const row of teams.rows) {
+      statuses[row.team_number] = row.race_status;
+    }
+
+    return { finished: event.rows[0]?.finished_at !== null, statuses };
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearStatusEvent(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [
+      statusEventSlug(project),
+    ]);
+  });
+}

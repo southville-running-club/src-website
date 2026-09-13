@@ -1747,6 +1747,7 @@ export type Database = {
       }
       event_detail: { Args: { p_event_slug: string }; Returns: Json }
       event_roster: { Args: { p_event_slug: string }; Returns: Json }
+      finish_event: { Args: { p_event_slug: string }; Returns: Json }
       import_from_entries: { Args: { p_event_slug: string }; Returns: Json }
       import_registration: {
         Args: { p_event_slug: string; p_rows: Json }
@@ -1768,6 +1769,7 @@ export type Database = {
         }
         Returns: Json
       }
+      reopen_event: { Args: { p_event_slug: string }; Returns: Json }
       resolve_crossing: {
         Args: { p_action: string; p_id: string; p_new_bib?: string }
         Returns: Json
@@ -1784,7 +1786,15 @@ export type Database = {
         }
         Returns: Json
       }
+      set_race_status: {
+        Args: { p_event_slug: string; p_status?: string; p_team_id: string }
+        Returns: Json
+      }
       start_event: { Args: { p_event_slug: string }; Returns: Json }
+      team_status_list: {
+        Args: { p_event_slug: string; p_search?: string }
+        Returns: Json
+      }
       unassign_marshal: {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json
