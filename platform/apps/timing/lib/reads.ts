@@ -14,7 +14,7 @@ import { ACCESS_COOKIE } from '@src/shared/session-cookies';
  * `npm run db:types`, so adding a function here costs nothing and removing one breaks the
  * caller rather than the runtime.
  */
-type TimingFunction = keyof Database['timing']['Functions'];
+export type TimingFunction = keyof Database['timing']['Functions'];
 
 /**
  * Reading the `timing` schema as the signed-in person, from a server component.
@@ -50,7 +50,7 @@ export type TimingRead<T> =
  * `app/health/route.ts`, which carries the full reasoning — and deliberately the **async**
  * form, not `middleware.ts`'s synchronous one.
  */
-async function config(): Promise<SupabaseConfig> {
+export async function config(): Promise<SupabaseConfig> {
   try {
     const { env } = await getCloudflareContext({ async: true });
     return {

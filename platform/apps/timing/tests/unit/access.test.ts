@@ -46,6 +46,9 @@ describe('what each address demands', () => {
     ['/events/nn-2026/crossings', 'timing.crossing.resolve'],
     ['/events/nn-2026/results', 'timing.result.publish'],
     ['/marshal/nn-2026', 'timing.crossing.record'],
+    // The form's target, not a page — #245. It demands the *section's* own permission, so
+    // reading a roster and changing one cannot come apart by accident.
+    ['/events/nn-2026/marshals/update', 'timing.marshal.assign'],
   ])('%s demands %s', (path, permission) => {
     expect(surfaceFor(path)?.permission).toBe(permission);
   });
@@ -96,6 +99,13 @@ describe('an address nobody has written a rule for', () => {
   it.each([
     ['/events/nn-2026/whatever-comes-next'],
     ['/events/nn-2026/results/leg-2'],
+    // ⚠️ **A fourth segment is only ever a write address that was written down.** `marshals`
+    // has exactly one, and the section having *an* action must not open every spelling under
+    // it — which is the way widening this table would most plausibly go wrong.
+    ['/events/nn-2026/marshals/delete'],
+    ['/events/nn-2026/marshals/update/again'],
+    ['/events/nn-2026/registration/update'],
+    ['/events/nn-2026/start/update'],
     ['/marshal'],
     ['/marshal/nn-2026/extra'],
     ['/leaderboard/nn-2026'],
@@ -113,6 +123,84 @@ describe('an address nobody has written a rule for', () => {
    */
   it('is refused even to somebody holding all six permissions', () => {
     expect(canOpen(ADMIN, '/events/nn-2026/something-new')).toBe(false);
+    expect(canOpen(ADMIN, '/events/nn-2026/marshals/something-new')).toBe(false);
+  });
+
+  /**
+   * ⚠️ **A defect that was in this table from #262 and was hidden by luck downstream.**
+   *
+   * The sections are object literals, so they inherit from `Object.prototype`:
+   * `EVENT_SECTIONS['constructor']` is a *function*, not `undefined`. `surfaceFor` tested
+   * `permission === undefined`, so `/events/nn-2026/constructor` answered a surface whose
+   * permission was a function instead of the `null` this module promises.
+   *
+   * Nothing opened, because `holdsPermissionFor` asks `permissions.includes(...)` and no array
+   * of slugs holds a function — but `middleware.ts` refuses on `surfaceFor(...) === null`
+   * *before* it reads a session, and "a missing row refuses by itself" is the property the
+   * whole table is argued from. It held only because the next function happened to disagree
+   * with it. `lookup()` is the fix and these are what hold it.
+   */
+  it.each([
+    ['/events/nn-2026/constructor'],
+    ['/events/nn-2026/toString'],
+    ['/events/nn-2026/__proto__'],
+    ['/events/nn-2026/hasOwnProperty'],
+    ['/events/nn-2026/marshals/constructor'],
+    ['/events/nn-2026/marshals/__proto__'],
+  ])('%s is not a row just because Object.prototype has one', (path) => {
+    expect(surfaceFor(path)).toBeNull();
+    expect(canOpen(ADMIN, path)).toBe(false);
+  });
+
+  /**
+   * ⚠️ **The other half, so the fix above is not read as "reject that word everywhere".** In
+   * `/events/constructor/marshals` the awkward word is the **event slug**, and a slug is free
+   * text this table has no opinion about: the address is a perfectly ordinary roster page that
+   * demands `timing.marshal.assign`, and whether such a race exists is the database's question
+   * — `roster_for_event()` answers `null` and the page renders "Not found". Refusing it here
+   * would be this module inventing a rule about names it does not own.
+   */
+  it('still resolves an address whose event slug happens to be an awkward word', () => {
+    expect(surfaceFor('/events/constructor/marshals')?.permission).toBe(
+      'timing.marshal.assign',
+    );
+    expect(surfaceFor('/events/__proto__')?.permission).toBe('timing.event.manage');
+  });
+});
+
+/**
+ * The addresses a form posts to — #245 is the first write in this application.
+ *
+ * ⚠️ **The reason these are worth their own block**: a write address is where the door being
+ * open by omission costs the most. A page that opens too widely discloses; a POST that opens
+ * too widely *changes a race's roster*. So the assertions below are the negative ones — that
+ * the gate treats the form's target exactly as it treats the page, and that being allowed to
+ * look is what being allowed to change is checked against.
+ */
+describe('the address a roster form posts to', () => {
+  it('is gated, rather than being a hole beside a gated page', () => {
+    expect(surfaceFor('/events/nn-2026/marshals/update')).not.toBeNull();
+    expect(canOpen(MARSHAL, '/events/nn-2026/marshals/update')).toBe(false);
+    expect(canOpen(NN_ADMIN, '/events/nn-2026/marshals/update')).toBe(false);
+    expect(canOpen([], '/events/nn-2026/marshals/update')).toBe(false);
+    expect(canOpen(ADMIN, '/events/nn-2026/marshals/update')).toBe(true);
+  });
+
+  it('demands exactly what the page it posts from demands', () => {
+    expect(surfaceFor('/events/nn-2026/marshals/update')?.permission).toBe(
+      surfaceFor('/events/nn-2026/marshals')?.permission,
+    );
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/events/nn-2026/marshals/update')?.eventSlug).toBe('nn-2026');
+  });
+
+  it('resolves identically with the base path and with a trailing slash', () => {
+    const bare = surfaceFor('/events/nn-2026/marshals/update');
+
+    expect(surfaceFor('/timing/events/nn-2026/marshals/update')).toEqual(bare);
+    expect(surfaceFor('/events/nn-2026/marshals/update/')).toEqual(bare);
   });
 });
 

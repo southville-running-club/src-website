@@ -140,16 +140,20 @@ async function mayOpen(request: NextRequest): Promise<boolean> {
   }
 
   // ⚠️ **An address whose roster scope is not yet enforceable is refused, not admitted.**
-  // ADR-036 makes `timing.marshals` a scope checked *after* the permission, and reading it
-  // needs a function that does not exist —
-  // [#245](https://github.com/southville-running-club/src-website/issues/245). The choice here
-  // is between admitting on the permission alone until then, and refusing until the second
-  // half exists. **Refusing is the only one that cannot be shipped by accident**: the other
-  // leaves a door that is open by omission, discovered when a marshal opens somebody else's
-  // event. It costs nothing today, because no page is served under `/timing/marshal/` at all.
+  // ADR-036 makes `timing.marshals` a scope checked *after* the permission, and reading it as
+  // the marshal themselves needs a function that does not exist. The choice here is between
+  // admitting on the permission alone until then, and refusing until the second half exists.
+  // **Refusing is the only one that cannot be shipped by accident**: the other leaves a door
+  // that is open by omission, discovered when a marshal opens somebody else's event. It costs
+  // nothing today, because no page is served under `/timing/marshal/` at all.
   //
-  // #245 replaces this branch with the roster read. The `rosterScoped` flag exists so that
-  // removing it is a deliberate act rather than a line somebody deletes while passing.
+  // ⚠️ **This used to say #245 would replace the branch, and #245 did not.** That issue built
+  // the roster page's four functions, all behind `timing.marshal.assign`, which is an admin's
+  // permission — none of them answers *"am I on this roster"* for the marshal asking. The
+  // screen that needs that answer is
+  // [#203](https://github.com/southville-running-club/src-website/issues/203), and the read
+  // belongs with it. The `rosterScoped` flag exists so that removing this is a deliberate act
+  // rather than a line somebody deletes while passing.
   return !surface.rosterScoped;
 }
 

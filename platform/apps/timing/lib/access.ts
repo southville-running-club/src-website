@@ -27,10 +27,17 @@
  * `/timing/marshal/<slug>/` needs `timing.crossing.record` **and** a `timing.marshals` row for
  * that event. [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md)
  * makes the roster a **scope checked after the permission**, not an authority of its own. This
- * module says *that a roster check is owed* and does not perform one: reading `timing.marshals`
- * needs a function that does not exist yet, which is
- * [#245](https://github.com/southville-running-club/src-website/issues/245). Until it lands,
- * `rosterScoped` is carried and the caller is what decides — see `middleware.ts`.
+ * module says *that a roster check is owed* and does not perform one.
+ *
+ * ⚠️ **[#245](https://github.com/southville-running-club/src-website/issues/245) did not close
+ * this, and it is worth saying why rather than leaving the comment to rot.** It built the four
+ * functions the *roster page* needs, and every one of them is behind `timing.marshal.assign` —
+ * an admin's permission. The question this flag is about is a different one asked by a
+ * different person: *"am I, a marshal holding only `timing.crossing.record`, on this event's
+ * roster?"*. Nothing answers that, because the screen that would ask it is
+ * [#203](https://github.com/southville-running-club/src-website/issues/203) and no page is
+ * served under `/timing/marshal/` at all. Until then `rosterScoped` is carried and the caller
+ * is what decides — see `middleware.ts`.
  */
 
 /**
@@ -70,8 +77,59 @@ const EVENT_SECTIONS: Record<string, string> = {
   results: 'timing.result.publish',
 };
 
+/**
+ * The **fourth** segment: an address a form posts to, mapped by the section it belongs to.
+ *
+ * ## Why a write needs an address of its own here at all
+ *
+ * ⚠️ **A page in the App Router answers `GET` and nothing else.** `page.tsx` and `route.ts`
+ * cannot both sit on one segment, so a write is either a Server Action posting back to the
+ * page's own address or a route handler on an address of its own. **This application takes the
+ * second, and the reason is the `no-javascript` Playwright project rather than taste**: a
+ * plain `<form method="post">` to a route handler is HTML that cannot fail with scripting off,
+ * which is the property every other write on this platform already has —
+ * `apps/main/worker/admin.ts` is nothing but POST handlers answering 303. A Server Action's
+ * no-script fallback is a real Next feature and would probably work; *probably* is not a thing
+ * to find out about on a start line, and this repository's rule is to measure rather than
+ * assume. Revisit it the day something here needs a partial update rather than a whole page.
+ *
+ * ## The property this table must not lose
+ *
+ * A write address is refused by omission, exactly as a page is. `marshals/update` is written
+ * down; `marshals/anything-else` is not, and `surfaceFor` answers `null` for it, which every
+ * caller treats as refuse. **The permission is the section's own** — being allowed to read a
+ * roster and being allowed to change one are the same `timing.marshal.assign`, and the day
+ * they stop being the same this table is where that is said.
+ */
+const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
+  marshals: { update: 'timing.marshal.assign' },
+};
+
 /** This application's own base path, as `next.config.ts` sets it. */
 const BASE_PATH = '/timing';
+
+/**
+ * One row out of one of the tables above — **and never a property it merely inherited**.
+ *
+ * ⚠️ **A bare `TABLE[key]` is not a lookup, and this was a real defect rather than a
+ * precaution.** An object literal inherits from `Object.prototype`, so
+ * `EVENT_SECTIONS['constructor']` is a *function* and `EVENT_SECTIONS['toString']` is another
+ * — both truthy, neither `undefined`. `surfaceFor('/events/nn-2026/constructor')` therefore
+ * answered a surface whose `permission` was a function, instead of the `null` this module's
+ * own header promises for "an address nobody has written a rule for".
+ *
+ * **It did not open a door, and that was luck rather than design.** `holdsPermissionFor` asks
+ * `permissions.includes(...)`, and no array of permission slugs contains a function, so the
+ * request was refused one step further on. But `middleware.ts` refuses on `surfaceFor(...)
+ * === null` *before* it reads a session at all, and the whole argument for this table is that
+ * a missing row refuses by itself. A property that holds only because the next function
+ * happens to disagree with it is not the property that was written down.
+ *
+ * `Object.hasOwn` is the fix, in one place, so the three tables cannot answer differently.
+ */
+function lookup<T>(table: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined;
+}
 
 /**
  * Path segments, with the base path removed if it is there and the trailing slash ignored.
@@ -134,13 +192,23 @@ export function surfaceFor(pathname: string): TimingSurface | null {
     return { permission: 'timing.event.manage', eventSlug: null, rosterScoped: false };
   }
 
-  // `/timing/events/<slug>/<section?>` and nothing deeper. A third segment would be an
+  // `/timing/events/<slug>/<section?>/<action?>` and nothing deeper. A fifth segment is an
   // address nobody has decided about, which `null` refuses.
-  if (segments.length > 3) {
+  if (segments.length > 4) {
     return null;
   }
 
-  const permission = EVENT_SECTIONS[segments[2] ?? ''];
+  // A form's target — `.../marshals/update` — rather than a page. See EVENT_SECTION_ACTIONS.
+  const section = segments[2] ?? '';
+
+  // A fourth segment is a form's target and is looked up in its section's own table; a section
+  // with no actions at all — every one of them but `marshals` today — answers `undefined` for
+  // every spelling under it, which is the refusal.
+  const actions = lookup(EVENT_SECTION_ACTIONS, section) ?? {};
+  const permission =
+    segments.length === 4
+      ? lookup(actions, segments[3] ?? '')
+      : lookup(EVENT_SECTIONS, section);
 
   return permission === undefined
     ? null
