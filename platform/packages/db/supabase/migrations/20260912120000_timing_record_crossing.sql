@@ -3,8 +3,8 @@
 -- ==========================================================================================
 --
 -- Issue #251, under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
--- and [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+-- and [ADR-036](../../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
 -- `timing.crossings` has had row-level security on, no policy, and no writer since it was
 -- created. This is the write path, and it is the contract #203's screen syncs against.
 --

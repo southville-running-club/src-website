@@ -8,7 +8,7 @@ import { RaceClock } from './race-clock';
  * `/timing/events/<slug>/start/` — the countdown, the button, and the clock after it.
  *
  * Issue [#250](https://github.com/southville-running-club/src-website/issues/250), under
- * [ADR-034](../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
+ * [ADR-034](../../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
  * Behind `timing.event.manage`; `lib/access.ts` maps it and `middleware.ts` enforces it. ⚠️
  * **This page does not gate itself** — see `app/page.tsx`'s header for the measurement that
  * settled that, and `app/events/[slug]/page.tsx` for why "Not found" is written out inline

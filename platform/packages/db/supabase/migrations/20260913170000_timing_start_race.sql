@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue [#250](https://github.com/southville-running-club/src-website/issues/250), under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
 -- `timing.events.actually_started_at` has existed since `20260911140000` and nothing has ever
 -- written it — `20260912100000` refuses `update_event()` once it is set, and every split is
 -- measured against `coalesce(actually_started_at, start_at)`, so it is already load-bearing
