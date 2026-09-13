@@ -67,6 +67,13 @@ Point-in-time records of things read from elsewhere: the board proposal, the exi
 Squarespace site as crawled, the timing app as reviewed, the WAF rules considered (only one
 of which — `C1` — is actually live; the file says so plainly).
 
+`timing-bundle-and-cpu.md` is the one thing here read off **this** repository rather than
+somewhere else — the two limits
+[ADR-037](architecture/decisions/adr-037-timing-stays-on-next-under-opennext.md) names and
+does not measure. It is point-in-time in the same way the rest of this folder is: the bundle
+figure is against one commit on one day, and it says which, and how to take it again. **The
+CPU half is marked outstanding rather than estimated.**
+
 ## `solutions/` — historical vendor and design analysis
 
 Each names candidates and reasoning as of when it was written; several are now banner-marked
