@@ -1718,10 +1718,20 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   plain `<form method="post">` answered by a route handler and a 303 — not a Server Action —
   because every spec here runs in a `no-javascript` project; `EVENT_SECTION_ACTIONS` in that
   same file is what gates the address a form posts to;
+- **`/timing/events/<slug>/start/`** — the countdown, the one full-width button and the clock
+  after it (#250), behind `timing.event.manage`. ⚠️ **`timing.start_event()` is idempotent by
+  its own `where actually_started_at is null`**, not by anything a caller does: the second of
+  two presses is answered `already_started` **carrying the winning time**, so the losing device
+  shows the same moment rather than an error. `timing.clear_start()` undoes a false start and
+  is **refused the moment any crossing exists**, because a split is measured against
+  `coalesce(actually_started_at, start_at)`. A clock reaching zero starts nothing — `now()` is
+  stored and `start_at` is never read;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
 **What is genuinely not built is everything that touches a race as it happens**: there is no
-marshal capture screen and no countdown screen, and no result is published to anybody. ⚠️
+marshal capture screen, and no result is published to anybody. ⚠️ **"No countdown screen" is
+what this said until #250**, which built one — and the same paragraph's next sentence had
+already gone stale once, which is the pattern rather than the exception. ⚠️
 **"Nothing captures a crossing" is what this said, and it is now half wrong in the direction
 that matters** — `timing.record_crossing()` landed with #251, idempotent on the client's id,
 and like the import functions below it **nothing calls it**. The roster page (#245) is the

@@ -219,7 +219,7 @@ export function rosterEventSlug(project: string): string {
 }
 
 /** Deterministic and invented, the way every id in this suite is. */
-function rosterEventId(slug: string): string {
+function fixtureEventId(slug: string): string {
   let hash = 0;
   for (const char of slug) {
     hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -235,7 +235,7 @@ export async function seedRosterEvent(slug: string): Promise<void> {
     await db.query(
       `insert into timing.events (id, slug, name, format, start_at)
        values ($1, $2, $3, 'solo', '2099-11-01T11:00:00Z'::timestamptz)`,
-      [rosterEventId(slug), slug, `Roster fixture ${slug}`],
+      [fixtureEventId(slug), slug, `Roster fixture ${slug}`],
     );
   });
 }
@@ -244,5 +244,128 @@ export async function seedRosterEvent(slug: string): Promise<void> {
 export async function clearRosterEvent(slug: string): Promise<void> {
   await withClient(async (db) => {
     await db.query('delete from timing.events where slug = $1', [slug]);
+  });
+}
+
+/**
+ * The races the start screen's tests drive — #250.
+ *
+ * ## ⚠️ Five runnings per project, because four of these tests *write*
+ *
+ * `seedRosterEvent`'s argument applies unchanged and one step further. A roster test writes,
+ * so it gets an event per Playwright project; the start screen writes **the one value every
+ * result in a race is derived from**, and it writes it irreversibly — once a race has started,
+ * the countdown is gone from that row for good. So each state this screen renders gets a
+ * running of its own, and each project gets its own copy of all five:
+ *
+ * | | What it is for |
+ * | --- | --- |
+ * | `pending` | read only: the countdown and the button, never pressed |
+ * | `press` | the round trip — started by a test, then pressed again |
+ * | `clearable` | started with nobody timed: the false start that can still be cleared |
+ * | `running` | started **with a crossing against it**: the clear that must be refused |
+ * | `finished` | `finished_at` set: no button and no ticking clock |
+ *
+ * **`pending` and `press` are two rows rather than one on purpose.** Sharing them would make
+ * the countdown test depend on the round-trip test not having run yet, which `fullyParallel`
+ * is free to stop being true — the same trap the roster fixtures' header names.
+ *
+ * ## ⚠️ The start is on the morning the clocks go back, and that is the point of the fixture
+ *
+ * `2026-10-25T00:30:00Z` is **01:30 BST** in London: the clocks go back at 02:00 BST that
+ * morning, so 01:30 happens twice and this is the first pass through it. #250 asks for exactly
+ * this instant because it is the one an ambient-timezone bug renders wrong — a page that
+ * formatted the UTC value would say 00:30, and one that guessed the offset would say GMT. The
+ * race itself is run the following weekend, so an hour of drift here is an hour of drift there.
+ */
+export const START_FIXTURE_STARTED_AT = '2026-10-25T00:30:00Z';
+
+/** The same repeated hour, after the change: 01:45 **GMT**, fifteen minutes later in real time. */
+export const START_FIXTURE_FINISHED_AT = '2026-10-25T01:45:00Z';
+
+/** What `formatLondon` must render for the two above, which is what the specs assert. */
+export const START_FIXTURE_STARTED_LONDON = '25 October 2026 at 01:30 BST';
+export const START_FIXTURE_FINISHED_LONDON = '25 October 2026 at 01:45 GMT';
+
+/** The five states, in the order the page's own branches test for them. */
+export type StartFixtureState =
+  'pending' | 'press' | 'clearable' | 'running' | 'finished';
+
+const START_FIXTURE_STATES: StartFixtureState[] = [
+  'pending',
+  'press',
+  'clearable',
+  'running',
+  'finished',
+];
+
+/**
+ * One running, named for its state and for the project that owns it.
+ *
+ * `zz-` for the reason `timing-fixtures.ts`'s header gives: a slug of that shape can never be
+ * reached by `nnEventSlugForResultsPath`, so no results address can name one of these.
+ */
+export function startEventSlug(project: string, state: StartFixtureState): string {
+  return `zz-start-${state}-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/**
+ * The five runnings for one project, re-created from scratch.
+ *
+ * **Cleared first and written again, rather than seeded idempotently.** The roster fixtures
+ * cannot do that — two projects share one row there and deleting it mid-run took a page out
+ * from under another project. These rows are per project *and* per state, so nothing else is
+ * ever looking at them; and they have to be re-created, because a previous run left `press`
+ * started and `clearable` cleared.
+ */
+export async function seedStartEvents(project: string): Promise<void> {
+  await clearStartEvents(project);
+
+  await withClient(async (db) => {
+    for (const state of START_FIXTURE_STATES) {
+      const slug = startEventSlug(project, state);
+      const id = fixtureEventId(slug);
+      const started =
+        state === 'pending' || state === 'press' ? null : START_FIXTURE_STARTED_AT;
+      const finished = state === 'finished' ? START_FIXTURE_FINISHED_AT : null;
+
+      await db.query(
+        `insert into timing.events
+           (id, slug, name, format, start_at, actually_started_at, finished_at)
+         values ($1, $2, $3, 'solo', '2026-10-25T00:00:00Z'::timestamptz,
+                 $4::timestamptz, $5::timestamptz)`,
+        [id, slug, `Start fixture ${state}`, started, finished],
+      );
+
+      // ⚠️ **Only `running` gets a crossing**, and it is what makes `clear_start()` refuse:
+      // a split is measured from `actually_started_at`, so clearing it after somebody has
+      // been timed silently re-times them. A team first, because the crossing's trigger
+      // resolves a bib to one.
+      if (state !== 'running') continue;
+
+      const { rows } = await db.query<{ id: string }>(
+        `insert into timing.teams (event_id, team_number) values ($1, '11') returning id`,
+        [id],
+      );
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, '11', '2026-10-25T01:00:00Z'::timestamptz)`,
+        [id],
+      );
+      // Referenced so the insert above is not mistaken for dead setup: the team is what the
+      // bib resolves to, and a crossing that resolved to nobody would be a different fixture.
+      if (rows.length !== 1) {
+        throw new Error(`start fixture ${slug}: expected exactly one team row`);
+      }
+    }
+  });
+}
+
+/** By this project's own slugs, and never wider — `clearTimingFixtures`' rule. */
+export async function clearStartEvents(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = any($1::text[])', [
+      START_FIXTURE_STATES.map((state) => startEventSlug(project, state)),
+    ]);
   });
 }

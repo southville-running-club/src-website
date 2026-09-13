@@ -49,6 +49,9 @@ describe('what each address demands', () => {
     // The form's target, not a page — #245. It demands the *section's* own permission, so
     // reading a roster and changing one cannot come apart by accident.
     ['/events/nn-2026/marshals/update', 'timing.marshal.assign'],
+    // #250's write address, and the same rule: starting a race and reading the start screen
+    // are both `timing.event.manage`, so they cannot come apart by accident.
+    ['/events/nn-2026/start/update', 'timing.event.manage'],
   ])('%s demands %s', (path, permission) => {
     expect(surfaceFor(path)?.permission).toBe(permission);
   });
@@ -105,7 +108,10 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/marshals/delete'],
     ['/events/nn-2026/marshals/update/again'],
     ['/events/nn-2026/registration/update'],
-    ['/events/nn-2026/start/update'],
+    // ⚠️ **`start` has exactly one action since #250**, and a second spelling under it is
+    // still refused — which is the half that keeps the table from widening by section.
+    ['/events/nn-2026/start/begin'],
+    ['/events/nn-2026/start/update/again'],
     ['/marshal'],
     ['/marshal/nn-2026/extra'],
     ['/leaderboard/nn-2026'],
@@ -147,6 +153,7 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/hasOwnProperty'],
     ['/events/nn-2026/marshals/constructor'],
     ['/events/nn-2026/marshals/__proto__'],
+    ['/events/nn-2026/start/constructor'],
   ])('%s is not a row just because Object.prototype has one', (path) => {
     expect(surfaceFor(path)).toBeNull();
     expect(canOpen(ADMIN, path)).toBe(false);
@@ -201,6 +208,34 @@ describe('the address a roster form posts to', () => {
 
     expect(surfaceFor('/timing/events/nn-2026/marshals/update')).toEqual(bare);
     expect(surfaceFor('/events/nn-2026/marshals/update/')).toEqual(bare);
+  });
+});
+
+/**
+ * The address the start screen posts to — #250, and the second write in this application.
+ *
+ * ⚠️ **This one changes the number every result in the race is derived from**, so the gate on
+ * it matters more than the gate on the page beside it: reading a countdown discloses a start
+ * time, and posting to this address decides it. The assertions are the same shape as the
+ * roster's for that reason — what opens the page is exactly what opens the form.
+ */
+describe('the address the start form posts to', () => {
+  it('is gated, rather than being a hole beside a gated page', () => {
+    expect(surfaceFor('/events/nn-2026/start/update')).not.toBeNull();
+    expect(canOpen(MARSHAL, '/events/nn-2026/start/update')).toBe(false);
+    expect(canOpen(NN_ADMIN, '/events/nn-2026/start/update')).toBe(false);
+    expect(canOpen([], '/events/nn-2026/start/update')).toBe(false);
+    expect(canOpen(ADMIN, '/events/nn-2026/start/update')).toBe(true);
+  });
+
+  it('demands exactly what the page it posts from demands', () => {
+    expect(surfaceFor('/events/nn-2026/start/update')?.permission).toBe(
+      surfaceFor('/events/nn-2026/start')?.permission,
+    );
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/events/nn-2026/start/update')?.eventSlug).toBe('nn-2026');
   });
 });
 

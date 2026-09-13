@@ -135,8 +135,8 @@ export default async function EventPage({
         "the next action and nothing that is not yet possible", and linking to a page that does
         not exist is precisely the old application's bug: its marshal navigation carried a
         "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
-        so it is linked. The entry list is #202, starting is #250, finishing is #253 and
-        results are #205 — each adds its own link here when its page exists.
+        so it is linked, and the start screen since #250. The entry list is #202, finishing is
+        #253 and results are #205 — each adds its own link here when its page exists.
 
         The link is unconditional because this address demands `timing.event.manage` and the
         roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
@@ -150,6 +150,21 @@ export default async function EventPage({
 
       <p>
         <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
+      </p>
+
+      {/*
+        ⚠️ **The start screen is linked whether or not the race has started**, which is the
+        opposite of hiding it once it is done. It is the page that says *when* the race started
+        and how long it has been running, and it is where a false start is cleared — so a
+        volunteer looking for any of those after the gun must not find the link gone. The page
+        itself decides what it offers; this is a route to it, not a button.
+      */}
+      <p>
+        <Link href={`/events/${event.slug}/start`}>
+          {event.actually_started_at === null
+            ? 'Start this race'
+            : 'The start of this race'}
+        </Link>
       </p>
 
       {event.editable ? null : (

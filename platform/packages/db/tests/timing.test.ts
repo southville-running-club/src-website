@@ -259,14 +259,18 @@ describe('what may be called, and by whom', () => {
    *   * `import_from_entries` — `timing.registration.import`, ADR-039's roster crossing from
    *     `entries`. ⚠️ **This is the one that reads another application's schema**, so the
    *     permission check is the only thing between that grant and every entrant the club
-   *     holds — which is why the bypass block below posts every `entrants` column at it.
+   *     holds — which is why the bypass block below posts every `entrants` column at it;
+   *   * `start_event` and `clear_start` — `timing.event.manage`, #250. ⚠️ **`start_event` is
+   *     the one grant on this list that decides a number every result in the race is derived
+   *     from**, and it is idempotent by its own `where` clause rather than by anything a
+   *     caller does, which is what the concurrency block at the foot of this file asserts.
    *
    * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
    * trigger is reachable from its trigger and nothing else; a grant on it would be a function
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these seventeen functions, and only to authenticated', async () => {
+  it('grants exactly these nineteen functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -279,6 +283,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'assign_bibs', grantee: 'authenticated' },
       { routine_name: 'assign_marshal', grantee: 'authenticated' },
       { routine_name: 'assignable_marshals', grantee: 'authenticated' },
+      { routine_name: 'clear_start', grantee: 'authenticated' },
       { routine_name: 'create_event', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
@@ -290,6 +295,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'set_bib_override', grantee: 'authenticated' },
+      { routine_name: 'start_event', grantee: 'authenticated' },
       { routine_name: 'unassign_marshal', grantee: 'authenticated' },
       { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
@@ -2133,5 +2139,478 @@ describe('the roster, from the schema that already holds it', () => {
     );
 
     expect(rows).toEqual([{ firstname: 'Paid' }]);
+  });
+});
+
+/**
+ * Starting a race, and clearing a false start — #250, against
+ * `20260913170000_timing_start_race.sql`.
+ *
+ * ⚠️ **The property worth more than the rest: the gun goes once.** `actually_started_at` is
+ * what every split, every finish time and every result in the race is measured against, so a
+ * second press must not move it — and the guard has to hold when the second press is a *second
+ * device*, not a second statement. That is why the block at the foot of this describe opens two
+ * Postgres connections and commits, rather than using the roll-back helper everything else here
+ * uses: a race between two transactions cannot be reproduced inside one.
+ *
+ * Negative cases first, in this file's usual order: refused without the permission, refused
+ * anonymously, and `no_such_event` for a slug that names nothing.
+ */
+describe('starting a race', () => {
+  const STARTER = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+  const SECOND_STARTER = 'a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2';
+  const MARSHAL = 'a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3';
+
+  /** Not started. Every roll-back test reads and writes this one. */
+  const PENDING_ID = '00000000-0000-4000-8000-0000000000d1';
+  const PENDING_SLUG = 'zz-timing-start-pending';
+
+  /** Not started, and the only event the concurrency block touches — it *commits*. */
+  const RACE_ID = '00000000-0000-4000-8000-0000000000d2';
+  const RACE_SLUG = 'zz-timing-start-race';
+
+  /** Already started, nobody timed yet: the false start that can still be cleared. */
+  const CLEARABLE_ID = '00000000-0000-4000-8000-0000000000d3';
+  const CLEARABLE_SLUG = 'zz-timing-start-clearable';
+
+  /** Already started, with one crossing against it: the clear that must be refused. */
+  const CROSSED_ID = '00000000-0000-4000-8000-0000000000d4';
+  const CROSSED_SLUG = 'zz-timing-start-crossed';
+  const CROSSED_TEAM = '00000000-0000-4000-8000-0000000000d5';
+
+  const ALL_EVENTS = [PENDING_ID, RACE_ID, CLEARABLE_ID, CROSSED_ID];
+  const STARTED_AT = '2026-11-01T11:02:00Z';
+
+  /** Runs one statement as a given person, inside a transaction that is always rolled back. */
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /** What both writers answer. `actually_started_at` is on the winner and on the loser. */
+  interface Answer {
+    ok: boolean;
+    reason?: string;
+    slug?: string;
+    actually_started_at?: string | null;
+  }
+
+  /** Sets the role and the claims PostgREST would set, on whichever connection is passed. */
+  async function actAs(client: Client, personId: string): Promise<void> {
+    await client.query("select set_config('role', 'authenticated', true)");
+    await client.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+      [personId],
+    );
+  }
+
+  const startAs = (person: string, slug: string) =>
+    asPerson<Answer>(person, 'select timing.start_event($1) as answer', [slug]);
+
+  const clearAs = (person: string, slug: string) =>
+    asPerson<Answer>(person, 'select timing.clear_start($1) as answer', [slug]);
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [STARTER, 'timing-start-one@example.com'],
+      [SECOND_STARTER, 'timing-start-two@example.com'],
+      [MARSHAL, 'timing-start-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-admin', $2),
+              ($3, 'timing-marshal', $3)
+       on conflict do nothing`,
+      [STARTER, SECOND_STARTER, MARSHAL],
+    );
+
+    await db.query('delete from timing.events where id = any($1::uuid[])', [ALL_EVENTS]);
+
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Start Fixture',   'solo', '2026-11-01T11:00:00Z', null),
+              ($3, $4, 'Race Fixture',    'solo', '2026-11-01T11:00:00Z', null),
+              ($5, $6, 'False Start',     'solo', '2026-11-01T11:00:00Z', $9::timestamptz),
+              ($7, $8, 'Already Running', 'solo', '2026-11-01T11:00:00Z', $9::timestamptz)`,
+      [
+        PENDING_ID,
+        PENDING_SLUG,
+        RACE_ID,
+        RACE_SLUG,
+        CLEARABLE_ID,
+        CLEARABLE_SLUG,
+        CROSSED_ID,
+        CROSSED_SLUG,
+        STARTED_AT,
+      ],
+    );
+
+    // One crossing, against the one event whose start may no longer be cleared. Its split is
+    // measured from `actually_started_at`, which is the whole reason for the refusal.
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '11')`,
+      [CROSSED_TEAM, CROSSED_ID],
+    );
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '11', '2026-11-01T11:40:00Z')`,
+      [CROSSED_ID],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = any($1::uuid[])', [ALL_EVENTS]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [STARTER, SECOND_STARTER, MARSHAL],
+    ]);
+  });
+
+  describe('who is refused', () => {
+    it('refuses a marshal, who is timing staff and still may not start a race', async () => {
+      expect(await startAs(MARSHAL, PENDING_SLUG)).toEqual({
+        ok: false,
+        reason: 'refused',
+      });
+      expect(await clearAs(MARSHAL, CLEARABLE_SLUG)).toEqual({
+        ok: false,
+        reason: 'refused',
+      });
+    });
+
+    it('leaves the race unstarted when the start was refused', async () => {
+      await startAs(MARSHAL, PENDING_SLUG);
+
+      // Read back outside the refused call, so a refusal that silently wrote cannot hide.
+      const { rows } = await db.query<{ started: string | null }>(
+        'select actually_started_at as started from timing.events where id = $1',
+        [PENDING_ID],
+      );
+      expect(rows[0]?.started).toBeNull();
+    });
+
+    /**
+     * A connection with no token has no `auth.uid()`, so `identity.has_permission()` is false.
+     * Asserted as the **specific** refusal rather than as "something went wrong": a broken
+     * function refuses everything, which reads as every rule holding at once.
+     */
+    it('refuses an anonymous caller outright, rather than raising', async () => {
+      const { rows } = await db.query<{ start: Answer; clear: Answer }>(
+        `select timing.start_event($1) as start, timing.clear_start($2) as clear`,
+        [PENDING_SLUG, CLEARABLE_SLUG],
+      );
+
+      expect(rows[0]?.start).toEqual({ ok: false, reason: 'refused' });
+      expect(rows[0]?.clear).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('says so plainly when the slug names nothing', async () => {
+      expect(await startAs(STARTER, 'zz-no-such-event-at-all')).toEqual({
+        ok: false,
+        reason: 'no_such_event',
+      });
+      expect(await clearAs(STARTER, 'zz-no-such-event-at-all')).toEqual({
+        ok: false,
+        reason: 'no_such_event',
+      });
+    });
+  });
+
+  describe('the gun', () => {
+    it('records the moment it was pressed, and not the scheduled start', async () => {
+      await db.query('begin');
+      try {
+        await actAs(db, STARTER);
+
+        const { rows: wrote } = await db.query<{ answer: Answer }>(
+          'select timing.start_event($1) as answer',
+          [PENDING_SLUG],
+        );
+
+        expect(wrote[0]?.answer.ok).toBe(true);
+        expect(wrote[0]?.answer.slug).toBe(PENDING_SLUG);
+
+        /*
+         * ⚠️ **`now()`, not `start_at`.** The fixture is scheduled for 11:00 on 1 November
+         * 2026 and this suite is run on whatever today is, so a function that had stored the
+         * scheduled time would be a long way out — which is the assertion, rather than the
+         * tolerance.
+         */
+        const { rows } = await db.query<{ gap: string; scheduled: string }>(
+          `select extract(epoch from (now() - actually_started_at))::text as gap,
+                  extract(epoch from (actually_started_at - start_at))::text as scheduled
+             from timing.events where id = $1`,
+          [PENDING_ID],
+        );
+
+        expect(Math.abs(Number(rows[0]?.gap))).toBeLessThan(60);
+        expect(Number(rows[0]?.scheduled)).not.toBe(0);
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * ⚠️ **The two issues meet here.** #247's `update_event` refuses the *whole* update once a
+     * race has started, because moving `start_at` after the gun rewrites every derived time.
+     * Asserted in one transaction so the two functions are seen against the same row.
+     */
+    it('makes the race uneditable, which is what #247 refuses on', async () => {
+      await db.query('begin');
+      try {
+        await actAs(db, STARTER);
+
+        const { rows: before } = await db.query<{ answer: Record<string, unknown> }>(
+          'select timing.event_detail($1) as answer',
+          [PENDING_SLUG],
+        );
+        expect(before[0]?.answer['editable']).toBe(true);
+
+        await db.query('select timing.start_event($1)', [PENDING_SLUG]);
+
+        const { rows: after } = await db.query<{ answer: Record<string, unknown> }>(
+          'select timing.event_detail($1) as answer',
+          [PENDING_SLUG],
+        );
+        expect(after[0]?.answer['editable']).toBe(false);
+
+        const { rows: edit } = await db.query<{ answer: Answer }>(
+          'select timing.update_event($1, $2, $3) as answer',
+          [PENDING_SLUG, 'Too late', '2026-11-01T09:00:00Z'],
+        );
+        expect(edit[0]?.answer).toEqual({ ok: false, reason: 'already_started' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * ⚠️ **The second press, in one transaction.** The concurrency block below is the version
+     * two devices can actually produce; this is the cheap one, and it asserts the half that
+     * matters most in words: the loser is *told the winning time*, so the screen in front of
+     * them shows the same moment rather than an error it has to interpret.
+     */
+    it('refuses a second press and hands back the time that stands', async () => {
+      await db.query('begin');
+      try {
+        await actAs(db, STARTER);
+
+        const { rows: first } = await db.query<{ answer: Answer }>(
+          'select timing.start_event($1) as answer',
+          [PENDING_SLUG],
+        );
+        const { rows: second } = await db.query<{ answer: Answer }>(
+          'select timing.start_event($1) as answer',
+          [PENDING_SLUG],
+        );
+
+        expect(first[0]?.answer.ok).toBe(true);
+        expect(second[0]?.answer.ok).toBe(false);
+        expect(second[0]?.answer.reason).toBe('already_started');
+        expect(second[0]?.answer.actually_started_at).toBe(
+          first[0]?.answer.actually_started_at,
+        );
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('audits the press that set the clock, and only that one', async () => {
+      await db.query('begin');
+      try {
+        await actAs(db, STARTER);
+
+        await db.query('select timing.start_event($1)', [PENDING_SLUG]);
+        // The losing press writes nothing: the audit trail is where somebody goes to ask when
+        // the race started, and a second row is a second candidate answer to that question.
+        await db.query('select timing.start_event($1)', [PENDING_SLUG]);
+
+        const { rows } = await db.query<{
+          actor_id: string;
+          detail: { event_slug: string };
+        }>(
+          `select actor_id, detail from timing.admin_actions
+            where event_id = $1 and action = 'race_started'`,
+          [PENDING_ID],
+        );
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.actor_id).toBe(STARTER);
+        expect(rows[0]?.detail.event_slug).toBe(PENDING_SLUG);
+      } finally {
+        await db.query('rollback');
+      }
+    });
+  });
+
+  /**
+   * ⚠️ **Two connections, and this block commits.** Everything else in this file runs inside a
+   * transaction that is rolled back, which cannot express what #250's definition of done
+   * actually asks for: two callers pressing at once. The guard being tested is the `update`'s
+   * own `where actually_started_at is null`, and what makes it hold is the **row lock** — the
+   * second statement blocks, then re-evaluates its predicate against the committed new version
+   * and matches nothing. A single transaction never blocks on itself, so it cannot prove this.
+   *
+   * `RACE_SLUG` is the only event this block touches, and `afterAll` deletes it.
+   */
+  describe('two devices, one gun', () => {
+    async function connect(personId: string): Promise<Client> {
+      const client = new Client({ connectionString: LOCAL_DB });
+      await client.connect();
+      await client.query('begin');
+      await actAs(client, personId);
+      return client;
+    }
+
+    it('lets exactly one press win, and tells the other which time stands', async () => {
+      const first = await connect(STARTER);
+      const second = await connect(SECOND_STARTER);
+
+      try {
+        const { rows: won } = await first.query<{ answer: Answer }>(
+          'select timing.start_event($1) as answer',
+          [RACE_SLUG],
+        );
+
+        // Issued while `first` still holds the row lock, so it blocks inside the `update`
+        // rather than reading a stale row and overwriting. Not awaited until after the commit.
+        const blocked = second.query<{ answer: Answer }>(
+          'select timing.start_event($1) as answer',
+          [RACE_SLUG],
+        );
+
+        await first.query('commit');
+
+        const { rows: lost } = await blocked;
+        await second.query('commit');
+
+        expect(won[0]?.answer.ok).toBe(true);
+        expect(lost[0]?.answer.ok).toBe(false);
+        expect(lost[0]?.answer.reason).toBe('already_started');
+
+        // ⚠️ **The assertion the whole migration exists for.** The loser is handed the
+        // winner's value, so no device shows a different moment — and the column still holds
+        // the first press.
+        expect(lost[0]?.answer.actually_started_at).toBe(
+          won[0]?.answer.actually_started_at,
+        );
+
+        const { rows: stored } = await db.query<{ started: string }>(
+          'select actually_started_at as started from timing.events where id = $1',
+          [RACE_ID],
+        );
+        expect(new Date(stored[0]!.started).toISOString()).toBe(
+          new Date(won[0]!.answer.actually_started_at as string).toISOString(),
+        );
+
+        // And one audit row, naming the person whose press actually set the clock.
+        const { rows: audit } = await db.query<{ actor_id: string }>(
+          `select actor_id from timing.admin_actions
+            where event_id = $1 and action = 'race_started'`,
+          [RACE_ID],
+        );
+        expect(audit).toHaveLength(1);
+        expect(audit[0]?.actor_id).toBe(STARTER);
+      } finally {
+        await first.end();
+        await second.end();
+      }
+    });
+  });
+
+  describe('clearing a false start', () => {
+    it('puts the race back to not started, and lets it be corrected again', async () => {
+      await db.query('begin');
+      try {
+        await actAs(db, STARTER);
+
+        const { rows: cleared } = await db.query<{ answer: Answer }>(
+          'select timing.clear_start($1) as answer',
+          [CLEARABLE_SLUG],
+        );
+        expect(cleared[0]?.answer).toEqual({ ok: true, slug: CLEARABLE_SLUG });
+
+        // The consequence rather than a side effect: `update_event` reads the same column.
+        const { rows: edit } = await db.query<{ answer: Answer }>(
+          'select timing.update_event($1, $2, $3) as answer',
+          [CLEARABLE_SLUG, 'Corrected after a false start', '2026-11-01T11:15:00Z'],
+        );
+        expect(edit[0]?.answer.ok).toBe(true);
+
+        // ⚠️ **The audit row carries the value that was thrown away**, because the column it
+        // came out of is now null and this is the only place it still exists.
+        const { rows: audit } = await db.query<{
+          actor_id: string;
+          detail: { was_started_at: string };
+        }>(
+          `select actor_id, detail from timing.admin_actions
+            where event_id = $1 and action = 'start_cleared'`,
+          [CLEARABLE_ID],
+        );
+        expect(audit).toHaveLength(1);
+        expect(audit[0]?.actor_id).toBe(STARTER);
+        expect(new Date(audit[0]!.detail.was_started_at).toISOString()).toBe(
+          new Date(STARTED_AT).toISOString(),
+        );
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * ⚠️ **The line between this function and the danger zone.** A split is
+     * `captured_at - coalesce(actually_started_at, start_at)`, so clearing the start after a
+     * crossing has landed silently re-times it — for rows nobody re-checks.
+     */
+    it('is refused once anybody has been timed, and changes nothing', async () => {
+      expect(await clearAs(STARTER, CROSSED_SLUG)).toEqual({
+        ok: false,
+        reason: 'crossings_exist',
+      });
+
+      const { rows } = await db.query<{ started: string | null }>(
+        'select actually_started_at as started from timing.events where id = $1',
+        [CROSSED_ID],
+      );
+      expect(rows[0]?.started).not.toBeNull();
+    });
+
+    /**
+     * Not an error and not a success. A page that said "the start has been cleared" about a
+     * race that never started is a page somebody believes — `unassign_marshal()`'s
+     * `not_on_roster` is the same shape and was written for the same reason.
+     */
+    it('answers not_started rather than ok for a race that never started', async () => {
+      expect(await clearAs(STARTER, PENDING_SLUG)).toEqual({
+        ok: false,
+        reason: 'not_started',
+      });
+    });
   });
 });
