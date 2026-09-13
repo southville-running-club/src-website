@@ -441,6 +441,283 @@ test.describe('who may open the start screen', () => {
   }, testInfo) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     const path = startPath(testInfo.project.name, 'pending');
+
+    const shown = await page.goto(path);
+    expect(shown?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+    // ⚠️ **The half a page test cannot reach**, and the half that would actually start a race.
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'start' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+  });
+
+  test('a signed-out visitor is refused both', async ({ page }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this
+    // whole file signs in from, which is a `beforeAll` concern.
+    await page.context().clearCookies();
+    const path = startPath(testInfo.project.name, 'pending');
+
+    expect((await page.goto(path))?.status()).toBe(404);
+
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'start' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+  });
+
+  test('leaves the race unstarted after both refusals', async ({ page }, testInfo) => {
+    // Without this the two tests above pass if the POST 404'd *after* writing. Read back as
+    // somebody who may, on the page that would say so.
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'pending'));
+
+    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+  });
+});
+
+test.describe('a race that has not started', () => {
+  test('counts down and offers the one button, with or without scripting', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+
+    const response = await page.goto(startPath(testInfo.project.name, 'pending'));
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
+    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
+
+    /*
+     * ⚠️ **The migration's own rule, on the page.** A clock reaching zero starts nothing;
+     * `start_event()` stores `now()` and never reads `start_at`. If this sentence ever goes,
+     * somebody will build a screen that fires on a timer.
+     */
+    await expect(page.getByText(/A clock reaching zero starts nothing/)).toBeVisible();
+
+    // And the sentence that stops a double press being read as a failure.
+    await expect(
+      page.getByText(/Pressing it twice does not move the clock/),
+    ).toBeVisible();
+  });
+
+  test('is keyboard-operable, so the button can be reached without a pointer', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'pending'));
+
+    // A real `<button type="submit">` in a real form, so this is the browser's own behaviour
+    // rather than anything this page had to arrange — which is the assertion.
+    const button = page.getByRole('button', { name: 'Start the race' });
+    await button.focus();
+    await expect(button).toBeFocused();
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = startEventSlug(testInfo.project.name, 'pending');
+
+    await page.goto(`/timing/events/${slug}`);
+    await page.getByRole('link', { name: 'Start this race' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
+    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/start`);
+  });
+
+  /**
+   * ⚠️ **A refusal and a missing race are the same answer**, because `event_detail()` returns
+   * `null` for both so a slug cannot be probed for existence.
+   */
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/start');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'pending'));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    // ⚠️ **The full-width button and a clock in `clamp(2rem, 12vw, 3rem)` are both new here**,
+    // and a big number beside a long timezone name is exactly the shape that has pushed pages
+    // sideways in this repository before.
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(startPath(testInfo.project.name, 'pending'));
+
+    await expectNoSidewaysScroll(page, 'the timing start screen at 320px');
+  });
+});
+
+test.describe('the gun', () => {
+  /**
+   * ⚠️ **One test for the whole thing, deliberately** — the roster's argument, and here it is
+   * stronger: a race can only be started once, so a second test asserting the second press
+   * would depend on the first having run, and `fullyParallel` is free to stop being true.
+   *
+   * The second press is made with `page.request.post` rather than by clicking, because there
+   * **is no button to click** once the race is running — which is itself the point. That is the
+   * losing device in the shape it actually arrives: a form re-posted from a page somebody's
+   * browser was already holding.
+   */
+  test('starts the race, and a second press does not move the clock', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const path = startPath(testInfo.project.name, 'press');
+    await page.goto(path);
+
+    await page.getByRole('button', { name: 'Start the race' }).click();
+
+    await expect(page.getByText(/The race has started/)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'The race is running' }),
+    ).toBeVisible();
+
+    const started = await page.getByText(/^It started /).textContent();
+    expect(started).toBeTruthy();
+
+    // The button is gone, which is what makes the direct POST the honest way to press again.
+    await expect(page.getByRole('button', { name: 'Start the race' })).toHaveCount(0);
+
+    const again = await page.request.post(`${path}/update`, {
+      form: { intent: 'start' },
+      maxRedirects: 0,
+    });
+
+    // 303, so Back and Reload both do the harmless thing — and the outcome the losing device
+    // is sent back with is the truthful one rather than an error.
+    expect(again.status()).toBe(303);
+    expect(again.headers()['location']).toContain('outcome=already_started');
+
+    await page.goto(path);
+
+    // ⚠️ **The assertion the whole issue exists for.** Every runner's time is measured from
+    // this moment, and the second press did not move it.
+    await expect(page.getByText(/^It started /)).toHaveText(started as string);
+    await expect(page.getByText(/had already started/)).toHaveCount(0);
+  });
+});
+
+test.describe('a race that is running', () => {
+  /**
+   * ⚠️ **The clocks-change assertion, and it is the reason this fixture exists.** The start is
+   * `2026-10-25T00:30:00Z`, which is **01:30 BST** in London on the morning the clocks go back
+   * — 01:30 happens twice that day and this is the first pass. A page rendering the UTC value
+   * would say 00:30; one guessing the offset would say GMT. The race itself is the following
+   * weekend, so an hour of drift here is an hour of drift there.
+   */
+  test('shows the start in London time, on the morning the clocks go back', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'running'));
+
+    await expect(
+      page.getByRole('heading', { name: 'The race is running' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`It started ${START_FIXTURE_STARTED_LONDON}`),
+    ).toBeVisible();
+  });
+
+  /**
+   * The elapsed clock needs JavaScript and this suite includes a project without it, so the
+   * fallback has to be a **true sentence naming the moment** rather than a placeholder. In the
+   * scripted projects the clock replaces it, which is why this asserts the moment rather than
+   * the wording.
+   */
+  test('says something true about the start whether or not the clock can tick', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'running'));
+
+    await expect(page.getByText(START_FIXTURE_STARTED_LONDON).first()).toBeVisible();
+  });
+
+  test('refuses to clear the start once somebody has been timed', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const path = startPath(testInfo.project.name, 'running');
+    await page.goto(path);
+
+    // No button at all, and a sentence saying why — a refusal with no reason is what gets
+    // worked around by somebody in a hurry.
+    await expect(page.getByRole('button', { name: 'Clear the start' })).toHaveCount(0);
+    await expect(page.getByText(/already been timed in this race/)).toBeVisible();
+
+    // ⚠️ **And the database refuses it too**, which is the half the page cannot be trusted
+    // for: the page not offering a control is not the same as the control being refused.
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'clear' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(303);
+    expect(posted.headers()['location']).toContain('outcome=crossings_exist');
+
+    await page.goto(path);
+    await expect(
+      page.getByRole('heading', { name: 'The race is running' }),
+    ).toBeVisible();
+  });
+
+  test('clears a false start when nobody has been timed, and counts down again', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'clearable'));
+
+    await page.getByRole('button', { name: 'Clear the start' }).click();
+
+    await expect(page.getByText(/The start has been cleared/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
+  });
+});
+
+/**
+ * ⚠️ **The old application's [#23](https://github.com/bindalshah/src-race-timing/issues/23),
+ * and #250 puts fixing it in scope from the first version.** That screen went on showing a
+ * start button and a running clock after the race had finished, and an inconsistent screen on
+ * a start line is believed.
+ */
+test.describe('a race that has finished', () => {
+  test('says so, and offers neither button', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(startPath(testInfo.project.name, 'finished'));
+
+    await expect(page.getByRole('heading', { name: 'Race finished' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start the race' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Clear the start' })).toHaveCount(0);
+
+    // Both instants in London time, either side of the change: 01:30 BST and 01:45 GMT, which
+    // is fifteen minutes of real time and an hour apart on a naive reading.
+    await expect(page.getByText(START_FIXTURE_STARTED_LONDON).first()).toBeVisible();
+    await expect(page.getByText(START_FIXTURE_FINISHED_LONDON).first()).toBeVisible();
+  });
+});
+
+/**
  * `/timing/events/<slug>/registration/` — the entry list, #202, carrying #249's page half.
  *
  * ⚠️ **These tests write to the same per-project running the roster tests use**, for the
@@ -499,19 +776,6 @@ test.describe('who may open the entry list', () => {
     expect(shown?.status()).toBe(404);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
 
-    // ⚠️ **The half a page test cannot reach**, and the half that would actually start a race.
-    const posted = await page.request.post(`${path}/update`, {
-      form: { intent: 'start' },
-      maxRedirects: 0,
-    });
-    expect(posted.status()).toBe(404);
-  });
-
-  test('a signed-out visitor is refused both', async ({ page }, testInfo) => {
-    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this
-    // whole file signs in from, which is a `beforeAll` concern.
-    await page.context().clearCookies();
-    const path = startPath(testInfo.project.name, 'pending');
     /*
      * ⚠️ **The half a page test cannot reach.** `timing.registration.import` is what all three
      * demand and a marshal holds none of it — but only the two POSTs would actually change an
@@ -548,24 +812,6 @@ test.describe('who may open the entry list', () => {
     expect((await page.goto(path))?.status()).toBe(404);
 
     const posted = await page.request.post(`${path}/update`, {
-      form: { intent: 'start' },
-      maxRedirects: 0,
-    });
-    expect(posted.status()).toBe(404);
-  });
-
-  test('leaves the race unstarted after both refusals', async ({ page }, testInfo) => {
-    // Without this the two tests above pass if the POST 404'd *after* writing. Read back as
-    // somebody who may, on the page that would say so.
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'pending'));
-
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
-  });
-});
-
-test.describe('a race that has not started', () => {
-  test('counts down and offers the one button, with or without scripting', async ({
       form: { intent: 'assign-bibs' },
       maxRedirects: 0,
     });
@@ -592,52 +838,6 @@ test.describe('the entry list', () => {
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
 
-    const response = await page.goto(startPath(testInfo.project.name, 'pending'));
-
-    expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
-
-    /*
-     * ⚠️ **The migration's own rule, on the page.** A clock reaching zero starts nothing;
-     * `start_event()` stores `now()` and never reads `start_at`. If this sentence ever goes,
-     * somebody will build a screen that fires on a timer.
-     */
-    await expect(page.getByText(/A clock reaching zero starts nothing/)).toBeVisible();
-
-    // And the sentence that stops a double press being read as a failure.
-    await expect(
-      page.getByText(/Pressing it twice does not move the clock/),
-    ).toBeVisible();
-  });
-
-  test('is keyboard-operable, so the button can be reached without a pointer', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'pending'));
-
-    // A real `<button type="submit">` in a real form, so this is the browser's own behaviour
-    // rather than anything this page had to arrange — which is the assertion.
-    const button = page.getByRole('button', { name: 'Start the race' });
-    await button.focus();
-    await expect(button).toBeFocused();
-  });
-
-  test("is linked from the race's own page", async ({ page }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    const slug = startEventSlug(testInfo.project.name, 'pending');
-
-    await page.goto(`/timing/events/${slug}`);
-    await page.getByRole('link', { name: 'Start this race' }).click();
-
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
-    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/start`);
-  });
-
-  /**
-   * ⚠️ **A refusal and a missing race are the same answer**, because `event_detail()` returns
     const response = await page.goto(registrationPath(testInfo.project.name));
 
     expect(response?.status()).toBe(200);
@@ -856,7 +1056,6 @@ test.describe('the entry list', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/start');
     await page.goto('/timing/events/zz-no-such-race/registration');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
@@ -865,7 +1064,6 @@ test.describe('the entry list', () => {
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'pending'));
     await page.goto(registrationPath(testInfo.project.name));
 
     await waitForStyledLayout(page);
@@ -877,164 +1075,6 @@ test.describe('the entry list', () => {
   });
 
   test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
-    // ⚠️ **The full-width button and a clock in `clamp(2rem, 12vw, 3rem)` are both new here**,
-    // and a big number beside a long timezone name is exactly the shape that has pushed pages
-    // sideways in this repository before.
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto(startPath(testInfo.project.name, 'pending'));
-
-    await expectNoSidewaysScroll(page, 'the timing start screen at 320px');
-  });
-});
-
-test.describe('the gun', () => {
-  /**
-   * ⚠️ **One test for the whole thing, deliberately** — the roster's argument, and here it is
-   * stronger: a race can only be started once, so a second test asserting the second press
-   * would depend on the first having run, and `fullyParallel` is free to stop being true.
-   *
-   * The second press is made with `page.request.post` rather than by clicking, because there
-   * **is no button to click** once the race is running — which is itself the point. That is the
-   * losing device in the shape it actually arrives: a form re-posted from a page somebody's
-   * browser was already holding.
-   */
-  test('starts the race, and a second press does not move the clock', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    const path = startPath(testInfo.project.name, 'press');
-    await page.goto(path);
-
-    await page.getByRole('button', { name: 'Start the race' }).click();
-
-    await expect(page.getByText(/The race has started/)).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
-
-    const started = await page.getByText(/^It started /).textContent();
-    expect(started).toBeTruthy();
-
-    // The button is gone, which is what makes the direct POST the honest way to press again.
-    await expect(page.getByRole('button', { name: 'Start the race' })).toHaveCount(0);
-
-    const again = await page.request.post(`${path}/update`, {
-      form: { intent: 'start' },
-      maxRedirects: 0,
-    });
-
-    // 303, so Back and Reload both do the harmless thing — and the outcome the losing device
-    // is sent back with is the truthful one rather than an error.
-    expect(again.status()).toBe(303);
-    expect(again.headers()['location']).toContain('outcome=already_started');
-
-    await page.goto(path);
-
-    // ⚠️ **The assertion the whole issue exists for.** Every runner's time is measured from
-    // this moment, and the second press did not move it.
-    await expect(page.getByText(/^It started /)).toHaveText(started as string);
-    await expect(page.getByText(/had already started/)).toHaveCount(0);
-  });
-});
-
-test.describe('a race that is running', () => {
-  /**
-   * ⚠️ **The clocks-change assertion, and it is the reason this fixture exists.** The start is
-   * `2026-10-25T00:30:00Z`, which is **01:30 BST** in London on the morning the clocks go back
-   * — 01:30 happens twice that day and this is the first pass. A page rendering the UTC value
-   * would say 00:30; one guessing the offset would say GMT. The race itself is the following
-   * weekend, so an hour of drift here is an hour of drift there.
-   */
-  test('shows the start in London time, on the morning the clocks go back', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'running'));
-
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(`It started ${START_FIXTURE_STARTED_LONDON}`),
-    ).toBeVisible();
-  });
-
-  /**
-   * The elapsed clock needs JavaScript and this suite includes a project without it, so the
-   * fallback has to be a **true sentence naming the moment** rather than a placeholder. In the
-   * scripted projects the clock replaces it, which is why this asserts the moment rather than
-   * the wording.
-   */
-  test('says something true about the start whether or not the clock can tick', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'running'));
-
-    await expect(page.getByText(START_FIXTURE_STARTED_LONDON).first()).toBeVisible();
-  });
-
-  test('refuses to clear the start once somebody has been timed', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    const path = startPath(testInfo.project.name, 'running');
-    await page.goto(path);
-
-    // No button at all, and a sentence saying why — a refusal with no reason is what gets
-    // worked around by somebody in a hurry.
-    await expect(page.getByRole('button', { name: 'Clear the start' })).toHaveCount(0);
-    await expect(page.getByText(/already been timed in this race/)).toBeVisible();
-
-    // ⚠️ **And the database refuses it too**, which is the half the page cannot be trusted
-    // for: the page not offering a control is not the same as the control being refused.
-    const posted = await page.request.post(`${path}/update`, {
-      form: { intent: 'clear' },
-      maxRedirects: 0,
-    });
-    expect(posted.status()).toBe(303);
-    expect(posted.headers()['location']).toContain('outcome=crossings_exist');
-
-    await page.goto(path);
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
-  });
-
-  test('clears a false start when nobody has been timed, and counts down again', async ({
-    page,
-  }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'clearable'));
-
-    await page.getByRole('button', { name: 'Clear the start' }).click();
-
-    await expect(page.getByText(/The start has been cleared/)).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
-  });
-});
-
-/**
- * ⚠️ **The old application's [#23](https://github.com/bindalshah/src-race-timing/issues/23),
- * and #250 puts fixing it in scope from the first version.** That screen went on showing a
- * start button and a running clock after the race had finished, and an inconsistent screen on
- * a start line is believed.
- */
-test.describe('a race that has finished', () => {
-  test('says so, and offers neither button', async ({ page }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(startPath(testInfo.project.name, 'finished'));
-
-    await expect(page.getByRole('heading', { name: 'Race finished' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Start the race' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Clear the start' })).toHaveCount(0);
-
-    // Both instants in London time, either side of the change: 01:30 BST and 01:45 GMT, which
-    // is fifteen minutes of real time and an hour apart on a naive reading.
-    await expect(page.getByText(START_FIXTURE_STARTED_LONDON).first()).toBeVisible();
-    await expect(page.getByText(START_FIXTURE_FINISHED_LONDON).first()).toBeVisible();
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(registrationPath(testInfo.project.name));
