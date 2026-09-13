@@ -54,6 +54,17 @@ bundle built from the copied domain logic and one server-rendered page is enough
 fails, the response is the paid Workers plan (a money decision for the committee) or moving
 work off the server, **not a framework change mid-rewrite.**
 
+⚠️ **Added 13 September 2026, and the paragraph above is left exactly as it was written.**
+This repository does not edit an accepted ADR to change its answer, and the sentence *"it has
+not been taken"* is part of what was known when this decision was made — rewriting it would
+erase that rather than record what happened next.
+
+**The bundle half has now been taken and it passes**: 1.62 MiB gzipped against a 3 MB limit,
+with the whole ported domain logic costing 14 KiB more. **The CPU half is still outstanding**,
+because it needs a deployed Worker and a database. Both, and the procedure for the second, are
+in [the measurement](../../reference/timing-bundle-and-cpu.md). **Nothing in this decision
+changes either way** — the numbers are recorded here so a reader of this ADR is sent to them.
+
 ## Consequences
 
 - **Zero accessibility violations applies to a much more interactive surface** than this
