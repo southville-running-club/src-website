@@ -30,6 +30,7 @@
     "./timing/gender": "./src/timing/gender.ts",
     "./timing/registration/bib-assignment": "./src/timing/registration/bib-assignment.ts",
     "./timing/registration/pairing": "./src/timing/registration/pairing.ts",
+    "./timing/registration/import-rows": "./src/timing/registration/import-rows.ts",
     "./timing/registration/parser": "./src/timing/registration/parser.ts",
     "./timing/registration/types": "./src/timing/registration/types.ts"
   },

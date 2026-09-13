@@ -91,8 +91,15 @@ export type TimingRunner = {
    * strings here.** Rows written before that decision spell it `'M'` / `'F'`, and Pass the
    * Buck's archive is a whole race of them; that file carries the expand-migrate-contract
    * argument for why reading still accepts both and writing does not.
+   *
+   * ⚠️ **Nullable, because the column is** — this type said `string` until #202, which is the
+   * kind of mismatch that compiles for months and then throws. `timing.runners.gender` has
+   * been nullable since the schema's first migration, `add_walk_in()` writes a runner with
+   * none, and `import_from_entries()` carries whatever `entries` holds. `normaliseTimingGender`
+   * has always accepted `null | undefined` and answers *no prize band*, so nothing downstream
+   * needed a branch — what needed fixing is the type that said the null could not arrive.
    */
-  gender: string;
+  gender: string | null;
   /**
    * [ADR-031](../../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)'s
    * answer, carried across by `import_from_entries()`. Null for everybody else, and null for a

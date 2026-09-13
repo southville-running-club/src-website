@@ -1749,14 +1749,23 @@ and like the import functions below it **nothing calls it**. The roster page (#2
 marshal half that exists: it decides *who may* capture on a race, which is ADR-036's scope
 checked after the permission. The screen they would capture *on* is #203.
 
-⚠️ **The entry list is half done** — `timing.create_event()`,
-`timing.import_registration()` and `timing.event_roster()` exist behind
-`timing.event.manage` and `timing.registration.import`, so an entry list *can* be imported by
-something that calls them, and **nothing calls them yet**: the upload, preview and reconcile
-screens are still #202's other half. **There is also no timing data** — every table is
-empty, so the results page renders "Nothing has been captured for this race yet" to the few
-people who may open it at all. The current state, and what is deliberately deferred, is in
-[the phases](docs/delivery/phases.md).
+⚠️ **The entry list is built as of #202**, at `/timing/events/<slug>/registration/` behind
+`timing.registration.import`: the club's own entries import in one press
+(`timing.import_from_entries()`, ADR-039 and the critical path for Nightingale Nightmare), a
+Full On Sport CSV uploads for Pass the Buck's archive and for a race entered somewhere else,
+and #249's page half — a bib per leg, an override control and "Assign bibs" — is on the same
+screen along with the walk-in desk form. ⚠️ **Nothing about an uploaded file is kept, and that
+is a stop-and-ask left open rather than an answer.** #202 says files go in R2 and never in
+Postgres, *and that whether the raw file is kept at all is a data-minimisation question to
+answer before the first upload* — it has not been answered, so the route handler parses in
+memory and lets the file go. **Which is why the preview is a second submit of the same form**
+rather than a stored parse, and why the findings cross the redirect as a severity, a finding
+kind and row numbers, re-worded in the club's own voice by
+`apps/timing/lib/registration-outcomes.ts`: the parser's own messages name runners and quote
+their email addresses, and a query string is not somewhere personal data may go. **There is
+also no timing data** — every table is empty, so the results page renders "Nothing has been
+captured for this race yet" to the few people who may open it at all. The current state, and
+what is deliberately deferred, is in [the phases](docs/delivery/phases.md).
 
 **The section below this one is the same kind of thing and is also built and live**: `store`,
 tickets to the club's socials, added 5 September 2026. It has its own list of what it

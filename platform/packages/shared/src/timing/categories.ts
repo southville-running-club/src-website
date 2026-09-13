@@ -46,7 +46,9 @@ export const PAIR_CATEGORIES: readonly PairCategory[] = [
   'Mixed Pair',
 ] as const;
 
-type RunnerLike = { gender: string };
+// Nullable for `TimingRunner.gender`'s reason, and #202's: the column is, and this type was
+// the half that said otherwise. `normaliseTimingGender` takes a null already.
+type RunnerLike = { gender: string | null };
 
 /**
  * ⚠️ **Normalised through `gender.ts` rather than compared here**, since

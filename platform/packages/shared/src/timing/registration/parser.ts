@@ -122,10 +122,21 @@ export const DROPPED_COLUMNS = [
   'version',
 ] as const;
 
-// Required fields on every runner row. Missing any of these blocks the
-// commit. Schema-driven: runners.firstname / lastname / email / gender are
-// all NOT NULL in the migration. PurchaseOrderId is required separately
-// (it's the team grouping key) — see parseRegistrationCsv body.
+// Required fields on every runner row. Missing any of these blocks the commit.
+// PurchaseOrderId is required separately (it's the team grouping key) — see
+// parseRegistrationCsv body.
+//
+// ⚠️ **This comment used to say all four are `NOT NULL` in the migration, and only two of
+// them are.** `20260911140000_timing_schema.sql` declares `firstname` and `lastname` not
+// null; `email` and `gender` are both nullable, and deliberately so — `add_walk_in()` writes
+// a runner with neither, and `import_from_entries()` carries an address only for a guide.
+// Found reading the two halves of #202 against each other.
+//
+// **They stay required *here* regardless, and that is a decision rather than an oversight.**
+// A Full On Sport export carries both on every row; a row missing one is a file that has been
+// hand-edited or half-exported, and the desk wants to know before 250 runners are imported
+// off it. What the column permits and what this file accepts are two different questions, and
+// this is the stricter of the two on purpose.
 const REQUIRED_RUNNER_FIELDS = ['Firstname', 'Lastname', 'Email', 'Gender'] as const;
 
 /**
@@ -411,6 +422,9 @@ export function parseRegistrationCsv(
 
     teams.push({
       purchase_order_id: poId,
+      // The first row this team appears on. `event_roster()` orders by it, so a null here
+      // would sort a whole imported field arbitrarily — see `ParsedTeam.csv_row_index`.
+      csv_row_index: head.rowIndex,
       name: nullIfEmpty(head.team_name),
       entry_type: nullIfEmpty(head.entry_type),
       runners,

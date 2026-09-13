@@ -31,6 +31,20 @@ describe('parseRegistrationCsv — scrubbed fixture', () => {
     expect(result.teams).toHaveLength(6);
   });
 
+  /**
+   * ⚠️ **`event_roster()` orders `csv_row_index nulls last`**, so a team without one sorts
+   * arbitrarily and the printed start list stops matching the spreadsheet it was typed from.
+   * `import_registration()` has read and written that column since #238 and `ParsedTeam` had
+   * nowhere to take it from until #202 — the two halves were never read against each other.
+   */
+  it('records where each team first appears in the file', () => {
+    const indices = result.teams.map((t) => t.csv_row_index);
+    expect(indices.every((n) => Number.isInteger(n) && n >= 1)).toBe(true);
+    // First-seen order, which is the order `groupOrder` preserves.
+    expect([...indices].sort((a, b) => a - b)).toEqual(indices);
+    expect(indices[0]).toBe(1);
+  });
+
   it('parses to 12 runners total', () => {
     const totalRunners = result.teams.reduce((sum, t) => sum + t.runners.length, 0);
     expect(totalRunners).toBe(12);

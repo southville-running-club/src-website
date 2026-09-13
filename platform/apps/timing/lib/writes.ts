@@ -35,12 +35,28 @@ import { config, type TimingFunction } from './reads';
  * to do something they are allowed to do, on the morning they are building a start line.
  */
 export type TimingWrite =
-  { state: 'ok' } | { state: 'refused'; reason: string } | { state: 'unavailable' };
+  | {
+      state: 'ok';
+      /**
+       * What the function said besides `ok` — `teams_created`, `assigned`, and so on.
+       *
+       * ⚠️ **Added for #202 and deliberately not typed per function.** The entry-list page
+       * quotes these back (*"12 entries and 12 runners on the start list"*), and a caller
+       * that wants one reads it with `intFrom()` and renders nothing when it is absent —
+       * because *"0 entries"* is a claim about a race and *"the page was not told"* is not.
+       * A per-function type would be a fourth statement of shapes the migration, the
+       * generated types and the test already carry.
+       */
+      data: Record<string, unknown>;
+    }
+  | { state: 'refused'; reason: string }
+  | { state: 'unavailable' };
 
 /** What every write function in `timing` returns. Narrower than `jsonb`, which is its type. */
 interface WriteResult {
   ok?: unknown;
   reason?: unknown;
+  [key: string]: unknown;
 }
 
 export async function writeTiming(
@@ -71,7 +87,7 @@ export async function writeTiming(
     const result = (data ?? {}) as WriteResult;
 
     if (result.ok === true) {
-      return { state: 'ok' };
+      return { state: 'ok', data: result as Record<string, unknown> };
     }
 
     return {

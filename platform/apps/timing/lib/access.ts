@@ -106,6 +106,24 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
   // #250. One address for both presses — starting a race and clearing a false start are the
   // same `timing.event.manage` and the same screen, and the `intent` field is what says which.
   start: { update: 'timing.event.manage' },
+  /**
+   * The entry list's two write addresses — [#202](https://github.com/southville-running-club/src-website/issues/202).
+   *
+   * **`import` is separate from `update` because it is the only `multipart/form-data` post on
+   * this platform**, and the two want different bodies rather than different permissions:
+   * `import` reads a file, `update` reads five fields. Both demand
+   * `timing.registration.import`, which is the section's own — being allowed to read a roster
+   * and being allowed to change one are the same permission here, and the day they stop being
+   * the same this table is where that is said.
+   *
+   * `update` carries four intents — assigning bibs, overriding one, adding a walk-in and
+   * importing from `entries` — for `marshals/update`'s reason: an intent nobody wrote down
+   * falls through to a refusal, and a fourth address would be a fourth row to keep in step.
+   */
+  registration: {
+    import: 'timing.registration.import',
+    update: 'timing.registration.import',
+  },
 };
 
 /** This application's own base path, as `next.config.ts` sets it. */
