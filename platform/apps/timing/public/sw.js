@@ -76,6 +76,50 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+/**
+ * ⚠️ **The page asks to be cached, because a fresh service worker has nothing.**
+ *
+ * A registration installed on this page load did not intercept the navigation that carried it,
+ * so the document and its chunks are in the browser's memory and in no cache at all — and a
+ * reload with no signal would fail exactly as it did before. **Waiting for the marshal's
+ * *second* visit is not a plan**, because the second visit is the one that happens on a course.
+ *
+ * So once this worker controls the page, the page posts the URLs it is made of — its own
+ * address and the hashed chunks it loaded — and they are fetched again over the network that
+ * is still there and put away. The screen then says out loud whether it will survive a reload,
+ * which is a thing a marshal wants to know before walking away from signal.
+ */
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (data === null || typeof data !== 'object' || data.type !== 'warm') {
+    return;
+  }
+
+  const urls = Array.isArray(data.urls)
+    ? data.urls.filter((u) => typeof u === 'string')
+    : [];
+  const port = event.ports[0];
+
+  event.waitUntil(
+    (async () => {
+      let ok = false;
+      try {
+        const cache = await caches.open(CACHE);
+        // `addAll` is all-or-nothing, which is what is wanted: a screen cached without its
+        // chunks is a blank page, and saying so is better than half-claiming it.
+        await cache.addAll(urls);
+        ok = true;
+      } catch {
+        // Offline already, quota, or a chunk that 404s. The page is told, and says so.
+      }
+
+      if (port) {
+        port.postMessage({ type: 'warmed', ok });
+      }
+    })(),
+  );
+});
+
 /** Put a copy away, and never let a cache write break the response it copied. */
 async function remember(request, response) {
   if (!response || !response.ok) {
@@ -97,7 +141,11 @@ async function networkThenCache(request) {
     await remember(request, response);
     return response;
   } catch (cause) {
-    const cached = await caches.match(request);
+    // ⚠️ **`ignoreVary`, and it is not belt and braces.** The document was put away by
+    // `cache.addAll`, whose request carries none of a navigation's own headers — so a `Vary`
+    // on the Next response would make the strict match miss and this would throw on a page
+    // that is sitting in the cache.
+    const cached = await caches.match(request, { ignoreVary: true });
     if (cached) {
       return cached;
     }
@@ -107,7 +155,7 @@ async function networkThenCache(request) {
 
 /** Cache first. For hashed assets, whose contents cannot change under their own name. */
 async function cacheThenNetwork(request) {
-  const cached = await caches.match(request);
+  const cached = await caches.match(request, { ignoreVary: true });
   if (cached) {
     return cached;
   }

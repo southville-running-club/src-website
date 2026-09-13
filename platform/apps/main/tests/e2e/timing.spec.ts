@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   captureCrossings,
   captureEventSlug,
@@ -1111,6 +1111,33 @@ test.describe('the entry list', () => {
 const capturePath = (project: string): string =>
   `/timing/marshal/${captureEventSlug(project)}`;
 
+/**
+ * ⚠️ **A bib per test, and no test asserts how many crossings the race has.**
+ *
+ * These tests share one race per project — they have to, because a crossing's anomaly is judged
+ * against every other crossing on the same race — and Playwright is free to run them in any
+ * order. The first version of this block had two order dependencies and CI found both: one test
+ * recorded `147` and another asserted that `247` had **no handover recorded**, which is true
+ * only while `147` is absent; and two tests counted the whole race's crossings.
+ *
+ * So each test owns a bib nothing else writes, and every assertion is about *that* bib. The
+ * counting ones read a total before and after instead.
+ *
+ * `147` and `247` are leg 1 and leg 2 of the fixture's team, so they resolve to it. `299` is
+ * leg 2 of a team that does not exist — which is what makes it permanently a *leg 2 with no
+ * handover*, because no test writes `199` and none ever should.
+ */
+const BIB_LANDS = `1${CAPTURE_TEAM_NUMBER}`;
+const BIB_NO_HANDOVER = '299';
+const BIB_OFFLINE = `2${CAPTURE_TEAM_NUMBER}`;
+
+/** The keypad, pressed a digit at a time — which is the only way a bib is typed on this screen. */
+const typeBib = async (page: Page, bib: string): Promise<void> => {
+  for (const digit of bib) {
+    await page.getByRole('button', { name: digit, exact: true }).click();
+  }
+};
+
 test.describe('who may open the capture screen', () => {
   /**
    * ⚠️ **The assertion ADR-036 exists for, and the only one that can tell a roster check from
@@ -1234,10 +1261,8 @@ test.describe('recording a crossing', () => {
     await expect(page.getByText('No bib yet')).toBeVisible();
     await expect(page.getByText(/Crossed at \d\d:\d\d:\d\d/)).toBeVisible();
 
-    for (const digit of ['1', '4', '7']) {
-      await page.getByRole('button', { name: digit, exact: true }).click();
-    }
-    await expect(page.getByText('Bib 147')).toBeVisible();
+    await typeBib(page, BIB_LANDS);
+    await expect(page.getByText(`Bib ${BIB_LANDS}`)).toBeVisible();
     await page.getByRole('button', { name: 'Confirm bib' }).click();
 
     // The queue empties once the crossing has landed, which is the screen's own statement that
@@ -1246,12 +1271,13 @@ test.describe('recording a crossing', () => {
       timeout: 15_000,
     });
 
-    const crossings = await captureCrossings(testInfo.project.name);
-    expect(crossings).toHaveLength(1);
-    expect(crossings[0]?.bib).toBe('147');
-    expect(crossings[0]?.anomaly_flag).toBe(false);
+    const landed = (await captureCrossings(testInfo.project.name)).find(
+      (c) => c.bib === BIB_LANDS,
+    );
+    expect(landed).toBeDefined();
+    expect(landed?.anomaly_flag).toBe(false);
     // The bib resolved to the fixture's team, which is what `1` + team number means on a relay.
-    expect(crossings[0]?.team_id).not.toBeNull();
+    expect(landed?.team_id).not.toBeNull();
   });
 
   /**
@@ -1267,11 +1293,9 @@ test.describe('recording a crossing', () => {
     await page.goto(capturePath(testInfo.project.name));
 
     await page.getByRole('button', { name: 'Crossed now' }).click();
-    for (const digit of ['2', '4', '7']) {
-      await page.getByRole('button', { name: digit, exact: true }).click();
-    }
+    await typeBib(page, BIB_NO_HANDOVER);
 
-    await expect(page.getByText(/no handover recorded for team 47/)).toBeVisible();
+    await expect(page.getByText(/no handover recorded for team 99/)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Confirm bib' })).toBeEnabled();
     await page.getByRole('button', { name: 'Confirm bib' }).click();
 
@@ -1279,10 +1303,14 @@ test.describe('recording a crossing', () => {
       timeout: 15_000,
     });
 
-    const crossings = await captureCrossings(testInfo.project.name);
-    const flagged = crossings.find((c) => c.bib === `2${CAPTURE_TEAM_NUMBER}`);
+    const flagged = (await captureCrossings(testInfo.project.name)).find(
+      (c) => c.bib === BIB_NO_HANDOVER,
+    );
     expect(flagged).toBeDefined();
     expect(flagged?.anomaly_flag).toBe(true);
+    // ⚠️ **Stored with no team, and never refused.** An unknown bib is the marshal's to argue
+    // with afterwards; a validator at the line loses the moment.
+    expect(flagged?.team_id).toBeNull();
   });
 
   /**
@@ -1301,23 +1329,42 @@ test.describe('recording a crossing', () => {
     // one to arrive.
     await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
 
+    /*
+     * ⚠️ **Waiting for the screen to say it is cached, rather than for a length of time.** A
+     * service worker registered on *this* load did not intercept the navigation that carried
+     * it, so nothing is in its cache until the page asks — and the first version of this test
+     * reloaded before that had happened and got `net::ERR_FAILED`. That was the *code* being
+     * wrong rather than the test: a marshal's second visit is the one that happens on a course.
+     *
+     * The line is not test scaffolding — it is what the screen tells a marshal before they walk
+     * away from signal, and waiting on it is waiting on the thing the marshal is waiting on.
+     */
+    await expect(page.locator('[data-capture-offline-ready="yes"]')).toBeVisible({
+      timeout: 20_000,
+    });
+
     await context.setOffline(true);
 
     await page.getByRole('button', { name: 'Crossed now' }).click();
-    for (const digit of ['1', '4', '7']) {
-      await page.getByRole('button', { name: digit, exact: true }).click();
-    }
+    await typeBib(page, BIB_OFFLINE);
     await page.getByRole('button', { name: 'Confirm bib' }).click();
 
     // ⚠️ Not an error, and it must not read as one. The card says what being offline looks
     // like and that the phone will keep trying.
     await expect(page.getByText(/usually no signal/)).toBeVisible({ timeout: 15_000 });
-    expect(await captureCrossings(testInfo.project.name)).toHaveLength(0);
+    expect(
+      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
+    ).toBe(false);
 
-    // ⚠️ **The queue is in IndexedDB and survives the page**, which is what makes a reload on a
-    // course safe. Keyed to the origin rather than to a session — #244 depends on that.
+    /*
+     * ⚠️ **Two properties at once, and both of them are the point of this issue.** The page
+     * comes back at all — which is the service worker, and the difference between a marshal who
+     * can carry on and one holding a browser error page with two hours of race left — and the
+     * queue comes back with it, out of IndexedDB, keyed to the origin rather than to a session.
+     * #244 depends on the second.
+     */
     await page.reload();
-    await expect(page.getByText('Bib 147')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(`Bib ${BIB_OFFLINE}`)).toBeVisible({ timeout: 20_000 });
 
     await context.setOffline(false);
     // The `online` event is what triggers an immediate drain; the thirty-second one is the net
@@ -1326,8 +1373,9 @@ test.describe('recording a crossing', () => {
       timeout: 20_000,
     });
 
-    const crossings = await captureCrossings(testInfo.project.name);
-    expect(crossings.map((c) => c.bib)).toEqual(['147']);
+    expect(
+      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
+    ).toBe(true);
   });
 
   /**
@@ -1342,12 +1390,16 @@ test.describe('recording a crossing', () => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     await page.goto(capturePath(testInfo.project.name));
 
+    // A total before and after, rather than an absolute count: this race is shared with every
+    // other test in this block and Playwright is free to run them in any order.
+    const before = (await captureCrossings(testInfo.project.name)).length;
+
     await page.getByRole('button', { name: 'Crossed now' }).click();
     await expect(page.getByText('No bib yet')).toBeVisible();
     await page.getByRole('button', { name: 'Discard this tap' }).click();
 
     await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
-    expect(await captureCrossings(testInfo.project.name)).toHaveLength(0);
+    expect(await captureCrossings(testInfo.project.name)).toHaveLength(before);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {

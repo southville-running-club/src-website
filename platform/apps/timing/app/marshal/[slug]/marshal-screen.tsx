@@ -117,6 +117,7 @@ export function MarshalScreen({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [doorRefused, setDoorRefused] = useState(false);
   const [storageLost, setStorageLost] = useState(false);
+  const [offlineReady, setOfflineReady] = useState(false);
 
   /**
    * ⚠️ **Refs rather than state for these three, deliberately.** The drain is called from an
@@ -427,12 +428,51 @@ export function MarshalScreen({
       return;
     }
 
-    void navigator.serviceWorker
-      .register('/timing/sw.js', { scope: '/timing/' })
-      .catch(() => {
-        // An unsupported browser, or a context that will not allow one. The screen works; a
-        // reload without signal is what is lost, and that is not worth a message on a start line.
-      });
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await navigator.serviceWorker.register('/timing/sw.js', { scope: '/timing/' });
+        const registration = await navigator.serviceWorker.ready;
+        const worker = registration.active;
+        if (worker === null || cancelled) {
+          return;
+        }
+
+        // ⚠️ **What the page is made of, asked for by name.** A worker registered on *this*
+        // load did not intercept the navigation that carried it, so nothing is cached and a
+        // reload with no signal would fail exactly as it did before — and the reload that
+        // matters happens on a course, not at the race HQ. The chunk names are build hashes
+        // this code cannot know, so they are read back off the resource timeline rather than
+        // listed.
+        const assets = performance
+          .getEntriesByType('resource')
+          .map((entry) => entry.name)
+          .filter((name) => name.startsWith(`${location.origin}/timing/_next/static/`));
+
+        const warmed = await new Promise<boolean>((resolve) => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = (event: MessageEvent) =>
+            resolve((event.data as { ok?: boolean })?.ok === true);
+          worker.postMessage(
+            { type: 'warm', urls: [location.href, ...new Set(assets)] },
+            [channel.port2],
+          );
+        });
+
+        if (!cancelled) {
+          setOfflineReady(warmed);
+        }
+      } catch {
+        // An unsupported browser, or a context that will not allow one. The screen works; what
+        // is lost is surviving a reload without signal, and the line on the page says so
+        // rather than leaving a marshal to find out on a course.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /** The thirty-second drain, and an immediate one the moment the signal comes back. */
@@ -584,6 +624,20 @@ export function MarshalScreen({
       <p className="capture-hint">
         Press the moment a runner crosses. The time is recorded straight away — type the
         bib afterwards.
+      </p>
+
+      {/* ⚠️ **A fact a marshal wants before they walk away from signal**, rather than test
+          scaffolding that happens to be visible. Crossings survive being offline either way —
+          they are in IndexedDB — but *this page* only survives a reload once the service
+          worker has it, and the difference between the two is not something anybody can be
+          expected to guess at a start line. */}
+      <p
+        className="capture-hint"
+        data-capture-offline-ready={offlineReady ? 'yes' : 'no'}
+      >
+        {offlineReady
+          ? 'Saved for use without signal — this screen will still open if the page reloads.'
+          : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.'}
       </p>
 
       <h2>
