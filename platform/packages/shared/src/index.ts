@@ -301,5 +301,6 @@ export {
   claimTicketOutboxBatch,
   recordTicketSendResult,
   ticketEmailBody,
+  ticketEmailDate,
   type TicketOutboxMessage,
 } from './ticket-outbox';

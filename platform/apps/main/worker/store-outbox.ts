@@ -5,6 +5,8 @@ import {
   ticketEmailBody,
   type TicketOutboxMessage,
 } from '@src/shared';
+import { fetchBannerAttachment, type BannerAttachment } from './email-attachment';
+import { renderTicketEmailHtml, TICKET_BANNER_CONTENT_ID } from './ticket-email-skin';
 
 /**
  * The ticket outbox drain — the club's outgoing mail about a party ticket.
@@ -15,14 +17,18 @@ import {
  * as it is owed rather than at the next tick of a clock, which is ADR-032 — and again from the
  * five-minute cron, which is the retry net.
  *
- * ## Plain text only, and that is deliberate for now
+ * ## Two parts since ADR-041, and the text is still the authoritative one
  *
- * The race emails gained an HTML part on 31 August 2026 ([ADR-026](../../../../docs/architecture/decisions/adr-026-an-html-part-joins-the-outbox-emails.md)),
- * rendered by `email-skin.ts` from the race's own `OutboxMessage`. That skin is written
- * against an entry — a reference, an entrant, a race date — and giving it a second shape to
- * cope with is how a design system starts branching on which caller it has. A ticket skin is
- * worth having and is a separate change; the text part is authoritative in both, so nothing
- * is missing from the message itself.
+ * ADR-033 shipped this drain as plain text and called a ticket skin *"a separate change"*. That
+ * change arrived on 13 September 2026 as `ticket-email-skin.ts` — **a second skin, not a
+ * widened `email-skin.ts`**, which is the part ADR-033 actually ruled out and which still knows
+ * nothing about a ticket.
+ *
+ * The text part is unchanged. `renderTicketEmailHtml()` reads the same `TicketOutboxMessage`
+ * that `ticketEmailBody()` does and never that function's output, so the two can differ in
+ * presentation and can never differ in the facts. **A template the skin has no design for
+ * returns null and sends as text alone** rather than not at all, which today is
+ * `ticket_refunded`.
  *
  * ## What must never be logged
  *
@@ -37,7 +43,29 @@ export interface TicketOutboxEnv {
   STORE_WEBHOOK_KEY?: string;
   RESEND_API_KEY?: string;
   RESEND_API_BASE?: string;
+  /** Read once per run to attach the banner as a CID image — see `email-attachment.ts`. */
+  ASSETS: Fetcher;
 }
+
+/**
+ * The artwork each social's confirmation carries, by slug.
+ *
+ * **A constant rather than a column, and that is the same trade `SITE_NAV`'s submenu takes.** A
+ * social already needs its own content page and is therefore already a deploy, so the artwork
+ * arriving in the same commit costs nothing that was not already being paid — while a column
+ * would be a file path in the database that nothing validates, failing as a broken image in
+ * somebody's inbox rather than as a missing file at review.
+ *
+ * **A slug that is not here gets no banner and still gets its email.** The hero keeps its red
+ * background and its live text either way, so the artwork is genuinely additive — which is what
+ * makes forgetting to add a row here a disappointment rather than an incident.
+ */
+const SOCIAL_BANNERS: Record<string, { filename: string; contentType: string }> = {
+  'christmas-party-2026': {
+    filename: 'christmas-party-2026-email-banner-1200x640.jpg',
+    contentType: 'image/jpeg',
+  },
+};
 
 /** `claim_outbox_batch()`'s own ceiling, matching the race drain. */
 const BATCH_SIZE = 50;
@@ -62,6 +90,7 @@ type SendOutcome =
 async function sendTicketMessage(
   config: { apiKey: string; apiBase: string; replyTo: string },
   message: TicketOutboxMessage,
+  banner: BannerAttachment | null,
 ): Promise<SendOutcome> {
   let body: { subject: string; text: string };
 
@@ -76,6 +105,11 @@ async function sendTicketMessage(
       error: `unknown template ${message.template}`,
     };
   }
+
+  // **The HTML part is rendered after the text and never from it** — ADR-041. `null` for a
+  // template the skin has no design for, which today is `ticket_refunded`: that message sends
+  // as text alone rather than not at all.
+  const html = renderTicketEmailHtml(message, banner !== null);
 
   let response: Response;
 
@@ -99,6 +133,22 @@ async function sendTicketMessage(
         reply_to: message.replyTo,
         subject: body.subject,
         text: body.text,
+        // **Both omitted rather than sent as null.** Resend's own validation rejects a null
+        // `html`, and an empty `attachments` array is a multipart boundary for nothing — the
+        // same shape `email.ts` settled on for the race, and for the same reason.
+        ...(html === null ? {} : { html }),
+        ...(html === null || banner === null
+          ? {}
+          : {
+              attachments: [
+                {
+                  filename: banner.filename,
+                  content: banner.content,
+                  content_type: banner.contentType,
+                  content_id: banner.contentId,
+                },
+              ],
+            }),
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -159,6 +209,30 @@ export async function drainTicketOutbox(env: TicketOutboxEnv): Promise<void> {
     replyTo: 'info@southvillerunningclub.co.uk',
   };
 
+  // **Read once per social, not once per message.** Fifty confirmations for one party would
+  // otherwise be fifty reads of the same file, and a batch can hold more than one occasion.
+  const banners = new Map<string, BannerAttachment | null>();
+
+  async function bannerFor(slug: string): Promise<BannerAttachment | null> {
+    const cached = banners.get(slug);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const spec = SOCIAL_BANNERS[slug];
+    const attachment =
+      spec === undefined
+        ? null
+        : await fetchBannerAttachment(env.ASSETS, {
+            ...spec,
+            contentId: TICKET_BANNER_CONTENT_ID,
+          });
+
+    banners.set(slug, attachment);
+    return attachment;
+  }
+
   let sent = 0;
   let failed = 0;
   let rateLimited = false;
@@ -180,6 +254,7 @@ export async function drainTicketOutbox(env: TicketOutboxEnv): Promise<void> {
     const outcome = await sendTicketMessage(
       { ...config, replyTo: message.replyTo || config.replyTo },
       message,
+      await bannerFor(message.socialSlug),
     );
 
     if (outcome.ok) {

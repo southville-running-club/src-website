@@ -38,6 +38,11 @@
 
 import { formatPence, type OutboxMessage } from '@src/shared';
 import { renderEntryEmailHtml, BANNER_CONTENT_ID } from './email-skin';
+import {
+  fetchBannerAttachment as fetchBanner,
+  type BannerAttachment,
+  type BannerSpec,
+} from './email-attachment';
 
 /** What the Worker needs before it can send anything at all. */
 export interface EmailConfig {
@@ -61,79 +66,25 @@ export interface EmailConfig {
   bannerAttachment: BannerAttachment | null;
 }
 
-/** One inline image, shaped for Resend's `attachments` field. */
-export interface BannerAttachment {
-  filename: string;
-  /** Base64, no `data:` prefix — Resend's own field, not a browser `<img>` `src`. */
-  content: string;
-  contentType: string;
-  contentId: string;
-}
-
 /**
- * Reads the banner PNG from the Worker's own static-assets binding and returns it ready to
- * attach — never throws, and `null` on any failure, because a missing banner must degrade to
- * a card with no banner row rather than block the confirmation a runner is waiting for.
+ * Which file the race emails attach, and what `email-skin.ts` calls it.
  *
- * **Fetched from `ASSETS`, not a remote URL.** ADR-026 closed the open-tracker question this
- * way: the banner ships as part of the message rather than as an `https://` reference, so no
- * mail client ever makes an HTTP request to render it, and there is nothing for that request
- * to disclose. `card()` in `email-skin.ts` references it as `cid:${BANNER_CONTENT_ID}` — the
- * two constants have to name the same file, which is why `BANNER_CONTENT_ID` is imported
- * rather than restated here.
- *
- * The host in the request URL is never resolved — `ASSETS.fetch()` serves the Worker's own
- * bundled files by path alone, the same binding `worker/index.ts`'s `nnPage()` reads through
- * for an internal request with nothing to build a real origin from.
+ * **The reading itself moved to `email-attachment.ts`** when the ticket confirmation gained a
+ * banner of its own (ADR-041). What stays here is the only part that is the race's: which file.
+ * `BANNER_CONTENT_ID` is imported from the skin rather than restated, so the `cid:` in the
+ * markup and the id on the attachment cannot drift apart.
  */
+const NN_BANNER: BannerSpec = {
+  filename: 'nn-email-banner-1080x566.png',
+  contentType: 'image/png',
+  contentId: BANNER_CONTENT_ID,
+};
+
+/** The race's banner, or null when it could not be read. See `email-attachment.ts`. */
 export async function fetchBannerAttachment(
   assets: Fetcher,
 ): Promise<BannerAttachment | null> {
-  let response: Response;
-
-  try {
-    response = await assets.fetch(
-      new Request('https://assets.internal/nn-email-banner-1080x566.png'),
-    );
-  } catch {
-    return null;
-  }
-
-  if (!response.ok) {
-    return null;
-  }
-
-  let bytes: ArrayBuffer;
-
-  try {
-    bytes = await response.arrayBuffer();
-  } catch {
-    return null;
-  }
-
-  return {
-    filename: 'nn-email-banner-1080x566.png',
-    content: base64(bytes),
-    contentType: 'image/png',
-    contentId: BANNER_CONTENT_ID,
-  };
-}
-
-/**
- * A byte-at-a-time loop rather than `String.fromCharCode(...bytes)` — the spread form
- * overflows the call stack on a buffer this size in some engines. `btoa` is a Web standard
- * available without `nodejs_compat`'s `Buffer`, which nothing in `worker/` has needed before
- * this and which this file's own header argues against reaching for a dependency to avoid.
- */
-function base64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary);
+  return fetchBanner(assets, NN_BANNER);
 }
 
 /**

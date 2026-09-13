@@ -42,9 +42,28 @@ export interface TicketOutboxMessage {
    * print the same characters.
    */
   reference: string;
+  /**
+   * Which social this is about — `christmas-party-2026`.
+   *
+   * **Kept rather than consumed into `reference` and discarded.** The drain picks the banner
+   * artwork by slug (ADR-041), because the artwork is per-occasion and a Christmas banner on a
+   * summer barbecue's confirmation is the failure a single hardcoded filename would guarantee.
+   */
+  socialSlug: string;
   socialName: string;
   /** Null when the committee has not confirmed a date. The template says so rather than lying. */
   socialDate: string | null;
+  /**
+   * The three below are read by the HTML part and by nothing else — ADR-041.
+   *
+   * **Each is nullable and each is rendered only when it is there**, for `socialDate`'s reason:
+   * a social can be sold before its room or its hours are settled, and a Where cell reading
+   * "null" is worse than one that is absent. `christmas-party-2026` itself shipped in exactly
+   * that state, with the venue supplied a day later.
+   */
+  venue: string | null;
+  startTime: string | null;
+  endTime: string | null;
   amountPence: number;
   quantity: number;
   purchaserName: string;
@@ -60,6 +79,13 @@ const messageShape = z.object({
   social_slug: z.string().min(1),
   social_name: z.string().min(1),
   social_date: z.string().nullable(),
+  // **`.nullish()` rather than `.nullable()`, and that is the rollback direction.** A Worker
+  // carrying this parse can meet a database that has not had the widening migration yet, where
+  // these three keys are absent rather than null — and a `.nullable()` would refuse the whole
+  // batch, which stops every ticket email rather than dropping three facts from one of them.
+  venue: z.string().nullish(),
+  start_time: z.string().nullish(),
+  end_time: z.string().nullish(),
   purchase_created_at: z.string().min(1),
   purchase_id: z.string().uuid(),
   amount_pence: z.number().int().min(0),
@@ -113,8 +139,14 @@ export async function claimTicketOutboxBatch(
         createdAt: value.purchase_created_at,
         purchaseId: value.purchase_id,
       }),
+      socialSlug: value.social_slug,
       socialName: value.social_name,
       socialDate: value.social_date,
+      // `?? null`, because `.nullish()` admits `undefined` from a database that predates the
+      // widening and the rest of this module deals in null.
+      venue: value.venue ?? null,
+      startTime: value.start_time ?? null,
+      endTime: value.end_time ?? null,
       amountPence: value.amount_pence,
       quantity: value.quantity,
       purchaserName: value.purchaser_name,
@@ -159,8 +191,19 @@ export async function recordTicketSendResult(
  * moving the Worker's copy here would put page-rendering concerns in the shared package. The
  * pair is asserted against each other in `tests/unit/ticket-email.test.ts`, so they cannot
  * drift silently — which is the property that actually matters.
+ *
+ * **Exported since ADR-041, because the HTML part needs the same string.** The two parts of one
+ * message may differ in presentation and may never differ in the facts they state, so the date
+ * is computed once here rather than twice — which is the same rule `formatPence()` and
+ * `formatEntryReference()` already carry, for the same reason.
+ *
+ * **Not `london-time.ts`, and that is not an exception to the repository-wide rule.** That
+ * module converts an *instant* — a `timestamptz` — into London's calendar, which is where an
+ * hour of drift can be introduced. `social_date` is a bare `date`: it names a day and carries
+ * no time and no zone, so there is nothing to convert and a zone conversion could only break
+ * it. Hence the arithmetic below on the three parsed parts, and never a `Date` in a zone.
  */
-function emailDate(date: string | null): string | null {
+export function ticketEmailDate(date: string | null): string | null {
   const parts = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(date ?? '');
 
   if (parts === null) {
@@ -226,7 +269,7 @@ export interface TicketEmail {
  * `Reply-To` on the message is the club's own address. See ADR-033.
  */
 export function ticketEmailBody(message: TicketOutboxMessage): TicketEmail {
-  const when = emailDate(message.socialDate);
+  const when = ticketEmailDate(message.socialDate);
   const occasion =
     when === null ? message.socialName : `${message.socialName} on ${when}`;
 
