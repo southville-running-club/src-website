@@ -1737,6 +1737,7 @@ export type Database = {
       }
       known_crossings: { Args: { p_event_slug: string }; Returns: Json }
       list_events: { Args: never; Returns: Json }
+      marshal_event: { Args: { p_event_slug: string }; Returns: Json }
       record_crossing: {
         Args: {
           p_anomaly_flag?: boolean

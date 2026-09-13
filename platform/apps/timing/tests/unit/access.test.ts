@@ -120,7 +120,12 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/registration/delete'],
     ['/events/nn-2026/registration/import/again'],
     ['/marshal'],
+    // ⚠️ **A third segment under `/marshal/` is only ever one of the two the capture screen
+    // calls** — #203 added `sync` and `known`, and every other spelling is still refused, which
+    // is the same property the event sections have and the same way widening it would go wrong.
     ['/marshal/nn-2026/extra'],
+    ['/marshal/nn-2026/record'],
+    ['/marshal/nn-2026/sync/again'],
     ['/leaderboard/nn-2026'],
     ['/admin'],
     ['/live/nn-2026'],
@@ -160,6 +165,8 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/hasOwnProperty'],
     ['/events/nn-2026/marshals/constructor'],
     ['/events/nn-2026/marshals/__proto__'],
+    ['/marshal/nn-2026/constructor'],
+    ['/marshal/nn-2026/toString'],
     ['/events/nn-2026/start/constructor'],
   ])('%s is not a row just because Object.prototype has one', (path) => {
     expect(surfaceFor(path)).toBeNull();
@@ -298,9 +305,52 @@ describe('who may open what', () => {
   });
 });
 
+describe('the two addresses the capture screen calls', () => {
+  /**
+   * #203. The screen is the only client either of them has, and that is exactly why they are
+   * asserted here: an address a page never links to is an address nobody notices is open.
+   */
+  it.each([['/marshal/nn-2026/sync'], ['/marshal/nn-2026/known']])(
+    '%s is gated, rather than being a hole beside a gated page',
+    (path) => {
+      expect(surfaceFor(path)).not.toBeNull();
+      expect(canOpen(MARSHAL, path)).toBe(true);
+      expect(canOpen(NN_ADMIN, path)).toBe(false);
+      expect(canOpen([], path)).toBe(false);
+    },
+  );
+
+  it('demands exactly what the screen that calls them demands', () => {
+    const screen = surfaceFor('/marshal/nn-2026');
+
+    for (const path of ['/marshal/nn-2026/sync', '/marshal/nn-2026/known']) {
+      expect(surfaceFor(path)?.permission, path).toBe(screen?.permission);
+    }
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/marshal/ptb-2026/sync')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/marshal/ptb-2026/known')?.eventSlug).toBe('ptb-2026');
+  });
+
+  it('resolves identically with the base path and with a trailing slash', () => {
+    const bare = surfaceFor('/marshal/nn-2026/sync');
+
+    expect(bare).not.toBeNull();
+    expect(surfaceFor('/timing/marshal/nn-2026/sync')).toEqual(bare);
+    expect(surfaceFor('/marshal/nn-2026/sync/')).toEqual(bare);
+  });
+});
+
 describe('the roster scope', () => {
-  it('is flagged on the marshal capture screen and nowhere else', () => {
-    expect(surfaceFor('/marshal/nn-2026')?.rosterScoped).toBe(true);
+  it('is flagged on the capture screen and the two addresses it calls, and nowhere else', () => {
+    for (const path of [
+      '/marshal/nn-2026',
+      '/marshal/nn-2026/sync',
+      '/marshal/nn-2026/known',
+    ]) {
+      expect(surfaceFor(path)?.rosterScoped, path).toBe(true);
+    }
 
     for (const path of ['/', '/events', '/events/nn-2026/crossings']) {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(false);

@@ -83,14 +83,19 @@ import { holdsPermissionFor, surfaceFor } from './lib/access';
  */
 const REFUSED_PATH = '/__refused';
 
+/** A Supabase client carrying this request's own session, or `null` if there is not one. */
+type PersonClient = ReturnType<typeof createUserClient>;
+
 /**
- * What this request's session holds, or `null` for every reason there is: no access token, a
- * deadline that is missing, unreadable or past, or a permission read that failed.
+ * The signed-in caller this request carries, or `null` for a session this door will not act
+ * on: no access token, or a `src_ax` deadline that is missing, unreadable or already past.
  *
- * `null` rather than an empty array, so "this person holds nothing" and "we could not find
- * out" cannot be confused by a caller. Both refuse, and only one is worth a log line.
+ * ⚠️ **One client for both reads, rather than one per question.** A `rosterScoped` address asks
+ * two things of the database and the second must be asked as the same person as the first;
+ * building the client twice from the same cookie would work and would be two places for that
+ * to stop being true.
  */
-async function permissionsOf(request: NextRequest): Promise<string[] | null> {
+function callerFor(request: NextRequest): PersonClient | null {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   if (!accessToken) {
     return null;
@@ -102,11 +107,19 @@ async function permissionsOf(request: NextRequest): Promise<string[] | null> {
   }
 
   const { env } = getCloudflareContext();
-  const asPerson = createUserClient(
+  return createUserClient(
     { url: env.PUBLIC_SUPABASE_URL, anonKey: env.PUBLIC_SUPABASE_ANON_KEY },
     accessToken,
   );
+}
 
+/**
+ * What this caller holds, or `null` when the read itself failed.
+ *
+ * `null` rather than an empty array, so "this person holds nothing" and "we could not find
+ * out" cannot be confused by a caller. Both refuse, and only one is worth a log line.
+ */
+async function permissionsOf(asPerson: PersonClient): Promise<string[] | null> {
   const { data, error } = await asPerson.rpc('my_permissions');
   if (error) {
     // A code and a message, never a row — the discipline `apps/main/worker/admin.ts` keeps,
@@ -122,6 +135,37 @@ async function permissionsOf(request: NextRequest): Promise<string[] | null> {
     : [];
 }
 
+/**
+ * Whether this caller is on that event's roster — ADR-036's scope, checked after the
+ * permission and never instead of it.
+ *
+ * ⚠️ **`marshal_event()` answers `null` for all three refusals** — no permission, no such
+ * event, not rostered — and this function does not try to tell them apart, because the door
+ * must not. All three are the ordinary 404, which is the only answer that does not disclose
+ * which slugs name a race.
+ *
+ * ⚠️ **`.schema('timing')` is not optional.** `createUserClient` pins `db.schema` to
+ * `identity`, which is what lets the permission read above be a bare `.rpc()`; a bare call
+ * here would look for `identity.marshal_event` and fail in a way that reads as a missing
+ * function. `lib/reads.ts` carries the whole class of bug.
+ *
+ * An error refuses, like every other unknown here. A marshal whose door read failed sees the
+ * 404 and tries again; the alternative — admitting on an error — is a door that opens during
+ * an outage.
+ */
+async function isRostered(asPerson: PersonClient, eventSlug: string): Promise<boolean> {
+  const { data, error } = await asPerson
+    .schema('timing')
+    .rpc('marshal_event', { p_event_slug: eventSlug });
+
+  if (error) {
+    console.error(`timing: roster read unavailable — ${error.code}: ${error.message}`);
+    return false;
+  }
+
+  return data !== null;
+}
+
 async function mayOpen(request: NextRequest): Promise<boolean> {
   // Asked **before** the session is read, because an address nobody has written a rule for is
   // refused whoever is asking, and there is no reason to call Supabase to find that out.
@@ -130,7 +174,12 @@ async function mayOpen(request: NextRequest): Promise<boolean> {
     return false;
   }
 
-  const permissions = await permissionsOf(request);
+  const asPerson = callerFor(request);
+  if (asPerson === null) {
+    return false;
+  }
+
+  const permissions = await permissionsOf(asPerson);
   if (permissions === null) {
     return false;
   }
@@ -139,22 +188,24 @@ async function mayOpen(request: NextRequest): Promise<boolean> {
     return false;
   }
 
-  // ⚠️ **An address whose roster scope is not yet enforceable is refused, not admitted.**
-  // ADR-036 makes `timing.marshals` a scope checked *after* the permission, and reading it as
-  // the marshal themselves needs a function that does not exist. The choice here is between
-  // admitting on the permission alone until then, and refusing until the second half exists.
-  // **Refusing is the only one that cannot be shipped by accident**: the other leaves a door
-  // that is open by omission, discovered when a marshal opens somebody else's event. It costs
-  // nothing today, because no page is served under `/timing/marshal/` at all.
+  // ⚠️ **The roster is a second check and never a substitute for the first.** ADR-036 makes
+  // `timing.marshals` a scope checked *after* the permission, for everybody — a `timing-admin`
+  // holds `timing.crossing.record` and is refused here on an event they are not rostered to,
+  // exactly as `record_crossing()` refuses them. They add themselves at
+  // `/timing/events/<slug>/marshals/`.
   //
-  // ⚠️ **This used to say #245 would replace the branch, and #245 did not.** That issue built
-  // the roster page's four functions, all behind `timing.marshal.assign`, which is an admin's
-  // permission — none of them answers *"am I on this roster"* for the marshal asking. The
-  // screen that needs that answer is
-  // [#203](https://github.com/southville-running-club/src-website/issues/203), and the read
-  // belongs with it. The `rosterScoped` flag exists so that removing this is a deliberate act
-  // rather than a line somebody deletes while passing.
-  return !surface.rosterScoped;
+  // ⚠️ **This branch used to refuse outright**, because nothing answered *"am I on this
+  // roster"* to the marshal asking — #245's four functions are all behind an admin's
+  // permission. #203's `timing.marshal_event()` is that read, and the second call is what a
+  // `rosterScoped` address costs. Every other address makes one call and is unaffected.
+  if (surface.rosterScoped) {
+    // A `rosterScoped` surface always names an event — `surfaceFor` only sets the flag on
+    // `/timing/marshal/<slug>/…`, where the slug is the second segment. Refusing a null is the
+    // safe reading of a shape that should not occur.
+    return surface.eventSlug !== null && (await isRostered(asPerson, surface.eventSlug));
+  }
+
+  return true;
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
@@ -179,6 +230,17 @@ export const config = {
    * Playwright waits on it before running anything — and a readiness check does not accept a
    * 404, so gating it would stop every test from starting. The `_next` and favicon exclusions
    * keep the gate off this Worker's own assets, which the refusal page itself needs to load.
+   *
+   * ⚠️ **`sw.js` and `manifest.webmanifest` are excluded because gating them breaks them
+   * silently** — #203. A refused request here is *rewritten* rather than errored, so a gated
+   * service worker would be served the not-found page's **HTML** with a 404: the browser
+   * refuses to register it, `navigator.serviceWorker.register()` rejects, and the capture
+   * screen's catch swallows it. The symptom is no symptom at all until a marshal reloads with
+   * no signal. Neither file discloses anything — the worker is static caching rules and the
+   * manifest is a name and a colour — and the page they cache is still behind this door.
    */
-  matcher: ['/', '/((?!health|_next/static|_next/image|favicon).*)'],
+  matcher: [
+    '/',
+    '/((?!health|sw\\.js|manifest\\.webmanifest|_next/static|_next/image|favicon).*)',
+  ],
 };

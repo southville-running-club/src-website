@@ -34,10 +34,14 @@
  * functions the *roster page* needs, and every one of them is behind `timing.marshal.assign` —
  * an admin's permission. The question this flag is about is a different one asked by a
  * different person: *"am I, a marshal holding only `timing.crossing.record`, on this event's
- * roster?"*. Nothing answers that, because the screen that would ask it is
- * [#203](https://github.com/southville-running-club/src-website/issues/203) and no page is
- * served under `/timing/marshal/` at all. Until then `rosterScoped` is carried and the caller
- * is what decides — see `middleware.ts`.
+ * roster?"*.
+ *
+ * **[#203](https://github.com/southville-running-club/src-website/issues/203) is what answers
+ * it**, with `timing.marshal_event()` — the same two checks `record_crossing()` makes, in the
+ * same order, returning the race a marshal may see or `null` for all three refusals. So
+ * `rosterScoped` is now a flag `middleware.ts` acts on rather than one it refuses on, and this
+ * module still performs no roster check: it says *that a roster check is owed*, and the door
+ * is the one place that makes it.
  */
 
 /**
@@ -126,6 +130,26 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
   },
 };
 
+/**
+ * The **third** segment under `/timing/marshal/<slug>/` — the two addresses the capture screen
+ * itself calls, rather than pages anybody navigates to.
+ *
+ * ⚠️ **These are `fetch` targets and they are gated by exactly the same table a page is**,
+ * which is the property worth stating out loud: the screen is the only client, but the address
+ * is on the public internet and an address nobody has written a row for is refused. Both
+ * demand the capture permission and both are `rosterScoped`, so the door makes the same two
+ * checks `record_crossing()` and `known_crossings()` make for themselves — three statements of
+ * one rule is one too many, and `packages/db/tests/timing.test.ts` holds the one that counts.
+ *
+ * `sync` is the drain: a POST of queued crossings. `known` is the reload reconcile: a GET of
+ * what this race already has, so a card that landed before the response was lost is retired
+ * rather than retried for ever.
+ */
+const MARSHAL_ACTIONS: Record<string, string> = {
+  sync: 'timing.crossing.record',
+  known: 'timing.crossing.record',
+};
+
 /** This application's own base path, as `next.config.ts` sets it. */
 const BASE_PATH = '/timing';
 
@@ -191,14 +215,26 @@ export function surfaceFor(pathname: string): TimingSurface | null {
     return { permission: ANY_TIMING_PERMISSION, eventSlug: null, rosterScoped: false };
   }
 
-  // `/timing/marshal/<slug>/` — the capture screen. The permission is not enough on its own.
+  // `/timing/marshal/<slug>/` and the two addresses its screen talks to. The permission is
+  // never enough on its own here — every one of them is `rosterScoped`.
   if (segments[0] === 'marshal') {
-    if (segments.length !== 2) {
+    if (segments.length === 1 || segments.length > 3) {
+      return null;
+    }
+
+    // A third segment is the screen's own address, looked up the way an event section's
+    // actions are: a spelling nobody wrote down is refused rather than opened.
+    const permission =
+      segments.length === 3
+        ? lookup(MARSHAL_ACTIONS, segments[2] ?? '')
+        : 'timing.crossing.record';
+
+    if (permission === undefined) {
       return null;
     }
 
     return {
-      permission: 'timing.crossing.record',
+      permission,
       eventSlug: segments[1] ?? null,
       rosterScoped: true,
     };

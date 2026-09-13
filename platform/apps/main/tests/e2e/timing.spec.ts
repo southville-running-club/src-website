@@ -1,13 +1,18 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import {
+  captureCrossings,
+  captureEventSlug,
+  clearCaptureEvent,
   clearRosterEvent,
   clearStartEvents,
   rosterEventSlug,
+  seedCaptureEvent,
   seedRosterEvent,
   seedStartEvents,
   seedTimingFixtures,
   startEventSlug,
+  CAPTURE_TEAM_NUMBER,
   START_FIXTURE_FINISHED_LONDON,
   START_FIXTURE_STARTED_LONDON,
   type StartFixtureState,
@@ -79,6 +84,9 @@ test.beforeAll(async ({}, testInfo) => {
   // #250's five runnings, likewise one set per project — `seedStartEvents`' header carries
   // the argument, and why these are re-created rather than seeded idempotently.
   await seedStartEvents(testInfo.project.name);
+  // #203's capture race. ⚠️ **After the staff**, because it looks the marshal up by address in
+  // order to put them on the roster.
+  await seedCaptureEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
@@ -104,6 +112,7 @@ test.beforeAll(async ({}, testInfo) => {
 test.afterAll(async ({}, testInfo) => {
   await clearRosterEvent(rosterEventSlug(testInfo.project.name));
   await clearStartEvents(testInfo.project.name);
+  await clearCaptureEvent(testInfo.project.name);
   await clearTimingStaff();
 });
 
@@ -1080,5 +1089,295 @@ test.describe('the entry list', () => {
     await page.goto(registrationPath(testInfo.project.name));
 
     await expectNoSidewaysScroll(page, 'the timing entry list at 320px');
+  });
+});
+
+/**
+ * The marshal capture screen — [#203](https://github.com/southville-running-club/src-website/issues/203),
+ * under [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+ * and [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+ *
+ * ⚠️ **The one surface here that genuinely cannot work without JavaScript**, and the only
+ * place on this platform where that is the answer rather than a defect: an offline queue in
+ * IndexedDB has nothing to degrade to. So most of this block is `@requires-js` — and the first
+ * test in it is the one that is *not*, because what a phone with no script is left with is the
+ * thing a marshal would actually have to act on.
+ *
+ * The rules themselves are `apps/timing/tests/unit/queue-state.test.ts`, which can reach a
+ * tenth retry in a millisecond. What is here is what only a browser can say: that a tap
+ * records a time, that the time survives being offline, and that the door is checked on the
+ * two addresses the screen calls as well as on the page.
+ */
+const capturePath = (project: string): string =>
+  `/timing/marshal/${captureEventSlug(project)}`;
+
+test.describe('who may open the capture screen', () => {
+  /**
+   * ⚠️ **The assertion ADR-036 exists for, and the only one that can tell a roster check from
+   * a permission check made twice.** `timing-admin` carries `timing.crossing.record` — so an
+   * admin refused this race is refused *by the roster*, which the fixture deliberately leaves
+   * them off. The old application let a global admin bypass it entirely.
+   */
+  test('a timing-admin who is not on this roster is refused, permission and all', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const path = capturePath(testInfo.project.name);
+
+    const shown = await page.goto(path);
+    expect(shown?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+    // ⚠️ **The half a page test cannot reach.** Only the POST records a crossing, and an
+    // address the screen is the sole client of is an address nobody notices is open.
+    const posted = await page.request.post(`${path}/sync`, {
+      data: {
+        crossings: [
+          {
+            id: '99999999-9999-4999-8999-999999999999',
+            bib: '147',
+            capturedAt: '2026-10-25T01:00:00.000Z',
+            anomalyFlag: false,
+            anomalyReason: null,
+          },
+        ],
+      },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+
+    expect((await page.request.get(`${path}/known`)).status()).toBe(404);
+  });
+
+  test('a signed-out visitor is refused all three', async ({ page }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this whole
+    // file signs in from, which is a `beforeAll` concern.
+    await page.context().clearCookies();
+    const path = capturePath(testInfo.project.name);
+
+    expect((await page.goto(path))?.status()).toBe(404);
+    expect((await page.request.get(`${path}/known`)).status()).toBe(404);
+    expect(
+      (
+        await page.request.post(`${path}/sync`, {
+          data: { crossings: [] },
+          maxRedirects: 0,
+        })
+      ).status(),
+    ).toBe(404);
+  });
+
+  /**
+   * ⚠️ **The positive case the two above would pass without.** Every address under `/timing`
+   * 404s to somebody who may not open it, and so does an address that does not exist — so a
+   * refusal test is worth nothing without this beside it.
+   */
+  test('a rostered marshal opens it', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+
+    const shown = await page.goto(capturePath(testInfo.project.name));
+    expect(shown?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      `Capture fixture ${testInfo.project.name}`,
+    );
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto('/timing/marshal/zz-no-such-race');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+});
+
+test.describe('the capture screen with no JavaScript', () => {
+  /**
+   * ⚠️ **The sentence has to be useful, not merely honest.** A marshal whose phone will not run
+   * the screen still has a race to time, and the recoverable outcome is a bib and a time on
+   * paper. "This needs JavaScript" on its own is of no use to somebody standing on a course.
+   *
+   * It runs in every project, deliberately: with scripting on it is what the server renders
+   * before the queue mounts, so it is also the thing somebody sees on a slow connection.
+   */
+  test('says what to do instead, rather than only that it cannot run', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    // The race's own facts are server-rendered and are true whatever happens to the bundle.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      `Capture fixture ${testInfo.project.name}`,
+    );
+    await expect(page.getByText(/Started at 25 October 2026 at 01:30 BST/)).toBeVisible();
+  });
+});
+
+test.describe('recording a crossing', () => {
+  /**
+   * ⚠️ **The whole point of the queue model, asserted as the sequence a marshal actually
+   * performs.** The button records the time; the bib is typed afterwards. At the line the
+   * scarce resource is the moment, not the marshal's attention — a screen that asked for a
+   * number first would put a text field between a person and an event that is already over.
+   */
+  test('records the time on the tap and takes the bib afterwards @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+
+    // A card exists, with a time on it, before any bib has been typed.
+    await expect(page.getByText('No bib yet')).toBeVisible();
+    await expect(page.getByText(/Crossed at \d\d:\d\d:\d\d/)).toBeVisible();
+
+    for (const digit of ['1', '4', '7']) {
+      await page.getByRole('button', { name: digit, exact: true }).click();
+    }
+    await expect(page.getByText('Bib 147')).toBeVisible();
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    // The queue empties once the crossing has landed, which is the screen's own statement that
+    // the club has it.
+    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const crossings = await captureCrossings(testInfo.project.name);
+    expect(crossings).toHaveLength(1);
+    expect(crossings[0]?.bib).toBe('147');
+    expect(crossings[0]?.anomaly_flag).toBe(false);
+    // The bib resolved to the fixture's team, which is what `1` + team number means on a relay.
+    expect(crossings[0]?.team_id).not.toBeNull();
+  });
+
+  /**
+   * ⚠️ **An anomaly flags and never blocks.** ADR-034 names it as a decision rather than an
+   * implementation detail, and it is the one a rewrite is most likely to "improve" by accident.
+   * The marshal is told what the club will make of the crossing *and Confirm is still the
+   * button*.
+   */
+  test('flags a leg-2 crossing with no handover, and records it anyway @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    for (const digit of ['2', '4', '7']) {
+      await page.getByRole('button', { name: digit, exact: true }).click();
+    }
+
+    await expect(page.getByText(/no handover recorded for team 47/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Confirm bib' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const crossings = await captureCrossings(testInfo.project.name);
+    const flagged = crossings.find((c) => c.bib === `2${CAPTURE_TEAM_NUMBER}`);
+    expect(flagged).toBeDefined();
+    expect(flagged?.anomaly_flag).toBe(true);
+  });
+
+  /**
+   * ⚠️ **The reason the whole queue exists, and the one test that would be worth writing if
+   * only one could be.** A marshal at Ashton Court with no signal is having an ordinary
+   * morning: the tap records, the card says so without reading as an error, and the crossing
+   * reaches the club when the signal does.
+   */
+  test('keeps a crossing through a signal gap and sends it afterwards @requires-js', async ({
+    page,
+    context,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+    // The screen has to have mounted before the network goes: it is a page, and a page needs
+    // one to arrive.
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    await context.setOffline(true);
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    for (const digit of ['1', '4', '7']) {
+      await page.getByRole('button', { name: digit, exact: true }).click();
+    }
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    // ⚠️ Not an error, and it must not read as one. The card says what being offline looks
+    // like and that the phone will keep trying.
+    await expect(page.getByText(/usually no signal/)).toBeVisible({ timeout: 15_000 });
+    expect(await captureCrossings(testInfo.project.name)).toHaveLength(0);
+
+    // ⚠️ **The queue is in IndexedDB and survives the page**, which is what makes a reload on a
+    // course safe. Keyed to the origin rather than to a session — #244 depends on that.
+    await page.reload();
+    await expect(page.getByText('Bib 147')).toBeVisible({ timeout: 15_000 });
+
+    await context.setOffline(false);
+    // The `online` event is what triggers an immediate drain; the thirty-second one is the net
+    // behind it, and waiting for that would make this test thirty seconds long.
+    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const crossings = await captureCrossings(testInfo.project.name);
+    expect(crossings.map((c) => c.bib)).toEqual(['147']);
+  });
+
+  /**
+   * A tap with no bib is a press nobody can attribute to a runner — two thumbs on one button,
+   * or a phone in a pocket. ⚠️ **Discard is offered on that and on nothing else**: a card that
+   * has a bib is a real time for a real runner, and cancelling a crossing is an admin's act on
+   * a different surface behind a different permission.
+   */
+  test('discards a stray tap, and offers no way to discard a real one @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await expect(page.getByText('No bib yet')).toBeVisible();
+    await page.getByRole('button', { name: 'Discard this tap' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
+    expect(await captureCrossings(testInfo.project.name)).toHaveLength(0);
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    // With a card open, so the keypad is on the page — the half a bare screen would not cover.
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await expect(page.getByText('No bib yet')).toBeVisible();
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(capturePath(testInfo.project.name));
+
+    // The keypad is the widest thing on this screen and its last key carries a word rather than
+    // a digit — which is exactly the track that would push a 320px page sideways.
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await expect(page.getByText('No bib yet')).toBeVisible();
+
+    await expectNoSidewaysScroll(page, 'the timing capture screen at 320px');
   });
 });

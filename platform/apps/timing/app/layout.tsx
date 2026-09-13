@@ -31,6 +31,25 @@ export const metadata: Metadata = {
   // `next/link` and nothing in `metadata`, which is what lets this point outside the app; the
   // Playwright assertion in `site.spec.ts` is what would catch that changing.
   icons: { icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }] },
+  /**
+   * The web app manifest — [#203](https://github.com/southville-running-club/src-website/issues/203).
+   *
+   * ⚠️ **`/timing/manifest.webmanifest` is written out in full for the reason the favicon
+   * above is not**: `basePath` prefixes `next/link` and nothing in `metadata`, so a bare
+   * `/manifest.webmanifest` would point at the club's Worker, which does not serve one. The
+   * file is `apps/timing/public/`, which Next serves under the base path.
+   *
+   * It exists so a marshal can put the capture screen on a home screen and open it as an
+   * application rather than a tab — which on a phone in a pocket, on a course, is the
+   * difference between a screen that survives and one that gets swiped away. `scope` and
+   * `start_url` are `/timing/`, matching the service worker's.
+   *
+   * ⚠️ **Its only icon is the club's SVG, and a PNG pair is owed.** Chrome accepts an SVG with
+   * `sizes: "any"`; iOS does not, and will use a screenshot of the page instead. Committing a
+   * 192px and a 512px PNG is what closes that, and it is artwork rather than code — it belongs
+   * with #256's runbook work, not invented here.
+   */
+  manifest: '/timing/manifest.webmanifest',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
