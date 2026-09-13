@@ -131,13 +131,27 @@ export default async function EventPage({
       </dl>
 
       {/*
-        ⚠️ **No section navigation, deliberately.** #247 asks this hub to show "the next action
-        and nothing that is not yet possible" — and none of the sections it would link to is
-        built: the entry list is #202, the roster page is #245, starting is #250, finishing is
-        #253, results are #205. Linking to them would be linking to 404s, which is precisely
-        the old application's bug: its marshal navigation carried a "Start" tab that 403'd every
-        marshal who tapped it. Each issue adds its own link here when its page exists.
+        ⚠️ **One link, and the rest are still deliberately absent.** #247 asks this hub to show
+        "the next action and nothing that is not yet possible", and linking to a page that does
+        not exist is precisely the old application's bug: its marshal navigation carried a
+        "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
+        so it is linked. The entry list is #202, starting is #250, finishing is #253 and
+        results are #205 — each adds its own link here when its page exists.
+
+        The link is unconditional because this address demands `timing.event.manage` and the
+        roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
+        `canOpen()` in `lib/access.ts` is what a conditional link would have to ask, and it
+        needs the viewer's permissions, which this page does not read — the door does. Showing
+        a link that 404s for somebody holding only one of the two would reintroduce exactly the
+        bug above, so **if the two permissions ever come apart in practice, this is the line
+        that has to learn to ask.** Today `timing-admin` carries both.
       */}
+      <h2>Set up</h2>
+
+      <p>
+        <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
+      </p>
+
       {event.editable ? null : (
         <p className="notice">
           This race has started, so its details can no longer be changed.

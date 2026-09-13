@@ -130,3 +130,62 @@ export async function clearTimingFixtures(): Promise<void> {
     ]);
   });
 }
+
+/**
+ * A running of its own for the roster tests to change, one per Playwright project — #245.
+ *
+ * ## ⚠️ Why these cannot share the fixtures above
+ *
+ * Every other timing fixture is **read**, and a read does not care who else is looking. A
+ * roster test **writes**: it puts somebody on a roster, asserts they are there, takes them off
+ * and asserts they are gone. `playwright.config.ts` runs `workers: 2` over three projects with
+ * `fullyParallel: false`, so the scheduling unit is one file in one project — which means
+ * `timing.spec.ts [chromium]` and `timing.spec.ts [no-javascript]` can be in flight at the
+ * same moment. Sharing one event between them is the `entries_open_at` race one schema along:
+ * `assign_marshal()` is idempotent and `unassign_marshal()` answers `not_on_roster` for
+ * somebody already removed, so the interleaving does not corrupt anything — it just makes one
+ * project occasionally assert against the other project's roster, which is a flake that
+ * reproduces on no laptop.
+ *
+ * **A row per project removes the race rather than managing it.** `timing.marshals` is keyed
+ * `(event_id, user_id)` and both functions are event-scoped, so two projects assigning the
+ * same person to two different events cannot see each other at all. That is cheaper than a
+ * third Playwright config and it needs no lock.
+ *
+ * The id is derived from the slug rather than stored in a table of constants, so adding a
+ * project to `playwright.config.ts` needs no edit here.
+ */
+export function rosterEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives: a slug of that shape can never
+  // be reached by `nnEventSlugForResultsPath`, so no results address can name one of these.
+  return `zz-roster-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/** Deterministic and invented, the way every id in this suite is. */
+function rosterEventId(slug: string): string {
+  let hash = 0;
+  for (const char of slug) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return `0c0c0c0c-0000-4000-8000-0000${hash.toString(16).padStart(8, '0')}`;
+}
+
+export async function seedRosterEvent(slug: string): Promise<void> {
+  await clearRosterEvent(slug);
+
+  await withClient(async (db) => {
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, $3, 'solo', '2099-11-01T11:00:00Z'::timestamptz)`,
+      [rosterEventId(slug), slug, `Roster fixture ${slug}`],
+    );
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearRosterEvent(slug: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [slug]);
+  });
+}

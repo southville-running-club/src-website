@@ -1709,12 +1709,26 @@ the platform is being **rewritten here** rather than moved, so what exists now i
 - the **`timing` schema** — six tables, RLS on with no policy (ADR-035);
 - the **pure logic**, ported with its assertions, in `packages/shared/src/timing/` — bibs,
   anomalies, results, awards, categories and the registration parser;
-- **`apps/timing`**, a holding page behind a `timing.*` permission (ADR-036, ADR-037);
+- **`apps/timing`**, no longer a holding page: `/timing/events/` lists the races and
+  `/timing/events/<slug>/` is one race's hub (#247), and `/timing/events/<slug>/marshals/` is
+  the roster (#245) — each address behind its **own** permission, mapped in
+  `apps/timing/lib/access.ts` and enforced in `middleware.ts`, never checked by the page
+  (ADR-036, ADR-037, and #243 for why a page here provably cannot refuse). ⚠️ **The roster page
+  is also the first thing under `/timing` that writes anything**, and the shape it set is a
+  plain `<form method="post">` answered by a route handler and a 303 — not a Server Action —
+  because every spec here runs in a `no-javascript` project; `EVENT_SECTION_ACTIONS` in that
+  same file is what gates the address a form posts to;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
-**What is genuinely not built is everything that touches a race as it happens**: nothing
-captures a crossing, there is no marshal or countdown screen, and no result is published to
-anybody. ⚠️ **The entry list is half done** — `timing.create_event()`,
+**What is genuinely not built is everything that touches a race as it happens**: there is no
+marshal capture screen and no countdown screen, and no result is published to anybody. ⚠️
+**"Nothing captures a crossing" is what this said, and it is now half wrong in the direction
+that matters** — `timing.record_crossing()` landed with #251, idempotent on the client's id,
+and like the import functions below it **nothing calls it**. The roster page (#245) is the
+marshal half that exists: it decides *who may* capture on a race, which is ADR-036's scope
+checked after the permission. The screen they would capture *on* is #203.
+
+⚠️ **The entry list is half done** — `timing.create_event()`,
 `timing.import_registration()` and `timing.event_roster()` exist behind
 `timing.event.manage` and `timing.registration.import`, so an entry list *can* be imported by
 something that calls them, and **nothing calls them yet**: the upload, preview and reconcile

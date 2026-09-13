@@ -1,6 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { clearTimingFixtures, seedTimingFixtures } from '../timing-db';
+import {
+  clearRosterEvent,
+  clearTimingFixtures,
+  rosterEventSlug,
+  seedRosterEvent,
+  seedTimingFixtures,
+} from '../timing-db';
 import { clearTimingStaff, seedTimingStaff } from '../timing-staff-db';
 import { TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL } from '../admin-fixtures';
 import { RESULTS_EVENT_NAME, RESULTS_EVENT_SLUG } from '../timing-fixtures';
@@ -41,15 +47,38 @@ const EVENTS = '/timing/events/';
  */
 const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 
-test.beforeAll(async () => {
+/**
+ * The roster tests write, so they get a running of their own **per Playwright project** —
+ * `timing-db.ts`'s `rosterEventSlug` carries the argument. The short of it: two projects of
+ * this file can be in flight at once, and a shared roster would make each occasionally assert
+ * against the other's writes.
+ */
+const rosterPath = (project: string): string =>
+  `/timing/events/${rosterEventSlug(project)}/marshals`;
+
+/*
+ * ⚠️ **`{}` is required by Playwright and rejected by ESLint, so the rule is turned off for
+ * exactly these two lines.** Playwright reads the *source* of a hook to work out which
+ * fixtures to set up, and refuses a first argument that is not a destructuring pattern —
+ * `First argument must use the object destructuring pattern: _fixtures`, thrown while listing
+ * tests, before anything runs. So the empty pattern is the API, not a style choice, and
+ * renaming it to `_fixtures` does not work. `testInfo` is the second argument and is what
+ * these hooks are actually after: the **project name**, which is what gives each Playwright
+ * project a roster event of its own — see `timing-db.ts`'s `rosterEventSlug`.
+ */
+// eslint-disable-next-line no-empty-pattern
+test.beforeAll(async ({}, testInfo) => {
   await seedTimingStaff();
   await seedTimingFixtures();
+  await seedRosterEvent(rosterEventSlug(testInfo.project.name));
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
 });
 
-test.afterAll(async () => {
+// eslint-disable-next-line no-empty-pattern
+test.afterAll(async ({}, testInfo) => {
+  await clearRosterEvent(rosterEventSlug(testInfo.project.name));
   await clearTimingFixtures();
   await clearTimingStaff();
 });
@@ -202,5 +231,167 @@ test.describe('one race', () => {
     await page.goto(EVENT);
 
     await expectNoSidewaysScroll(page, 'one timing race at 320px');
+  });
+});
+
+/**
+ * The marshal roster — [#245](https://github.com/southville-running-club/src-website/issues/245),
+ * under [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+ *
+ * ⚠️ **This is the first thing in `/timing` that changes anything**, so these are the first
+ * tests here that are about a write. Two properties are worth more than the rest and are
+ * asserted first: **the address the form posts to is gated exactly as the page is** — a POST
+ * that opens more widely than the page it came from changes a race's roster rather than merely
+ * disclosing one — and **every test in this block runs in the `no-javascript` project**, which
+ * is what holds the choice of a plain `<form method="post">` over a Server Action honest.
+ */
+test.describe('who may open the marshal roster', () => {
+  test('a timing-marshal is refused the page and the form it posts to', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const path = rosterPath(testInfo.project.name);
+
+    const shown = await page.goto(path);
+    expect(shown?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+    // ⚠️ **The half a page test cannot reach.** `timing.marshal.assign` is what both demand,
+    // and a marshal holds neither — but only the POST would actually change a roster, so it
+    // is asserted directly rather than inferred from the page beside it.
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'assign', person_id: '00000000-0000-4000-8000-000000000001' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+  });
+
+  test('a signed-out visitor is refused both', async ({ page }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the *cached jars* this
+    // whole file signs in from, which is a `beforeAll` concern and would make every test after
+    // this one authenticate again. The sibling test above uses the same call for that reason.
+    await page.context().clearCookies();
+    const path = rosterPath(testInfo.project.name);
+
+    expect((await page.goto(path))?.status()).toBe(404);
+
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'assign', person_id: '00000000-0000-4000-8000-000000000001' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+  });
+});
+
+test.describe('the marshal roster', () => {
+  test('opens to a timing-admin, and says nobody is on it yet', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+
+    const response = await page.goto(rosterPath(testInfo.project.name));
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
+    /*
+     * ⚠️ **The empty roster says *why* it matters, and that sentence is load-bearing.**
+     * ADR-036 checks the roster after the permission for everybody, so a `timing-admin` who
+     * is going to stand at the line is not on it by holding the role — and the old
+     * application's behaviour was the opposite. The first time anybody finds that out must
+     * not be on a start line.
+     */
+    await expect(page.getByText(/Nobody is on this roster yet/)).toBeVisible();
+    await expect(page.getByText(/adds themselves like anybody else/)).toBeVisible();
+  });
+
+  test("is linked from the race's own page", async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(EVENT);
+    await page.getByRole('link', { name: 'Marshals for this race' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
+    expect(new URL(page.url()).pathname).toBe(`${EVENT}/marshals`);
+  });
+
+  /**
+   * ⚠️ **One test for the whole round trip, deliberately.** Assigning and removing are two
+   * tests' worth of assertions and one test's worth of state: split in two, the second would
+   * depend on the first having run — which `fullyParallel` is free to stop being true — and
+   * neither would prove the pair. The round trip is also what a volunteer actually does.
+   */
+  test('puts somebody on the roster, and takes them off again', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(rosterPath(testInfo.project.name));
+
+    // The picker carries an address because `identity.people.name` is null for everybody
+    // until #61 — the roster deliberately does not, so the person reads as "No name recorded"
+    // once they are on it. `20260912110000`'s header argues both halves.
+    await page.selectOption('#person_id', { label: TIMING_MARSHAL_EMAIL });
+    await page.getByRole('button', { name: 'Add to this roster' }).click();
+
+    await expect(page.getByText('They are on the roster for this race.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'No name recorded' })).toBeVisible();
+
+    /*
+     * ⚠️ **ADR-036's rule, asserted where it is actually visible.** The person just added is
+     * no longer offered — the picker subtracts the roster — and the `timing-admin` doing the
+     * adding **still is**, because `timing-admin` carries `timing.crossing.record` and a
+     * roster is checked after the permission for everybody. The old application let a global
+     * admin bypass the roster entirely; if that ever comes back, this is the line that goes
+     * red.
+     */
+    await expect(
+      page.locator('#person_id option', { hasText: TIMING_MARSHAL_EMAIL }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('#person_id option', { hasText: TIMING_ADMIN_EMAIL }),
+    ).toHaveCount(1);
+
+    await page.getByRole('button', { name: /^Remove No name recorded/ }).click();
+
+    /*
+     * The sentence that stops somebody being put on a start line who is not on it, and the
+     * one `unassign_marshal()`'s own header promises: a roster change is not a deleted
+     * person, and what they recorded is untouched.
+     */
+    await expect(page.getByText(/off the roster for this race/)).toBeVisible();
+    await expect(page.getByText(/Anything they recorded is unchanged/)).toBeVisible();
+    await expect(page.getByText(/Nobody is on this roster yet/)).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **A refusal and a missing race are the same answer**, because `roster_for_event()`
+   * returns `null` for both so a slug cannot be probed for existence.
+   */
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/marshals');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(rosterPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(rosterPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing marshal roster at 320px');
   });
 });
