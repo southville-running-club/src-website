@@ -153,23 +153,27 @@ race's roster is refused, and the refusal is the site's ordinary 404 — byte fo
 genuinely missing address returns, because a 403 would disclose that the address exists. The
 fix is step 3, and it takes about fifteen seconds.
 
-⚠️ **What is true today, 13 September 2026: there is no page under `/timing/marshal/` at
-all.** The capture screen is
-[#203](https://github.com/southville-running-club/src-website/issues/203) and it is not
-built. `middleware.ts` refuses that address **outright**, for everybody, including a marshal
-who *is* on the roster — because nothing yet answers the question *"am I, a marshal holding
-only `timing.crossing.record`, on this event's roster?"*. The four functions
-[#245](https://github.com/southville-running-club/src-website/issues/245) built are all
-behind `timing.marshal.assign`, which is an admin's permission, so none of them is that
-answer.
+⚠️ **This said "there is no page under `/timing/marshal/` at all" until 13 September 2026,
+and the capture screen is built now** —
+[#203](https://github.com/southville-running-club/src-website/issues/203). Until that day
+`middleware.ts` refused the address **outright**, for everybody, including a marshal who *was*
+on the roster, because nothing answered the question *"am I, a marshal holding only
+`timing.crossing.record`, on this event's roster?"* — the four functions
+[#245](https://github.com/southville-running-club/src-website/issues/245) built are all behind
+`timing.marshal.assign`, which is an admin's permission. `timing.marshal_event()` is that
+answer now, and step 3 is what decides it.
 
-Refusing rather than admitting on the permission alone is deliberate: the other choice
-leaves a door open by omission, and it is discovered when a marshal opens somebody else's
-race. It costs nothing today, because there is nothing behind it.
+**So step 3 is the one that has a visible effect on race morning.** A marshal who is granted
+the role and left off the roster gets the same 404 as somebody who was never granted anything,
+and the only way to tell from the outside is to work down this runbook.
 
-**So do step 3 anyway.** The roster row is real, it is what the capture screen will check,
-and building the roster is the half that can be done before race morning. What cannot be
-tested yet is a marshal opening the screen, because the screen does not exist.
+⚠️ **A marshal already on the screen who is taken off the roster is not told which it was.**
+The refusal is the same 404 whether a session lapsed or a roster row was deleted — deliberately,
+because the door must not be an oracle — so the screen says *"either you have been signed out,
+or you have been taken off this race's marshal list"*. **Nothing they have recorded is lost**:
+the queue lives in IndexedDB on the phone, keyed to the origin rather than to the session, and
+it drains once they are let back in. If somebody reports that sentence, check step 3 before
+assuming it is a sign-in problem.
 
 ---
 
@@ -191,7 +195,7 @@ enforces it.
 | `/timing/events/` | `timing.event.manage` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/` | `timing.event.manage` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/marshals/` | `timing.marshal.assign` | ❌ | ❌ | ✅ |
-| `/timing/marshal/<slug>/` | `timing.crossing.record` **and a roster row** | ❌ | ❌ — **nothing is served here yet**, see above | ❌ — same |
+| `/timing/marshal/<slug>/` | `timing.crossing.record` **and a roster row** | ❌ | ✅ **on a race they are rostered for**, ❌ on any other | ❌ unless rostered — the permission is not enough, see above |
 | `/admin/` and everything under it | a staff role | ❌ | ❌ | ❌ |
 | `/nn/<year>/results/` | `nn.results.read` | ❌ | ❌ | ❌ |
 

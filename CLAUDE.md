@@ -1737,17 +1737,43 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   is **refused the moment any crossing exists**, because a split is measured against
   `coalesce(actually_started_at, start_at)`. A clock reaching zero starts nothing — `now()` is
   stored and `start_at` is never read;
+- **`/timing/marshal/<slug>/`** — the capture screen (#203), behind `timing.crossing.record`
+  **and** a `timing.marshals` row for that race. ⚠️ **It is the one surface on this platform
+  that genuinely needs JavaScript**, because an offline queue in IndexedDB has nothing to
+  degrade to — so its no-script fallback is a *sentence*, server-rendered, telling a marshal to
+  write the bib and the time on paper. **The queue model is the decision everything else
+  follows from**: a full-width button timestamps immediately and the bib is typed afterwards on
+  a keypad, because at the line the scarce resource is the moment rather than the marshal's
+  attention. An anomaly **flags and never blocks**, frozen at confirm time and never recomputed.
+  The rules are pure and unit-tested in `apps/timing/lib/queue-state.ts` — `RETRY_CAP = 10`, a
+  thirty-second drain, `failed` as a state of its own so an offline tap never looks like an
+  error, and a reload reconcile that reads the ids back rather than guessing. ⚠️ **Nothing the
+  database says is ever rendered on a card**: `lib/sync-outcomes.ts` picks the club's own
+  wording, which is what the old application's `[object Object]` came from. The browser never
+  holds an access token — it posts to `…/sync` on the timing Worker, which calls
+  `record_crossing()` with the cookie session (#244) — and `public/sw.js` caches the screen so a
+  reload with no signal does not strand somebody on a course;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
 
-**What is genuinely not built is everything that touches a race as it happens**: there is no
-marshal capture screen, and no result is published to anybody. ⚠️ **"No countdown screen" is
-what this said until #250**, which built one — and the same paragraph's next sentence had
-already gone stale once, which is the pattern rather than the exception. ⚠️
-**"Nothing captures a crossing" is what this said, and it is now half wrong in the direction
-that matters** — `timing.record_crossing()` landed with #251, idempotent on the client's id,
-and like the import functions below it **nothing calls it**. The roster page (#245) is the
-marshal half that exists: it decides *who may* capture on a race, which is ADR-036's scope
-checked after the permission. The screen they would capture *on* is #203.
+**What is genuinely not built is what happens to a crossing after it is recorded**: nothing
+resolves an anomaly, nothing marks a DNS, DNF or DQ, nothing finishes a race, and no result is
+published to anybody. ⚠️ **"No countdown screen" is what this said until #250**, and **"there
+is no marshal capture screen" is what it said until #203** — twice in two days, which is the
+pattern rather than the exception. ⚠️ **"Nothing captures a crossing" was already half wrong
+before that**: `timing.record_crossing()` landed with #251 and nothing called it for a day.
+The roster page (#245) decides *who may* capture on a race, which is ADR-036's scope checked
+after the permission; #203 is what a rostered marshal captures *on*.
+
+⚠️ **The door stopped refusing `rosterScoped` addresses outright on 13 September 2026, and the
+flag is still there.** `middleware.ts` refused `/timing/marshal/…` on sight while nothing could
+answer *"am I on this roster"* for the marshal asking — #245's four roster functions are all
+behind `timing.marshal.assign`, an admin's permission. `timing.marshal_event()` is that read:
+the same two checks `record_crossing()` makes, in the same order, answering `null`
+indistinguishably for no permission, no such race and not rostered. It also carries the race's
+`format`, because a relay bib is read leg-first and a solo bib whole, and a screen that guessed
+would flag the wrong crossings. ⚠️ **A refusal at that door reaches the screen as a 404
+carrying HTML**, which is what a lapsed session and an un-rostered marshal both look like — so
+the sentence the screen shows names both possibilities rather than guessing between them.
 
 ⚠️ **The entry list is built as of #202**, at `/timing/events/<slug>/registration/` behind
 `timing.registration.import`: the club's own entries import in one press
