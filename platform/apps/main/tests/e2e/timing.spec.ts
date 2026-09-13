@@ -1626,8 +1626,18 @@ test.describe('the triage list', () => {
       ),
     ).toBeVisible();
 
-    // The clean capture is not a question and is not here.
-    await expect(page.getByText(`Bib ${ANOMALY_TEAM_NUMBER}`)).toHaveCount(1);
+    /*
+     * The clean capture is not a question and is not here — asserted as the number of cards
+     * rather than as the number of times a bib appears.
+     *
+     * ⚠️ **`getByText('Bib 311')` matched twice and the second match was the anomaly's own
+     * reason.** Playwright's `getByText` with a plain string is a **case-insensitive substring**
+     * match, so it found the `Bib 311` on the card *and* the "Duplicate bib 311 — already
+     * captured at 11:20:00" the marshal's screen wrote. Here that failed loudly; the direction
+     * to worry about is the other one, where a substring assertion passes on markup that does
+     * not say what the test thinks it says.
+     */
+    await expect(page.locator('.triage-card')).toHaveCount(2);
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {
