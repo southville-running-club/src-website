@@ -1125,11 +1125,13 @@ const capturePath = (project: string): string =>
  *
  * `147` and `247` are leg 1 and leg 2 of the fixture's team, so they resolve to it. `299` is
  * leg 2 of a team that does not exist — which is what makes it permanently a *leg 2 with no
- * handover*, because no test writes `199` and none ever should.
+ * handover*, because no test writes `199` and none ever should. `288` is the same shape and is
+ * the reload test's, so the two offline tests cannot see each other's card after a restore.
  */
 const BIB_LANDS = `1${CAPTURE_TEAM_NUMBER}`;
 const BIB_NO_HANDOVER = '299';
 const BIB_OFFLINE = `2${CAPTURE_TEAM_NUMBER}`;
+const BIB_RELOAD = '288';
 
 /** The keypad, pressed a digit at a time — which is the only way a bib is typed on this screen. */
 const typeBib = async (page: Page, bib: string): Promise<void> => {
@@ -1318,16 +1320,83 @@ test.describe('recording a crossing', () => {
    * only one could be.** A marshal at Ashton Court with no signal is having an ordinary
    * morning: the tap records, the card says so without reading as an error, and the crossing
    * reaches the club when the signal does.
+   *
+   * ⚠️ **The wait after the signal returns has to be longer than the drain's own period, and
+   * that is deliberate rather than slack.** Coming back online fires an `online` event and the
+   * screen drains on it — but an *emulated* network's event delivery is the harness's
+   * behaviour, not the product's, and a test that depended on it would be asserting Playwright.
+   * The thirty-second drain is the guarantee the club actually ships, so the window is wide
+   * enough for it and the test passes on whichever path gets there first.
    */
   test('keeps a crossing through a signal gap and sends it afterwards @requires-js', async ({
     page,
     context,
   }, testInfo) => {
+    // Longer than the 30s default, because the assertion below deliberately waits out a
+    // thirty-second drain. See the header.
+    test.setTimeout(120_000);
+
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     await page.goto(capturePath(testInfo.project.name));
     // The screen has to have mounted before the network goes: it is a page, and a page needs
     // one to arrive.
     await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    await context.setOffline(true);
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, BIB_OFFLINE);
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    // ⚠️ Not an error, and it must not read as one. The card says what being offline looks
+    // like and that the phone will keep trying.
+    await expect(page.getByText(/usually no signal/)).toBeVisible({ timeout: 15_000 });
+    expect(
+      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
+    ).toBe(false);
+
+    await context.setOffline(false);
+    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+      timeout: 45_000,
+    });
+
+    expect(
+      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
+    ).toBe(true);
+  });
+
+  /**
+   * The service worker's half — [#203](https://github.com/southville-running-club/src-website/issues/203)
+   * says to rehearse the upgrade path rather than assume it, and this is the part of it a
+   * browser can assert.
+   *
+   * ⚠️ **A marshal whose tab reloads with no signal gets the browser's offline error page
+   * unless something serves it**, with two hours of a race left to run — their crossings safe
+   * and unreachable, which is not meaningfully better than losing them. So this asserts both
+   * halves at once: the page comes back at all, and the queue comes back with it out of
+   * IndexedDB, keyed to the origin rather than to a session (which is what
+   * [#244](https://github.com/southville-running-club/src-website/issues/244) depends on).
+   *
+   * ⚠️ **Skipped on WebKit, and the reason is the harness rather than the product — but that
+   * is not the same as knowing it works.** Playwright's WebKit answers `page.reload: WebKit
+   * encountered an internal error` while the context is offline; it is a GTK/WPE build rather
+   * than Safari, and whether a real iPhone does the same thing is **not known from here**.
+   * Every marshal at this race will be holding a phone, so that is not a question to leave to
+   * a test runner: it belongs in #207's checklist as a rehearsal on a real device, and this
+   * comment is the honest half of it rather than a green tick.
+   */
+  test('comes back after a reload with no signal, queue and all @requires-js', async ({
+    page,
+    context,
+    browserName,
+  }, testInfo) => {
+    test.skip(
+      browserName === 'webkit',
+      "Playwright's WebKit errors on any reload while the context is offline — see the header; #207 rehearses this on a real device",
+    );
+
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
 
     /*
      * ⚠️ **Waiting for the screen to say it is cached, rather than for a length of time.** A
@@ -1346,36 +1415,17 @@ test.describe('recording a crossing', () => {
     await context.setOffline(true);
 
     await page.getByRole('button', { name: 'Crossed now' }).click();
-    await typeBib(page, BIB_OFFLINE);
+    await typeBib(page, BIB_RELOAD);
     await page.getByRole('button', { name: 'Confirm bib' }).click();
-
-    // ⚠️ Not an error, and it must not read as one. The card says what being offline looks
-    // like and that the phone will keep trying.
     await expect(page.getByText(/usually no signal/)).toBeVisible({ timeout: 15_000 });
-    expect(
-      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
-    ).toBe(false);
 
-    /*
-     * ⚠️ **Two properties at once, and both of them are the point of this issue.** The page
-     * comes back at all — which is the service worker, and the difference between a marshal who
-     * can carry on and one holding a browser error page with two hours of race left — and the
-     * queue comes back with it, out of IndexedDB, keyed to the origin rather than to a session.
-     * #244 depends on the second.
-     */
     await page.reload();
-    await expect(page.getByText(`Bib ${BIB_OFFLINE}`)).toBeVisible({ timeout: 20_000 });
 
-    await context.setOffline(false);
-    // The `online` event is what triggers an immediate drain; the thirty-second one is the net
-    // behind it, and waiting for that would make this test thirty seconds long.
-    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+    // The page itself came back — that is the service worker — and so did the card.
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible({
       timeout: 20_000,
     });
-
-    expect(
-      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
-    ).toBe(true);
+    await expect(page.getByText(`Bib ${BIB_RELOAD}`)).toBeVisible({ timeout: 20_000 });
   });
 
   /**

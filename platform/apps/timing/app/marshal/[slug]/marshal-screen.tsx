@@ -267,15 +267,20 @@ export function MarshalScreen({
           setDoorRefused(false);
 
           if (!response.ok) {
-            // A 400 is a body this route would not take and a 5xx is an outage; neither is a
-            // per-row answer, so every card in the batch gets the same one.
-            const wording =
-              response.status >= 500 ? SYNC_UNAVAILABLE : refusalWording('refused');
-            outcomes = batch.map((card) => ({
-              id: card.id,
-              state: 'refused' as const,
-              reason: wording,
-            }));
+            // ⚠️ **A 5xx stays `unavailable` and a 4xx becomes `refused`, and the difference is
+            // not cosmetic.** An outage is retried on the drain and reads as "no signal"; a
+            // refusal is a card somebody has to do something about. The first version of this
+            // put club wording in `reason` and it was then passed through `refusalWording()` a
+            // second time on the way to the card, which does not recognise its own output — so
+            // an outage rendered as the generic refusal sentence.
+            outcomes =
+              response.status >= 500
+                ? batch.map((card) => ({ id: card.id, state: 'unavailable' as const }))
+                : batch.map((card) => ({
+                    id: card.id,
+                    state: 'refused' as const,
+                    reason: 'refused',
+                  }));
           } else {
             const body = (await response.json()) as { results?: SyncOutcome[] };
             outcomes = Array.isArray(body.results) ? body.results : [];
@@ -302,13 +307,14 @@ export function MarshalScreen({
             return [];
           }
 
+          // ⚠️ **The database's `reason` selects a sentence and is never itself one.** Every
+          // path into this line carries a machine-readable reason, which is what
+          // `lib/sync-outcomes.ts` is a table of — see its header for the `[object Object]`
+          // this replaces.
           const wording =
             outcome.state === 'unavailable'
               ? SYNC_UNAVAILABLE
-              : // ⚠️ The `!response.ok` branch above already put club wording in `reason`;
-                // `refusalWording` is idempotent over its own sentences because an unknown
-                // string falls through to the general one, which is what that wording is.
-                refusalWording(outcome.reason);
+              : refusalWording(outcome.reason);
 
           return [syncFailed(card, wording)];
         });
