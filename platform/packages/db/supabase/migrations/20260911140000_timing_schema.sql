@@ -1,6 +1,6 @@
 -- The race-timing model, written rather than moved.
 --
--- [ADR-035](../../../../docs/architecture/decisions/adr-035-the-timing-schema-joins-this-project.md).
+-- [ADR-035](../../../../../docs/architecture/decisions/adr-035-the-timing-schema-joins-this-project.md).
 -- Six tables, every one of them new, in a schema that did not exist a moment ago.
 --
 -- =========================================================================================

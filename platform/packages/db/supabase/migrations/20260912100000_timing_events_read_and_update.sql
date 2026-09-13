@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue #247, under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
 -- `20260912090000` added `create_event()` and said, in its own comment, that editing a running
 -- "is its own decision and its own function". This is that function, and the two reads the
 -- events hub needs before it can show anything at all.

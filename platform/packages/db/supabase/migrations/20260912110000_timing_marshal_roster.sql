@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue #245, under
--- [ADR-036](../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+-- [ADR-036](../../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
 -- `timing.marshals` shipped with row-level security on, no policy, and nothing that reads or
 -- writes it; `timing.marshal.assign` existed and gated nothing. This is both halves.
 --

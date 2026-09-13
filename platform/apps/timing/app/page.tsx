@@ -21,7 +21,7 @@
  *
  * No date, and no promise about when capture or results will work. The rewrite is gated on a
  * full manual race simulation —
- * [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+ * [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
  * — and a date written here before that passes is a claim this repository is not in a position
  * to make.
  */

@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue #248, under
--- [ADR-039](../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md).
+-- [ADR-039](../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md).
 -- The first function on this platform to read across two application schemas.
 --
 -- ## Why a function and not the CSV round trip

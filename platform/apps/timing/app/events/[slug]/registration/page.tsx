@@ -22,7 +22,7 @@ import {
  *
  * ## ⚠️ Two ways in, and the CSV is no longer the important one
  *
- * [ADR-039](../../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md)
+ * [ADR-039](../../../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md)
  * changed what this screen is for. Nightingale Nightmare's roster is in `entries`, in this
  * same database, and crosses by `timing.import_from_entries()` — **the deciding argument was
  * the date of birth**, which a CSV round trip would put in a file and this one never lets

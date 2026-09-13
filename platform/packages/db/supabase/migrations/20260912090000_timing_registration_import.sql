@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue #202, under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
 -- The `timing` schema shipped with row-level security on and **no policy at all**, which is
 -- the safe direction and also means nothing can write a row. This is the write path.
 --
@@ -25,7 +25,7 @@
 -- in `packages/shared/src/timing/registration/parser.ts` drops them at the boundary and
 -- computes `age_on_day` against the race date, and the CSV's own `AgeOnDay` column is ignored
 -- in favour of computing it. That is
--- [C10](../../../../docs/foundations/requirements.md#c10--hold-personal-data-lawfully) and it
+-- [C10](../../../../../docs/foundations/requirements.md#c10--hold-personal-data-lawfully) and it
 -- is the same sentence as *personal data is minimised at the boundary*.
 --
 -- These functions read **named keys only**. A caller that posts `date_of_birth` straight at

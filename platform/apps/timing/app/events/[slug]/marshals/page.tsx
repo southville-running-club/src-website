@@ -7,7 +7,7 @@ import { outcomeFor } from '../../../../lib/marshal-outcomes';
  * `/timing/events/<slug>/marshals/` — who is standing at the line for one race.
  *
  * Issue [#245](https://github.com/southville-running-club/src-website/issues/245), under
- * [ADR-036](../../../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
+ * [ADR-036](../../../../../../../docs/architecture/decisions/adr-036-timing-staff-are-identity-permissions.md).
  * Behind `timing.marshal.assign`; `lib/access.ts` maps it and `middleware.ts` enforces it.
  * ⚠️ **This page does not gate itself** — see `app/page.tsx`'s header for the measurement that
  * settled that.
