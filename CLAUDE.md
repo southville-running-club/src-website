@@ -582,6 +582,17 @@ too, for the opposite reason.** `trailingSlash` is `'always'`, so a page at
 apart, no error and no failing test, and a runner looking for the club's advice on training
 gets a database report. This is a running club; `/health/` is a page somebody will want.
 
+**A stale `.next/types` fails `npm run typecheck` on a route that is perfectly correct, and
+CI cannot reproduce it.** Next generates a union of the app's routes at build time, and
+`<Link href>` is checked against it. Add a page under `apps/timing/app/` and link to it without
+rebuilding, and `tsc` says
+`Type '`/events/${string}/start`' is not assignable to type 'UrlObject | RouteImpl<…>'` — about
+a route that exists, from a link that is right. **With no `.next/types` at all the check is
+permissive**, which is why CI — a fresh checkout that lint-and-typechecks *before* it builds —
+goes green on the same commit, and why `./dev check`, which also does not build, only fails on
+a machine that has built once before. `npm run build:next --workspace apps/timing` and run it
+again. The tell is that the type it refuses and the type it wants read identically.
+
 **An ambient `NODE_ENV=development` breaks the Next.js build**, reporting it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.

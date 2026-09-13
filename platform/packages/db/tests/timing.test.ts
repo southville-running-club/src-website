@@ -2220,6 +2220,21 @@ describe('starting a race', () => {
     );
   }
 
+  /**
+   * ⚠️ **Call this before reading a `timing` table back, and the suite fails loudly if you
+   * forget.** `authenticated` holds **no grant on any table** in `timing` — the property the
+   * grant block a long way above asserts — so a verification read left under the impersonated
+   * role answers `permission denied for table events`, which reads as a broken function and is
+   * not one. #265 paid for this once; these three tests paid for it again.
+   *
+   * The role is set transaction-locally by `actAs`, so this only has to undo it for reads that
+   * happen inside the same transaction as the call being verified.
+   */
+  async function stopActing(client: Client): Promise<void> {
+    await client.query("select set_config('role', 'postgres', true)");
+    await client.query("select set_config('request.jwt.claims', null, true)");
+  }
+
   const startAs = (person: string, slug: string) =>
     asPerson<Answer>(person, 'select timing.start_event($1) as answer', [slug]);
 
@@ -2362,6 +2377,7 @@ describe('starting a race', () => {
          * scheduled time would be a long way out — which is the assertion, rather than the
          * tolerance.
          */
+        await stopActing(db);
         const { rows } = await db.query<{ gap: string; scheduled: string }>(
           `select extract(epoch from (now() - actually_started_at))::text as gap,
                   extract(epoch from (actually_started_at - start_at))::text as scheduled
@@ -2451,6 +2467,7 @@ describe('starting a race', () => {
         // the race started, and a second row is a second candidate answer to that question.
         await db.query('select timing.start_event($1)', [PENDING_SLUG]);
 
+        await stopActing(db);
         const { rows } = await db.query<{
           actor_id: string;
           detail: { event_slug: string };
@@ -2530,6 +2547,7 @@ describe('starting a race', () => {
         );
 
         // And one audit row, naming the person whose press actually set the clock.
+        await stopActing(db);
         const { rows: audit } = await db.query<{ actor_id: string }>(
           `select actor_id from timing.admin_actions
             where event_id = $1 and action = 'race_started'`,
@@ -2565,6 +2583,7 @@ describe('starting a race', () => {
 
         // ⚠️ **The audit row carries the value that was thrown away**, because the column it
         // came out of is now null and this is the only place it still exists.
+        await stopActing(db);
         const { rows: audit } = await db.query<{
           actor_id: string;
           detail: { was_started_at: string };
