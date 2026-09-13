@@ -112,9 +112,32 @@ Do not skip this. Until a real Stripe delivery has been seen to reach `paid`, th
 step 0.2 is unproven — and a wrong digest looks exactly like a working system right up until
 somebody pays.
 
-Send a test event from the Stripe dashboard and check the Worker log. **A `503 not configured`
-means a secret is missing; a `400 signature` means the wrong signing secret.** Both are safe
-failures: Stripe retries for three days.
+Send a test event from the Stripe dashboard and check the Worker log. Every answer is in this
+table, and the **body** is what distinguishes them — `wrangler tail` prints the Worker's outcome
+(`Ok`) rather than the status, so read the endpoint's own **Event deliveries** tab, or the log
+line the Worker writes beside each.
+
+| Response | Log line | What it means |
+| --- | --- | --- |
+| **200 `no such session`** | `store: checkout.session.completed … → no_such_session` | ✅ **The pass for a test event.** The signature verified, the key was accepted, and there is no purchase with that session id — which is correct, because the test payload invents one. This is the only answer that proves *both* keys |
+| **200 `paid`** | `… → paid` | A real purchase, recorded |
+| **200 `already_paid`** | `… → already_paid` | A retry of one already recorded. Stripe retries for three days; this is a success |
+| **200 `not paid`** | `Store webhook completed session was not paid` | The session carried `payment_status` other than `paid`. Should not happen while only cards are enabled |
+| **400 `signature`** | `Store webhook signature rejected — …` | Wrong signing secret — commonly the race endpoint's, or an endpoint created in **test** mode against live keys |
+| **503 `not configured`** | `… with no STORE_STRIPE_WEBHOOK_SECRET bound` | A secret is missing, or went to the wrong Worker — check `--env production --config apps/main/wrangler.jsonc` |
+| **503 `retry unavailable`** | `store.record_checkout_event unavailable — bad_key` | The `stripe` digest in `store.api_secrets` does not match `STORE_WEBHOOK_KEY`. Redo step 0.2 |
+
+Every failure above is safe: Stripe retries for three days, which outlives any fix.
+
+⚠️ **`503 retry unavailable` meant two different things until 13 September 2026**, and only one
+of them was a credential problem. `store.record_checkout_event()` answered `ok = false` for an
+unrecognised session as well as for a refused key, and the Worker reported both as `bad_key` —
+so the endpoint's own test event produced a log line naming a digest that was perfectly correct,
+and Stripe retried for three days on something that could never succeed. Fixed by
+`20260913230000`, which makes an unrecognised session `(true, 'no_such_session')` — matching
+what `entries.record_checkout_event()` has always answered. **On a Worker or a database older
+than that, read a `retry unavailable` from a test event as "signature verified, step 0.2
+unproven" rather than as a wrong digest.**
 
 ---
 

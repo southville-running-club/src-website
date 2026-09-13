@@ -444,12 +444,19 @@ export async function recordTicketCheckoutEvent(
     return { ok: false, result: 'unavailable', error: 'The answer did not parse' };
   }
 
-  if (!parsed.data.ok) {
-    return { ok: false, result: 'bad_key' };
-  }
-
   const result = parsed.data.result;
 
+  // **The result decides, not the `ok` flag, and that ordering is the fix.** This tested `ok`
+  // first and reported `bad_key` for everything it refused — which was right while the database
+  // only ever refused for one reason, and became wrong the moment `no_such_session` came back
+  // with `ok = false`. The cost was not the 503: it was the log line, which named a credential
+  // and sent a volunteer to re-check a digest that was correct. Measured on 13 September 2026
+  // against production, on the endpoint's own test event.
+  //
+  // **Reading `result` also makes the rollback direction safe.** A database that predates
+  // `20260913230000` answers `(false, 'no_such_session')` and a database after it answers
+  // `(true, 'no_such_session')`; both land in the same branch below, so neither half of this
+  // change depends on the other having shipped.
   if (
     result === 'paid' ||
     result === 'already_paid' ||
@@ -457,6 +464,17 @@ export async function recordTicketCheckoutEvent(
     result === 'no_such_session'
   ) {
     return { ok: true, result };
+  }
+
+  if (result === 'bad_key') {
+    return { ok: false, result: 'bad_key' };
+  }
+
+  // **`ok = false` with a result nothing here knows.** Treated as the credential case rather
+  // than as an unknown, because that is what it has always meant and a 503 is the safe answer:
+  // Stripe retries, and a retry after somebody installs the digest is exactly what is wanted.
+  if (!parsed.data.ok) {
+    return { ok: false, result: 'bad_key' };
   }
 
   // A result this Worker does not know, from a database ahead of it. Retried rather than
