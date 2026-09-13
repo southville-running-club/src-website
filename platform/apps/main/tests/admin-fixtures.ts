@@ -139,8 +139,37 @@ export const NN_RESULTS_EMAIL = 'zz-admin-worker-results@example.com';
  * quietly delete `admin.spec.ts`'s "different doors" assertions, which are the other half of
  * the boundary.
  */
-export const TIMING_ADMIN_EMAIL = 'zz-admin-worker-timing-admin@example.com';
-export const TIMING_MARSHAL_EMAIL = 'zz-admin-worker-timing-marshal@example.com';
+/**
+ * ⚠️ **One set of addresses per Playwright worker, and the fixed pair was a real race.**
+ *
+ * `timing-staff-db.ts` clears these two accounts and signs them up again in `beforeAll`. The
+ * header above solved *spec against spec* — `admin.spec.ts` no longer seeds them — and left
+ * **project against project of the same spec** open, which is a different race with the same
+ * signature. `playwright.config.ts` runs `workers: 2` over three projects, and the scheduling
+ * unit is one file in one project, so `timing.spec.ts [chromium]` and
+ * `timing.spec.ts [no-javascript]` can be in flight together: both delete the pair, both
+ * `signUp`, and one gets `duplicate key value violates unique constraint
+ * "users_email_partial_key"` out of GoTrue as a 500. A failure in `beforeAll` takes the whole
+ * project down, so it reads as nineteen broken tests rather than as two hooks colliding.
+ *
+ * Observed on 13 September 2026 while #245 was being built — it is latent on `main` and #245
+ * widened the window by adding to the same hook.
+ *
+ * **The suffix is read here rather than threaded through twenty-two call sites.** Playwright
+ * sets `TEST_PARALLEL_INDEX` in each worker process to its concurrency slot, and a fixture
+ * module is evaluated *inside* that process — so these stay plain constants and every caller
+ * is unchanged. Two projects running at once are on different slots and therefore different
+ * addresses; two running one after another share a slot, which is safe because sequential
+ * clear-then-create is exactly what this always assumed. A restarted worker reuses its slot
+ * and re-clears, which is the same path.
+ *
+ * `?? '0'` covers `--list`, a direct `npx playwright test` with one worker, and anything else
+ * that evaluates this module outside a worker.
+ */
+const WORKER_SLOT = process.env.TEST_PARALLEL_INDEX ?? '0';
+
+export const TIMING_ADMIN_EMAIL = `zz-admin-worker-timing-admin-${WORKER_SLOT}@example.com`;
+export const TIMING_MARSHAL_EMAIL = `zz-admin-worker-timing-marshal-${WORKER_SLOT}@example.com`;
 
 export const FIXTURE_PEOPLE_EMAILS = [
   NN_ADMIN_EMAIL,
