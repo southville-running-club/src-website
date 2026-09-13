@@ -1690,6 +1690,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_walk_in: {
+        Args: {
+          p_age_on_day?: number
+          p_club_name?: string
+          p_event_slug: string
+          p_firstname: string
+          p_gender?: string
+          p_lastname: string
+        }
+        Returns: Json
+      }
+      assign_bibs: { Args: { p_event_slug: string }; Returns: Json }
       assign_marshal: {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json
@@ -1705,6 +1717,15 @@ export type Database = {
           p_start_at: string
         }
         Returns: Json
+      }
+      effective_bib: {
+        Args: {
+          p_format: string
+          p_leg: number
+          p_override: string
+          p_team_number: string
+        }
+        Returns: string
       }
       event_detail: { Args: { p_event_slug: string }; Returns: Json }
       event_roster: { Args: { p_event_slug: string }; Returns: Json }
@@ -1729,6 +1750,15 @@ export type Database = {
       }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
       roster_for_event: { Args: { p_event_slug: string }; Returns: Json }
+      set_bib_override: {
+        Args: {
+          p_bib: string
+          p_event_slug: string
+          p_leg: number
+          p_team_id: string
+        }
+        Returns: Json
+      }
       unassign_marshal: {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json
