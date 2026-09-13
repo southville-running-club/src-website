@@ -46,20 +46,24 @@ Styling is this repository's CSS. Tests are this repository's four layers.**
 use React at all, so the two dependency trees barely overlap, and Next is the more mainstream
 of the two skills for a third volunteer to arrive with.
 
-**One measurement gates this.** The free Workers plan allows **3 MB compressed** and **10 ms
-CPU**, and the
+**One measurement gates this, and it has not been taken.** The free Workers plan allows **3 MB
+compressed** and **10 ms CPU**, and the
 [architecture review](../../reference/timing-app-review.md#what-the-website-and-the-port-need-to-know)
-named both as unmeasured for this application. **Measure them against real code early** — a
+names both as unmeasured for this application. **Measure them against real code early** — a
 bundle built from the copied domain logic and one server-rendered page is enough. If the answer
 fails, the response is the paid Workers plan (a money decision for the committee) or moving
 work off the server, **not a framework change mid-rewrite.**
 
-⚠️ **The bundle half was taken on 13 September 2026 and passes — 1.62 MiB gzipped against
-3 MB, with the whole ported domain logic costing 14 KiB more. The CPU half is still
-outstanding**, because it needs a deployed Worker and a database. Both, and the procedure for
-the second, are in [the measurement](../../reference/timing-bundle-and-cpu.md). Nothing in
-this decision changes either way; the numbers are recorded so this paragraph stops saying they
-are unknown.
+⚠️ **Added 13 September 2026, and the paragraph above is left exactly as it was written.**
+This repository does not edit an accepted ADR to change its answer, and the sentence *"it has
+not been taken"* is part of what was known when this decision was made — rewriting it would
+erase that rather than record what happened next.
+
+**The bundle half has now been taken and it passes**: 1.62 MiB gzipped against a 3 MB limit,
+with the whole ported domain logic costing 14 KiB more. **The CPU half is still outstanding**,
+because it needs a deployed Worker and a database. Both, and the procedure for the second, are
+in [the measurement](../../reference/timing-bundle-and-cpu.md). **Nothing in this decision
+changes either way** — the numbers are recorded here so a reader of this ADR is sent to them.
 
 ## Consequences
 
