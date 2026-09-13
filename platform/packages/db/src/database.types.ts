@@ -1585,6 +1585,8 @@ export type Database = {
           is_captain: boolean
           lastname: string
           leg: number
+          result_placement: string | null
+          role: string
           team_id: string
         }
         Insert: {
@@ -1598,6 +1600,8 @@ export type Database = {
           is_captain?: boolean
           lastname: string
           leg: number
+          result_placement?: string | null
+          role?: string
           team_id: string
         }
         Update: {
@@ -1611,6 +1615,8 @@ export type Database = {
           is_captain?: boolean
           lastname?: string
           leg?: number
+          result_placement?: string | null
+          role?: string
           team_id?: string
         }
         Relationships: [
@@ -1702,6 +1708,7 @@ export type Database = {
       }
       event_detail: { Args: { p_event_slug: string }; Returns: Json }
       event_roster: { Args: { p_event_slug: string }; Returns: Json }
+      import_from_entries: { Args: { p_event_slug: string }; Returns: Json }
       import_registration: {
         Args: { p_event_slug: string; p_rows: Json }
         Returns: Json

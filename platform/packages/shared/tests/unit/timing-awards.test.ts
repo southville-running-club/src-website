@@ -64,6 +64,8 @@ function runner(
     team_id: teamId,
     leg,
     gender,
+    result_placement: null,
+    role: 'runner',
     firstname,
     lastname: 'Test',
     email: `${firstname}@example.com`,

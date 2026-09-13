@@ -36,6 +36,8 @@
  * argued against in the schema and holds just as well in a function.
  */
 
+import { normaliseTimingGender } from './gender';
+
 export type PairCategory = "Men's Pair" | "Women's Pair" | 'Mixed Pair';
 
 export const PAIR_CATEGORIES: readonly PairCategory[] = [
@@ -46,11 +48,24 @@ export const PAIR_CATEGORIES: readonly PairCategory[] = [
 
 type RunnerLike = { gender: string };
 
+/**
+ * ⚠️ **Normalised through `gender.ts` rather than compared here**, since
+ * [ADR-039](../../../../../docs/architecture/decisions/adr-039-the-roster-crosses-from-entries-to-timing-in-the-database.md)
+ * gave `timing.runners.gender` one vocabulary. This function used to upper-case and test for
+ * `'M'` / `'F'` inline, which was the Full On Sport CSV's shape — a roster imported from
+ * `entries` says `'female'` / `'male'` and every pair would have answered `null`, rendering a
+ * placeholder instead of a category on a page nobody was looking at yet.
+ *
+ * **A non-binary runner makes the pair uncategorised, deliberately.** The three pair
+ * categories are men's, women's and mixed, and there is no fourth; ADR-031's placement is a
+ * **solo prize band** answer and reading it here would invent a pair category the club does
+ * not award. `null` renders a placeholder, which is the honest answer.
+ */
 export function deriveCategory(runners: RunnerLike[]): PairCategory | null {
   if (runners.length !== 2) return null;
-  const genders = runners.map((r) => r.gender.trim().toUpperCase());
-  if (!genders.every((g) => g === 'M' || g === 'F')) return null;
-  const males = genders.filter((g) => g === 'M').length;
+  const genders = runners.map((r) => normaliseTimingGender(r.gender));
+  if (!genders.every((g) => g === 'male' || g === 'female')) return null;
+  const males = genders.filter((g) => g === 'male').length;
   if (males === 2) return "Men's Pair";
   if (males === 0) return "Women's Pair";
   return 'Mixed Pair';

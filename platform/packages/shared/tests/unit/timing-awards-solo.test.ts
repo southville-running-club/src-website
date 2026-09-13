@@ -56,6 +56,10 @@ function soloTeam(
         team_id: id,
         leg: 1,
         gender,
+        // Null for everybody but a non-binary entrant who was asked — ADR-031. The tests that
+        // exercise a placement set it explicitly.
+        result_placement: null,
+        role: 'runner',
         age_on_day: age,
         firstname: `Runner${num}`,
         lastname: 'Test',
