@@ -2,7 +2,6 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import {
   clearRosterEvent,
-  clearTimingFixtures,
   rosterEventSlug,
   seedRosterEvent,
   seedTimingFixtures,
@@ -76,10 +75,25 @@ test.beforeAll(async ({}, testInfo) => {
   forgetSessions();
 });
 
+/*
+ * ⚠️ **`clearTimingFixtures()` is deliberately NOT called here**, and leaving it in was a real
+ * failure rather than untidiness. This hook runs once **per project**, and two projects of
+ * this file can be in flight at the same time — so the first to finish deleted the two
+ * fabricated races out from under the one still reading them. It surfaced a long way from its
+ * cause: a hub page rendered "Not found" and the test waiting on a link on it failed as a
+ * ten-second timeout naming the link.
+ *
+ * `seedTimingFixtures()` is idempotent now and nothing here deletes those rows. They are two
+ * runnings of years that will not happen, in a database `./dev up`, `./dev check` and
+ * `./dev test` each rebuild from zero — and `tests/worker/admin/global-setup.ts`, which is
+ * single-threaded, still clears them.
+ *
+ * The two below are safe because each is scoped to something this project owns outright: the
+ * roster event carries the project name, and the staff accounts carry the worker slot.
+ */
 // eslint-disable-next-line no-empty-pattern
 test.afterAll(async ({}, testInfo) => {
   await clearRosterEvent(rosterEventSlug(testInfo.project.name));
-  await clearTimingFixtures();
   await clearTimingStaff();
 });
 
