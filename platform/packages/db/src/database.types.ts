@@ -1719,6 +1719,20 @@ export type Database = {
         }
         Returns: Json
       }
+      crossing_log: {
+        Args: { p_event_slug: string; p_limit?: number; p_search?: string }
+        Returns: Json
+      }
+      edit_crossing: {
+        Args: {
+          p_bib: string
+          p_captured_at: string
+          p_expected_bib: string
+          p_expected_captured_at: string
+          p_id: string
+        }
+        Returns: Json
+      }
       effective_bib: {
         Args: {
           p_format: string
@@ -1738,6 +1752,7 @@ export type Database = {
       known_crossings: { Args: { p_event_slug: string }; Returns: Json }
       list_events: { Args: never; Returns: Json }
       marshal_event: { Args: { p_event_slug: string }; Returns: Json }
+      open_anomalies: { Args: { p_event_slug: string }; Returns: Json }
       record_crossing: {
         Args: {
           p_anomaly_flag?: boolean
@@ -1750,6 +1765,11 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_crossing: {
+        Args: { p_action: string; p_id: string; p_new_bib?: string }
+        Returns: Json
+      }
+      restore_crossing: { Args: { p_id: string }; Returns: Json }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
       roster_for_event: { Args: { p_event_slug: string }; Returns: Json }
       set_bib_override: {

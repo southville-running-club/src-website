@@ -310,6 +310,35 @@ describe('buildResults — captured_at dedup and time-edit reorder', () => {
     expect(team47?.finishAt).toBeNull();
     expect(team47?.totalMs).toBeNull();
   });
+
+  /**
+   * ⚠️ **The case a discard actually exists for** — [#252](https://github.com/southville-running-club/src-website/issues/252)'s
+   * definition of done names it as *"the earliest **undiscarded** capture per bib"*, and the
+   * test above does not reach it: with one crossing, dropping it and picking a later one are
+   * the same answer.
+   *
+   * The real shape is the double tap. A marshal presses twice, or two marshals catch the same
+   * runner, and an admin discards the wrong one — so the board has to fall through to the next
+   * capture rather than to nothing. Picking the earliest of *all* captures would silently
+   * restore the crossing somebody had just taken out.
+   */
+  it('falls through to the next capture when the earliest one was discarded', () => {
+    const results = buildResults(
+      EVENT,
+      [makeTeam('47')],
+      [
+        {
+          ...finish('247', '2026-07-08T18:40:00.000Z'),
+          resolved_at: '2026-07-08T19:00:00.000Z',
+          resolved_action: 'discarded',
+        },
+        finish('247', '2026-07-08T18:44:00.000Z'),
+      ],
+    );
+
+    const team47 = results.find((r) => r.team.team_number === '47');
+    expect(team47?.finishAt).toBe('2026-07-08T18:44:00.000Z');
+  });
 });
 
 // Slice 12 — whole-team race status (dns/dnf/dq). A LABEL on top of crossings:

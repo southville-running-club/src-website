@@ -252,6 +252,13 @@ describe('what may be called, and by whom', () => {
    *     `timing.marshal.assign`, the per-event scope ADR-036 checks *after* the permission;
    *   * `record_crossing` and `known_crossings` — `timing.crossing.record` **and** a roster
    *     row, the write path #203 syncs against and the read it de-duplicates from;
+   *   * `open_anomalies`, `crossing_log`, `resolve_crossing`, `restore_crossing` and
+   *     `edit_crossing` — `timing.crossing.resolve`, #252, which had existed since
+   *     `20260911100000` and gated nothing until now. ⚠️ **`resolve_crossing` and
+   *     `edit_crossing` are two functions rather than one because they take different
+   *     latches**: the triage list swaps on `resolved_at is null` and the log cannot, since a
+   *     row that was never flagged carries that null for ever. The concurrency block at the
+   *     foot of this file is what actually holds that;
    *   * `marshal_event` — the same two checks, #203. ⚠️ **It exists because none of the four
    *     roster functions above answers *"am I on this roster"* to the marshal asking** — every
    *     one of them is behind `timing.marshal.assign`, which is an admin's permission. It is
@@ -275,7 +282,7 @@ describe('what may be called, and by whom', () => {
    * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
    * this is what says that held.
    */
-  it('grants exactly these twenty functions, and only to authenticated', async () => {
+  it('grants exactly these twenty-five functions, and only to authenticated', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -290,6 +297,8 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'assignable_marshals', grantee: 'authenticated' },
       { routine_name: 'clear_start', grantee: 'authenticated' },
       { routine_name: 'create_event', grantee: 'authenticated' },
+      { routine_name: 'crossing_log', grantee: 'authenticated' },
+      { routine_name: 'edit_crossing', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
       { routine_name: 'import_from_entries', grantee: 'authenticated' },
@@ -297,7 +306,10 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'known_crossings', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'marshal_event', grantee: 'authenticated' },
+      { routine_name: 'open_anomalies', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
+      { routine_name: 'resolve_crossing', grantee: 'authenticated' },
+      { routine_name: 'restore_crossing', grantee: 'authenticated' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'set_bib_override', grantee: 'authenticated' },
@@ -600,11 +612,17 @@ describe('listing, reading and correcting an event', () => {
     );
     // Three crossings: one clean, one anomaly still open, one anomaly already resolved. The
     // third is what stops `open_anomalies` being satisfied by `count(*) where anomaly_flag`.
+    //
+    // ⚠️ **The third row carries a `resolved_action` since #252, and it had to.** It used to set
+    // `resolved_at` alone, which says a capture was resolved without saying how — a row that
+    // `crossings_resolution_coherent` now refuses outright. The constraint found this fixture on
+    // its first run, which is the whole argument for adding it.
     await db.query(
-      `insert into timing.crossings (event_id, bib, captured_at, anomaly_flag, resolved_at)
-       values ($1, '7', '2026-11-01T11:40:00Z', false, null),
-              ($1, '7', '2026-11-01T11:41:00Z', true, null),
-              ($1, '7', '2026-11-01T11:42:00Z', true, '2026-11-01T12:00:00Z')`,
+      `insert into timing.crossings
+         (event_id, bib, captured_at, anomaly_flag, resolved_at, resolved_action)
+       values ($1, '7', '2026-11-01T11:40:00Z', false, null, null),
+              ($1, '7', '2026-11-01T11:41:00Z', true, null, null),
+              ($1, '7', '2026-11-01T11:42:00Z', true, '2026-11-01T12:00:00Z', 'marked_valid')`,
       [EVENT_ID],
     );
     await db.query(
@@ -2701,6 +2719,593 @@ describe('starting a race', () => {
         ok: false,
         reason: 'not_started',
       });
+    });
+  });
+});
+
+/**
+ * Resolving an anomaly, and correcting the timing log — #252.
+ *
+ * ⚠️ **The concurrency assertions are the point of this block, not a flourish.** Two volunteers
+ * on one triage list is the *normal* case on a race morning — there is one anomalies page and
+ * everybody free is looking at it — and the old application learned its compare-and-swaps the
+ * hard way. #252 says to reproduce them rather than simplify them, so what is asserted here is
+ * that the **second** writer is refused and told, rather than silently overwriting the first
+ * one's decision.
+ */
+describe('resolving an anomaly and correcting the log', () => {
+  const RESOLVER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab01';
+  const MARSHAL_ONLY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab02';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000f1';
+  const TEAM_ID = '00000000-0000-4000-8000-0000000000f2';
+  const SLUG = 'zz-timing-anomalies';
+
+  type Envelope = { ok: boolean; reason?: string; [key: string]: unknown };
+
+  /** Run one statement as a signed-in person, then roll back — the file's own helper shape. */
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /**
+   * The same, but **committed** — which the concurrency tests need and the rolled-back helper
+   * above cannot give them: two writes that both vanish at rollback never race each other.
+   *
+   * ⚠️ **`false` rather than `true` on `set_config`, so the setting is session-wide rather than
+   * transaction-local — and that is exactly why the `finally` is not optional.** `authenticated`
+   * holds **no grant on any table** in `timing`, so a verification read left under the
+   * impersonated role answers `permission denied for table crossings`, which reads as a broken
+   * function and is not one. This file's start-race block carries the same warning at
+   * `stopActing`, which paid for it twice.
+   */
+  async function asPersonCommitted<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query("select set_config('role', 'authenticated', false)");
+    await db.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, false)",
+      [personId],
+    );
+
+    try {
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query("select set_config('role', 'postgres', false)");
+      await db.query("select set_config('request.jwt.claims', null, false)");
+    }
+  }
+
+  /**
+   * A crossing, written as the superuser so each test starts from a known state.
+   *
+   * ⚠️ **The audit rows are cleared too, and leaving them out made an assertion count across
+   * runs.** `timing.admin_actions.event_id` is `on delete set null`, deliberately — an audit
+   * trail that vanished with the race it was about would be no audit trail — so dropping the
+   * fixture event in `afterAll` does **not** take its actions with it. The "exactly one audit
+   * row" assertion below therefore passed on a fresh database and failed on the second run of
+   * the same suite, which is the shape of staleness that is easiest to misread as a real
+   * concurrency defect.
+   */
+  async function seedCrossing(
+    id: string,
+    bib: string | null,
+    opts: { flag?: boolean; reason?: string; at?: string } = {},
+  ): Promise<void> {
+    await db.query('delete from timing.crossings where id = $1', [id]);
+    await db.query(
+      "delete from timing.admin_actions where detail ->> 'crossing_id' = $1",
+      [id],
+    );
+    await db.query(
+      `insert into timing.crossings
+         (id, event_id, bib, captured_at, anomaly_flag, anomaly_reason)
+       values ($1, $2, $3, $4::timestamptz, $5, $6)`,
+      [
+        id,
+        EVENT_ID,
+        bib,
+        opts.at ?? '2026-11-01T11:30:00Z',
+        opts.flag ?? false,
+        opts.reason ?? null,
+      ],
+    );
+  }
+
+  async function crossingRow(id: string): Promise<{
+    bib: string | null;
+    resolved_at: string | null;
+    resolved_action: string | null;
+    team_id: string | null;
+  }> {
+    const { rows } = await db.query<{
+      bib: string | null;
+      resolved_at: string | null;
+      resolved_action: string | null;
+      team_id: string | null;
+    }>(
+      'select bib, resolved_at, resolved_action, team_id from timing.crossings where id = $1',
+      [id],
+    );
+    return rows[0]!;
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [RESOLVER, 'timing-resolver@example.com'],
+      [MARSHAL_ONLY, 'timing-resolver-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    // `timing-admin` carries `timing.crossing.resolve`; `timing-marshal` carries only
+    // `timing.crossing.record`, which is what makes the refusals below mean something.
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2)
+       on conflict do nothing`,
+      [RESOLVER, MARSHAL_ONLY],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Anomaly Fixture', 'solo', '2026-11-01T11:00:00Z',
+               '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '311')`,
+      [TEAM_ID, EVENT_ID],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [RESOLVER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from identity.people where id = any($1::uuid[])', [
+      [RESOLVER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from auth.users where id = any($1::uuid[])', [
+      [RESOLVER, MARSHAL_ONLY],
+    ]);
+  });
+
+  /**
+   * ⚠️ **The constraint #252 says already exists.** It did not — `20260911140000` declared two
+   * bare nullable columns with nothing tying them together — so it is asserted here as well as
+   * added, because a coherence rule nobody checks is a rule that quietly stops holding.
+   */
+  describe('the shape a resolution may take', () => {
+    it('refuses a resolved_at with no action beside it, and the reverse', async () => {
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000001', '311');
+
+      await expect(
+        db.query('update timing.crossings set resolved_at = now() where id = $1', [
+          'bbbbbbbb-0000-4000-8000-000000000001',
+        ]),
+      ).rejects.toMatchObject({ constraint: 'crossings_resolution_coherent' });
+
+      await expect(
+        db.query(
+          "update timing.crossings set resolved_action = 'discarded' where id = $1",
+          ['bbbbbbbb-0000-4000-8000-000000000001'],
+        ),
+      ).rejects.toMatchObject({ constraint: 'crossings_resolution_coherent' });
+    });
+
+    it('refuses a resolution nobody has defined', async () => {
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000002', '311');
+
+      await expect(
+        db.query(
+          "update timing.crossings set resolved_at = now(), resolved_action = 'deleted' where id = $1",
+          ['bbbbbbbb-0000-4000-8000-000000000002'],
+        ),
+      ).rejects.toMatchObject({ constraint: 'crossings_resolved_action_shaped' });
+    });
+  });
+
+  describe('the triage list', () => {
+    it('unions a flagged capture with an orphan nothing flagged', async () => {
+      // ⚠️ The orphan is the half a `anomaly_flag`-only query would hide: `record_crossing()`
+      // stores an unknown bib and never refuses it, so nothing marks it.
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000011', '311', {
+        flag: true,
+        reason: 'Duplicate bib 311 — already captured at 11:20:00',
+        at: '2026-11-01T11:30:00Z',
+      });
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000012', '999', {
+        at: '2026-11-01T11:31:00Z',
+      });
+      // Neither flagged nor orphaned: it must not appear.
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000013', '311', {
+        at: '2026-11-01T11:32:00Z',
+      });
+
+      const open = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.open_anomalies($1) as answer',
+        [SLUG],
+      );
+
+      expect(open.map((row) => row.id)).toEqual([
+        'bbbbbbbb-0000-4000-8000-000000000011',
+        'bbbbbbbb-0000-4000-8000-000000000012',
+      ]);
+      // Oldest first, because triage is a queue.
+      expect(open[0]).toMatchObject({ anomaly_flag: true, orphan: false });
+      expect(open[1]).toMatchObject({ anomaly_flag: false, orphan: true, bib: '999' });
+    });
+
+    it('leaves out a capture with no bib at all', async () => {
+      // A tap whose marshal never typed a bib is not something an admin can resolve from a
+      // desk, so it is deliberately not in the queue.
+      await seedCrossing('bbbbbbbb-0000-4000-8000-000000000014', null);
+
+      const open = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.open_anomalies($1) as answer',
+        [SLUG],
+      );
+
+      expect(open.map((row) => row.id)).not.toContain(
+        'bbbbbbbb-0000-4000-8000-000000000014',
+      );
+    });
+
+    it('answers null to somebody holding only timing.crossing.record', async () => {
+      expect(
+        await asPerson(MARSHAL_ONLY, 'select timing.open_anomalies($1) as answer', [
+          SLUG,
+        ]),
+      ).toBeNull();
+      expect(
+        await asPerson(MARSHAL_ONLY, 'select timing.crossing_log($1) as answer', [SLUG]),
+      ).toBeNull();
+    });
+
+    it('answers the same null for a race that does not exist', async () => {
+      expect(
+        await asPerson(RESOLVER, 'select timing.open_anomalies($1) as answer', [
+          'zz-no-such-race',
+        ]),
+      ).toBeNull();
+    });
+  });
+
+  describe('two volunteers resolving the same capture', () => {
+    const ID = 'bbbbbbbb-0000-4000-8000-000000000021';
+
+    /**
+     * ⚠️ **The assertion #252's definition of done names first**, and the reason every write in
+     * that migration is a compare-and-swap. Exactly one succeeds; the loser is told so, and the
+     * winner's decision is what the row holds.
+     */
+    it('lets exactly one through, and tells the other', async () => {
+      await seedCrossing(ID, '311', { flag: true, reason: 'Duplicate bib 311' });
+
+      const first = await asPersonCommitted(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2) as answer',
+        [ID, 'marked_valid'],
+      );
+      const second = await asPersonCommitted(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2) as answer',
+        [ID, 'discarded'],
+      );
+
+      expect(first).toMatchObject({ ok: true, resolution: 'marked_valid' });
+      expect(second).toEqual({ ok: false, reason: 'already_resolved' });
+
+      // The first decision is what stands — not the last write.
+      expect(await crossingRow(ID)).toMatchObject({ resolved_action: 'marked_valid' });
+    });
+
+    it('writes no audit row for the resolution that did not happen', async () => {
+      // ⚠️ Update first, audit second. An audit row claiming a change that did not happen is
+      // worse than none: it is what somebody disputing a result would be shown.
+      const { rows } = await db.query<{ n: string }>(
+        `select count(*) as n from timing.admin_actions
+          where action = 'crossing_resolved'
+            and detail ->> 'crossing_id' = $1`,
+        [ID],
+      );
+
+      expect(rows[0]?.n).toBe('1');
+    });
+  });
+
+  describe('discarding and restoring', () => {
+    const ID = 'bbbbbbbb-0000-4000-8000-000000000031';
+
+    it('round-trips, clearing both columns together', async () => {
+      await seedCrossing(ID, '311', { flag: true, reason: 'Duplicate bib 311' });
+
+      expect(
+        await asPersonCommitted(
+          RESOLVER,
+          'select timing.resolve_crossing($1, $2) as answer',
+          [ID, 'discarded'],
+        ),
+      ).toMatchObject({ ok: true });
+      expect(await crossingRow(ID)).toMatchObject({ resolved_action: 'discarded' });
+
+      expect(
+        await asPersonCommitted(
+          RESOLVER,
+          'select timing.restore_crossing($1) as answer',
+          [ID],
+        ),
+      ).toMatchObject({ ok: true });
+
+      // ⚠️ Both null, which is what the coherence check demands — and the reason it was worth
+      // adding: clearing one and leaving the other is now a row the schema refuses outright.
+      const after = await crossingRow(ID);
+      expect(after.resolved_at).toBeNull();
+      expect(after.resolved_action).toBeNull();
+    });
+
+    it('refuses to restore a capture that was marked valid rather than discarded', async () => {
+      const OTHER = 'bbbbbbbb-0000-4000-8000-000000000032';
+      await seedCrossing(OTHER, '311', { flag: true });
+      await asPersonCommitted(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2) as answer',
+        [OTHER, 'marked_valid'],
+      );
+
+      // Restoring one of those would be undoing a different decision, and there is nothing to
+      // undo.
+      expect(
+        await asPersonCommitted(
+          RESOLVER,
+          'select timing.restore_crossing($1) as answer',
+          [OTHER],
+        ),
+      ).toEqual({ ok: false, reason: 'not_discarded' });
+    });
+  });
+
+  describe('correcting a bib', () => {
+    it('re-derives the team from the trigger rather than by hand', async () => {
+      const ID = 'bbbbbbbb-0000-4000-8000-000000000041';
+      await seedCrossing(ID, '999', { at: '2026-11-01T11:40:00Z' });
+
+      expect(await crossingRow(ID)).toMatchObject({ team_id: null });
+
+      const answer = await asPersonCommitted<Envelope>(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2, $3) as answer',
+        [ID, 'edited', '311'],
+      );
+
+      expect(answer).toMatchObject({ ok: true, bib: '311', orphan: false });
+      expect((await crossingRow(ID)).team_id).toBe(TEAM_ID);
+    });
+
+    it('keeps an edit that still matches nothing, and says so', async () => {
+      // Not a failure: the admin has recorded what they believe the bib was, and the roster is
+      // what has to change next. A page that read this as success would look finished.
+      const ID = 'bbbbbbbb-0000-4000-8000-000000000042';
+      await seedCrossing(ID, '311', { flag: true });
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          RESOLVER,
+          'select timing.resolve_crossing($1, $2, $3) as answer',
+          [ID, 'edited', '888'],
+        ),
+      ).toMatchObject({ ok: true, bib: '888', orphan: true });
+    });
+
+    it('refuses an edit with no bib to edit to', async () => {
+      const ID = 'bbbbbbbb-0000-4000-8000-000000000043';
+      await seedCrossing(ID, '311', { flag: true });
+
+      expect(
+        await asPersonCommitted(
+          RESOLVER,
+          'select timing.resolve_crossing($1, $2, $3) as answer',
+          [ID, 'edited', '   '],
+        ),
+      ).toEqual({ ok: false, reason: 'bib_required' });
+    });
+  });
+
+  describe('the log’s own compare-and-swap', () => {
+    const ID = 'bbbbbbbb-0000-4000-8000-000000000051';
+    const AT = '2026-11-01T11:45:00Z';
+
+    /**
+     * ⚠️ **The case `resolve_crossing`'s latch cannot see.** This row was never flagged, so
+     * `resolved_at` is null for ever — the triage latch would match both writers and the later
+     * one would win in silence. Swapping on the values the editor was looking at is what makes
+     * the second attempt refuse.
+     */
+    it('refuses an edit made against values that have since moved', async () => {
+      await seedCrossing(ID, '311', { at: AT });
+
+      const first = await asPersonCommitted<Envelope>(
+        RESOLVER,
+        'select timing.edit_crossing($1, $2, $3::timestamptz, $4, $5::timestamptz) as answer',
+        [ID, '312', AT, '311', AT],
+      );
+      const second = await asPersonCommitted<Envelope>(
+        RESOLVER,
+        'select timing.edit_crossing($1, $2, $3::timestamptz, $4, $5::timestamptz) as answer',
+        [ID, '313', AT, '311', AT],
+      );
+
+      expect(first).toMatchObject({ ok: true, bib: '312' });
+      expect(second).toEqual({ ok: false, reason: 'changed_elsewhere' });
+      expect((await crossingRow(ID)).bib).toBe('312');
+    });
+
+    it('swaps correctly against a capture that has no bib at all', async () => {
+      // `null = null` is null, so a bare `=` would make every swap against an unbibbed capture
+      // fail for ever. `is not distinct from` is what makes this work.
+      const EMPTY = 'bbbbbbbb-0000-4000-8000-000000000052';
+      await seedCrossing(EMPTY, null, { at: AT });
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          RESOLVER,
+          'select timing.edit_crossing($1, $2, $3::timestamptz, $4, $5::timestamptz) as answer',
+          [EMPTY, '311', AT, null, AT],
+        ),
+      ).toMatchObject({ ok: true, bib: '311' });
+    });
+
+    it('records before and after on the audit row', async () => {
+      const { rows } = await db.query<{ detail: Record<string, unknown> }>(
+        `select detail from timing.admin_actions
+          where action = 'crossing_edited' and detail ->> 'crossing_id' = $1
+          order by created_at desc limit 1`,
+        [ID],
+      );
+
+      // "The bib was changed" without saying from what is not something a dispute can be
+      // settled on.
+      expect(rows[0]?.detail).toMatchObject({
+        before: expect.objectContaining({ bib: '311' }),
+        after: expect.objectContaining({ bib: '312' }),
+      });
+    });
+  });
+
+  describe('what the log shows that the triage list does not', () => {
+    it('keeps a discarded capture visible, so it can be restored', async () => {
+      const ID = 'bbbbbbbb-0000-4000-8000-000000000061';
+      await seedCrossing(ID, '311', { flag: true, at: '2026-11-01T11:50:00Z' });
+      await asPersonCommitted(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2) as answer',
+        [ID, 'discarded'],
+      );
+
+      const log = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.crossing_log($1) as answer',
+        [SLUG],
+      );
+      const row = log.find((entry) => entry.id === ID);
+
+      // ⚠️ A log that hid what had been taken out would be a log nobody could audit from.
+      expect(row).toMatchObject({ resolved_action: 'discarded' });
+
+      const open = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.open_anomalies($1) as answer',
+        [SLUG],
+      );
+      expect(open.map((entry) => entry.id)).not.toContain(ID);
+    });
+
+    it('marks a capture timed before the gun without refusing it', async () => {
+      // The old application found wrong phone clocks exactly this way. It is surfaced and left
+      // alone: the row is still a real crossing.
+      const EARLY = 'bbbbbbbb-0000-4000-8000-000000000062';
+      await seedCrossing(EARLY, '311', { at: '2026-11-01T10:00:00Z' });
+
+      const log = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.crossing_log($1) as answer',
+        [SLUG],
+      );
+
+      expect(log.find((entry) => entry.id === EARLY)).toMatchObject({
+        before_start: true,
+      });
+    });
+
+    it('searches on the bib and on the team number, and on nothing else', async () => {
+      const found = await asPerson<Record<string, unknown>[]>(
+        RESOLVER,
+        'select timing.crossing_log($1, $2) as answer',
+        [SLUG, '311'],
+      );
+
+      expect(found.length).toBeGreaterThan(0);
+      expect(
+        found.every((entry) => entry.bib === '311' || entry.team_number === '311'),
+      ).toBe(true);
+    });
+  });
+
+  describe('who may change any of it', () => {
+    it('refuses every write to somebody holding only timing.crossing.record', async () => {
+      const ID = 'bbbbbbbb-0000-4000-8000-000000000071';
+      await seedCrossing(ID, '311', { flag: true });
+
+      expect(
+        await asPerson(MARSHAL_ONLY, 'select timing.resolve_crossing($1, $2) as answer', [
+          ID,
+          'discarded',
+        ]),
+      ).toEqual({ ok: false, reason: 'refused' });
+      expect(
+        await asPerson(MARSHAL_ONLY, 'select timing.restore_crossing($1) as answer', [
+          ID,
+        ]),
+      ).toEqual({ ok: false, reason: 'refused' });
+      expect(
+        await asPerson(
+          MARSHAL_ONLY,
+          'select timing.edit_crossing($1, $2, $3::timestamptz, $4, $5::timestamptz) as answer',
+          [ID, '312', '2026-11-01T11:30:00Z', '311', '2026-11-01T11:30:00Z'],
+        ),
+      ).toEqual({ ok: false, reason: 'refused' });
+
+      // Nothing moved.
+      expect(await crossingRow(ID)).toMatchObject({ bib: '311', resolved_action: null });
+    });
+
+    it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query('select timing.resolve_crossing($1, $2)', [
+            'bbbbbbbb-0000-4000-8000-000000000071',
+            'discarded',
+          ]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
     });
   });
 });

@@ -1078,3 +1078,78 @@ footer {
   color: var(--colour-muted);
   cursor: not-allowed;
 }
+
+/* ---------------------------------------------------------------------------------------
+ * Anomaly triage and the timing log — `/timing/events/<slug>/anomalies/` and `/crossings/`, #252
+ *
+ * ⚠️ **Cards rather than a table, and that is a layout decision rather than a style one.** A
+ * wide table is what once made a whole admin page scroll sideways at 320px, through a
+ * visually-hidden span whose containing block was the document. These are read on a phone on a
+ * race morning, so the facts go in a card that cannot overflow.
+ *
+ * Every colour is an existing `--colour-*` name and there is not one literal — `NnSchedule`'s
+ * trap, avoided the way the capture screen's block above avoids it.
+ * --------------------------------------------------------------------------------------- */
+.triage {
+  margin: var(--space) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.triage-card {
+  margin-bottom: var(--space);
+  padding: var(--space);
+  border: 1px solid var(--colour-rule);
+  border-radius: 6px;
+}
+
+.triage-time {
+  margin: 0;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.triage-time-label {
+  color: var(--colour-muted);
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.triage-bib {
+  margin-left: 0.75rem;
+}
+
+.triage-reason {
+  margin: 0.375rem 0 0;
+  color: var(--colour-muted);
+}
+
+.triage-form {
+  margin-top: 0.75rem;
+}
+
+/* `wrap`, because three buttons and a 320px screen do not fit on one row — and a row that
+   overflows is the failure this block's header is about. */
+.triage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.log-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin: var(--space) 0;
+}
+
+/* The field inside the search row grows; the buttons beside it keep their own width.
+   `min-width` rather than a fixed one so it still fits a 320px column. */
+.log-search .field {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+}

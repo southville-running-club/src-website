@@ -128,6 +128,19 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
     import: 'timing.registration.import',
     update: 'timing.registration.import',
   },
+  /**
+   * The two surfaces where a human turns a flagged capture into a fact —
+   * [#252](https://github.com/southville-running-club/src-website/issues/252).
+   *
+   * Both demand `timing.crossing.resolve`, the section's own. ⚠️ **They are two addresses
+   * rather than one because they are two different compare-and-swaps**, not because the
+   * permission differs: the anomalies page latches on `resolved_at is null`, and the log
+   * cannot — a row that was never flagged has `resolved_at` null for ever, so it swaps on the
+   * values that were on screen instead. `20260913220000`'s header carries the argument. One
+   * address taking both would be one route handler branching on which latch it meant.
+   */
+  anomalies: { update: 'timing.crossing.resolve' },
+  crossings: { update: 'timing.crossing.resolve' },
 };
 
 /**
