@@ -208,7 +208,7 @@ function attach(
  * the wrong band, which is discovered at the presentation.
  */
 function placedGender(runner: {
-  gender: string;
+  gender: string | null;
   result_placement: 'female' | 'male' | null;
 }) {
   return placementFor(runner.gender, runner.result_placement);

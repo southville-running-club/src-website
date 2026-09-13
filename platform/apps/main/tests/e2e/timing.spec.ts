@@ -441,6 +441,59 @@ test.describe('who may open the start screen', () => {
   }, testInfo) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     const path = startPath(testInfo.project.name, 'pending');
+ * `/timing/events/<slug>/registration/` — the entry list, #202, carrying #249's page half.
+ *
+ * ⚠️ **These tests write to the same per-project running the roster tests use**, for the
+ * reason `timing-db.ts`'s `rosterEventSlug` gives: two Playwright projects of this file can be
+ * in flight at once, and a shared race would make each occasionally assert against the other's
+ * writes. Within one project the tests run one at a time, so sharing the race with the marshal
+ * roster is safe — a roster and an entry list touch different tables.
+ *
+ * **Every CSV below carries its own `PurchaseOrderId` values and its own invented surnames**,
+ * so no test can be made to pass or fail by another having run first. That is the same rule
+ * `entries` learned when a suite whose runners were all the same person stopped being able to
+ * hold two places.
+ */
+const registrationPath = (project: string): string =>
+  `/timing/events/${rosterEventSlug(project)}/registration`;
+
+/**
+ * A Full On Sport export, as small as the parser will accept one.
+ *
+ * The header is the real thing's, trailing comma and all — `KNOWN_COLUMNS` carries an empty
+ * string entry for exactly that. **The `DOB` column is left empty**, deliberately: the fixture
+ * races are dated 2099 and an age computed against one would be a hundred and something, which
+ * reads as a defect in an assertion. The date of birth is dropped at the parser either way,
+ * which is the property this slice exists for.
+ */
+function fullOnSportCsv(
+  rows: { poId: string; first: string; last: string; gender: string }[],
+): Buffer {
+  const header =
+    'EventName,EntryType,EntryPaid,EnteredBy,RaceNumber,ep_id,EA_URN,Title,Firstname,Lastname,DOB,Gender,Email,DateEntered,OwnerMember,ClubName,TeamName,AgeOnDay,AgeCategory,PurchaseOrderId,Address1,Address2,Address3,County,City,POSTCODE,PrimaryContactTel,SecondaryContactTel,EmergencyName,EmergencyTel,MedicalInformation,version,';
+
+  const body = rows.map(
+    (row) =>
+      `zz Fixture Race,Solo,Yes,web,,,,,${row.first},${row.last},,${row.gender},` +
+      `${row.first.toLowerCase()}@example.com,,${row.first} ${row.last},zz Fixture AC,,,,` +
+      `${row.poId},,,,,,,,,,,,1,`,
+  );
+
+  return Buffer.from([header, ...body].join('\n'), 'utf-8');
+}
+
+const csvUpload = (buffer: Buffer) => ({
+  name: 'entries.csv',
+  mimeType: 'text/csv',
+  buffer,
+});
+
+test.describe('who may open the entry list', () => {
+  test('a timing-marshal is refused the page and both addresses it posts to', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const path = registrationPath(testInfo.project.name);
 
     const shown = await page.goto(path);
     expect(shown?.status()).toBe(404);
@@ -459,6 +512,38 @@ test.describe('who may open the start screen', () => {
     // whole file signs in from, which is a `beforeAll` concern.
     await page.context().clearCookies();
     const path = startPath(testInfo.project.name, 'pending');
+    /*
+     * ⚠️ **The half a page test cannot reach.** `timing.registration.import` is what all three
+     * demand and a marshal holds none of it — but only the two POSTs would actually change an
+     * entry list, so each is asserted directly rather than inferred from the page beside them.
+     * This is also what keeps `EVENT_SECTION_ACTIONS`' "refused by omission" honest: a write
+     * address is gated by the same table a page is.
+     */
+    const posted = await page.request.post(`${path}/update`, {
+      form: { intent: 'assign-bibs' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+
+    const uploaded = await page.request.post(`${path}/import`, {
+      multipart: {
+        intent: 'import',
+        file: csvUpload(
+          fullOnSportCsv([
+            { poId: 'ZZ-REFUSED-1', first: 'Refused', last: 'Zzquiller', gender: 'F' },
+          ]),
+        ),
+      },
+      maxRedirects: 0,
+    });
+    expect(uploaded.status()).toBe(404);
+  });
+
+  test('a signed-out visitor is refused all three', async ({ page }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this whole
+    // file signs in from, which is a `beforeAll` concern.
+    await page.context().clearCookies();
+    const path = registrationPath(testInfo.project.name);
 
     expect((await page.goto(path))?.status()).toBe(404);
 
@@ -481,6 +566,28 @@ test.describe('who may open the start screen', () => {
 
 test.describe('a race that has not started', () => {
   test('counts down and offers the one button, with or without scripting', async ({
+      form: { intent: 'assign-bibs' },
+      maxRedirects: 0,
+    });
+    expect(posted.status()).toBe(404);
+
+    const uploaded = await page.request.post(`${path}/import`, {
+      multipart: {
+        intent: 'import',
+        file: csvUpload(
+          fullOnSportCsv([
+            { poId: 'ZZ-REFUSED-2', first: 'Refused', last: 'Zzquiller', gender: 'F' },
+          ]),
+        ),
+      },
+      maxRedirects: 0,
+    });
+    expect(uploaded.status()).toBe(404);
+  });
+});
+
+test.describe('the entry list', () => {
+  test('opens to a timing-admin and says nothing has been imported yet', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
@@ -531,6 +638,218 @@ test.describe('a race that has not started', () => {
 
   /**
    * ⚠️ **A refusal and a missing race are the same answer**, because `event_detail()` returns
+    const response = await page.goto(registrationPath(testInfo.project.name));
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
+
+    /*
+     * ⚠️ **Both ways in are on the page and the club's own entries come first**, because
+     * ADR-039 made that the critical path and the CSV the archive one. If the order ever
+     * inverts, somebody setting up Nightingale Nightmare reaches for a file that should not
+     * exist — and making one would put a date of birth in it.
+     */
+    await expect(page.getByRole('button', { name: 'Import from entries' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Import this file' })).toBeVisible();
+
+    /*
+     * The transparency note the parser's own header asks for: a volunteer can see what is and
+     * is not being kept, named column by column, before they upload anything.
+     */
+    await expect(page.getByText(/MedicalInformation/)).toBeVisible();
+    await expect(page.getByText(/Nothing about the file itself is kept/)).toBeVisible();
+  });
+
+  test("is linked from the race's own page", async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(EVENT);
+    await page.getByRole('link', { name: 'Entry list for this race' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
+    expect(new URL(page.url()).pathname).toBe(`${EVENT}/registration`);
+  });
+
+  test('imports a CSV and puts the runners on the start list', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles(
+      '#file',
+      csvUpload(
+        fullOnSportCsv([
+          { poId: 'ZZ-IMPORT-1', first: 'Aloysius', last: 'Zzimport', gender: 'M' },
+          { poId: 'ZZ-IMPORT-2', first: 'Bernadette', last: 'Zzimport', gender: 'F' },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Import this file' }).click();
+
+    await expect(page.getByText(/The entry list was imported/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Aloysius Zzimport' })).toBeVisible();
+    await expect(page.getByText('Bernadette Zzimport — Female')).toBeVisible();
+
+    /*
+     * ⚠️ **The leak assertion, and it is derived from the fixture rather than written as a
+     * literal** — `nn-entry-complete.spec.ts`'s rule, learned when a guard matched a bare
+     * number against markup full of SVG coordinates and could never have failed. What is
+     * checked here is the **URL**: findings and outcomes cross the redirect in the query
+     * string, and the parser's own messages name runners and quote their addresses. Nothing
+     * off the file may appear there.
+     */
+    expect(page.url()).not.toContain('Zzimport');
+    expect(page.url()).not.toContain('example.com');
+  });
+
+  /**
+   * ⚠️ **Checking imports nothing, and that is the whole of the preview.** There is nowhere to
+   * hold a parsed file between two requests — #202 leaves *whether the raw file is kept at
+   * all* unanswered, so this path keeps nothing — which is why the preview is a second submit
+   * of the same form rather than a stored result.
+   */
+  test('reads a file without importing it, and says which rows are wrong', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles(
+      '#file',
+      csvUpload(
+        fullOnSportCsv([
+          { poId: 'ZZ-CHECK-1', first: 'Cuthbert', last: 'Zzcheck', gender: 'M' },
+          // No race category, which is one of the four fields every row must carry.
+          { poId: 'ZZ-CHECK-2', first: 'Drusilla', last: 'Zzcheck', gender: '' },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Check this file' }).click();
+
+    await expect(page.getByText(/nothing was imported/)).toBeVisible();
+    await expect(page.getByText(/Has to be fixed/)).toBeVisible();
+    await expect(page.getByText(/Rows? 2/)).toBeVisible();
+
+    // Nothing landed, so neither runner is on the start list — including the good row, because
+    // the whole file is refused rather than half applied.
+    await expect(page.getByRole('heading', { name: 'Cuthbert Zzcheck' })).toHaveCount(0);
+    expect(page.url()).not.toContain('Zzcheck');
+  });
+
+  test('refuses to import a file with a row it cannot use', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles(
+      '#file',
+      csvUpload(
+        fullOnSportCsv([
+          { poId: 'ZZ-BLOCK-1', first: 'Eustace', last: 'Zzblock', gender: 'M' },
+          { poId: '', first: 'Ffion', last: 'Zzblock', gender: 'F' },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Import this file' }).click();
+
+    await expect(page.getByText(/Nothing was imported/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Eustace Zzblock' })).toHaveCount(0);
+  });
+
+  test('says so when the file is not a CSV at all', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles('#file', {
+      name: 'entries.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 not a spreadsheet', 'utf-8'),
+    });
+    await page.getByRole('button', { name: 'Import this file' }).click();
+
+    await expect(page.getByText(/does not look like a CSV/)).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **One test for the whole round trip, deliberately** — the roster tests' rule. Assigning
+   * and then pressing again are two tests' worth of assertions and one test's worth of state,
+   * and split in two the second would depend on the first having run.
+   *
+   * It imports its own entries first, so *"there was something unnumbered to number"* is true
+   * whatever else has run in this project.
+   */
+  test('numbers a field once, and never renumbers it', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles(
+      '#file',
+      csvUpload(
+        fullOnSportCsv([
+          { poId: 'ZZ-BIBS-1', first: 'Gwendolyn', last: 'Zzbibs', gender: 'F' },
+          { poId: 'ZZ-BIBS-2', first: 'Horatio', last: 'Zzbibs', gender: 'M' },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Import this file' }).click();
+    await expect(page.getByText(/The entry list was imported/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Assign bibs' }).click();
+    await expect(page.getByText(/Bibs were assigned/)).toBeVisible();
+
+    /*
+     * The sentence that stops somebody going looking for a problem that is not there.
+     * `assign_bibs()` is idempotent **by skipping**, so a second press is meant to do nothing —
+     * and "0 entries were numbered" reads as a failure.
+     */
+    await page.getByRole('button', { name: 'Assign bibs' }).click();
+    await expect(page.getByText(/Every entry already has a number/)).toBeVisible();
+  });
+
+  /**
+   * The desk path, end to end: somebody turns up, gets the next free number, and then gets
+   * handed a physical bib that is not that number.
+   */
+  test('takes a walk-in at the desk, and the bib they were actually handed', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.fill('#firstname', 'Isambard');
+    await page.fill('#lastname', 'Zzwalkin');
+    await page.selectOption('#gender', 'male');
+    await page.fill('#age_on_day', '41');
+    await page.fill('#club_name', 'zz Fixture AC');
+    await page.getByRole('button', { name: 'Add this walk-in' }).click();
+
+    await expect(page.getByText(/That walk-in is on the start list/)).toBeVisible();
+    await expect(
+      page.getByText('Isambard Zzwalkin — Male, 41, zz Fixture AC'),
+    ).toBeVisible();
+
+    /*
+     * ⚠️ **A bib written on beats the number the entry derives**, which is `effectiveBib()`'s
+     * whole contract and the one thing ADR-034 says the rewrite may not break. `9081` is
+     * invented and deliberately outside anything `assign_bibs()` hands out, so it cannot clash
+     * with another test's field.
+     */
+    await page.getByLabel('Bib written on for Isambard Zzwalkin').fill('9081');
+    await page
+      .getByRole('button', { name: 'Save the bib for Isambard Zzwalkin' })
+      .click();
+
+    await expect(
+      page.getByText(/That bib is recorded against the leg you chose/),
+    ).toBeVisible();
+    await expect(page.getByLabel('Bib written on for Isambard Zzwalkin')).toHaveValue(
+      '9081',
+    );
+  });
+
+  /**
+   * ⚠️ **A refusal and a missing race are the same answer**, because `event_roster()` returns
    * `null` for both so a slug cannot be probed for existence.
    */
   test('gives a race that does not exist the ordinary not-found page', async ({
@@ -538,6 +857,7 @@ test.describe('a race that has not started', () => {
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto('/timing/events/zz-no-such-race/start');
+    await page.goto('/timing/events/zz-no-such-race/registration');
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
     await expect(page.getByText('There is nothing at this address.')).toBeVisible();
@@ -546,6 +866,7 @@ test.describe('a race that has not started', () => {
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(startPath(testInfo.project.name, 'pending'));
+    await page.goto(registrationPath(testInfo.project.name));
 
     await waitForStyledLayout(page);
     const { violations } = await new AxeBuilder({ page })
@@ -714,5 +1035,10 @@ test.describe('a race that has finished', () => {
     // is fifteen minutes of real time and an hour apart on a naive reading.
     await expect(page.getByText(START_FIXTURE_STARTED_LONDON).first()).toBeVisible();
     await expect(page.getByText(START_FIXTURE_FINISHED_LONDON).first()).toBeVisible();
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing entry list at 320px');
   });
 });

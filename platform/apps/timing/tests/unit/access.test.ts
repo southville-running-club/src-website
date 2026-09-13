@@ -52,6 +52,11 @@ describe('what each address demands', () => {
     // #250's write address, and the same rule: starting a race and reading the start screen
     // are both `timing.event.manage`, so they cannot come apart by accident.
     ['/events/nn-2026/start/update', 'timing.event.manage'],
+    // The entry list's two, #202. `import` is the only `multipart/form-data` post on this
+    // platform and `update` carries the four field intents; both demand the section's own
+    // permission, so reading an entry list and changing one cannot come apart by accident.
+    ['/events/nn-2026/registration/import', 'timing.registration.import'],
+    ['/events/nn-2026/registration/update', 'timing.registration.import'],
   ])('%s demands %s', (path, permission) => {
     expect(surfaceFor(path)?.permission).toBe(permission);
   });
@@ -107,11 +112,13 @@ describe('an address nobody has written a rule for', () => {
     // it — which is the way widening this table would most plausibly go wrong.
     ['/events/nn-2026/marshals/delete'],
     ['/events/nn-2026/marshals/update/again'],
-    ['/events/nn-2026/registration/update'],
-    // ⚠️ **`start` has exactly one action since #250**, and a second spelling under it is
-    // still refused — which is the half that keeps the table from widening by section.
+    // ⚠️ **`start` has exactly one action since #250 and `registration` has two since #202**,
+    // and every other spelling under either is still refused — which is the half that keeps
+    // this table from widening a whole section at a time.
     ['/events/nn-2026/start/begin'],
     ['/events/nn-2026/start/update/again'],
+    ['/events/nn-2026/registration/delete'],
+    ['/events/nn-2026/registration/import/again'],
     ['/marshal'],
     ['/marshal/nn-2026/extra'],
     ['/leaderboard/nn-2026'],

@@ -131,12 +131,13 @@ export default async function EventPage({
       </dl>
 
       {/*
-        ⚠️ **One link, and the rest are still deliberately absent.** #247 asks this hub to show
+        ⚠️ **Two links, and the rest are still deliberately absent.** #247 asks this hub to show
         "the next action and nothing that is not yet possible", and linking to a page that does
         not exist is precisely the old application's bug: its marshal navigation carried a
         "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
-        so it is linked, and the start screen since #250. The entry list is #202, finishing is
-        #253 and results are #205 — each adds its own link here when its page exists.
+        the start screen since #250 and the entry list since #202, so all three are linked.
+        Finishing is #253 and results are #205 — each adds its own link here when its page
+        exists.
 
         The link is unconditional because this address demands `timing.event.manage` and the
         roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
@@ -144,9 +145,14 @@ export default async function EventPage({
         needs the viewer's permissions, which this page does not read — the door does. Showing
         a link that 404s for somebody holding only one of the two would reintroduce exactly the
         bug above, so **if the two permissions ever come apart in practice, this is the line
-        that has to learn to ask.** Today `timing-admin` carries both.
+        that has to learn to ask.** Today `timing-admin` carries all three — the entry list
+        demands `timing.registration.import`, which is a third permission again.
       */}
       <h2>Set up</h2>
+
+      <p>
+        <Link href={`/events/${event.slug}/registration`}>Entry list for this race</Link>
+      </p>
 
       <p>
         <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
