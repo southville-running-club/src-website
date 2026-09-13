@@ -423,4 +423,38 @@ describe('the outbox drain', () => {
     expect(after[0]?.status).toBe('sent');
     expect(after[0]?.sent_at).not.toBeNull();
   });
+  /**
+   * **The case nothing asserted, which is why it shipped wrong.**
+   *
+   * A Stripe event for a session this database has never seen is an ordinary occurrence — a
+   * session created against another environment, the endpoint's own test event — and it is
+   * emphatically not a credential problem. Answering `ok = false` made the Worker report
+   * `bad_key`, which reached a volunteer as a 503 and a log line naming a digest that was
+   * correct. Fixed by `20260913230000`; `entries.record_checkout_event()` has always answered
+   * its equivalent `not_ours` with `ok = true`.
+   */
+  it('answers an unrecognised session without calling it a bad key', async () => {
+    const recorded = await anon.schema('store').rpc('record_checkout_event', {
+      p_key: STRIPE_KEY,
+      p_session_id: 'cs_test_no_such_session_anywhere',
+      p_amount_total: 1200,
+    });
+
+    expect(recorded.data?.[0]).toMatchObject({ ok: true, result: 'no_such_session' });
+  });
+
+  /**
+   * **And the refusal that `ok = false` is now reserved for.** The pair matters more than
+   * either half: a test asserting only the line above would pass on a function that answered
+   * `ok = true` to everything, including a key it should have refused.
+   */
+  it('still refuses a wrong key, and tells them apart', async () => {
+    const refused = await anon.schema('store').rpc('record_checkout_event', {
+      p_key: 'not-the-stripe-key',
+      p_session_id: 'cs_test_no_such_session_anywhere',
+      p_amount_total: 1200,
+    });
+
+    expect(refused.data?.[0]).toMatchObject({ ok: false, result: 'bad_key' });
+  });
 });
