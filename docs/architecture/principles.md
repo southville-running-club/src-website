@@ -201,6 +201,16 @@ Semantic markup, real contrast, visible focus, labelled inputs, errors associate
 their fields, keyboard-operable throughout. **Zero axe violations, not "few"** — any
 threshold above zero becomes the new normal within a month.
 
+⚠️ **Which rules, because "zero violations" is only a claim once you say zero of what.** One
+list, in `apps/main/tests/axe.ts`: the five WCAG tags plus `best-practice`, which is 100 of
+`axe-core`'s 105 rules. Three different lists were in use until 14 September 2026 and none of
+the difference was deliberate — one surface ran 105 rules, twenty-eight call sites ran 70, and
+three ran 69 ([#219](https://github.com/southville-running-club/src-website/issues/219)).
+Unifying them found four real defects on pages no rule had been watching: the club banner and
+the admin event bar sat outside every landmark, and two pages skipped a heading level. **The
+five left out are three WCAG AAA rules and two axe has deprecated** — holding the whole site to
+AAA is a decision the club has not taken, and that file carries the argument for each.
+
 *Where from:* [users](../foundations/requirements.md#users). 70% of visitors are on a phone.
 
 ### Failure is designed for, not handled

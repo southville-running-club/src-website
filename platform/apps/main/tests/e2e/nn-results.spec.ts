@@ -1,6 +1,6 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import { axeViolations } from '../axe';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 import { seedTimingFixtures } from '../timing-db';
 import {
   FINISHED_EVENT_NAME,
@@ -222,10 +222,7 @@ test.describe('a race whose results the club has published', () => {
   test('has no accessibility violations @requires-js', async ({ page }) => {
     await page.goto(PUBLISHED_PATH);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });

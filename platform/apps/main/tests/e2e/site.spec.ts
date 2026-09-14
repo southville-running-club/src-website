@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import { axeViolations } from '../axe';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
  * The whole site, in a real browser, on one origin — exactly as the public will meet it.
@@ -61,10 +61,14 @@ test.describe('the banner that says which site this is', () => {
     }) => {
       await page.goto(path);
 
-      // **`.site-banner`, not `getByRole('banner')`.** The bar is a `div` on purpose — the
-      // Nightingale Nightmare masthead is the page's one `banner` landmark and a second
-      // would be an axe violation. So there is no role to select it by, which is the
-      // trade-off working as intended rather than a weaker assertion.
+      // **`.site-banner`, not `getByRole('banner')`.** The bar is deliberately not a
+      // `banner` — the Nightingale Nightmare masthead is the page's one, and a second is
+      // `landmark-no-duplicate-banner`. ⚠️ **It was a `div` for that reason until #219**,
+      // which is no landmark at all: everything in here was outside the page's landmark
+      // structure, and `region` said so as soon as the suite ran one rule list. It is an
+      // `<aside>` now — complementary, which is what a site-wide notice beside the page's
+      // own content is — so `getByRole('complementary')` would work. The class is kept
+      // because it is what the other assertions in this file already select by.
       const banner = page.locator('.site-banner');
 
       // Says what is here, so nobody concludes the club's information has vanished. It no
@@ -2004,10 +2008,7 @@ test.describe('accessibility', () => {
       // and 70% of visitors are on a phone.
       await page.goto(path);
 
-      await waitForStyledLayout(page);
-      const { violations } = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
+      const violations = await axeViolations(page);
 
       expect(violations).toEqual([]);
     });

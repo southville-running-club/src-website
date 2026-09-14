@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { axeViolations } from '../axe';
 import {
   anomalyCrossing,
   anomalyCrossingId,
@@ -47,7 +47,7 @@ import {
 import { clearTimingStaff, seedTimingStaff } from '../timing-staff-db';
 import { TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL } from '../admin-fixtures';
 import { RESULTS_EVENT_NAME, RESULTS_EVENT_SLUG } from '../timing-fixtures';
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 import { forgetSessions, signInAs } from './sign-in';
 
 /**
@@ -281,10 +281,7 @@ test.describe('the events list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENTS);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -361,10 +358,7 @@ test.describe('one race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -521,10 +515,7 @@ test.describe('the marshal roster', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(rosterPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -663,10 +654,7 @@ test.describe('a race that has not started', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(startPath(testInfo.project.name, 'pending'));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1180,10 +1168,7 @@ test.describe('the entry list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(registrationPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1582,10 +1567,7 @@ test.describe('recording a crossing', () => {
     await page.getByRole('button', { name: 'Crossed now' }).click();
     await expect(page.getByText('No bib yet')).toBeVisible();
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1817,10 +1799,7 @@ test.describe('the triage list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(anomaliesPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1919,10 +1898,7 @@ test.describe('the timing log', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(crossingsPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2093,10 +2069,7 @@ test.describe('marking a runner', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2180,10 +2153,7 @@ test.describe('finishing a race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(finishPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2398,10 +2368,7 @@ test.describe('the danger zone', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(dangerZonePath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2652,10 +2619,7 @@ test.describe('the results preview', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(previewPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2736,10 +2700,7 @@ test.describe('the prize presenter', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(prizePath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -2946,10 +2907,7 @@ test.describe('the live leaderboard', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(boardPath(testInfo.project.name));
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });

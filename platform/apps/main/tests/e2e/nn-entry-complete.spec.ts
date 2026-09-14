@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axeViolations } from '../axe';
 import { clearPurchases, clearWebhookKey, seedPurchase } from '../entries-db';
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 import {
   FIXTURE_AMOUNT_PENCE,
   FIXTURE_EMAIL,
@@ -44,8 +44,6 @@ import {
  * so nothing in this file needs it — and a run that left one installed against the real event
  * row would leave a laptop confirmable by anybody who read a test file.
  */
-
-const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 /** Which block the page is showing, named the way the markup names it. */
 const block = (page: Page, view: 'paid' | 'no-record' | 'refunded') =>
@@ -281,8 +279,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('the confirmed state has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -290,8 +287,7 @@ test.describe('the page Stripe returns somebody to', () => {
   test('the pending state has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(`/nn/2026/entry/complete/?session=${PENDING_SESSION_ID}`);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -301,8 +297,7 @@ test.describe('the page Stripe returns somebody to', () => {
     // be struggling with**, which is the same argument the entry form's error state makes.
     await page.goto(`/nn/2026/entry/complete/?session=${LAPSED_SESSION_ID}`);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -311,8 +306,7 @@ test.describe('the page Stripe returns somebody to', () => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`/nn/2026/entry/complete/?session=${PAID_SESSION_ID}`);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });

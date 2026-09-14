@@ -197,6 +197,11 @@ describe('the washes the admin surface mixes', () => {
     expect(WASHES.length).toBeGreaterThanOrEqual(6);
   });
 
+  // ⚠️ **A three-, four-, six- or eight-digit issue number in a comment trips this**, because
+  // `#219` and `#f0a` are the same characters. The existing references — `#58`, `#59` — are two
+  // digits and slip under the minimum. Write such a number without its `#` in that file rather
+  // than loosening this: the rule is worth more than the citation, and every issue number from
+  // 100 up now has this shape.
   it('holds no hex value anywhere in the stylesheet', () => {
     // **The claim at the head of `nn-admin.css`, enforced.** Every colour on this surface is a
     // custom property, so a literal anywhere in the file — in a `color-mix`, in a print rule, in

@@ -21,7 +21,24 @@ import { SITE_BANNER } from '@src/shared/brand';
 // The tags are duplicated; the copy cannot drift.
 ---
 
-<div class="site-banner">
+{
+  /* ⚠️ **`<aside>`, and the element is load-bearing.** This was a `<div>`, which is no
+      landmark at all — so everything in it, the club wordmark and the sentence about the old
+      site, sat outside the page's landmark structure and could not be reached by landmark
+      navigation. `region` is the axe rule that says so, and nothing in this suite was running
+      it until #219 settled on one rule list.
+
+      **It cannot be `<header>`**, which is the obvious fix and is what `worker/site-chrome.ts`
+      had: on a Nightingale Nightmare page `NnMasthead` is already the one `banner` landmark,
+      and a second is `landmark-no-duplicate-banner`. Complementary is what this actually is —
+      a site-wide notice about the state of the site, beside the page's own content rather
+      than part of it — and it collides with nothing on any of the three front doors.
+
+      **All three renderings say `aside` now.** The headers here and in the other two claim the
+      copy cannot drift because it comes from `SITE_BANNER`; the *element* had drifted, one
+      `<header>` against two `<div>`s, and that is what the nine failures were. */
+}
+<aside class="site-banner">
   <div class="site-banner-inner">
     {
       /* The mark links home rather than being decoration, because on `/timing` it is the
@@ -48,4 +65,4 @@ import { SITE_BANNER } from '@src/shared/brand';
       >
     </p>
   </div>
-</div>
+</aside>

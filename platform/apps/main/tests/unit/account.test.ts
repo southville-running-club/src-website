@@ -215,22 +215,33 @@ describe('the club chrome, on every account page', () => {
     expect(await accountPage()).toContain('<link rel="icon" href="/favicon.svg"');
   });
 
-  it('makes the banner a real landmark, unlike the Astro one', async () => {
-    // **The one place the Worker's markup diverges from the Astro component, and CI is what
-    // forced it.** `SiteBanner.astro` is a `div` because five campaign pages already carry
-    // `NnMasthead` as their `<header>`, and two `banner` landmarks is
-    // `landmark-no-duplicate-banner`. These pages have no masthead, so copying the `div`
-    // bought nothing and cost something: axe's `region` rule flagged the welcome sentence and
-    // the link to the old site as content outside every landmark — 39 violations, the first
-    // time this change reached CI.
+  it('makes the banner a landmark, and the same one the other two front doors use', async () => {
+    // ⚠️ **This test used to be called "unlike the Astro one", and the divergence it recorded
+    // is closed.** Its own comment is the history: axe's `region` rule flagged the welcome
+    // sentence and the link to the old site as content outside every landmark — 39 violations,
+    // the first time this change reached CI — and the fix made *this* rendering a `<header>`
+    // while `SiteBanner.astro` stayed a `div`, because five campaign pages already carry
+    // `NnMasthead` as their `<header>` and two `banner` landmarks is
+    // `landmark-no-duplicate-banner`.
     //
-    // Asserted here so the divergence is a decision somebody reads rather than an
-    // inconsistency somebody tidies away.
+    // **The reason the Astro side was never challenged is #219's whole subject.** `region` is
+    // a `best-practice` rule, and this surface was the only one in the suite running axe's
+    // default set — five bare `.analyze()` calls in `account.spec.ts`. Every other page ran a
+    // five-tag WCAG list that does not contain `region`, so the same defect sat on `/`,
+    // `/nn/`, `/privacy/`, `/events/` and the terms page, unseen, for as long as the banner
+    // has existed. One rule list found nine of them in one run.
+    //
+    // `<aside>` is what all three say now: `<header>` was right here and could never be right
+    // on a campaign page, and complementary is what a site-wide notice beside the page's own
+    // content actually is.
     const markup = (await accountPage()).replace(/\s+/g, ' ');
 
-    expect(markup).toContain('<header class="site-banner">');
-    // And exactly one, because the moment this surface grows a masthead the div is right again.
-    expect(markup.match(/<header/g) ?? []).toHaveLength(1);
+    expect(markup).toContain('<aside class="site-banner">');
+
+    // **No `banner` landmark on this surface at all, which is the point rather than a gap.**
+    // If these pages ever grow a masthead it must be the only `<header>`, and this failing is
+    // how somebody finds out they have to decide that rather than inherit it.
+    expect(markup.match(/<header/g) ?? []).toHaveLength(0);
   });
 
   it('offers a way back to the club site', async () => {

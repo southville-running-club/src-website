@@ -1,46 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
-import { waitForStyledLayout } from '../sideways-scroll';
-
-/**
- * Axe, run once the page is actually a styled page.
- *
- * ## Why the wait is here and not at each call site
- *
- * **An axe run on a bare document reports the absence of CSS as a design failure**, which is
- * the defect `sideways-scroll.ts` was written for, one assertion type along. `readyState`
- * reaches `interactive` before `<link rel="stylesheet">` has landed — DOMContentLoaded waits
- * for scripts, not sheets — so an outcome block the Worker has revealed is already *visible*,
- * `toBeVisible()` resolves, and axe then measures a document with no CSS on it.
- *
- * **`target-size` is the rule that catches it, and it caught CI on #182.** A link in the error
- * summary is 19px tall unstyled and comfortably past the 24px minimum once `base.css` applies,
- * so the bare page fails a rule the real page passes. That failure named an `account.spec.ts`
- * assertion **byte-identical to the one green on `main`**, in a run whose log also shows the
- * web server dying mid-run — runner pressure widening a race that was always there.
- *
- * **The fonts matter more here than they do for overflow.** A fallback face and the web font
- * give different line boxes, so a target measured mid-swap is measured at neither size.
- *
- * ## What this is not
- *
- * It waits for a **defined state** — sheets applied, fonts settled, layout stopped moving —
- * never for the violation list to come good. A page whose styled state really does violate a
- * rule fails exactly as before. Retrying until the answer is the wanted one is the other thing
- * entirely, and `sideways-scroll.ts`'s header is written against it.
- *
- * The tag list lived at nine call sites and is one thing now, so the five tags cannot drift
- * apart between the empty state and the error state of the same form.
- */
-async function axeViolations(page: Page) {
-  await waitForStyledLayout(page);
-
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-
-  return violations;
-}
+import { expect, test } from '@playwright/test';
+import { axeViolations } from '../axe';
 
 /**
  * `/account/`, in a real browser, exactly as somebody will meet it.
@@ -895,23 +854,26 @@ test.describe('signing in with a link @requires-js', () => {
   }) => {
     await page.goto('/account/sign-in/');
 
+    expect(await axeViolations(page)).toEqual([]);
+
+    // ⚠️ **Asserted directly, because the axe rule that used to cover it is deprecated.**
     // Two email fields and two Turnstile widgets on one page: the thing most likely to go
-    // wrong here is a duplicate id, which is why `textField` grew an override.
-    // Settled first, for the reason `axeViolations` above is written out in full.
-    // The default rule set is kept here rather than the five WCAG tags — routing
-    // these through that helper would quietly change what they assert.
-    await waitForStyledLayout(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    // wrong here is a duplicate id, which is why `textField` grew an override. This page was
+    // the only one in the suite running axe's default rule set, and that set includes
+    // `duplicate-id-active` — which axe itself has retired, because WCAG 2.2 removed success
+    // criterion 4.1.1. #219 settled the suite on one tag list and the retired rules are not
+    // in it, so the concern is written down as its own assertion rather than left to a rule
+    // that is on its way out. A named assertion beats a rule that happens to cover it.
+    const ids = await page.$$eval('[id]', (elements) =>
+      elements.map((element) => element.id),
+    );
+    expect(new Set(ids).size, `duplicate id among: ${ids.join(', ')}`).toBe(ids.length);
 
     await page.getByLabel('Where to send the link').fill('not-an-address');
     await settleTurnstile(page, 'form[action="/account/link/"]');
     await page.getByRole('button', { name: 'Email me a link' }).click();
 
-    // Settled first, for the reason `axeViolations` above is written out in full.
-    // The default rule set is kept here rather than the five WCAG tags — routing
-    // these through that helper would quietly change what they assert.
-    await waitForStyledLayout(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 });
 
@@ -945,11 +907,7 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await expect(page.getByText(/Nothing is showing here yet/i)).toBeVisible();
     await expect(page.getByText(/entered with this email address/i)).toBeVisible();
 
-    // Settled first, for the reason `axeViolations` above is written out in full.
-    // The default rule set is kept here rather than the five WCAG tags — routing
-    // these through that helper would quietly change what they assert.
-    await waitForStyledLayout(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
 
     await page.goto('/account/data/');
 
@@ -976,11 +934,7 @@ test.describe('downloading and deleting an account @requires-js', () => {
 
     expect(dataText).toContain('deleted automatically one month after the race');
 
-    // Settled first, for the reason `axeViolations` above is written out in full.
-    // The default rule set is kept here rather than the five WCAG tags — routing
-    // these through that helper would quietly change what they assert.
-    await waitForStyledLayout(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
 
     // **Assert the attachment on the response, never on a download event.** The three browser
     // engines disagree about what an attachment is, and WebKit on a Linux runner renders one
@@ -1011,11 +965,7 @@ test.describe('downloading and deleting an account @requires-js', () => {
     await page.getByRole('button', { name: 'Delete my account' }).click();
     await expect(page.getByText(/Type DELETE in the box/i)).toBeVisible();
 
-    // Settled first, for the reason `axeViolations` above is written out in full.
-    // The default rule set is kept here rather than the five WCAG tags — routing
-    // these through that helper would quietly change what they assert.
-    await waitForStyledLayout(page);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
 
     await page.getByLabel(/Type .*DELETE.* to confirm/i).fill('DELETE');
     await page.getByRole('button', { name: 'Delete my account' }).click();

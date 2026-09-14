@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeViolations } from '../axe';
 
-import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
+import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
  * `/nn/2026/terms/` — the entry terms and race rules.
@@ -279,11 +279,8 @@ test.describe('the entry terms page', () => {
 
     // Zero, not "few" — any threshold above zero becomes the new normal within a month. The
     // tag set matches the rest of the suite.
-    await waitForStyledLayout(page);
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
-    expect(results.violations).toEqual([]);
+    expect(violations).toEqual([]);
   });
 });

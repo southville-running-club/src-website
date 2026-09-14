@@ -472,7 +472,14 @@ sentence above is about the platform still running on Vercel; the schema in this
 ordinary work under the same rules as `entries` and `store`.
 
 **Zero accessibility violations**, not "few". Any threshold above zero becomes the new
-normal within a month.
+normal within a month. ⚠️ **Zero of _what_ is one list and it is
+`apps/main/tests/axe.ts`** — the five WCAG tags plus `best-practice`, 100 of `axe-core`'s 105
+rules, called through `axeViolations()` which waits for a styled page first. **Three lists
+were in use until 14 September 2026 and none of the difference was deliberate**: one surface
+ran 105 rules, twenty-eight call sites ran 70, three ran 69. Unifying them found four real
+defects on pages no rule was watching — `.site-banner` and `.admin-eventbar` outside every
+landmark, and a skipped heading level on `/admin/nn/entry/` and `/brand/`. A new axe call site
+imports that helper; it does not write its own `withTags`.
 
 ---
 
