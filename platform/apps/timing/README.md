@@ -48,12 +48,18 @@ screen (#250), the **capture screen** (#203), the **anomalies list and the timin
 publication state machine (#241), the **results preview, the publish button, the prize presenter
 and the exports** (#205), and `/nn/<year>/results/` reading `timing.results_for_event()`.
 ⚠️ **"Nothing that touches a race as it happens is built" is what this said until 13 September
-2026, and "what is still missing is publication" until the day after** — a crossing is recorded,
-resolved, labelled, the race can be called finished, its results published and taken down again,
-and the field can be cleared to run the whole thing again. What is still missing is the
-**public page**: `/nn/<year>/results/` still refuses a signed-out visitor, which is
-[#242](https://github.com/southville-running-club/src-website/issues/242). The ladder of what
-"done" means is [#257](https://github.com/southville-running-club/src-website/issues/257).
+2026, "what is still missing is publication" until the day after, and "what is still missing is
+the public page" for a few hours after that** — three stale lines in three days, in one
+paragraph, which is the pattern rather than the exception. A crossing is recorded, resolved,
+labelled, the race can be called finished, its results published and taken down again, the public
+reads them at a permanent address ([#242](https://github.com/southville-running-club/src-website/issues/242)),
+and the field can be cleared to run the whole thing again. **What is still missing is the live
+leaderboard** ([#204](https://github.com/southville-running-club/src-website/issues/204)) **and
+the simulation that signs all of it off**
+([#207](https://github.com/southville-running-club/src-website/issues/207)). The ladder of what
+"done" means is [#257](https://github.com/southville-running-club/src-website/issues/257), and
+[the race-night runbook](../../../docs/delivery/runbooks/timing-race-night.md) is how one race is
+actually run.
 
 ## Two single-event assumptions that were never ported, and are worth saying so
 

@@ -1042,10 +1042,11 @@ nothing failed until a form-level normaliser was checked against it.
 
 ## How the entries system behaves
 
-**This used to be titled "What is not built yet."** Almost everything below is built —
-entries, payment, the admin surface, the outbox, member accounts. The one thing genuinely
-not built is at the end of this section, so a reader looking for it does not have to read
-560 lines to find out it is one sentence.
+**This used to be titled "What is not built yet."** Everything below is built — entries,
+payment, the admin surface, the outbox, member accounts. ⚠️ **The one thing this section used
+to end with as "genuinely not built" was the timing platform**, which is neither this section's
+subject nor unbuilt any more; it has a section of its own as of 14 September 2026 —
+[how the timing app behaves](#how-the-timing-app-behaves).
 
 ### Email and the outbox
 
@@ -1739,11 +1740,65 @@ places and a visually impaired runner's guide's place both use now.
 
 ### What is genuinely not built
 
-⚠️ **This said "there is no timing application code" until 12 September 2026, and that
-stopped being true in stages rather than all at once** — which is exactly how a line like it
-goes stale unnoticed. Under
+**Nothing, on the entries path.** Everything above is built, live and selling places. What this
+subsection used to hold was two hundred lines about the *timing* platform, under a heading that
+was accurate when none of it existed — read
+[how the timing app behaves](#how-the-timing-app-behaves) below instead, which is where that
+moved on 14 September 2026 and which carries its own "not built" list.
+
+**The section after that one is the same kind of thing and is also built and live**: `store`,
+tickets to the club's socials, added 5 September 2026. It has its own list of what it
+deliberately does not do yet, which is worth reading before assuming a missing button is a
+defect.
+
+---
+
+## How the timing app behaves
+
+**A race is timed here now, end to end.** Under
 [ADR-034](docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
-the platform is being **rewritten here** rather than moved, so what exists now is:
+the platform is **rewritten in this repository** rather than moved, so writing `timing` tables,
+the ported logic in `packages/shared/src/timing/` and `apps/timing` is ordinary work. Reaching
+into `bindalshah/src-race-timing` is still a stop-and-ask.
+
+⚠️ **This was a bullet list under "What is genuinely not built" until 14 September 2026, and the
+shape was the problem rather than the contents.** Rungs 0 to 4 of
+[#257](https://github.com/southville-running-club/src-website/issues/257) are complete; a heading
+saying otherwise is exactly the staleness this file keeps paying for elsewhere.
+
+### The two rules the rest of it follows from
+
+**1. Finishing a race is not publishing it, and neither is a cut-off.** `finished_at` is a label
+`timing.event.manage` sets and can unset, gating nothing — `record_crossing()`, the resolution
+functions and `set_race_status()` are all untouched by it, because the last runner crosses after
+somebody has called the race over. Publication is a second act by
+`timing.result.publish`, refused `not_finished` while the label is absent and `open_anomalies`
+while anything is on the triage list.
+[ADR-042](docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md).
+**A correction after publication is _unpublish, fix, publish_**, and `/nn/<year>/results/`
+answers 404 to the public in between rather than serving a table somebody is editing.
+
+**2. Every address under `/timing` is refused unless a row says otherwise, and a page never
+refuses itself.** `lib/access.ts` is the table of which permission each address demands;
+`middleware.ts` is the one place that enforces it; an address with no row is refused rather than
+opened. Nothing here is anon-callable except the two functions the published results page needs,
+and `/timing/health` is public so the smoke test can read it. ADR-036, ADR-037, and #243 for the
+measurement that says a page here provably cannot refuse.
+
+### Running one: the runbook is the document, not this file
+
+⚠️ **[The race-night runbook](docs/delivery/runbooks/timing-race-night.md) is what somebody
+follows on the day**, in six phases from the change freeze to the morning after — the roster, the
+entry list, the start, what a marshal's card states mean, finishing, publishing, and a correction
+afterwards. [Getting in](docs/delivery/runbooks/timing-access.md) is the other one: nobody carries
+over from the old platform, and a granted marshal who is not on a race's roster gets the ordinary
+404.
+
+**Do not restate either of them here.** What belongs in this file is the reasoning a change has
+to not break; what belongs there is the order somebody presses things in, and the two go stale at
+different rates.
+
+### The surfaces, and what each of them decided
 
 - the **`timing` schema** — six tables, RLS on with no policy (ADR-035);
 - the **pure logic**, ported with its assertions, in `packages/shared/src/timing/` — bibs,
@@ -1887,7 +1942,9 @@ publish button; #242 opened `/nn/<year>/results/` to a signed-out visitor. Each 
 genuinely not built is"* the other, and both merged the same afternoon. A `timing-admin` now
 previews a race, presses publish, and the public reads it at a permanent address.
 
-**What is genuinely not built is the live leaderboard** —
+### What is genuinely not built
+
+**The live leaderboard** —
 [#204](https://github.com/southville-running-club/src-website/issues/204), staff-only in 2026
 per ADR-038, and the slice ADR-034 cuts if the simulation fails — **and the simulation itself**,
 [#207](https://github.com/southville-running-club/src-website/issues/207). ⚠️ **"nothing
@@ -1896,6 +1953,8 @@ finishes a race" until #253, "publication" flatly until #241, "nothing wipes a r
 #254, "the publish button" until #205 and "the public page" until #242** — eight such lines have
 gone stale in five days, which is the pattern rather than the exception, and two of them went
 stale in the same hour as each other.
+
+### Sharp things already paid for here
 
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because
@@ -1952,11 +2011,6 @@ their email addresses, and a query string is not somewhere personal data may go.
 also no timing data** — every table is empty, so the results page renders "Nothing has been
 captured for this race yet" to the few people who may open it at all. The current state, and
 what is deliberately deferred, is in [the phases](docs/delivery/phases.md).
-
-**The section below this one is the same kind of thing and is also built and live**: `store`,
-tickets to the club's socials, added 5 September 2026. It has its own list of what it
-deliberately does not do yet, which is worth reading before assuming a missing button is a
-defect.
 
 ---
 
