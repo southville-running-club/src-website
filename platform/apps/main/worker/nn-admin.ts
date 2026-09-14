@@ -1006,9 +1006,11 @@ function attentionSection(list: AdminEntryList, flagged: AdminEntry[]): Html {
     ${
       list.event.attention > flagged.length
         ? html`<p class="admin-error">
-            <strong>${list.event.attention}</strong> purchases are flagged in the database
-            and only ${flagged.length} are on this page — the rest are older than the most
-            recent ${list.returned} entries. The exports carry every one of them.
+            <strong>${list.event.attention}</strong>
+            ${plural(list.event.attention, 'purchase is', 'purchases are')} flagged in the
+            database and only ${flagged.length} ${plural(flagged.length, 'is', 'are')} on
+            this page — the rest are older than the most recent ${list.returned} entries.
+            The exports carry every one of them.
           </p>`
         : null
     }
@@ -2019,8 +2021,9 @@ function interestSection(interest: AdminResult<AdminInterestList>): Html {
         ${
           interest.status === 'ok'
             ? html`<p class="admin-panel-note">
-                <span class="admin-mono">${interest.total}</span> addresses, collected
-                before entries opened
+                <span class="admin-mono">${interest.total}</span>
+                ${plural(interest.total, 'address', 'addresses')}, collected before
+                entries opened
               </p>`
             : null
         }
@@ -2303,7 +2306,8 @@ function interestPage(viewer: AdminViewer, list: AdminInterestList): Html {
     <main class="admin-page" id="main">
       <h1>Register-your-interest sign-ups</h1>
       <p class="admin-quiet">
-        <span class="admin-mono">${list.total}</span> sign-ups,
+        <span class="admin-mono">${list.total}</span>
+        ${plural(list.total, 'sign-up', 'sign-ups')},
         <span class="admin-mono">${list.consented}</span> of whom said the club may write
         to them.
       </p>
