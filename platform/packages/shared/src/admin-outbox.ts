@@ -77,9 +77,10 @@ export type OutboxListResult =
  * does not: *"Failed after 1 try"* is fine and a column holding *"1 try"* is not.
  *
  * **Zero is the caller's business, not this function's.** The queue renders nothing at all for a
- * message nobody has tried yet, rather than *"0 attempts"* beside "Waiting to go"; the entry
- * timeline only reaches this on a `failed` row, where the count cannot be zero. Answering with
- * words for zero would make that first decision invisible at the one call site that takes it.
+ * message nobody has tried yet, rather than *"0 attempts"* beside "Waiting"; the entry timeline
+ * only reaches this on a `failed` row, where `record_send_result()` puts the count at three or
+ * more before it gives up. Answering with words of its own for zero would make that first
+ * decision invisible at the one call site that takes it.
  */
 export function outboxAttemptsWords(attempts: number): string {
   return plural(attempts, '1 attempt', `${String(attempts)} attempts`);
