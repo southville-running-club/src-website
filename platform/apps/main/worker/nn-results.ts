@@ -314,9 +314,25 @@ function resultsTable(payload: ResultsPayload): Html {
     );
   });
 
-  return html`<div class="results-scroll">
+  // ⚠️ **A scrollable region has to be reachable by keyboard, and this table contains nothing
+  // focusable at all.** `.results-scroll` scrolls horizontally at narrow widths, and axe's
+  // `scrollable-region-focusable` is satisfied either by the region being focusable itself or
+  // by it *containing* something focusable — a results table is all text, so it is neither.
+  // Somebody navigating by keyboard at 375px could not scroll it, and the Time and Status
+  // columns were simply unreachable to them.
+  //
+  // **Only mobile-safari saw it**, because the table does not overflow at desktop width and a
+  // region that does not scroll is not a scrollable region. `admin-people.ts` carries the
+  // longer note: this is the second page to meet it, and the first to meet it with no
+  // controls anywhere on the table rather than by taking the controls away.
+  return html`<div
+    class="results-scroll"
+    tabindex="0"
+    role="region"
+    aria-labelledby="results-table-caption"
+  >
     <table class="results-table">
-      <caption class="results-meta">
+      <caption class="results-meta" id="results-table-caption">
         ${String(results.length)} entries
       </caption>
       <thead>
