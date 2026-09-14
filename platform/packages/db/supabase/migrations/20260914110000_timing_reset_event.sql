@@ -3,7 +3,7 @@
 -- ==========================================================================================
 --
 -- Issue [#254](https://github.com/southville-running-club/src-website/issues/254), under
--- [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
+-- [ADR-034](../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
 -- The piece [#207](https://github.com/southville-running-club/src-website/issues/207) needs in
 -- order to run the race simulation more than once against `nn-2026` without leaving a
 -- rehearsal's crossings in the row the results page reads.
