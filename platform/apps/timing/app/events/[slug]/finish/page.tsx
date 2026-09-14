@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { statusOutcomeFor } from '../../../../lib/status-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/finish/` — the race director calls it, and can take it back.
@@ -76,12 +77,7 @@ export default async function FinishPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const event = read.data;

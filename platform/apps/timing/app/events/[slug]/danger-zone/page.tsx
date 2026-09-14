@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/danger-zone/` — wiping a rehearsal.
@@ -95,14 +96,9 @@ export default async function DangerZonePage({
   }
 
   if (read.state === 'none') {
-    // Word for word `app/not-found.tsx`, because a refusal must be indistinguishable from an
-    // address that does not exist.
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
+    // `event_detail()` answers the same `null` for a refusal and for a missing race.
+    return <NotFoundBody />;
   }
 
   const event = read.data;

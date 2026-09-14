@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { outcomeFor } from '../../../../lib/marshal-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/marshals/` — who is standing at the line for one race.
@@ -99,14 +100,9 @@ export default async function MarshalsPage({
   }
 
   if (roster.state === 'none') {
-    // Word for word `app/not-found.tsx`, because a refusal must be indistinguishable from an
-    // address that does not exist — `roster_for_event()` answers the same `null` for both.
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
+    // `roster_for_event()` answers the same `null` for a refusal and for a missing race.
+    return <NotFoundBody />;
   }
 
   const { event, marshals } = roster.data;

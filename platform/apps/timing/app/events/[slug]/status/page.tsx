@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { readTiming } from '../../../../lib/reads';
 import { statusOutcomeFor } from '../../../../lib/status-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/status/` — DNS, DNF and DQ, and lifting any of them.
@@ -101,12 +102,7 @@ export default async function StatusPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const teams = read.data;

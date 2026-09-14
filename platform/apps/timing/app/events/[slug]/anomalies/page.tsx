@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/anomalies/` — the triage list, where a flagged capture becomes a fact.
@@ -82,12 +83,7 @@ export default async function AnomaliesPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const anomalies = read.data;

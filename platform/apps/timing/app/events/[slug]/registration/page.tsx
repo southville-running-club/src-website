@@ -4,6 +4,7 @@ import { effectiveBib, type EventFormat, type Leg } from '@src/shared/timing/bib
 import { normaliseTimingGender } from '@src/shared/timing/gender';
 import { DROPPED_COLUMNS } from '@src/shared/timing/registration/parser';
 import { readTiming } from '../../../../lib/reads';
+import { NotFoundBody } from '../../../not-found-body';
 import {
   findingsFrom,
   outcomeFor,
@@ -221,14 +222,9 @@ export default async function RegistrationPage({
   }
 
   if (roster.state === 'none') {
-    // Word for word `app/not-found.tsx`, because a refusal must be indistinguishable from an
-    // address that does not exist — `event_roster()` answers the same `null` for both.
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
+    // `event_roster()` answers the same `null` for a refusal and for a race that is not there.
+    return <NotFoundBody />;
   }
 
   const { event, teams } = roster.data;
