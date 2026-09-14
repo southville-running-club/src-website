@@ -152,6 +152,17 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
    */
   status: { update: 'timing.event.manage' },
   finish: { update: 'timing.event.manage' },
+  /**
+   * Wiping a rehearsal — [#254](https://github.com/southville-running-club/src-website/issues/254).
+   *
+   * The section's own `timing.event.manage`, like the three above it. ⚠️ **This is the one
+   * address under `/timing` where being refused by omission is worth more than anywhere else**:
+   * a spelling nobody wrote down here would be a route to deleting every crossing in a race.
+   * `timing.reset_event()` demands the typed slug of its own accord, so the address is not the
+   * only control — but the address is the first one, and `access.test.ts` asserts that
+   * `danger-zone/reset` and `danger-zone/wipe` are refused exactly as `finish/now` is.
+   */
+  'danger-zone': { update: 'timing.event.manage' },
 };
 
 /**

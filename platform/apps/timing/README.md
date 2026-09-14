@@ -44,11 +44,12 @@ What exists is the `timing` schema
 the pure domain logic ported with its tests in `packages/shared/src/timing/`, the events hub
 and one race's page (#247), the marshal roster (#245), the entry list (#202, #249), the start
 screen (#250), the **capture screen** (#203), the **anomalies list and the timing log** (#252),
-**race status and finishing** (#253), and `/nn/<year>/results/` reading
-`timing.results_for_event()`. ⚠️ **"Nothing that touches a race as it happens is built" is what
-this said until 13 September 2026** — a crossing is recorded, resolved, labelled and the race
-can be called finished. What is still missing is **publication**: no result reaches anybody, and
-nothing wipes a rehearsal. The ladder of what "done" means is
+**race status and finishing** (#253), the **danger zone** that wipes a rehearsal (#254), and
+`/nn/<year>/results/` reading `timing.results_for_event()`. ⚠️ **"Nothing that touches a race as
+it happens is built" is what this said until 13 September 2026** — a crossing is recorded,
+resolved, labelled, the race can be called finished, and the field can be cleared to run the
+whole thing again. What is still missing is **publication**: no result reaches anybody. The
+ladder of what "done" means is
 [#257](https://github.com/southville-running-club/src-website/issues/257).
 
 ⚠️ **The capture screen is the one address here that needs JavaScript**, and it is the only

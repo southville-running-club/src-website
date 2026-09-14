@@ -123,6 +123,12 @@ describe('an address nobody has written a rule for', () => {
     ['/events/nn-2026/status/set'],
     ['/events/nn-2026/finish/now'],
     ['/events/nn-2026/finish/update/again'],
+    // ⚠️ **#254's section has one action and every other spelling under it is refused**, which
+    // matters more here than anywhere else on this table: a spelling that resolved would be a
+    // route to deleting every crossing in a race.
+    ['/events/nn-2026/danger-zone/reset'],
+    ['/events/nn-2026/danger-zone/wipe'],
+    ['/events/nn-2026/danger-zone/update/again'],
     ['/events/nn-2026/start/begin'],
     ['/events/nn-2026/start/update/again'],
     ['/events/nn-2026/registration/delete'],
@@ -359,6 +365,37 @@ describe('the two addresses the resolution surfaces post to', () => {
     ]) {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
     }
+  });
+});
+
+describe('the address the danger zone posts to', () => {
+  /**
+   * [#254](https://github.com/southville-running-club/src-website/issues/254). ⚠️ **The one
+   * address on this table where being refused by omission is worth most**: a POST here wipes
+   * every crossing and every entry on a race. `timing.reset_event()` demands the race's slug be
+   * typed as well, so the door is not the only control — but it is the first one, and the two
+   * are independent on purpose.
+   */
+  it('is gated, rather than being a hole beside a gated page', () => {
+    const path = '/events/nn-2026/danger-zone/update';
+
+    expect(surfaceFor(path)).not.toBeNull();
+    expect(canOpen(MARSHAL, path)).toBe(false);
+    expect(canOpen(NN_ADMIN, path)).toBe(false);
+    expect(canOpen([], path)).toBe(false);
+    expect(canOpen(ADMIN, path)).toBe(true);
+  });
+
+  it('demands exactly what the page it posts from demands', () => {
+    expect(surfaceFor('/events/nn-2026/danger-zone/update')?.permission).toBe(
+      surfaceFor('/events/nn-2026/danger-zone')?.permission,
+    );
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    // The function takes the slug again as its confirmation phrase, and the door has to be
+    // talking about the same race as the form that reached it.
+    expect(surfaceFor('/events/ptb-2026/danger-zone/update')?.eventSlug).toBe('ptb-2026');
   });
 });
 

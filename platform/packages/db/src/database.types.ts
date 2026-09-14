@@ -1777,6 +1777,10 @@ export type Database = {
         Returns: Json
       }
       reopen_event: { Args: { p_event_slug: string }; Returns: Json }
+      reset_event: {
+        Args: { p_confirmation: string; p_event_slug: string }
+        Returns: Json
+      }
       resolve_crossing: {
         Args: { p_action: string; p_id: string; p_new_bib?: string }
         Returns: Json

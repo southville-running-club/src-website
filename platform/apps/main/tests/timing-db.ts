@@ -739,3 +739,151 @@ export async function clearStatusEvent(project: string): Promise<void> {
     ]);
   });
 }
+
+/**
+ * The race the danger zone wipes — [#254](https://github.com/southville-running-club/src-website/issues/254).
+ *
+ * ⚠️ **Re-seeded per test, and here that is not a precaution but the only thing that works.**
+ * Every test in this block removes every row on the race, so a fixture seeded once in a
+ * `beforeAll` would leave every sibling asserting against an empty table — and an empty table is
+ * exactly what a broken reset also produces, so the suite would go quietly vacuous rather than
+ * red. {@link seedResetEvent} deletes the race and builds it again, which is what
+ * `seedStartEvents` does and for the same reason.
+ *
+ * The race carries **crossings both matched and orphaned**, like the database fixture: a bib
+ * that resolves to a team and a bib nobody owns. The old function deleted teams before crossings
+ * and `crossings.team_id` is `on delete set null`, so it manufactured orphans; a fixture with
+ * only matched captures would pass against that bug.
+ */
+export function resetEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives.
+  return `zz-reset-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+/** Two teams with a runner each, and three captures of which two belong to nobody. */
+export const RESET_TEAMS = [
+  { number: '601', firstname: 'Ada', lastname: 'Lovelace' },
+  { number: '602', firstname: 'Grace', lastname: 'Hopper' },
+] as const;
+
+/** A bib no team on this race owns, so the trigger leaves the capture's `team_id` null. */
+export const RESET_ORPHAN_BIB = '999';
+
+export async function seedResetEvent(
+  project: string,
+  marshalEmail: string,
+): Promise<void> {
+  const slug = resetEventSlug(project);
+  await clearResetEvent(project);
+
+  await withClient(async (db) => {
+    const id = fixtureEventId(slug);
+
+    // Started **and** finished, because clearing `finished_at` is one of the two corrections
+    // #254 carries: the old function left a wiped race marked finished.
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at, finished_at)
+       values ($1, $2, $3, 'solo', '2026-11-01T11:00:00Z'::timestamptz,
+               '2026-11-01T11:02:00Z'::timestamptz, '2026-11-01T13:00:00Z'::timestamptz)`,
+      [id, slug, `Reset fixture ${project}`],
+    );
+
+    for (const team of RESET_TEAMS) {
+      const { rows } = await db.query<{ id: string }>(
+        'insert into timing.teams (event_id, team_number) values ($1, $2) returning id',
+        [id, team.number],
+      );
+      await db.query(
+        `insert into timing.runners (team_id, leg, firstname, lastname)
+         values ($1, 1, $2, $3)`,
+        [rows[0]!.id, team.firstname, team.lastname],
+      );
+    }
+
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, $2, '2026-11-01T11:40:00Z'::timestamptz),
+              ($1, $3, '2026-11-01T11:41:00Z'::timestamptz),
+              ($1, null, '2026-11-01T11:42:00Z'::timestamptz)`,
+      [id, RESET_TEAMS[0].number, RESET_ORPHAN_BIB],
+    );
+
+    // ⚠️ **Rostered, so the "the roster survives" assertion is not vacuous.** A reset that took
+    // `timing.marshals` with it would look identical on screen to one that did not, and a
+    // fixture with nobody on the roster asserts nothing about either.
+    const { rows } = await db.query<{ id: string }>(
+      'select id from auth.users where email = $1',
+      [marshalEmail],
+    );
+    const marshalId = rows[0]?.id;
+    if (marshalId === undefined) {
+      throw new Error(`no auth.users row for ${marshalEmail} — seed the staff first`);
+    }
+
+    await db.query('insert into timing.marshals (event_id, user_id) values ($1, $2)', [
+      id,
+      marshalId,
+    ]);
+  });
+}
+
+/**
+ * What the database now says about the race — the assertion the page cannot make itself.
+ *
+ * ⚠️ **`marshals` and `auditRows` are here because they are what must *not* move.** A reset that
+ * took the roster with it would look identical on screen to one that did not.
+ */
+export async function resetRaceState(project: string): Promise<{
+  crossings: number;
+  teams: number;
+  runners: number;
+  marshals: number;
+  auditRows: number;
+  started: boolean;
+  finished: boolean;
+}> {
+  const eventId = fixtureEventId(resetEventSlug(project));
+
+  return withClient(async (db) => {
+    const count = async (sql: string): Promise<number> => {
+      const { rows } = await db.query<{ n: string }>(sql, [eventId]);
+      return Number(rows[0]?.n ?? 0);
+    };
+
+    const event = await db.query<{
+      actually_started_at: string | null;
+      finished_at: string | null;
+    }>('select actually_started_at, finished_at from timing.events where id = $1', [
+      eventId,
+    ]);
+
+    return {
+      crossings: await count(
+        'select count(*) as n from timing.crossings where event_id = $1',
+      ),
+      teams: await count('select count(*) as n from timing.teams where event_id = $1'),
+      runners: await count(
+        `select count(*) as n from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+      ),
+      marshals: await count(
+        'select count(*) as n from timing.marshals where event_id = $1',
+      ),
+      auditRows: await count(
+        "select count(*) as n from timing.admin_actions where event_id = $1 and action = 'event_reset'",
+      ),
+      started: event.rows[0]?.actually_started_at !== null,
+      finished: event.rows[0]?.finished_at !== null,
+    };
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearResetEvent(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [
+      resetEventSlug(project),
+    ]);
+  });
+}
