@@ -96,33 +96,90 @@ function readLayoutState() {
   };
 }
 
+type LayoutState = ReturnType<typeof readLayoutState>;
+
 /**
  * Resolves once the page is styled, its fonts have settled, and its width has stopped moving.
  *
  * Falls through on timeout rather than throwing: whatever the caller measures next reports the
  * stylesheet count alongside its own failure, which is more use than a timeout that names
  * neither the page nor the reason.
+ *
+ * **It returns the last sample it took**, which is what lets a caller do that reporting without
+ * a second copy of `readLayoutState` — see `expectStyledLayout` below. Every existing caller
+ * ignores the value and is unaffected.
  */
-async function waitForStyledLayout(page: Page): Promise<void> {
+async function waitForStyledLayout(page: Page): Promise<LayoutState> {
   const deadline = Date.now() + SETTLE_TIMEOUT_MS;
   let previous: number | null = null;
   let agreements = 0;
+  let state = await page.evaluate(readLayoutState);
 
-  while (Date.now() < deadline) {
-    const state = await page.evaluate(readLayoutState);
+  for (;;) {
     const styled = state.links === 0 || state.sheets >= state.links;
     const settled = styled && state.fonts === 'loaded';
 
     if (settled && previous !== null && state.overflow === previous) {
       agreements += 1;
-      if (agreements >= SETTLED_SAMPLES - 1) return;
+      if (agreements >= SETTLED_SAMPLES - 1) return state;
     } else {
       agreements = 0;
     }
 
     previous = settled ? state.overflow : null;
+    if (Date.now() >= deadline) return state;
+
     await new Promise((resolve) => setTimeout(resolve, SETTLE_INTERVAL_MS));
+    state = await page.evaluate(readLayoutState);
   }
+}
+
+/**
+ * The same wait, for a test that **branches** on what it reads rather than measuring it.
+ *
+ * ## Why a branch needs more than the wait
+ *
+ * `expectNoSidewaysScroll` and `readWhenSettled` both wait and then assert, so a wait that fell
+ * through on timeout still lands in an assertion that names the page and reports the stylesheet
+ * count. A test that reads the page to decide *which assertion to make* has no such landing:
+ * the wrong branch is chosen silently, and the failure arrives later, about the other one.
+ *
+ * `nn-consolidated.spec.ts`'s `opens its section menu without JavaScript` is that shape. The
+ * jump-nav has two presentations — an inline list above 860px, a closed `<details>` below it —
+ * and **which one is on screen is a question only `nn-theme.css` can answer**. Sampled before
+ * the sheet applies, the branch is chosen against a document that has no presentation, and the
+ * `toBeVisible()` after it is then asserting about the presentation the page is not in. That
+ * failed one full `./dev test` on `mobile-safari` on 14 September 2026, on a branch carrying no
+ * application code, and passed 14 of 14 on a scoped re-run — issue #289, and the fourth outing
+ * of the trap this file's header is about.
+ *
+ * So this says out loud that the sheet arrived, before the caller reads anything. A failure
+ * here names the bare document directly rather than leaving it to be inferred from an assertion
+ * about something else.
+ *
+ * ⚠️ **It is also the guard on the constraint that broke the first attempt at the wait above.**
+ * `page.waitForFunction` installs its polling loop *in the page*, so with
+ * `javaScriptEnabled: false` it never runs — and nor does anything hung off
+ * `requestAnimationFrame`. The `no-javascript` project runs every one of these tests, so a wait
+ * rewritten that way would either time out loudly or return without having waited at all;
+ * either way this assertion fires there rather than the flake coming back unannounced.
+ *
+ * It does not assert the fonts, deliberately: which presentation a media query selects is a
+ * question about the viewport and the cascade, and `font-display: swap` does not change the
+ * answer. The font state is in the message because it is free and because a reading that is
+ * wrong for some *other* reason is worth being able to see whole.
+ */
+export async function expectStyledLayout(page: Page, note: string): Promise<LayoutState> {
+  const state = await waitForStyledLayout(page);
+
+  expect(
+    state.sheets,
+    `${note} was read with ${state.sheets} of ${state.links} stylesheets applied` +
+      ` (fonts ${state.fonts}) — that reading is about a bare document rather than about` +
+      ` the page, so whatever it decides is decided against no presentation at all`,
+  ).toBeGreaterThanOrEqual(state.links);
+
+  return state;
 }
 
 /**
