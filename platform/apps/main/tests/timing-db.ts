@@ -4,8 +4,16 @@ import {
   EMPTY_EVENT_ID,
   EMPTY_EVENT_NAME,
   EMPTY_EVENT_SLUG,
+  FINISHED_EVENT_ID,
+  FINISHED_EVENT_NAME,
+  FINISHED_EVENT_SLUG,
   LEAKED_CLUB,
   LEAKED_EMAIL_DOMAIN,
+  PUBLISHED_EVENT_ID,
+  PUBLISHED_EVENT_NAME,
+  PUBLISHED_EVENT_SLUG,
+  PUBLISHED_START_AT,
+  PUBLISHED_TEAMS,
   RESULTS_ACTUAL_START_AT,
   RESULTS_EVENT_ID,
   RESULTS_EVENT_NAME,
@@ -39,8 +47,13 @@ const LOCAL_DB =
   process.env.SUPABASE_DB_URL ??
   'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
-/** The two fabricated runnings this file writes, and the only ones it ever deletes. */
-const FIXTURE_EVENT_IDS = [RESULTS_EVENT_ID, EMPTY_EVENT_ID];
+/** The four fabricated runnings this file writes, and the only ones it ever deletes. */
+const FIXTURE_EVENT_IDS = [
+  RESULTS_EVENT_ID,
+  EMPTY_EVENT_ID,
+  FINISHED_EVENT_ID,
+  PUBLISHED_EVENT_ID,
+];
 
 async function withClient<T>(run: (db: Client) => Promise<T>): Promise<T> {
   const db = new Client({ connectionString: LOCAL_DB });
@@ -176,6 +189,140 @@ async function seedInto(db: Client): Promise<void> {
       ],
     );
   }
+
+  await seedFinishedAndPublished(db);
+}
+
+/**
+ * The two runnings either side of publication — #242.
+ *
+ * ⚠️ **`results_published_at` is written directly rather than through `publish_results()`**,
+ * which is this file's rule everywhere: it writes fixtures as the superuser because `timing`'s
+ * tables have RLS on with no policy and there is no other way in. Going through the function
+ * would mean creating an account, granting it `timing.result.publish` and clearing the triage
+ * list from a fixture helper — and `packages/db/tests/timing.test.ts` is where the function's
+ * own refusals belong. This file's job is to put the Worker in front of a race that *is*
+ * published.
+ *
+ * **`results_published_by` is left null**, which its own check constraint permits: nothing in
+ * the answer carries it, and a fixture volunteer would be a person this file would then have to
+ * clean up two schemas away.
+ */
+async function seedFinishedAndPublished(db: Client): Promise<void> {
+  // Finished and unpublished — the state a signed-out visitor must still meet a 404 at, which
+  // is the negative case the club's own rule rests on. One team, because nothing here reads
+  // the table: what is asserted is that nobody gets to see it.
+  await db.query(
+    `insert into timing.events (id, slug, name, format, start_at, finished_at)
+       values ($1, $2, $3, 'solo', $4::timestamptz, $5::timestamptz)`,
+    [
+      FINISHED_EVENT_ID,
+      FINISHED_EVENT_SLUG,
+      FINISHED_EVENT_NAME,
+      '2096-11-04T11:00:00Z',
+      '2096-11-04T13:30:00Z',
+    ],
+  );
+  await db.query(
+    `insert into timing.teams (id, event_id, team_number) values ($1, $2, '1')`,
+    ['0c0c0c0c-0000-4000-8000-000000000031', FINISHED_EVENT_ID],
+  );
+  await db.query(
+    `insert into timing.runners (team_id, leg, firstname, lastname, gender, age_on_day)
+       values ($1, 1, 'Wynne', 'Idris', 'female', 38)`,
+    ['0c0c0c0c-0000-4000-8000-000000000031'],
+  );
+
+  // Published — the first page on this site a stranger may read.
+  await db.query(
+    `insert into timing.events
+         (id, slug, name, format, start_at, finished_at, results_published_at)
+       values ($1, $2, $3, 'solo', $4::timestamptz, $5::timestamptz, $6::timestamptz)`,
+    [
+      PUBLISHED_EVENT_ID,
+      PUBLISHED_EVENT_SLUG,
+      PUBLISHED_EVENT_NAME,
+      PUBLISHED_START_AT,
+      '2095-11-06T13:30:00Z',
+      '2095-11-06T18:00:00Z',
+    ],
+  );
+
+  for (const team of PUBLISHED_TEAMS) {
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, $3)`,
+      [team.id, PUBLISHED_EVENT_ID, team.teamNumber],
+    );
+
+    // **An address and a club on every runner here too**, and on this running it matters more
+    // than anywhere else in the suite: the page these rows render is the one the public reads.
+    await db.query(
+      `insert into timing.runners
+           (team_id, leg, firstname, lastname, gender, result_placement, role,
+            email, club_name, age_on_day)
+         values ($1, 1, $2, $3, $4, $5, 'runner', $6, $7, $8)`,
+      [
+        team.id,
+        team.firstName,
+        team.lastName,
+        team.gender,
+        team.resultPlacement,
+        `${team.firstName.toLowerCase()}@${LEAKED_EMAIL_DOMAIN}`,
+        LEAKED_CLUB,
+        team.ageOnDay,
+      ],
+    );
+
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, $2, $3::timestamptz)`,
+      [PUBLISHED_EVENT_ID, team.teamNumber, team.crossedAt],
+    );
+  }
+}
+
+/**
+ * The **current** running, published — so that `/nn/` and `/nn/<year>/` paint a link to it.
+ *
+ * ⚠️ **Its own function, called from one run, because the positive case is contagious.** Every
+ * other fixture here is a year that will not happen and reaches no page but its own; this one
+ * is `nn-2026`, which is what `entries.current_entry_state('nn')` answers and therefore what
+ * the front door and the year page are painted from. Seeding it inside `seedTimingFixtures()`
+ * would put a visible "Results" button on `/nn/` and `/nn/2026/` for the whole Playwright
+ * suite — nine-width sweeps, axe runs and the entry form's layout assertions included — to
+ * prove one anchor. So `tests/worker/admin/global-setup.ts` calls it and nothing else does,
+ * and `tests/worker/nn-panel.test.ts` asserts the unpainted half in a run that has no `timing`
+ * rows at all.
+ *
+ * **No teams and no crossings.** What is being proved is the link, not the table; the table has
+ * two runnings of its own.
+ */
+export async function seedPublishedCurrentRunning(): Promise<void> {
+  await clearPublishedCurrentRunning();
+
+  await withClient(async (db) => {
+    await db.query(
+      `insert into timing.events
+           (id, slug, name, format, start_at, finished_at, results_published_at)
+         values ($1, 'nn-2026', 'Nightingale Nightmare 2026', 'solo',
+                 '2026-11-01T11:00:00Z'::timestamptz,
+                 '2026-11-01T13:30:00Z'::timestamptz,
+                 '2026-11-01T18:00:00Z'::timestamptz)`,
+      [PUBLISHED_CURRENT_EVENT_ID],
+    );
+  });
+}
+
+/** Deterministic and invented, like every other id in this file. */
+const PUBLISHED_CURRENT_EVENT_ID = '0c0c0c0c-0000-4000-8000-000000000005';
+
+/** By this one id, and never wider — `clearTimingFixtures`' rule. */
+export async function clearPublishedCurrentRunning(): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where id = $1', [
+      PUBLISHED_CURRENT_EVENT_ID,
+    ]);
+  });
 }
 
 export async function clearTimingFixtures(): Promise<void> {

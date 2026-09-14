@@ -1,6 +1,11 @@
 import { createServer, type Server } from 'node:http';
 import { clearAdminFixtures, medicalReadAudit, seedAdminFixtures } from '../../admin-db';
-import { clearTimingFixtures, seedTimingFixtures } from '../../timing-db';
+import {
+  clearPublishedCurrentRunning,
+  clearTimingFixtures,
+  seedPublishedCurrentRunning,
+  seedTimingFixtures,
+} from '../../timing-db';
 
 /**
  * The state the admin run needs, set rather than assumed, and put back afterwards.
@@ -56,6 +61,12 @@ export async function setup(): Promise<void> {
   // that one too and has no use for them — `/nn/2099/results/` is asserted nowhere else.
   await seedTimingFixtures();
 
+  // **And the current running, published** — the one fixture that reaches a page other than its
+  // own. `/nn/` and `/nn/2026/` link to a race's results only once they are published (#242),
+  // so proving the link needs `nn-2026` itself to be published. Seeded here rather than in
+  // `seedTimingFixtures()` because Playwright calls that one too: see the note on the function.
+  await seedPublishedCurrentRunning();
+
   const server = createServer((_request, response) => {
     medicalReadAudit()
       .then((rows) => {
@@ -90,6 +101,7 @@ export async function teardown(): Promise<void> {
     });
   }
 
+  await clearPublishedCurrentRunning();
   await clearTimingFixtures();
   await clearAdminFixtures(null);
 }

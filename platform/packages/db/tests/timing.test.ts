@@ -298,18 +298,30 @@ describe('what may be called, and by whom', () => {
    *     after publication is *unpublish, fix, publish* and an anomaly found afterwards is
    *     exactly when somebody needs it most.
    *
-   * ⚠️ **`anon` holds exactly one of them, and that is the decision this list exists to make
+   *   * `results_published_at` — **nothing**, and it is the one function on this list that
+   *     authorises by answering a fact publication has already made public: when this race's
+   *     results became public, or `null` for a race that is not published *and* for one that
+   *     does not exist. #242 and
+   *     [ADR-043](../../../../docs/architecture/decisions/adr-043-a-published-result-carries-a-name-a-category-and-a-time.md).
+   *     ⚠️ **It exists so that `/nn/` and `/nn/<year>/` can link to the results only once they
+   *     are published** — a link to a 404 is a claim about a record — without calling
+   *     `results_for_event`, which answers that one bit by returning every team, every runner
+   *     and every crossing of the field.
+   *
+   * ⚠️ **`anon` holds exactly two of them, and that is the decision this list exists to make
    * visible.** `results_for_event` is granted to `anon` as well as to `authenticated` since
    * #241, because a published result is public and a signed-out visitor reaches PostgREST as
    * `anon`. It answers `null` for an unpublished race whoever asks, so the grant discloses
    * nothing publication has not already made public — and `anon` still holds no grant on any
-   * *table* here, which is the assertion at the head of this file.
+   * *table* here, which is the assertion at the head of this file. `results_published_at`
+   * joined it with #242; ADR-042's *"and the only one"* is superseded by ADR-043 and the
+   * count in this test's own name is what made that a sentence somebody wrote down.
    *
    * ⚠️ **The bib trigger function is still on nobody's list.** It is reachable from its trigger
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-two functions, and anon exactly one of them', async () => {
+  it('grants exactly these thirty-three functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -317,8 +329,8 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-one functions and thirty-two rows: `results_for_event` appears twice, which is
-    // the whole point of the list.
+    // Thirty-two functions and thirty-four rows: `results_for_event` and
+    // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
       { routine_name: 'assign_bibs', grantee: 'authenticated' },
@@ -346,6 +358,9 @@ describe('what may be called, and by whom', () => {
       // ⚠️ **The first `anon` grant in this schema**, #241. See the block comment above.
       { routine_name: 'results_for_event', grantee: 'anon' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
+      // ⚠️ **The second, #242.** One bit, so a link can be painted without reading a field.
+      { routine_name: 'results_published_at', grantee: 'anon' },
+      { routine_name: 'results_published_at', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'set_bib_override', grantee: 'authenticated' },
       { routine_name: 'set_race_status', grantee: 'authenticated' },
@@ -4055,6 +4070,82 @@ describe("publishing a race's results", () => {
       expect(text).not.toMatch(/"results_published_by"/);
     });
 
+    /**
+     * ⚠️ **The disclosure #241 opened, closed here** — #242 and
+     * [ADR-043](../../../../docs/architecture/decisions/adr-043-a-published-result-carries-a-name-a-category-and-a-time.md).
+     * The grant made this payload reachable with the published anon key, and the payload
+     * carried `age_on_day` — an exact age on race day, beside a full name. Nothing on
+     * `/nn/<year>/results/` renders it, which is exactly what made it easy to miss.
+     *
+     * **Withheld by publication rather than by permission**, and the assertion is in two halves
+     * because that is the decision: the preview keeps the age, because it exists so somebody
+     * can check the data before the internet reads it, and a published race answers the same
+     * thing to everybody — which is what lets the page carry a public `Cache-Control` at all.
+     *
+     * The expected value is read off the fixture row rather than written out, so it goes on
+     * meaning something if the fixture's age moves.
+     */
+    it('withholds the exact age once the results are public, and keeps it in the preview', async () => {
+      const { rows } = await db.query<{ age_on_day: number }>(
+        'select age_on_day from timing.runners where team_id = $1',
+        [TEAM_ID],
+      );
+      const age = rows[0]?.age_on_day;
+      expect(age, 'the fixture runner has no age to withhold').toEqual(
+        expect.any(Number),
+      );
+
+      const preview = await asPerson<ResultsAnswer>(
+        PREVIEWER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(preview?.teams[0]?.runners[0]?.age_on_day).toBe(age);
+
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      // The key is still there and it is null — `add_walk_in()` writes a runner with no age,
+      // so every reader already handles that and nothing needed a new shape.
+      const published = await asAnon();
+      expect(published?.teams[0]?.runners[0]).toHaveProperty('age_on_day', null);
+
+      // And a permission holder gets the identical answer, which is the half that makes the
+      // page cacheable: two callers, one set of bytes.
+      const holderAfter = await asPerson<ResultsAnswer>(
+        PREVIEWER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(holderAfter?.teams[0]?.runners[0]?.age_on_day).toBeNull();
+    });
+
+    /**
+     * **What a category is derived from, which is the opposite direction and is not a
+     * widening.** `result_placement` is
+     * [ADR-031](../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)'s
+     * answer and `role` is [ADR-022](../../../../docs/architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md)'s;
+     * without the first every non-binary runner renders as no category whatever they asked
+     * for, and without the second a visually impaired runner's guide lands in a prize band.
+     *
+     * ⚠️ **`packages/shared/src/timing/rows.ts` declared both on `TimingRunner` before this
+     * answer carried either**, which compiled only because `apps/main/worker/nn-results.ts`
+     * casts through `unknown` — the mismatch that file's own header warns about.
+     */
+    it('carries the placement and the role a race category is derived from', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      const runner = (await asAnon())?.teams[0]?.runners[0];
+
+      expect(runner).toHaveProperty('result_placement', null);
+      expect(runner).toHaveProperty('role', 'runner');
+    });
+
     it('returns to null for an anonymous caller when it is unpublished again', async () => {
       await finishRace();
       await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
@@ -4110,6 +4201,92 @@ describe("publishing a race's results", () => {
       } finally {
         await db.query('rollback');
       }
+    });
+  });
+
+  /**
+   * `timing.results_published_at()` — the one bit `/nn/` and `/nn/<year>/` ask before painting
+   * a link to this page. #242 and ADR-043.
+   *
+   * ⚠️ **It is the second `anon`-callable function in this schema**, and the argument for it is
+   * that the alternative answers the same one bit by returning every team, every runner and
+   * every crossing of a two-hundred-and-fifty runner field — on two pages, for every visitor,
+   * on every view. The grant list above is where that decision is actually pinned.
+   */
+  describe('whether a race is published, for a link to ask about', () => {
+    async function publishedAt(slug: string): Promise<string | null> {
+      await db.query('begin');
+
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true)",
+        );
+        const { rows } = await db.query<{ answer: string | null }>(
+          'select timing.results_published_at($1) as answer',
+          [slug],
+        );
+        return rows[0]?.answer ?? null;
+      } finally {
+        await db.query('rollback');
+      }
+    }
+
+    /** The negative case, and the one the link rests on: no link before publication. */
+    it('answers null to an anonymous caller while the race is unpublished', async () => {
+      expect(await publishedAt(SLUG)).toBeNull();
+
+      // Finishing is not publishing, which is the whole of ADR-042 and is where somebody
+      // would expect a link to appear if the two were confused.
+      await finishRace();
+      expect(await publishedAt(SLUG)).toBeNull();
+    });
+
+    it('answers the moment it became public once it is published', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      const answered = await publishedAt(SLUG);
+      expect(answered).not.toBeNull();
+
+      // The same instant the race itself records, rather than a second clock.
+      const { rows } = await db.query<{ results_published_at: Date | null }>(
+        'select results_published_at from timing.events where id = $1',
+        [EVENT_ID],
+      );
+      expect(new Date(answered as string).toISOString()).toBe(
+        rows[0]?.results_published_at?.toISOString(),
+      );
+    });
+
+    it('returns to null when the results are withdrawn', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+      expect(await publishedAt(SLUG)).not.toBeNull();
+
+      await asPersonCommitted(
+        PUBLISHER,
+        'select timing.unpublish_results($1) as answer',
+        [SLUG],
+      );
+
+      // The link goes with the page, which is the point: ADR-042 takes the address back to a
+      // 404 while a correction is made, and a link left behind would be a claim about a record.
+      expect(await publishedAt(SLUG)).toBeNull();
+    });
+
+    /**
+     * ⚠️ **A race that does not exist and a race that is not published are the same answer.**
+     * `results_for_event()` rests on that indistinguishability and so does this: a function
+     * that answered differently would let somebody probe which years the club has rows for.
+     */
+    it('answers null for a race that does not exist, exactly as it does for an unpublished one', async () => {
+      expect(await publishedAt('zz-timing-no-such-race')).toBeNull();
+      expect(await publishedAt(SLUG)).toBeNull();
     });
   });
 

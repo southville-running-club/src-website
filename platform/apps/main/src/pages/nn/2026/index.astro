@@ -140,6 +140,23 @@ const dateLine = race.date
       <div class="nn-herobtns">
         <a class="nn-cta" href="#register" data-nn-cta>Register interest</a>
         <a class="nn-ghost" href="/nn/2026/race-day/">Race instructions</a>
+
+        {
+          /* **The results, and only once they are published** — #242 and
+          [ADR-042](../../../../../../../docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md).
+          Ships hidden with an empty `href`; `renderNnResultsLink` reveals it and points it at
+          this running's own results page. A link to a 404 is a claim about a record, and the
+          address answers 404 to everybody until somebody publishes.
+
+          **Here rather than in the bar**, which is a layout decision rather than a copy one:
+          ADR-014's `scroll-padding-top` is a hand-written token per breakpoint that has to
+          clear the masthead at every width, so a fifth control up there is a change to all of
+          them. These buttons wrap, and a third one grows the hero downwards and nothing else.
+
+          **`.nn-ghost`, the class beside it**, so no colour on this page is a pairing nobody
+          computed. */
+        }
+        <a class="nn-ghost" href="" data-nn-results-link hidden>Results</a>
       </div>
     </div>
   </header>

@@ -386,6 +386,24 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
         <a class="nn-ghost" href="" data-nn-panel-action data-nn-panel-link="year">
           The race this year
         </a>
+
+        {
+          /* **The results, and only once they are published.** Ships hidden with an empty
+          `href`, like every other painted link on this page: `renderNnResultsLink` reveals it
+          and fills it in, and a database this Worker cannot reach leaves the card exactly as
+          it is here. A link to a 404 would be the club's own front door claiming a race's
+          results exist.
+
+          **It names no year**, which is this page's whole rule — the running is whichever
+          `entries.current_entry_state('nn')` says is current, and the year reaches the `href`
+          and never the text.
+
+          **`.nn-ghost` rather than a new class**, because that colour is already measured on
+          this surface: `nn-theme.css` overrides it to bone at 14.51:1 on the aubergine card,
+          and a link styled any other way here would be a contrast pairing nobody had
+          computed. */
+        }
+        <a class="nn-ghost" href="" data-nn-results-link hidden>Results</a>
       </p>
 
       {

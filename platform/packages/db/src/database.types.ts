@@ -1787,6 +1787,7 @@ export type Database = {
       }
       restore_crossing: { Args: { p_id: string }; Returns: Json }
       results_for_event: { Args: { p_event_slug: string }; Returns: Json }
+      results_published_at: { Args: { p_event_slug: string }; Returns: string }
       roster_for_event: { Args: { p_event_slug: string }; Returns: Json }
       set_bib_override: {
         Args: {

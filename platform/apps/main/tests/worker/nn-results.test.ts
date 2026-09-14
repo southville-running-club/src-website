@@ -7,10 +7,12 @@ import { describe, expect, it } from 'vitest';
  * A Nightingale Nightmare result is published by an explicit act after the race is finished —
  * #241 and ADR-042 — and **until that act the page is locked behind `nn.results.read` and
  * answers 404 to everybody else**, which is what every assertion here is about. ⚠️ **A
- * published race is not yet a case this file can reach**: `handleNnResults` still refuses a
- * request with no session before it reads anything, and opening it to a signed-out visitor is
- * [#242](https://github.com/southville-running-club/src-website/issues/242). The published
- * branch of these same assertions — the cache headers especially — moves with it.
+ * published race is not a case this file can reach, and that is now about the fixtures rather
+ * than about the code**: since #242 a signed-out visitor is no longer refused before anything
+ * is read, and this run has no `timing` rows at all — so `results_for_event()` answers `null`
+ * for every address below, which is exactly the shape of the database somebody probing the
+ * site meets. The published branch, cache headers and all, is in
+ * `tests/worker/admin/nn-results.test.ts`, whose setup writes the rows with `pg`.
  *
  * This run is the right place to prove the locked half, for the reason
  * `admin-signed-out.test.ts` gives about itself: it
@@ -54,6 +56,17 @@ describe("one running's results, signed out", () => {
 
     expect(response.status).toBe(404);
     expect(await response.text()).toContain('There is nothing at this address.');
+  });
+
+  it('carries no link to the results, on either page that would paint one', async () => {
+    // ⚠️ **A link to a 404 is a claim about a record** — #242. Nothing is published here, so
+    // both anchors must still be hidden with the empty `href` they shipped with. The panel's
+    // own copy of this lives in `nn-panel.test.ts`; this is the year page's.
+    const response = await SELF.fetch('https://example.com/nn/2026/');
+    const markup = (await response.text()).replace(/\s+/g, ' ');
+
+    expect(markup).toMatch(/data-nn-results-link[^>]*hidden/);
+    expect(markup).not.toContain('href="/nn/2026/results/"');
   });
 
   it('is not cached, and not indexed', async () => {

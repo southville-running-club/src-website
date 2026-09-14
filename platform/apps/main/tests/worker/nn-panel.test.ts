@@ -72,6 +72,28 @@ describe('the panel answers the two questions in the order they are asked', () =
     expect(html).not.toContain('href="/nn/2026/race-day/"');
     expect(html).not.toContain('href="/nn/2026/spectators/"');
   });
+
+  /**
+   * ⚠️ **The results are not offered until somebody publishes them** — #242 and
+   * [ADR-042](../../../../docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md).
+   * A link to a 404 is a claim about a record: the club's own front door saying a race's
+   * results exist, answering "there is nothing at this address" to everybody who follows it.
+   *
+   * **This run has no `timing` rows at all**, which is the state every deployed environment is
+   * in today and will be in until a race is run and published — so the anchor must still be
+   * sitting in the markup hidden, with the empty `href` it shipped with. The painted half is
+   * asserted in `tests/worker/admin/nn-results.test.ts`, whose setup publishes `nn-2026`.
+   *
+   * **Asserted rather than left implicit**, for this file's own reason one test up: the Worker
+   * always offers to paint this selector, so nothing in it would go red if the read started
+   * answering wrongly. Noticing is what this is.
+   */
+  it('offers no results link while nothing is published', async () => {
+    const html = panel(await front());
+
+    expect(html).toMatch(/data-nn-results-link[^>]*hidden/);
+    expect(html).not.toContain('href="/nn/2026/results/"');
+  });
 });
 
 describe('the shut state, which is what production serves', () => {

@@ -5,8 +5,14 @@ import {
   ABSENT_PATH,
   EMPTY_EVENT_NAME,
   EMPTY_PATH,
+  FINISHED_EVENT_NAME,
+  FINISHED_PATH,
   LEAKED_CLUB,
   LEAKED_EMAIL_DOMAIN,
+  PUBLISHED_AGES,
+  PUBLISHED_EVENT_NAME,
+  PUBLISHED_PATH,
+  PUBLISHED_TEAMS,
   RESULTS_EVENT_NAME,
   RESULTS_PATH,
   RESULTS_TEAMS,
@@ -145,9 +151,28 @@ function tableRows(markup: string): string[][] {
 
   return [...body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((row) =>
     [...row[1]!.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((cell) =>
-      squash(cell[1]!.replace(/<[^>]*>/g, ' ')).trim(),
+      decodeEntities(squash(cell[1]!.replace(/<[^>]*>/g, ' ')).trim()),
     ),
   );
+}
+
+/**
+ * ⚠️ **`worker/html.ts` escapes the apostrophe, and the club's own category labels have one.**
+ * `Women's Vet 60` reaches the markup as `Women&#39;s Vet 60`, so an expectation copied from
+ * `awards.ts`'s wording fails on a page that is perfectly correct — the same shape of trap as
+ * Prettier reflowing a tagged template, one escape along. Cells are decoded here so that every
+ * assertion in this file compares the text a reader sees.
+ *
+ * **Only the five `escapeHtml` writes**, and only inside a cell whose tags have already been
+ * stripped: decoding `&lt;` across whole markup would manufacture tags that were never there.
+ */
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
 const POS = 0;
@@ -211,7 +236,7 @@ describe("one running's results, to somebody who may read them", () => {
       expect(row, where).toBeDefined();
       expect(row![RUNNER], `${where}: runner`).toBe(`${team.firstName} ${team.lastName}`);
       expect(row![BIB], `${where}: bib`).toBe(team.expectedBib);
-      expect(row![CATEGORY], `${where}: category`).toBe(team.category);
+      expect(row![CATEGORY], `${where}: category`).toBe(team.expectedCategory);
       expect(row![TIME], `${where}: time`).toBe(team.expectedTime);
       expect(row![STATUS], `${where}: status`).toContain(team.expectedStatus);
       expect(row![POS], `${where}: position`).toBe(
@@ -301,6 +326,207 @@ describe("one running's results, to somebody who may read them", () => {
     expect(response.headers.get('x-robots-tag')).toContain('noindex');
     expect(squash(await response.text())).toContain('name="robots" content="noindex');
   });
+});
+
+describe('the category, which is derived and is never a column', () => {
+  /**
+   * ⚠️ **The defect this replaces would have rendered a dash for every runner the club
+   * entered.** The page read `timing.teams.category`, and `import_from_entries()` writes
+   * nothing to that column — its own header says there is nothing on a team row the import is
+   * authoritative about. The fixture leaves it populated with a *differently worded* string on
+   * purpose, so that a page which went back to reading it fails here rather than passing on a
+   * category that happens to look right.
+   */
+  it('prints the derived band and not the string stored on the team', async () => {
+    const cells = tableRows(squash(await (await get(RESULTS_PATH, reader)).text()))
+      .flat()
+      .join(' | ');
+
+    for (const team of RESULTS_TEAMS) {
+      expect(cells, `${team.lastName}: derived category`).toContain(
+        team.expectedCategory,
+      );
+      expect(cells, `${team.lastName}: stored category`).not.toContain(team.category);
+    }
+  });
+});
+
+/**
+ * ⚠️ **The page a stranger reads, which until #242 nothing on this site had.** Every assertion
+ * above is about a preview behind a permission; these are about the published table, and the
+ * one that matters most is the first: a race that has been **finished and not published** is
+ * still a 404 to the internet, because finishing is not publishing — ADR-042.
+ */
+describe('a running that is finished and not published', () => {
+  it('is still the ordinary 404 to a signed-out visitor', async () => {
+    const response = await get(FINISHED_PATH);
+
+    expect(response.status).toBe(404);
+
+    const body = squash(await response.text());
+    expect(body).toContain('There is nothing at this address.');
+    expect(body).not.toContain(FINISHED_EVENT_NAME);
+    // A refusal is never publicly cached, whatever state the race is in.
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  });
+
+  it('tells a holder which of the two unpublished states it is in', async () => {
+    const response = await get(FINISHED_PATH, reader);
+    expect(response.status).toBe(200);
+
+    const markup = squash(await response.text());
+    expect(markup).toContain(FINISHED_EVENT_NAME);
+    expect(markup).toContain('These results are not published');
+    // The clause `finish_event()` changes, and the only thing it changes here: the warning
+    // about provisional times is true either side of it and is on both variants.
+    expect(markup).toContain('The race has been called finished');
+    expect(markup).toContain('provisional until the race director confirms them');
+  });
+});
+
+describe('a running whose results the club has published', () => {
+  let markup = '';
+  let rows: string[][] = [];
+
+  beforeAll(async () => {
+    // **Signed out, deliberately.** The whole of #242 is that this page answers somebody who
+    // has nothing, and a fixture holding a permission would prove the preview again.
+    const response = await get(PUBLISHED_PATH);
+    expect(response.status, PUBLISHED_PATH).toBe(200);
+    markup = squash(await response.text());
+    rows = tableRows(markup);
+  });
+
+  it('renders the table to somebody who is signed in to nothing', async () => {
+    expect(markup).toContain(PUBLISHED_EVENT_NAME);
+    expect(rows).toHaveLength(PUBLISHED_TEAMS.length);
+  });
+
+  /**
+   * **No banner at all**, because the sentence is a claim about a record and the record now
+   * says the opposite. A published page telling its readers the results are not published
+   * would be stating something false about a decision the club had just taken.
+   */
+  it('makes no claim that the results are unpublished', async () => {
+    expect(markup).not.toContain('These results are not published');
+    expect(markup).not.toContain('provisional');
+  });
+
+  /**
+   * ⚠️ **The three categories the column can be wrong in, and the middle one is ADR-031's.**
+   * Rhodri is `non_binary` and asked to be placed with the men: a page reading `gender` alone
+   * renders no category for them whatever they answered, which is a silent wrong answer rather
+   * than a failure. Ozzy has no gender recorded and is in no category, which the column says
+   * rather than guesses.
+   */
+  it('places every runner through effectiveCategory, and nobody by gender alone', async () => {
+    for (const team of PUBLISHED_TEAMS) {
+      const row = rows.find((cells) => cells[RUNNER]?.includes(team.lastName));
+      expect(row, `${team.lastName} is not on the page`).toBeDefined();
+      expect(row?.[CATEGORY], `${team.lastName}: category`).toBe(team.expectedCategory);
+      expect(row?.[TIME], `${team.lastName}: time`).toBe(team.expectedTime);
+    }
+  });
+
+  /**
+   * ⚠️ **The disclosure #241 opened and ADR-043 closed, at the layer somebody reads.**
+   * `results_for_event()` withholds `age_on_day` from every caller once a race is published, so
+   * there is no age here to print and no band to derive from one — a published result carries a
+   * name, a category and a time.
+   *
+   * **Checked against the table's own cells rather than the whole document**, and the restraint
+   * is the point: these are bare numbers, and a `not.toContain('62')` over rendered markup is
+   * the assertion this repository has already paid for — SVG path data is thousands of
+   * arbitrary digits and such a check fails towards passing.
+   */
+  it('prints no exact age, and therefore no age band', async () => {
+    const cells = rows.flat().join(' | ');
+
+    for (const age of PUBLISHED_AGES) {
+      expect(cells, `the exact age ${age} reached a cell`).not.toContain(age);
+    }
+
+    for (const team of PUBLISHED_TEAMS) {
+      if (team.previewCategory === team.expectedCategory) continue;
+      expect(cells, `${team.lastName}: the band is the preview's`).not.toContain(
+        team.previewCategory,
+      );
+    }
+  });
+
+  /** The same minimisation the preview has, now protecting a page the internet can read. */
+  it('prints no runner’s email address and no runner’s club', () => {
+    expect(markup).not.toContain(LEAKED_EMAIL_DOMAIN);
+    expect(markup).not.toContain(LEAKED_CLUB);
+  });
+
+  /**
+   * ⚠️ **The envelope, which is the half of #242 that is not visible on the page.** C2 asks for
+   * a permanent public address, and one that may not be cached or indexed is a strange thing to
+   * publish — so a published race drops `no-store` and `noindex` on that branch and on no
+   * other. Sixty seconds is chosen against ADR-042's *unpublish, fix, publish*: a cache already
+   * holding the table serves it until it expires.
+   */
+  it('is cacheable and indexable, which no other answer from this page is', async () => {
+    const response = await get(PUBLISHED_PATH);
+
+    expect(response.headers.get('cache-control')).toBe('public, max-age=60');
+    expect(response.headers.get('x-robots-tag')).toBeNull();
+    expect(squash(await response.text())).not.toContain('name="robots"');
+  });
+
+  /**
+   * ⚠️ **A response that sets a cookie may not be stored by a shared cache**, whatever the
+   * race's state: `readSession()` rotates a refresh token when the access token is close to
+   * expiry, and a shared cache holding that would hand one person's refreshed session to the
+   * next. Asserted with a signed-in reader, whose page is otherwise the same bytes — which is
+   * itself the property that makes the public branch safe.
+   */
+  it('serves a permission holder the same table, and does not cache a refreshed session', async () => {
+    const response = await get(PUBLISHED_PATH, reader);
+    expect(response.status).toBe(200);
+
+    const holder = tableRows(squash(await response.text()));
+    expect(holder).toEqual(rows);
+
+    const control = response.headers.get('cache-control') ?? '';
+    const cookies = setCookiePairs(response);
+    expect(
+      cookies.length === 0 || control.includes('no-store'),
+      `a response setting ${String(cookies.length)} cookie(s) was cached as ${control}`,
+    ).toBe(true);
+  });
+});
+
+/**
+ * **The link, and it is a claim about a record.** `/nn/` and `/nn/<year>/` offer the results
+ * only once somebody has published them — a link to a 404 on the club's own front door says a
+ * race's results exist and then answers "there is nothing at this address".
+ *
+ * ⚠️ **`nn-2026` is published in this run only**, by `seedPublishedCurrentRunning()`. The
+ * unpainted half is asserted in `tests/worker/nn-panel.test.ts`, which runs against a database
+ * with no `timing` rows at all — the state every other run and every deployed environment is
+ * in today.
+ */
+describe('the link to the results, on the two pages that may carry one', () => {
+  const anchor = /<a[^>]*data-nn-results-link[^>]*>([^<]*)<\/a>/;
+
+  for (const path of ['/nn/', '/nn/2026/']) {
+    it(`points at this running's results from ${path}, and names no year`, async () => {
+      const markup = squash(await (await get(path)).text());
+      const match = anchor.exec(markup);
+
+      expect(match, `${path} carries no results anchor at all`).not.toBeNull();
+      expect(match![0], `${path}: still hidden`).not.toContain('hidden');
+      expect(match![0], `${path}: href`).toContain('href="/nn/2026/results/"');
+
+      // ⚠️ **The label, not the address.** `/nn/` never names a year and nothing in its markup
+      // may — but a year in an `href` is not text, which is the distinction `site.spec.ts`'s
+      // nine-width sweep rests on. The label has to stay free of one either way, because the
+      // same anchor is painted on both pages from one string.
+      expect(match![1]?.trim(), `${path}: label`).toBe('Results');
+    });
+  }
 });
 
 describe('a running with nothing captured against it', () => {

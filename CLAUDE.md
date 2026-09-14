@@ -399,7 +399,7 @@ One hostname, several paths — the same locally and in production:
 |            |                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`        | The club website — `apps/main`                                                                                                                                                                                                                                                                                         |
-| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read` until the race's results are published**, and answers 404 to everybody else, the signed-out public included. Publication is an explicit act — ADR-042 — so finishing a race does not do it, and the _database_ read opens to `anon` the moment it happens; the _page_ still refuses a signed-out visitor until #242 |
+| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read` until the race's results are published**, and answers 404 to everybody else, the signed-out public included. Publication is an explicit act — ADR-042 — so finishing a race does not do it. **Since #242 the page opens to the public the moment it happens**: cacheable for sixty seconds, indexable, and linked from `/nn/` and `/nn/<year>/` — and from neither before, because a link to a 404 is a claim about a record |
 | `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
@@ -1820,7 +1820,24 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   `marshals` and `admin_actions` alone, counts before the DML, and **audits even when it removes
   nothing**, because the intent is the auditable fact;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` — behind
-  `nn.results.read` until the race's results are published, and open to `anon` after;
+  `nn.results.read` until the race's results are published, and **open to the public after**
+  (#242, [ADR-043](docs/architecture/decisions/adr-043-a-published-result-carries-a-name-a-category-and-a-time.md)).
+  ⚠️ **A published result carries a name, a category and a time and no exact age**:
+  `results_for_event()` returns `age_on_day` as null once a race is published, **by publication
+  rather than by permission**, so every caller gets the same answer — which is the only
+  arrangement in which the page can carry a `public` `Cache-Control` at all. The consequence is
+  that the published table shows `Women` / `Men` and the **preview** shows the band,
+  `Women's Vet 60`; whether a band may be published is the club's decision and it is open.
+  **The category is `effectiveCategory()`'s answer through `placementFor()`** — ADR-031's
+  placement, never `gender` alone and never `timing.teams.category`, which
+  `import_from_entries()` does not write. ⚠️ **A response that sets a cookie is never publicly
+  cached**, whatever the race's state, because `readSession()` can rotate a refresh token on
+  the way out;
+- **`timing.results_published_at()`**, the **second** `anon`-callable function in this schema
+  — one bit, so `/nn/` and `/nn/<year>/` can paint a link to the results without
+  `results_for_event()` returning the whole field to answer it. ADR-042's *"and the only one"*
+  is superseded by ADR-043 on that point and by nothing else; `timing.test.ts` pins the granted
+  list by name and grantee, so a third is still a decision somebody takes in a diff;
 - **the publication state machine** — `timing.events.results_published_at` and
   `results_published_by`, written by `timing.publish_results()` and cleared by
   `timing.unpublish_results()`, both behind `timing.result.publish` and both audited (#241,
@@ -1837,14 +1854,13 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   **A correction after publication is _unpublish, fix, publish_**, and the page goes back to 404
   in between rather than serving a table somebody is editing.
 
-**What is genuinely not built is the publish button and the public page**: the state machine
-exists and nothing calls it — #205 owns the control in the app and
-[#242](https://github.com/southville-running-club/src-website/issues/242) owns
-`/nn/<year>/results/` opening to a signed-out visitor, which it still does not do. ⚠️
-**"nothing resolves an anomaly" is what this said until #252, "nothing marks a DNS, DNF or DQ,
-nothing finishes a race" until #253, "publication" flatly until #241, and "nothing wipes a
-rehearsal" until #254** — six such lines have gone stale in four days, which is the pattern
-rather than the exception.
+**What is genuinely not built is the publish button**: the state machine exists, the public
+page is built, and nothing in a browser calls either function — #205 owns the control in the
+app, so publishing a race today is a SQL client or a test. ⚠️ **"nothing resolves an anomaly"
+is what this said until #252, "nothing marks a DNS, DNF or DQ, nothing finishes a race" until
+#253, "publication" flatly until #241, "nothing wipes a rehearsal" until #254, and "the public
+page" until #242** — seven such lines have gone stale in five days, which is the pattern rather
+than the exception.
 
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because
