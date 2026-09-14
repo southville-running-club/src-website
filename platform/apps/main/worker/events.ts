@@ -6,7 +6,9 @@ import {
   formatPence,
   parseSocialTicket,
   socialDetailsConfirmed,
+  ticketSaleState,
   ticketsAreOnSale,
+  type TicketSaleState,
   type SocialState,
   type SocialTicketErrors,
   type TicketPurchaseReason,
@@ -50,6 +52,8 @@ export type SocialView =
       show: 'social';
       state: SocialState;
       onSale: boolean;
+      /** Why it is not on sale, so the page can say which of the three it is. */
+      saleState: TicketSaleState;
       detailsConfirmed: boolean;
       /** Set only when a submission came back with something to fix. */
       errors?: SocialTicketErrors;
@@ -92,8 +96,42 @@ export async function resolveSocialView(
     show: 'social',
     state: state.value,
     onSale: ticketsAreOnSale(state.value),
+    saleState: ticketSaleState(state.value),
     detailsConfirmed: socialDetailsConfirmed(state.value),
   };
+}
+
+/**
+ * What the page says when it is not selling, and why there are three sentences.
+ *
+ * **One sentence covered all of this until 14 September 2026, and it was wrong for two of the
+ * three.** The page shipped with *"Tickets are not on sale yet. Keep an eye on this page"* as
+ * static markup and the Worker never replaced it — so an occasion whose sales had **closed**
+ * told people to keep watching for something that had finished, and a **sold-out** one offered
+ * a form that the database would refuse after they had typed their name, their address and
+ * chosen a quantity.
+ *
+ * **None of them promises a mechanism that does not exist.** There is no waiting list and no
+ * way to give a ticket back — `store` has no refund path at all — so a sold-out page that said
+ * "let us know and we will be in touch" would be inventing one. Pointing at a club run points
+ * at a person, which is the most that is true.
+ *
+ * `pre_open` keeps the sentence the page already shipped with, word for word, because it was
+ * the one that was right.
+ */
+export function notOnSaleWords(state: TicketSaleState): string | null {
+  switch (state) {
+    case 'pre_open':
+      return 'Tickets are not on sale yet. Keep an eye on this page, or ask at a club run.';
+    case 'sold_out':
+      return 'Sold out — all the tickets have gone. Ask at a club run if you were hoping to come.';
+    case 'closed':
+      return 'Ticket sales have closed. Ask at a club run if you were hoping to come.';
+    case 'on_sale':
+      // The caller hides this block rather than filling it. Returning null keeps the two
+      // decisions in one place instead of letting a caller guess.
+      return null;
+  }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -409,6 +447,17 @@ export function renderSocialView(rewriter: HTMLRewriter, view: SocialView): HTML
     // **The form stays hidden and stays disabled.** Both, and this is the branch where that
     // matters most: a page whose tickets are not on sale must not carry controls that can
     // block a submission nobody can make anyway.
+    //
+    // **The sentence is replaced rather than left as shipped.** The markup carries the
+    // `pre_open` wording as its default, which is the safe one for a page the Worker could not
+    // resolve — but once it *has* resolved, saying "not on sale yet" about a sold-out or closed
+    // occasion is a false statement to somebody who wants to give the club money.
+    const words = notOnSaleWords(view.saleState);
+
+    if (words !== null) {
+      rewriter.on('[data-social-closed]', new TextHandler(words));
+    }
+
     return rewriter;
   }
 

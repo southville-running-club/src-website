@@ -622,12 +622,23 @@ describe('the 2026 Christmas party row', () => {
     expect(rows).toHaveLength(1);
 
     // Supplied by a club volunteer on 5 September 2026 — Saturday 12 December 2026 at The
-    // Cock & Tail, 7:30pm–1am, 18+.
+    // Cock & Tail, 7:30pm–1am, 18+ — and on 14 September 2026, the capacity and the closing
+    // date.
     //
-    // **`capacity` is null because nobody has said what the room holds**, and null means no
-    // limit — the honest reading of "not supplied", and what the 2025 page implied by never
-    // mentioning one. **`sales_open_at` is null because that is the switch**, and it stays
-    // null until the runbook's step 4.
+    // **`capacity` is 100, and it counts tickets rather than orders.** It was null until 14
+    // September, and null meant *no limit* — so the platform would have sold the room past
+    // what The Cock & Tail holds and said nothing. `create_pending_purchase()` refuses
+    // `sold_out` past it, under the social's advisory lock.
+    //
+    // **`sales_close_at` is the end of Saturday 5 December**, a week before the party, so the
+    // club has the following week to give the caterer its numbers. Written as midnight on the
+    // 6th because that is the end of the 5th, and `+00` because December is GMT — the window
+    // opens in BST and closes in GMT, so the two ends do not share an offset.
+    //
+    // **`sales_open_at` is still null because that is the switch**, and it stays null until
+    // the runbook's step 4. It is deliberately not set by a migration: opening sales is an act
+    // somebody performs on a chosen day, not a fact about the party, and a migration would
+    // open the window at whatever moment the next merge happened to deploy.
     //
     // Asserted as an exact object rather than field by field, so a value arriving here
     // silently — which is precisely what this file exists to catch — turns it red.
@@ -637,9 +648,9 @@ describe('the 2026 Christmas party row', () => {
       end_time: '01:00:00',
       venue: 'The Cock & Tail',
       minimum_age: 18,
-      capacity: null,
+      capacity: 100,
       sales_open_at: null,
-      sales_close_at: null,
+      sales_close_at: new Date('2026-12-06T00:00:00.000Z'),
     });
   });
 

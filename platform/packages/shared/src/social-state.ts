@@ -181,17 +181,56 @@ export async function fetchSocialState(
   };
 }
 
+/** Why a ticket cannot be bought right now, or that it can. */
+export type TicketSaleState = 'on_sale' | 'pre_open' | 'sold_out' | 'closed';
+
+/**
+ * The one place that decides whether tickets are being sold, and if not, why not.
+ *
+ * **`sold_out` is not a state the database has**, and that is deliberate rather than an
+ * omission. `social_state()` answers `pre_open` / `open` / `closed` from the dates alone, and
+ * a fourth value would be a status the capacity predicate in `create_pending_purchase()` could
+ * disagree with — the same reason `entries` has no fifth purchase status. Being full is a
+ * *count*, so it is derived here, next to the other reasons, from the count the database
+ * already returns.
+ *
+ * **`ticketsRemaining` is null when the occasion has no capacity**, which means no limit rather
+ * than none left. Reading a null as zero would close a page that was never going to fill.
+ *
+ * **No price is `pre_open`, not `closed`.** An occasion with no `ticket_types` row is one whose
+ * price nobody has confirmed yet, and a form that offers to charge an unconfirmed price is the
+ * thing this whole schema is arranged to make impossible. It resolves to "not on sale yet"
+ * because that is what is true: the club has not finished getting ready.
+ */
+export function ticketSaleState(social: SocialState): TicketSaleState {
+  if (social.state === 'closed') {
+    return 'closed';
+  }
+
+  if (social.state === 'pre_open' || social.ticketTypes.length === 0) {
+    return 'pre_open';
+  }
+
+  // **Checked after the window, so a sold-out occasion whose window has also closed reads as
+  // closed.** Both are true and only one sentence can be shown; "sales have closed" is the one
+  // that stays true tomorrow.
+  if (social.ticketsRemaining !== null && social.ticketsRemaining <= 0) {
+    return 'sold_out';
+  }
+
+  return 'on_sale';
+}
+
 /**
  * Whether a ticket can actually be bought right now.
  *
- * **Two conditions, and both are load-bearing.** The window has to be open *and* there has to
- * be a price — an occasion with no `ticket_types` row is one whose price nobody has
- * confirmed, and a form that offers to charge an unconfirmed price is the thing this whole
- * schema is arranged to make impossible. Either alone is sufficient to keep the form hidden,
- * which is the belt and braces the 2026 party ships with.
+ * **Asked of `ticketSaleState()` rather than testing conditions of its own**, so the page's
+ * message and the form's presence can never disagree about whether the club is selling —
+ * which is exactly what happened before 14 September 2026, when this returned true on a
+ * sold-out occasion and the page offered a form that the database would refuse.
  */
 export function ticketsAreOnSale(social: SocialState): boolean {
-  return social.state === 'open' && social.ticketTypes.length > 0;
+  return ticketSaleState(social) === 'on_sale';
 }
 
 /**

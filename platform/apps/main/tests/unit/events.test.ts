@@ -11,8 +11,14 @@ import {
   parseSocialTicket,
   quantityOptionLabel,
   refusalMessage,
+  notOnSaleWords,
 } from '../../worker/events';
-import { TICKET_PURCHASE_REASONS, type SocialState } from '@src/shared';
+import {
+  TICKET_PURCHASE_REASONS,
+  ticketSaleState,
+  ticketsAreOnSale,
+  type SocialState,
+} from '@src/shared';
 
 /** A social with a price and an open window, so the parser has rules to apply. */
 const social: SocialState = {
@@ -39,6 +45,82 @@ const order = {
   quantity: '2',
   ticketCode: 'standard',
 };
+
+describe('whether tickets are on sale', () => {
+  it('sells when the window is open and there is room', () => {
+    expect(ticketSaleState(social)).toBe('on_sale');
+    expect(ticketsAreOnSale(social)).toBe(true);
+  });
+
+  it('sells when there is no capacity at all, because null is no limit', () => {
+    // **The case that must not be broken by the sold-out check.** A null `ticketsRemaining`
+    // means unlimited; reading it as zero would close a page that was never going to fill.
+    expect(ticketSaleState({ ...social, capacity: null, ticketsRemaining: null })).toBe(
+      'on_sale',
+    );
+  });
+
+  it('sells down to the last ticket', () => {
+    expect(ticketSaleState({ ...social, capacity: 100, ticketsRemaining: 1 })).toBe(
+      'on_sale',
+    );
+  });
+
+  it('is sold out at nought remaining, not merely refused at the till', () => {
+    // Before 14 September 2026 this answered `on_sale`: the page offered a form, somebody
+    // filled it in, and only then did the database refuse them.
+    const full = { ...social, capacity: 100, ticketsRemaining: 0 };
+
+    expect(ticketSaleState(full)).toBe('sold_out');
+    expect(ticketsAreOnSale(full)).toBe(false);
+  });
+
+  it('says closed rather than sold out when both are true', () => {
+    // Both statements are true and only one sentence can be shown. "Sales have closed" is the
+    // one that is still true tomorrow.
+    expect(
+      ticketSaleState({
+        ...social,
+        state: 'closed',
+        capacity: 100,
+        ticketsRemaining: 0,
+      }),
+    ).toBe('closed');
+  });
+
+  it('is pre-open when nobody has confirmed a price', () => {
+    // Not `closed`: the club has not finished getting ready, which is what the words say.
+    expect(ticketSaleState({ ...social, ticketTypes: [] })).toBe('pre_open');
+  });
+});
+
+describe('what the page says when it is not selling', () => {
+  it('gives each state its own sentence', () => {
+    expect(notOnSaleWords('pre_open')).toContain('not on sale yet');
+    expect(notOnSaleWords('sold_out')).toContain('Sold out');
+    expect(notOnSaleWords('closed')).toContain('closed');
+    expect(notOnSaleWords('on_sale')).toBe(null);
+  });
+
+  it('never tells somebody to keep watching a page that has finished selling', () => {
+    // The defect this replaced: one hardcoded sentence for all three states, which told
+    // people to wait for something that had already happened.
+    for (const state of ['sold_out', 'closed'] as const) {
+      expect(notOnSaleWords(state)).not.toContain('not on sale yet');
+      expect(notOnSaleWords(state)).not.toContain('Keep an eye');
+    }
+  });
+
+  it('promises nothing the club has not built', () => {
+    // There is no waiting list and no way to hand a ticket back — `store` has no refund path
+    // — so neither sentence may imply one.
+    for (const state of ['sold_out', 'closed'] as const) {
+      const words = notOnSaleWords(state) ?? '';
+
+      expect(words).not.toMatch(/waiting list|we will let you know|get in touch and we/i);
+    }
+  });
+});
 
 describe('formatSocialDate', () => {
   it('renders the club’s own long form', () => {

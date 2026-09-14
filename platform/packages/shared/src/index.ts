@@ -272,7 +272,9 @@ export { TO_BE_CONFIRMED, orTbc } from './privacy';
 export {
   fetchSocialState,
   socialDetailsConfirmed,
+  ticketSaleState,
   ticketsAreOnSale,
+  type TicketSaleState,
   TICKET_SALES_STATES,
   type SocialState,
   type SocialStateResult,
