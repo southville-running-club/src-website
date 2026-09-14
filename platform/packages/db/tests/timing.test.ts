@@ -267,6 +267,13 @@ describe('what may be called, and by whom', () => {
    *     functions are untouched by `finished_at`, because the last runner's crossing arrives
    *     after the race director has called it, and the block at the foot of this file asserts
    *     exactly that;
+   *   * `reset_event` — `timing.event.manage`, #254. ⚠️ **The most destructive grant on this
+   *     list and the only one that takes a confirmation phrase**, because a POST that skipped
+   *     the page has to meet the same control as one that did not: it refuses unless its second
+   *     argument is the race's own slug. It is refused outright once results are published —
+   *     #241's column — and it **audits even when it removes nothing**, because the intent is
+   *     the auditable fact. The block at the foot of this file asserts the counts against the
+   *     rows actually removed, with a fixture holding crossings both matched and orphaned;
    *   * `marshal_event` — the same two checks, #203. ⚠️ **It exists because none of the four
    *     roster functions above answers *"am I on this roster"* to the marshal asking** — every
    *     one of them is behind `timing.marshal.assign`, which is an admin's permission. It is
@@ -302,7 +309,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-one functions, and anon exactly one of them', async () => {
+  it('grants exactly these thirty-two functions, and anon exactly one of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -333,6 +340,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'publish_results', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
       { routine_name: 'reopen_event', grantee: 'authenticated' },
+      { routine_name: 'reset_event', grantee: 'authenticated' },
       { routine_name: 'resolve_crossing', grantee: 'authenticated' },
       { routine_name: 'restore_crossing', grantee: 'authenticated' },
       // ⚠️ **The first `anon` grant in this schema**, #241. See the block comment above.
@@ -4489,6 +4497,545 @@ describe("publishing a race's results", () => {
       expect(stored.by).toBeNull();
       // And it is still public, because the results are the club's.
       expect(await asAnon()).not.toBeNull();
+    });
+  });
+});
+
+/**
+ * Wiping a rehearsal — [#254](https://github.com/southville-running-club/src-website/issues/254).
+ *
+ * ⚠️ **Three assertions here are the ones that matter and none is about the happy path.**
+ *
+ *   1. **The counts returned are the rows that were actually removed**, asserted against a
+ *      fixture holding crossings **both matched and orphaned** — a capture whose bib resolved to
+ *      a team, and one whose bib belongs to nobody. The old function deleted teams *before*
+ *      crossings, and `crossings.team_id` is `on delete set null`, so it manufactured exactly
+ *      the orphans a reset exists to remove. A fixture whose crossings all matched a team would
+ *      pass against that bug.
+ *   2. **A published race is refused**, and allowed again once it is unpublished. That is the
+ *      club's permanent record, and #241 owns the column this reads.
+ *   3. **A second call on an empty race returns zeros and still writes its audit row.** The
+ *      intent is the auditable fact; *"it turned out to be empty"* is not a reason for somebody
+ *      having asked to go unrecorded.
+ *
+ * ⚠️ **This block cannot pass until #241 has landed.** `timing.events.results_published_at` is
+ * that issue's column, and the migration this tests refuses to apply without it — deliberately
+ * and loudly, because plpgsql resolves a `%rowtype` field lazily and would otherwise fail in
+ * front of a volunteer instead.
+ */
+describe('wiping a race', () => {
+  const MANAGER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaad01';
+  const MARSHAL_ONLY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaad02';
+  const EVENT_ID = '00000000-0000-4000-8000-000000000f11';
+  const OTHER_EVENT_ID = '00000000-0000-4000-8000-000000000f12';
+  const SLUG = 'zz-timing-reset';
+  const OTHER_SLUG = 'zz-timing-reset-bystander';
+
+  const TEAM_NUMBERS = ['601', '602'];
+  const MATCHED_BIB = '601';
+  /** A bib no team on this race owns, so the trigger resolves `team_id` to null. */
+  const ORPHAN_BIB = '999';
+
+  type Envelope = { ok: boolean; reason?: string; [key: string]: unknown };
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /** Committed, because a reset is a thing the next assertion has to be able to see. */
+  async function asPersonCommitted<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query("select set_config('role', 'authenticated', false)");
+    await db.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, false)",
+      [personId],
+    );
+
+    try {
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      // ⚠️ `authenticated` holds no grant on any table in `timing`, so a verification read left
+      // under the impersonated role answers `permission denied`. This file warns about it twice.
+      await db.query("select set_config('role', 'postgres', false)");
+      await db.query("select set_config('request.jwt.claims', null, false)");
+    }
+  }
+
+  interface RaceState {
+    crossings: number;
+    orphanCrossings: number;
+    teams: number;
+    runners: number;
+    marshals: number;
+    auditRows: number;
+    startedAt: string | null;
+    finishedAt: string | null;
+  }
+
+  /** What the race holds now — the figures a reset moves, and the ones it must not. */
+  async function raceState(eventId: string = EVENT_ID): Promise<RaceState> {
+    const one = async (sql: string): Promise<number> => {
+      const { rows } = await db.query<{ n: string }>(sql, [eventId]);
+      return Number(rows[0]?.n ?? 0);
+    };
+
+    const event = await db.query<{
+      actually_started_at: string | null;
+      finished_at: string | null;
+    }>('select actually_started_at, finished_at from timing.events where id = $1', [
+      eventId,
+    ]);
+
+    return {
+      crossings: await one(
+        'select count(*) as n from timing.crossings where event_id = $1',
+      ),
+      orphanCrossings: await one(
+        'select count(*) as n from timing.crossings where event_id = $1 and team_id is null',
+      ),
+      teams: await one('select count(*) as n from timing.teams where event_id = $1'),
+      runners: await one(
+        `select count(*) as n from timing.runners r
+           join timing.teams t on t.id = r.team_id where t.event_id = $1`,
+      ),
+      marshals: await one(
+        'select count(*) as n from timing.marshals where event_id = $1',
+      ),
+      auditRows: await one(
+        'select count(*) as n from timing.admin_actions where event_id = $1',
+      ),
+      startedAt: event.rows[0]?.actually_started_at ?? null,
+      finishedAt: event.rows[0]?.finished_at ?? null,
+    };
+  }
+
+  /**
+   * A race that has been run: two teams with a runner each, three crossings — one matched, one
+   * orphaned and one with no bib at all — a rostered marshal, and an audit row from something
+   * else somebody did. The last two are what a reset must leave alone.
+   *
+   * A second race gets exactly the same rows, so the "touches no other race" assertion is
+   * comparing against something a wrong `where` clause would plausibly have taken with it.
+   */
+  async function seedRace(): Promise<void> {
+    await db.query('delete from timing.events where id = any($1::uuid[])', [
+      [EVENT_ID, OTHER_EVENT_ID],
+    ]);
+
+    for (const [id, slug] of [
+      [EVENT_ID, SLUG],
+      [OTHER_EVENT_ID, OTHER_SLUG],
+    ]) {
+      await db.query(
+        `insert into timing.events
+           (id, slug, name, format, start_at, actually_started_at, finished_at)
+         values ($1, $2, 'Reset Fixture', 'solo', '2026-11-01T11:00:00Z',
+                 '2026-11-01T11:02:00Z', '2026-11-01T13:00:00Z')`,
+        [id, slug],
+      );
+
+      for (const number of TEAM_NUMBERS) {
+        const { rows } = await db.query<{ id: string }>(
+          'insert into timing.teams (event_id, team_number) values ($1, $2) returning id',
+          [id, number],
+        );
+        await db.query(
+          `insert into timing.runners (team_id, leg, firstname, lastname)
+           values ($1, 1, 'Ada', 'Lovelace')`,
+          [rows[0]!.id],
+        );
+      }
+
+      // ⚠️ **Matched, orphaned and bib-less.** The trigger resolves the first to a team and
+      // leaves the other two null, which is the population the delete order is about.
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, $2, '2026-11-01T11:40:00Z'),
+                ($1, $3, '2026-11-01T11:41:00Z'),
+                ($1, null, '2026-11-01T11:42:00Z')`,
+        [id, MATCHED_BIB, ORPHAN_BIB],
+      );
+
+      await db.query(
+        'insert into timing.marshals (event_id, user_id) values ($1, $2) on conflict do nothing',
+        [id, MANAGER],
+      );
+      await db.query(
+        `insert into timing.admin_actions (event_id, actor_id, action, detail)
+         values ($1, $2, 'race_finished', '{}'::jsonb)`,
+        [id, MANAGER],
+      );
+    }
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MANAGER, 'timing-reset-manager@example.com'],
+      [MARSHAL_ONLY, 'timing-reset-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2)
+       on conflict do nothing`,
+      [MANAGER, MARSHAL_ONLY],
+    );
+  });
+
+  beforeEach(seedRace);
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = any($1::uuid[])', [
+      [EVENT_ID, OTHER_EVENT_ID],
+    ]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from identity.people where id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+    await db.query('delete from auth.users where id = any($1::uuid[])', [
+      [MANAGER, MARSHAL_ONLY],
+    ]);
+  });
+
+  describe('the blast radius', () => {
+    /**
+     * ⚠️ **The fixture holds an orphan on purpose.** The old function deleted teams first, and
+     * `crossings.team_id` is `on delete set null` — so it left every capture behind as a bib
+     * pointing at nothing. A fixture whose crossings all matched a team would pass against that.
+     */
+    it('starts with crossings both matched and orphaned', async () => {
+      const before = await raceState();
+
+      expect(before.crossings).toBe(3);
+      // The bib nobody owns, and the capture with no bib at all.
+      expect(before.orphanCrossings).toBe(2);
+      expect(before.teams).toBe(2);
+      expect(before.runners).toBe(2);
+    });
+
+    it('returns counts that match the rows it removed', async () => {
+      const before = await raceState();
+
+      const answer = await asPersonCommitted<Envelope>(
+        MANAGER,
+        'select timing.reset_event($1, $2) as answer',
+        [SLUG, SLUG],
+      );
+
+      expect(answer).toMatchObject({
+        ok: true,
+        crossings: before.crossings,
+        teams: before.teams,
+        runners: before.runners,
+      });
+
+      const after = await raceState();
+      expect(after.crossings).toBe(0);
+      expect(after.teams).toBe(0);
+      expect(after.runners).toBe(0);
+    });
+
+    /** The second of the old function's two corrections: a wiped race came back still finished. */
+    it('clears both the actual start and the finish', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      const after = await raceState();
+      expect(after.startedAt).toBeNull();
+      expect(after.finishedAt).toBeNull();
+    });
+
+    it('leaves the roster and the audit trail alone', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      const after = await raceState();
+      expect(after.marshals).toBe(1);
+      // The seeded row plus the reset's own. Nothing was removed from this table.
+      expect(after.auditRows).toBe(2);
+    });
+
+    /** Scoped to the race in the address, and to nothing else that happens to be in the schema. */
+    it('touches no other race', async () => {
+      const before = await raceState(OTHER_EVENT_ID);
+
+      await asPersonCommitted(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      expect(await raceState(OTHER_EVENT_ID)).toEqual(before);
+    });
+
+    it('keeps the race itself, because this is a reset rather than a delete', async () => {
+      await asPersonCommitted(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      const { rows } = await db.query<{ slug: string; name: string }>(
+        'select slug, name from timing.events where id = $1',
+        [EVENT_ID],
+      );
+      expect(rows[0]).toMatchObject({ slug: SLUG, name: 'Reset Fixture' });
+    });
+  });
+
+  describe('the typed confirmation', () => {
+    /**
+     * ⚠️ **Checked in the database rather than only on the page.** The typing *is* the modal,
+     * and a control only the page enforces is no control at all against a POST that skipped it —
+     * which is the class of bypass Slice G found nine of in `entries`.
+     *
+     * The middle case is the one that decides a rule: `ZZ-TIMING-RESET` is what a phone keyboard
+     * offers for a field whose first letter it has capitalised, and it is still refused. The page
+     * turns autocapitalise off; accepting it here would make the confirmation weaker than the
+     * thing it guards.
+     */
+    it.each([['zz-timing-rese'], ['ZZ-TIMING-RESET'], ['']])(
+      'refuses "%s" with not_confirmed, and removes nothing',
+      async (phrase) => {
+        expect(
+          await asPersonCommitted<Envelope>(
+            MANAGER,
+            'select timing.reset_event($1, $2) as answer',
+            [SLUG, phrase],
+          ),
+        ).toEqual({ ok: false, reason: 'not_confirmed' });
+
+        const after = await raceState();
+        expect(after.crossings).toBe(3);
+        expect(after.teams).toBe(2);
+      },
+    );
+
+    it('refuses a null confirmation rather than raising', async () => {
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, null],
+        ),
+      ).toEqual({ ok: false, reason: 'not_confirmed' });
+    });
+
+    /** A phone keyboard's trailing space is invisible on screen and is not a different phrase. */
+    it('accepts the slug with whitespace around it', async () => {
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, `  ${SLUG} `],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    /** Not another race's slug either — the phrase names the race being wiped. */
+    it('refuses another race’s slug', async () => {
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, OTHER_SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'not_confirmed' });
+    });
+  });
+
+  describe('a published race', () => {
+    async function publish(at: string | null): Promise<void> {
+      await db.query('update timing.events set results_published_at = $2 where id = $1', [
+        EVENT_ID,
+        at,
+      ]);
+    }
+
+    /**
+     * ⚠️ **The refusal this issue exists to carry.** A published result is the club's permanent
+     * record; the way past it is `unpublish_results()`, a separate audited act behind a
+     * permission this caller may well not hold.
+     */
+    it('is refused with published, and keeps every row', async () => {
+      await publish('2026-11-02T09:00:00Z');
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'published' });
+
+      const after = await raceState();
+      expect(after.crossings).toBe(3);
+      expect(after.teams).toBe(2);
+      expect(after.finishedAt).not.toBeNull();
+    });
+
+    /**
+     * ⚠️ **Published beats a wrong phrase**, deliberately. Somebody who typed the slug correctly
+     * into a published race is owed the reason they can act on, rather than one that sends them
+     * back to type it again.
+     */
+    it('says published rather than not_confirmed when both are true', async () => {
+      await publish('2026-11-02T09:00:00Z');
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, 'not-the-slug'],
+        ),
+      ).toEqual({ ok: false, reason: 'published' });
+    });
+
+    it('is allowed again once it is unpublished', async () => {
+      await publish('2026-11-02T09:00:00Z');
+      await publish(null);
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          MANAGER,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, SLUG],
+        ),
+      ).toMatchObject({ ok: true, crossings: 3, teams: 2 });
+    });
+
+    it('writes no audit row for the refusal', async () => {
+      await publish('2026-11-02T09:00:00Z');
+      await asPersonCommitted(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      const { rows } = await db.query<{ n: string }>(
+        `select count(*) as n from timing.admin_actions
+          where event_id = $1 and action = 'event_reset'`,
+        [EVENT_ID],
+      );
+      expect(Number(rows[0]?.n)).toBe(0);
+    });
+  });
+
+  describe('doing it twice', () => {
+    /**
+     * ⚠️ **Zeros and an audit row, which is the pair.** The intent is the auditable fact:
+     * somebody typed the slug of a race and asked for it to be wiped, and *"it turned out to be
+     * empty"* is not a reason for that to go unrecorded. Two rows an hour apart are the ordinary
+     * shape of a rehearsal day.
+     */
+    it('returns zeros the second time and still audits both', async () => {
+      const first = await asPersonCommitted<Envelope>(
+        MANAGER,
+        'select timing.reset_event($1, $2) as answer',
+        [SLUG, SLUG],
+      );
+      const second = await asPersonCommitted<Envelope>(
+        MANAGER,
+        'select timing.reset_event($1, $2) as answer',
+        [SLUG, SLUG],
+      );
+
+      expect(first).toMatchObject({ ok: true, crossings: 3, teams: 2, runners: 2 });
+      expect(second).toEqual({
+        ok: true,
+        slug: SLUG,
+        crossings: 0,
+        teams: 0,
+        runners: 0,
+      });
+
+      const { rows } = await db.query<{ detail: { crossings: number } }>(
+        `select detail from timing.admin_actions
+          where event_id = $1 and action = 'event_reset'
+          order by created_at`,
+        [EVENT_ID],
+      );
+      expect(rows.map((r) => r.detail.crossings)).toEqual([3, 0]);
+    });
+  });
+
+  describe('who may do it', () => {
+    it('refuses somebody holding only timing.crossing.record', async () => {
+      expect(
+        await asPerson<Envelope>(
+          MARSHAL_ONLY,
+          'select timing.reset_event($1, $2) as answer',
+          [SLUG, SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('leaves every row in place after that refusal', async () => {
+      await asPerson(MARSHAL_ONLY, 'select timing.reset_event($1, $2) as answer', [
+        SLUG,
+        SLUG,
+      ]);
+
+      const after = await raceState();
+      expect(after.crossings).toBe(3);
+      expect(after.teams).toBe(2);
+    });
+
+    it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query('select timing.reset_event($1, $2)', [SLUG, SLUG]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('gives a manager the ordinary no_such_event for a slug that names nothing', async () => {
+      expect(
+        await asPerson<Envelope>(MANAGER, 'select timing.reset_event($1, $2) as answer', [
+          'zz-no-such-race',
+          'zz-no-such-race',
+        ]),
+      ).toEqual({ ok: false, reason: 'no_such_event' });
     });
   });
 });

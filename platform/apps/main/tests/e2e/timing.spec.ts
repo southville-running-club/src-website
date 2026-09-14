@@ -13,13 +13,17 @@ import {
   clearAnomalyEvent,
   clearCaptureEvent,
   clearStatusEvent,
+  clearResetEvent,
   clearRosterEvent,
   clearStartEvents,
+  resetEventSlug,
+  resetRaceState,
   rosterEventSlug,
   resetStatusRace,
   seedAnomalyCrossings,
   seedAnomalyEvent,
   seedCaptureEvent,
+  seedResetEvent,
   seedRosterEvent,
   seedStartEvents,
   seedStatusEvent,
@@ -107,6 +111,9 @@ test.beforeAll(async ({}, testInfo) => {
   await seedAnomalyEvent(testInfo.project.name);
   // #253's race. Its labels are reset per test — `seedStatusEvent`'s header says why.
   await seedStatusEvent(testInfo.project.name);
+  // #254's race. ⚠️ **After the staff**, because it rosters the marshal by address — and
+  // re-seeded per test, because every test in that block wipes every row on it.
+  await seedResetEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
@@ -135,6 +142,7 @@ test.afterAll(async ({}, testInfo) => {
   await clearCaptureEvent(testInfo.project.name);
   await clearAnomalyEvent(testInfo.project.name);
   await clearStatusEvent(testInfo.project.name);
+  await clearResetEvent(testInfo.project.name);
   await clearTimingStaff();
 });
 
@@ -2109,5 +2117,224 @@ test.describe('finishing a race', () => {
     await page.goto(finishPath(testInfo.project.name));
 
     await expectNoSidewaysScroll(page, 'the timing finish page at 320px');
+  });
+});
+
+/**
+ * Wiping a rehearsal — [#254](https://github.com/southville-running-club/src-website/issues/254).
+ *
+ * ⚠️ **Every test here removes every row on its race**, so the fixture is rebuilt in a
+ * `beforeEach` rather than shared. A test asserting against rows a sibling already wiped would
+ * pass for the wrong reason: an empty table is also what a *broken* reset produces.
+ */
+const dangerZonePath = (project: string): string =>
+  `/timing/events/${resetEventSlug(project)}/danger-zone`;
+
+test.describe('who may wipe a race', () => {
+  /**
+   * ⚠️ **The refusal that matters most on this platform.** A POST to this address removes every
+   * crossing and every entry on a race, and a `timing-marshal` holds `timing.crossing.record`
+   * and nothing else. The door refuses before the function is ever asked.
+   */
+  test('a timing-marshal is refused the page and the address it posts to', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+
+    const path = dangerZonePath(testInfo.project.name);
+    const shown = await page.goto(path);
+    expect(shown?.status(), path).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+    // ⚠️ **Posting the correct phrase**, so the refusal is the door's rather than the
+    // confirmation's. A wrong phrase here would have been refused either way, and the test would
+    // then prove nothing about the permission.
+    const posted = await page.request.post(`${path}/update`, {
+      form: { confirmation: resetEventSlug(testInfo.project.name) },
+      maxRedirects: 0,
+    });
+    expect(posted.status(), `${path}/update`).toBe(404);
+
+    const state = await resetRaceState(testInfo.project.name);
+    expect(state.crossings, 'nothing was wiped').toBe(3);
+    expect(state.teams).toBe(2);
+  });
+
+  test('a signed-out visitor is refused both', async ({ page }, testInfo) => {
+    await page.context().clearCookies();
+
+    const path = dangerZonePath(testInfo.project.name);
+    expect((await page.goto(path))?.status(), path).toBe(404);
+    expect(
+      (
+        await page.request.post(`${path}/update`, {
+          form: { confirmation: resetEventSlug(testInfo.project.name) },
+          maxRedirects: 0,
+        })
+      ).status(),
+      `${path}/update`,
+    ).toBe(404);
+
+    expect((await resetRaceState(testInfo.project.name)).crossings).toBe(3);
+  });
+});
+
+test.describe('the danger zone', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await seedResetEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
+  });
+
+  /**
+   * ⚠️ **The blast radius is read from the database rather than described in prose**, which is
+   * the whole argument for asking somebody to type a phrase: a confirmation is worth something
+   * only if what is being confirmed is on the screen and checkable.
+   */
+  test('shows what would go and what would stay', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger zone');
+
+    const removed = page.locator('dl').first();
+    await expect(removed.getByText('Crossings recorded')).toBeVisible();
+    await expect(removed.locator('dd').nth(2)).toHaveText('3');
+
+    // What survives is on the page beside what does not, because "danger zone" reads as
+    // "delete the race" and the next thing this volunteer does is look for it.
+    await expect(page.getByRole('heading', { name: 'What would be kept' })).toBeVisible();
+    await expect(page.getByText('Marshals rostered')).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **The typing is the modal**, and it is checked in the database as well as here — so this
+   * asserts the sentence a volunteer reads, not the mechanism. `packages/db/tests/timing.test.ts`
+   * re-attempts the same phrase straight at the function.
+   */
+  test('refuses a phrase that is not the race’s slug, and removes nothing', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    await page.getByLabel(/^Type /).fill('nn-2026');
+    await page.getByRole('button', { name: 'Wipe this race' }).click();
+
+    await expect(page.getByText(/you have to type its slug/)).toBeVisible();
+
+    const state = await resetRaceState(testInfo.project.name);
+    expect(state.crossings).toBe(3);
+    expect(state.teams).toBe(2);
+  });
+
+  /**
+   * ⚠️ **The whole of what #207 needs, in one test.** Crossings and entries gone, the race no
+   * longer marked started or finished — the old function left it finished — and the roster still
+   * there, because re-rostering every marshal between two runs of a rehearsal is the cost this
+   * exists to avoid.
+   */
+  test('wipes the field, clears the start and the finish, and keeps the roster', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    await page.getByLabel(/^Type /).fill(resetEventSlug(testInfo.project.name));
+    await page.getByRole('button', { name: 'Wipe this race' }).click();
+
+    await expect(page.getByText(/This race has been wiped/)).toBeVisible();
+
+    const state = await resetRaceState(testInfo.project.name);
+    expect(state.crossings).toBe(0);
+    expect(state.teams).toBe(0);
+    expect(state.runners).toBe(0);
+    expect(state.started, 'the actual start is cleared').toBe(false);
+    expect(state.finished, 'and so is the finish — the old function left this set').toBe(
+      false,
+    );
+    expect(state.marshals, 'the roster is not part of the blast radius').toBe(1);
+    expect(state.auditRows, 'and the reset is recorded').toBe(1);
+  });
+
+  /** Zeros and an audit row: the intent is the auditable fact, empty race or not. */
+  test('can be done twice, and records both', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = resetEventSlug(testInfo.project.name);
+
+    for (const pass of [1, 2]) {
+      await page.goto(dangerZonePath(testInfo.project.name));
+      await page.getByLabel(/^Type /).fill(slug);
+      await page.getByRole('button', { name: 'Wipe this race' }).click();
+      await expect(
+        page.getByText(/This race has been wiped/),
+        `pass ${pass}`,
+      ).toBeVisible();
+    }
+
+    const state = await resetRaceState(testInfo.project.name);
+    expect(state.crossings).toBe(0);
+    expect(state.auditRows).toBe(2);
+  });
+
+  /**
+   * ⚠️ **No confirm dialog on top of the typed phrase**, deliberately — the typing *is* the
+   * modal. A `window.confirm` is a reflex and, worse here, is a scripted control: every
+   * Playwright project in this suite runs with JavaScript off in at least one of them, and a
+   * volunteer there would be handed a button with no guard at all in front of it.
+   */
+  test('asks for the phrase and nothing else on top of it', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+
+    let dialogs = 0;
+    page.on('dialog', (dialog) => {
+      dialogs += 1;
+      void dialog.dismiss();
+    });
+
+    await page.goto(dangerZonePath(testInfo.project.name));
+    await page.getByLabel(/^Type /).fill(resetEventSlug(testInfo.project.name));
+    await page.getByRole('button', { name: 'Wipe this race' }).click();
+
+    await expect(page.getByText(/This race has been wiped/)).toBeVisible();
+    expect(dialogs, 'the typing is the modal').toBe(0);
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${resetEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Wipe this race and start again' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger zone');
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/danger-zone');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing danger-zone page at 320px');
   });
 });

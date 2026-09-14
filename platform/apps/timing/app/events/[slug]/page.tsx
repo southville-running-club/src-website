@@ -136,8 +136,8 @@ export default async function EventPage({
         not exist is precisely the old application's bug: its marshal navigation carried a
         "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
         the start screen since #250, the entry list since #202, the two resolution surfaces since
-        #252 and finishing and status since #253, so all seven are linked. Results are #205,
-        which adds its own link here when its page exists.
+        #252, finishing and status since #253 and the danger zone since #254, so all eight are
+        linked. Results are #205, which adds its own link here when its page exists.
 
         The link is unconditional because this address demands `timing.event.manage` and the
         roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
@@ -215,6 +215,26 @@ export default async function EventPage({
           This race has started, so its details can no longer be changed.
         </p>
       )}
+
+      {/*
+        ⚠️ **Linked from the bottom, in its own section, and with no count beside it** — #254.
+        Every other link on this page is a thing somebody is on their way to do; this one is a
+        thing somebody has to go looking for, and the distance is part of the control. The page
+        behind it shows the blast radius and asks for the slug to be typed, so the link itself
+        is not a guard and is not pretending to be one.
+
+        Unconditional, like the six above, and for the same reason: `timing.event.manage` is
+        what both this address and that one demand, so a viewer reading this page can open it.
+        **Not hidden once the race has run**, because wiping a rehearsal is exactly the thing
+        somebody does after one — see #207.
+      */}
+      <h2>Starting again</h2>
+
+      <p>
+        <Link href={`/events/${event.slug}/danger-zone`}>
+          Wipe this race and start again
+        </Link>
+      </p>
 
       <p>
         <Link href="/events">All races</Link>

@@ -1807,6 +1807,18 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   arrives after the race director has called it, and the finish page says so under the button.
   `finish_event()` is idempotent by its own `where` like `start_event()`, answering the losing
   press with the winning time;
+- **`/timing/events/<slug>/danger-zone/`** — wiping a rehearsal (#254), behind
+  `timing.event.manage`. ⚠️ **`reset_event()` takes the race's own slug as a second argument and
+  refuses without it**, because the typed confirmation _is_ the modal — there is no dialog on top
+  of it, which would be a reflex and would also be a scripted control on a platform where every
+  spec runs in a `no-javascript` project — and a control only the page enforces is no control at
+  all against a POST that skipped it. ⚠️ **It deletes crossings first and teams second, and the
+  order is load-bearing**: `crossings.team_id` is `on delete set null`, so teams-first
+  manufactures exactly the orphans the reset exists to remove. That and clearing **`finished_at`
+  as well as `actually_started_at`** are the two corrections the old application recorded against
+  its own version. It **refuses a race whose results are published** — #241's column — leaves
+  `marshals` and `admin_actions` alone, counts before the DML, and **audits even when it removes
+  nothing**, because the intent is the auditable fact;
 - **`/nn/<year>/results/`**, which reads `timing.results_for_event()` — behind
   `nn.results.read` until the race's results are published, and open to `anon` after;
 - **the publication state machine** — `timing.events.results_published_at` and
@@ -1828,11 +1840,11 @@ the platform is being **rewritten here** rather than moved, so what exists now i
 **What is genuinely not built is the publish button and the public page**: the state machine
 exists and nothing calls it — #205 owns the control in the app and
 [#242](https://github.com/southville-running-club/src-website/issues/242) owns
-`/nn/<year>/results/` opening to a signed-out visitor, which it still does not do. Nothing wipes
-a rehearsal either. ⚠️ **"nothing resolves an anomaly" is what this said until #252, "nothing
-marks a DNS, DNF or DQ, nothing finishes a race" until #253, and "publication" flatly until
-#241** — five such lines have gone stale in four days, which is the pattern rather than the
-exception.
+`/nn/<year>/results/` opening to a signed-out visitor, which it still does not do. ⚠️
+**"nothing resolves an anomaly" is what this said until #252, "nothing marks a DNS, DNF or DQ,
+nothing finishes a race" until #253, "publication" flatly until #241, and "nothing wipes a
+rehearsal" until #254** — six such lines have gone stale in four days, which is the pattern
+rather than the exception.
 
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because
@@ -1840,8 +1852,13 @@ rather than with the function.** #253 asked for it; `20260913240000` declined it
 what `20260914100000` paid. It answers `published`, distinctly from `not_finished`, because
 reopening clears `finished_at` and publication was conditional on it being set — a published,
 unfinished race is a state the state machine has no arrow into. **This paragraph said the
-opposite until 14 September 2026.** ⚠️ **"No countdown screen" is what this said until #250**, and **"there
-is no marshal capture screen" is what it said until #203** — twice in two days, which is the
+opposite until 14 September 2026.** ⚠️ **`reset_event()` never deferred its own guard**, and the
+difference is worth keeping straight: refusing a published race is the one thing that function
+exists to do, so #254 read the column from the start and its migration is timestamped after
+#241's — whereas `reopen_event()` was a whole feature that did not need the guard to be useful.
+
+⚠️ **"No countdown screen" is what this said until #250**, and **"there is no marshal capture
+screen" is what it said until #203** — twice in two days, which is the
 pattern rather than the exception. ⚠️ **"Nothing captures a crossing" was already half wrong
 before that**: `timing.record_crossing()` landed with #251 and nothing called it for a day.
 The roster page (#245) decides _who may_ capture on a race, which is ADR-036's scope checked
