@@ -4246,18 +4246,29 @@ describe("publishing a race's results", () => {
       ).toEqual({ ok: false, reason: 'refused' });
     });
 
+    /**
+     * ⚠️ **One refused call per transaction, and that is not a style choice.** A `42501` from
+     * the first call aborts the transaction, so every statement after it — including the
+     * second refusal this test is about — comes back `25P02`, *current transaction is
+     * aborted*, whatever the grant actually says. Asserted together in one `begin`, the
+     * second expectation could never observe the code it names, and would go on failing on
+     * a grant that was perfectly correct. Two transactions, one refusal each.
+     *
+     * This is the general shape of the rule the file already applies everywhere else: assert
+     * the **specific** refusal, because a Postgres error is not a refusal — and an aborted
+     * transaction refuses everything, which reads as every grant holding at once.
+     */
     it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
-      await db.query('begin');
-      try {
-        await db.query("select set_config('role', 'anon', true)");
-        await expect(
-          db.query('select timing.publish_results($1)', [SLUG]),
-        ).rejects.toMatchObject({ code: '42501' });
-        await expect(
-          db.query('select timing.unpublish_results($1)', [SLUG]),
-        ).rejects.toMatchObject({ code: '42501' });
-      } finally {
-        await db.query('rollback');
+      for (const call of ['publish_results', 'unpublish_results']) {
+        await db.query('begin');
+        try {
+          await db.query("select set_config('role', 'anon', true)");
+          await expect(
+            db.query(`select timing.${call}($1)`, [SLUG]),
+          ).rejects.toMatchObject({ code: '42501' });
+        } finally {
+          await db.query('rollback');
+        }
       }
     });
 
