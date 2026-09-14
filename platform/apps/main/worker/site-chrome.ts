@@ -101,7 +101,15 @@ function clubLogo(): Html {
  * never had that problem: its own masthead links to the dashboard and carries "My account".
  */
 export function siteBanner(): Html {
-  return html`<header class="site-banner">
+  // ⚠️ **`<aside>`, not `<header>`, since #219.** This file had the only one of the three
+  // renderings that was a landmark at all — the Astro and Next ones were `<div>`s, so their
+  // content sat outside the page's landmark structure and axe's `region` rule said so the
+  // moment the suite settled on one rule list. `<header>` was right *here* and could not be
+  // the answer everywhere: a Nightingale Nightmare page already has `NnMasthead` as its one
+  // `banner`, and a second is `landmark-no-duplicate-banner`. Complementary is what this
+  // content actually is — a site-wide notice beside the page rather than part of it — and the
+  // three renderings agree about the element again, which the copy always did.
+  return html`<aside class="site-banner">
     <div class="site-banner-inner">
       <a class="site-banner-mark" href="/" aria-label="Southville Running Club, home">
         ${clubLogo()}
@@ -116,7 +124,7 @@ export function siteBanner(): Html {
         >
       </p>
     </div>
-  </header>`;
+  </aside>`;
 }
 
 /**

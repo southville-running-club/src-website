@@ -885,14 +885,26 @@ function dashboardPage(
  * invented, like every other number on it.
  */
 function eventBar(list: AdminEntryList, figures: AdminEventFigures | null): Html {
-  return html`<div class="admin-eventbar">
-    <h1>${list.event.displayName}</h1>
+  // ⚠️ **`<section>` with a name, not a `<div>`** — #219. It sits between `masthead()` and
+  // `<main>`, so as a `div` it was in no landmark at all and everything on it — the page's own
+  // `<h1>`, the date, the window and how many places are gone — was unreachable by landmark
+  // navigation. `region` is the rule; nothing ran it on this surface until the suite settled on
+  // one list.
+  //
+  // **It cannot be `<header>`**: `admin-mast` is already this page's `banner` and a second is
+  // `landmark-no-duplicate-banner`. **And it is not moved inside `<main>`**, which is the other
+  // obvious answer and is a visual change rather than a semantic one — `.admin-eventbar` is
+  // full-bleed with a rule across the viewport, and `.admin-page` is `max-width: 70rem` with
+  // padding, so moving it indents the bar and stops the rule reaching the edges. A `<section>`
+  // named by the heading it already contains costs nothing on screen.
+  return html`<section class="admin-eventbar" aria-labelledby="admin-eventbar-title">
+    <h1 id="admin-eventbar-title">${list.event.displayName}</h1>
     <p class="admin-eventbar-when">
       ${formatLondonDate(`${list.event.eventDate}T00:00:00Z`)}
     </p>
     ${entryWindowPill(figures)}
     <p class="admin-eventbar-closes">${entryWindowDetail(figures)}</p>
-  </div>`;
+  </section>`;
 }
 
 function entryWindowPill(figures: AdminEventFigures | null): Html {
@@ -2561,7 +2573,7 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
       }
 
       <div class="admin-panel">
-        <div class="admin-panel-head"><h3>The payment</h3></div>
+        <div class="admin-panel-head"><h2>The payment</h2></div>
         <div class="admin-panel-body">
           <dl class="admin-facts">
             ${fact('Status', purchaseStatusWords(purchase))}
@@ -2628,7 +2640,7 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
 
       <div class="admin-panel">
         <div class="admin-panel-head">
-          <h3>Who paid</h3>
+          <h2>Who paid</h2>
           <p class="admin-panel-note">
             Every message about this entry goes to this address.
           </p>
@@ -2655,7 +2667,7 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
 
       <div class="admin-panel">
         <div class="admin-panel-head">
-          <h3>${plural(detail.entrants.length, 'The runner', 'On this entry')}</h3>
+          <h2>${plural(detail.entrants.length, 'The runner', 'On this entry')}</h2>
         </div>
         <div class="admin-panel-body">
           ${
@@ -2761,7 +2773,7 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
   return html`<section class="admin-entrant">
     ${
       named
-        ? html`<h4>
+        ? html`<h3>
             ${entrant.firstName} ${entrant.lastName}
             ${
               entrant.role === 'guide'
@@ -2769,7 +2781,7 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
                 : /* Said only on the guide, because "runner" on every other entry is a word
                      that carries nothing. */ null
             }
-          </h4>`
+          </h3>`
         : null
     }
     <dl class="admin-facts">
@@ -2874,7 +2886,7 @@ function entrantFacts(entrant: AdminEntryDetailEntrant, named: boolean): Html {
 function requestsPanel(requests: EntryRequest[]): Html {
   return html`<div class="admin-panel">
     <div class="admin-panel-head">
-      <h3>What they have asked for</h3>
+      <h2>What they have asked for</h2>
       <p class="admin-panel-note">
         Newest first. Asking changes nothing on its own — the entry still holds its place.
       </p>
@@ -2929,7 +2941,7 @@ function requestsPanel(requests: EntryRequest[]): Html {
 function emailsPanel(detail: AdminEntryDetail): Html {
   return html`<div class="admin-panel">
     <div class="admin-panel-head">
-      <h3>Emails about this entry</h3>
+      <h2>Emails about this entry</h2>
       <p class="admin-panel-note">
         <a href="${ADMIN_PREFIX}/emails/">The whole queue</a> is where a failed message is
         sent again.
@@ -3024,7 +3036,7 @@ function emailStatusWords(message: AdminEntryDetail['emails'][number]): string {
 function auditPanel(detail: AdminEntryDetail): Html {
   return html`<div class="admin-panel">
     <div class="admin-panel-head">
-      <h3>What has been done to it</h3>
+      <h2>What has been done to it</h2>
       <p class="admin-panel-note">
         Newest first. Who did it is recorded as an account reference rather than a name.
       </p>

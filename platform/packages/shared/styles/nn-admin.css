@@ -575,7 +575,15 @@ body.admin {
   border-bottom: 1px solid var(--colour-rule);
 }
 
-.admin-panel-head h3 {
+/* ⚠️ **Both levels, because the level depends on the page rather than on the panel** — issue
+   219 (written without its hash, because `admin-contrast.test.ts` bans a hex value anywhere in
+   this file and a three-digit issue number is indistinguishable from a three-digit colour).
+   `/admin/nn/` puts its panels under an `.admin-h2` section label, so a panel title is an `h3`
+   there and the order is h1 → h2 → h3. `/admin/nn/entry/` has no section labels, so its panels
+   *are* the page's top-level sections and their titles are `h2`; while they were `h3` the page
+   went h1 → h3 and axe's `heading-order` said so, which nothing on this surface was running
+   until the suite settled on one rule list. Same panel, same size, different depth. */
+.admin-panel-head :is(h2, h3) {
   margin: 0;
   font-size: 1.0625rem;
 }

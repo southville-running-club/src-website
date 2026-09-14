@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import AxeBuilder from '@axe-core/playwright';
+import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll, waitForStyledLayout } from '../sideways-scroll';
 
 /**
@@ -358,12 +358,9 @@ test.describe("the club's privacy notice", () => {
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto('/privacy/');
 
-    await waitForStyledLayout(page);
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
-    expect(results.violations).toEqual([]);
+    expect(violations).toEqual([]);
   });
 
   test('reads at 320px without the page scrolling sideways', async ({ page }) => {

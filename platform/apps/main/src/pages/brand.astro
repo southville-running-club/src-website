@@ -111,8 +111,16 @@ const bodyFontName = tokens.font.body.value.split(',')[0].replace(/"/g, '');
     with them.
   </p>
 
+  {
+    /* ⚠️ **`<h2>`, not `<h3>`.** This notice sits between the page's `<h1>` and its first
+      section heading, so an `<h3>` here made the page go h1 → h3 and axe's `heading-order`
+      said so — issue 219, which settled the suite on one rule list and started running that
+      rule on pages that had never met it. `base.css` styles `.notice h2` and `.notice h3`
+      identically, so nothing moves on screen; what changes is that a screen reader reading
+      the page's outline is told the truth about where this sits. */
+  }
   <div class="notice notice-bad">
-    <h3>The green is not yet officially confirmed</h3>
+    <h2>The green is not yet officially confirmed</h2>
     <p>
       <strong>{c.green.value}</strong> was measured directly from the colour of the header band
       on southvillerunningclub.co.uk on <strong>16 August 2026</strong>. It is what the

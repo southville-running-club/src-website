@@ -17,9 +17,13 @@
 import { ClubLogo } from './club-logo';
 import { SITE_BANNER } from '@src/shared/brand';
 
+// ⚠️ **`<aside>`, not `<div>` and not `<header>`** — `SiteBanner.astro` carries the argument.
+// A `<div>` is no landmark, so everything in here sat outside the page's landmark structure;
+// `<header>` would be a second `banner` on a Nightingale Nightmare page, where `NnMasthead`
+// already is one. All three renderings say `aside`. #219.
 export function SiteBanner() {
   return (
-    <div className="site-banner">
+    <aside className="site-banner">
       <div className="site-banner-inner">
         {/* The mark links home rather than being decoration. On this path it matters more
             than it does on the club's own pages: it is the only route back. */}
@@ -45,6 +49,6 @@ export function SiteBanner() {
           </span>
         </p>
       </div>
-    </div>
+    </aside>
   );
 }

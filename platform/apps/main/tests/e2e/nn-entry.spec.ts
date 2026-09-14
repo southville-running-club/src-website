@@ -1,10 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import {
-  expectNoSidewaysScroll,
-  readWhenSettled,
-  waitForStyledLayout,
-} from '../sideways-scroll';
-import AxeBuilder from '@axe-core/playwright';
+import { axeViolations } from '../axe';
+import { expectNoSidewaysScroll, readWhenSettled } from '../sideways-scroll';
 import { closeEntries, openEntries } from '../entries-window';
 import { clearPurchases, purchases, restoreCapacity, sellOut } from '../entries-db';
 
@@ -439,10 +435,7 @@ test.describe('before entries open', () => {
     for (const path of ['/nn/', YEAR]) {
       await page.goto(path);
 
-      await waitForStyledLayout(page);
-      const { violations } = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
+      const violations = await axeViolations(page);
 
       expect(violations, path).toEqual([]);
     }
@@ -1467,10 +1460,7 @@ test.describe('once entries are open', () => {
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto(YEAR);
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1484,10 +1474,7 @@ test.describe('once entries are open', () => {
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page.locator('[data-entry-summary]')).toBeVisible();
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1880,10 +1867,7 @@ test.describe('when the race is full', () => {
     await page.getByRole('button', { name: 'Continue to payment' }).click();
     await expect(page.locator('[data-entry-soldout]')).toBeVisible();
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });
@@ -1962,10 +1946,7 @@ test.describe('the return page', () => {
   test('has zero axe violations @requires-js', async ({ page }) => {
     await page.goto('/nn/2026/entry/complete/?session=cs_test_notreal');
 
-    await waitForStyledLayout(page);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
+    const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
   });

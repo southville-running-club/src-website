@@ -1,12 +1,9 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { axeViolations } from '../axe';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
 import { CSRF_COOKIE, CSRF_FIELD, forgetSessions, signInAs } from './sign-in';
-import {
-  expectNoSidewaysScroll as expectNoSidewaysScrollAt,
-  waitForStyledLayout,
-} from '../sideways-scroll';
+import { expectNoSidewaysScroll as expectNoSidewaysScrollAt } from '../sideways-scroll';
 import {
   ACTIONS_EVENT_SLUG,
   ASSIGN_TO_FIRST_NAME,
@@ -185,18 +182,6 @@ async function expectNoSidewaysScroll(page: Page, note: string): Promise<void> {
 async function undecoratedMarkup(page: Page): Promise<string> {
   return (await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '');
 }
-
-const axe = async (page: Page) => {
-  // The wait is inside the helper rather than at its eight call sites, so a ninth cannot
-  // forget it. See `../sideways-scroll.ts`: axe reads an unstyled document exactly as the
-  // overflow assertions did, and `target-size` is the rule that reports the missing CSS as
-  // a design failure.
-  await waitForStyledLayout(page);
-
-  return new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-};
 
 // -------------------------------------------------------------------------------------------
 // The door
@@ -1404,7 +1389,7 @@ test.describe('accessibility and small screens', () => {
 
     for (const path of [ADMIN, PEOPLE]) {
       await page.goto(path);
-      expect((await axe(page)).violations, path).toEqual([]);
+      expect(await axeViolations(page), path).toEqual([]);
     }
   });
 
@@ -1418,7 +1403,7 @@ test.describe('accessibility and small screens', () => {
 
     for (const path of [ADMIN, PEOPLE]) {
       await page.goto(path);
-      expect((await axe(page)).violations, path).toEqual([]);
+      expect(await axeViolations(page), path).toEqual([]);
     }
   });
 
@@ -1432,7 +1417,7 @@ test.describe('accessibility and small screens', () => {
     // month.
     for (const path of [OVERSOLD, QUIET, `${NN}interest/`]) {
       await page.goto(path);
-      expect((await axe(page)).violations, path).toEqual([]);
+      expect(await axeViolations(page), path).toEqual([]);
     }
   });
 
@@ -1444,7 +1429,7 @@ test.describe('accessibility and small screens', () => {
     await page.getByRole('button', { name: 'Print the start list' }).click();
     await expect(page.getByRole('heading', { name: /Start list/ })).toBeVisible();
 
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   test('has no axe violations on one entry in full @requires-js', async ({ page }) => {
@@ -1468,7 +1453,7 @@ test.describe('accessibility and small screens', () => {
       .click();
     await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
 
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   test('has no axe violations on the email queue @requires-js', async ({ page }) => {
@@ -1477,7 +1462,7 @@ test.describe('accessibility and small screens', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto('/admin/emails/');
 
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   test('has no axe violations on the 404 a registered account gets @requires-js', async ({
@@ -1487,7 +1472,7 @@ test.describe('accessibility and small screens', () => {
     await signInAs(page, REGISTERED_EMAIL);
     await page.goto(ADMIN);
 
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   /**
@@ -1548,7 +1533,7 @@ test.describe('accessibility and small screens', () => {
     // Announced, in the words the person reading needs rather than the database's.
     await expect(page.getByRole('alert')).toContainText('no longer has an account');
 
-    expect((await axe(page)).violations).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   /**
