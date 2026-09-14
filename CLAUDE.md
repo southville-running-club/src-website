@@ -1935,6 +1935,36 @@ different rates.
   file cannot name a different winner than the one who was handed the prize. **Every cell of the
   `.xlsx` is an `inlineStr`**, which is the only thing that stops Excel reading a bib of `0311`
   as `311`.
+- **`/timing/events/<slug>/leaderboard/`** — the live board, on **Durable Objects** (#204,
+  ADR-034), behind **either** `timing.event.manage` **or** `timing.crossing.resolve`, which is
+  the only two-permission row in `lib/access.ts` and is ADR-038's own pair.
+  ⚠️ **Staff-only in 2026, and [C6](docs/foundations/requirements.md#c6--show-live-race-progress-to-spectators)
+  is therefore not met** — the old application's `/live/<slug>` was fully anonymous and
+  spectators watched it at Ashton Court; ADR-038 declines that, because a live leaderboard _is_
+  provisional results published continuously, and records the lost capability rather than
+  re-scoping it. ⚠️ **It reads `timing.leaderboard()`, a third function returning the same shape
+  as `results_for_event()` and `results_preview()`** — three audiences, differing by a permission
+  and a column list, and `20260914150000`'s header carries the table. It carries `runners.role`,
+  which the published answer withholds (ADR-043), because on a solo race a guide shares a team
+  with the runner they guide and a board with no `role` prints a guide as though they had a time;
+  it deliberately carries **no `result_placement`**, because it computes no prize band.
+  ⚠️ **The Durable Object holds no race data at all** — it broadcasts _"something changed"_ and
+  every screen re-reads the snapshot over the ordinary permissioned HTTP path, so there is one
+  read, one set of permissions and one place a disclosure decision is taken. That is also what
+  keeps this the slice ADR-034 cuts: the derivation is pure, in
+  `packages/shared/src/timing/leaderboard.ts`, and deleting the transport leaves a
+  server-rendered board that does not refresh itself. ⚠️ **The socket is the one address under
+  `/timing` that `middleware.ts` never sees** — a `101` response carrying a `webSocket` cannot
+  survive Next's response pipeline, so `apps/timing/worker-entry.js` answers it before OpenNext
+  is asked, reading its permission out of the same `lib/access.ts` table. ⚠️ **`main` in
+  `wrangler.jsonc` is `worker-entry.js` and no longer `.open-next/worker.js`**, because a Durable
+  Object class has to be exported from the Worker's entry module and OpenNext's is generated on
+  every build; that file re-exports OpenNext's three cache classes as well, and dropping any of
+  them would break the day somebody configures an incremental cache. **The no-JavaScript
+  fallback is the board itself** — a client component is server-rendered, so scripting off gets a
+  correct snapshot plus a sentence saying to reload, which is deliberately unlike the marshal
+  capture screen, whose fallback is only a sentence because an IndexedDB queue has nothing to
+  degrade to.
 
 ⚠️ **Publication is reachable end to end as of 14 September 2026, and both halves of this
 paragraph were written believing the other half was missing.** #205 built the preview and the
@@ -1944,15 +1974,18 @@ previews a race, presses publish, and the public reads it at a permanent address
 
 ### What is genuinely not built
 
-**The live leaderboard** —
-[#204](https://github.com/southville-running-club/src-website/issues/204), staff-only in 2026
-per ADR-038, and the slice ADR-034 cuts if the simulation fails — **and the simulation itself**,
-[#207](https://github.com/southville-running-club/src-website/issues/207). ⚠️ **"nothing
-resolves an anomaly" is what this said until #252, "nothing marks a DNS, DNF or DQ, nothing
-finishes a race" until #253, "publication" flatly until #241, "nothing wipes a rehearsal" until
-#254, "the publish button" until #205 and "the public page" until #242** — eight such lines have
-gone stale in five days, which is the pattern rather than the exception, and two of them went
-stale in the same hour as each other.
+**What is genuinely not built is the race simulation** —
+[#207](https://github.com/southville-running-club/src-website/issues/207), which is a human
+running the thing rather than a change to it. ⚠️ **"the live leaderboard" is what this said
+until #204**, on 14 September 2026, and before that **"nothing resolves an anomaly" until #252,
+"nothing marks a DNS, DNF or DQ, nothing finishes a race" until #253, "publication" flatly until
+#241, "nothing wipes a rehearsal" until #254, "the publish button" until #205 and "the public
+page" until #242** — nine such lines have gone stale in five days, which is the pattern rather
+than the exception, and two of them went stale in the same hour as each other. **The leaderboard
+was also the one slice ADR-034 said it would cut if the transport did not work**, so this line
+moving is worth more than the others: the Durable Object is bound, the class is exported from the
+Worker's own entrypoint, and `wrangler deploy --dry-run` resolves the binding. What #207 decides
+now is whether it holds up on a field of real phones, not whether it can be built.
 
 ### Sharp things already paid for here
 

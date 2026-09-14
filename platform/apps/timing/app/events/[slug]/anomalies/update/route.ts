@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../../lib/writes';
 
 /**
@@ -83,6 +84,11 @@ export async function POST(
   });
 
   if (result.state === 'ok') {
+    // ⚠️ **Advisory, after the response, and never branched on** — `lib/leaderboard-nudge.ts`. The
+    // change is already durable; this is only how a board open on somebody's laptop finds out
+    // seconds early rather than on its next reconnect.
+    await scheduleLeaderboardNudge(slug);
+
     // ⚠️ **An edit that still matches no team gets its own sentence.** It is not a failure —
     // the admin has recorded what they believe the bib was — but the screen would otherwise
     // look like it had finished the job, and what has to change next is the entry list.

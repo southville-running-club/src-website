@@ -55,8 +55,31 @@
 export const ANY_TIMING_PERMISSION = 'timing.*';
 
 export interface TimingSurface {
-  /** The slug this address demands, or {@link ANY_TIMING_PERMISSION}. */
-  permission: string;
+  /**
+   * The slug this address demands, or {@link ANY_TIMING_PERMISSION} — **or a list, any one of
+   * which opens it**.
+   *
+   * ⚠️ **The list arrived with the live leaderboard and it is a record being honoured rather than
+   * a generalisation.**
+   * [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md)
+   * says who may open it in as many words — *"somebody holding `timing.event.manage` or
+   * `timing.crossing.resolve`"* — and, in the same table, **"not a new permission"**. Those two
+   * sentences together are a row that names two slugs; a single-string field could only have
+   * satisfied them by picking one and writing a comment apologising for it.
+   *
+   * **It grants nothing new today.** `timing-admin` and `src-admin` hold all six timing
+   * permissions and `timing-marshal` holds only `timing.crossing.record`, so the two named slugs
+   * are held by exactly the same two roles as at this writing — which is the argument for
+   * recording the rule the ADR states rather than the narrower one that happens to be equivalent.
+   * The day a read-only race-official role exists, the leaderboard opens to it because this row
+   * already says so.
+   *
+   * ⚠️ **A list is `or`, never `and`.** There is no address here that wants two permissions at
+   * once, and if one ever does it is a different field rather than a different reading of this
+   * one — `rosterScoped` is the precedent for a second condition, and it is deliberately its own
+   * flag for exactly that reason.
+   */
+  permission: string | readonly string[];
   /** The event slug in the address, when it names one. */
   eventSlug: string | null;
   /** Whether holding the permission is sufficient, or a `timing.marshals` row is also owed. */
@@ -64,13 +87,40 @@ export interface TimingSurface {
 }
 
 /**
+ * Who may watch a race as it happens — ADR-038, and the only row on this page naming two slugs.
+ *
+ * Declared once and referenced by all three of the leaderboard's addresses, so the page, the
+ * snapshot it re-reads and the socket that tells it to cannot drift apart. See
+ * {@link TimingSurface.permission}.
+ */
+const LEADERBOARD_PERMISSIONS: readonly string[] = [
+  'timing.event.manage',
+  'timing.crossing.resolve',
+];
+
+/**
  * The second and later segments of an event address, mapped to what they demand.
  *
  * `/timing/events/<slug>/` itself is `timing.event.manage` — the row for the empty tail.
  */
-const EVENT_SECTIONS: Record<string, string> = {
+const EVENT_SECTIONS: Record<string, string | readonly string[]> = {
   '': 'timing.event.manage',
   registration: 'timing.registration.import',
+  /**
+   * The live leaderboard — [#204](https://github.com/southville-running-club/src-website/issues/204),
+   * and the only two-slug row in this file.
+   *
+   * ⚠️ **Staff only, and that is a decision rather than an oversight.**
+   * [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md)
+   * declines the old application's fully anonymous `/live/<slug>` for 2026: a live leaderboard *is*
+   * provisional results published continuously, and the club's rule is that nobody outside
+   * `nn.results.read` sees a result until somebody publishes. C6 is therefore **not met in 2026**
+   * and the ADR says so rather than quietly re-scoping it. The public surface is
+   * `/nn/<year>/results/` after publication and nothing else.
+   *
+   * See {@link LEADERBOARD_PERMISSIONS} for why it names two slugs and grants nothing new.
+   */
+  leaderboard: LEADERBOARD_PERMISSIONS,
   marshals: 'timing.marshal.assign',
   start: 'timing.event.manage',
   finish: 'timing.event.manage',
@@ -114,8 +164,28 @@ const EVENT_SECTIONS: Record<string, string> = {
  * roster and being allowed to change one are the same `timing.marshal.assign`, and the day
  * they stop being the same this table is where that is said.
  */
-const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
+const EVENT_SECTION_ACTIONS: Record<
+  string,
+  Record<string, string | readonly string[]>
+> = {
   marshals: { update: 'timing.marshal.assign' },
+  /**
+   * The live leaderboard's two `fetch` targets — #204.
+   *
+   * ⚠️ **Neither is a write, which makes this the first section here whose actions are reads**,
+   * and the reason they are addresses at all is the one `MARSHAL_ACTIONS` gives: a page in the App
+   * Router answers `GET` and nothing else, so a screen that wants JSON rather than HTML needs an
+   * address of its own beside the page.
+   *
+   * | | |
+   * | --- | --- |
+   * | `snapshot` | the board as JSON, re-read whenever the socket says something changed. An ordinary route handler behind `middleware.ts`, exactly like every page |
+   * | `live` | the WebSocket. ⚠️ **The one address under `/timing` that `middleware.ts` never sees** — a `101` response cannot survive Next's response pipeline, so the Worker's own entrypoint answers it. It reads its permission out of *this table*, through the same two functions middleware calls; `worker/leaderboard-socket.ts`'s header carries the argument and the three properties that keep the two doors honest |
+   *
+   * Both carry the section's own permissions, and both are refused by omission: `leaderboard/feed`
+   * is not written down, so `surfaceFor` answers `null` for it.
+   */
+  leaderboard: { snapshot: LEADERBOARD_PERMISSIONS, live: LEADERBOARD_PERMISSIONS },
   // #250. One address for both presses — starting a race and clearing a false start are the
   // same `timing.event.manage` and the same screen, and the `intent` field is what says which.
   start: { update: 'timing.event.manage' },
@@ -354,6 +424,16 @@ export function holdsPermissionFor(
 ): boolean {
   if (surface.permission === ANY_TIMING_PERMISSION) {
     return permissions.some((p) => p.startsWith('timing.'));
+  }
+
+  // A list is `or` — any one of them opens the address. See {@link TimingSurface.permission}:
+  // ADR-038's leaderboard row is the only one today, and an empty list would open nothing, which
+  // is the safe reading of a row somebody wrote badly.
+  // `typeof … !== 'string'` rather than `Array.isArray`, which does not narrow a
+  // `readonly string[]` union member reliably across TypeScript versions — and the union has
+  // exactly two arms, so this is the same question asked in the direction that does narrow.
+  if (typeof surface.permission !== 'string') {
+    return surface.permission.some((slug) => permissions.includes(slug));
   }
 
   return permissions.includes(surface.permission);

@@ -200,6 +200,23 @@ export default async function EventPage({
       */}
       <h2>During and after the race</h2>
 
+      {/*
+        The live leaderboard — [#204](https://github.com/southville-running-club/src-website/issues/204).
+
+        ⚠️ **Linked first in this section, and in every state.** It is the page somebody has open on
+        a laptop for the length of the race, and it is useful before the gun too — a field of
+        pending rows is how a race director checks the entry list reached the start line.
+
+        ⚠️ **Nothing here says "spectators"**, and that is
+        [ADR-038](../../../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md):
+        the board is staff-only in 2026, and the only public surface for anything about a race is
+        `/nn/<year>/results/` after publication. A link inviting a volunteer to share this address
+        would be inviting them to share a page the public gets a 404 from.
+      */}
+      <p>
+        <Link href={`/events/${event.slug}/leaderboard`}>Live leaderboard</Link>
+      </p>
+
       <p>
         <Link href={`/events/${event.slug}/anomalies`}>
           Captures waiting to be resolved

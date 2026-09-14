@@ -157,6 +157,15 @@ describe('an address nobody has written a rule for', () => {
     ['/marshal/nn-2026/extra'],
     ['/marshal/nn-2026/record'],
     ['/marshal/nn-2026/sync/again'],
+    // ⚠️ **#204's section has two actions and every other spelling under it is refused.**
+    // `socket` and `feed` are what somebody would reach for and neither is the spelling — and
+    // `live` is the one address `middleware.ts` never sees, so a row nobody wrote here would be a
+    // socket the Worker's own entrypoint opened with no rule behind it.
+    ['/events/nn-2026/leaderboard/feed'],
+    ['/events/nn-2026/leaderboard/socket'],
+    ['/events/nn-2026/leaderboard/live/again'],
+    ['/events/nn-2026/leaderboard/snapshot/json'],
+    // Not under `/events/`, so it matches nothing at all — the old application's shape.
     ['/leaderboard/nn-2026'],
     ['/admin'],
     ['/live/nn-2026'],
@@ -542,6 +551,95 @@ describe("the addresses #205's two screens post to", () => {
   it('carries the event slug, so the gate and the function agree on which race', () => {
     expect(surfaceFor('/events/ptb-2026/results/update')?.eventSlug).toBe('ptb-2026');
     expect(surfaceFor('/events/ptb-2026/prizes/export')?.eventSlug).toBe('ptb-2026');
+  });
+});
+
+describe("the live leaderboard's three addresses", () => {
+  /** Somebody who may resolve a capture but not manage the race. `timing.crossing.resolve` only. */
+  const RESOLVER = ['timing.crossing.resolve'];
+  /** Somebody who may manage the race but not resolve a capture. `timing.event.manage` only. */
+  const MANAGER = ['timing.event.manage'];
+
+  const ADDRESSES = [
+    '/events/nn-2026/leaderboard',
+    '/events/nn-2026/leaderboard/snapshot',
+    '/events/nn-2026/leaderboard/live',
+  ];
+
+  /**
+   * ⚠️ **The one row on this table that names two permissions, and it is
+   * [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md)
+   * being honoured rather than a shortcut.** The record says *"somebody holding
+   * `timing.event.manage` or `timing.crossing.resolve`"* and, in the same table, **"not a new
+   * permission"**. A single-slug row could only have satisfied both by picking one and writing a
+   * comment apologising for it.
+   */
+  it.each(ADDRESSES)("%s demands either of ADR-038's two permissions", (path) => {
+    expect(surfaceFor(path)?.permission).toEqual([
+      'timing.event.manage',
+      'timing.crossing.resolve',
+    ]);
+  });
+
+  it('opens to somebody holding either one alone', () => {
+    for (const path of ADDRESSES) {
+      expect(canOpen(MANAGER, path), path).toBe(true);
+      expect(canOpen(RESOLVER, path), path).toBe(true);
+      expect(canOpen(ADMIN, path), path).toBe(true);
+    }
+  });
+
+  /**
+   * ⚠️ **The negative case, and the one that matters.** A `timing-marshal` is timing staff and is
+   * admitted through the door; they hold `timing.crossing.record` and nothing else, and the board
+   * is not theirs. Neither is it open to club staff — and, the half ADR-038 is actually about, the
+   * signed-out public reaches `middleware.ts` holding no permissions at all, which is this same
+   * empty array.
+   */
+  it('is refused to a marshal, to club staff and to somebody holding nothing', () => {
+    for (const path of ADDRESSES) {
+      expect(canOpen(MARSHAL, path), path).toBe(false);
+      expect(canOpen(NN_ADMIN, path), path).toBe(false);
+      expect(canOpen([], path), path).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ **The socket is the one address under `/timing` that `middleware.ts` never sees** — a `101`
+   * response cannot survive Next's response pipeline, so `worker-entry.js` answers it and
+   * `worker/leaderboard-socket.ts` reads its permission out of *this* table. So this is not a
+   * duplicate of the page's assertion: it is the only test of the door that guards the socket.
+   */
+  it('gives the socket exactly what the page it belongs to demands', () => {
+    expect(surfaceFor('/events/nn-2026/leaderboard/live')?.permission).toEqual(
+      surfaceFor('/events/nn-2026/leaderboard')?.permission,
+    );
+  });
+
+  it('carries the event slug, so the door and the room agree on which race', () => {
+    expect(surfaceFor('/events/ptb-2026/leaderboard')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/events/ptb-2026/leaderboard/live')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/events/ptb-2026/leaderboard/snapshot')?.eventSlug).toBe(
+      'ptb-2026',
+    );
+  });
+
+  /**
+   * The socket handler builds the path itself **with** the base path on it, and Next strips the
+   * base path before middleware sees it. Both spellings have to resolve identically or one of the
+   * two doors refuses everybody — `segmentsOf`'s own comment carries the argument.
+   */
+  it('resolves identically with the base path and with a trailing slash', () => {
+    const bare = surfaceFor('/events/nn-2026/leaderboard/live');
+
+    expect(surfaceFor('/timing/events/nn-2026/leaderboard/live')).toEqual(bare);
+    expect(surfaceFor('/events/nn-2026/leaderboard/live/')).toEqual(bare);
+  });
+
+  it('is not roster-scoped — a board is not a capture screen', () => {
+    for (const path of ADDRESSES) {
+      expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
+    }
   });
 });
 

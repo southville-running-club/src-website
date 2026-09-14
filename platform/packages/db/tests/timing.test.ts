@@ -321,7 +321,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-four functions, and anon exactly two of them', async () => {
+  it('grants exactly these thirty-five functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -329,7 +329,7 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-four functions and thirty-six rows: `results_for_event` and
+    // Thirty-five functions and thirty-seven rows: `results_for_event` and
     // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
@@ -346,6 +346,27 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'import_from_entries', grantee: 'authenticated' },
       { routine_name: 'import_registration', grantee: 'authenticated' },
       { routine_name: 'known_crossings', grantee: 'authenticated' },
+      /**
+       * ⚠️ **The thirty-fifth, #204, and the only function in this schema that accepts **either**
+       * of two permissions** — `timing.event.manage` or `timing.crossing.resolve`, which is
+       * [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md)'s
+       * own pair, written down rather than narrowed to the one that happens to be equivalent
+       * today. Both are held by `timing-admin` and `src-admin` and by nobody else as at this
+       * writing, so it grants nothing new; the day a read-only race official exists, the board
+       * opens to them because the record already said so.
+       *
+       * ⚠️ **`authenticated` only, and never `anon`.** ADR-038 declines the old application's
+       * fully anonymous `/live/<slug>`: a live leaderboard *is* provisional results published
+       * continuously, and the club's rule is that nobody sees a result before somebody publishes.
+       * The record says out loud that C6 is **not met in 2026** rather than quietly re-scoping it.
+       *
+       * It is a third function returning the same shape because the three audiences differ by a
+       * permission and a column list — `20260914150000`'s header carries the table.
+       * `results_for_event()` answers `null` to a `timing-admin` before publication, and
+       * `results_preview()` is behind the *publish* permission and carries `result_placement`,
+       * which no live board computes a band from.
+       */
+      { routine_name: 'leaderboard', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'marshal_event', grantee: 'authenticated' },
       { routine_name: 'open_anomalies', grantee: 'authenticated' },
@@ -5474,5 +5495,257 @@ describe('wiping a race', () => {
         ]),
       ).toEqual({ ok: false, reason: 'no_such_event' });
     });
+  });
+});
+
+/**
+ * The live leaderboard's read — [#204](https://github.com/southville-running-club/src-website/issues/204)
+ * and [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md).
+ *
+ * ⚠️ **The cases that matter are the two columns and the two refusals**, in that order of
+ * surprise: this function deliberately carries `runners.role`, which `results_for_event()`
+ * deliberately withholds, and deliberately omits `runners.result_placement`, which
+ * `results_preview()` deliberately carries. Three functions, three column lists, and each
+ * difference is a decision rather than a drift — so each is asserted here rather than left to a
+ * reader to infer from the migration.
+ */
+describe('the live leaderboard, for somebody running the race', () => {
+  const MANAGER = '55555555-5555-4555-8555-555555555555';
+  const CAPTURER = '66666666-6666-4666-8666-666666666666';
+  const EVENT_ID = '00000000-0000-4000-8000-0000000000c1';
+  const TEAM_ID = '00000000-0000-4000-8000-0000000000c2';
+  const SLUG = 'zz-timing-leaderboard';
+
+  type Board = {
+    event: Record<string, unknown> & { slug: string; format: string };
+    open_anomalies: number;
+    teams: {
+      team_number: string | null;
+      name: string | null;
+      runners: Record<string, unknown>[];
+    }[];
+    crossings: { bib: string | null }[];
+  };
+
+  /**
+   * One call, in its own transaction, as one person.
+   *
+   * ⚠️ **One call per transaction is not a style choice here.** A refused call raises `42501`,
+   * which aborts the transaction, and every call after it in the same transaction answers
+   * `25P02` whatever its own grant says — so a second assertion sharing a transaction with a
+   * refusal tests nothing. `store.test.ts` sets the pattern and this keeps it.
+   */
+  async function asPerson(personId: string | null, slug = SLUG): Promise<Board | null> {
+    await db.query('begin');
+
+    try {
+      await db.query("select set_config('role', $1, true)", [
+        personId === null ? 'anon' : 'authenticated',
+      ]);
+      if (personId !== null) {
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [personId],
+        );
+      }
+
+      const { rows } = await db.query<{ board: Board | null }>(
+        'select timing.leaderboard($1) as board',
+        [slug],
+      );
+
+      return rows[0]?.board ?? null;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MANAGER, 'timing-leaderboard-manager@example.com'],
+      [CAPTURER, 'timing-leaderboard-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1) on conflict do nothing`,
+      [MANAGER],
+    );
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-marshal', $1) on conflict do nothing`,
+      [CAPTURER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Leaderboard Fixture', 'solo',
+               '2026-11-01T11:00:00Z', '2026-11-01T11:02:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number, name, category)
+       values ($1, $2, '42', 'Fixture Pair', 'Open')`,
+      [TEAM_ID, EVENT_ID],
+    );
+    // ⚠️ **A visually impaired runner and their guide, on one team** — ADR-022's shape, and the
+    // reason `role` is in this payload at all. Leg 2 of a *solo* entry is the guide.
+    await db.query(
+      `insert into timing.runners
+         (team_id, leg, firstname, lastname, gender, email, age_on_day, role)
+       values ($1, 1, 'Nadia', 'Okonjo', 'female', 'nadia@example.com', 38, 'runner'),
+              ($1, 2, 'Sam', 'Reilly', 'male', 'sam@example.com', 44, 'guide')`,
+      [TEAM_ID],
+    );
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '42', '2026-11-01T11:42:00Z')`,
+      [EVENT_ID],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1)', [
+      [MANAGER, CAPTURER],
+    ]);
+  });
+
+  describe('who is refused', () => {
+    /**
+     * ⚠️ **The whole of ADR-038 in one assertion.** A signed-out visitor reaches PostgREST as
+     * `anon`, and `anon` holds no grant on this function at all — so the refusal is the `42501`
+     * the grant itself produces, before any permission is consulted. That is a stronger property
+     * than a `null`: there is no code path inside the function for the public to reach.
+     */
+    it('refuses anon on the grant, before any permission is consulted', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query('select timing.leaderboard($1)', [SLUG]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * A marshal is timing staff and the door admits them to `/timing`; they hold
+     * `timing.crossing.record` and neither of ADR-038's two, and the board is not theirs.
+     */
+    it('answers null to a marshal, who may capture and may not watch', async () => {
+      await expect(asPerson(CAPTURER)).resolves.toBeNull();
+    });
+
+    /**
+     * ⚠️ **The same bare `null` for "no such race"**, so a slug cannot be probed for existence —
+     * the property every read in this schema holds, and the reason `lib/reads.ts` has three
+     * answers rather than two.
+     */
+    it('gives a manager the same null for a slug that does not exist', async () => {
+      await expect(asPerson(MANAGER, 'zz-no-such-race')).resolves.toBeNull();
+    });
+  });
+
+  describe('what a manager reads', () => {
+    it('returns the event, its teams with their runners, and its crossings', async () => {
+      const board = await asPerson(MANAGER);
+
+      expect(board).not.toBeNull();
+      expect(board?.event).toMatchObject({ slug: SLUG, format: 'solo' });
+      expect(board?.teams).toHaveLength(1);
+      expect(board?.teams[0]).toMatchObject({ team_number: '42', name: 'Fixture Pair' });
+      expect(board?.crossings).toEqual([expect.objectContaining({ bib: '42' })]);
+    });
+
+    /**
+     * ⚠️ **Both start columns, uncoalesced, and the derivation needs both.** `raceStartIso()`
+     * coalesces `actually_started_at` over `start_at` so a delayed start does not inflate
+     * everybody's time — and the board additionally has to *say* which one it used, because
+     * times measured against a schedule are not results. Coalescing in SQL would throw away the
+     * fact that matters.
+     */
+    it('carries both start columns rather than the winner of the two', async () => {
+      const board = await asPerson(MANAGER);
+
+      expect(board?.event).toMatchObject({
+        start_at: '2026-11-01T11:00:00+00:00',
+        actually_started_at: '2026-11-01T11:02:00+00:00',
+      });
+    });
+
+    /**
+     * ⚠️ **`role` is here and `results_for_event()` withholds it, and both are right.** ADR-043
+     * withholds it from the *published* answer because a guide on leg 2 discloses, by inference,
+     * that the runner beside them is visually impaired — to anybody holding the published anon
+     * key. This function is `authenticated` only and authorises against a `timing.*` permission,
+     * and its audience is the volunteers who already read the printed start list, **which marks
+     * a guide**. Without it a board cannot say whose time the row is showing.
+     */
+    it("carries a guide's role, which the published answer may not", async () => {
+      const board = await asPerson(MANAGER);
+      const runners = board?.teams[0]?.runners ?? [];
+
+      expect(runners).toHaveLength(2);
+      expect(runners[0]).toMatchObject({ leg: 1, firstname: 'Nadia', role: 'runner' });
+      expect(runners[1]).toMatchObject({ leg: 2, firstname: 'Sam', role: 'guide' });
+    });
+
+    /**
+     * ⚠️ **And `result_placement` is deliberately absent, which is the narrower half.**
+     * `results_preview()` carries it because a prize band is `effectiveCategory()`'s answer —
+     * `gender` and the placement together. A board ranks by **time** and groups by
+     * `teams.category`, computes no band and awards nothing, so it has no use for the raw answer
+     * to *"where should my result count"*. **Personal data is minimised at the boundary**, and a
+     * column a surface does not use is a column that does not travel to it.
+     */
+    it('carries no result_placement, because no board computes a prize band', async () => {
+      const board = await asPerson(MANAGER);
+
+      for (const runner of board?.teams[0]?.runners ?? []) {
+        expect(runner).not.toHaveProperty('result_placement');
+      }
+    });
+
+    /**
+     * The figure the preview screen shows and the one `publish_results()` refuses on, read from
+     * `open_anomaly_count()` — the single statement of that predicate. A third statement here is
+     * exactly what `20260914140000`'s header forbids.
+     */
+    it('carries the open-anomaly count from the one place it is stated', async () => {
+      const board = await asPerson(MANAGER);
+
+      expect(board?.open_anomalies).toBe(0);
+    });
+  });
+
+  /**
+   * ⚠️ **What is not asserted at this layer, said out loud rather than left to be assumed.**
+   * ADR-038's rule is *either* `timing.event.manage` *or* `timing.crossing.resolve`, and no role
+   * in `identity` holds the second without the first — `timing-admin` and `src-admin` hold all
+   * six timing permissions and `timing-marshal` holds one. So a fixture proving *"resolve alone
+   * opens it"* would have to invent a role, and inventing one is the thing
+   * `identity-permissions.test.ts` exists to make a decision in a diff.
+   *
+   * **The `or` is asserted where it can be**: `apps/timing/tests/unit/access.test.ts` proves the
+   * door opens on either permission alone, and this file proves the function opens to somebody
+   * holding both and refuses somebody holding neither. The day a read-only race-official role
+   * exists, this is the block that gains the third case.
+   */
+  it('opens to somebody holding both of ADR-038 permissions', async () => {
+    await expect(asPerson(MANAGER)).resolves.not.toBeNull();
   });
 });

@@ -2688,3 +2688,207 @@ test.describe('the prize presenter', () => {
     await expectNoSidewaysScroll(page, 'the timing prize presenter at 320px');
   });
 });
+
+/**
+ * The live leaderboard — [#204](https://github.com/southville-running-club/src-website/issues/204),
+ * on Durable Objects per
+ * [ADR-034](../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+ * and staff-only per
+ * [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md).
+ *
+ * ⚠️ **Nothing here asserts that the board updates itself, and that is deliberate rather than a
+ * gap being hidden.** Three reasons, in descending order of how much they matter:
+ *
+ *   1. **The transport is the slice ADR-034 cuts if the race simulation fails**, so the suite must
+ *      not be written in a way that goes red when it is cut. What is asserted is the board — the
+ *      derivation, the permission and the rendering — every bit of which survives the cut.
+ *   2. **The derivation is already proved where it can be proved properly**, in
+ *      `packages/shared/tests/unit/timing-leaderboard.test.ts` with no browser at all. Re-asserting
+ *      a split through a browser would be slower and weaker.
+ *   3. ⚠️ **A WebSocket upgrade may not cross `apps/main`'s local stand-in for Cloudflare's edge
+ *      router**, which is what these tests reach on :8787. In production `/timing/*` is dispatched
+ *      at the edge and that branch does not run — so a socket assertion here could fail on a
+ *      laptop for a reason that cannot exist in production, which is the worst kind of test this
+ *      repository has. `worker/index.ts` carries the note, and the page never claims to have
+ *      "stopped updating" on a socket that never connected.
+ *
+ * **What the socket costs if it is never delivered is therefore nothing a runner or a volunteer
+ * loses**: the board is server-rendered, so the `no-javascript` project reads a correct table, and
+ * that is exactly what a JavaScript-enabled browser reads before the first nudge arrives.
+ */
+test.describe('the live leaderboard', () => {
+  const boardPath = (project: string): string =>
+    `/timing/events/${previewEventSlug(project)}/leaderboard`;
+
+  /*
+   * ⚠️ `{}` is required by Playwright and rejected by ESLint — see this file's note above
+   * `test.beforeAll`. `testInfo` is what this is after, because the fixture race is per project.
+   */
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetPreviewRace(testInfo.project.name);
+  });
+
+  test('is refused to a marshal, and so is the snapshot it re-reads', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const path = boardPath(testInfo.project.name);
+
+    const shown = await page.goto(path);
+    expect(shown?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+
+    // ⚠️ **The address the board calls is gated by the same table the page is**, so a marshal who
+    // guessed it is refused there too. Asserted on the response rather than through the page,
+    // because nothing in the browser will call it for somebody who cannot open the page.
+    const snapshot = await page.request.get(`${path}/snapshot`);
+    expect(snapshot.status()).toBe(404);
+  });
+
+  test('is refused to a signed-out visitor, page and snapshot alike', async ({
+    page,
+  }, testInfo) => {
+    // `clearCookies()` and not `forgetSessions()` — the latter drops the cached jars this whole
+    // file signs in from, which is a `beforeAll` concern. The siblings above use the same call.
+    await page.context().clearCookies();
+    const path = boardPath(testInfo.project.name);
+
+    const shown = await page.goto(path);
+    expect(shown?.status()).toBe(404);
+
+    const snapshot = await page.request.get(`${path}/snapshot`);
+    expect(snapshot.status()).toBe(404);
+  });
+
+  test('shows the field in time order, with the leader first', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(boardPath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
+
+    // The fixture's three captures are forty, forty-five and forty-six minutes after a recorded
+    // start, so the order is 701, 702, 703 — and 704, who is marked DNF, sorts behind all of them
+    // whatever the column says. `previewEventSlug`'s header describes the field.
+    const rows = page.locator('table.results-table tbody tr');
+    await expect(rows).toHaveCount(4);
+    await expect(rows.nth(0)).toContainText('701');
+    await expect(rows.nth(0)).toContainText('40:00');
+    await expect(rows.nth(3)).toContainText('Did not finish');
+  });
+
+  /**
+   * #204's *"display of a single-crossing finish"*. The fixture is a **solo** race, so there is no
+   * handover to split at — and two permanently empty columns beside every time would send a
+   * volunteer looking for captures that were never going to exist.
+   */
+  test('gives a solo race one time column rather than three', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(boardPath(testInfo.project.name));
+
+    const headers = page.locator('table.results-table thead th');
+    await expect(headers.filter({ hasText: 'Total' })).toHaveCount(1);
+    await expect(headers.filter({ hasText: 'Leg 1' })).toHaveCount(0);
+    await expect(headers.filter({ hasText: 'Leg 2' })).toHaveCount(0);
+  });
+
+  /**
+   * ⚠️ **ADR-022: a guide is in no category and no prize**, and on a solo race they share a team
+   * with the runner they guide — so a board that did not say which was which would print a guide
+   * as though they had a result of their own. This is a fact the staff board may show and the
+   * published page may not (ADR-043).
+   */
+  test('says which runner on a row is a guide', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(boardPath(testInfo.project.name));
+
+    await expect(page.locator('table.results-table tbody')).toContainText('(guide)');
+  });
+
+  /**
+   * ⚠️ **The board is a correct table with scripting off**, which is this surface's whole
+   * no-JavaScript answer and is deliberately unlike the capture screen's — that one degrades to a
+   * *sentence* telling a marshal to use paper, because an offline IndexedDB queue has nothing to
+   * degrade to. A board that does not move is still a board.
+   *
+   * Untagged, so it runs in the `no-javascript` project as well as the others: the same assertion
+   * is what proves the server rendered it and what proves a browser has something to hydrate.
+   */
+  test('renders the whole board server-side', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(boardPath(testInfo.project.name));
+
+    await expect(page.locator('table.results-table tbody tr')).toHaveCount(4);
+    await expect(page.locator('table.results-table caption')).toContainText('4 entries');
+  });
+
+  /**
+   * The ordering is a query parameter for `/admin/nn/`'s reason — it works with scripting off, and
+   * a board sorted a particular way is a URL somebody can send to the other volunteer.
+   *
+   * ⚠️ **The position column stays the overall standing.** Sorted by number the rows come out in a
+   * different order, and numbering them down the page would tell a volunteer the wrong person is
+   * winning.
+   */
+  test('sorts by a query parameter and keeps the overall positions', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${boardPath(testInfo.project.name)}?sort=teamNumber`);
+
+    const rows = page.locator('table.results-table tbody tr');
+    await expect(rows.nth(0)).toContainText('701');
+    // 701 is both first by number and the fastest, so the assertion that matters is the row that
+    // would move: 704 is DNF and sorts last under every key.
+    await expect(rows.nth(3)).toContainText('Did not finish');
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const response = await page.goto('/timing/events/zz-no-such-race/leaderboard');
+
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Live leaderboard' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
+  });
+
+  /**
+   * ⚠️ **`scrollable-region-focusable` is why the table carries `tabIndex`, `role="region"` and a
+   * caption as its accessible name**, and it is only ever seen on mobile-safari — the table does
+   * not overflow at desktop width, and a region that does not scroll is not a scrollable region.
+   * Three pages here had already met it; this is the fourth.
+   */
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(boardPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(boardPath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing leaderboard at 320px');
+  });
+});

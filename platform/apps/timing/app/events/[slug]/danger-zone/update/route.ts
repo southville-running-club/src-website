@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../../lib/writes';
 
 /**
@@ -61,6 +62,12 @@ export async function POST(
   });
 
   if (result.state === 'ok') {
+    // ⚠️ **A wiped race has to reach a board that is already open**, or a screen at a rehearsal
+    // goes on showing a field that no longer exists — and the room holds no copy of it to go
+    // stale, so one nudge and every screen re-reads an empty race. Advisory, as ever:
+    // `lib/leaderboard-nudge.ts`.
+    await scheduleLeaderboardNudge(slug);
+
     return backTo(request, slug, 'wiped');
   }
 

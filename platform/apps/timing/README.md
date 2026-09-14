@@ -46,7 +46,8 @@ and one race's page (#247), the marshal roster (#245), the entry list (#202, #24
 screen (#250), the **capture screen** (#203), the **anomalies list and the timing log** (#252),
 **race status and finishing** (#253), the **danger zone** that wipes a rehearsal (#254), the
 publication state machine (#241), the **results preview, the publish button, the prize presenter
-and the exports** (#205), and `/nn/<year>/results/` reading `timing.results_for_event()`.
+and the exports** (#205), the **live leaderboard on Durable Objects** (#204), and
+`/nn/<year>/results/` reading `timing.results_for_event()`.
 ⚠️ **"Nothing that touches a race as it happens is built" is what this said until 13 September
 2026, "what is still missing is publication" until the day after, and "what is still missing is
 the public page" for a few hours after that** — three stale lines in three days, in one
@@ -117,6 +118,73 @@ readiness check does not accept a 404, so gating it would stop every test from s
 The deployment half it originally proved still holds: the OpenNext build produces a working
 Worker, the path route beats `apps/main`'s Custom Domain on one hostname, and the Worker
 reaches the database.
+
+## The live leaderboard, and the one thing it changed about how this Worker is built
+
+`/timing/events/<slug>/leaderboard/` is the board somebody has open for the length of a race —
+[#204](https://github.com/southville-running-club/src-website/issues/204), on **Durable Objects**
+with hibernatable WebSockets, because
+[ADR-034](../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md)
+chose them over Supabase Realtime's 200-connection cap.
+
+⚠️ **Staff-only in 2026, behind either `timing.event.manage` or `timing.crossing.resolve`** —
+[ADR-038](../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md).
+The old application's `/live/<slug>` was fully anonymous and spectators watched it at Ashton
+Court; that is declined for this race, and the record says
+[C6](../../../docs/foundations/requirements.md#c6--show-live-race-progress-to-spectators) is
+**not met in 2026** rather than quietly re-scoping it.
+
+### ⚠️ `main` is `worker-entry.js` now, and not `.open-next/worker.js`
+
+**A Durable Object class has to be exported from the Worker's entry module**, and
+`.open-next/worker.js` is generated from a template inside `@opennextjs/cloudflare` on every
+build — not ours to edit, and `.gitignore`d. OpenNext has no configuration hook for a custom
+Durable Object; what it has is an ordinary ES module as its output, and a Worker's entry is
+whatever `main` points at.
+
+So `worker-entry.js` re-exports everything OpenNext's entry does — including its three cache
+classes, `DOQueueHandler`, `DOShardedTagCache` and `BucketCachePurge`, none of which is bound
+today and any of which would be needed the day somebody configures an incremental cache — adds
+`LeaderboardRoom`, and hands every request that is not the leaderboard socket straight to
+OpenNext. **It is plain JavaScript** because `.open-next/worker.js` does not exist until the build
+has run, and CI lint-and-typechecks a fresh checkout *before* it builds.
+
+`npm run build:worker` then `npx wrangler deploy --env production --dry-run` is what proves the
+whole arrangement: it prints `env.LEADERBOARD (LeaderboardRoom) — Durable Object` and refuses if
+the class is not exported.
+
+### ⚠️ The socket is the one address here that `middleware.ts` never sees
+
+A WebSocket upgrade is a `101` response carrying a `webSocket` property — a Workers-runtime field
+on `Response` rather than a header — and there is nowhere for it to live in Next's own
+request/response conversion. `NextResponse` is the same conversion one step earlier, so
+`middleware.ts` cannot answer it either.
+
+**`worker-entry.js` answers it before OpenNext is asked**, and `worker/leaderboard-socket.ts`
+reads the permission out of the **same `lib/access.ts` table** the door reads. That is the same
+rule applied to a request middleware never receives, not an exception to it — and what makes it
+safe rather than merely careful is that **the socket carries no race data**: the room broadcasts
+*"something changed"* and the screen re-reads `timing.leaderboard()` over the ordinary
+permissioned HTTP path.
+
+### Two TypeScript programs, for `apps/main`'s reason
+
+`worker/` and `durable-objects/` are typechecked by `worker/tsconfig.json` against
+`@cloudflare/workers-types`, and excluded from the application's own program — the types redeclare
+`Request`, `Response` and `WebSocket` on top of the DOM lib Next needs. `apps/main/worker/tsconfig.json`
+is the precedent. `npm run typecheck` runs both; `cloudflare-env.d.ts` is where they meet, and it
+declares the Durable Object binding as a hand-written shape so neither program has to import the
+other's globals.
+
+### What is cuttable, and what is not
+
+⚠️ **ADR-034 makes this the slice the race simulation cuts if it fails**, so the derivation is
+kept where no transport can reach it: `packages/shared/src/timing/leaderboard.ts` is pure, unit
+tested, and knows nothing about Durable Objects. Deleting the room and the binding leaves a
+server-rendered board that does not refresh itself — **which is exactly what the page already does
+with JavaScript switched off**, and that is the no-script fallback: the real board, plus a sentence
+saying to reload. Deliberately unlike the capture screen, whose fallback is only a sentence because
+an offline IndexedDB queue has nothing to degrade to.
 
 ## The three build scripts, and why they must not be merged
 
@@ -190,11 +258,15 @@ From the [architecture review](../../../docs/reference/timing-app-review.md), an
 it is discovered by this skeleton — it is what the skeleton exists to make cheap to find
 out about.
 
-- **The live leaderboard is a rebuild, not a port.** Supabase Realtime caps at 200
-  concurrent; Durable Objects with hibernatable WebSockets are close to free on the free
-  plan.
-- **Solo-race gaps.** The leaderboard derivation is relay-shaped, and age-band categories
-  do not exist yet. Nightingale Nightmare needs them.
+- ~~**The live leaderboard is a rebuild, not a port.**~~ **Built, #204** — Durable Objects with
+  hibernatable WebSockets, staff-only per ADR-038, and the transport proved out under OpenNext
+  rather than assumed. Supabase Realtime's 200-connection cap is what it was chosen over, and
+  remains the fallback ADR-034 names if the simulation fails.
+- **Solo-race gaps.** ⚠️ **The leaderboard's own solo gap is closed** — `buildResults()` had the
+  single-crossing path and #204 added the *display* of one, so a solo race has one time column
+  rather than three with two permanently empty. **Age-band categories still do not exist for a
+  live board**: it groups by `teams.category`, the entry list's own, and a prize band is
+  `/results/`'s job.
 - **Bundle size and CPU limits are unmeasured** for this application — 3 MB compressed and
   10 ms CPU on the free plan.
 - **Three things the port must not break:** the IndexedDB offline queue and its

@@ -259,6 +259,15 @@ export default {
 
     if (env.TIMING_ORIGIN && isTimingPath(url.pathname)) {
       const target = new URL(url.pathname + url.search, env.TIMING_ORIGIN);
+      // ⚠️ **`new Request(target, request)` copies the headers, which is what a WebSocket upgrade
+      // needs** — the live leaderboard's socket (#204) is a `GET` carrying `Upgrade: websocket`,
+      // and `fetch` answers it with a `101` whose `webSocket` this handler returns unchanged. It
+      // is not verified here, because **in production this branch does not run at all**:
+      // Cloudflare dispatches `/timing/*` at the edge and `TIMING_ORIGIN` is absent from
+      // `env.production` deliberately. So an upgrade that failed to cross this stand-in would be
+      // a local-development limitation and not a defect in the deployed platform — which is why
+      // the board's own wording never claims to have "stopped updating" on a socket that never
+      // connected. `live-board.tsx`'s `everConnected` carries that.
       return fetch(new Request(target, request));
     }
 

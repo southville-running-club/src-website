@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../../lib/writes';
 
 /**
@@ -93,6 +94,11 @@ export async function POST(
   const result = await writeTiming(intent.fn, { p_event_slug: slug });
 
   if (result.state === 'ok') {
+    // ⚠️ **Every time on the board is measured from this**, so a start — or a cleared false start —
+    // changes every row at once rather than one of them. Advisory and after the response, like
+    // every other nudge: `lib/leaderboard-nudge.ts`.
+    await scheduleLeaderboardNudge(slug);
+
     return backTo(request, slug, intent.done);
   }
 

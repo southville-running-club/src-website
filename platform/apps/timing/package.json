@@ -8,7 +8,8 @@
     "build": "NODE_ENV=production next build",
     "preview": "opennextjs-cloudflare preview --port 8788",
     "deploy": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck:worker",
+    "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
     "build:worker": "NODE_ENV=production opennextjs-cloudflare build",
     "build:next": "NODE_ENV=production next build"
   },
@@ -21,6 +22,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260816.1",
     "@opennextjs/cloudflare": "^1.20.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
