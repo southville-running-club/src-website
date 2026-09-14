@@ -563,6 +563,15 @@ read `club` proves more than that a member can. Assert the specific error, not m
 something failed — a test that passes because the table does not exist yet is a test that
 has stopped testing.
 
+⚠️ **One refused call per transaction, or every refusal after the first is `25P02`.** A
+`42501` aborts the transaction it was raised in, so a second refused call in the same
+`begin` comes back _current transaction is aborted_ whatever its own grant says — and an
+expectation naming `42501` can then never observe it, on a grant that is perfectly correct.
+It failed the database layer once already, on `timing.test.ts`'s anonymous-caller test for
+`publish_results()` and `unpublish_results()` asserted together. **An aborted transaction
+refuses everything, which reads as every grant holding at once**, so this is the rule above
+one step further on rather than a separate one.
+
 **Fixtures are deterministic and invented.** Fixed UUIDs, fixed timestamps, addresses at
 `example.com`. No production data on a laptop, ever. Include the awkward states — consent
 withheld, an apostrophe in a name, the repeated hour on the clocks-change weekend — because
