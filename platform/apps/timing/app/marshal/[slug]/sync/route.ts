@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../lib/writes';
 
 /**
@@ -167,6 +168,15 @@ export async function POST(
   const results = await Promise.all(
     (crossings as Incoming[]).map((crossing) => record(slug, crossing)),
   );
+
+  // ⚠️ **The nudge that makes a leaderboard live, and the one place it must not cost anything.**
+  // This is the slowest path on the platform — an offline queue draining over whatever signal a
+  // phone has at a junction — so it is scheduled on `ctx.waitUntil` and the marshal waits for
+  // nothing. Only when at least one card actually landed: a batch that was entirely refused or
+  // entirely retried has changed no board. `lib/leaderboard-nudge.ts` carries the contract.
+  if (results.some((result) => result.state === 'ok')) {
+    await scheduleLeaderboardNudge(slug);
+  }
 
   // ⚠️ **`no-store`, and it is not housekeeping.** A cached sync response is a queue that
   // believes crossings landed because a *previous* batch did.

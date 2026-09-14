@@ -1760,6 +1760,7 @@ export type Database = {
         Returns: Json
       }
       known_crossings: { Args: { p_event_slug: string }; Returns: Json }
+      leaderboard: { Args: { p_event_slug: string }; Returns: Json }
       list_events: { Args: never; Returns: Json }
       marshal_event: { Args: { p_event_slug: string }; Returns: Json }
       open_anomalies: { Args: { p_event_slug: string }; Returns: Json }

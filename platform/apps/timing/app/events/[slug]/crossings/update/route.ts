@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../../lib/writes';
 
 /**
@@ -82,6 +83,10 @@ export async function POST(
     const restored = await writeTiming('restore_crossing', { p_id: crossingId });
 
     if (restored.state === 'ok') {
+      // ⚠️ **Advisory, after the response, and never branched on** — `lib/leaderboard-nudge.ts`. The
+      // change is already durable; this is only how a board open on somebody's laptop finds out
+      // seconds early rather than on its next reconnect.
+      await scheduleLeaderboardNudge(slug);
       return backTo(request, slug, 'restored', search);
     }
 
@@ -109,6 +114,11 @@ export async function POST(
   });
 
   if (result.state === 'ok') {
+    // ⚠️ **Advisory, after the response, and never branched on** — `lib/leaderboard-nudge.ts`. The
+    // change is already durable; this is only how a board open on somebody's laptop finds out
+    // seconds early rather than on its next reconnect.
+    await scheduleLeaderboardNudge(slug);
+
     // An edited bib that still matches no team is resolved and incomplete at once, and the page
     // has to say so — what changes next is the entry list rather than this screen.
     return backTo(

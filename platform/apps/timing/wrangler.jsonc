@@ -1,7 +1,16 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "src-timing",
-  "main": ".open-next/worker.js",
+
+  // ⚠️ **`worker-entry.js`, not `.open-next/worker.js`, and the difference is the whole of how a
+  // Durable Object gets into an OpenNext application.** A DO class has to be exported from the
+  // Worker's entry module, and `.open-next/worker.js` is generated from a template inside the
+  // package on every build — not ours to edit, and `.gitignore`d. `worker-entry.js` re-exports
+  // everything OpenNext's entry does, adds `LeaderboardRoom`, and hands every request that is
+  // not the leaderboard socket straight to OpenNext. Its own header carries the full argument,
+  // including why it is plain JavaScript. See #204.
+  "main": "worker-entry.js",
+
   "compatibility_date": "2026-08-08",
 
   // Both are required by OpenNext rather than chosen: `nodejs_compat` for Next.js's own
@@ -20,6 +29,46 @@
     {
       "binding": "WORKER_SELF_REFERENCE",
       "service": "src-timing",
+    },
+  ],
+
+  // ---------------------------------------------------------------------------------
+  // The live leaderboard's rooms — one Durable Object per race. #204, ADR-034.
+  // ---------------------------------------------------------------------------------
+  // Hibernatable WebSockets, holding no race data: the room broadcasts *"something about
+  // this race changed"* and every connected screen re-reads `timing.leaderboard()` over
+  // the ordinary permissioned HTTP path. `durable-objects/leaderboard-room.ts` carries
+  // the argument, and it is what keeps the slice cuttable — ADR-034 says falling back to
+  // Supabase Realtime must stay possible, and the derivation lives in
+  // `packages/shared/src/timing/leaderboard.ts` where no transport can reach it.
+  //
+  // ⚠️ **Repeated under `env.production` below rather than inherited.** Wrangler inherits
+  // `main` and `compatibility_date` into an environment and does **not** inherit bindings —
+  // which is why `services` and `vars` are already written twice in this file. A
+  // `durable_objects` block here and not there is a production Worker with no binding, and
+  // the failure is a leaderboard that silently never refreshes rather than an error.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEADERBOARD",
+        "class_name": "LeaderboardRoom",
+      },
+    ],
+  },
+
+  // ⚠️ **`new_sqlite_classes`, not `new_classes`, and it is not a preference.** The Workers
+  // free plan offers only the SQLite storage backend for a *new* Durable Object class; a
+  // `new_classes` entry is refused at deploy with an error about the plan, which is a thing
+  // to find out here rather than on a release. The class writes no storage at all — see its
+  // header — so declaring the backend is not the same as using it.
+  //
+  // **Top level only.** Migrations are one of the keys Wrangler inherits into every
+  // environment, and a copy under `env.production` would be a second declaration of the same
+  // tag.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["LeaderboardRoom"],
     },
   ],
 
@@ -82,6 +131,19 @@
           "service": "src-timing-production",
         },
       ],
+
+      // **The same rooms, declared again because Wrangler does not inherit a binding.** See
+      // the block at the top level: omitting this is a production Worker whose leaderboard
+      // never refreshes, with nothing failing to say so. No `script_name` — the class lives
+      // in this Worker, which is what `worker-entry.js` exports it for.
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "LEADERBOARD",
+            "class_name": "LeaderboardRoom",
+          },
+        ],
+      },
 
       // **Byte-identical to apps/main's production block, and that is the point.** One
       // database behind both front doors. Asserted by

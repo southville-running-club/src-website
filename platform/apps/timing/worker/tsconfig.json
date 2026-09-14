@@ -1,0 +1,24 @@
+{
+  // The Worker's own code is typed against the Workers runtime, not against Next's DOM types.
+  //
+  // ⚠️ **A second project rather than a `types` entry in `apps/timing/tsconfig.json`, and it is
+  // not tidiness.** `@cloudflare/workers-types` redeclares `Request`, `Response`, `WebSocket` and
+  // a dozen more on top of the DOM lib that Next needs — adding it to the application's program
+  // breaks React's own types. `apps/main/worker/tsconfig.json` is this exact pattern, for the
+  // reason it states: *"keeping it in its own project is what stops a Node API — which would not
+  // exist in production — from typechecking here by accident."*
+  //
+  // The two programs meet at `cloudflare-env.d.ts`, which declares the Durable Object binding as
+  // a hand-written shape precisely so neither has to import the other's globals. Its header
+  // carries that argument.
+  //
+  // **`apps/timing/tsconfig.json` excludes both directories this one includes**, so no file is in
+  // both programs — except `../lib/access.ts`, deliberately, which is pure TypeScript touching no
+  // runtime global and is the one table both doors read.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2022"]
+  },
+  "include": ["./**/*.ts", "../durable-objects/**/*.ts", "../cloudflare-env.d.ts"]
+}

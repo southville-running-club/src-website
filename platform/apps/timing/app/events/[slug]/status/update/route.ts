@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { scheduleLeaderboardNudge } from '../../../../../lib/leaderboard-nudge';
 import { writeTiming } from '../../../../../lib/writes';
 
 /**
@@ -100,6 +101,11 @@ export async function POST(
     if (result.data.changed !== true) {
       return backTo(request, slug, 'unchanged', search);
     }
+
+    // ⚠️ **Only when something actually changed** — the branch below is what says so. A press that
+    // changed nothing is not news for a board to re-read, and `set_race_status()` writes no audit
+    // row for it either.
+    await scheduleLeaderboardNudge(slug);
 
     return backTo(request, slug, asked === 'clear' ? 'cleared' : asked, search);
   }

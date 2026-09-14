@@ -29,5 +29,10 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".open-next"]
+  // ⚠️ **`worker/` and `durable-objects/` are typechecked by `worker/tsconfig.json` instead, and
+  // must not be in this program.** They are written against the Workers runtime, whose types
+  // redeclare `Request`, `Response` and `WebSocket` on top of the DOM lib this program needs; the
+  // two cannot share one `types` array. `worker/tsconfig.json`'s header carries the argument and
+  // `apps/main/worker/tsconfig.json` is the precedent. `npm run typecheck` runs both.
+  "exclude": ["node_modules", ".open-next", "worker", "durable-objects"]
 }
