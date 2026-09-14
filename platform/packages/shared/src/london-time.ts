@@ -111,6 +111,54 @@ export function formatLondonCompactDate(instant: Instant): string {
 }
 
 /**
+ * The London civil date at this instant, as three numbers: `{ year, month, day }`.
+ *
+ * **The answer to "what day is it?", which is not the same question as "what instant is
+ * it?"** — and the one the rest of this file's functions all take a detour through a
+ * formatted string to answer. `new Date().toISOString().slice(0, 10)` is the idiom this
+ * exists to replace: it reads as "today" and means "today in UTC", so between midnight and
+ * 01:00 on a British Summer Time morning it names **yesterday**. `account.ts`'s date-of-birth
+ * validator did exactly that and told somebody typing today's date that it was in the future
+ * — [#298](https://github.com/southville-running-club/src-website/issues/298).
+ *
+ * ⚠️ **ESLint's bare-`toLocale*String` ban does not catch that shape**, and the widened rule
+ * beside it only catches the truncation. The guard that actually holds is this being the one
+ * module permitted to convert at all: an instant becoming a civil date anywhere else is the
+ * defect, whatever it is spelled as.
+ *
+ * Numbers rather than a string, because every caller here wants `CivilDate` — `toIsoDate()`
+ * and `ageOn()` in `age-category.ts` both take one — and handing back `YYYY-MM-DD` would
+ * mean a second parse to get them. The shape is structural on purpose: this module names no
+ * type from `age-category.ts` and there is no import either way.
+ *
+ * `formatToParts` rather than a formatted string split on its separators, for
+ * `formatLondonCompactDate`'s reason: `en-GB` renders `01/09/2026` today and nothing here
+ * depends on it going on doing so.
+ */
+export function londonCivilDate(instant: Instant): {
+  year: number;
+  month: number;
+  day: number;
+} {
+  const parts = londonFormatter({
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  }).formatToParts(toDate(instant));
+
+  const part = (type: Intl.DateTimeFormatPartTypes): number => {
+    const value = parts.find((candidate) => candidate.type === type)?.value;
+    const parsed = Number(value);
+    if (value === undefined || !Number.isInteger(parsed)) {
+      throw new RangeError(`Intl gave no usable ${type}: ${String(value)}`);
+    }
+    return parsed;
+  };
+
+  return { year: part('year'), month: part('month'), day: part('day') };
+}
+
+/**
  * Minutes London is ahead of UTC at this instant: `60` during British Summer Time, `0`
  * during Greenwich Mean Time.
  *

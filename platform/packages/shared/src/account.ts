@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isRealDate, toIsoDate, type CivilDate } from './age-category';
+import { londonCivilDate } from './london-time';
 
 /**
  * The one definition of what a valid sign-up and a valid sign-in are, on the
@@ -155,32 +156,36 @@ const optionalText = z.preprocess(
 );
 
 /**
- * Today as `YYYY-MM-DD`, **built by the function the other side of the comparison uses**.
+ * Today in `Europe/London`, as `YYYY-MM-DD`, **built by the function the other side of the
+ * comparison uses**.
  *
- * It was `new Date().toISOString().slice(0, 10)`, which is a second implementation of
- * `toIsoDate()`'s output — imported into this very file — and the two are then compared as
+ * Two changes, in two commits, and the second is the one with a behaviour in it.
+ *
+ * **It was `new Date().toISOString().slice(0, 10)`** — a second implementation of
+ * `toIsoDate()`'s output, imported into this very file, with the two then compared as
  * strings by `dateOfBirthIssue()`. A lexicographic `>` over two date strings is only a date
  * comparison while both sides agree about padding and separators, and nothing held them to
  * that: the shape was asserted in one place and re-derived in another. #175.
  *
- * The characters are identical for every date this can be called with, so this changes no
- * behaviour. What it changes is that there is one thing to break rather than two to keep in
- * step.
+ * ⚠️ **And it was UTC, where everything else in this repository is `Europe/London`** —
+ * [#298](https://github.com/southville-running-club/src-website/issues/298). `toISOString()`
+ * names no zone because it has none; between 00:00 and 01:00 London on a British Summer
+ * Time morning — late March to late October — it therefore answered **yesterday**, and the
+ * one caller below told a member typing today's date that their date of birth was in the
+ * future. One hour a day for seven months of the year, on an input nobody has, which is
+ * why it survived long enough to be found by a hygiene commit rather than by a member.
  *
- * ⚠️ **Still UTC rather than `Europe/London`, deliberately, and it is not what
- * `london-time.ts` is for.** The two disagree for one hour on a BST morning, and only about
- * whether a date of birth typed as *today* is in the future — a wrong answer for somebody
- * born within the hour, which is not the population filling in `/account/details/`. Moving
- * it is a behaviour change with a test of its own and does not belong in a hygiene commit.
+ * **The class is what this repository treats as expensive, not the blast radius.**
+ * Nightingale Nightmare is raced the weekend after the clocks change, `seed.sql` carries
+ * two fixtures an hour apart to exercise the repeated hour, and the principles call an hour
+ * of drift *"a real foot-gun, not a theoretical one"*.
+ *
+ * `londonCivilDate()` is the conversion, and it is in `london-time.ts` because that is the
+ * one module allowed to make one. Both sides of the `>` are still `toIsoDate()`'s output,
+ * so #175's property survives the fix rather than being traded for it.
  */
 function todayIso(): string {
-  const now = new Date();
-
-  return toIsoDate({
-    year: now.getUTCFullYear(),
-    month: now.getUTCMonth() + 1,
-    day: now.getUTCDate(),
-  });
+  return toIsoDate(londonCivilDate(new Date()));
 }
 
 /**

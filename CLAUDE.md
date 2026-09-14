@@ -431,9 +431,16 @@ later". The anon key is public and belongs in client code; the service role key 
 reaches a browser, a Worker, or this repository.
 
 **Timestamps are stored UTC and displayed `Europe/London`**, through
-`packages/shared/src/london-time.ts` and nothing else. ESLint bans bare `toLocale*String`
-repository-wide. Nightingale Nightmare is raced the weekend after the clocks change; an
-hour of drift is a real foot-gun, not a theoretical one.
+`packages/shared/src/london-time.ts` and nothing else. Nightingale Nightmare is raced the
+weekend after the clocks change; an hour of drift is a real foot-gun, not a theoretical one.
+⚠️ **ESLint guards two shapes now, and it guarded one until 14 September 2026** — the bare
+`toLocale*String` ban catches *rendering* a UTC instant through the ambient zone, and it
+cannot see the opposite error: `new Date().toISOString().slice(0, 10)`, which reads as "today"
+and means "today in UTC" and so names **yesterday** for an hour on a BST morning. That one was
+live in `account.ts` and is banned outside `london-time.ts` now, **in production code only** —
+a timezone test is made of deliberate UTC arithmetic. `londonCivilDate()` is what answers
+"what day is it in London"; a bare `new Date().toISOString()` is still fine and is still right
+in the three places it appears, because a storage instant has no zone. #298.
 
 **Personal data is minimised at the boundary.** Sensitive fields are dropped _before_ they
 reach the database, never stored and filtered later. Date of birth becomes a computed age.

@@ -6,6 +6,7 @@ export {
   formatLondonDate,
   formatLondonTime,
   isBritishSummerTime,
+  londonCivilDate,
   londonOffsetMinutes,
   toUtcIso,
   type Instant,

@@ -5,6 +5,7 @@ import {
   formatLondonDate,
   formatLondonTime,
   isBritishSummerTime,
+  londonCivilDate,
   londonOffsetMinutes,
   toUtcIso,
 } from '../../src/london-time';
@@ -165,5 +166,64 @@ describe('formatLondonCompactDate — the tail of an entry reference', () => {
     // handling of the change and not the other's cannot pass.
     expect(formatLondonCompactDate('2026-10-25T00:59:00Z')).toBe('25102026');
     expect(formatLondonCompactDate(BST_ENDS_UTC)).toBe('25102026');
+  });
+});
+
+describe('londonCivilDate — what day it is, which is not what instant it is', () => {
+  it('is the London day during BST, where UTC is still on the day before', () => {
+    // ⚠️ **The whole reason this function exists** —
+    // [#298](https://github.com/southville-running-club/src-website/issues/298). 00:30 BST on
+    // 16 June is 23:30 UTC on the 15th, and `new Date().toISOString().slice(0, 10)` answers
+    // the 15th — which told a member that today's date of birth was in the future.
+    expect(londonCivilDate('2026-06-15T23:30:00Z')).toEqual({
+      year: 2026,
+      month: 6,
+      day: 16,
+    });
+  });
+
+  it('is the same day as UTC during GMT', () => {
+    // Seven months of the year there is no drift at all, which is why the defect survived.
+    expect(londonCivilDate('2026-01-16T00:30:00Z')).toEqual({
+      year: 2026,
+      month: 1,
+      day: 16,
+    });
+  });
+
+  it('numbers are numbers, unpadded, and the month is one-based', () => {
+    // `CivilDate`'s shape, so `toIsoDate()` and `ageOn()` take the answer without a parse.
+    // A month of `9` rather than `'09'`, and `isRealDate()` is what refuses an impossible one.
+    expect(londonCivilDate('2026-09-01T07:15:00Z')).toEqual({
+      year: 2026,
+      month: 9,
+      day: 1,
+    });
+  });
+
+  it('agrees with formatLondonCompactDate across the clocks change', () => {
+    // The two functions answer the same question in two shapes and must never disagree about
+    // it — the same instants the compact-date block above uses.
+    for (const instant of [
+      '2026-10-25T00:59:00Z',
+      BST_ENDS_UTC,
+      '2026-08-31T23:30:00Z',
+    ]) {
+      const { year, month, day } = londonCivilDate(instant);
+      const compact = `${String(day).padStart(2, '0')}${String(month).padStart(2, '0')}${year}`;
+      expect(compact, instant).toBe(formatLondonCompactDate(instant));
+    }
+  });
+
+  it('takes a Date, an ISO string or epoch milliseconds, like everything else here', () => {
+    const instant = '2026-06-15T23:30:00Z';
+    const expected = { year: 2026, month: 6, day: 16 };
+
+    expect(londonCivilDate(new Date(instant))).toEqual(expected);
+    expect(londonCivilDate(Date.parse(instant))).toEqual(expected);
+  });
+
+  it('refuses an instant that is not one, rather than answering NaN', () => {
+    expect(() => londonCivilDate('not a date')).toThrow(RangeError);
   });
 });
