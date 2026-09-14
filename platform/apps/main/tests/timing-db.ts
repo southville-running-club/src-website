@@ -888,6 +888,159 @@ export async function clearStatusEvent(project: string): Promise<void> {
 }
 
 /**
+ * The race the results preview publishes and takes down again —
+ * [#205](https://github.com/southville-running-club/src-website/issues/205).
+ *
+ * ⚠️ **Re-seeded per test, for `seedStatusEvent`'s reason in its sharper form.** Publication is a
+ * property of the *race*, so one test publishing it changes what every sibling sees — and the
+ * page's whole job is to render one of three states. {@link resetPreviewRace} puts it back to
+ * finished-and-unpublished with no orphan on it.
+ *
+ * The field is deliberately awkward: a finisher, a runner still on the course, a runner marked
+ * DNF, and a **guide**, who is on the start line and in no category and no prize (ADR-022). A
+ * fixture of three clean finishers would render the same whether or not a guide was excluded.
+ */
+export function previewEventSlug(project: string): string {
+  // `zz-` for the reason `timing-fixtures.ts`'s header gives.
+  return `zz-preview-${project.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+}
+
+export const PREVIEW_TEAMS = [
+  // Finishes. Male, 52 — so the Category column reads "Men's Vet 50" rather than a stored value.
+  { number: '701', firstname: 'Grace', lastname: 'Hopper', gender: 'male', age: 52 },
+  // Finishes second. Female, 34.
+  { number: '702', firstname: 'Ada', lastname: 'Lovelace', gender: 'female', age: 34 },
+  // ⚠️ A guide: finishes, appears on the table, and is in no category.
+  { number: '703', firstname: 'Iris', lastname: 'Murdoch', gender: 'female', age: 41 },
+  // Still on the course — no capture at all, so the preview shows them and the export does not.
+  { number: '704', firstname: 'Mary', lastname: 'Somerville', gender: 'female', age: 29 },
+] as const;
+
+/** A bib no team on this race owns, so the trigger leaves the capture's `team_id` null. */
+export const PREVIEW_ORPHAN_BIB = '998';
+
+export async function seedPreviewEvent(project: string): Promise<void> {
+  const slug = previewEventSlug(project);
+  await clearPreviewEvent(project);
+
+  await withClient(async (db) => {
+    const id = fixtureEventId(slug);
+
+    // Started and finished, because publication is refused until a race is finished and the
+    // interesting states are the two on the far side of that.
+    await db.query(
+      `insert into timing.events
+         (id, slug, name, format, start_at, actually_started_at, finished_at)
+       values ($1, $2, $3, 'solo', '2026-11-01T11:00:00Z'::timestamptz,
+               '2026-11-01T11:00:00Z'::timestamptz, '2026-11-01T13:00:00Z'::timestamptz)`,
+      [id, slug, `Preview fixture ${project}`],
+    );
+
+    for (const team of PREVIEW_TEAMS) {
+      const { rows } = await db.query<{ id: string }>(
+        'insert into timing.teams (event_id, team_number) values ($1, $2) returning id',
+        [id, team.number],
+      );
+      await db.query(
+        `insert into timing.runners
+           (team_id, leg, firstname, lastname, gender, age_on_day, role)
+         values ($1, 1, $2, $3, $4, $5, $6)`,
+        [
+          rows[0]!.id,
+          team.firstname,
+          team.lastname,
+          team.gender,
+          team.age,
+          team.number === '703' ? 'guide' : 'runner',
+        ],
+      );
+    }
+
+    await db.query(
+      "update timing.teams set race_status = 'dnf' where event_id = $1 and team_number = '704'",
+      [id],
+    );
+  });
+
+  await resetPreviewRace(project);
+}
+
+/**
+ * Back to finished, unpublished, three clean captures and no orphan.
+ *
+ * ⚠️ **The orphan is what a test adds**, not what the fixture starts with: publication has to be
+ * possible by default, or every test in the block would be asserting against a refusal.
+ */
+export async function resetPreviewRace(project: string): Promise<void> {
+  const eventId = fixtureEventId(previewEventSlug(project));
+
+  await withClient(async (db) => {
+    await db.query(
+      `update timing.events
+          set finished_at = '2026-11-01T13:00:00Z'::timestamptz,
+              results_published_at = null,
+              results_published_by = null
+        where id = $1`,
+      [eventId],
+    );
+    await db.query('delete from timing.crossings where event_id = $1', [eventId]);
+    await db.query('delete from timing.admin_actions where event_id = $1', [eventId]);
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '701', '2026-11-01T11:40:00Z'::timestamptz),
+              ($1, '702', '2026-11-01T11:45:00Z'::timestamptz),
+              ($1, '703', '2026-11-01T11:46:00Z'::timestamptz)`,
+      [eventId],
+    );
+  });
+}
+
+/** One capture nobody owns, so publication is refused until somebody resolves it. */
+export async function addPreviewOrphan(project: string): Promise<void> {
+  const eventId = fixtureEventId(previewEventSlug(project));
+
+  await withClient(async (db) => {
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, $2, '2026-11-01T11:47:00Z'::timestamptz)`,
+      [eventId, PREVIEW_ORPHAN_BIB],
+    );
+  });
+}
+
+/** What the database now says about publication — the assertion the page cannot make itself. */
+export async function previewRaceState(
+  project: string,
+): Promise<{ published: boolean; auditActions: string[] }> {
+  const eventId = fixtureEventId(previewEventSlug(project));
+
+  return withClient(async (db) => {
+    const event = await db.query<{ results_published_at: string | null }>(
+      'select results_published_at from timing.events where id = $1',
+      [eventId],
+    );
+    const audit = await db.query<{ action: string }>(
+      'select action from timing.admin_actions where event_id = $1 order by created_at',
+      [eventId],
+    );
+
+    return {
+      published: event.rows[0]?.results_published_at != null,
+      auditActions: audit.rows.map((row) => row.action),
+    };
+  });
+}
+
+/** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
+export async function clearPreviewEvent(project: string): Promise<void> {
+  await withClient(async (db) => {
+    await db.query('delete from timing.events where slug = $1', [
+      previewEventSlug(project),
+    ]);
+  });
+}
+
+/**
  * The race the danger zone wipes — [#254](https://github.com/southville-running-club/src-website/issues/254).
  *
  * ⚠️ **Re-seeded per test, and here that is not a precaution but the only thing that works.**

@@ -30,6 +30,13 @@ interface EventDetail {
   start_at: string;
   actually_started_at: string | null;
   finished_at: string | null;
+  /**
+   * #241's column, reaching this read with
+   * [#205](https://github.com/southville-running-club/src-website/issues/205) — which is where
+   * `20260914100000` said the one-line addition belonged, *"in the change that has a page to
+   * put it on"*.
+   */
+  results_published_at: string | null;
   distance_m: number | null;
   course_notes: string | null;
   created_at: string;
@@ -104,6 +111,9 @@ export default async function EventPage({
         <dt>Finished</dt>
         <dd>{orDash(event.finished_at)}</dd>
 
+        <dt>Results published</dt>
+        <dd>{orDash(event.results_published_at)}</dd>
+
         <dt>Distance</dt>
         <dd>{event.distance_m === null ? '—' : `${event.distance_m} m`}</dd>
 
@@ -174,10 +184,16 @@ export default async function EventPage({
       </p>
 
       {/*
-        ⚠️ **The count above is a figure and this is the queue it counts** — #252. The two are
-        deliberately not one link with a number in it: the anomalies page shows *orphans* as
-        well as flagged captures, and `event_detail`'s `open_anomalies` counts only the flagged
-        half, so a link reading "3 anomalies" would disagree with the page it opened.
+        ⚠️ **The count above is a figure and this is the queue it counts** — #252. They are
+        deliberately not one link with a number in it.
+
+        ⚠️ **This note used to say the two disagreed, and since #205 they do not.**
+        `event_detail`'s `open_anomalies` counted only the *flagged* half while the anomalies
+        page also shows orphans, so the hub could read "0" beside a queue with three rows on it
+        — and, worse, beside a publish button refusing for open anomalies. `20260914140000`
+        moved both to `timing.open_anomaly_count()`, which is the one statement of that
+        predicate. A link carrying the number would now be honest; it is still two things
+        because a figure and a queue are two things.
 
         Both demand `timing.crossing.resolve`, which is a fourth permission again — see the
         note above about what has to change here if these ever come apart in practice.
@@ -208,6 +224,25 @@ export default async function EventPage({
         <Link href={`/events/${event.slug}/finish`}>
           {event.finished_at === null ? 'Finish this race' : 'This race is finished'}
         </Link>
+      </p>
+
+      {/*
+        ⚠️ **Linked in every state, like the two above and for the same reason.** The results
+        preview is where somebody checks the times *before* calling the race over, where they
+        publish once it is, and where they take a published table down to correct it — so it is
+        useful at every point on #241's state machine and the link may never be conditional on
+        one of them.
+      */}
+      <p>
+        <Link href={`/events/${event.slug}/results`}>
+          {event.results_published_at === null
+            ? 'Results for this race'
+            : 'Results for this race — published'}
+        </Link>
+      </p>
+
+      <p>
+        <Link href={`/events/${event.slug}/prizes`}>Prize giving for this race</Link>
       </p>
 
       {event.editable ? null : (

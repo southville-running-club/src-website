@@ -321,7 +321,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-three functions, and anon exactly two of them', async () => {
+  it('grants exactly these thirty-four functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -329,7 +329,7 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-two functions and thirty-four rows: `results_for_event` and
+    // Thirty-four functions and thirty-six rows: `results_for_event` and
     // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
@@ -358,7 +358,21 @@ describe('what may be called, and by whom', () => {
       // ⚠️ **The first `anon` grant in this schema**, #241. See the block comment above.
       { routine_name: 'results_for_event', grantee: 'anon' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
-      // ⚠️ **The second, #242.** One bit, so a link can be painted without reading a field.
+      /**
+       * ⚠️ **The thirty-second, #205, and `authenticated` only — never `anon`.** It is
+       * `results_for_event()`'s answer plus `runners.role` and `runners.result_placement`,
+       * which the public answer may never carry: a guide's role discloses, by inference, that
+       * the runner they are paired with is visually impaired (ADR-022), and a placement is
+       * ADR-031's raw answer rather than the category derived from it.
+       *
+       * It exists because `results_for_event()` answers `null` to the person the preview screen
+       * is for — `timing-admin` deliberately does not hold `nn.results.read`, which
+       * `identity-permissions.test.ts` says in as many words. Two audiences, two functions, and
+       * the difference between them is exactly the fields that must stay in the building.
+       */
+      { routine_name: 'results_preview', grantee: 'authenticated' },
+      // ⚠️ **#242's, and the second `anon` grant.** One bit, so a link can be painted without
+      // reading a whole field of runners to decide whether to paint an anchor.
       { routine_name: 'results_published_at', grantee: 'anon' },
       { routine_name: 'results_published_at', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
@@ -4745,6 +4759,180 @@ describe("publishing a race's results", () => {
       expect(stored.by).toBeNull();
       // And it is still public, because the results are the club's.
       expect(await asAnon()).not.toBeNull();
+    });
+  });
+
+  /**
+   * The preview a `timing-admin` reads before they press the button —
+   * [#205](https://github.com/southville-running-club/src-website/issues/205).
+   *
+   * ⚠️ **The first assertion is the finding that made this function necessary.** `timing-admin`
+   * holds `timing.result.publish` and deliberately **not** `nn.results.read`, so
+   * `results_for_event()` answers `null` to the very person the preview screen is for — they
+   * would see an empty page and a button offering to publish it. That is asserted here as a
+   * pair: the same person, the same race, two functions, two answers.
+   *
+   * ⚠️ **The second is the disclosure that keeps them two functions.** `role` and
+   * `result_placement` are in this answer and must never be in the public one.
+   */
+  describe('the preview, for somebody who may publish', () => {
+    const GUIDE_TEAM_ID = '00000000-0000-4000-8000-000000000f13';
+
+    type Preview = {
+      event: Record<string, unknown>;
+      open_anomalies: number;
+      teams: { team_number: string | null; runners: Record<string, unknown>[] }[];
+      crossings: unknown[];
+    } | null;
+
+    const preview = (personId: string): Promise<Preview> =>
+      asPerson<Preview>(personId, 'select timing.results_preview($1) as answer', [SLUG]);
+
+    beforeAll(async () => {
+      // A second team carrying a guide and a non-binary runner's placement, because the two
+      // columns this function exists to carry are worth nothing against a fixture without them.
+      await db.query(
+        `insert into timing.teams (id, event_id, team_number) values ($1, $2, '602')
+         on conflict (id) do nothing`,
+        [GUIDE_TEAM_ID, EVENT_ID],
+      );
+      await db.query('delete from timing.runners where team_id = $1', [GUIDE_TEAM_ID]);
+      await db.query(
+        `insert into timing.runners
+           (team_id, leg, firstname, lastname, gender, result_placement, role, age_on_day)
+         values ($1, 1, 'Iris', 'Murdoch', 'non_binary', 'female', 'guide', 41)`,
+        [GUIDE_TEAM_ID],
+      );
+    });
+
+    afterAll(async () => {
+      await db.query('delete from timing.teams where id = $1', [GUIDE_TEAM_ID]);
+    });
+
+    it('answers a publisher, where results_for_event answers them null', async () => {
+      // ⚠️ The pair. Same person, same unpublished race, two functions.
+      const refused = await asPerson<Preview>(
+        PUBLISHER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(refused).toBeNull();
+
+      const answer = await preview(PUBLISHER);
+      expect(answer?.event).toMatchObject({ slug: SLUG, format: 'solo' });
+      expect(answer?.teams.map((team) => team.team_number).sort()).toEqual([
+        '601',
+        '602',
+      ]);
+    });
+
+    it('carries the role and the placement a prize list needs', async () => {
+      const answer = await preview(PUBLISHER);
+      const guide = answer?.teams.find((team) => team.team_number === '602')?.runners[0];
+
+      // Without `role`, `awards.ts` cannot exclude a guide and one wins a band — discovered at
+      // the presentation. Without `result_placement`, every non-binary runner falls out of both
+      // lists, which is the gap ADR-031 closed in `entries` and would silently re-open here.
+      expect(guide).toMatchObject({ role: 'guide', result_placement: 'female' });
+    });
+
+    it('still carries no email address and no club, exactly like the public answer', async () => {
+      const answer = await preview(PUBLISHER);
+      const runner = answer?.teams.find((team) => team.team_number === '601')?.runners[0];
+
+      // The fixture runner has both. Minimisation applies to what is read, and a wider audience
+      // is not a reason to widen the row.
+      expect(runner).not.toHaveProperty('email');
+      expect(runner).not.toHaveProperty('club_name');
+      expect(JSON.stringify(answer)).not.toContain('grace.hopper@example.com');
+    });
+
+    it('counts the captures that will refuse publication, orphans included', async () => {
+      expect((await preview(PUBLISHER))?.open_anomalies).toBe(0);
+
+      // ⚠️ **An orphan carries no flag**, so a count of flagged rows alone would say zero here
+      // while `publish_results()` refused — the two-screens-both-right failure #241's header
+      // describes. This is the assertion that holds them to one expression.
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, '999', '2026-11-01T11:41:00Z')`,
+        [EVENT_ID],
+      );
+
+      expect((await preview(PUBLISHER))?.open_anomalies).toBe(1);
+
+      const refusal = await asPerson<Envelope>(
+        PUBLISHER,
+        'select timing.publish_results($1) as answer',
+        [SLUG],
+      );
+      expect(refusal).toMatchObject({ ok: false, reason: 'open_anomalies', open: 1 });
+    });
+
+    it('is the same number event_detail reports, which it was not before', async () => {
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, '999', '2026-11-01T11:41:00Z')`,
+        [EVENT_ID],
+      );
+
+      const detail = await asPerson<{ counts: { open_anomalies: number } }>(
+        PUBLISHER,
+        'select timing.event_detail($1) as answer',
+        [SLUG],
+      );
+
+      // ⚠️ `event_detail()` counted only *flagged* rows until #205, so the race hub read 0 here
+      // beside a publish button refusing for open anomalies.
+      expect(detail.counts.open_anomalies).toBe(1);
+    });
+
+    it('refuses somebody who may run the race but not publish it', async () => {
+      // ⚠️ **One refused call per transaction** — `asManageOnly` opens its own and rolls it
+      // back. The refusal is a bare `null`, like every other read in this schema.
+      const answer = await asManageOnly('select timing.results_preview($1) as answer', [
+        SLUG,
+      ]);
+
+      expect(answer).toBeNull();
+    });
+
+    it('refuses a preview-only reader, who has their own page to read', async () => {
+      // `nn-results` reads `/nn/<year>/results/` through `results_for_event()`. This function is
+      // the staff screen, and it carries two columns that page may not have.
+      expect(await preview(PREVIEWER)).toBeNull();
+    });
+
+    it('answers the same null for a race that does not exist', async () => {
+      // "You may not" and "no such race" stay indistinguishable, which is the property
+      // `/timing`'s pages 404 on.
+      const answer = await asPerson<Preview>(
+        PUBLISHER,
+        'select timing.results_preview($1) as answer',
+        ['zz-no-such-race'],
+      );
+
+      expect(answer).toBeNull();
+    });
+  });
+
+  /**
+   * ⚠️ **The one statement of the predicate is granted to nobody**, like `raise_attention()` one
+   * schema along: a function that answers a question about a race nobody may otherwise ask is
+   * not a function to expose, and an internal helper with no grant cannot become an oracle. The
+   * grant list above is what proves it is absent; this proves the call itself is refused.
+   */
+  describe('the shared anomaly count', () => {
+    it('is refused to an ordinary signed-in caller', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'authenticated', true)");
+        await expect(
+          db.query('select timing.open_anomaly_count($1)', [EVENT_ID]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
     });
   });
 });
