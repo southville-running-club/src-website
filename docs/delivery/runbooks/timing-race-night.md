@@ -63,7 +63,6 @@ a way to lose a race that cannot be re-run.
 
 | | Why it stops the run |
 | --- | --- |
-| **The `timing.events` row for this running does not exist** | [Step 1.1](#11--the-race-exists-and-its-slug-is-right-). Every other step addresses it by slug, and **there is no screen that creates one** |
 | **Fewer than two people hold `timing-admin`** | [No system is reachable by only one person](../../architecture/principles.md#no-system-is-reachable-by-only-one-person). The break-glass is a second human, and granting a role on race morning needs somebody holding `identity.role.grant` who is awake |
 | **A marshal has not opened the capture screen once, online, on the phone they will use** | [Step 1.4](#14--every-marshal-opens-the-screen-once-on-the-phone-they-will-use-). The service worker is what makes the screen survive a reload with no signal, and it is installed by that first visit and by nothing else |
 | **The rehearsal's crossings are still on the race** | [Step 1.6](#16--wipe-the-rehearsal-). A rehearsal left in place is a field of invented times that publishes exactly as easily as a real one |
@@ -92,11 +91,16 @@ Usually a phone with the wrong clock — the time is kept exactly as it was capt
 
 ### 1.1 — the race exists, and its slug is right 🎛️
 
-⚠️ **There is no create-race screen, and this is the step most likely to be discovered late.**
-`/timing/events/` lists races and does not make one. `timing.create_event()` is the function
-that does, it is behind `timing.event.manage`, and **the only way to call it today is a
-reviewed commit** — which is why this step is in the week before rather than on the morning,
-and why it is on the wrong side of the change freeze if it is left.
+⚠️ **This was a stop condition until 14 September 2026 and it is a check now.** The
+`timing.events` row for this running arrives by migration —
+`20260914160000_timing_nn_2026_event.sql`,
+[#288](https://github.com/southville-running-club/src-website/issues/288) — so it is already
+there, with its name, its format, its start time and the advertised 10 km on it. **There is
+still no create-race screen**, which is why the row came in a reviewed commit:
+`/timing/events/` lists races and does not make one, and `timing.create_event()` is behind
+`timing.event.manage` and is called by nothing. **A form is owed to Pass the Buck 2026
+([#206](https://github.com/southville-running-club/src-website/issues/206)), not to this
+race.**
 
 - [ ] Open **`/timing/events/`**. The race is in the list, with its scheduled start
 - [ ] Its slug is **`nn-2026`**, exactly. `/nn/2026/results/` resolves to `nn-<year>` and
@@ -105,8 +109,17 @@ and why it is on the wrong side of the change freeze if it is left.
 - [ ] Open the race and check **Scheduled start** reads **1 November 2026 at 11:00 GMT**
 - [ ] The same date and time is what `/nn/2026/` publishes from `race.json`. **The two are
       separate copies of one fact and nothing holds them together** — read both
+- [ ] **Distance** reads **10000 m** — the advertised 10 km, and the only place the timing app
+      says a distance at all
 
-**If the row is missing**, that is a pull request, not a runbook step. Say so early.
+**Anything on that list reading wrongly is fixable here and needs no deploy**: somebody holding
+`timing.event.manage` corrects the name, the start time, the distance and the course notes from
+the race's own page, and the migration deliberately never overwrites a correction.
+
+⚠️ **If the row is missing altogether, stop — that is a pull request and therefore a deploy**,
+which is the reason this used to be the first stop condition. `import_from_entries()` answers
+`no_such_event` without it and every screen below addresses the race by slug, so nothing in
+Phase 1 can be done at all.
 
 ### 1.2 — who holds what 🎛️
 

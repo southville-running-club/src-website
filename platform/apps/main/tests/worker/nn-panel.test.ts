@@ -79,10 +79,12 @@ describe('the panel answers the two questions in the order they are asked', () =
    * A link to a 404 is a claim about a record: the club's own front door saying a race's
    * results exist, answering "there is nothing at this address" to everybody who follows it.
    *
-   * **This run has no `timing` rows at all**, which is the state every deployed environment is
-   * in today and will be in until a race is run and published — so the anchor must still be
-   * sitting in the markup hidden, with the empty `href` it shipped with. The painted half is
-   * asserted in `tests/worker/admin/nn-results.test.ts`, whose setup publishes `nn-2026`.
+   * ⚠️ **This run's only `timing` row is the real `nn-2026`, and it is unpublished** — this
+   * said "no `timing` rows at all" until `20260914160000` put the race in the table (#288).
+   * That is exactly the state production is in, and will be in until a race is run and
+   * published, so the anchor must still be sitting in the markup hidden, with the empty `href`
+   * it shipped with. The painted half is asserted in
+   * `tests/worker/admin/nn-results.test.ts`, whose setup publishes that same row.
    *
    * **Asserted rather than left implicit**, for this file's own reason one test up: the Worker
    * always offers to paint this selector, so nothing in it would go red if the read started
