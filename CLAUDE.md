@@ -513,6 +513,24 @@ so **the reasoning belongs in the pull request body and the commit message, not 
 the branch.** Settings and the full trade are in
 [the GitHub runbook](docs/delivery/runbooks/github-setup.md#3b-merge-behaviour--squash-only).
 
+⚠️ **Writing `Not "Closes #21"` closes #21.** GitHub matches `close[sd]?\s*#\d+` and does not
+read English: a negation, quotation marks and a bold **Not** in front of it are all invisible.
+It cost exactly that on 14 September 2026 — a pull request whose commit body opened *"⚠️ **Not
+"Closes #21".** This takes the third and fourth boxes and leaves the issue open for the
+second"* closed the issue on merge, and the issue was reopened by hand. **The habit this steps
+on is the one the paragraph above asks for**: bodies here discuss at length what a change does
+and does not close, which is exactly where the keyword gets typed next to a number. Write *"this
+does not close #21"* — the keyword and the number must not be adjacent, whatever is around them.
+
+⚠️ **It happened twice in three hours, and the second time the instruction caused it.** #175 went
+the same way as #21 on the same afternoon, from the same idiom — `**Not "Closes #175"**` — because
+the brief for that work said *"the body must not say `Closes #175`"*. **Asking somebody to avoid
+the keyword is itself a sentence containing the keyword**, and both people who were asked recorded
+their compliance by quoting it. So the rule binds whoever writes the instruction as much as
+whoever follows it: say **"do not close the issue; name it without a closing keyword"** and give
+no string to copy. A negation is not a guard, and an example of what not to write is the worst
+possible form of one.
+
 **Documentation ships with the change it describes**, not afterwards. If you change
 behaviour that a README or ADR describes, change it in the same commit. A document that is
 wrong is worse than one that is missing, because it is trusted.
