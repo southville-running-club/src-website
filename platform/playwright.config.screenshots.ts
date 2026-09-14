@@ -9,9 +9,14 @@ import baseConfig from './playwright.config';
  * `docs/delivery/runbooks/images/timing-race-night/`. **It has never been run**; that file's
  * header says what to expect of the first attempt.
  *
+ * ⚠️ **Through `./dev e2e`, from the worktree root, and not `npx playwright test`.** A scoped
+ * Playwright run needs the three Supabase variables `./dev` exports; without them the fixtures
+ * throw `supabaseKey is required` from `admin-db.ts`, a file the failing test never mentions.
+ * `CLAUDE.md` carries the note. Measured: the bare `npx` form fails on the first screen and the
+ * other six never run.
+ *
  * ```sh
- * cd platform
- * npx playwright test --config=playwright.config.screenshots.ts
+ * ./dev e2e --config=playwright.config.screenshots.ts
  * ```
  *
  * ## Why this is a third config rather than a tag

@@ -49,11 +49,18 @@ import { forgetSessions, signInAs } from './sign-in';
  * thing, a race that is in a different state than this file assumes. That is cheap to fix and
  * cheaper than a runbook that shipped late.
  *
+ * ⚠️ **Through `./dev e2e`, from the worktree root — never `npx playwright test`.** A scoped
+ * Playwright run needs the three Supabase variables `./dev` exports, and without them the
+ * fixtures throw `supabaseKey is required` from `admin-db.ts`, a file the failing test never
+ * mentions. `CLAUDE.md` carries the note; this file was written against the bare `npx` form, and
+ * that form fails on the first screen with the other six never run.
+ *
  * ```sh
- * ./dev up                                                    # a stack, then leave it alone
- * cd platform
- * npx playwright test --config=playwright.config.screenshots.ts
+ * ./dev e2e --config=playwright.config.screenshots.ts
  * ```
+ *
+ * **First run, 14 September 2026: seven tests green, nineteen files written**, so nothing about
+ * the fixtures needed fixing after all.
  *
  * ## Why a script rather than ten pictures somebody took
  *

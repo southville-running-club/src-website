@@ -469,8 +469,21 @@ what tells a missing role from a missing roster row.
 pictures a different application on a different origin, with admin-created passwords and a
 results page that ends at a CSV. Copying them would document controls that do not exist here.
 
-**Pictures at all, for now — and the script that would make them is committed and has never
-been run.** [`timing-race-night.screens.ts`](../../../platform/apps/main/tests/e2e/timing-race-night.screens.ts)
+**Pictures at all, for now — and the script that makes them is committed and works.** It was
+run for the first time on 14 September 2026: seven tests green, **nineteen PNGs written**, from
+`01-every-race.png` to `19-published-to-the-public.png`, about 2.3MB in all. **They are not
+committed**, for the reason in the paragraph below rather than because anything went wrong, and
+`docs/delivery/runbooks/images/timing-race-night/` is where they land when anybody re-runs it.
+
+⚠️ **Run it through `./dev e2e` from the repository root, not `npx playwright test`** — a scoped
+Playwright run needs the three Supabase variables `./dev` exports, and without them the fixtures
+throw `supabaseKey is required` from a file the failing test never mentions:
+
+```sh
+./dev e2e --config=playwright.config.screenshots.ts
+```
+
+[`timing-race-night.screens.ts`](../../../platform/apps/main/tests/e2e/timing-race-night.screens.ts)
 drives the real application under Playwright against the suite's own fabricated races and writes
 a PNG per screen;
 [`playwright.config.screenshots.ts`](../../../platform/playwright.config.screenshots.ts) is what
@@ -480,10 +493,13 @@ of a gate.
 the rule that matters, because these screens carry named runners, and a picture of a real start
 list is a disclosure that cannot be taken back.
 
-Until somebody runs it, **this page names every control in bold instead**. That is not a
-placeholder: a label quoted from the code goes stale loudly, in a diff, when the label changes,
-and a picture goes stale silently. If the images do get added, they are an addition to the
-prose and never a replacement for it.
+**This page names every control in bold instead, and that is now a choice rather than a wait.**
+A label quoted from the code goes stale loudly, in a diff, when the label changes; a picture goes
+stale silently, which is exactly what went wrong with the ten screenshots this runbook replaces.
+So the images stay out of the repository until somebody wants them, and the script is there to
+produce them on demand. **If they do get added, they are an addition to the prose and never a
+replacement for it** — and whoever adds them should expect to re-run the script on every change
+to a screen, because nothing checks a picture.
 
 **Anything about the leaderboard.** It is staff-only in 2026 and the public sees nothing about
 a running race —
