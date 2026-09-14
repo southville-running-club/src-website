@@ -1,0 +1,58 @@
+-- The 2026 Christmas party: the room holds 100, and sales close on 5 December.
+--
+-- Supplied by a club volunteer on 14 September 2026, four days before tickets go on sale.
+-- Both were `null` until now, and `null` means something different in each case — which is
+-- why neither could be left as it was.
+--
+-- ---------------------------------------------------------------------------------------
+-- capacity = 100, and what it counts
+-- ---------------------------------------------------------------------------------------
+-- **`null` meant no limit**, so the platform would have sold the room past what The Cock &
+-- Tail can hold and nothing would have said a word. This is the whole of the fix for that:
+-- `create_pending_purchase()` already refuses `sold_out` when the next purchase would take
+-- the total past `capacity`, inside the social's advisory lock, so two people buying the last
+-- four tickets at the same instant cannot both succeed.
+--
+-- ⚠️ **It counts tickets, not orders** — `sum(quantity)` — which is the club's own unit: one
+-- order of four takes four of the hundred. The 2025 party sold 86 *orders*, so a reader
+-- comparing the two numbers is comparing different things.
+--
+-- **It counts a live hold as well as a payment.** A `pending` purchase whose 31-minute hold
+-- has not lapsed holds its tickets, so somebody mid-checkout cannot have them sold from under
+-- them; an abandoned checkout hands them back when `expire_pending_holds()` next runs. That
+-- predicate is in `create_pending_purchase()` and is unchanged here.
+--
+-- **Raising it later is an `update` and no deploy.** Lowering it below what is already sold is
+-- not refused by anything and would leave the party oversold against its own number — the
+-- flag `record_checkout_event()` raises is `over_capacity`, and
+-- [the attention runbook](../../../../docs/delivery/runbooks/entries-attention.md) is the
+-- shape of what a human does about one.
+--
+-- ---------------------------------------------------------------------------------------
+-- sales_close_at, and why it is a backstop rather than the mechanism
+-- ---------------------------------------------------------------------------------------
+-- **The last moment to buy is the end of Saturday 5 December 2026**, a week before the party,
+-- so the club has the following week to give Sandwich Sandwich its numbers.
+--
+-- Written as `2026-12-06 00:00+00` — midnight at the *end* of the 5th. A time of `00:00` on
+-- the 5th would close sales a day early, which is the ordinary way this gets written wrong.
+--
+-- ⚠️ **`+00` and not `+01`.** The clocks go back on 25 October, so a window that opens in
+-- September and closes in December does **not** share one UTC offset: `sales_open_at` is BST
+-- and this is GMT. Writing the offset explicitly is what stops an hour of drift, and this
+-- repository has the race's own entry window as the worked example — 06:00Z and 17:00Z for
+-- times a member reads as 07:00 and 17:00.
+--
+-- **With `capacity` set, this is the deadline rather than the limit.** If the party sells out
+-- first, the page closes itself and this date is never reached. It matters for the other
+-- outcome: without it, a page that has not sold out goes on taking money up to the night.
+--
+-- **`sales_open_at` is deliberately not set here.** Opening sales is an act somebody performs
+-- on the day, not a fact about the party, and it is
+-- [the runbook](../../../../docs/delivery/runbooks/events-tickets.md)'s step 4. Setting it in
+-- a migration would open the window at deploy time, which is whenever the next merge happens.
+
+update store.socials
+   set capacity = 100,
+       sales_close_at = timestamptz '2026-12-06 00:00+00'
+ where slug = 'christmas-party-2026';
