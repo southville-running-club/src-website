@@ -268,6 +268,16 @@ cannot outlive Squarespace. It is not a decision taken here; see
 
 ## What is still open
 
+**One of four lists of what is still open, and they are scoped differently on purpose.**
+[The phases
+document](../delivery/phases.md#what-the-race-pages-still-need-from-the-committee) is the
+index of the set: the race pages' own outstanding asks live there, [the
+plan](../delivery/plan.md#still-to-decide) ties each to a numbered step, [the
+overview](../delivery/overview.md#what-the-committee-is-being-asked-for) is the
+committee-facing half, and [the decision log](#what-is-still-open) holds the vendor, cost
+and governance ones. Before concluding that something is settled, read all four — this
+list is not the whole set.
+
 - **The GitHub account's shape** — `southville-running-club` is a shared personal login
   rather than an organisation — **and whether to pay for branch protection.** Two separate
   questions, both **left as they are on 9 August 2026, deliberately.** See below: they are
@@ -282,15 +292,18 @@ cannot outlive Squarespace. It is not a decision taken here; see
   [verify before deciding](../solutions/platform-options.md#validation-register), which
   should be confirmed in writing before any account is paid for
 - ~~**The 2026 entry window**~~ — **ratified by the committee over WhatsApp on 24 August
-  2026**: opens Tuesday 1 September 2026 at 07:00, closes Friday 30 October at 17:00,
-  Europe/London. `entries_close_at` is applied. **Ratifying the times is not the same as
-  arming the column, and that is deliberate, not an oversight**: `entries_open_at` is not
-  configuration waiting to be switched on, it _is_ the switch, so a date in that column is a
-  dated instruction to start selling 250 places unattended — it is still null, gated on the
-  live Stripe keys being installed. [The entries-open runbook](../delivery/runbooks/entries-open.md)
-  owns that moment and carries the exact `update`. The conversion either side of the clocks
-  change is already tested — `london-time.test.ts` asserts the open is BST and the close is
-  GMT
+  2026** and **open since**: Tuesday 1 September 2026 at 07:00 to Friday 30 October at 17:00,
+  Europe/London. Both columns are applied and **the race is selling** — confirmed against
+  production on 7 September 2026, 110 of the 250 places gone. ⚠️ **This bullet said
+  `entries_open_at` was "still null, gated on the live Stripe keys" until 14 September 2026**,
+  a week after it was not, which is the staleness the same reading found in `CLAUDE.md` and in
+  four rows of `apps/main/README.md`'s manual-steps table: *a status column nobody revisits is
+  worse than no status column*. What the column was gated on — the live Stripe keys, the
+  verified webhook digest, `ENTRIES_ENTRY_KEY` — is all installed, because the window could not
+  have opened otherwise; the exact date each was done is not recorded.
+  [The entries-open runbook](../delivery/runbooks/entries-open.md) owns that moment and carries
+  the `update` that was run. The conversion either side of the clocks change is tested —
+  `london-time.test.ts` asserts the open is BST and the close is GMT
 - ~~**Whether Southville is affiliated to ARC or to UK Athletics**, which decides #72~~ —
   **overtaken, 29 August 2026.** The committee decided not to verify affiliation at all —
   [decision 007](#007--stop-asking-for-and-holding-england-athletics-numbers) — so the

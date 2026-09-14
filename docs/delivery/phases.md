@@ -201,6 +201,15 @@ depends on nothing.
 
 ### What the race pages still need from the committee
 
+**One of four lists of what is still open, and they are scoped differently on purpose.**
+[The phases document](#what-the-race-pages-still-need-from-the-committee) is the index of
+the set: the race pages' own outstanding asks live there, [the
+plan](plan.md#still-to-decide) ties each to a numbered step, [the
+overview](overview.md#what-the-committee-is-being-asked-for) is the committee-facing half,
+and [the decision log](../decisions/decision-log.md#what-is-still-open) holds the vendor,
+cost and governance ones. Before concluding that something is settled, read all four —
+this list is not the whole set.
+
 None of it blocks the site, which is built and tested. All of it is
 [stop-and-ask](../architecture/principles.md#stop-and-ask) territory rather than a build
 decision, and everything undecided renders as "to be confirmed" rather than as a guess:
@@ -533,11 +542,25 @@ and the treasurer can reconcile.
 
 ## What it costs when this is done
 
+⚠️ **This table is the one copy.** [The overview](overview.md#what-it-costs) and
+[the plan](plan.md#what-it-costs-when-this-is-done) carried the same three rows until
+14 September 2026 and link here instead — three documents restating one set of figures is
+three places for them to go stale, and the audit that found it
+([#180](https://github.com/southville-running-club/src-website/issues/180) Priority 5) found
+seven other counts already wrong for exactly that reason. A number that changes changes here.
+
 | | Per year |
 | --- | --- |
 | Today | **£735** |
 | After Phase 7 | **£427** |
 | With Direct Debit as well | **£177** |
+
+**Where the £427 comes from is a different table**, and it lives with the decisions it sums:
+[what these decisions cost together](../decisions/decision-log.md#what-these-decisions-cost-together)
+itemises the Workers plan, the mailboxes, the domain and the card fees. That one stays where it
+is — a decision log is a dated record of what was decided and what it was expected to cost, and
+rewriting a past entry's own figures into a link is the *"never edit an accepted ADR to change
+its answer"* rule one document along.
 
 **The money was never the point.** The larger return is the [manual
 work](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do)

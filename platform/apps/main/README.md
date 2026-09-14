@@ -25,33 +25,113 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 ```
 src/content/race.json          Every race fact, as data. See below
 src/content/privacy.json       The club notice's own values. Three keys, two of them null
-src/components/NnNav.astro     The two Nightingale Nightmare links
-src/components/NnMasthead.astro   The header they sit in, and the button beside them
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
+src/components/ClubLogo.astro  The club wordmark, inline, once per page
+src/components/SiteBanner.astro    The club banner — one of three copies of this markup,
+                               and site-chrome.ts's header says why
+src/components/SiteNav.astro   The five-item bar, and the Events submenu, from SITE_NAV
+src/components/SiteFooter.astro    The footer, and the link to /privacy/
+src/components/NnNav.astro     The Nightingale Nightmare links
+src/components/NnMasthead.astro    The header they sit in, and the button beside them
+src/components/NnEntryForm.astro   The entry form, and its progressive enhancement
+src/components/NnRaceSummary.astro The race in brief, with the arrows
+src/components/NnSchedule.astro    Race morning in order. It carries its own surface
+src/components/NnPreviousYears.astro   Four <a> elements the Worker paints years onto
 src/pages/index.astro          The holding page — new.<apex>/
+src/pages/404.astro
+src/pages/brand.astro          The palette, with every contrast ratio computed live, for
+                               whoever is deciding whether it is right
 src/pages/privacy.astro        The club's privacy notice — the account, and everything
                                that is not about a race
-src/pages/404.astro
+src/pages/account.css.ts       /account.css — the stylesheet for the pages the Worker
+                               renders, concatenated at build time rather than kept in
+                               public/. This file says why; the two below copy it
+src/pages/admin.css.ts         /admin.css — the same, for the staff back office
 src/pages/nn/index.astro       The race — evergreen, the year panel, the course and
                                terrain, no year in it
 src/pages/nn/privacy.astro     What the club does with an entry and with a sign-up
+src/pages/nn/admin.css.ts      /nn/admin.css
+src/pages/nn/results.css.ts    /nn/results.css — the race's, not one running's, because
+                               every year's results page links the same file
 src/pages/nn/2026/index.astro  The 2026 running — the date, the facts, the entry form
-src/components/NnEntryForm.astro  The entry form, and its progressive enhancement
 src/pages/nn/2026/terms.astro  The entry terms and race rules — the race director's
                                copy, verbatim. Do not edit it for style
 src/pages/nn/2026/race-day.astro   Race day — HQ, the morning in order, prizes
 src/pages/nn/2026/spectators.astro Watching the race
 src/pages/nn/2026/entry/complete.astro  Where Stripe sends somebody back to
+src/pages/events/index.astro   The club's socials — what is coming up
+src/pages/events/christmas-party-2026.astro         One social, and its ticket form
+src/pages/events/christmas-party-2026/complete.astro    Where Stripe sends a buyer back
+                               to. It reports no state at all — deliberately
+```
+
+⚠️ **There is no Astro page for `/nn/<year>/results/`.** It is rendered by the Worker, from
+`worker/nn-results.ts`, because the same address is a 404 before publication and a public page
+after it — that file's own header carries the table of who sees which.
+`src/pages/nn/results.css.ts` is the only part of it that lives here.
+
+### `worker/`
+
+**Every file, because a map that names half of them is a map somebody has to check.** The
+audit that found this one at 13 of 24 ([#180](https://github.com/southville-running-club/src-website/issues/180),
+Priority 6) is the reason it is exhaustive rather than representative: an incomplete list reads
+as a complete one. It should match `ls worker/*.ts` — there are **31**.
+
+```
+worker/index.ts                The entrypoint. Six jobs, including the cron that expires
+                               holds, drains both outboxes and applies the medical
+                               retention promise
 worker/routing.ts              Which paths belong to whom, and where a year lives.
                                Pure and tested
-worker/index.ts                Forward /timing locally, take the POSTs, fill in the
-                               timestamp, and sweep lapsed holds on a cron
+worker/html.ts                 The auto-escaping template every Worker-rendered page is
+                               built with. Prettier reflows it — see the traps
+worker/cookies.ts              One cookie out of a Cookie header
+worker/csrf.ts                 The double-submit token every state-changing POST carries
+worker/session.ts              What a signed-in request carries, and the three cookies
+                               a session is. Refresh, and the two deadlines
+worker/site-chrome.ts          The club banner and footer for the pages the Worker
+                               renders — the third copy of that markup, on purpose
+
+  Nightingale Nightmare
 worker/nn-signup.ts            Validate a sign-up, record it, and render the outcome
 worker/nn-entry.ts             Decide which form to show; take an entry to Stripe
+worker/nn-entry-complete.ts    Paint what the club has recorded onto the return page
+worker/nn-results.ts           /nn/<year>/results/ — 404 until published, public after
+worker/medical-retention.ts    Deleting the medical notes on time. Its own file because
+                               it is a legal obligation rather than an admin feature
+
+  Payment
 worker/stripe.ts               One Checkout call, over fetch, with no SDK
 worker/stripe-signature.ts     Prove a webhook came from Stripe. Pure and tested
-worker/stripe-webhook.ts       The only thing here that records a payment
-worker/nn-entry-complete.ts    Paint what the club has recorded onto the return page
+worker/stripe-webhook.ts       The only thing here that records a race payment
+
+  Email
+worker/email.ts                Resend over fetch, and the four messages about an entry
+worker/email-skin.ts           The HTML part of those four — one card skin, four bodies
+worker/email-attachment.ts     An inline image read out of the Worker's own assets
+worker/email-outbox.ts         The drain. Nothing here can lose a message
+worker/ticket-email-skin.ts    The HTML part of a ticket confirmation. A second skin,
+                               not a widened first one — ADR-041
+
+  Tickets to a club social
+worker/events.ts               /events/ — the socials, and the ticket form for one
+worker/store-webhook.ts        The only thing that records a ticket payment
+worker/store-outbox.ts         The ticket outbox drain
+
+  The account area
+worker/account.ts              /account/ — register, sign in, sign out, the password
+                               pages, the member's own entries and the data page
+
+  The staff back office
+worker/admin.ts                The door and the dispatcher. Renders no page itself
+worker/admin-shell.ts          The frame every section is drawn in
+worker/nn-admin.ts             /admin/nn/ — the entries, the interest list, one entry in
+                               full, the exports and the start list
+worker/admin-people.ts         /admin/people/ — who holds what, and where it is granted
+worker/admin-emails.ts         /admin/emails/ — the outbox, the figures, the re-send
+worker/admin-events.ts         /admin/events/ — the socials, and who bought a ticket
+worker/admin-session.ts        ⚠️ Nothing calls this. The retired two-key scheme's
+                               cookie, kept whole until #63 removes it in one diff
 ```
 
 ## The routes
@@ -69,10 +149,18 @@ year it is run; everything below it belongs to 2026 and stays there when 2027 is
 | `/nn/2026/race-day/` | Race day — race HQ, the schedule, the prizes |
 | `/nn/2026/spectators/` | Watching the race — where to stand, where to park. **With the year**, because it is read alongside race day and names this year's HQ. **Nothing on the site links to it any more**: its content is on `/nn/2026/` as the `#spooktators` section, and the bar's `Spooktators` item was the last inbound link. The page is live and answers 200 to anybody holding the address — which is exactly the shape `/nn/course/` was in before it was retired with a 301, and it is a decision somebody should take rather than a side effect to leave standing |
 | `/nn/2026/entry/complete/` | Where Stripe returns somebody after the payment page. **It reports what the club has recorded and never what the redirect implies** — see [the return page](#the-return-page) |
+| `/nn/2026/results/` | **One running's results, and the only public surface the timing platform has.** Locked behind `nn.results.read` until the race's results are published and a **404 to everybody else, the signed-out public included**; public, cacheable for sixty seconds and indexable the moment they are. Publication is an explicit act by somebody holding `timing.result.publish` — finishing a race does not do it — and a correction afterwards is *unpublish, fix, publish*, so the address goes back to 404 in between rather than serving a table somebody is editing. `/nn/` and `/nn/2026/` link to it **only once it is published**, because a link to a 404 is a claim about a record. Rendered by the Worker, not by Astro — `worker/nn-results.ts`, and [ADR-042](../../../docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md) |
 | `/nn/2026/places-remaining` | **Not a page.** JSON, fetched by the entry form's own enhancement script — never rendered into the page's HTML, and never queried on the entry page's own render path. See [the entry form](#the-entry-form) |
 | `/nn/stripe-webhook` | **Not a page.** A POST from Stripe, handled before the assets binding; a GET 404s. The only thing in this platform that records a payment — see [the webhook](#the-webhook) |
 | `/privacy/` | **The club's notice, and not the race's** — the account, its columns, the lawful basis for each purpose, who else sees it and what can be asked for. In the club's brand, with no event theme anywhere near it. Written from `identity`'s columns and Supabase Auth's own, which is a good deal more than the sign-up form asks for. Linked from the footer of every page on both front doors, and from `/nn/privacy/`, which it links back down to |
 | `/_health` | **Not a page either**, and the underscore is what guarantees it never becomes one. The two database round trips, as JSON, for the smoke test — see [the health endpoints](#the-health-endpoints) |
+
+⚠️ **Three surfaces this Worker serves are deliberately not in that table**, because each
+is documented where it is argued rather than summarised twice: `/account/` has [a section
+of its own below](#the-account-area); `/admin/` is the staff back office, which is [the
+admin runbook](../../../docs/delivery/runbooks/entries-admin.md)'s; and `/events/` — the
+club's socials and their tickets — is `store`'s, in the root `CLAUDE.md`. `/`, `/404` and
+`/brand/` are in the layout map above and need no more said about them.
 
 **`/nn/<year>/` is the event `nn-<year>`**, and that convention is the whole of the coupling
 between a URL and a database row. It lives in `worker/routing.ts` as two functions that are

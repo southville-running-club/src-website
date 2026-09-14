@@ -306,11 +306,10 @@ primary — so the old site cannot be reachable at `old.` while it is still serv
 
 ## What it costs when this is done
 
-| | Per year |
-| --- | --- |
-| Today | **£735** |
-| After | **£427** |
-| With Direct Debit as well | **£177** |
+**[The figures are in the phases document](phases.md#what-it-costs-when-this-is-done)** —
+today, after Phase 7, and with Direct Debit as well. They were restated here in full until
+14 September 2026, identically to two other documents, which is three places for one set of
+numbers to drift apart.
 
 **The money was never the point.** The larger return is the [manual
 work](../foundations/problem-statement.md#3-volunteers-are-doing-work-the-system-should-do)
@@ -325,6 +324,15 @@ this removes, and volunteer time is the one measure still uncaptured.
 - **The renewal is automatic.** Silence costs £204.
 
 ## Still to decide
+
+**One of four lists of what is still open, and they are scoped differently on purpose.**
+[The phases document](phases.md#what-the-race-pages-still-need-from-the-committee) is the
+index of the set: the race pages' own outstanding asks live there, [the
+plan](#still-to-decide) ties each to a numbered step, [the
+overview](overview.md#what-the-committee-is-being-asked-for) is the committee-facing half,
+and [the decision log](../decisions/decision-log.md#what-is-still-open) holds the vendor,
+cost and governance ones. Before concluding that something is settled, read all four —
+this list is not the whole set.
 
 | | By |
 | --- | --- |

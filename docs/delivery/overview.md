@@ -141,11 +141,12 @@ the new site has been running quietly alongside the old one for months.
 
 ## What it costs
 
-| | Per year |
-| --- | --- |
-| Today | **£735** |
-| After | **£427** |
-| If payments move to Direct Debit as well | **£177** |
+**£735 a year becomes £427**, and £177 if the £2.50 member subscription moves to Direct
+Debit as well. The three figures set out side by side, with what changed between them, are in
+[the phases document](phases.md#what-it-costs-when-this-is-done) — **which is the one place
+they are written down.** This page and [the plan](plan.md) each restated the same table until
+14 September 2026, and three copies of a price list is three chances for a committee paper to
+quote a number that has since moved.
 
 The saving is real but modest. **The bigger return is volunteer time** — results that
 publish themselves, a newsletter archive that keeps itself up to date, and membership
@@ -154,6 +155,15 @@ requests that do not need checking by hand.
 ---
 
 ## What the committee is being asked for
+
+**One of four lists of what is still open, and they are scoped differently on purpose.**
+[The phases document](phases.md#what-the-race-pages-still-need-from-the-committee) is the
+index of the set: the race pages' own outstanding asks live there, [the
+plan](plan.md#still-to-decide) ties each to a numbered step, [the
+overview](#what-the-committee-is-being-asked-for) is the committee-facing half, and [the
+decision log](../decisions/decision-log.md#what-is-still-open) holds the vendor, cost and
+governance ones. Before concluding that something is settled, read all four — this list is
+not the whole set.
 
 | | When |
 | --- | --- |
