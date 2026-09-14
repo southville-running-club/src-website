@@ -65,6 +65,17 @@ fix it](../reference/timing-app-review.md#row-level-security).
 `TZ=UTC` is pinned in the test environment. Timezone conversion goes through **one tested
 module**, never through an ambient `toLocaleTimeString`.
 
+⚠️ **There are two ways to get this wrong and ESLint saw only one of them until 14 September
+2026.** *Rendering* a UTC instant through the machine's own zone is the one the
+`toLocale*String` ban catches. *Reading "now" as a civil date in the wrong zone* is the other,
+and `new Date().toISOString().slice(0, 10)` is how it is spelled — a shape that reads as
+"today" and means "today in UTC", so on a British Summer Time morning it names **yesterday**
+for an hour. `/account/details/` refused a date of birth of today for exactly that reason
+([#298](https://github.com/southville-running-club/src-website/issues/298)). `londonCivilDate()`
+is the conversion, in the same one module, and truncating an ISO instant to a date is banned
+outside it — in production code, because deliberate UTC arithmetic is what a timezone *test*
+is made of.
+
 *Where from:* [a correctness requirement, not a formatting
 preference](../foundations/requirements.md#time-and-timezone) — **Nightingale Nightmare
 sits on or near the clocks-change weekend**, and the timing app's `lib/london-time.ts`
