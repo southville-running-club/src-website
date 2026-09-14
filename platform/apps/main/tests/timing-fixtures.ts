@@ -88,6 +88,16 @@ export interface ResultsTeamFixture {
   expectedTime: string;
   /** What the Status column must show. */
   expectedStatus: string;
+  /**
+   * What the Category column must show — **derived, and never `category` above.**
+   *
+   * `placementFor()` resolves the gender and ADR-031's placement into one of the club's two
+   * lists, and `ageCategoryFor()` names the band. `category` is left populated beside it with
+   * a *different* string on purpose: `import_from_entries()` writes nothing to
+   * `timing.teams.category`, so a page reading that column renders a dash for every runner the
+   * club actually entered, and a fixture where the two agreed could not tell the difference.
+   */
+  expectedCategory: string;
   /** Finishing position, or null for a row that may not be given one. */
   expectedPosition: number | null;
 }
@@ -123,6 +133,7 @@ export const RESULTS_TEAMS: readonly ResultsTeamFixture[] = [
     // 11:02:00.000 → 11:47:23.450 is 45m 23.45s.
     expectedTime: '45:23.45',
     expectedStatus: 'Finished',
+    expectedCategory: "Women's Senior",
     expectedPosition: 1,
   },
   {
@@ -140,6 +151,7 @@ export const RESULTS_TEAMS: readonly ResultsTeamFixture[] = [
     // 11:02:00 → 12:14:07 is 1h 12m 7s, which is formatDuration's H:MM:SS branch.
     expectedTime: '1:12:07',
     expectedStatus: 'Finished',
+    expectedCategory: "Men's Vet 50",
     expectedPosition: 2,
   },
   {
@@ -156,6 +168,7 @@ export const RESULTS_TEAMS: readonly ResultsTeamFixture[] = [
     expectedBib: '21',
     expectedTime: '—',
     expectedStatus: 'On course',
+    expectedCategory: "Women's Senior",
     expectedPosition: null,
   },
 ] as const;
@@ -168,3 +181,125 @@ export const RESULTS_TEAMS: readonly ResultsTeamFixture[] = [
  * a page reading `start_at` would produce perfectly plausible times and nothing would notice.
  */
 export const WRONG_TIMES = ['47:23.45', '1:14:07'] as const;
+
+// ===========================================================================================
+// The two runnings #242 added, and the states they are in
+// ===========================================================================================
+// ⚠️ **Publication is the only thing that opens this page to the internet**, so the two states
+// either side of it each need a running of their own: a race that has been **finished and not
+// published**, which a signed-out visitor must still meet a 404 at, and a **published** one,
+// which is the first page on this site a stranger may read.
+//
+// **Two more years that will not happen**, for `timing-fixtures.ts`'s own reason: the address
+// is what names the event, so a results fixture has to be a real `nn-<year>`, and a year nobody
+// will ever run is what replaces the `zz-` guard the rest of this suite uses.
+//
+// ⚠️ **Neither is written by a test.** Both are read-only fixtures, seeded once and never
+// changed, which is what lets them be shared across Playwright projects the way the two above
+// are — `seedRosterEvent`'s argument in `timing-db.ts` is about fixtures a test *writes*.
+
+/** Finished, and nobody has published it. `/nn/2096/results/` is still a 404 to the public. */
+export const FINISHED_YEAR = '2096';
+export const FINISHED_EVENT_SLUG = `nn-${FINISHED_YEAR}`;
+export const FINISHED_EVENT_NAME = 'Nightingale Nightmare 2096';
+export const FINISHED_PATH = `/nn/${FINISHED_YEAR}/results/`;
+export const FINISHED_EVENT_ID = '0c0c0c0c-0000-4000-8000-000000000003';
+
+/** Published. `/nn/2095/results/` is public, cacheable and indexable. */
+export const PUBLISHED_YEAR = '2095';
+export const PUBLISHED_EVENT_SLUG = `nn-${PUBLISHED_YEAR}`;
+export const PUBLISHED_EVENT_NAME = 'Nightingale Nightmare 2095';
+export const PUBLISHED_PATH = `/nn/${PUBLISHED_YEAR}/results/`;
+export const PUBLISHED_EVENT_ID = '0c0c0c0c-0000-4000-8000-000000000004';
+
+export const PUBLISHED_START_AT = '2095-11-06T11:00:00Z';
+
+export interface PublishedTeamFixture {
+  id: string;
+  teamNumber: string;
+  firstName: string;
+  lastName: string;
+  /** `entries`' vocabulary — what `import_from_entries()` writes since ADR-039. */
+  gender: string | null;
+  /** ADR-031's answer, and null for everybody who was never asked. */
+  resultPlacement: 'female' | 'male' | null;
+  ageOnDay: number | null;
+  crossedAt: string;
+  expectedTime: string;
+  /**
+   * What the Category column must show **on the published page**, where there is no age to
+   * derive a band from — ADR-043. The band the same runner shows in the preview is
+   * `previewCategory`.
+   */
+  expectedCategory: string;
+  /** What the same row shows to a holder of `nn.results.read` before publication. */
+  previewCategory: string;
+}
+
+/**
+ * Three finishers, chosen so that the category column has something to be wrong about in each
+ * of the three ways it can be.
+ *
+ * - **Nesta is `female` in `entries`' vocabulary**, which the legacy `'F'` fixtures above do
+ *   not exercise at all — `normaliseTimingGender()` accepts both and a page that only ever met
+ *   one spelling proves nothing about the other.
+ * - ⚠️ **Rhodri is `non_binary` and asked to be placed with the men**, which is the assertion
+ *   [ADR-031](../../../../docs/architecture/decisions/adr-031-a-non-binary-entrant-says-where-to-be-placed.md)
+ *   is for: reading `gender` alone renders *no category* for them however they answered, and
+ *   that is a silent wrong answer rather than a failure.
+ * - **Ozzy has no gender recorded**, so there is no category and the column says so. Unknown
+ *   means no band rather than a guess, which is the rule everywhere else in the timing logic.
+ */
+export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
+  {
+    id: '0c0c0c0c-0000-4000-8000-000000000041',
+    teamNumber: '3',
+    firstName: 'Nesta',
+    lastName: 'Vaughan',
+    gender: 'female',
+    resultPlacement: null,
+    ageOnDay: 62,
+    crossedAt: '2095-11-06T11:44:10.000Z',
+    // 11:00:00 → 11:44:10 is 44m 10s. `start_at` only: this running was not delayed.
+    expectedTime: '44:10.00',
+    expectedCategory: 'Women',
+    previewCategory: "Women's Vet 60",
+  },
+  {
+    id: '0c0c0c0c-0000-4000-8000-000000000042',
+    teamNumber: '8',
+    firstName: 'Rhodri',
+    lastName: 'Bevan',
+    gender: 'non_binary',
+    resultPlacement: 'male',
+    ageOnDay: 41,
+    crossedAt: '2095-11-06T11:52:30.000Z',
+    expectedTime: '52:30.00',
+    expectedCategory: 'Men',
+    previewCategory: "Men's Vet 40",
+  },
+  {
+    id: '0c0c0c0c-0000-4000-8000-000000000043',
+    teamNumber: '15',
+    firstName: 'Ozzy',
+    lastName: 'Treharne',
+    gender: null,
+    resultPlacement: null,
+    ageOnDay: 33,
+    crossedAt: '2095-11-06T12:01:05.000Z',
+    expectedTime: '1:01:05',
+    expectedCategory: '—',
+    previewCategory: '—',
+  },
+];
+
+/**
+ * ⚠️ **The exact ages the published page may not print** — ADR-043, which withholds
+ * `age_on_day` from `results_for_event()`'s answer the moment a race is published.
+ *
+ * **Not matched against the whole document**, and that restraint is the point: these are bare
+ * numbers, and this repository has already paid for a leak assertion that matched one against
+ * rendered markup full of SVG path data. They are checked against the table's own cells, where
+ * a number can only have got there by being printed as a fact about somebody.
+ */
+export const PUBLISHED_AGES = PUBLISHED_TEAMS.map((team) => String(team.ageOnDay));

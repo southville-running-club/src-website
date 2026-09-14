@@ -220,8 +220,15 @@ function placedGender(runner: {
  * They take one of the 250, run the course and wear a bib, so they appear everywhere a runner
  * does *except* a prize list. Excluded here rather than at the import, because the roster is
  * the truthful record of who ran.
+ *
+ * ⚠️ **A null `role` means "this answer does not say", never "not a guide".**
+ * `results_for_event()` withholds the column once a race is published, because a guide on leg
+ * 2 of a named runner's team discloses that runner's disability by inference. Prizes are
+ * decided from `results_preview()`, which keeps it — so this predicate is only ever handed the
+ * answer that has one. Reading a prize list off the published payload would quietly put a
+ * guide in an age band, which is the defect this function exists to prevent.
  */
-function isGuide(runner: { role?: string }): boolean {
+function isGuide(runner: { role?: string | null }): boolean {
   return runner.role === 'guide';
 }
 

@@ -42,7 +42,7 @@ import {
   NN_PREFIX,
 } from './routing';
 import { handleAdmin } from './admin';
-import { handleNnResults } from './nn-results';
+import { handleNnResults, renderNnResultsLink, resolveNnResultsLink } from './nn-results';
 import { handleAccount } from './account';
 import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
@@ -494,6 +494,29 @@ export default {
       if (isNnSignupSuccess(url)) {
         renderNnSignupAcknowledgement(rewriter);
       }
+    }
+
+    // **The results, on the two pages that may link to them, and only once they are
+    // published** — #242. A link to a 404 is a claim about a record, so the anchor ships hidden
+    // on both pages and this is the only thing that reveals it.
+    //
+    // **Which running** is the year off the path on `/nn/<year>/`, and whatever
+    // `entries.current_entry_state('nn')` says is current on `/nn/` — the same source every
+    // other year-bearing link on that page is painted from, so nothing here names a year
+    // either. `nnEventSlugForYearPath` is the inverse of the path the race view already
+    // resolved, which is cheaper than carrying the slug through `NnRaceView` for one caller.
+    //
+    // **One small round trip on two page types, and every failure paints nothing.** It is
+    // `timing.results_published_at()` rather than the results read for the reason ADR-043
+    // gives: the question is one bit and the other function answers it with the whole field.
+    const resultsSlug =
+      yearSlug ??
+      (isNnRacePath(url.pathname) && race !== null && race.running !== null
+        ? nnEventSlugForYearPath(race.running.yearPath)
+        : null);
+
+    if (resultsSlug !== null) {
+      renderNnResultsLink(rewriter, await resolveNnResultsLink(env, resultsSlug));
     }
 
     // **The club's socials.** Read per request, so confirming a date or opening ticket sales
