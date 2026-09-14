@@ -513,6 +513,15 @@ so **the reasoning belongs in the pull request body and the commit message, not 
 the branch.** Settings and the full trade are in
 [the GitHub runbook](docs/delivery/runbooks/github-setup.md#3b-merge-behaviour--squash-only).
 
+⚠️ **Writing `Not "Closes #21"` closes #21.** GitHub matches `close[sd]?\s*#\d+` and does not
+read English: a negation, quotation marks and a bold **Not** in front of it are all invisible.
+It cost exactly that on 14 September 2026 — a pull request whose commit body opened *"⚠️ **Not
+"Closes #21".** This takes the third and fourth boxes and leaves the issue open for the
+second"* closed the issue on merge, and the issue was reopened by hand. **The habit this steps
+on is the one the paragraph above asks for**: bodies here discuss at length what a change does
+and does not close, which is exactly where the keyword gets typed next to a number. Write *"this
+does not close #21"* — the keyword and the number must not be adjacent, whatever is around them.
+
 **Documentation ships with the change it describes**, not afterwards. If you change
 behaviour that a README or ADR describes, change it in the same commit. A document that is
 wrong is worse than one that is missing, because it is trusted.
