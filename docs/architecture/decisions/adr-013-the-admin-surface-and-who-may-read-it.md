@@ -39,9 +39,22 @@ question is only what makes that grant safe, and who the person on the other end
 ### `ENTRIES_ADMIN_KEY` — a Worker secret, and the authorisation
 
 It gates every route under `/nn/admin` and travels as `p_key` to every database function behind
-them. Its SHA-256 digest lives in `entries.webhook_secrets` under the name `admin`; **the key
-itself is never stored anywhere**. It ships **null**, which refuses everything — the same shape
+them. Its SHA-256 digest lives in `entries.webhook_secrets` under the name `admin`; **no table
+holds the key itself**. It ships **null**, which refuses everything — the same shape
 `STRIPE_SECRET_KEY` being unset has, and a real state rather than a placeholder that half works.
+
+> **Qualified 14 September 2026, issue
+> [#21](https://github.com/southville-running-club/src-website/issues/21). Nothing about the
+> decision changes; one sentence claimed more than had been checked.**
+
+That sentence read **"the key itself is never stored anywhere"**, and the clause before it is why
+it cannot stand: the key **travels as `p_key`**, so it is in the body of an RPC call on every
+request the surface makes, and a log is somewhere a value can be stored. What is established is
+narrower — **no table holds it** — which is what the digest buys and is all the digest buys.
+[ADR-010](adr-010-webhook-writes-paid.md#decision-3--the-transition-function-takes-a-key-and-the-grant-is-still-anon)
+carries the full qualification and
+[the attention runbook](../../delivery/runbooks/entries-attention.md#the-webhook-key-travels-as-an-rpc-argument--one-check-still-owed)
+the one check still owed.
 
 **With no key bound the surface does not exist.** `handleNnAdmin` returns `null`, the request
 falls through to the static-assets binding, and the binding 404s exactly as it does for an

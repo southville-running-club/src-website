@@ -1670,8 +1670,17 @@ of those bypasses anonymously and as a signed-in person holding nothing.
 ordinary PostgREST calls with the published anon key would buy a free entry, because
 `create_pending_purchase()` issues purchase ids on request — and the five admin reads would hand
 anybody the club's entry list. `ENTRIES_WEBHOOK_KEY` and `ENTRIES_ADMIN_KEY` are **Worker
-secrets**; the database holds only their SHA-256 digests, in `entries.webhook_secrets`, and both
-ship null, which refuses everything.
+secrets**; `entries.webhook_secrets` holds only their SHA-256 digests, and both ship null, which
+refuses everything. ⚠️ **That is the table at rest and not the whole path, and issue
+[#21](https://github.com/southville-running-club/src-website/issues/21) is where the difference
+was written down.** A key a function *takes* arrives as an **argument** — in an RPC body, bound
+into a statement — so "the database holds only the digest" is true of the table and is not a
+claim about where the value has been. **Postgres statement logging was checked on 30 August 2026
+and captures none of it**; whether Supabase's API request logs retain the body is **unverified**,
+and [the attention runbook](docs/delivery/runbooks/entries-attention.md#the-webhook-key-travels-as-an-rpc-argument--one-check-still-owed)
+owns that check, who does it, and the rotation it would call for. **Not a redesign** — moving the
+key out of the argument list means a second Postgres role and a hand-minted JWT, which ADR-010
+weighed and declined.
 
 ⚠️ **The seventh arrived on 31 August 2026 and it is `create_pending_purchase()` itself —
 [ADR-029](docs/architecture/decisions/adr-029-holding-a-place-takes-a-key.md), issue #178.** That

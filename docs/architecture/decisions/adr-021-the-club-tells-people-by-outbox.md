@@ -70,8 +70,17 @@ CLAUDE.md names a fourteenth `anon`-callable function as a stop-and-ask. **This 
 session, so `authenticated` is unavailable, and the service role key may never reach a Worker.
 That is `expire_pending_holds()`'s situation exactly, with one difference that decides the
 design: **`claim_outbox_batch()` returns real email addresses.** So it takes the webhook key and
-checks it before reading anything, exactly as `record_checkout_event()` does, and the database
-holds only the digest. `record_send_result()` takes the same key and can only write to a row it
+checks it before reading anything, exactly as `record_checkout_event()` does, and the table
+holds only the digest. ⚠️ **Qualified 14 September 2026, issue
+[#21](https://github.com/southville-running-club/src-website/issues/21): that is the table at
+rest.** This key is passed as an argument, here as everywhere, so it transits in an RPC body —
+see
+[ADR-010](adr-010-webhook-writes-paid.md#decision-3--the-transition-function-takes-a-key-and-the-grant-is-still-anon)
+for the qualification and
+[the attention runbook](../../delivery/runbooks/entries-attention.md#the-webhook-key-travels-as-an-rpc-argument--one-check-still-owed)
+for the one check still owed. **Reusing this key is what makes that qualification land on the
+outbox too**, which is a further cost on the decision this paragraph already calls the weakest
+part. `record_send_result()` takes the same key and can only write to a row it
 was handed the id of.
 
 **It reuses `ENTRIES_WEBHOOK_KEY` rather than installing a second secret**, and that is the

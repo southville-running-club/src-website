@@ -294,3 +294,83 @@ moving to `paid`.
 **Nothing is lost while this is happening.** Stripe retries for roughly three days and its
 delivery log lets you resend by hand afterwards. The 5xx is deliberate: the alternative — a 200
 — would tell Stripe the payment was recorded when it was not.
+
+---
+
+## The webhook key travels as an RPC argument — one check still owed
+
+**This is not an attention flag and nothing here is on fire.** It is in this runbook because it
+is the page somebody already has open when the webhook is misbehaving, and because the one
+action it can call for — rotating `ENTRIES_WEBHOOK_KEY` — is the one written down two tables up.
+
+**What the database holds is the digest; what the *call* carries is the key.**
+`ENTRIES_WEBHOOK_KEY` is the **first argument** of `entries.record_checkout_event()`, so on
+every delivery the Worker sends it in the JSON body of a
+`POST /rest/v1/rpc/record_checkout_event`, PostgREST binds it into a statement, and Postgres
+executes that statement. `entries.webhook_secrets` still holds only a SHA-256 digest and that
+has never been in doubt — but *"the database never holds the key"* is a claim about the table at
+rest, and a reviewer reads it as a claim about the path. Issue
+[#21](https://github.com/southville-running-club/src-website/issues/21) is where that was
+spotted, and [ADR-010](../../architecture/decisions/adr-010-webhook-writes-paid.md#decision-3--the-transition-function-takes-a-key-and-the-grant-is-still-anon)
+is qualified accordingly.
+
+**Every key this platform presents as an RPC argument has the same property**, so this section is
+not only about the webhook one: `ENTRIES_ENTRY_KEY` ([ADR-029](../../architecture/decisions/adr-029-holding-a-place-takes-a-key.md)),
+`ENTRIES_ADMIN_KEY` ([ADR-013](../../architecture/decisions/adr-013-the-admin-surface-and-who-may-read-it.md))
+and `store`'s `STORE_ENTRY_KEY` and `STORE_WEBHOOK_KEY` all travel as `p_key`. Whatever the
+answer below turns out to be, it is the same answer for all five.
+
+### What has been checked, and what has not
+
+| | State | |
+| --- | --- | --- |
+| **Postgres statement logs** | ✅ **Checked 30 August 2026 — the key does not reach them** | `log_statement = ddl` captures DDL only, and an RPC call is a function invocation rather than a `CREATE`/`ALTER`/`DROP`. `log_min_duration_statement = -1` disables duration logging outright, which was **the one to worry about**: a call queued behind the per-event advisory lock is exactly the call that is slow, and slow is what duration logging selects for. `log_parameter_max_length_on_error = 0` keeps bind parameters out of error messages. `log_parameter_max_length = -1` looks alarming and has nothing to act on — it means *log parameters in full*, for statements that are already being logged, and by the two rows above none of these ever is |
+| **Supabase API request logs** | ⏳ **Owed** | Whether Supabase captures the request **body** of `POST /rest/v1/rpc/record_checkout_event`, and for how long, is platform behaviour rather than a database setting. **It cannot be read from SQL**, which is why it is not answered here |
+
+⚠️ **The checked half is a point-in-time answer about settings this repository does not pin.**
+`log_statement` and `log_min_duration_statement` are Supabase runtime configuration; a platform
+change to either reopens the first two routes silently, with nothing in this repository going
+red. That is an argument for rotating the key after the entry window regardless of what the
+second row comes back as.
+
+### Doing the check that is owed
+
+**Who:** either volunteer — it needs the production Supabase login and nothing else. **Roughly
+ten minutes.**
+
+1. Supabase dashboard → **Logs → API**.
+2. Search for **the first ~12 characters of the key only**. ⚠️ **Do not paste the whole live
+   secret into a log search box** — that is its own small exposure, and a prefix is enough to
+   answer the question.
+3. Narrow to `POST /rest/v1/rpc/record_checkout_event` and read one entry in full: the question
+   is whether the **request body** is there at all, not only whether the search matched.
+
+⚠️ **Freshness decides whether a clean answer means anything.** Free-tier log retention is
+short, so search within a day or two of a real delivery — a search run in a quiet week can come
+back clean because there is nothing left to search, which is a false negative that reads exactly
+like an answer. `/admin/nn/` filtered to **Paid** gives the date of the most recent one.
+
+⚠️ **This was parked against [#112](https://github.com/southville-running-club/src-website/issues/112)
+step 8, and #112 is closed.** The live-key swap it was waiting for happened on 7 September 2026,
+so the check is doable now and has no issue holding it any more. That is why it is written here
+rather than left in a comment thread.
+
+### If the body is captured
+
+**Rotate the key. Do not redesign the call.** PostgREST puts RPC arguments in the body by
+construction, so there is no header-shaped fix that does not change how the function
+authenticates — a second Postgres role and a hand-minted JWT, which ADR-010 considered and
+rejected for reasons that have not changed.
+
+Rotation is **manual step 3** in
+[the manual steps](../../../platform/apps/main/README.md#manual-steps): a new
+`wrangler secret put ENTRIES_WEBHOOK_KEY`, then the matching `update` on
+`entries.webhook_secrets`, **in that order**. The window between the two answers 5xx on every
+delivery and Stripe retries for three days, so nothing is lost — the failure to avoid is doing
+one half and forgetting the other, which is the `503 retry unauthorised` row in the table above.
+The verification query that settles which half is in place is
+[beside the manual steps](../../../platform/apps/main/README.md#what-is-actually-bound--measured-30-august-2026).
+
+**Rotate after the entry window rather than during it.** The exposure is a second factor on one
+function, behind TLS, in logs gated by the same Supabase login as the database itself — it does
+not justify a rotation window in the middle of a race selling 250 places.
