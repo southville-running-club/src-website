@@ -1852,15 +1852,50 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   schema** — safe because the function answers `null` for an unpublished race whoever asks, and
   because `anon` still holds no grant on any `timing` **table**; `timing.test.ts` pins both.
   **A correction after publication is _unpublish, fix, publish_**, and the page goes back to 404
-  in between rather than serving a table somebody is editing.
+  in between rather than serving a table somebody is editing;
+- **`/timing/events/<slug>/results/` and `/timing/events/<slug>/prizes/`** — the preview
+  somebody reads before pressing publish, the two buttons that call the functions above, the
+  prize presenter and four exports (#205), all behind `timing.result.publish`.
+  ⚠️ **They read `timing.results_preview()` and not `results_for_event()`, and that is not
+  tidiness.** `identity-permissions.test.ts` says in as many words that `timing-admin`
+  deliberately does **not** hold `nn.results.read` — *"running a race and seeing its results
+  before they are public are different powers"* — so the public read answers `null` to the very
+  person the preview page is for. ⚠️ **The preview carries two runner columns the public answer
+  may never carry**: `role`, because a guide's discloses by inference that their runner is
+  visually impaired (ADR-022), and `result_placement`, because ADR-031's raw answer is not the
+  published category derived from it. Both are needed to get a prize list right — without
+  `role`, `awards.ts` cannot exclude a guide and one wins a band, discovered at the
+  presentation. ⚠️ **The open-anomaly predicate has one statement fewer than before, not one
+  more**: `timing.open_anomaly_count()` is granted to nobody and is what `publish_results()`,
+  `event_detail()` and the preview all read, so the number on the page and the number in the
+  refusal cannot drift. `event_detail()`'s count was the third copy and was **narrower** — it
+  ignored orphans, so the race hub read *"0 open anomalies"* beside a publish button refusing
+  for open anomalies. ⚠️ **An export rides on `timing.result.publish` and has no permission of
+  its own**, unlike `nn.entry.export`: the entries export carries emergency contacts, ages and
+  medical flags, and this one carries a name, a bib, a category and a time — exactly what the
+  button beside it makes public to everybody. Revisit it the day an export grows a field
+  publication does not. ⚠️ **The presenter's "pass to next" exclusions and its two spot draws
+  live in the URL**, because the old application held them in component state and a refresh lost
+  them mid-ceremony; the prize export re-reads the same choices rather than recomputing, so the
+  file cannot name a different winner than the one who was handed the prize. **Every cell of the
+  `.xlsx` is an `inlineStr`**, which is the only thing that stops Excel reading a bib of `0311`
+  as `311`.
 
-**What is genuinely not built is the publish button**: the state machine exists, the public
-page is built, and nothing in a browser calls either function — #205 owns the control in the
-app, so publishing a race today is a SQL client or a test. ⚠️ **"nothing resolves an anomaly"
-is what this said until #252, "nothing marks a DNS, DNF or DQ, nothing finishes a race" until
-#253, "publication" flatly until #241, "nothing wipes a rehearsal" until #254, and "the public
-page" until #242** — seven such lines have gone stale in five days, which is the pattern rather
-than the exception.
+⚠️ **Publication is reachable end to end as of 14 September 2026, and both halves of this
+paragraph were written believing the other half was missing.** #205 built the preview and the
+publish button; #242 opened `/nn/<year>/results/` to a signed-out visitor. Each said *"what is
+genuinely not built is"* the other, and both merged the same afternoon. A `timing-admin` now
+previews a race, presses publish, and the public reads it at a permanent address.
+
+**What is genuinely not built is the live leaderboard** —
+[#204](https://github.com/southville-running-club/src-website/issues/204), staff-only in 2026
+per ADR-038, and the slice ADR-034 cuts if the simulation fails — **and the simulation itself**,
+[#207](https://github.com/southville-running-club/src-website/issues/207). ⚠️ **"nothing
+resolves an anomaly" is what this said until #252, "nothing marks a DNS, DNF or DQ, nothing
+finishes a race" until #253, "publication" flatly until #241, "nothing wipes a rehearsal" until
+#254, "the publish button" until #205 and "the public page" until #242** — eight such lines have
+gone stale in five days, which is the pattern rather than the exception, and two of them went
+stale in the same hour as each other.
 
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because

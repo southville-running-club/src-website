@@ -205,6 +205,8 @@ enforces it.
 | `/timing/events/` | `timing.event.manage` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/` | `timing.event.manage` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/marshals/` | `timing.marshal.assign` | ❌ | ❌ | ✅ |
+| `/timing/events/<slug>/results/` | `timing.result.publish` | ❌ | ❌ | ✅ |
+| `/timing/events/<slug>/prizes/` | `timing.result.publish` | ❌ | ❌ | ✅ |
 | `/timing/marshal/<slug>/` | `timing.crossing.record` **and a roster row** | ❌ | ✅ **on a race they are rostered for**, ❌ on any other | ❌ unless rostered — the permission is not enough, see above |
 | `/admin/` and everything under it | a staff role | ❌ | ❌ | ❌ |
 | `/nn/<year>/results/` | `nn.results.read`, **until that race's results are published** | ❌ | ❌ | ❌ |

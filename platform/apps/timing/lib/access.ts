@@ -79,6 +79,15 @@ const EVENT_SECTIONS: Record<string, string> = {
   anomalies: 'timing.crossing.resolve',
   crossings: 'timing.crossing.resolve',
   results: 'timing.result.publish',
+  /**
+   * The prize presenter — [#205](https://github.com/southville-running-club/src-website/issues/205).
+   *
+   * `timing.result.publish`, the same as the results preview beside it, and **not a permission
+   * of its own**. The prize list is the published results read a second way: every winner on it
+   * is derived from the same crossings, and a club that lets somebody put the table on the
+   * internet is not withholding the order the same table is read out in.
+   */
+  prizes: 'timing.result.publish',
 };
 
 /**
@@ -163,6 +172,31 @@ const EVENT_SECTION_ACTIONS: Record<string, Record<string, string>> = {
    * `danger-zone/reset` and `danger-zone/wipe` are refused exactly as `finish/now` is.
    */
   'danger-zone': { update: 'timing.event.manage' },
+  /**
+   * Publishing, and the file that leaves the building —
+   * [#205](https://github.com/southville-running-club/src-website/issues/205).
+   *
+   * ⚠️ **`export` rides on `timing.result.publish` and this is the decision #205 asked to be
+   * taken in a diff.** `nn.entry.export` is its own permission *because a file leaves the
+   * building*, and the same sentence could be written here. It is not, and the argument is the
+   * one that makes the two cases different: the entries export carries emergency contacts,
+   * ages, addresses and medical flags — data nobody outside the club will ever see — while a
+   * results file carries a name, a bib, a category and a time, which is **exactly what
+   * publishing puts on the open internet**. The set of people who may make this data public to
+   * everybody is the set who may download it, and a nineteenth permission would be a control
+   * over a narrower disclosure than the one the same button already authorises.
+   *
+   * ⚠️ **Revisit it the day an export grows a field publication does not.** A phone number to
+   * ring a prize winner on is the obvious candidate, and it is the point at which
+   * `timing.result.export` earns its row in `identity-permissions.test.ts`. Until then a
+   * nineteenth permission is on `CLAUDE.md`'s stop-and-ask list and this does not need one.
+   *
+   * `update` carries both presses — publishing and unpublishing — for `start/update`'s reason:
+   * one screen, one permission, and the `intent` field says which. A spelling nobody wrote down
+   * falls through to a refusal.
+   */
+  results: { update: 'timing.result.publish', export: 'timing.result.publish' },
+  prizes: { export: 'timing.result.publish' },
 };
 
 /**

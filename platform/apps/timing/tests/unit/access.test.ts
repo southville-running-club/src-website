@@ -45,6 +45,15 @@ describe('what each address demands', () => {
     ['/events/nn-2026/anomalies', 'timing.crossing.resolve'],
     ['/events/nn-2026/crossings', 'timing.crossing.resolve'],
     ['/events/nn-2026/results', 'timing.result.publish'],
+    // #205's two write addresses and the presenter beside them. ⚠️ **The export rides on
+    // `timing.result.publish` rather than on a permission of its own**, which is the decision
+    // #205 asked to be taken in a diff — `lib/access.ts` carries the argument: this file holds
+    // a name, a bib, a category and a time, which is exactly what the button beside it
+    // publishes to the entire internet.
+    ['/events/nn-2026/results/update', 'timing.result.publish'],
+    ['/events/nn-2026/results/export', 'timing.result.publish'],
+    ['/events/nn-2026/prizes', 'timing.result.publish'],
+    ['/events/nn-2026/prizes/export', 'timing.result.publish'],
     ['/marshal/nn-2026', 'timing.crossing.record'],
     // The form's target, not a page — #245. It demands the *section's* own permission, so
     // reading a roster and changing one cannot come apart by accident.
@@ -107,6 +116,14 @@ describe('an address nobody has written a rule for', () => {
   it.each([
     ['/events/nn-2026/whatever-comes-next'],
     ['/events/nn-2026/results/leg-2'],
+    // ⚠️ **#205's two sections have their actions written down and nothing else under them
+    // resolves.** `publish` in particular: it is what somebody would reach for, it is not the
+    // spelling, and an address nobody wrote down is refused rather than opened.
+    ['/events/nn-2026/results/publish'],
+    ['/events/nn-2026/results/unpublish'],
+    ['/events/nn-2026/results/export/xlsx'],
+    ['/events/nn-2026/prizes/update'],
+    ['/events/nn-2026/prizes/draw'],
     // ⚠️ **A fourth segment is only ever a write address that was written down.** `marshals`
     // has exactly one, and the section having *an* action must not open every spelling under
     // it — which is the way widening this table would most plausibly go wrong.
@@ -285,6 +302,9 @@ describe('who may open what', () => {
     ['/events/nn-2026/anomalies'],
     ['/events/nn-2026/crossings'],
     ['/events/nn-2026/results'],
+    ['/events/nn-2026/results/export'],
+    ['/events/nn-2026/prizes'],
+    ['/events/nn-2026/prizes/export'],
   ])('a marshal may not open %s', (path) => {
     expect(canOpen(MARSHAL, path)).toBe(false);
     expect(canOpen(ADMIN, path), 'but an admin may').toBe(true);
@@ -465,6 +485,63 @@ describe('the two addresses the capture screen calls', () => {
     expect(bare).not.toBeNull();
     expect(surfaceFor('/timing/marshal/nn-2026/sync')).toEqual(bare);
     expect(surfaceFor('/marshal/nn-2026/sync/')).toEqual(bare);
+  });
+});
+
+describe("the addresses #205's two screens post to", () => {
+  /**
+   * [#205](https://github.com/southville-running-club/src-website/issues/205). Publishing and
+   * both exports demand `timing.result.publish` — the section's own, like every other action
+   * on this table.
+   *
+   * ⚠️ **An export is a file leaving the building and it still does not have a permission of
+   * its own**, which is the decision #205 asked to be taken visibly. `nn.entry.export` is
+   * separate because the entries export carries emergency contacts, ages and medical flags;
+   * this one carries a name, a bib, a category and a time, which is exactly what the publish
+   * button beside it makes public to everybody. These assertions are where that decision is
+   * pinned, so reversing it is something somebody does on purpose.
+   */
+  it.each([
+    ['/events/nn-2026/results/update'],
+    ['/events/nn-2026/results/export'],
+    ['/events/nn-2026/prizes/export'],
+  ])('%s is gated, rather than being a hole beside a gated page', (path) => {
+    expect(surfaceFor(path)).not.toBeNull();
+    expect(canOpen(MARSHAL, path)).toBe(false);
+    expect(canOpen(NN_ADMIN, path)).toBe(false);
+    expect(canOpen([], path)).toBe(false);
+    expect(canOpen(ADMIN, path)).toBe(true);
+  });
+
+  it('demands exactly what the page it posts from demands', () => {
+    for (const [section, action] of [
+      ['results', 'update'],
+      ['results', 'export'],
+      ['prizes', 'export'],
+    ]) {
+      expect(surfaceFor(`/events/nn-2026/${section}/${action}`)?.permission).toBe(
+        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+      );
+    }
+  });
+
+  /**
+   * ⚠️ **A `timing.event.manage` holder may finish a race and may not publish it**, which is
+   * the whole of #241's separation expressed as a door: finishing is a label the race director
+   * sets and publishing is the club deciding the times are its answer.
+   */
+  it('refuses somebody who may run the race but not publish its results', () => {
+    const manageOnly = ['timing.event.manage'];
+
+    expect(canOpen(manageOnly, '/events/nn-2026/finish')).toBe(true);
+    expect(canOpen(manageOnly, '/events/nn-2026/results')).toBe(false);
+    expect(canOpen(manageOnly, '/events/nn-2026/results/update')).toBe(false);
+    expect(canOpen(manageOnly, '/events/nn-2026/prizes/export')).toBe(false);
+  });
+
+  it('carries the event slug, so the gate and the function agree on which race', () => {
+    expect(surfaceFor('/events/ptb-2026/results/update')?.eventSlug).toBe('ptb-2026');
+    expect(surfaceFor('/events/ptb-2026/prizes/export')?.eventSlug).toBe('ptb-2026');
   });
 });
 

@@ -13,16 +13,23 @@ import {
   clearAnomalyEvent,
   clearCaptureEvent,
   clearStatusEvent,
+  addPreviewOrphan,
+  clearPreviewEvent,
   clearResetEvent,
   clearRosterEvent,
   clearStartEvents,
+  previewEventSlug,
+  previewRaceState,
+  PREVIEW_TEAMS,
   resetEventSlug,
+  resetPreviewRace,
   resetRaceState,
   rosterEventSlug,
   resetStatusRace,
   seedAnomalyCrossings,
   seedAnomalyEvent,
   seedCaptureEvent,
+  seedPreviewEvent,
   seedResetEvent,
   seedRosterEvent,
   seedStartEvents,
@@ -114,6 +121,9 @@ test.beforeAll(async ({}, testInfo) => {
   // #254's race. ⚠️ **After the staff**, because it rosters the marshal by address — and
   // re-seeded per test, because every test in that block wipes every row on it.
   await seedResetEvent(testInfo.project.name, TIMING_MARSHAL_EMAIL);
+  // #205's race. Re-seeded per test, because publishing is a property of the race rather than
+  // of a row — `seedPreviewEvent`'s header carries the argument.
+  await seedPreviewEvent(testInfo.project.name);
   // The people were just re-created, so any jar cached by another spec names somebody who no
   // longer exists. See `forgetSessions`.
   forgetSessions();
@@ -143,6 +153,7 @@ test.afterAll(async ({}, testInfo) => {
   await clearAnomalyEvent(testInfo.project.name);
   await clearStatusEvent(testInfo.project.name);
   await clearResetEvent(testInfo.project.name);
+  await clearPreviewEvent(testInfo.project.name);
   await clearTimingStaff();
 });
 
@@ -2336,5 +2347,344 @@ test.describe('the danger zone', () => {
     await page.goto(dangerZonePath(testInfo.project.name));
 
     await expectNoSidewaysScroll(page, 'the timing danger-zone page at 320px');
+  });
+});
+
+/**
+ * The results preview, and the act of publishing —
+ * [#205](https://github.com/southville-running-club/src-website/issues/205), calling
+ * [#241](https://github.com/southville-running-club/src-website/issues/241)'s two functions.
+ *
+ * ⚠️ **This is the one press on this platform whose effect leaves the club**, so the assertions
+ * that matter most are about what a volunteer is *told* rather than about what a button does:
+ * publishing has to say "public" and unpublishing has to say the page has gone. The wording is
+ * unit-tested in `apps/timing/tests/unit/results-outcomes.test.ts`; what is here is that the
+ * right one arrives after the right press, and that the database agrees.
+ *
+ * ⚠️ **Both exports are asserted on the response and never on a download event.** The three
+ * engines disagree about what an attachment is and WebKit on a Linux runner renders a CSV in
+ * the tab, firing no download at all — `CLAUDE.md` carries the trap, and
+ * `nn-admin.spec.ts`'s two export tests are the shape copied here: the status, the content type
+ * and the filename, with `page.request` for the bytes.
+ */
+test.describe('the results preview', () => {
+  const previewPath = (project: string): string =>
+    `/timing/events/${previewEventSlug(project)}/results`;
+
+  /*
+   * ⚠️ `{}` is required by Playwright and rejected by ESLint — see this file's note above
+   * `test.beforeAll`: Playwright reads the source of a hook to work out its fixtures and
+   * refuses a first argument that is not a destructuring pattern. `testInfo` is what this is
+   * after, because the fixture race is per project.
+   */
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetPreviewRace(testInfo.project.name);
+  });
+
+  test('is refused to a marshal, like every other admin address', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const response = await page.goto(previewPath(testInfo.project.name));
+
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test('shows the field, the category and who is still out', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(previewPath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
+    await expect(page.getByText('Finished, not published')).toBeVisible();
+
+    const table = page.getByRole('table');
+    await expect(table.getByText('Grace Hopper')).toBeVisible();
+    // ⚠️ The band comes from `effectiveCategory()` and `ageCategoryFor()` — never from a
+    // stored column, and never from a third branch.
+    await expect(table.getByText("Men's Vet 50")).toBeVisible();
+    // ⚠️ A guide is on the start line and in no category — ADR-022. The preview says so rather
+    // than leaving a blank cell somebody would go looking behind.
+    await expect(table.getByText('Guide')).toBeVisible();
+    // The runner marked DNF keeps their row and loses their time.
+    await expect(table.getByText('Did not finish')).toBeVisible();
+  });
+
+  test('publishes, says it is public, and records it', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(previewPath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Publish these results' }).click();
+
+    // ⚠️ **"Anybody can read them"**, in as many words: a volunteer who read this as an
+    // internal confirmation has just put a table of names on the open internet.
+    //
+    // The page says it **twice** and deliberately — the outcome of the press, and the state
+    // the race is now in — so each is asserted by its own half of the sentence. Matching the
+    // shared phrase alone is a strict-mode violation rather than a stronger assertion.
+    await expect(
+      page.getByText(/Anybody can read them now, signed in or not/),
+    ).toBeVisible();
+    await expect(page.getByText(/Anybody can read them at the race/)).toBeVisible();
+    await expect(page.getByText('Published', { exact: true }).first()).toBeVisible();
+
+    const state = await previewRaceState(testInfo.project.name);
+    expect(state.published).toBe(true);
+    expect(state.auditActions).toContain('results_published');
+  });
+
+  test('takes them down again and says the page has gone', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(previewPath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Publish these results' }).click();
+    await page.getByRole('button', { name: 'Unpublish these results' }).click();
+
+    await expect(page.getByText(/gone back to not found/)).toBeVisible();
+
+    const state = await previewRaceState(testInfo.project.name);
+    expect(state.published).toBe(false);
+    // ⚠️ Audited as loudly as the publishing was — the old application recorded the act and not
+    // its reversal, which is backwards for anybody asking why a result they saw is gone.
+    expect(state.auditActions).toContain('results_unpublished');
+  });
+
+  /**
+   * ⚠️ **The count is shown before the press, which is the half that did not exist.** Until this
+   * page the only way to find out publication was blocked was to press the button.
+   */
+  test('refuses while a capture is unresolved, and says so before the press', async ({
+    page,
+  }, testInfo) => {
+    await addPreviewOrphan(testInfo.project.name);
+
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(previewPath(testInfo.project.name));
+
+    await expect(page.getByText(/1 capture still to be resolved/)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Publish these results' }).click();
+    await expect(page.getByText(/were not published/)).toBeVisible();
+
+    expect((await previewRaceState(testInfo.project.name)).published).toBe(false);
+  });
+
+  test('hands back a results CSV as an attachment', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = previewEventSlug(testInfo.project.name);
+
+    // ⚠️ **`page.request`, not a download event.** It shares the context's cookies and hands
+    // back a readable body on every engine, which `waitForEvent('download')` does not.
+    const response = await page.request.post(`/timing/events/${slug}/results/export`, {
+      form: { format: 'csv' },
+    });
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toBe('text/csv; charset=utf-8');
+    expect(response.headers()['content-disposition']).toBe(
+      `attachment; filename="${slug}-results.csv"`,
+    );
+
+    // ⚠️ **The mark is asserted on the bytes.** `response.text()` decodes with `TextDecoder`,
+    // which strips a leading U+FEFF and would report a mark that is present as absent.
+    const bytes = new Uint8Array(await response.body());
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+
+    const csv = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
+    expect(csv).toContain('Grace Hopper');
+
+    // ⚠️ **The fourth preview team is marked DNF, so the file carries them** — terminal
+    // statuses are exported with no position, which is the rule right beside "pending teams
+    // absent" and the opposite half of it. This assertion read `not.toContain` and contradicted
+    // the fixture it was written against; the fixture is what the preview-table test above
+    // needs, so the expectation is what was wrong.
+    //
+    // **Pending-absent is guarded where it can be stated exactly** — `timing-result-export`'s
+    // "ranks finishers and leaves a team still on the course out entirely", which builds a
+    // runner with no crossing at all. There is no such team in this fixture to assert it on.
+    expect(csv).toContain(PREVIEW_TEAMS[3].lastname);
+  });
+
+  test('hands back a workbook whose cells are text', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = previewEventSlug(testInfo.project.name);
+
+    const response = await page.request.post(`/timing/events/${slug}/results/export`, {
+      form: { format: 'xlsx' },
+    });
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(response.headers()['content-disposition']).toBe(
+      `attachment; filename="${slug}-results.xlsx"`,
+    );
+
+    // A ZIP, which is what an `.xlsx` is. `PK\x03\x04`.
+    const bytes = new Uint8Array(await response.body());
+    expect([...bytes.slice(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+  });
+
+  test('hands back the prize list the presenter is showing', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = previewEventSlug(testInfo.project.name);
+
+    const response = await page.request.post(`/timing/events/${slug}/prizes/export`, {
+      form: { format: 'csv' },
+    });
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-disposition']).toBe(
+      `attachment; filename="${slug}-prizes.csv"`,
+    );
+
+    const csv = new TextDecoder('utf-8', { ignoreBOM: true }).decode(
+      new Uint8Array(await response.body()),
+    );
+    expect(csv).toContain('1st Place Overall');
+    expect(csv).toContain('Grace Hopper');
+  });
+
+  test('refuses a format nobody wrote down rather than picking one', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const slug = previewEventSlug(testInfo.project.name);
+
+    const response = await page.request.post(`/timing/events/${slug}/results/export`, {
+      form: { format: 'pdf' },
+      maxRedirects: 0,
+    });
+
+    // Back to the page with an outcome, rather than a file of the wrong kind.
+    expect(response.status()).toBe(303);
+    expect(response.headers()['location']).toContain('outcome=incomplete');
+  });
+
+  test('gives a race that does not exist the ordinary not-found page', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing/events/zz-no-such-race/results');
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  });
+
+  test("is linked from the race's own page", async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
+
+    await page.getByRole('link', { name: 'Results for this race' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(previewPath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(previewPath(testInfo.project.name));
+
+    // ⚠️ Through the shared helper, which waits for a defined state rather than for the
+    // assertion to come good — `apps/main/tests/sideways-scroll.ts` carries the whole trap.
+    await expectNoSidewaysScroll(page, 'the timing results preview at 320px');
+  });
+});
+
+/**
+ * The prize presenter — #205.
+ *
+ * ⚠️ **The property under test is that a choice survives a reload**, which is the defect #205
+ * names: the old application held "pass to next" in component state and a refresh lost it
+ * mid-ceremony. Here it is in the address, so following a link and coming back is the test.
+ */
+test.describe('the prize presenter', () => {
+  const prizePath = (project: string): string =>
+    `/timing/events/${previewEventSlug(project)}/prizes`;
+
+  /*
+   * ⚠️ `{}` is required by Playwright and rejected by ESLint — see this file's note above
+   * `test.beforeAll`: Playwright reads the source of a hook to work out its fixtures and
+   * refuses a first argument that is not a destructuring pattern. `testInfo` is what this is
+   * after, because the fixture race is per project.
+   */
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetPreviewRace(testInfo.project.name);
+  });
+
+  test('is refused to a marshal', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const response = await page.goto(prizePath(testInfo.project.name));
+
+    expect(response?.status()).toBe(404);
+  });
+
+  test('reads the prizes out in order, with the winner under each', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(prizePath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Prize giving');
+    await expect(page.getByText('1st Place Overall')).toBeVisible();
+    await expect(page.getByText('Grace Hopper').first()).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **Passing a team takes them out of *every* prize**, which is what somebody means by it —
+   * an exclusion that only skipped one line would leave the same people winning everything
+   * else. And the choice is in the URL, so it survives the navigation.
+   */
+  test('keeps a passed-over team excluded across a reload', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(prizePath(testInfo.project.name));
+
+    await page.getByRole('link', { name: 'Not here — pass to the next' }).first().click();
+
+    await expect(page.getByText(/passed over/)).toBeVisible();
+    const url = page.url();
+
+    await page.reload();
+    await expect(page.getByText(/passed over/)).toBeVisible();
+    expect(page.url()).toBe(url);
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(prizePath(testInfo.project.name));
+
+    await waitForStyledLayout(page);
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+
+    expect(violations).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(prizePath(testInfo.project.name));
+
+    await expectNoSidewaysScroll(page, 'the timing prize presenter at 320px');
   });
 });

@@ -44,13 +44,29 @@ What exists is the `timing` schema
 the pure domain logic ported with its tests in `packages/shared/src/timing/`, the events hub
 and one race's page (#247), the marshal roster (#245), the entry list (#202, #249), the start
 screen (#250), the **capture screen** (#203), the **anomalies list and the timing log** (#252),
-**race status and finishing** (#253), the **danger zone** that wipes a rehearsal (#254), and
-`/nn/<year>/results/` reading `timing.results_for_event()`. ⚠️ **"Nothing that touches a race as
-it happens is built" is what this said until 13 September 2026** — a crossing is recorded,
-resolved, labelled, the race can be called finished, and the field can be cleared to run the
-whole thing again. What is still missing is **publication**: no result reaches anybody. The
-ladder of what "done" means is
-[#257](https://github.com/southville-running-club/src-website/issues/257).
+**race status and finishing** (#253), the **danger zone** that wipes a rehearsal (#254), the
+publication state machine (#241), the **results preview, the publish button, the prize presenter
+and the exports** (#205), and `/nn/<year>/results/` reading `timing.results_for_event()`.
+⚠️ **"Nothing that touches a race as it happens is built" is what this said until 13 September
+2026, and "what is still missing is publication" until the day after** — a crossing is recorded,
+resolved, labelled, the race can be called finished, its results published and taken down again,
+and the field can be cleared to run the whole thing again. What is still missing is the
+**public page**: `/nn/<year>/results/` still refuses a signed-out visitor, which is
+[#242](https://github.com/southville-running-club/src-website/issues/242). The ladder of what
+"done" means is [#257](https://github.com/southville-running-club/src-website/issues/257).
+
+## Two single-event assumptions that were never ported, and are worth saying so
+
+[#205](https://github.com/southville-running-club/src-website/issues/205) asks for two things to
+be de-hardcoded: `LOCATION_LABEL = "Ashton Court"` on the old home hero, and the race-day copy
+that assumed an evening start — *"Tonight, HH:MM"*. **Neither exists in this repository**, and
+`grep -r 'LOCATION_LABEL\|Tonight' platform/apps platform/packages` returns nothing.
+
+That is not an oversight to close later: ADR-034 rewrites this application rather than porting
+it, and neither assumption was carried across. The facts they stood in for are columns —
+`timing.events.course_notes` and `start_at`, rendered `Europe/London` through
+`packages/shared/src/london-time.ts` — and every screen reads them per race. **A Sunday 11:00
+race has neither a fixed venue label nor an evening, and now nothing here says it does.**
 
 ⚠️ **The capture screen is the one address here that needs JavaScript**, and it is the only
 place on this platform where that is the answer rather than a defect: an offline queue in
