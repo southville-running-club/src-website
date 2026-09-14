@@ -310,5 +310,9 @@ document a sign-in page that does not exist here and a mechanism this platform r
 build. [The review of that application](../../reference/timing-app-review.md) is where its
 model is recorded, for comparison rather than for use.
 
-**Anything about capturing a crossing.** Nothing here records a time yet. What exists and
-what does not is in [Phase 4](../phases.md#phase-4--the-timing-app-on-cloudflare).
+**Anything about running a race.** ⚠️ **This said "nothing here records a time yet" until
+14 September 2026**, and by then a crossing was captured, resolved, labelled, finished and
+published. Capturing, triaging, finishing and publishing are
+[the race-night runbook](timing-race-night.md)'s — this page ends at *"can open the thing I was
+asked to open"*, deliberately, and the two are read by the same person a week apart. What exists
+and what does not is in [Phase 4](../phases.md#phase-4--the-timing-app-on-cloudflare).
