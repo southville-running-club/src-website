@@ -1521,6 +1521,8 @@ export type Database = {
           format: string
           id: string
           name: string
+          results_published_at: string | null
+          results_published_by: string | null
           slug: string
           start_at: string
         }
@@ -1533,6 +1535,8 @@ export type Database = {
           format: string
           id?: string
           name: string
+          results_published_at?: string | null
+          results_published_by?: string | null
           slug: string
           start_at: string
         }
@@ -1545,6 +1549,8 @@ export type Database = {
           format?: string
           id?: string
           name?: string
+          results_published_at?: string | null
+          results_published_by?: string | null
           slug?: string
           start_at?: string
         }
@@ -1757,6 +1763,7 @@ export type Database = {
       list_events: { Args: never; Returns: Json }
       marshal_event: { Args: { p_event_slug: string }; Returns: Json }
       open_anomalies: { Args: { p_event_slug: string }; Returns: Json }
+      publish_results: { Args: { p_event_slug: string }; Returns: Json }
       record_crossing: {
         Args: {
           p_anomaly_flag?: boolean
@@ -1799,6 +1806,7 @@ export type Database = {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json
       }
+      unpublish_results: { Args: { p_event_slug: string }; Returns: Json }
       update_event: {
         Args: {
           p_course_notes?: string
