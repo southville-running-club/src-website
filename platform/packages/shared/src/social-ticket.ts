@@ -454,7 +454,7 @@ export async function recordTicketCheckoutEvent(
   // against production, on the endpoint's own test event.
   //
   // **Reading `result` also makes the rollback direction safe.** A database that predates
-  // `20260913230000` answers `(false, 'no_such_session')` and a database after it answers
+  // `20260914170000` answers `(false, 'no_such_session')` and a database after it answers
   // `(true, 'no_such_session')`; both land in the same branch below, so neither half of this
   // change depends on the other having shipped.
   if (

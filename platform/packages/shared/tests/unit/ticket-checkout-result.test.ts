@@ -14,7 +14,7 @@ import type { DbClient } from '../../src/supabase';
  * endpoint's own test event, hours after the endpoint was created.
  *
  * **Both sides of the seam are asserted here on purpose**, because the migration and the
- * deploy are not sequenced: a database either side of `20260913230000` must land in the same
+ * deploy are not sequenced: a database either side of `20260914170000` must land in the same
  * branch, or a rollback reintroduces the defect silently.
  */
 
@@ -46,7 +46,7 @@ describe('an unrecognised session', () => {
   });
 
   it('is a final answer from a database that does not, so a rollback is safe', async () => {
-    // The shape `20260913230000` replaced. A Worker carrying this file may meet it either
+    // The shape `20260914170000` replaced. A Worker carrying this file may meet it either
     // because the migration has not landed yet or because the schema was rolled back.
     const outcome = await recordTicketCheckoutEvent(
       clientAnswering({ ok: false, result: 'no_such_session' }),

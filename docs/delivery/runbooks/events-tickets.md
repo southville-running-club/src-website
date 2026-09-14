@@ -134,7 +134,7 @@ of them was a credential problem. `store.record_checkout_event()` answered `ok =
 unrecognised session as well as for a refused key, and the Worker reported both as `bad_key` —
 so the endpoint's own test event produced a log line naming a digest that was perfectly correct,
 and Stripe retried for three days on something that could never succeed. Fixed by
-`20260913230000`, which makes an unrecognised session `(true, 'no_such_session')` — matching
+`20260914170000`, which makes an unrecognised session `(true, 'no_such_session')` — matching
 what `entries.record_checkout_event()` has always answered. **On a Worker or a database older
 than that, read a `retry unavailable` from a test event as "signature verified, step 0.2
 unproven" rather than as a wrong digest.**

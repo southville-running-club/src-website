@@ -430,7 +430,7 @@ describe('the outbox drain', () => {
    * session created against another environment, the endpoint's own test event — and it is
    * emphatically not a credential problem. Answering `ok = false` made the Worker report
    * `bad_key`, which reached a volunteer as a 503 and a log line naming a digest that was
-   * correct. Fixed by `20260913230000`; `entries.record_checkout_event()` has always answered
+   * correct. Fixed by `20260914170000`; `entries.record_checkout_event()` has always answered
    * its equivalent `not_ours` with `ok = true`.
    */
   it('answers an unrecognised session without calling it a bad key', async () => {
