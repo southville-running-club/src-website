@@ -47,9 +47,23 @@ export function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+/**
+ * A ratio somebody already has, rounded the way this repository writes one: `4.53:1`.
+ *
+ * **Split out from `ratioLabel()` for the caller that holds the number rather than the
+ * colours** — `admin-contrast.test.ts`, whose four failure messages each re-implemented
+ * `.toFixed(2)}:1` by hand. #175. Passing the colours back to `ratioLabel()` would have
+ * measured the pair a second time, so a message could name one pair while the assertion beside
+ * it asserted another; taking the ratio means **the message cannot say a different number from
+ * the one that failed.**
+ */
+export function formatRatio(ratio: number): string {
+  return `${ratio.toFixed(2)}:1`;
+}
+
 /** Rounded the way the ratios are written in comments and rendered on `/brand/`. */
 export function ratioLabel(a: string, b: string): string {
-  return `${contrastRatio(a, b).toFixed(2)}:1`;
+  return formatRatio(contrastRatio(a, b));
 }
 
 /**

@@ -24,6 +24,8 @@ import {
   formatPence,
   isExportKind,
   medicalRetentionClause,
+  outboxAttemptsWords,
+  plural,
   ENTRY_STATUSES,
   type AdminDiscountCode,
   type AdminEntry,
@@ -1629,13 +1631,29 @@ function entriesSection(
  * **Not an em dash.** Every other cell on this page uses one for "nothing here", and this is
  * not nothing — it is a purchase the club took money for and gave back, and the words are
  * what stop it reading as a rendering fault.
+ *
+ * ## Surname first, and it is this function that says so
+ *
+ * Both documents this file renders sort by surname and both print the name that way, and the
+ * printed start list wrote `${lastName}, ${firstName}` inline — the same convention, in a
+ * second place, four hundred lines away. #175. So the parameter is the shape rather than
+ * `AdminEntry`: `StartListExportRow` satisfies it, and the ordering is decided once.
+ *
+ * **The null branch is unreachable from the start list and is still the right answer there.**
+ * `entries.admin_export('start_list')` inner-joins the entrants, because a start list has
+ * nobody to put on a row without one — so those two fields are `string` on that type and this
+ * branch cannot fire. If that ever loosens, the sheet prints a sentence rather than
+ * `null, null`, which is the failure direction the registration desk needs.
  */
-function runnerName(entry: AdminEntry): string {
-  if (entry.lastName === null || entry.firstName === null) {
+function runnerName(entrant: {
+  firstName: string | null;
+  lastName: string | null;
+}): string {
+  if (entrant.lastName === null || entrant.firstName === null) {
     return 'No runner recorded';
   }
 
-  return `${entry.lastName}, ${entry.firstName}`;
+  return `${entrant.lastName}, ${entrant.firstName}`;
 }
 
 /**
@@ -2171,7 +2189,7 @@ function startListCategory(row: StartListExportRow): string {
 function startListRow(row: StartListExportRow): Html {
   return html`<tr>
     <th scope="row">
-      ${row.lastName}, ${row.firstName}
+      ${runnerName(row)}
       ${
         /* **The runner's own number goes inside the runner cell, and not into a sixth
            column.** The comment above this function is the whole argument: five columns
@@ -2971,10 +2989,18 @@ function emailTemplateWords(template: string): string {
   return template;
 }
 
+/**
+ * What one message on the timeline says about itself.
+ *
+ * **The attempt count is `outboxAttemptsWords()` rather than a noun written here**, because it
+ * was written here and `/admin/emails/` wrote its own: the same row read *"Failed after 3
+ * tries"* on this page and *"3 attempts"* on the queue. #175, and the word the club uses is
+ * argued where the function is.
+ */
 function emailStatusWords(message: AdminEntryDetail['emails'][number]): string {
   if (message.status === 'sent') return 'Sent';
   if (message.status === 'failed') {
-    return `Failed after ${plural(message.attempts, '1 try', `${message.attempts} tries`)}`;
+    return `Failed after ${outboxAttemptsWords(message.attempts)}`;
   }
 
   return 'Waiting to go';
@@ -3289,11 +3315,6 @@ function postButton(
     <input type="hidden" name="event" value="${slug}" />
     <button type="submit" class="${className}">${label}</button>
   </form>`;
-}
-
-/** One or the other. Written out rather than concatenated, so each reads as a sentence. */
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? one : many;
 }
 
 /**

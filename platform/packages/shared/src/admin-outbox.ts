@@ -16,6 +16,7 @@
 import { z } from 'zod';
 
 import { formatEntryReference } from './entry-reference';
+import { plural } from './plural';
 import type { UserClient } from './supabase';
 
 /** One row of the queue, as the page shows it. */
@@ -59,6 +60,30 @@ export type OutboxListResult =
   | { status: 'ok'; figures: OutboxFigures; messages: OutboxRow[] }
   | { status: 'unauthorised' }
   | { status: 'unavailable'; error: string };
+
+/**
+ * How many times the club has tried to send one message, in the club's own noun.
+ *
+ * **The noun is the decision here, and it is one string because it was two.** `/admin/emails/`
+ * rendered this column as *"3 attempts"* and `/admin/nn/entry/` as *"Failed after 3 tries"* —
+ * the same row, the same number, two words for it, which is issue #175's opening example. Both
+ * surfaces call this now, so a third one cannot invent a third noun and the club's word is one
+ * edit rather than a search.
+ *
+ * **It is "attempt" because that is the word the club already wrote down.**
+ * `docs/delivery/runbooks/entries-email.md` — the page a volunteer reads beside these two — says
+ * *"three attempts"*, *"attempt count"* and *"the immediate attempt"*, and says "tries"
+ * nowhere. It also reads as well bare in a table cell as it does in a sentence, which "tries"
+ * does not: *"Failed after 1 try"* is fine and a column holding *"1 try"* is not.
+ *
+ * **Zero is the caller's business, not this function's.** The queue renders nothing at all for a
+ * message nobody has tried yet, rather than *"0 attempts"* beside "Waiting to go"; the entry
+ * timeline only reaches this on a `failed` row, where the count cannot be zero. Answering with
+ * words for zero would make that first decision invisible at the one call site that takes it.
+ */
+export function outboxAttemptsWords(attempts: number): string {
+  return plural(attempts, '1 attempt', `${String(attempts)} attempts`);
+}
 
 export type ResendResult =
   | { status: 'ok'; template: string }

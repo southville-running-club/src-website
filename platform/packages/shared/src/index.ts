@@ -133,12 +133,15 @@ export { claimOutboxBatch, recordSendResult, type OutboxMessage } from './email-
 
 export {
   fetchOutboxList,
+  outboxAttemptsWords,
   resendOutboxMessage,
   type OutboxFigures,
   type OutboxListResult,
   type OutboxRow,
   type ResendResult,
 } from './admin-outbox';
+
+export { plural } from './plural';
 
 export {
   CHECKOUT_EVENT_OUTCOMES,

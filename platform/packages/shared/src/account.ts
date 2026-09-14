@@ -154,8 +154,33 @@ const optionalText = z.preprocess(
   z.union([z.string().trim(), z.undefined()]),
 );
 
+/**
+ * Today as `YYYY-MM-DD`, **built by the function the other side of the comparison uses**.
+ *
+ * It was `new Date().toISOString().slice(0, 10)`, which is a second implementation of
+ * `toIsoDate()`'s output — imported into this very file — and the two are then compared as
+ * strings by `dateOfBirthIssue()`. A lexicographic `>` over two date strings is only a date
+ * comparison while both sides agree about padding and separators, and nothing held them to
+ * that: the shape was asserted in one place and re-derived in another. #175.
+ *
+ * The characters are identical for every date this can be called with, so this changes no
+ * behaviour. What it changes is that there is one thing to break rather than two to keep in
+ * step.
+ *
+ * ⚠️ **Still UTC rather than `Europe/London`, deliberately, and it is not what
+ * `london-time.ts` is for.** The two disagree for one hour on a BST morning, and only about
+ * whether a date of birth typed as *today* is in the future — a wrong answer for somebody
+ * born within the hour, which is not the population filling in `/account/details/`. Moving
+ * it is a behaviour change with a test of its own and does not belong in a hygiene commit.
+ */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+
+  return toIsoDate({
+    year: now.getUTCFullYear(),
+    month: now.getUTCMonth() + 1,
+    day: now.getUTCDate(),
+  });
 }
 
 /**
