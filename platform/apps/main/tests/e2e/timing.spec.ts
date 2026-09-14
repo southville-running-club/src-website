@@ -2421,7 +2421,14 @@ test.describe('the results preview', () => {
 
     // ⚠️ **"Anybody can read them"**, in as many words: a volunteer who read this as an
     // internal confirmation has just put a table of names on the open internet.
-    await expect(page.getByText(/Anybody can read them/)).toBeVisible();
+    //
+    // The page says it **twice** and deliberately — the outcome of the press, and the state
+    // the race is now in — so each is asserted by its own half of the sentence. Matching the
+    // shared phrase alone is a strict-mode violation rather than a stronger assertion.
+    await expect(
+      page.getByText(/Anybody can read them now, signed in or not/),
+    ).toBeVisible();
+    await expect(page.getByText(/Anybody can read them at the race/)).toBeVisible();
     await expect(page.getByText('Published', { exact: true }).first()).toBeVisible();
 
     const state = await previewRaceState(testInfo.project.name);
@@ -2488,9 +2495,17 @@ test.describe('the results preview', () => {
 
     const csv = new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes);
     expect(csv).toContain('Grace Hopper');
-    // Still on the course, so absent from the file — a row with a blank time and no status
-    // reads as a finisher whose clock was lost.
-    expect(csv).not.toContain(PREVIEW_TEAMS[3].lastname);
+
+    // ⚠️ **The fourth preview team is marked DNF, so the file carries them** — terminal
+    // statuses are exported with no position, which is the rule right beside "pending teams
+    // absent" and the opposite half of it. This assertion read `not.toContain` and contradicted
+    // the fixture it was written against; the fixture is what the preview-table test above
+    // needs, so the expectation is what was wrong.
+    //
+    // **Pending-absent is guarded where it can be stated exactly** — `timing-result-export`'s
+    // "ranks finishers and leaves a team still on the course out entirely", which builds a
+    // runner with no crossing at all. There is no such team in this fixture to assert it on.
+    expect(csv).toContain(PREVIEW_TEAMS[3].lastname);
   });
 
   test('hands back a workbook whose cells are text', async ({ page }, testInfo) => {

@@ -4861,6 +4861,7 @@ describe("publishing a race's results", () => {
 
       expect((await preview(PUBLISHER))?.open_anomalies).toBe(1);
 
+      await finishRace();
       const refusal = await asPerson<Envelope>(
         PUBLISHER,
         'select timing.publish_results($1) as answer',

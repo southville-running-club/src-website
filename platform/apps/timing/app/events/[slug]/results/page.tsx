@@ -182,9 +182,25 @@ function PreviewTable({ payload }: { payload: ResultsPreview }) {
   let finished = 0;
 
   return (
-    <div className="results-scroll">
+    // ⚠️ **A scrollable region has to be reachable by keyboard, and this table holds nothing
+    // focusable.** axe's `scrollable-region-focusable` is satisfied either by the region being
+    // focusable itself or by it *containing* something focusable; a results table is all text,
+    // so it is neither, and somebody navigating by keyboard at 375px could not scroll it at
+    // all. **Only mobile-safari sees it**, because the table does not overflow at desktop width
+    // and a region that does not scroll is not a scrollable region.
+    //
+    // `admin-people.ts` carries the original note and `nn-results.ts` the second instance —
+    // this is the third, and all three are the same three attributes.
+    <div
+      className="results-scroll"
+      tabIndex={0}
+      role="region"
+      aria-labelledby="results-table-caption"
+    >
       <table className="results-table">
-        <caption className="results-meta">{results.length} entries</caption>
+        <caption className="results-meta" id="results-table-caption">
+          {results.length} entries
+        </caption>
         <thead>
           <tr>
             <th scope="col">Pos</th>

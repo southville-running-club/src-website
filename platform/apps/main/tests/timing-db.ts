@@ -912,7 +912,12 @@ export const PREVIEW_TEAMS = [
   { number: '702', firstname: 'Ada', lastname: 'Lovelace', gender: 'female', age: 34 },
   // ⚠️ A guide: finishes, appears on the table, and is in no category.
   { number: '703', firstname: 'Iris', lastname: 'Murdoch', gender: 'female', age: 41 },
-  // Still on the course — no capture at all, so the preview shows them and the export does not.
+  // ⚠️ **No capture at all and marked DNF below**, which is one team doing one job rather than
+  // two: the preview keeps their row and drops their time, and the export carries them with no
+  // position. **The comment here said "the export does not" and that was never true** — a
+  // terminal status is exported, and only a *pending* team is left out. Nothing in this fixture
+  // is pending, so that half of the rule is asserted in `timing-result-export.test.ts`, where a
+  // runner with no crossing and no status can be built exactly.
   { number: '704', firstname: 'Mary', lastname: 'Somerville', gender: 'female', age: 29 },
 ] as const;
 
