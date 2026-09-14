@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { formatEntryReference } from './entry-reference';
-import { formatPence } from './entry-state';
+import { formatPence } from './money';
 import type { DbClient } from './supabase';
 
 /**

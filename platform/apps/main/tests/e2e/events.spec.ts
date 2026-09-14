@@ -112,7 +112,7 @@ test.describe('the Christmas party page', () => {
     const body = await page.content();
 
     // ⚠️ A template that writes its own `£` beside a call to `formatPence()` renders
-    // `££10.00`. This repository already carries six instances of that pattern (issue #175),
+    // `££10.00`. This repository carried six instances of that pattern (issue #175, closed),
     // and the quantity picker's labels are the seventh place it could have arrived.
     expect(body.match(/££/gu), 'no doubled currency symbol').toBeNull();
 

@@ -21,6 +21,7 @@
     "./privacy": "./src/privacy.ts",
     "./session-cookies": "./src/session-cookies.ts",
     "./age-category": "./src/age-category.ts",
+    "./money": "./src/money.ts",
     "./timing/bib": "./src/timing/bib.ts",
     "./timing/anomaly": "./src/timing/anomaly.ts",
     "./timing/results": "./src/timing/results.ts",

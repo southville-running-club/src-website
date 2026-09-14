@@ -101,7 +101,6 @@ export {
   fetchPlacesRemaining,
   formatEventDate,
   formatEventStartTime,
-  formatPence,
   type EntryFee,
   type EntryState,
   type EntryStateResult,
@@ -140,6 +139,8 @@ export {
   type OutboxRow,
   type ResendResult,
 } from './admin-outbox';
+
+export { formatPence } from './money';
 
 export { plural } from './plural';
 

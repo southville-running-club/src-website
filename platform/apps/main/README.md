@@ -1004,15 +1004,29 @@ off every one degrades to the fields being visible and the server deciding** —
 path the `no-javascript` project tests.
 
 **It validates with the shared schema rather than a copy of the rules**, which puts Zod in
-the page bundle: **68.8 kB raw, 19.2 kB gzipped**, deferred, and requested only by `/nn/`.
-That is a real cost on the poor-signal phone this site is built for, it was asked for
-deliberately, and the figure is written down here so it can be revisited rather than
-rediscovered. Dropping inline validation — keeping the category, the box and the total —
-would take it to roughly 2 kB.
+the page bundle: **76.1 kB raw, 21.0 kB gzipped** as measured on 14 September 2026, deferred,
+and requested only by `/nn/`. That is a real cost on the poor-signal phone this site is built
+for, it was asked for deliberately, and the figure is written down here so it can be revisited
+rather than rediscovered. Dropping inline validation — keeping the category, the box and the
+total — would take it to roughly 2 kB.
+
+⚠️ **That figure was 68.8 kB / 19.2 kB when this paragraph was written and nothing re-measured
+it**, which is the ordinary fate of a number in prose. It is re-measured here because #175
+moved `formatPence` into this script and the cost had to be known: **+128 bytes raw, +31
+gzipped.** The naïve import — `formatPence` out of `entry-state.ts`, where it lived — was
+**+5,969 bytes**, because that module builds Zod schemas at module scope and nothing
+tree-shakes them. `packages/shared/src/money.ts` is what the difference bought.
 
 **It never blocks a submission.** No `preventDefault`: the browser submits and the Worker
 decides, exactly as with scripting off, so the two can never disagree about what was
 accepted.
+
+⚠️ **They could disagree about the age category, and did, until 14 September 2026.** The
+preview built a date of birth by padding each box to a width; the server tests digits. A day
+of `015` got no preview for a submission the server accepts, and a year of `90` was padded to
+`0090` and previewed for one `/^\d{4}$/` was always going to refuse. Neither could change what
+was accepted — this script decides nothing — but "the enhancement and the server agree" is
+worth less as a claim than as a fact, so both call `civilDateFromBoxes()` now. #175.
 
 **The Worker bundle grew by 12.8 kB raw, 3.7 kB gzipped** — 1312.3 kB / 231.5 kB gzipped
 before this slice, 1325.0 kB / 235.2 kB after, measured with `wrangler deploy --dry-run`.

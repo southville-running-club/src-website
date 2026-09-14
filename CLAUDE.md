@@ -286,24 +286,33 @@ re-run.
   partial one is a different decision." So `cancel_entry()` always refunds in full or nothing,
   and the `entry_refunded` email reflects only those two states — there is no wording anywhere
   for a partial amount, because the code path that would need it does not exist.
-  **`formatPence()` (`packages/shared/src/entry-state.ts`) is the one function meant to render
-  money to text**, returning the `£` and the pound-pence formatting together — including
-  `'Free'` for zero — rather than a bare number a caller adds a symbol to. **One place re-derives
-  it by hand instead of calling it**: `NnEntryForm.astro`'s running-total script, a client
-  `<script>` in an Astro island, re-implements the same `£`/`.00`/`'Free'` shape rather than
-  importing `formatPence` — behaviourally identical today, tracked as the sixth instance of this
-  pattern by [#175](https://github.com/southville-running-club/src-website/issues/175), still
-  open. Every _other_ `£` anywhere in this repository, checked by grep, is inside a comment; the
-  three CSV exports carry an amount as a raw pence integer with no symbol; no SQL renders money
-  to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
-  `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
-  already produces it — the caller in `NnEntryForm.astro` is the one place that still does not.
-  ⚠️ **Four of #175's six sites closed on 14 September 2026 and the two in `NnEntryForm.astro`
-  did not, deliberately.** The issue's own advice was _"none should land before entries open; two
-  are on the entry form"_ — which has inverted: entries opened on 1 September and the race is
-  selling, so the two sites on the form that takes the money are now the riskiest of the six
-  rather than the safest, and they wait for a quiet window or for the window to close on 30
-  October. So the paragraph above still stands exactly as written. **What came out of the other
+  ⚠️ **`formatPence()` is `packages/shared/src/money.ts` since 14 September 2026, not
+  `entry-state.ts`**, and the move is the interesting part rather than the tidying. It is the
+  one function meant to render money to text, returning the `£` and the pound-pence formatting
+  together — including `'Free'` for zero — rather than a bare number a caller adds a symbol to.
+  **Every caller calls it now**, including `NnEntryForm.astro`'s running-total script, which was
+  the last of #175's six sites. Every `£` anywhere else in this repository, checked by grep, is
+  inside a comment; the three CSV exports carry an amount as a raw pence integer with no symbol;
+  no SQL renders money to text. A template that writes its own `£` beside a call to
+  `formatPence()` doubles it — `££18.00`, and `£Free` on a given place. **Why a leaf module:
+  importing it out of `entry-state.ts` cost the entry form's browser bundle 5,969 bytes**, because
+  that module builds Zod schemas at module scope and nothing tree-shakes them; six kilobytes for
+  one call on the page that takes the money is a poor trade, and _"re-implement it, then"_ is the
+  trade #175 exists to refuse. `money.ts` cost **128 bytes**, measured both ways on a production
+  build. It is `plural.ts`'s shape exactly, and for the same reason two days earlier.
+  ⚠️ **Both `NnEntryForm.astro` sites were deliberately held back on 14 September and landed the
+  same day.** The reasoning for holding them was real — entries opened on 1 September and the race
+  is selling, so the two sites on the form that takes the money are the riskiest of the six rather
+  than the safest — and what retired it is that neither change is on the submission path: the
+  running total is a `textContent` assignment, and the second site is a **preview**, which the
+  script's own header says never blocks a submission. ⚠️ **The second site found a real
+  divergence rather than a cosmetic one.** It built an ISO date by padding each box to a width and
+  fed it back into `parseIsoDate()`; the server tests digits. The two disagreed **in both
+  directions** — a day of `015` got no age preview for a submission the server accepts, and a year
+  of `90` was padded to `0090` and previewed for a submission `/^\d{4}$/` was always going to
+  refuse — against a script whose header claims the enhancement and the server *"can never
+  disagree about whether something was accepted"*. `civilDateFromBoxes()` in `nn-entry.ts` is the
+  server's own rule, exported, and both call it. **What came out of the other
   four is `plural()` — `packages/shared/src/plural.ts`, this rule applied to a count and a
   noun** — and, because the rule was not enough on its own, `outboxAttemptsWords()` in
   `admin-outbox.ts`: sharing the conditional stops a surface re-deriving it, and only sharing
@@ -2274,9 +2283,9 @@ re-implemented, because a second implementation of either is the defect their ow
 about.
 
 **The quantity picker renders its totals server-side**, in `quantityOptionLabel()`, which is the
-one place `formatPence` is called for this page. That deliberately avoids becoming the seventh
+one place `formatPence` is called for this page. That deliberately avoided becoming a seventh
 instance of the client-side `£`-rebuilding pattern [#175](https://github.com/southville-running-club/src-website/issues/175)
-already tracks — and it works with scripting off.
+tracked — **all six of which are closed now** — and it works with scripting off.
 
 ### What is deliberately not built, so nobody goes looking
 

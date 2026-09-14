@@ -1581,11 +1581,13 @@ const SUMMARY_LINKS = [
    * whether something was accepted.
    */
   import {
+    civilDateFromBoxes,
     parseNnEntry,
     type NnEntryField,
     type NnEntryRules,
   } from '@src/shared/nn-entry';
   import { deriveAgeCategory, parseIsoDate, type Gender } from '@src/shared/age-category';
+  import { formatPence } from '@src/shared/money';
 
   const form = document.querySelector<HTMLFormElement>('[data-entry-form]');
 
@@ -1829,9 +1831,13 @@ const SUMMARY_LINKS = [
     const placement: 'female' | 'male' | null =
       placementRaw === 'female' || placementRaw === 'male' ? placementRaw : null;
 
-    const dateOfBirth = parseIsoDate(
-      `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
-    );
+    // **The server's own rule, called rather than re-derived** — #175. This built an ISO
+    // string by hand and fed it straight back into `parseIsoDate()`, which is a second
+    // implementation of `toIsoDate()`'s output from a module this file already imports.
+    // ⚠️ The two did not agree: padding to a width and testing digits are different rules,
+    // so `015` was refused a preview the server accepts and a year of `90` was padded to
+    // `0090` and previewed for a submission `/^\d{4}$/` was always going to refuse.
+    const dateOfBirth = civilDateFromBoxes({ day, month, year });
 
     if (dateOfBirth === null || gender === '') {
       target.textContent = '';
@@ -1992,12 +1998,12 @@ const SUMMARY_LINKS = [
       return;
     }
 
-    const money =
-      pence === 0
-        ? 'Free'
-        : `£${Math.floor(pence / 100)}.${String(pence % 100).padStart(2, '0')}`;
-
-    target.textContent = `Total to pay: ${money}`;
+    // ⚠️ **`formatPence()`, not a second one.** The `£`, the pound-pence shape and the
+    // `'Free'` branch are one function's output and always have been — this re-derived all
+    // three, which is the defect class that produced `££18.00` in an email template draft.
+    // The two agreed; the point is that there is one thing to change rather than two to keep
+    // in step. #175, and the last of its six sites.
+    target.textContent = `Total to pay: ${formatPence(pence)}`;
     target.hidden = false;
   }
 </script>
