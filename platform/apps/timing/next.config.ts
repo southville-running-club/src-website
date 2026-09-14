@@ -19,6 +19,50 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@src/shared', '@src/db'],
 
   typedRoutes: true,
+
+  /**
+   * The addresses [#308](https://github.com/southville-running-club/src-website/issues/308)
+   * merged away, kept alive as redirects.
+   *
+   * ⚠️ **These are not a courtesy, and deleting them breaks a published document.** The
+   * race-night runbook addresses every one of these by URL, a volunteer has them bookmarked
+   * after the 14 September rehearsal, and the whole point of the merge was that somebody found
+   * the navigation tiring — sending them to a 404 for their trouble is the wrong answer to
+   * that.
+   *
+   * **`permanent: false`.** A 308 is cached by browsers indefinitely and these addresses may
+   * yet be wanted back; the merge is a navigation decision taken six weeks before a race, and
+   * the reversible form is the honest one until it has been run on a start line. Revisit after
+   * 1 November 2026.
+   *
+   * ⚠️ **Only the *pages* moved.** No `…/update` or `…/export` address appears here, because
+   * none of them moved — every form still posts where it always did, carrying the permission
+   * it always carried. A redirect on a POST address would also silently drop the body.
+   *
+   * These run **before** `middleware.ts`, so an old address never reaches the access table and
+   * cannot be refused by it on the way past.
+   */
+  async redirects() {
+    const toConsole = ['start', 'finish', 'status', 'anomalies', 'crossings'];
+
+    return [
+      // ⚠️ **`?section=` on the destination, and it is not decoration.** Only Start and Finish
+      // are open by default, so a bookmark to `/status` that landed on a bare `/console` would
+      // land on that section **collapsed** — which reads as the page having lost the thing the
+      // address named. Naming the section opens it, so an old address still puts somebody in
+      // front of what they asked for.
+      ...toConsole.map((section) => ({
+        source: `/events/:slug/${section}`,
+        destination: `/events/:slug/console?section=${section}`,
+        permanent: false,
+      })),
+      {
+        source: '/events/:slug/prizes',
+        destination: '/events/:slug/results#prizes',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 // Makes Worker bindings available under `next dev`, so the fast loop sees what the real

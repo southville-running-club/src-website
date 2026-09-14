@@ -99,6 +99,22 @@ const LEADERBOARD_PERMISSIONS: readonly string[] = [
 ];
 
 /**
+ * Who may open the race console — [#308](https://github.com/southville-running-club/src-website/issues/308).
+ *
+ * ⚠️ **The same two slugs as {@link LEADERBOARD_PERMISSIONS}, and deliberately not that
+ * constant.** Sharing one would say the two addresses are governed by one rule, and they are
+ * not: the leaderboard's pair is [ADR-038](../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md)
+ * deciding *who may watch a race as it happens*, and the console's pair is the union of the
+ * sections it absorbed. They coincide today by arithmetic rather than by agreement, and the day
+ * one moves the other must be free to stay. A shared constant is for a shared rule; two rules
+ * with equal answers are still two rules.
+ */
+const CONSOLE_PERMISSIONS: readonly string[] = [
+  'timing.event.manage',
+  'timing.crossing.resolve',
+];
+
+/**
  * The second and later segments of an event address, mapped to what they demand.
  *
  * `/timing/events/<slug>/` itself is `timing.event.manage` — the row for the empty tail.
@@ -122,22 +138,52 @@ const EVENT_SECTIONS: Record<string, string | readonly string[]> = {
    */
   leaderboard: LEADERBOARD_PERMISSIONS,
   marshals: 'timing.marshal.assign',
-  start: 'timing.event.manage',
-  finish: 'timing.event.manage',
-  status: 'timing.event.manage',
-  'danger-zone': 'timing.event.manage',
-  anomalies: 'timing.crossing.resolve',
-  crossings: 'timing.crossing.resolve',
-  results: 'timing.result.publish',
   /**
-   * The prize presenter — [#205](https://github.com/southville-running-club/src-website/issues/205).
+   * Race night on one screen — [#308](https://github.com/southville-running-club/src-website/issues/308).
    *
-   * `timing.result.publish`, the same as the results preview beside it, and **not a permission
-   * of its own**. The prize list is the published results read a second way: every winner on it
-   * is derived from the same crossings, and a club that lets somebody put the table on the
-   * internet is not withholding the order the same table is read out in.
+   * **Five addresses became this one**: `start`, `finish` and `status` (race state) and
+   * `anomalies` and `crossings` (captures). The finding was a volunteer's, after the first
+   * end-to-end run of a race on production — *"far too many sub-pages than was needed"* — and
+   * what made it actionable is that the five were only ever two permissions between them.
+   *
+   * ⚠️ **This is the first address here whose door is wider than any single section behind
+   * it, and that is deliberate rather than overlooked.** A page merging `timing.event.manage`
+   * work with `timing.crossing.resolve` work cannot demand one without shutting out half its
+   * own audience, and {@link TimingSurface.permission} says a list is `or` and never `and`. So
+   * the door is the pair, and **the page renders only the sections the viewer's own
+   * permissions open** — `app/events/[slug]/console/page.tsx` reads `my_permissions()` to do
+   * it.
+   *
+   * **Nothing became reachable that was not reachable before, and the reason is that no write
+   * moved.** Every form on the console still posts to the address it always did —
+   * `start/update`, `status/update`, `anomalies/update`, `crossings/update`, `finish/update` —
+   * each still carrying its own permission in {@link EVENT_SECTION_ACTIONS} below. A console
+   * open to somebody holding only `timing.crossing.resolve` paints no start button, and a
+   * forged POST to `start/update` is refused by the same row that always refused it.
+   *
+   * ⚠️ **The hub predicted this.** `app/events/[slug]/page.tsx` carried a note saying it links
+   * unconditionally because it does not read permissions, ending *"if the two permissions ever
+   * come apart in practice, this is the line that has to learn to ask"*. They come apart here,
+   * and the console is what learned to ask.
+   *
+   * See {@link CONSOLE_PERMISSIONS} for why this is not simply {@link LEADERBOARD_PERMISSIONS}
+   * under another name.
    */
-  prizes: 'timing.result.publish',
+  console: CONSOLE_PERMISSIONS,
+  'danger-zone': 'timing.event.manage',
+  /**
+   * The results preview, the publish button, the exports — **and the prize presenter, since
+   * [#308](https://github.com/southville-running-club/src-website/issues/308)**.
+   *
+   * `prizes` was its own address demanding this same `timing.result.publish`, on the argument
+   * that the prize list is *"the published results read a second way"*. That argument survives
+   * the merge intact and is now the reason the two are one page rather than the reason they are
+   * two: one dataset, one permission, one address, two views of it.
+   *
+   * ⚠️ **`prizes/export` is still its own write address** and still appears in
+   * {@link EVENT_SECTION_ACTIONS}. Only the page moved.
+   */
+  results: 'timing.result.publish',
 };
 
 /**

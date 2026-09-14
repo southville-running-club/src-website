@@ -3,7 +3,7 @@
 **How one running of one race is timed, from the change freeze to the morning after.** It is
 the only end-to-end description of the job, and it is written against the application that
 exists rather than the one the old repository documents:
-`/timing/events/nn-2026/start/` rather than `/admin/pass-the-buck-2026/start`, a publish
+`/timing/events/nn-2026/console` rather than `/admin/pass-the-buck-2026/start`, a publish
 button rather than a CSV, and two apps rather than one.
 
 **Prerequisites:** accounts and roles already granted and rostered —
@@ -13,6 +13,22 @@ no Cloudflare dashboard, no `wrangler`.**
 
 **About an hour of preparation in the week before**, then the race itself, then twenty minutes
 afterwards. Publishing is five minutes and cannot be rushed into.
+
+---
+
+## ⚠️ The addresses changed on 14 September 2026
+
+**Five screens became one**, and the prize presenter moved onto the results page —
+[ADR-045](../../architecture/decisions/adr-045-race-night-is-one-console.md), from the finding
+this runbook's own rehearsal produced. `start`, `finish`, `status`, `anomalies` and `crossings`
+are now sections of **`/timing/events/<slug>/console`**, and `prizes` is a section of
+`/timing/events/<slug>/results`.
+
+**Every old address still works** — they redirect — so a bookmark from before that date is not
+broken. What changed is what you land on: one page, with the section you asked for open.
+
+⚠️ **Sections are collapsible, and only Start and Finish are open by default.** If a step below
+says something is not there, open its section before assuming it is missing.
 
 ---
 
@@ -238,7 +254,7 @@ are let back in.
 
 ### 2.3 — the start 🎛️ 🏛️
 
-- [ ] Open **`/timing/events/nn-2026/start/`** on the laptop. It shows a countdown
+- [ ] Open **`/timing/events/nn-2026/console`** on the laptop, **Start** section. It shows a countdown
 - [ ] ⚠️ **A clock reaching zero starts nothing.** Pressing **Start the race** is what records
       the moment, and every time in the race is measured from it
 - [ ] Press it on the gun
@@ -303,10 +319,10 @@ something the application can notice.
 
 ### 3.4 — what race control watches 🎛️
 
-- [ ] **`/timing/events/nn-2026/anomalies/`** — the triage list. It is a **union of two
+- [ ] **`/timing/events/nn-2026/console#anomalies`** — the triage list. It is a **union of two
       populations**: a capture a marshal's screen flagged, and an **orphan** whose bib matched
       no team. *"Nothing here is wrong by itself — an anomaly is a question."*
-- [ ] **`/timing/events/nn-2026/crossings/`** — every capture, searchable by bib or team number
+- [ ] **`/timing/events/nn-2026/console#crossings`** — every capture, searchable by bib or team number
 - [ ] The race's own page carries **Crossings recorded** and **Anomalies needing a human**
 
 **Resolving one is three buttons**: **Mark valid**, **Save corrected bib**, **Discard**. A
@@ -328,20 +344,20 @@ status changes what the table says and the table is about to be read.
 
 ### 4.1 — finish the race 🏛️
 
-- [ ] **`/timing/events/nn-2026/finish/`** → **Finish this race**
+- [ ] **`/timing/events/nn-2026/console#finish`** → **Finish this race**
 - [ ] ⚠️ **Tell the marshals it is a label.** Captures still land, and a late one still
       belongs. **It can be undone** — *"This race is not finished after all"* is on the same
       screen
 
 ### 4.2 — clear the triage list 🎛️
 
-- [ ] **`/timing/events/nn-2026/anomalies/`** until it reads **"Nothing is waiting to be
+- [ ] **`/timing/events/nn-2026/console#anomalies`** until it reads **"Nothing is waiting to be
       resolved on this race."**
 - [ ] Every orphan too, not only the flagged ones. **Publication counts both**
 
 ### 4.3 — DNS, DNF and DQ 🏛️
 
-- [ ] **`/timing/events/nn-2026/status/`**, searching by bib, team number or name
+- [ ] **`/timing/events/nn-2026/console#status`**, searching by bib, team number or name
 - [ ] **Did not start**, **Did not finish**, **Disqualify** — and **Lift** for any of them
 - [ ] ⚠️ **A status is a label on top of the crossings and never a change to one.** A runner
       who did not finish **keeps** the handover time a marshal recorded; they simply have no
@@ -351,7 +367,7 @@ status changes what the table says and the table is about to be read.
 
 - [ ] **`/timing/events/nn-2026/results/`**. **State** reads *Finished, not published*, and
       **Open captures** reads 0
-- [ ] **`/timing/events/nn-2026/prizes/`** is the same results read a second way, in the order
+- [ ] **`/timing/events/nn-2026/results#prizes`** is the same results read a second way, in the order
       they are read out. **Not here — pass to the next** takes that team out of **every** prize
       below; a spot prize is **Draw <name>**; **Start again** puts every pass-over back. ⚠️
       **Every choice made on that screen lives in the address bar**, so it survives a refresh
@@ -421,7 +437,7 @@ results down first.
 - [ ] **`/timing/events/nn-2026/results/`** → **Results as a spreadsheet**, or **Results as
       CSV**. ⚠️ *"A spreadsheet keeps a bib of `0311` as `0311`; a CSV opened in Excel becomes
       `311`"* — use the spreadsheet if the numbers matter
-- [ ] **`/timing/events/nn-2026/prizes/`** exports the same way, **carrying every pass-over
+- [ ] **`/timing/events/nn-2026/results#prizes`** exports the same way, **carrying every pass-over
       made on the screen**, so the file cannot disagree with what was read out
 
 Both are behind `timing.result.publish`, which is the same permission that put the table on the

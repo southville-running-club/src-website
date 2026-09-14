@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { TimingRunner } from '@src/shared/timing/rows';
 import type { PrizeAward } from '@src/shared/timing/prize-export';
-import { readResultsPreview } from '../../../../lib/results-preview';
-import { NotFoundBody } from '../../../not-found-body';
+import type { ResultsPreview } from '../../../../lib/results-preview';
+// `prizeChoicesFrom` is `results/page.tsx`'s now — the page parses the query string once and
+// hands the result to both views, so the presenter cannot read a different set of pass-overs
+// than the page it is rendered inside.
 import {
   drawablePool,
-  prizeChoicesFrom,
   resolvePrizeAwards,
   type PrizeChoices,
 } from '../../../../lib/prizes';
@@ -71,7 +72,7 @@ function withParam(
   slug: string,
   choices: PrizeChoices,
   extra: { pass?: string; draw?: { kind: string; team: string } },
-): { pathname: `/events/${string}/prizes`; query: Record<string, string | string[]> } {
+): { pathname: `/events/${string}/results`; query: Record<string, string | string[]> } {
   const passed = [...choices.passed];
   if (extra.pass !== undefined) passed.push(extra.pass);
 
@@ -81,7 +82,14 @@ function withParam(
   for (const [kind, id] of choices.draws) query[kind] = id;
   if (extra.draw !== undefined) query[extra.draw.kind] = extra.draw.team;
 
-  return { pathname: `/events/${slug}/prizes`, query };
+  // ⚠️ **`/results`, not `/prizes`, and this is load-bearing rather than tidying.** #308 made
+  // the presenter a section of the results page and left `/prizes` as a redirect. A link built
+  // to the old address would still *work* — and would lose every pass-over on the way, because
+  // the redirect's destination carries a fragment and the query does not survive it. The
+  // presenter's whole reason for keeping its state in the URL is that the old application lost
+  // it mid-ceremony on a refresh; routing these links through a redirect would reintroduce
+  // exactly that, one prize at a time.
+  return { pathname: `/events/${slug}/results`, query };
 }
 
 function Prize({
@@ -153,60 +161,51 @@ function Prize({
   );
 }
 
-export default async function PrizesPage({
-  params,
-  searchParams,
+/**
+ * The **Prize giving** section of `/timing/events/<slug>/results`.
+ *
+ * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
+ * which merged it onto the results page. `lib/access.ts`'s row for `prizes` said the argument
+ * for the merge before the merge existed: the prize list is *"the published results read a
+ * second way"*, one dataset and one permission. **`prizes/export` did not move** and still
+ * carries `timing.result.publish` of its own.
+ *
+ * ## ⚠️ The read moved out and the choices did not
+ *
+ * `results/page.tsx` does the one `readResultsPreview()` for both views, so the two cannot
+ * disagree about a time. **The pass-overs and spot draws still live in the URL** — `?pass=` and
+ * the draw parameters, parsed by `prizeChoicesFrom()` — because the old application held them in
+ * component state and a refresh lost them mid-ceremony. They share a query string with the
+ * results view now and collide with nothing in it: that view reads `?outcome=` and nothing else.
+ */
+export function PrizesSection({
+  slug,
+  payload,
+  choices,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  payload: ResultsPreview;
+  choices: PrizeChoices;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-  const choices = prizeChoicesFrom(query);
-
-  const read = await readResultsPreview(slug);
-
-  if (read.state === 'unavailable') {
-    // ⚠️ **Never "Not found" for an outage** — `lib/reads.ts`' header, and on this page in
-    // particular: somebody is standing in front of the club waiting to read a name out.
-    return (
-      <>
-        <h1>Prize giving</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    return <NotFoundBody />;
-  }
-
-  const payload = read.data;
   const awards = resolvePrizeAwards(payload, choices);
   const exportAction = `/timing/events/${encodeURIComponent(slug)}/prizes/export`;
 
   return (
     <>
-      <h1>Prize giving</h1>
-
       {choices.passed.size > 0 ? (
         <p className="notice notice-ok">
           {choices.passed.size === 1
             ? '1 team has been passed over and is out of every prize below.'
             : `${choices.passed.size} teams have been passed over and are out of every prize below.`}{' '}
-          <Link href={`/events/${slug}/prizes`}>Start again</Link> puts them all back.
+          <Link href={`/events/${slug}/results`}>Start again</Link> puts them all back.
         </p>
       ) : null}
 
       {payload.open_anomalies > 0 ? (
         <p className="notice notice-bad">
           Some captures on this race are still to be resolved, so a time below may change.{' '}
-          <Link href={`/events/${slug}/anomalies`}>Resolve them</Link> before reading
-          these out.
+          <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link> before
+          reading these out.
         </p>
       ) : null}
 
@@ -216,7 +215,7 @@ export default async function PrizesPage({
         ))}
       </ul>
 
-      <h2>Files</h2>
+      <h3>Files</h3>
 
       {/* ⚠️ **The exclusions and the draws travel with the file.** Every choice made above is a
           hidden field here, so the export resolves the same awards this page is showing — which

@@ -1,14 +1,19 @@
-import Link from 'next/link';
 import { formatLondon } from '@src/shared';
-import { readTiming } from '../../../../lib/reads';
-import { statusOutcomeFor } from '../../../../lib/status-outcomes';
-import { NotFoundBody } from '../../../not-found-body';
+import { statusOutcomeFor } from '../../../../../lib/status-outcomes';
+import type { EventDetail } from '../event-detail';
 
 /**
- * `/timing/events/<slug>/finish/` — the race director calls it, and can take it back.
+ * The **Finish** section of `/timing/events/<slug>/console` — the race director calls it, and
+ * can take it back.
  *
- * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). Behind
- * `timing.event.manage`; `lib/access.ts` maps it and `middleware.ts` enforces it.
+ * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). ⚠️ **Its own
+ * address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
+ * which merged five pages into the console after a volunteer ran a race end to end and found the
+ * navigation the tiring part. Behind `timing.event.manage`, which is now the *section's*
+ * requirement rather than the address's: the console's door is that permission **or**
+ * `timing.crossing.resolve`, and `console/page.tsx` renders this only for somebody holding this
+ * one. **The form still posts to `finish/update`**, which still carries `timing.event.manage` in
+ * `lib/access.ts`, so nothing here is protected by the conditional render.
  *
  * ## ⚠️ Finishing is reversible, a label, and never a gate
  *
@@ -32,61 +37,33 @@ import { NotFoundBody } from '../../../not-found-body';
  * It already carries `finished_at` and `actually_started_at`, which is every fact this screen
  * needs. A `finish_state()` would be a second statement of the same query.
  */
-export const dynamic = 'force-dynamic';
+// ⚠️ No `export const dynamic` — a section is not a route. `console/page.tsx` carries it for
+// all five, and a stray copy here would be silently ignored rather than fail, which is the
+// kind of dead declaration somebody later reads as load-bearing.
 
-interface EventDetail {
-  slug: string;
-  name: string;
-  start_at: string;
-  actually_started_at: string | null;
-  finished_at: string | null;
-  counts: { crossings: number };
-}
-
-export default async function FinishPage({
-  params,
-  searchParams,
+/**
+ * ⚠️ **The read moved out and the outage wording went with it.** This used to answer
+ * *"the club's database could not be reached … the race has not been finished"* for its own
+ * failed read. `console/page.tsx` does the one `event_detail()` read for every section that
+ * needs it and renders that message once, so a single outage says one thing rather than five.
+ * The second sentence — *nothing has been changed* — still matters for exactly this section's
+ * reason and is kept there.
+ */
+export function FinishSection({
+  slug,
+  event,
+  outcomeCode,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  event: EventDetail;
+  /** `?outcome=` only when `?section=finish` says this section owns it. */
+  outcomeCode: string | undefined;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-
-  const outcomeParam = query.outcome;
-  const outcome = statusOutcomeFor(
-    typeof outcomeParam === 'string' ? outcomeParam : undefined,
-  );
-
-  const read = await readTiming<EventDetail>('event_detail', { p_event_slug: slug });
-
-  if (read.state === 'unavailable') {
-    // ⚠️ **Never "Not found" for an outage** — and on this page the second sentence matters:
-    // somebody who cannot tell an outage from a finished race may press again.
-    return (
-      <>
-        <h1>Finish</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed, and the race has not been finished. Try again in a
-          moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    return <NotFoundBody />;
-  }
-
-  const event = read.data;
+  const outcome = statusOutcomeFor(outcomeCode);
   const action = `/timing/events/${encodeURIComponent(slug)}/finish/update`;
 
   return (
     <>
-      <h1>Finish</h1>
-
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
@@ -142,11 +119,10 @@ export default async function FinishPage({
         </>
       )}
 
-      <p>
-        <Link href={`/events/${slug}/status`}>Mark somebody DNS, DNF or DQ</Link>
-        {' · '}
-        <Link href={`/events/${slug}`}>Back to this race</Link>
-      </p>
+      {/* ⚠️ Two links removed by #308 rather than lost. "Mark somebody DNS, DNF or DQ" pointed
+          at `status`, which is now the section directly below this one, and "Back to this race"
+          is the console's own nav. A link to a sibling section on the same page is how a merged
+          screen quietly becomes as tiring to use as the five it replaced. */}
     </>
   );
 }

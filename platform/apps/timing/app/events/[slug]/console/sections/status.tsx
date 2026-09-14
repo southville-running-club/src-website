@@ -1,14 +1,22 @@
 import Link from 'next/link';
-import { readTiming } from '../../../../lib/reads';
-import { statusOutcomeFor } from '../../../../lib/status-outcomes';
-import { NotFoundBody } from '../../../not-found-body';
+import { statusOutcomeFor } from '../../../../../lib/status-outcomes';
 
 /**
- * `/timing/events/<slug>/status/` — DNS, DNF and DQ, and lifting any of them.
+ * The **Race status** section of `/timing/events/<slug>/console` — DNS, DNF and DQ, and lifting
+ * any of them.
  *
- * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). Behind
- * `timing.event.manage`; `lib/access.ts` maps it and `middleware.ts` enforces it. This page does
- * not gate itself — `app/page.tsx`'s header carries the measurement that settled that.
+ * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). ⚠️ **Its own
+ * address until [#308](https://github.com/southville-running-club/src-website/issues/308)**.
+ * `timing.event.manage` is now this *section's* requirement rather than the address's; the form
+ * still posts to `status/update`, which still carries it.
+ *
+ * ## ⚠️ Its search parameter is `status_q` and was `q`
+ *
+ * The timing log below it searches too, and on one page two controls named `q` are one control
+ * wearing two hats: searching for a bib in the log would silently filter this list as well, and
+ * the "Show everyone" link would clear both. They are `status_q` and `log_q` now, and
+ * `status/update/route.ts` carries the renamed field back so that marking somebody from a
+ * filtered list still returns to that list.
  *
  * ## ⚠️ A label on top of crossings, and never a change to one
  *
@@ -28,8 +36,6 @@ import { NotFoundBody } from '../../../not-found-body';
  * By bib or by name, whichever the runner gave the volunteer. A GET form, so a searched view is
  * a URL somebody can send to the other volunteer — the property `/admin/nn/`'s filters have.
  */
-export const dynamic = 'force-dynamic';
-
 interface StatusRunner {
   leg: number;
   firstname: string;
@@ -37,7 +43,7 @@ interface StatusRunner {
   role: string | null;
 }
 
-interface StatusTeam {
+export interface StatusTeam {
   team_id: string;
   team_number: string | null;
   name: string | null;
@@ -64,54 +70,23 @@ function labelFor(status: string | null): string {
   return Object.hasOwn(LABELS, status) ? (LABELS[status] ?? status) : status;
 }
 
-export default async function StatusPage({
-  params,
-  searchParams,
+export function StatusSection({
+  slug,
+  teams,
+  search,
+  outcomeCode,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  teams: StatusTeam[];
+  search: string;
+  /** `?outcome=`, but only when `?section=status` says this section owns it. */
+  outcomeCode: string | undefined;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-
-  const outcomeParam = query.outcome;
-  const outcome = statusOutcomeFor(
-    typeof outcomeParam === 'string' ? outcomeParam : undefined,
-  );
-
-  const searchParam = query.q;
-  const search = typeof searchParam === 'string' ? searchParam : '';
-
-  const read = await readTiming<StatusTeam[]>('team_status_list', {
-    p_event_slug: slug,
-    p_search: search === '' ? null : search,
-  });
-
-  if (read.state === 'unavailable') {
-    // ⚠️ **Never "Not found" for an outage.** `lib/reads.ts`'s header carries the argument.
-    return (
-      <>
-        <h1>Race status</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    return <NotFoundBody />;
-  }
-
-  const teams = read.data;
+  const outcome = statusOutcomeFor(outcomeCode);
   const action = `/timing/events/${encodeURIComponent(slug)}/status/update`;
 
   return (
     <>
-      <h1>Race status</h1>
-
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
@@ -123,14 +98,20 @@ export default async function StatusPage({
       </p>
 
       <form method="get" className="log-search">
+        {/* ⚠️ **A GET form submits its own fields and nothing else, so `?section=` is lost on
+            submit — and the section this search belongs to collapses under the person using it.**
+            #308. The hidden field puts it back. Searching is the one action on the console that
+            navigates without a route handler in between, which is why this is the only place
+            that needs it. */}
+        <input type="hidden" name="section" value="status" />
         <div className="field">
-          <label className="field-label" htmlFor="q">
+          <label className="field-label" htmlFor="status_q">
             Search by bib, team number or name
           </label>
           <input
             className="field-input"
-            id="q"
-            name="q"
+            id="status_q"
+            name="status_q"
             type="text"
             defaultValue={search}
           />
@@ -139,7 +120,7 @@ export default async function StatusPage({
           Search
         </button>
         {search === '' ? null : (
-          <Link className="button button-quiet" href={`/events/${slug}/status`}>
+          <Link className="button button-quiet" href={`/events/${slug}/console#status`}>
             Show everyone
           </Link>
         )}
@@ -177,7 +158,7 @@ export default async function StatusPage({
                 <input type="hidden" name="team_id" value={team.team_id} />
                 {/* The searched view is carried back, so marking somebody from a filtered list
                     returns to that list rather than to all 250. */}
-                <input type="hidden" name="q" value={search} />
+                <input type="hidden" name="status_q" value={search} />
 
                 <div className="triage-actions">
                   {team.race_status === 'dns' ? null : (

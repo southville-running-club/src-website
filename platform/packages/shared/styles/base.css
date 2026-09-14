@@ -1138,6 +1138,47 @@ footer {
   margin-top: 0.75rem;
 }
 
+/* ---------------------------------------------------------------------------------------
+   The race console's collapsible sections — #308
+   ---------------------------------------------------------------------------------------
+   `/timing/events/<slug>/console` merged five pages into one, so it is a long page: start,
+   finish, race status, triage and a timing log that is hundreds of rows on a real race. The
+   sections collapse so the one somebody wants is reachable without scrolling past the others.
+
+   ⚠️ **`<details>` rather than a scripted accordion.** Every acceptance spec in this
+   repository runs in a `no-javascript` project, and a menu that needs scripting does not open
+   there at all — the same reasoning as `/events/`'s submenu, which is CSS-only for exactly
+   this reason.
+
+   ⚠️ **No `display` on the summary and no custom marker.** Setting `display: block` or
+   `list-style: none` removes the disclosure triangle in WebKit *and* removes the control's
+   affordance with it, on a screen read at arm's length on a race morning. The triangle is
+   the browser's, it is the one users already know, and it is worth more than a tidier row. */
+.console-section {
+  margin: var(--space) 0;
+  padding: 0 var(--space) var(--space);
+  border: 1px solid var(--colour-rule);
+  border-radius: 6px;
+}
+
+/* The summary carries an `h2`, which is a block element inside an inline-ish context. Keeping
+   the heading's own margins would push the title away from the triangle it belongs to, so the
+   padding lives here and the heading gives up its margin below. */
+.console-section > summary {
+  padding: var(--space) 0;
+  cursor: pointer;
+}
+
+.console-section > summary > h2 {
+  display: inline;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* ⚠️ **No focus rule here on purpose.** `:focus-visible` at the top of this file already puts a
+   3px accent ring on everything, always — a second one would be a quieter ring in one place and
+   the kind of local override that makes a theme lose its focus states. */
+
 .log-search {
   display: flex;
   flex-wrap: wrap;

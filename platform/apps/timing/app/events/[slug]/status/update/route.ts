@@ -51,13 +51,19 @@ function backTo(
   // The searched view is carried back, so marking somebody from a filtered list returns to that
   // list rather than to all 250. `basePath` is not applied to a URL built here, so `/timing` is
   // written out; every part is encoded because the outcome can be a `reason` the database chose.
+  // ⚠️ **`status_q`, not `q`** — #308 put this list and the timing log on one page, and two
+  // controls named `q` there are one control wearing two hats. `sections/status.tsx` carries the
+  // other half.
   const query =
     search === ''
-      ? `outcome=${encodeURIComponent(outcome)}`
-      : `q=${encodeURIComponent(search)}&outcome=${encodeURIComponent(outcome)}`;
+      ? `section=status&outcome=${encodeURIComponent(outcome)}`
+      : `section=status&status_q=${encodeURIComponent(search)}&outcome=${encodeURIComponent(outcome)}`;
 
   return NextResponse.redirect(
-    new URL(`/timing/events/${encodeURIComponent(slug)}/status?${query}`, request.url),
+    new URL(
+      `/timing/events/${encodeURIComponent(slug)}/console?${query}#status`,
+      request.url,
+    ),
     303,
   );
 }
@@ -76,7 +82,7 @@ export async function POST(
     return backTo(request, slug, 'incomplete', '');
   }
 
-  const search = String(form.get('q') ?? '');
+  const search = String(form.get('status_q') ?? '');
   const asked = String(form.get('status') ?? '');
 
   if (!Object.hasOwn(STATUSES, asked)) {

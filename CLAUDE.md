@@ -1897,6 +1897,28 @@ over from the old platform, and a granted marshal who is not on a race's roster 
 to not break; what belongs there is the order somebody presses things in, and the two go stale at
 different rates.
 
+### ⚠️ Twelve addresses became six on 14 September 2026
+
+[ADR-045](docs/architecture/decisions/adr-045-race-night-is-one-console.md),
+[#308](https://github.com/southville-running-club/src-website/issues/308). **`start`, `finish`,
+`status`, `anomalies` and `crossings` are sections of `/timing/events/<slug>/console`**, and
+`prizes` is a section of `/timing/events/<slug>/results`. The old addresses redirect from
+`next.config.ts`, before middleware, so nothing published is broken. **The list below still
+describes each surface's reasoning, which is unchanged — only where it is rendered moved.**
+
+⚠️ **The console is the one address here whose door is wider than any section behind it** —
+`timing.event.manage` **or** `timing.crossing.resolve` — and that is a departure from ADR-036's
+one-address-one-permission shape, taken deliberately and fenced three ways: sections are drawn
+per permission, **no write moved** (every form still posts to its original address carrying its
+original permission), and every `timing` function re-checks `identity.has_permission()` anyway.
+**So the conditional render is navigation and never protection**, and a section whose safety
+depended on it would be wrong. `apps/timing/tests/unit/access.test.ts` asserts that the console
+admits each permission alone and admits neither `timing-marshal` nor `nn-admin` nor a signed-in
+account holding nothing.
+
+⚠️ **Two searches were renamed** because one page cannot have two controls called `q`:
+`status_q` and `log_q`.
+
 ### The surfaces, and what each of them decided
 
 - the **`timing` schema** — six tables, RLS on with no policy (ADR-035);
@@ -1911,7 +1933,7 @@ different rates.
   plain `<form method="post">` answered by a route handler and a 303 — not a Server Action —
   because every spec here runs in a `no-javascript` project; `EVENT_SECTION_ACTIONS` in that
   same file is what gates the address a form posts to;
-- **`/timing/events/<slug>/start/`** — the countdown, the one full-width button and the clock
+- **`/timing/events/<slug>/console#start`** — the countdown, the one full-width button and the clock
   after it (#250), behind `timing.event.manage`. ⚠️ **`timing.start_event()` is idempotent by
   its own `where actually_started_at is null`**, not by anything a caller does: the second of
   two presses is answered `already_started` **carrying the winning time**, so the losing device
@@ -1935,7 +1957,7 @@ different rates.
   holds an access token — it posts to `…/sync` on the timing Worker, which calls
   `record_crossing()` with the cookie session (#244) — and `public/sw.js` caches the screen so a
   reload with no signal does not strand somebody on a course;
-- **`/timing/events/<slug>/anomalies/` and `/crossings/`** — the two surfaces where a human
+- **`/timing/events/<slug>/console#anomalies` and `#crossings`** — the two surfaces where a human
   turns a flagged capture into a fact (#252), both behind `timing.crossing.resolve`, which had
   existed since `20260911100000` and gated nothing until then. ⚠️ **The triage list is a union
   of two populations and the second is the one a flag-only query hides**: a _flagged_ capture,
@@ -1949,7 +1971,7 @@ different rates.
   bib that still matches nothing legitimately stays an orphan**, which the page says out loud.
   A discard is reversible and `buildResults()` already excludes one, falling through to the next
   undiscarded capture for that bib;
-- **`/timing/events/<slug>/status/` and `/finish/`** — DNS, DNF and DQ, and calling a race
+- **`/timing/events/<slug>/console#status` and `#finish`** — DNS, DNF and DQ, and calling a race
   finished (#253), both behind `timing.event.manage`. ⚠️ **A status is a label on top of
   crossings and never a change to one**: DNS suppresses every derived time, and **DNF and DQ keep
   leg A**, because a captured fact stays captured. ⚠️ **`set_race_status()` audits the reversal
@@ -2007,7 +2029,7 @@ different rates.
   because `anon` still holds no grant on any `timing` **table**; `timing.test.ts` pins both.
   **A correction after publication is _unpublish, fix, publish_**, and the page goes back to 404
   in between rather than serving a table somebody is editing;
-- **`/timing/events/<slug>/results/` and `/timing/events/<slug>/prizes/`** — the preview
+- **`/timing/events/<slug>/results/` and its `#prizes` section** — the preview
   somebody reads before pressing publish, the two buttons that call the functions above, the
   prize presenter and four exports (#205), all behind `timing.result.publish`.
   ⚠️ **They read `timing.results_preview()` and not `results_for_event()`, and that is not

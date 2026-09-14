@@ -168,17 +168,31 @@ export default async function EventPage({
       </p>
 
       {/*
-        ⚠️ **The start screen is linked whether or not the race has started**, which is the
-        opposite of hiding it once it is done. It is the page that says *when* the race started
-        and how long it has been running, and it is where a false start is cleared — so a
-        volunteer looking for any of those after the gun must not find the link gone. The page
-        itself decides what it offers; this is a route to it, not a button.
+        ⚠️ **One link where there were five** — [#308](https://github.com/southville-running-club/src-website/issues/308)
+        merged `start`, `finish`, `status`, `anomalies` and `crossings` into the console after a
+        volunteer ran a race end to end and found the navigation the tiring part.
+
+        ⚠️ **Linked in every state, which is what all five said separately before.** The console
+        is where the race is started *and* where a false start is cleared, where a finish is
+        declared *and* undone, where a status is set *and* lifted. None of that may be hidden
+        once the gun has gone: a volunteer looking for any of it after the start must not find
+        the link gone. The console decides what it offers; this is a route to it.
+
+        ⚠️ **The label says what is next without claiming the page is only that.** It reads from
+        `actually_started_at` and `finished_at` because those are the two facts that change what
+        somebody has come here to do.
+
+        The console's door is `timing.event.manage` **or** `timing.crossing.resolve`, so this
+        link is right for everybody this hub already admits — the hub itself demands
+        `timing.event.manage`, which is one of the two.
       */}
       <p>
-        <Link href={`/events/${event.slug}/start`}>
+        <Link href={`/events/${event.slug}/console`}>
           {event.actually_started_at === null
-            ? 'Start this race'
-            : 'The start of this race'}
+            ? 'Race console — start this race'
+            : event.finished_at === null
+              ? 'Race console — the race is running'
+              : 'Race console — this race is finished'}
         </Link>
       </p>
 
@@ -217,33 +231,13 @@ export default async function EventPage({
       </p>
 
       <p>
-        <Link href={`/events/${event.slug}/anomalies`}>
+        <Link href={`/events/${event.slug}/console#anomalies`}>
           Captures waiting to be resolved
         </Link>
       </p>
 
-      <p>
-        <Link href={`/events/${event.slug}/crossings`}>Timing log for this race</Link>
-      </p>
-
       {/*
-        ⚠️ **Both are linked whether or not the race has finished**, for the start screen's
-        reason one section up: finishing is a label rather than a state that closes anything, and
-        the pages behind these links are where a status is set *and* where a finish is undone. A
-        volunteer looking for either after the gun must not find the link gone.
-      */}
-      <p>
-        <Link href={`/events/${event.slug}/status`}>Mark somebody DNS, DNF or DQ</Link>
-      </p>
-
-      <p>
-        <Link href={`/events/${event.slug}/finish`}>
-          {event.finished_at === null ? 'Finish this race' : 'This race is finished'}
-        </Link>
-      </p>
-
-      {/*
-        ⚠️ **Linked in every state, like the two above and for the same reason.** The results
+        ⚠️ **Linked in every state, like the console above and for the same reason.** The results
         preview is where somebody checks the times *before* calling the race over, where they
         publish once it is, and where they take a published table down to correct it — so it is
         useful at every point on #241's state machine and the link may never be conditional on
@@ -257,9 +251,8 @@ export default async function EventPage({
         </Link>
       </p>
 
-      <p>
-        <Link href={`/events/${event.slug}/prizes`}>Prize giving for this race</Link>
-      </p>
+      {/* ⚠️ Prize giving was its own address and is a section of the results page since
+          #308 — one dataset, one permission, two views of it. */}
 
       {event.editable ? null : (
         <p className="notice">
