@@ -1,19 +1,27 @@
-import Link from 'next/link';
 import { formatLondon } from '@src/shared';
-import { readTiming } from '../../../../lib/reads';
-import { startOutcomeFor } from '../../../../lib/start-outcomes';
+import { startOutcomeFor } from '../../../../../lib/start-outcomes';
 import { RaceClock } from './race-clock';
-import { NotFoundBody } from '../../../not-found-body';
+import type { EventDetail } from '../event-detail';
 
 /**
- * `/timing/events/<slug>/start/` — the countdown, the button, and the clock after it.
+ * The **Start** section of `/timing/events/<slug>/console` — the countdown, the button, and the
+ * clock after it.
+ *
+ * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
+ * which merged five pages into one console. Behind `timing.event.manage`, which is now this
+ * *section's* requirement rather than the address's — the console's door is that permission or
+ * `timing.crossing.resolve`. **The forms still post to `start/update`**, carrying the permission
+ * they always did, so the conditional render is navigation rather than protection.
+ *
+ * ⚠️ **Its three state headings are `h3` and were `h2`.** The console puts an `h2` in each
+ * section's `<summary>`, so an `h2` here would sit as a sibling of the section title rather than
+ * beneath it. Heading order is an axe rule and the bar in this repository is zero violations,
+ * not few.
  *
  * Issue [#250](https://github.com/southville-running-club/src-website/issues/250), under
  * [ADR-034](../../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
- * Behind `timing.event.manage`; `lib/access.ts` maps it and `middleware.ts` enforces it. ⚠️
- * **This page does not gate itself** — see `app/page.tsx`'s header for the measurement that
- * settled that, and `app/events/[slug]/page.tsx` for why "Not found" is written out inline
- * rather than thrown.
+ * ⚠️ **Nothing here gates itself** — see `app/page.tsx`'s header for the measurement that
+ * settled that, and `console/page.tsx` for the one read that decides which sections are drawn.
  *
  * ## ⚠️ The three states are exclusive, and the order they are tested in is the point
  *
@@ -45,69 +53,29 @@ import { NotFoundBody } from '../../../not-found-body';
  * this page are `lib/elapsed.ts`, which is deliberately not a timezone question at all — its
  * header carries the argument.
  */
-export const dynamic = 'force-dynamic';
+// ⚠️ No `export const dynamic` — a section is not a route, and `console/page.tsx` carries it
+// for all five. A stray copy here is ignored rather than refused, which is exactly the kind of
+// dead declaration a later reader mistakes for something load-bearing.
 
-interface EventDetail {
-  slug: string;
-  name: string;
-  start_at: string;
-  actually_started_at: string | null;
-  finished_at: string | null;
-  counts: { crossings: number };
-}
-
-export default async function StartPage({
-  params,
-  searchParams,
+export function StartSection({
+  slug,
+  event,
+  outcomeCode,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  event: EventDetail;
+  /** `?outcome=`, but only when `?section=start` says this section owns it. */
+  outcomeCode: string | undefined;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-
-  // A repeated parameter arrives as an array; only a single value can name an outcome, and an
-  // array falls through to `undefined`, which renders nothing.
-  const outcomeParam = query.outcome;
-  const outcome = startOutcomeFor(
-    typeof outcomeParam === 'string' ? outcomeParam : undefined,
-  );
-
-  const read = await readTiming<EventDetail>('event_detail', { p_event_slug: slug });
-
-  if (read.state === 'unavailable') {
-    return (
-      <>
-        <h1>Start</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed, and the race has not been started. Try again in a
-          moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
-    // `event_detail()` answers the same `null` for a refusal and for a missing race.
-    return <NotFoundBody />;
-  }
-
-  const event = read.data;
+  const outcome = startOutcomeFor(outcomeCode);
   const started = event.actually_started_at;
   const finished = event.finished_at;
   const action = `/timing/events/${encodeURIComponent(slug)}/start/update`;
 
   return (
     <>
-      <h1>Start</h1>
-
-      <p className="lede">
-        {event.name}, scheduled to start {formatLondon(event.start_at)}.
-      </p>
-
+      {/* ⚠️ The race's name and scheduled start were this page's `lede` and are the console's
+          own header now — one statement of them above every section, rather than five. */}
       {outcome === null ? null : (
         <p
           className={outcome.tone === 'ok' ? 'notice notice-ok' : 'notice notice-bad'}
@@ -128,7 +96,7 @@ export default async function StartPage({
          * version — an inconsistent screen on a start line is believed.
          */
         <section>
-          <h2>Race finished</h2>
+          <h3>Race finished</h3>
 
           <p>
             This race finished {formatLondon(finished)}. Nothing on this screen can change
@@ -145,7 +113,7 @@ export default async function StartPage({
         </section>
       ) : started !== null ? (
         <section>
-          <h2>The race is running</h2>
+          <h3>The race is running</h3>
 
           <p>
             It started {formatLondon(started)}. Every time in this race is measured from
@@ -156,7 +124,7 @@ export default async function StartPage({
             The elapsed clock needs JavaScript. The race started {formatLondon(started)}.
           </RaceClock>
 
-          <h2>A false start</h2>
+          <h3>A false start</h3>
 
           {event.counts.crossings === 0 ? (
             <form method="post" action={action}>
@@ -188,7 +156,7 @@ export default async function StartPage({
         </section>
       ) : (
         <section>
-          <h2>Not started</h2>
+          <h3>Not started</h3>
 
           <RaceClock mode="countdown" atIso={event.start_at}>
             The countdown needs JavaScript. The scheduled start is{' '}
@@ -220,9 +188,8 @@ export default async function StartPage({
         </section>
       )}
 
-      <p>
-        <Link href={`/events/${event.slug}`}>Back to {event.name}</Link>
-      </p>
+      {/* ⚠️ "Back to <race>" removed by #308 — the console has one nav, and a link out of a
+          section into the page it already sits on is how a merged screen regrows its own maze. */}
     </>
   );
 }

@@ -1,11 +1,17 @@
 import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
-import { readTiming } from '../../../../lib/reads';
-import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
-import { NotFoundBody } from '../../../not-found-body';
+import { anomalyOutcomeFor } from '../../../../../lib/anomaly-outcomes';
 
 /**
- * `/timing/events/<slug>/anomalies/` — the triage list, where a flagged capture becomes a fact.
+ * The **Anomalies** section of `/timing/events/<slug>/console` — the triage list, where a
+ * flagged capture becomes a fact.
+ *
+ * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
+ * which merged it onto the console beside the timing log it used to link to. Behind
+ * `timing.crossing.resolve`, which is now this *section's* requirement rather than the
+ * address's — the console's door is `timing.event.manage` **or** this one, and somebody holding
+ * only `event.manage` sees no triage list. **The form still posts to `anomalies/update`**,
+ * carrying `timing.crossing.resolve` as it always did.
  *
  * Issue [#252](https://github.com/southville-running-club/src-website/issues/252), under
  * [ADR-034](../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
@@ -36,9 +42,7 @@ import { NotFoundBody } from '../../../not-found-body';
  * to switch on and no per-kind UI. Adding an `anomaly_kind` column to make this page prettier
  * is a schema decision for after the race.
  */
-export const dynamic = 'force-dynamic';
-
-interface OpenAnomaly {
+export interface OpenAnomaly {
   id: string;
   bib: string | null;
   captured_at: string;
@@ -49,50 +53,21 @@ interface OpenAnomaly {
   team_number: string | null;
 }
 
-export default async function AnomaliesPage({
-  params,
-  searchParams,
+export function AnomaliesSection({
+  slug,
+  anomalies,
+  outcomeCode,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  anomalies: OpenAnomaly[];
+  /** `?outcome=`, but only when `?section=anomalies` says this section owns it. */
+  outcomeCode: string | undefined;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-
-  // A repeated parameter arrives as an array; only a single value can name an outcome.
-  const outcomeParam = query.outcome;
-  const outcome = anomalyOutcomeFor(
-    typeof outcomeParam === 'string' ? outcomeParam : undefined,
-  );
-
-  const read = await readTiming<OpenAnomaly[]>('open_anomalies', { p_event_slug: slug });
-
-  if (read.state === 'unavailable') {
-    // ⚠️ **Never "Not found" for an outage.** `lib/reads.ts`'s header carries the argument: a
-    // page that says the race does not exist, during a race, is the worst of the three answers.
-    return (
-      <>
-        <h1>Anomalies</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so the anomalies could not be
-          read. Nothing has been changed. Try again in a moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    return <NotFoundBody />;
-  }
-
-  const anomalies = read.data;
+  const outcome = anomalyOutcomeFor(outcomeCode);
   const action = `/timing/events/${encodeURIComponent(slug)}/anomalies/update`;
 
   return (
     <>
-      <h1>Anomalies</h1>
-
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
@@ -107,9 +82,10 @@ export default async function AnomaliesPage({
       <p>
         {/* The manual refresh. A plain link to this page's own address, so it works with
             scripting off and cannot move the list under somebody mid-decision. */}
-        <Link href={`/events/${slug}/anomalies`}>Look again</Link>
-        {' · '}
-        <Link href={`/events/${slug}/crossings`}>Every capture on this race</Link>
+        <Link href={`/events/${slug}/console#anomalies`}>Look again</Link>
+        {/* ⚠️ "Every capture on this race" removed by #308 — it is the section directly below
+            this one now, and a link from a section to its own neighbour is how a merged screen
+            grows back the navigation it was merged to remove. */}
       </p>
 
       {anomalies.length === 0 ? (

@@ -597,7 +597,11 @@ test.describe('a race that has not started', () => {
     const response = await page.goto(startPath(testInfo.project.name, 'pending'));
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
 
@@ -634,8 +638,14 @@ test.describe('a race that has not started', () => {
     await page.goto(`/timing/events/${slug}`);
     await page.getByRole('link', { name: 'Start this race' }).click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start');
-    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/start`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible();
+    // ⚠️ #308: the start screen is a console section, so the address it lands on is the
+    // console's. The redirect from the old address is asserted separately below.
+    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/console`);
   });
 
   /**
@@ -1691,15 +1701,27 @@ test.describe('the triage list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(anomaliesPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Anomalies' }),
+    ).toBeVisible();
     await expect(
       page.getByRole('heading', { name: '2 captures are waiting' }),
     ).toBeVisible();
 
+    // ⚠️ **Scoped to `#anomalies` since #308 put the triage list and the log on one page.** The
+    // same capture legitimately appears in both — triage is a subset of the log — so an unscoped
+    // text locator resolves twice and trips strict mode. A collapsed `<details>` is not enough:
+    // its content is still in the DOM.
+    const triage = page.locator('#anomalies');
+
     // The marshal's own words, rendered as they were stored — there is no kind to switch on.
-    await expect(page.getByText(ANOMALY_REASON)).toBeVisible();
+    await expect(triage.getByText(ANOMALY_REASON)).toBeVisible();
     await expect(
-      page.getByText(
+      triage.getByText(
         /matches no team on this race, so the capture counts towards nobody/,
       ),
     ).toBeVisible();
@@ -1715,7 +1737,7 @@ test.describe('the triage list', () => {
      * to worry about is the other one, where a substring assertion passes on markup that does
      * not say what the test thinks it says.
      */
-    await expect(page.locator('.triage-card')).toHaveCount(2);
+    await expect(page.locator('#anomalies .triage-card')).toHaveCount(2);
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {
@@ -1723,7 +1745,13 @@ test.describe('the triage list', () => {
     await page.goto(`/timing/events/${anomalyEventSlug(testInfo.project.name)}`);
 
     await page.getByRole('link', { name: 'Captures waiting to be resolved' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Anomalies' }),
+    ).toBeVisible();
   });
 
   test('marks a capture valid, and it leaves the queue', async ({ page }, testInfo) => {
@@ -1860,7 +1888,14 @@ test.describe('the timing log', () => {
     // ⚠️ This row's `resolved_at` is null and always will be, which is why the log takes a
     // different compare-and-swap from the triage list. The database tests hold that; this holds
     // that a volunteer can actually do it.
-    const clean = page.locator('.triage-card', { hasText: 'Recorded' }).first();
+    // ⚠️ **Scoped to the section, because the triage list and the log are one page since
+    // [#308](https://github.com/southville-running-club/src-website/issues/308).** The same
+    // capture legitimately appears in both — triage is a subset of the log — so an unscoped
+    // `.triage-card` matches twice and a text locator trips strict mode. Being closed is not
+    // enough: a collapsed `<details>` still has its content in the DOM.
+    const clean = page
+      .locator('#crossings .triage-card', { hasText: 'Recorded' })
+      .first();
     await clean.getByLabel('Bib').fill(ANOMALY_SECOND_TEAM_NUMBER);
     await clean.getByRole('button', { name: 'Save this bib' }).click();
 
@@ -1876,19 +1911,29 @@ test.describe('the timing log', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(crossingsPath(testInfo.project.name));
 
-    await page.getByLabel('Search by bib or team number').fill(ANOMALY_ORPHAN_BIB);
-    await page.getByRole('button', { name: 'Search' }).click();
+    const log = page.locator('#crossings');
 
-    await expect(page).toHaveURL(new RegExp(`q=${ANOMALY_ORPHAN_BIB}`));
-    await expect(page.locator('.triage-card')).toHaveCount(1);
-    await expect(page.getByText(`Bib ${ANOMALY_ORPHAN_BIB}`)).toBeVisible();
+    await log.getByLabel('Search by bib or team number').fill(ANOMALY_ORPHAN_BIB);
+    await log.getByRole('button', { name: 'Search' }).click();
+
+    // ⚠️ **`log_q`, not `q`** — #308 put this log and the race-status list on one page, and two
+    // controls named `q` there are one control wearing two hats.
+    await expect(page).toHaveURL(new RegExp(`log_q=${ANOMALY_ORPHAN_BIB}`));
+    // ⚠️ **Scoped to the section, because the triage list and the log are one page since
+    // [#308](https://github.com/southville-running-club/src-website/issues/308).** The same
+    // capture legitimately appears in both — triage is a subset of the log — so an unscoped
+    // `.triage-card` matches twice and a text locator trips strict mode. Being closed is not
+    // enough: a collapsed `<details>` still has its content in the DOM.
+    await expect(page.locator('#crossings .triage-card')).toHaveCount(1);
+    await expect(log.getByText(`Bib ${ANOMALY_ORPHAN_BIB}`)).toBeVisible();
   });
 
   test('says so when nothing carries the bib somebody searched for', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(`${crossingsPath(testInfo.project.name)}?q=4242`);
+    // ⚠️ `log_q` since #308 — see the search test above.
+    await page.goto(`${crossingsPath(testInfo.project.name)}?log_q=4242`);
 
     // A claim about this race's record, not "no results" — the page says which bib it looked for.
     await expect(page.getByText(/No capture on this race carries the bib/)).toBeVisible();
@@ -1993,7 +2038,13 @@ test.describe('marking a runner', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race status');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Race status' }),
+    ).toBeVisible();
 
     const card = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
     await card.getByRole('button', { name: 'Did not finish' }).click();
@@ -2061,8 +2112,20 @@ test.describe('marking a runner', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Mark somebody DNS, DNF or DQ' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race status');
+    // ⚠️ **One console link where there were five** — #308. The hub no longer carries a link
+    // per screen, so what this asserts is unchanged in intent and different in route: the
+    // function is still reachable from the race's own page, via the console.
+    //
+    // A regex because the label reports the race's state — "start this race", "the race is
+    // running", "this race is finished" — and this fixture's state is not this test's subject.
+    await page.getByRole('link', { name: /^Race console/ }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Race status' }),
+    ).toBeVisible();
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -2137,8 +2200,18 @@ test.describe('finishing a race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Finish this race' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finish');
+    // ⚠️ **One console link where there were five** — #308. The hub no longer carries a link
+    // per screen, so what this asserts is unchanged in intent and different in route: the
+    // function is still reachable from the race's own page, via the console.
+    //
+    // A regex because the label reports the race's state — "start this race", "the race is
+    // running", "this race is finished" — and this fixture's state is not this test's subject.
+    await page.getByRole('link', { name: /^Race console/ }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
+    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
+    // `<summary>`. Asserting it is what proves the right section was opened rather than
+    // merely that the console rendered.
+    await expect(page.getByRole('heading', { level: 2, name: 'Finish' })).toBeVisible();
   });
 
   test('gives a race that does not exist the ordinary not-found page', async ({
@@ -2670,7 +2743,11 @@ test.describe('the prize presenter', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(prizePath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Prize giving');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
+    // ⚠️ #308 merged the presenter onto the results page; it is an h2 there now.
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Prize giving' }),
+    ).toBeVisible();
     await expect(page.getByText('1st Place Overall')).toBeVisible();
     await expect(page.getByText('Grace Hopper').first()).toBeVisible();
   });
@@ -2918,5 +2995,66 @@ test.describe('the live leaderboard', () => {
     await page.goto(boardPath(testInfo.project.name));
 
     await expectNoSidewaysScroll(page, 'the timing leaderboard at 320px');
+  });
+});
+
+test.describe('the addresses the race console replaced', () => {
+  /**
+   * [#308](https://github.com/southville-running-club/src-website/issues/308) merged five pages
+   * into `/console` and the prize presenter into `/results`.
+   *
+   * ⚠️ **These redirects are not a courtesy, and this is what stops them being deleted as
+   * dead weight.** The race-night runbook addresses every one of these by URL, and a volunteer
+   * bookmarked them during the 14 September rehearsal — the rehearsal whose finding *caused*
+   * this merge. Sending that person to a 404 would be a poor answer to "there are too many
+   * pages".
+   *
+   * They are declared in `next.config.ts` rather than as routes, so they run **before**
+   * `middleware.ts` and an old address never meets the access table at all.
+   */
+  test.beforeEach(async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+  });
+
+  const MERGED: ReadonlyArray<readonly [string, string]> = [
+    ['start', 'console'],
+    ['finish', 'console'],
+    ['status', 'console'],
+    ['anomalies', 'console'],
+    ['crossings', 'console'],
+    ['prizes', 'results'],
+  ];
+
+  for (const [from, to] of MERGED) {
+    test(`/${from} redirects to /${to}`, async ({ page }, testInfo) => {
+      const slug = previewEventSlug(testInfo.project.name);
+
+      await page.goto(`/timing/events/${slug}/${from}`);
+
+      expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/${to}`);
+    });
+  }
+
+  /**
+   * ⚠️ **A redirect must never be put on a write address**, and this is the assertion that says
+   * so out loud. `next.config.ts` lists pages only: a redirected POST drops its body, so a form
+   * would arrive carrying nothing and the handler would answer `incomplete` for a submission
+   * that was complete when it left.
+   *
+   * Asserted as a **GET** on a POST-only address, because what is being proved is that no
+   * redirect rule matches it — not what the handler does with a request. A route handler with
+   * no `GET` export answers 405; a redirect would answer 307 and never reach it.
+   */
+  test('no write address was redirected with them', async ({ page }, testInfo) => {
+    const slug = previewEventSlug(testInfo.project.name);
+
+    const response = await page.request.get(`/timing/events/${slug}/start/update`, {
+      maxRedirects: 0,
+    });
+
+    expect(response.status(), 'a 307 here means a form would lose its body').not.toBe(
+      307,
+    );
+    expect(response.status()).not.toBe(308);
   });
 });

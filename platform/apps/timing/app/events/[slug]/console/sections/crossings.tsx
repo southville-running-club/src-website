@@ -1,11 +1,20 @@
 import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
-import { readTiming } from '../../../../lib/reads';
-import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
-import { NotFoundBody } from '../../../not-found-body';
+import { anomalyOutcomeFor } from '../../../../../lib/anomaly-outcomes';
 
 /**
- * `/timing/events/<slug>/crossings/` — every capture on a race, searchable, with inline correction.
+ * The **Timing log** section of `/timing/events/<slug>/console` — every capture on a race,
+ * searchable, with inline correction.
+ *
+ * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**.
+ * Behind `timing.crossing.resolve`, now this *section's* requirement rather than the address's.
+ * **The form still posts to `crossings/update`**, carrying the same permission it always did.
+ *
+ * ## ⚠️ Its search parameter is `log_q` and was `q`
+ *
+ * The race status section above it searches too. Two controls named `q` on one page are one
+ * control wearing two hats — searching a bib here would silently filter that list as well, and
+ * either "Show everyone" would clear both. See `status.tsx`'s header for the other half.
  *
  * Issue [#252](https://github.com/southville-running-club/src-website/issues/252). Behind
  * `timing.crossing.resolve`, like the triage list beside it, and gated by `middleware.ts`
@@ -43,9 +52,7 @@ import { NotFoundBody } from '../../../not-found-body';
  * visually-hidden span inside the scroller. This is read on a phone on a race morning; the
  * cards carry the same facts and cannot overflow.
  */
-export const dynamic = 'force-dynamic';
-
-interface LoggedCrossing {
+export interface LoggedCrossing {
   id: string;
   bib: string | null;
   captured_at: string;
@@ -79,73 +86,55 @@ function stateOf(crossing: LoggedCrossing): string {
   return 'Recorded';
 }
 
-export default async function CrossingsPage({
-  params,
-  searchParams,
+export function CrossingsSection({
+  slug,
+  crossings,
+  search,
+  outcomeCode,
 }: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  slug: string;
+  crossings: LoggedCrossing[];
+  search: string;
+  /** `?outcome=`, but only when `?section=crossings` says this section owns it. */
+  outcomeCode: string | undefined;
 }) {
-  // Next 16: both are Promises and have to be awaited.
-  const { slug } = await params;
-  const query = await searchParams;
-
-  const outcomeParam = query.outcome;
-  const outcome = anomalyOutcomeFor(
-    typeof outcomeParam === 'string' ? outcomeParam : undefined,
-  );
-
-  // A repeated parameter arrives as an array; only a single value can be a search.
-  const searchParam = query.q;
-  const search = typeof searchParam === 'string' ? searchParam : '';
-
-  const read = await readTiming<LoggedCrossing[]>('crossing_log', {
-    p_event_slug: slug,
-    p_search: search === '' ? null : search,
-  });
-
-  if (read.state === 'unavailable') {
-    return (
-      <>
-        <h1>Timing log</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so the log could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
-    );
-  }
-
-  if (read.state === 'none') {
-    return <NotFoundBody />;
-  }
-
-  const crossings = read.data;
-  const action = `/timing/events/${encodeURIComponent(slug)}/crossings/update`;
+  const outcome = anomalyOutcomeFor(outcomeCode);
+  // ⚠️ **The search rides on the action, and it did not before — this was a real bug.**
+  // `crossings/update` reads it off `request.url` rather than the body, deliberately, so that a
+  // malformed body can still be redirected back to the view it came from. But the action was
+  // built without a query string, so `search` there was **always** empty and the handler's own
+  // comment — *"the search is carried back"* — described something that never happened. A
+  // correction made from a filtered log returned to the whole log. Found while renaming this
+  // parameter for #308; the rename is what made it visible.
+  const base = `/timing/events/${encodeURIComponent(slug)}/crossings/update`;
+  const action = search === '' ? base : `${base}?log_q=${encodeURIComponent(search)}`;
 
   return (
     <>
-      <h1>Timing log</h1>
-
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
 
-      <p>
-        <Link href={`/events/${slug}/anomalies`}>Captures waiting to be resolved</Link>
-      </p>
+      {/* ⚠️ "Captures waiting to be resolved" removed by #308 — the triage list is the
+          section directly above this one now. */}
 
       {/* A GET form, so a searched view is a URL somebody can send to the other volunteer —
           the same property `/admin/nn/`'s filters have, and for the same reason. */}
       <form method="get" className="log-search">
+        {/* ⚠️ **A GET form submits its own fields and nothing else, so `?section=` is lost on
+            submit — and the section this search belongs to collapses under the person using it.**
+            #308. The hidden field puts it back. Searching is the one action on the console that
+            navigates without a route handler in between, which is why this is the only place
+            that needs it. */}
+        <input type="hidden" name="section" value="crossings" />
         <div className="field">
-          <label className="field-label" htmlFor="q">
+          <label className="field-label" htmlFor="log_q">
             Search by bib or team number
           </label>
           <input
             className="field-input"
-            id="q"
-            name="q"
+            id="log_q"
+            name="log_q"
             type="text"
             inputMode="numeric"
             defaultValue={search}
@@ -155,7 +144,10 @@ export default async function CrossingsPage({
           Search
         </button>
         {search === '' ? null : (
-          <Link className="button button-quiet" href={`/events/${slug}/crossings`}>
+          <Link
+            className="button button-quiet"
+            href={`/events/${slug}/console#crossings`}
+          >
             Show everything
           </Link>
         )}

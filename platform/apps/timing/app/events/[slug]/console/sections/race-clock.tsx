@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatDuration } from '../../../../lib/elapsed';
+import { formatDuration } from '../../../../../lib/elapsed';
 
 /**
  * The ticking half of the start screen — the countdown to a start, and the clock since one.

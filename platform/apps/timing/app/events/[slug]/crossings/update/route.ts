@@ -41,13 +41,19 @@ function backTo(
   // than to the whole log — the same property that makes a searched view a URL somebody can
   // send. `basePath` is not applied to a URL built here, so `/timing` is written out, and every
   // part is encoded because the outcome can be a `reason` the database chose.
+  // ⚠️ Back to the console rather than to this handler's own old page — #308. `?section=` says
+  // which of five outcome vocabularies owns `?outcome=`, and the fragment opens that section so
+  // the message is not hidden inside a collapsed block. **This address did not move.**
   const query =
     search === ''
-      ? `outcome=${encodeURIComponent(outcome)}`
-      : `q=${encodeURIComponent(search)}&outcome=${encodeURIComponent(outcome)}`;
+      ? `section=crossings&outcome=${encodeURIComponent(outcome)}`
+      : `section=crossings&log_q=${encodeURIComponent(search)}&outcome=${encodeURIComponent(outcome)}`;
 
   return NextResponse.redirect(
-    new URL(`/timing/events/${encodeURIComponent(slug)}/crossings?${query}`, request.url),
+    new URL(
+      `/timing/events/${encodeURIComponent(slug)}/console?${query}#crossings`,
+      request.url,
+    ),
     303,
   );
 }
@@ -59,8 +65,12 @@ export async function POST(
   // Next 16: `params` is a Promise and has to be awaited.
   const { slug } = await params;
 
-  // The view this was posted from, so the redirect can return to it.
-  const search = new URL(request.url).searchParams.get('q') ?? '';
+  // The view this was posted from, so the redirect can return to it. ⚠️ **`log_q`, not `q`** —
+  // #308 put this log and the race-status list on one page, and two controls named `q` there are
+  // one control wearing two hats. Read off the URL rather than the body on purpose: a body that
+  // fails to parse still has to redirect somewhere, and the catch below runs before there is a
+  // form to read. `sections/crossings.tsx` is what puts it on the action.
+  const search = new URL(request.url).searchParams.get('log_q') ?? '';
 
   let form: FormData;
   try {

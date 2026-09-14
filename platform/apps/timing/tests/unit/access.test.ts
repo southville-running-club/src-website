@@ -38,12 +38,7 @@ describe('what each address demands', () => {
     ['/events/nn-2026', 'timing.event.manage'],
     ['/events/nn-2026/registration', 'timing.registration.import'],
     ['/events/nn-2026/marshals', 'timing.marshal.assign'],
-    ['/events/nn-2026/start', 'timing.event.manage'],
-    ['/events/nn-2026/finish', 'timing.event.manage'],
-    ['/events/nn-2026/status', 'timing.event.manage'],
     ['/events/nn-2026/danger-zone', 'timing.event.manage'],
-    ['/events/nn-2026/anomalies', 'timing.crossing.resolve'],
-    ['/events/nn-2026/crossings', 'timing.crossing.resolve'],
     ['/events/nn-2026/results', 'timing.result.publish'],
     // #205's two write addresses and the presenter beside them. ⚠️ **The export rides on
     // `timing.result.publish` rather than on a permission of its own**, which is the decision
@@ -52,7 +47,6 @@ describe('what each address demands', () => {
     // publishes to the entire internet.
     ['/events/nn-2026/results/update', 'timing.result.publish'],
     ['/events/nn-2026/results/export', 'timing.result.publish'],
-    ['/events/nn-2026/prizes', 'timing.result.publish'],
     ['/events/nn-2026/prizes/export', 'timing.result.publish'],
     ['/marshal/nn-2026', 'timing.crossing.record'],
     // The form's target, not a page — #245. It demands the *section's* own permission, so
@@ -71,7 +65,7 @@ describe('what each address demands', () => {
   });
 
   it('carries the event slug where the address names one, and null where it does not', () => {
-    expect(surfaceFor('/events/nn-2026/start')?.eventSlug).toBe('nn-2026');
+    expect(surfaceFor('/events/nn-2026/console')?.eventSlug).toBe('nn-2026');
     expect(surfaceFor('/marshal/ptb-2026')?.eventSlug).toBe('ptb-2026');
     expect(surfaceFor('/events')?.eventSlug).toBeNull();
     expect(surfaceFor('/')?.eventSlug).toBeNull();
@@ -282,10 +276,23 @@ describe('the address the start form posts to', () => {
     expect(canOpen(ADMIN, '/events/nn-2026/start/update')).toBe(true);
   });
 
-  it('demands exactly what the page it posts from demands', () => {
+  /**
+   * ⚠️ **This asserted "demands exactly what the page it posts from demands" until
+   * [#308](https://github.com/southville-running-club/src-website/issues/308)**, and that
+   * invariant is gone because the page is: five write addresses no longer have a same-named page
+   * beside them. The guard it provided — a write and its page drifting apart — is replaced by
+   * the two below, which are what matter once one address hosts five sections:
+   *
+   * 1. **The write still demands what it always demanded.** The merge moved pages, not writes.
+   * 2. **The console admits anybody who holds that permission.** A section whose write demands
+   *    something the door refuses is a section nobody can reach; a door that admits somebody no
+   *    section serves is a blank page. Both are only visible if this is asserted.
+   */
+  it('still demands what it always did, and the console admits whoever holds it', () => {
     expect(surfaceFor('/events/nn-2026/start/update')?.permission).toBe(
-      surfaceFor('/events/nn-2026/start')?.permission,
+      'timing.event.manage',
     );
+    expect(canOpen(['timing.event.manage'], '/events/nn-2026/console')).toBe(true);
   });
 
   it('carries the event slug, so the gate and the function agree on which race', () => {
@@ -304,15 +311,10 @@ describe('who may open what', () => {
     ['/events/nn-2026'],
     ['/events/nn-2026/registration'],
     ['/events/nn-2026/marshals'],
-    ['/events/nn-2026/start'],
-    ['/events/nn-2026/finish'],
-    ['/events/nn-2026/status'],
+    ['/events/nn-2026/console'],
     ['/events/nn-2026/danger-zone'],
-    ['/events/nn-2026/anomalies'],
-    ['/events/nn-2026/crossings'],
     ['/events/nn-2026/results'],
     ['/events/nn-2026/results/export'],
-    ['/events/nn-2026/prizes'],
     ['/events/nn-2026/prizes/export'],
   ])('a marshal may not open %s', (path) => {
     expect(canOpen(MARSHAL, path)).toBe(false);
@@ -367,12 +369,28 @@ describe('the two addresses the resolution surfaces post to', () => {
     },
   );
 
-  it('demands exactly what the page it posts from demands', () => {
+  /**
+   * ⚠️ **This asserted "demands exactly what the page it posts from demands" until
+   * [#308](https://github.com/southville-running-club/src-website/issues/308)**, and that
+   * invariant is gone because the page is: five write addresses no longer have a same-named page
+   * beside them. The guard it provided — a write and its page drifting apart — is replaced by
+   * the two below, which are what matter once one address hosts five sections:
+   *
+   * 1. **The write still demands what it always demanded.** The merge moved pages, not writes.
+   * 2. **The console admits anybody who holds that permission.** A section whose write demands
+   *    something the door refuses is a section nobody can reach; a door that admits somebody no
+   *    section serves is a blank page. Both are only visible if this is asserted.
+   */
+  it('still demands what it always did, and the console admits whoever holds it', () => {
     for (const section of ['anomalies', 'crossings']) {
       expect(surfaceFor(`/events/nn-2026/${section}/update`)?.permission).toBe(
-        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+        'timing.crossing.resolve',
       );
     }
+
+    // ⚠️ The half that is easy to lose: `timing.crossing.resolve` alone opens the console, so
+    // somebody who may triage but not run a race still reaches the two sections that are theirs.
+    expect(canOpen(['timing.crossing.resolve'], '/events/nn-2026/console')).toBe(true);
   });
 
   it('carries the event slug, so the gate and the function agree on which race', () => {
@@ -387,9 +405,10 @@ describe('the two addresses the resolution surfaces post to', () => {
    */
   it('is not roster-scoped, unlike the capture screen', () => {
     for (const path of [
-      '/events/nn-2026/anomalies',
+      // ⚠️ The two pages became console sections in #308; their write addresses did not move,
+      // and neither did the property being asserted here.
+      '/events/nn-2026/console',
       '/events/nn-2026/anomalies/update',
-      '/events/nn-2026/crossings',
       '/events/nn-2026/crossings/update',
     ]) {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
@@ -446,12 +465,17 @@ describe('the two addresses status and finishing post to', () => {
     },
   );
 
-  it('demands exactly what the page it posts from demands', () => {
+  it('still demands what it always did, and the console admits whoever holds it', () => {
+    // ⚠️ #308 merged the two pages these post from into the console. The write addresses did
+    // not move; what is asserted instead is that the permission is unchanged and that the door
+    // in front of the sections lets that permission through.
     for (const section of ['status', 'finish']) {
       expect(surfaceFor(`/events/nn-2026/${section}/update`)?.permission).toBe(
-        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+        'timing.event.manage',
       );
     }
+
+    expect(canOpen(['timing.event.manage'], '/events/nn-2026/console')).toBe(true);
   });
 
   it('carries the event slug, so the gate and the function agree on which race', () => {
@@ -523,13 +547,17 @@ describe("the addresses #205's two screens post to", () => {
   });
 
   it('demands exactly what the page it posts from demands', () => {
+    // ⚠️ **All three post from `results` since #308**, which absorbed the prize presenter. The
+    // page moved and `prizes/export` did not, so the comparison is against `results` for every
+    // one of them — and the property is unchanged: a file leaving the building demands exactly
+    // what the screen it left from demands.
     for (const [section, action] of [
       ['results', 'update'],
       ['results', 'export'],
       ['prizes', 'export'],
     ]) {
       expect(surfaceFor(`/events/nn-2026/${section}/${action}`)?.permission).toBe(
-        surfaceFor(`/events/nn-2026/${section}`)?.permission,
+        surfaceFor('/events/nn-2026/results')?.permission,
       );
     }
   });
@@ -542,7 +570,7 @@ describe("the addresses #205's two screens post to", () => {
   it('refuses somebody who may run the race but not publish its results', () => {
     const manageOnly = ['timing.event.manage'];
 
-    expect(canOpen(manageOnly, '/events/nn-2026/finish')).toBe(true);
+    expect(canOpen(manageOnly, '/events/nn-2026/console')).toBe(true);
     expect(canOpen(manageOnly, '/events/nn-2026/results')).toBe(false);
     expect(canOpen(manageOnly, '/events/nn-2026/results/update')).toBe(false);
     expect(canOpen(manageOnly, '/events/nn-2026/prizes/export')).toBe(false);
@@ -653,7 +681,7 @@ describe('the roster scope', () => {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(true);
     }
 
-    for (const path of ['/', '/events', '/events/nn-2026/crossings']) {
+    for (const path of ['/', '/events', '/events/nn-2026/console']) {
       expect(surfaceFor(path)?.rosterScoped, path).toBe(false);
     }
   });
@@ -669,5 +697,86 @@ describe('the roster scope', () => {
     expect(surface).not.toBeNull();
     expect(holdsPermissionFor(MARSHAL, surface!)).toBe(true);
     expect(surface!.rosterScoped).toBe(true);
+  });
+});
+
+describe('the race console, and the six addresses it replaced', () => {
+  /**
+   * [#308](https://github.com/southville-running-club/src-website/issues/308). Five pages —
+   * `start`, `finish`, `status`, `anomalies`, `crossings` — became one console, and `prizes`
+   * became a section of `results`. A volunteer ran a race end to end on production and reported
+   * the navigation as the tiring part; what made it actionable is that the five were only ever
+   * two permissions between them.
+   */
+  it('is the one address here whose door names two permissions and is not the leaderboard', () => {
+    const surface = surfaceFor('/events/nn-2026/console');
+
+    expect(surface).not.toBeNull();
+    expect(surface?.permission).toEqual([
+      'timing.event.manage',
+      'timing.crossing.resolve',
+    ]);
+  });
+
+  /**
+   * ⚠️ **A list is `or`, and on this address that is load-bearing rather than incidental.**
+   * Somebody who may run a race but not resolve a capture, and somebody who may resolve a
+   * capture but not run a race, both have sections behind this door. Demanding either slug
+   * alone would shut one of them out of work that is theirs.
+   */
+  it.each([
+    [['timing.event.manage'], 'somebody who runs the race'],
+    [['timing.crossing.resolve'], 'somebody who resolves captures'],
+    [['timing.event.manage', 'timing.crossing.resolve'], 'somebody who does both'],
+  ])('opens to %s — %s', (permissions) => {
+    expect(canOpen(permissions, '/events/nn-2026/console')).toBe(true);
+  });
+
+  /**
+   * ⚠️ **Widening a door must not widen it to somebody new**, which is the one thing a merge
+   * like this can get wrong invisibly. `timing-marshal` holds `timing.crossing.record` and
+   * nothing else, and it could open none of the five pages this replaced.
+   */
+  it.each([
+    [MARSHAL, 'a marshal'],
+    [NN_ADMIN, 'an entries admin'],
+    [[], 'somebody signed in holding nothing'],
+  ])('is refused to %#: %s', (permissions) => {
+    expect(canOpen(permissions, '/events/nn-2026/console')).toBe(false);
+  });
+
+  /**
+   * ⚠️ **The six old page addresses are refused *here*, and that is not the same as being
+   * broken.** `next.config.ts` redirects each of them to the console, and those redirects run
+   * **before** middleware — so an old bookmark or a runbook URL never reaches this table at all.
+   * What this asserts is that nothing in `lib/access.ts` still opens them, because a row left
+   * behind would be a second, unredirected way in to a page that no longer exists.
+   */
+  it.each([
+    ['/events/nn-2026/start'],
+    ['/events/nn-2026/finish'],
+    ['/events/nn-2026/status'],
+    ['/events/nn-2026/anomalies'],
+    ['/events/nn-2026/crossings'],
+    ['/events/nn-2026/prizes'],
+  ])('%s has no row of its own any more', (path) => {
+    expect(surfaceFor(path)).toBeNull();
+    expect(canOpen(ADMIN, path)).toBe(false);
+  });
+
+  /**
+   * ⚠️ **Every write those pages posted to still resolves, and still demands what it did.** The
+   * merge moved pages and nothing else: if a redirect above ever tempted somebody to redirect a
+   * POST address too, this is what fails — a redirected POST silently drops its body.
+   */
+  it.each([
+    ['/events/nn-2026/start/update', 'timing.event.manage'],
+    ['/events/nn-2026/finish/update', 'timing.event.manage'],
+    ['/events/nn-2026/status/update', 'timing.event.manage'],
+    ['/events/nn-2026/anomalies/update', 'timing.crossing.resolve'],
+    ['/events/nn-2026/crossings/update', 'timing.crossing.resolve'],
+    ['/events/nn-2026/prizes/export', 'timing.result.publish'],
+  ])('%s still demands %s', (path, permission) => {
+    expect(surfaceFor(path)?.permission).toBe(permission);
   });
 });

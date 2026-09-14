@@ -38,6 +38,15 @@ const INTENTS = {
 } as const;
 
 function backTo(request: Request, slug: string, outcome: string): NextResponse {
+  // ⚠️ **Back to the console, not to this handler's own old page** —
+  // [#308](https://github.com/southville-running-club/src-website/issues/308) merged five pages
+  // into one. `?section=` says which section owns `?outcome=`, because five outcome vocabularies
+  // now share one address and a bare `?outcome=` would be ambiguous between them; the fragment
+  // opens that section and scrolls to it, so the message about what just happened is not hidden
+  // inside a collapsed block.
+  //
+  // **This address did not move** — only where it sends somebody afterwards. `lib/access.ts`
+  // still carries this section's own permission for it.
   // `basePath` is not applied to a URL built here, so `/timing` is written out.
   //
   // ⚠️ **Both halves are encoded**, and the outcome half is the one that is easy to miss: it can
@@ -45,7 +54,7 @@ function backTo(request: Request, slug: string, outcome: string): NextResponse {
   // to put a `&` or a `#` into this URL. `anomalyOutcomeFor()` then answers `null` for anything
   // it has no wording for, so an unknown reason is silent rather than mangled.
   const target = new URL(
-    `/timing/events/${encodeURIComponent(slug)}/anomalies?outcome=${encodeURIComponent(outcome)}`,
+    `/timing/events/${encodeURIComponent(slug)}/console?section=anomalies&outcome=${encodeURIComponent(outcome)}#anomalies`,
     request.url,
   );
 

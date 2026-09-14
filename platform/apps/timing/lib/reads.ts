@@ -112,3 +112,66 @@ export async function readTiming<T>(
     return { state: 'unavailable' };
   }
 }
+
+/**
+ * The signed-in person's permission slugs, for a page that must render one section and not
+ * another.
+ *
+ * ## ⚠️ Why a page is allowed to ask this at all
+ *
+ * Every other page here refuses nothing and asks nothing: `middleware.ts` is the one door,
+ * and `app/page.tsx`'s header carries the measurement that settled it — a `notFound()` thrown
+ * from a dynamic render produces a blank shell, so a page here provably *cannot* refuse.
+ * **This does not change that.** The door still decides whether the address opens; this only
+ * decides what is drawn once it has.
+ *
+ * The hub predicted the need in as many words. `app/events/[slug]/page.tsx` links its sections
+ * unconditionally and says why: *"`canOpen()` … needs the viewer's permissions, which this page
+ * does not read — the door does … if the two permissions ever come apart in practice, this is
+ * the line that has to learn to ask."* The race console
+ * ([#308](https://github.com/southville-running-club/src-website/issues/308)) is where they come
+ * apart, because it merges `timing.event.manage` work with `timing.crossing.resolve` work onto
+ * one address.
+ *
+ * ## The failure direction
+ *
+ * **An empty list on failure, never a full one.** A read that fails renders a console with no
+ * sections rather than a console with every section — which is a page that looks broken instead
+ * of a page that offers buttons whose writes will be refused. That is the direction this
+ * repository fails in everywhere else, and the cost of getting it backwards is the old
+ * application's bug: a nav tab that 403s whoever taps it.
+ *
+ * ⚠️ **Never a security boundary.** Nothing is protected by what this returns: each `…/update`
+ * address carries its own permission in `lib/access.ts`, enforced at the door, and every
+ * `timing` function re-checks with `identity.has_permission()` against `auth.uid()`. A forged
+ * POST to a section this hid is refused exactly as it always was.
+ *
+ * **Bare `.rpc()`, no `.schema()`** — `createUserClient` pins `db.schema` to `identity`, which
+ * is the opposite of {@link readTiming}'s requirement and the reason that one says so loudly.
+ */
+export async function readPermissions(): Promise<string[]> {
+  const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+
+  if (!accessToken) {
+    return [];
+  }
+
+  try {
+    const asPerson = createUserClient(await config(), accessToken);
+    const { data, error } = await asPerson.rpc('my_permissions');
+
+    if (error) {
+      console.error(
+        `timing: my_permissions unavailable — ${error.code}: ${error.message}`,
+      );
+      return [];
+    }
+
+    return Array.isArray(data) ? (data as string[]) : [];
+  } catch (cause) {
+    console.error(
+      `timing: my_permissions threw — ${cause instanceof Error ? cause.message : cause}`,
+    );
+    return [];
+  }
+}
