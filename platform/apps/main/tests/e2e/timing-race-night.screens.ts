@@ -88,10 +88,11 @@ import { forgetSessions, signInAs } from './sign-in';
  * — `timing-staff-db.ts`'s header carries the whole story. `CLAUDE.md`'s own note on a second
  * `./dev test` is the general form: **wait for the run that was dispatched.**
  *
- * ⚠️ **`nn-2026` is never seeded here.** `timing-db.ts` keeps that row behind its own function
- * because it is what `entries.current_entry_state('nn')` answers, so seeding it paints a
- * Results link onto `/nn/` and `/nn/2026/` for everything else in the run. The published public
- * page below is `nn-2095`, which reaches no page but its own.
+ * ⚠️ **`nn-2026` is never published here.** The row itself is in the table by migration since
+ * #288; what `timing-db.ts` keeps behind its own function is *publishing* it, because
+ * `entries.current_entry_state('nn')` answers that running and a published one paints a Results
+ * link onto `/nn/` and `/nn/2026/` for everything else in the run. The published public page
+ * below is `nn-2095`, which reaches no page but its own.
  */
 
 /** Where the pictures land. The runbook is the only thing that reads them. */

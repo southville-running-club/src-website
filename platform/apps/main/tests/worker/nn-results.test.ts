@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest';
  * answers 404 to everybody else**, which is what every assertion here is about. ⚠️ **A
  * published race is not a case this file can reach, and that is now about the fixtures rather
  * than about the code**: since #242 a signed-out visitor is no longer refused before anything
- * is read, and this run has no `timing` rows at all — so `results_for_event()` answers `null`
- * for every address below, which is exactly the shape of the database somebody probing the
- * site meets. The published branch, cache headers and all, is in
+ * is read, and this run's only `timing` row is the real `nn-2026`, unpublished — #288 put it in
+ * the table, and nothing here publishes it — so `results_for_event()` answers `null` for every
+ * address below, which is exactly the shape of the database somebody probing the site meets. The published branch, cache headers and all, is in
  * `tests/worker/admin/nn-results.test.ts`, whose setup writes the rows with `pg`.
  *
  * This run is the right place to prove the locked half, for the reason

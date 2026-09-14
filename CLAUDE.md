@@ -2040,10 +2040,21 @@ memory and lets the file go. **Which is why the preview is a second submit of th
 rather than a stored parse, and why the findings cross the redirect as a severity, a finding
 kind and row numbers, re-worded in the club's own voice by
 `apps/timing/lib/registration-outcomes.ts`: the parser's own messages name runners and quote
-their email addresses, and a query string is not somewhere personal data may go. **There is
-also no timing data** — every table is empty, so the results page renders "Nothing has been
-captured for this race yet" to the few people who may open it at all. The current state, and
-what is deliberately deferred, is in [the phases](docs/delivery/phases.md).
+their email addresses, and a query string is not somewhere personal data may go.
+
+⚠️ **`timing` holds exactly one row of production data since 14 September 2026, and it is the
+race** — `nn-2026`, put in `timing.events` by `20260914160000_timing_nn_2026_event.sql` under
+[#288](https://github.com/southville-running-club/src-website/issues/288), because **nothing in
+the app can create an event**: `timing.create_event()` is behind `timing.event.manage` and is
+called by nothing, so the row is a reviewed commit, and a create form is owed to Pass the Buck
+([#206](https://github.com/southville-running-club/src-website/issues/206)) rather than to this
+race. This paragraph said *"every table is empty"* until then. **Everything else is still
+empty**: no team, no runner and no crossing, so the results page renders "Nothing has been
+captured for this race yet" to the few people who may open it at all, and the row itself is
+inert — not started, not finished, not published. ⚠️ **What that retires is the argument three
+`timing` migrations used for shipping a check constraint `validated` rather than `NOT VALID`** —
+*"there is no row to disagree"* — which is true of every table but `events` now. The current
+state, and what is deliberately deferred, is in [the phases](docs/delivery/phases.md).
 
 ---
 

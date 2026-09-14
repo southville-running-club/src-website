@@ -503,10 +503,11 @@ describe('a running whose results the club has published', () => {
  * only once somebody has published them — a link to a 404 on the club's own front door says a
  * race's results exist and then answers "there is nothing at this address".
  *
- * ⚠️ **`nn-2026` is published in this run only**, by `seedPublishedCurrentRunning()`. The
- * unpainted half is asserted in `tests/worker/nn-panel.test.ts`, which runs against a database
- * with no `timing` rows at all — the state every other run and every deployed environment is
- * in today.
+ * ⚠️ **`nn-2026` is published in this run only**, by `seedPublishedCurrentRunning()` — which
+ * since #288 publishes the row `20260914160000` put in the table rather than inserting one of
+ * its own. The unpainted half is asserted in `tests/worker/nn-panel.test.ts`, which runs
+ * against that same row left unpublished — the state every other run and every deployed
+ * environment is in today.
  */
 describe('the link to the results, on the two pages that may carry one', () => {
   const anchor = /<a[^>]*data-nn-results-link[^>]*>([^<]*)<\/a>/;

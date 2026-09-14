@@ -291,44 +291,70 @@ async function seedFinishedAndPublished(db: Client): Promise<void> {
  * would put a visible "Results" button on `/nn/` and `/nn/2026/` for the whole Playwright
  * suite — nine-width sweeps, axe runs and the entry form's layout assertions included — to
  * prove one anchor. So `tests/worker/admin/global-setup.ts` calls it and nothing else does,
- * and `tests/worker/nn-panel.test.ts` asserts the unpainted half in a run that has no `timing`
- * rows at all.
+ * and `tests/worker/nn-panel.test.ts` asserts the unpainted half in a run whose only `timing`
+ * row is the migration's own `nn-2026`, unpublished — which is the state production is in.
  *
  * **No teams and no crossings.** What is being proved is the link, not the table; the table has
  * two runnings of its own.
+ *
+ * ## ⚠️ It publishes a row it does not own, and since #288 it cannot insert one
+ *
+ * **`nn-2026` arrives by migration now** — `20260914160000`, the real race, the only production
+ * data `timing` holds — so this used to insert a second row under the same slug and would now
+ * fail on `events_slug_key` before a single assertion ran. It **publishes the migration's own
+ * row instead**: two columns set here, the same two cleared afterwards, and the race, its name,
+ * its format and its start time are read rather than restated.
+ *
+ * That is the better fixture anyway. The row this run proves the link against is the row
+ * production has, rather than a copy of it that can drift from the migration silently — and
+ * `timing-nn-2026.test.ts` is what asserts the values themselves.
  */
 export async function seedPublishedCurrentRunning(): Promise<void> {
   await clearPublishedCurrentRunning();
 
   await withClient(async (db) => {
-    await db.query(
-      `insert into timing.events
-           (id, slug, name, format, start_at, finished_at, results_published_at)
-         values ($1, 'nn-2026', 'Nightingale Nightmare 2026', 'solo',
-                 '2026-11-01T11:00:00Z'::timestamptz,
-                 '2026-11-01T13:30:00Z'::timestamptz,
-                 '2026-11-01T18:00:00Z'::timestamptz)`,
-      [PUBLISHED_CURRENT_EVENT_ID],
+    const { rowCount } = await db.query(
+      `update timing.events
+          set finished_at = '2026-11-01T13:30:00Z'::timestamptz,
+              results_published_at = '2026-11-01T18:00:00Z'::timestamptz
+        where slug = 'nn-2026'`,
     );
+
+    // **Loud rather than silent**, because the failure this guards against is the row being
+    // absent: an `update` matching nothing succeeds, and the tests that follow would then all
+    // fail on a missing results link with nothing saying why.
+    if (rowCount !== 1) {
+      throw new Error(
+        `expected one nn-2026 row in timing.events to publish, matched ${String(rowCount)} — ` +
+          'has 20260914160000_timing_nn_2026_event.sql been applied?',
+      );
+    }
   });
 }
 
-/** Deterministic and invented, like every other id in this file. */
-const PUBLISHED_CURRENT_EVENT_ID = '0c0c0c0c-0000-4000-8000-000000000005';
-
-/** By this one id, and never wider — `clearTimingFixtures`' rule. */
+/**
+ * **Unpublished rather than deleted**, and the distinction is the whole of the note above: the
+ * row is the migration's, so putting it back means returning the two columns this fixture set
+ * to the null they ship as — not removing a race the next `db reset` would have to restore.
+ */
 export async function clearPublishedCurrentRunning(): Promise<void> {
   await withClient(async (db) => {
-    await db.query('delete from timing.events where id = $1', [
-      PUBLISHED_CURRENT_EVENT_ID,
-    ]);
+    await db.query(
+      `update timing.events
+          set finished_at = null,
+              results_published_at = null,
+              results_published_by = null
+        where slug = 'nn-2026'`,
+    );
   });
 }
 
 export async function clearTimingFixtures(): Promise<void> {
   await withClient(async (db) => {
-    // **By id, and never wider.** `timing` holds nothing else today, and a delete that took
-    // every event would be exactly the fixture that stops being safe the day it does.
+    // **By id, and never wider.** ⚠️ This said `timing` holds nothing else *today*, and that a
+    // delete taking every event would be the fixture that stops being safe the day it does —
+    // **that day was 14 September 2026**: `20260914160000` puts the real `nn-2026` in this
+    // table, so a wider delete here would drop the race the runbook is written against.
     await db.query('delete from timing.events where id = any($1::uuid[])', [
       FIXTURE_EVENT_IDS,
     ]);
