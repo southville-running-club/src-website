@@ -709,6 +709,26 @@ first version of this fix failed. `page.evaluate` works there; `requestAnimation
 do not. The helper names the offending element on failure, which is what turned this from three
 runs and an afternoon into four minutes.
 
+⚠️ **The fourth instance does not measure anything, which is what made it hard to recognise as
+this.** 14 September 2026, issue [#289](https://github.com/southville-running-club/src-website/issues/289):
+one failure in a full `./dev test`, on `mobile-safari` alone, in `nn-consolidated.spec.ts`'s
+_"opens its section menu without JavaScript"_ — a spec the branch being gated does not touch,
+green 14 of 14 on a scoped re-run of the same engine and green in CI on the same commit. Nothing
+in it reads a layout property; what it does is **branch** on one. The jump-nav has two
+presentations — an inline list above 860px, a closed `<details>` below it — and which one is on
+screen is a question only `nn-theme.css` can answer. `isVisible()` is a **single read with no
+retry**, and it is what chooses the branch: taken before the sheet applies it chooses against a
+document that has no presentation, the click that opens the menu never happens, and the
+`toBeVisible()` after it is asserting about the presentation the page is not in. **The final
+`expect` retries, which is why this was rare rather than constant** — and rare is the expensive
+kind, because it fails a gate on a branch that cannot have caused it and costs a re-run and a
+diagnosis before anybody believes that. `expectStyledLayout()` in `sideways-scroll.ts` is the
+same wait with an assertion in front of the caller's own read: a wait that falls through on
+timeout has somewhere to land when what follows it is a measurement, and nowhere at all when
+what follows it is a branch. **The rule generalises past overflow** — a read that decides _what
+to assert_ is as meaningless on a bare document as one that measures it, and it fails more
+quietly.
+
 **The three browser engines do not agree on what an attachment is, and one of them only
 disagrees on Linux.** Given `content-type: text/csv` and `content-disposition: attachment`,
 Chromium downloads it — the `download` event fires and `response.body()` is _unreadable_, because

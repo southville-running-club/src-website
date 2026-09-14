@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { expectStyledLayout } from '../sideways-scroll';
+
 /**
  * The consolidated `/nn/2026/` page — its structure, its jump-nav, and the half of it that has
  * to work with the enhancement script removed.
@@ -144,6 +146,32 @@ test.describe('what survives without the script', () => {
   /**
    * **The jump-nav's menu opens without JavaScript**, because it is a `<details>` and nothing
    * else. Asserted by opening it rather than by reading the markup.
+   *
+   * ⚠️ **The sample below decides which of two presentations to assert, so it may not be taken
+   * before the stylesheet has applied.** `nn-theme.css` is what says which one is on screen: the
+   * inline list above 860px, the closed `<details>` below it. `isVisible()` is a single read
+   * with no retry, and read against a document with no presentation it chooses the wrong branch
+   * — after which the `toBeVisible()` at the foot is asserting about the other one. That is the
+   * whole of issue #289: one failure in a full `./dev test` on `mobile-safari`, on a branch
+   * carrying no application code, and 14 of 14 green on a scoped re-run of the same spec.
+   *
+   * `expectStyledLayout` is the wait, shared with the eight measurements in
+   * `../sideways-scroll.ts` rather than copied here — **a defined state, never a retry until the
+   * assertion comes good**. Its polling runs on Playwright's side for the reason that file's
+   * header gives at length, which is live rather than theoretical here: this describe block is
+   * *what survives without the script*, so the `no-javascript` project runs it with
+   * `javaScriptEnabled: false`, where a `page.waitForFunction` loop would never run at all.
+   *
+   * It buys a second thing the issue does not name: the click that follows is aimed at a
+   * `summary` that has stopped moving. Applying `nn-theme.css` gives that summary `display:
+   * flex` and a 44px minimum height and relays out the page above it, and a click resolved
+   * against the bare document's coordinates lands wherever that summary used to be — the menu
+   * then never opens, which is the same observed failure by a different route. Both are closed
+   * by sampling and clicking after the sheet has arrived, which is why the wait goes here
+   * rather than immediately before the `isVisible()` call.
+   *
+   * **The branch stays.** Both presentations are real and both are covered; asserting only the
+   * narrow one would be a smaller test rather than a fixed one.
    */
   test('opens its section menu without JavaScript', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
@@ -151,6 +179,8 @@ test.describe('what survives without the script', () => {
 
     const menu = page.locator('.nn-jump-menu');
     await expect(menu).toHaveCount(1);
+
+    await expectStyledLayout(page, 'the jump-nav at 320px');
 
     // Either the links are already shown — the wide presentation — or the summary opens them.
     const links = page.locator('.nn-jump-links a').first();
