@@ -2,6 +2,7 @@ import {
   createUserClient,
   fetchOutboxList,
   formatLondon,
+  outboxAttemptsWords,
   resendOutboxMessage,
   type OutboxFigures,
   type OutboxRow,
@@ -348,11 +349,22 @@ function messageRow(message: OutboxRow, token: string | null): Html {
           : html`<span class="admin-quiet">${message.lastError}</span>`
       }
       ${
+        /* **The noun is not chosen here, and that is the fix rather than the tidy-up.** This
+           cell built *"3 attempts"* by hand while `/admin/nn/entry/` put the same column
+           through its own helper and got *"Failed after 3 tries"* — one row, two words for it,
+           on the two pages a volunteer reads together when somebody says they heard nothing.
+           `outboxAttemptsWords()` is the club's word, argued where it lives. #175.
+
+           **Zero still renders nothing**, and that decision stays here rather than moving into
+           the helper: a message nobody has tried yet already says "Waiting" in this cell and
+           needs no count beside it, and "0 attempts" reads as a failure on a row that has not
+           failed. It is also the whitespace fix — the hand-built version put the count and the
+           noun on either side of a template newline, so the cell held "3⏎ attempts" and only a
+           whitespace-squashing assertion could ever have matched it. */
         message.attempts === 0
           ? null
           : html`<span class="admin-quiet"
-              >${String(message.attempts)}
-              attempt${message.attempts === 1 ? '' : 's'}</span
+              >${outboxAttemptsWords(message.attempts)}</span
             >`
       }
     </td>

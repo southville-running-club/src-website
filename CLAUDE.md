@@ -298,6 +298,19 @@ re-run.
   to text. A template that writes its own `£` beside a call to `formatPence()` doubles it —
   `££18.00`, and `£Free` on a given place. The presentation belongs to the one function that
   already produces it — the caller in `NnEntryForm.astro` is the one place that still does not.
+  ⚠️ **Four of #175's six sites closed on 14 September 2026 and the two in `NnEntryForm.astro`
+  did not, deliberately.** The issue's own advice was _"none should land before entries open; two
+  are on the entry form"_ — which has inverted: entries opened on 1 September and the race is
+  selling, so the two sites on the form that takes the money are now the riskiest of the six
+  rather than the safest, and they wait for a quiet window or for the window to close on 30
+  October. So the paragraph above still stands exactly as written. **What came out of the other
+  four is `plural()` — `packages/shared/src/plural.ts`, this rule applied to a count and a
+  noun** — and, because the rule was not enough on its own, `outboxAttemptsWords()` in
+  `admin-outbox.ts`: sharing the conditional stops a surface re-deriving it, and only sharing
+  the **noun** stops a third surface picking a third word. `/admin/emails/` and
+  `/admin/nn/entry/` had rendered one `email_outbox.attempts` row as _"3 attempts"_ and _"Failed
+  after 3 tries"_. The club's word is **attempt**, which is the one
+  [the email runbook](docs/delivery/runbooks/entries-email.md) already used throughout.
 - **A seventh role, or a twelfth permission.** **Trigger: exactly what the heading says** —
   the **six** roles and **eleven** permissions are asserted in
   `packages/db/tests/identity-permissions.test.ts`, and a seventh or twelfth is a decision, not

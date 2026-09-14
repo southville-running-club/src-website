@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { contrastRatio, parseHex } from '../../src/contrast.js';
+import { contrastRatio, formatRatio, parseHex } from '../../src/contrast.js';
 import tokens from '../../design-tokens.json' with { type: 'json' };
 
 /**
@@ -217,7 +217,7 @@ describe('the washes the admin surface mixes', () => {
 
         expect(
           ratio,
-          `--colour-text on ${wash.declaration} is ${ratio.toFixed(2)}:1 in the ${scheme} scheme`,
+          `--colour-text on ${wash.declaration} is ${formatRatio(ratio)} in the ${scheme} scheme`,
         ).toBeGreaterThanOrEqual(AAA);
       }
     });
@@ -295,7 +295,7 @@ describe('the capacity bar', () => {
 
       expect(
         ratio,
-        `the bar's green is ${ratio.toFixed(2)}:1 against its track in the ${scheme} scheme`,
+        `the bar's green is ${formatRatio(ratio)} against its track in the ${scheme} scheme`,
       ).toBeGreaterThanOrEqual(NON_TEXT_FLOOR);
     }
   });
@@ -307,7 +307,7 @@ describe('the capacity bar', () => {
 
     expect(
       ratio,
-      `the bar's amber is ${ratio.toFixed(2)}:1 against its track in the dark scheme`,
+      `the bar's amber is ${formatRatio(ratio)} against its track in the dark scheme`,
     ).toBeGreaterThanOrEqual(NON_TEXT_FLOOR);
   });
 
@@ -321,7 +321,7 @@ describe('the capacity bar', () => {
 
     expect(
       ratio,
-      `the bar's amber is ${ratio.toFixed(2)}:1 against its track in the light scheme — if this now passes, the token changed`,
+      `the bar's amber is ${formatRatio(ratio)} against its track in the light scheme — if this now passes, the token changed`,
     ).toBeLessThan(NON_TEXT_FLOOR);
   });
 
