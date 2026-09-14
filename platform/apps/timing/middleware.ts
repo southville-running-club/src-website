@@ -75,6 +75,36 @@ import { holdsPermissionFor, surfaceFor } from './lib/access';
  * have checked lives in `lib/access.ts` as a table. `surfaceFor()` says what an address
  * demands; an address with no row is refused, so adding a page without adding a row is a page
  * that does not open rather than one that opens to anybody.
+ *
+ * ## What this door checks, what it costs, and the one thing it deliberately does not check
+ *
+ * Per request, against Supabase:
+ *
+ * | Address | Calls | What they are |
+ * | --- | --- | --- |
+ * | Everything under `/timing` | **1** | `identity.my_permissions()` |
+ * | `/timing/marshal/<slug>/…` | **2** | and `timing.marshal_event()`, ADR-036's roster scope |
+ *
+ * ⚠️ **It does not check that the slug names a race, and that is
+ * [ADR-044](../../../docs/architecture/decisions/adr-044-a-missing-race-under-timing-answers-200.md)
+ * rather than an omission.** So `/timing` has two not-found answers with two statuses: a
+ * refusal here is rewritten to an address matching no route and Next serves its *prerendered*
+ * not-found page with a real **404**, while a caller who holds the permission and asks for a
+ * race that is not there gets past this door, the page's own read answers `none`, and the page
+ * renders `app/not-found-body.tsx` with a **200**. The bodies are identical — one component
+ * renders both — and only the status differs.
+ *
+ * **Making the two agree means this door learning the answer, and the answer is a database
+ * call.** The marshal branch below is the shape, and the reason it is affordable there is that
+ * `marshal_event()` answers a question the door has to ask anyway: ADR-036's roster scope. No
+ * event address has one of those. Buying it for the twelve event addresses would mean a
+ * **second** call at this door on every one of their page views, and it is a strict duplicate of
+ * the read the page then makes for itself — plus
+ * a thirty-sixth granted function in `timing`, because none of the thirty-five answers
+ * *"does this slug name a race"* at the permission each address actually demands:
+ * `event_detail()` is behind `timing.event.manage`, so calling it here would silently `and`
+ * that permission onto `/registration/`, `/marshals/`, `/anomalies/` and the rest. ADR-044
+ * carries the trade and what would change our mind.
  */
 
 /**

@@ -93,6 +93,50 @@ const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 const rosterPath = (project: string): string =>
   `/timing/events/${rosterEventSlug(project)}/marshals`;
 
+/**
+ * An address under `/timing` that has nothing to show — the body **and** the status.
+ *
+ * ⚠️ **There are two not-found answers here and they carry two different status codes**, which
+ * is [ADR-044](../../../../../docs/architecture/decisions/adr-044-a-missing-race-under-timing-answers-200.md)
+ * rather than an accident:
+ *
+ * | | | |
+ * | --- | --- | --- |
+ * | **A refusal** — no session, no permission, no roster row | `middleware.ts` rewrites to an address matching no route, so Next serves its *prerendered* not-found page | **404** |
+ * | **A race that does not exist**, asked for by somebody who holds the permission | the request gets past the door, the page's own read answers `none`, and the page renders `app/not-found-body.tsx` | **200** |
+ *
+ * The 200 is the price of a measured constraint: `notFound()` thrown from a **dynamic** render
+ * — and reading cookies makes every render there dynamic — returns a blank error shell rather
+ * than the not-found page, which
+ * [#243](https://github.com/southville-running-club/src-website/issues/243) measured and
+ * `middleware.ts`'s header records. So a page that has nothing to show *renders*, and a render
+ * is a 200.
+ *
+ * ⚠️ **The ten tests that meet this asserted the heading and not the status**, which is how the
+ * live leaderboard's own test came to assert 404 and fail on all three engines —
+ * [#291](https://github.com/southville-running-club/src-website/issues/291). They all come
+ * through here now, so the status is a written-down expectation rather than whatever happens:
+ * nine of them pass **200** and `/timing/marshal/<slug>/` passes **404**, because that is the
+ * one address whose door already makes a read that answers existence — ADR-036's roster scope,
+ * which it needs anyway.
+ *
+ * **The body is asserted in both cases and must never differ between them.** A refusal that
+ * reads differently from a missing address is the disclosure the club's 404-rather-than-403
+ * rule exists to prevent, and `apps/timing/app/not-found-body.tsx` is the one component both
+ * paths render.
+ */
+async function expectNotFoundPage(
+  page: Page,
+  path: string,
+  status: 200 | 404,
+): Promise<void> {
+  const response = await page.goto(path);
+
+  expect(response?.status(), path).toBe(status);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+  await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+}
+
 /*
  * ⚠️ **`{}` is required by Playwright and rejected by ESLint, so the rule is turned off for
  * exactly these two lines.** Playwright reads the *source* of a hook to work out which
@@ -281,10 +325,36 @@ test.describe('one race', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
-    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/', 200);
+  });
+
+  /**
+   * ⚠️ **The harm the 200 was actually worth worrying about, asserted rather than assumed** —
+   * #291's own words: *"a cache that stores a 200 'Not found' for an address that later has a
+   * race on it is a race-day failure nobody would diagnose quickly"*. It cannot, and this is
+   * what says so: every page under `/timing` is `force-dynamic`, so the response forbids being
+   * stored, and a slug that names nothing today is a race tomorrow the moment somebody creates
+   * one.
+   *
+   * **Asserted once rather than on all nine.** It is a property of every dynamically rendered
+   * response this application sends, not of this page — so a second copy would be a second
+   * place for the same fact, and ADR-044 is where the argument lives.
+   */
+  test('and that 200 is not a response anything is allowed to store', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+
+    const response = await page.goto('/timing/events/zz-no-such-race/');
+
+    expect(response?.status()).toBe(200);
+    // Next's dynamic default is `private, no-cache, no-store, max-age=0, must-revalidate`. Any
+    // one of those four forbids a shared cache keeping it; the assertion is deliberately the
+    // question — *may this be stored* — rather than the exact string, which is the framework's.
+    expect(response?.headers()['cache-control'] ?? '').toMatch(
+      /no-store|no-cache|private|max-age=0/,
+    );
   });
 
   test('has no accessibility violations @requires-js', async ({ page }) => {
@@ -443,10 +513,8 @@ test.describe('the marshal roster', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/marshals');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
-    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/marshals', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -587,10 +655,8 @@ test.describe('a race that has not started', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/start');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
-    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/start', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -1106,10 +1172,8 @@ test.describe('the entry list', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/registration');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
-    await expect(page.getByText('There is nothing at this address.')).toBeVisible();
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/registration', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -1256,9 +1320,13 @@ test.describe('who may open the capture screen', () => {
     page,
   }) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
-    await page.goto('/timing/marshal/zz-no-such-race');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    // ⚠️ **404, and it is the only one of the ten that is** — ADR-044. This address is
+    // `rosterScoped`, so the door calls `timing.marshal_event()`, which answers `null` for a
+    // race that does not exist as well as for one this marshal is not on: the refusal happens
+    // at the door and the page never renders. The existence check is free here because the
+    // roster check pays for it, which is exactly why it is not free anywhere else.
+    await expectNotFoundPage(page, '/timing/marshal/zz-no-such-race', 404);
   });
 });
 
@@ -1741,9 +1809,8 @@ test.describe('the triage list', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/anomalies');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/anomalies', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -2105,9 +2172,8 @@ test.describe('finishing a race', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/finish');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/finish', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -2324,9 +2390,8 @@ test.describe('the danger zone', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/danger-zone');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/danger-zone', 200);
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -2571,9 +2636,8 @@ test.describe('the results preview', () => {
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/results');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/results', 200);
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {
@@ -2848,28 +2912,19 @@ test.describe('the live leaderboard', () => {
   });
 
   /**
-   * ⚠️ **The heading and not the status code, which is what the other nine of these assert.**
-   * There are two not-found paths under `/timing` and they answer differently: a **permission**
-   * refusal is rewritten by `middleware.ts` to an address matching no route, so Next serves its
-   * prerendered not-found page with a real **404** — while a race that simply does not exist
-   * gets past the door, the page's read answers `none`, and it renders *"Not found"* with a
-   * **200**. That is deliberate rather than sloppy: `notFound()` thrown from a dynamic render —
-   * and reading cookies makes every render dynamic — returns a blank shell, which #243 measured
-   * and `middleware.ts`'s header records.
-   *
-   * This test asserted the 404 and failed on all three engines, because the leaderboard is a
-   * page like the other nine rather than an exception to them. **The inconsistency is real and
-   * is platform-wide**, so it is
-   * [#291](https://github.com/southville-running-club/src-website/issues/291) rather than one
-   * page quietly differing from its siblings. Whatever closes that closes all ten together.
+   * ⚠️ **This is the test that found the inconsistency #291 is about.** It was written asserting
+   * the **404** a refusal gives and failed on all three engines, because the leaderboard is a
+   * page like the other nine rather than an exception to them: a race that does not exist gets
+   * past the door and the page renders, and a render is a 200. See `expectNotFoundPage` at the
+   * head of this file for both answers and why they differ — ADR-044 is what settled that the
+   * 200 stays.
    */
   test('gives a race that does not exist the ordinary not-found page', async ({
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto('/timing/events/zz-no-such-race/leaderboard');
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    await expectNotFoundPage(page, '/timing/events/zz-no-such-race/leaderboard', 200);
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {

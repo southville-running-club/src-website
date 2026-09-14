@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/crossings/` — every capture on a race, searchable, with inline correction.
@@ -116,12 +117,7 @@ export default async function CrossingsPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const crossings = read.data;

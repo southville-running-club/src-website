@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../lib/reads';
+import { NotFoundBody } from '../../not-found-body';
 
 /**
  * `/timing/events/<slug>/` — one race, and where it has got to.
@@ -14,8 +15,10 @@ import { readTiming } from '../../../lib/reads';
  * returns an empty `<html id="__next_error__">` shell with the page only in the streamed RSC
  * payload. Signed out that produced no `<h1>`, no banner and no footer in the HTML, and a blank
  * page with JavaScript off, which is a whole Playwright project here. The middleware's header
- * carries the measurements. So the same two sentences `app/not-found.tsx` renders are written
- * out here instead, which survives with scripting off.
+ * carries the measurements. So `app/not-found-body.tsx` — the one wording, rendered by this
+ * page and by `app/not-found.tsx` alike — is returned instead, which survives with scripting
+ * off. ⚠️ **It survives as a 200 and a refusal at the door is a 404**, which is ADR-044 rather
+ * than an oversight; `not-found-body.tsx`'s own header carries the argument and the link.
  *
  * `event_detail()` answers the same `null` for "you may not" and "no such event", deliberately,
  * so a slug cannot be probed for existence — and this page cannot tell them apart either, which
@@ -77,14 +80,10 @@ export default async function EventPage({
   }
 
   if (read.state === 'none') {
-    // Word for word `app/not-found.tsx`, because a refusal must be indistinguishable from an
-    // address that does not exist.
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    // `NotFoundBody` rather than the two elements written out here, so the wording cannot
+    // drift from `app/not-found.tsx`'s — `event_detail()` answers the same `null` for a
+    // refusal and for a race that does not exist, and the body may not tell them apart either.
+    return <NotFoundBody />;
   }
 
   const event = read.data;

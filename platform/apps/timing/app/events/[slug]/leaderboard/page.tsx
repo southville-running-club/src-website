@@ -4,6 +4,7 @@ import '@src/shared/styles/nn-results.css';
 import type { SortKey } from '@src/shared/timing/results';
 import { readLeaderboard } from '../../../../lib/leaderboard';
 import { LiveBoard } from './live-board';
+import { NotFoundBody } from '../../../not-found-body';
 
 /**
  * `/timing/events/<slug>/leaderboard/` — the race as it stands, for the people running it.
@@ -102,12 +103,7 @@ export default async function LeaderboardPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const payload = read.data;

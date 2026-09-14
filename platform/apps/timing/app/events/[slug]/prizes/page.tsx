@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { TimingRunner } from '@src/shared/timing/rows';
 import type { PrizeAward } from '@src/shared/timing/prize-export';
 import { readResultsPreview } from '../../../../lib/results-preview';
+import { NotFoundBody } from '../../../not-found-body';
 import {
   drawablePool,
   prizeChoicesFrom,
@@ -181,12 +182,7 @@ export default async function PrizesPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const payload = read.data;

@@ -11,6 +11,7 @@ import {
 } from '@src/shared/timing/results';
 import { isGuide, resultCategoryLabel } from '@src/shared/timing/result-category';
 import type { TimingEvent, TimingRunner } from '@src/shared/timing/rows';
+import { NotFoundBody } from '../../../not-found-body';
 import {
   readResultsPreview,
   type PreviewTeam,
@@ -265,12 +266,7 @@ export default async function ResultsPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is nothing at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const payload = read.data;

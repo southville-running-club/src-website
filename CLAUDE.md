@@ -1805,6 +1805,22 @@ opened. Nothing here is anon-callable except the two functions the published res
 and `/timing/health` is public so the smoke test can read it. ADR-036, ADR-037, and #243 for the
 measurement that says a page here provably cannot refuse.
 
+⚠️ **So there are two not-found answers under `/timing` and they carry two different status
+codes** — [ADR-044](docs/architecture/decisions/adr-044-a-missing-race-under-timing-answers-200.md),
+and a test asserting the wrong one of them has already been written and failed on all three
+engines. A **refusal** is rewritten to an address matching no route, so Next serves its
+_prerendered_ not-found page with a real **404**. A caller who **holds the permission and names a
+race that does not exist** gets past the door, the page's own read answers `none`, and the page
+renders `app/not-found-body.tsx` with a **200** — because `notFound()` from a dynamic render is
+the blank shell #243 measured, so a page with nothing to show renders, and a render is a 200. The
+**one exception is `/timing/marshal/<slug>/`**, which answers 404 for a missing race because its
+door already reads the roster and that read answers existence on the way past. **The bodies are
+identical and only the status differs**: one component renders both, and `timing.spec.ts`'s
+`expectNotFoundPage` asserts the status, the heading and the sentence for all ten. Making the two
+agree everywhere means the door learning whether a slug names a race, which is a second Supabase
+call on every event page view and a thirty-sixth granted `timing` function — declined, with the
+conditions that would change that in the record.
+
 ### Running one: the runbook is the document, not this file
 
 ⚠️ **[The race-night runbook](docs/delivery/runbooks/timing-race-night.md) is what somebody

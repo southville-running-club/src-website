@@ -2,6 +2,7 @@ import { formatLondon } from '@src/shared';
 import type { EventFormat } from '@src/shared/timing/anomaly';
 import { readTiming } from '../../../lib/reads';
 import { MarshalScreen } from './marshal-screen';
+import { NotFoundBody } from '../../not-found-body';
 
 /**
  * `/timing/marshal/<slug>/` — the screen a marshal stands on a course holding.
@@ -21,7 +22,20 @@ import { MarshalScreen } from './marshal-screen';
  * whole, so the anomaly a marshal is shown depends on it. Guessing would flag the wrong
  * crossings on the one morning being wrong cannot be undone. The read answers `null` for all
  * three refusals, indistinguishably, so it is also the reason the "Not found" below can be
- * written out inline rather than thrown.
+ * rendered inline rather than thrown.
+ *
+ * ⚠️ **This page's "Not found" said something different from every other one until
+ * [#291](https://github.com/southville-running-club/src-website/issues/291)** — *"There is no
+ * race at this address."* against the site's own *"There is nothing at this address."*. It was
+ * unreachable, because the door makes this same read and refuses a missing or un-rostered race
+ * before the page renders, and it was still a sentence that named which of the two answers
+ * somebody had hit. `app/not-found-body.tsx` is the one wording now, and the drift is what
+ * argued for it.
+ *
+ * ⚠️ **This is also the one address under `/timing` where a race that does not exist already
+ * answers 404**, and it got there for nothing: the door's roster read answers existence on the
+ * way past. Everywhere else that answer would cost a database call of its own — see ADR-044 and
+ * `middleware.ts`'s header.
  *
  * ## ⚠️ The fallback is the page, not a placeholder
  *
@@ -69,12 +83,7 @@ export default async function MarshalPage({
   }
 
   if (read.state === 'none') {
-    return (
-      <>
-        <h1>Not found</h1>
-        <p>There is no race at this address.</p>
-      </>
-    );
+    return <NotFoundBody />;
   }
 
   const event = read.data;
