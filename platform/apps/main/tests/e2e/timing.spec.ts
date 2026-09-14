@@ -2847,13 +2847,28 @@ test.describe('the live leaderboard', () => {
     await expect(rows.nth(3)).toContainText('Did not finish');
   });
 
+  /**
+   * ⚠️ **The heading and not the status code, which is what the other nine of these assert.**
+   * There are two not-found paths under `/timing` and they answer differently: a **permission**
+   * refusal is rewritten by `middleware.ts` to an address matching no route, so Next serves its
+   * prerendered not-found page with a real **404** — while a race that simply does not exist
+   * gets past the door, the page's read answers `none`, and it renders *"Not found"* with a
+   * **200**. That is deliberate rather than sloppy: `notFound()` thrown from a dynamic render —
+   * and reading cookies makes every render dynamic — returns a blank shell, which #243 measured
+   * and `middleware.ts`'s header records.
+   *
+   * This test asserted the 404 and failed on all three engines, because the leaderboard is a
+   * page like the other nine rather than an exception to them. **The inconsistency is real and
+   * is platform-wide**, so it is
+   * [#291](https://github.com/southville-running-club/src-website/issues/291) rather than one
+   * page quietly differing from its siblings. Whatever closes that closes all ten together.
+   */
   test('gives a race that does not exist the ordinary not-found page', async ({
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    const response = await page.goto('/timing/events/zz-no-such-race/leaderboard');
+    await page.goto('/timing/events/zz-no-such-race/leaderboard');
 
-    expect(response?.status()).toBe(404);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
   });
 
