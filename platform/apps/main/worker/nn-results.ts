@@ -1,14 +1,27 @@
 /**
  * `/nn/<year>/results/` — one running's results, for the people allowed to read them.
  *
- * ## Locked, and locked at the database rather than here
+ * ## Locked until the results are published, and locked at the database rather than here
  *
- * The club has not decided how or when a Nightingale Nightmare result is published, so until
- * it does this address answers **404 to everybody without `nn.results.read`** — the signed-out
- * public included. `timing.results_for_event()` is where that is actually enforced: it checks
- * the permission itself and returns `null` rather than raising, so a caller reaching PostgREST
- * directly with the published anon key gets exactly what this page gets. The gate here is the
- * page refusing to render, not the thing keeping the data in.
+ * **The club has decided how and when a result is published** — after the race is finished, by
+ * somebody holding `timing.result.publish` deciding to, which is #241 and
+ * [ADR-042](../../../../docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md).
+ * Until that act this address answers **404 to everybody without `nn.results.read`** — the
+ * signed-out public included. `timing.results_for_event()` is where that is actually enforced:
+ * it reads the race's own `results_published_at`, consults the permission only when that is
+ * null, and returns `null` rather than raising — so a caller reaching PostgREST directly with
+ * the published anon key gets exactly what this page gets. The gate here is the page refusing
+ * to render, not the thing keeping the data in.
+ *
+ * ⚠️ **This file does not yet open to a signed-out visitor, and that is
+ * [#242](https://github.com/southville-running-club/src-website/issues/242) rather than an
+ * oversight.** `handleNnResults` still refuses before it reads anything when there is no
+ * session, and the response is still `no-store` and `noindex`. #241 built the state machine and
+ * widened the *database* read to `anon`; the public page, its link from `/nn/` and the caching
+ * headers that go with a permanent address are #242's, in one change that can be reviewed as
+ * one. The one thing that could not wait is the banner below: a page that went on saying
+ * "these results are not published" about a race the club had just published would be stating
+ * something false to the people who can already read it.
  *
  * ⚠️ **404, never 403, and a refused read is indistinguishable from a race that does not
  * exist.** The function returns the same `null` for "you may not" and "no such event", and
@@ -60,7 +73,16 @@ export interface NnResultsEnv {
  * happily, and the extra columns are what this page prints.
  */
 type ResultsPayload = {
-  event: TimingEvent & { slug: string; name: string; finished_at: string | null };
+  event: TimingEvent & {
+    slug: string;
+    name: string;
+    finished_at: string | null;
+    /**
+     * Set by `timing.publish_results()` — #241 and ADR-042. Null means this answer reached the
+     * page because the caller holds `nn.results.read`, not because the race is public.
+     */
+    results_published_at: string | null;
+  };
   teams: (TimingTeam & { name: string | null; runners: TimingRunner[] })[];
   crossings: TimingCrossing[];
 };
@@ -293,14 +315,25 @@ export async function handleNnResults(
 
   const payload = data as unknown as ResultsPayload;
 
+  // ⚠️ **The sentence is a claim about a record, so it is only made while it is true.** Before
+  // #241 the page had nothing to check and said "not published" unconditionally; a published
+  // race would now be telling its readers the opposite of what the club had just decided. The
+  // *richer* banner #242 asks for — naming capturing against finished, and the signed-out
+  // render underneath it — is that issue's, deliberately not built here.
+  const preview =
+    payload.event.results_published_at === null
+      ? html`<p class="results-meta">
+          These results are not published. This page is visible only to people the club
+          has given permission to read them, and the times on it are provisional until the
+          race director confirms them.
+        </p>`
+      : // `null` renders as nothing at all — `html.ts`'s own rule, and the reason there is no
+        // empty paragraph left behind on a published page.
+        null;
+
   const body = html`<main class="results-page" id="main">
     <h1>${payload.event.name} — results</h1>
-    <p class="results-meta">
-      These results are not published. This page is visible only to people the club has
-      given permission to read them, and the times on it are provisional until the race
-      director confirms them.
-    </p>
-    ${resultsTable(payload)}
+    ${preview} ${resultsTable(payload)}
   </main>`;
 
   return withCookies(

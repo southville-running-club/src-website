@@ -107,6 +107,16 @@ a timing admin who needs the entry list needs `nn-admin` as well, granted separa
 `nn-results` and `src-admin` and **deliberately not by `timing-admin`**: running a race and
 reading its results before they are public are different powers.
 
+⚠️ **`nn.results.read` is never widened to publish a result**, and
+[ADR-042](../../architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md)
+records why the shape `20260911180000`'s header imagined was rejected: a permission is a fact
+about a person and publication is a fact about a race, so widening it would publish every race
+at once and could be undone for none of them. Publication is `timing.result.publish` — above in
+this table, carried by `timing-admin` and `src-admin` — calling `timing.publish_results()` on
+one race, after it is finished and with nothing on its triage list. **Somebody holding
+`nn.results.read` and nothing else can read a result early and cannot publish it**, which is the
+whole reason the two exist apart.
+
 ---
 
 ## Step 3 — somebody puts them on the race's roster
@@ -197,7 +207,7 @@ enforces it.
 | `/timing/events/<slug>/marshals/` | `timing.marshal.assign` | ❌ | ❌ | ✅ |
 | `/timing/marshal/<slug>/` | `timing.crossing.record` **and a roster row** | ❌ | ✅ **on a race they are rostered for**, ❌ on any other | ❌ unless rostered — the permission is not enough, see above |
 | `/admin/` and everything under it | a staff role | ❌ | ❌ | ❌ |
-| `/nn/<year>/results/` | `nn.results.read` | ❌ | ❌ | ❌ |
+| `/nn/<year>/results/` | `nn.results.read`, **until that race's results are published** | ❌ | ❌ | ❌ |
 
 **An address with no rule written for it is refused rather than opened.** Adding a page to
 `/timing` means adding a row to `lib/access.ts`, and forgetting to is a page that does not

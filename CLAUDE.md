@@ -399,7 +399,7 @@ One hostname, several paths — the same locally and in production:
 |            |                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`        | The club website — `apps/main`                                                                                                                                                                                                                                                                                         |
-| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read`** and answers 404 to everybody else, the signed-out public included, because the club has not decided how or when a result is published                                                                                |
+| `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read` until the race's results are published**, and answers 404 to everybody else, the signed-out public included. Publication is an explicit act — ADR-042 — so finishing a race does not do it, and the _database_ read opens to `anon` the moment it happens; the _page_ still refuses a signed-out visitor until #242 |
 | `/events`  | Tickets to the club's socials — `apps/main`. **The schema calls these `store.socials`, never events**: the glossary reserves _event_ for one running of one race in one year. The path and the navigation label say "Events" because that is what the old Squarespace site published and what a member reads — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
@@ -562,6 +562,15 @@ runner disagreed.
 read `club` proves more than that a member can. Assert the specific error, not merely that
 something failed — a test that passes because the table does not exist yet is a test that
 has stopped testing.
+
+⚠️ **One refused call per transaction, or every refusal after the first is `25P02`.** A
+`42501` aborts the transaction it was raised in, so a second refused call in the same
+`begin` comes back _current transaction is aborted_ whatever its own grant says — and an
+expectation naming `42501` can then never observe it, on a grant that is perfectly correct.
+It failed the database layer once already, on `timing.test.ts`'s anonymous-caller test for
+`publish_results()` and `unpublish_results()` asserted together. **An aborted transaction
+refuses everything, which reads as every grant holding at once**, so this is the rule above
+one step further on rather than a separate one.
 
 **Fixtures are deterministic and invented.** Fixed UUIDs, fixed timestamps, addresses at
 `example.com`. No production data on a laptop, ever. Include the awkward states — consent
@@ -1798,20 +1807,40 @@ the platform is being **rewritten here** rather than moved, so what exists now i
   arrives after the race director has called it, and the finish page says so under the button.
   `finish_event()` is idempotent by its own `where` like `start_event()`, answering the losing
   press with the winning time;
-- **`/nn/<year>/results/`**, which reads `timing.results_for_event()` behind `nn.results.read`.
+- **`/nn/<year>/results/`**, which reads `timing.results_for_event()` — behind
+  `nn.results.read` until the race's results are published, and open to `anon` after;
+- **the publication state machine** — `timing.events.results_published_at` and
+  `results_published_by`, written by `timing.publish_results()` and cleared by
+  `timing.unpublish_results()`, both behind `timing.result.publish` and both audited (#241,
+  [ADR-042](docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md)).
+  ⚠️ **Finishing a race does not publish it**, and publishing is refused `not_finished` while
+  `finished_at` is null and `open_anomalies` while anything is on `timing.open_anomalies()`'s
+  list — capture never blocks, and publication is the one moment a suspect row must not pass
+  through silently. ⚠️ **The `open_anomalies` refusal restates that function's predicate and
+  must stay identical to it**: the literal reading of #241 would also catch a capture with no
+  bib, which the triage list deliberately excludes, and publication would then be blocked by a
+  row no screen shows. ⚠️ **`results_for_event()`'s grant to `anon` is the first in this
+  schema** — safe because the function answers `null` for an unpublished race whoever asks, and
+  because `anon` still holds no grant on any `timing` **table**; `timing.test.ts` pins both.
+  **A correction after publication is _unpublish, fix, publish_**, and the page goes back to 404
+  in between rather than serving a table somebody is editing.
 
-**What is genuinely not built is publication**: no result reaches anybody, and nothing wipes a
-rehearsal. ⚠️ **"nothing resolves an anomaly" is what this said until #252 and "nothing marks a
-DNS, DNF or DQ, nothing finishes a race" until #253** — four such lines have gone stale in three
-days, which is the pattern rather than the exception.
+**What is genuinely not built is the publish button and the public page**: the state machine
+exists and nothing calls it — #205 owns the control in the app and
+[#242](https://github.com/southville-running-club/src-website/issues/242) owns
+`/nn/<year>/results/` opening to a signed-out visitor, which it still does not do. Nothing wipes
+a rehearsal either. ⚠️ **"nothing resolves an anomaly" is what this said until #252, "nothing
+marks a DNS, DNF or DQ, nothing finishes a race" until #253, and "publication" flatly until
+#241** — five such lines have gone stale in four days, which is the pattern rather than the
+exception.
 
-⚠️ **`reopen_event()` is not refused while results are published, and that is a decision rather
-than a gap.** #253 asks for the guard; `timing.events` has **no `results_published_at` column**,
-because publication is [#241](https://github.com/southville-running-club/src-website/issues/241),
-which owns the column and the state machine — and #253's own text calls that ordering *"the one
-ordering #241 enforces"*. Two migrations had already declined to invent it rather than render a
-lifecycle state nothing can reach, and `20260913240000`'s header records the decision. **#241
-adds the guard in the change that makes publication reachable.** ⚠️ **"No countdown screen" is what this said until #250**, and **"there
+⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
+rather than with the function.** #253 asked for it; `20260913240000` declined it because
+`timing.events` had **no `results_published_at` column** and named #241 as its owner, which is
+what `20260914100000` paid. It answers `published`, distinctly from `not_finished`, because
+reopening clears `finished_at` and publication was conditional on it being set — a published,
+unfinished race is a state the state machine has no arrow into. **This paragraph said the
+opposite until 14 September 2026.** ⚠️ **"No countdown screen" is what this said until #250**, and **"there
 is no marshal capture screen" is what it said until #203** — twice in two days, which is the
 pattern rather than the exception. ⚠️ **"Nothing captures a crossing" was already half wrong
 before that**: `timing.record_crossing()` landed with #251 and nothing called it for a day.
