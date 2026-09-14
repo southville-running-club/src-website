@@ -95,7 +95,7 @@ describe('quantityOptionLabel', () => {
 
   it('writes exactly one £, and never beside another', () => {
     // ⚠️ A template that adds its own `£` next to `formatPence()` renders `££18.00`. This
-    // repository already carries that pattern six times over (issue #175); the guard is here
+    // repository carried that pattern six times over (issue #175, all closed); the guard is here
     // so a seventh cannot arrive in this file unnoticed.
     const label = quantityOptionLabel(2, 1200);
     expect(label.match(/£/gu)).toHaveLength(1);

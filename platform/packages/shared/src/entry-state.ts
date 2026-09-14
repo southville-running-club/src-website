@@ -315,25 +315,6 @@ export function formatEventStartTime(startTime: string): string {
   return /^\d{2}:\d{2}/.exec(startTime)?.[0] ?? startTime;
 }
 
-/**
- * Money, formatted once and in one place.
- *
- * **Not `toLocaleString`.** ESLint bans the timezone-taking members of that family
- * repository-wide and the currency one has the same shape of problem: it takes the ambient
- * locale, so a Worker in one region and a browser in another would render the same price
- * two ways. The club charges pounds sterling and always will; two decimal places and a `£`
- * is the whole requirement.
- *
- * Zero is "Free" rather than "£0.00" because that is what a VI guide's place is, and a
- * price of nothing set in the same figures as a price of something reads like a mistake.
- */
-export function formatPence(pence: number): string {
-  if (pence === 0) {
-    return 'Free';
-  }
-
-  const pounds = Math.floor(pence / 100);
-  const remainder = String(pence % 100).padStart(2, '0');
-
-  return `£${pounds}.${remainder}`;
-}
+// `formatPence` lived here until 14 September 2026 and is `./money.ts` now — a leaf module,
+// because this one builds Zod schemas at module scope and a browser importing it for one
+// string function paid 5,969 bytes for them. `@src/shared` still exports it. See #175.

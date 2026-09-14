@@ -205,12 +205,12 @@ export function formatSocialTimes(
  * The label for one quantity in the ticket picker — `2 tickets — £24.00`.
  *
  * **The total is rendered here, on the server, by `formatPence`.** The obvious alternative is
- * a client script that multiplies the price and writes a `£` beside it, and this repository
- * already carries six instances of exactly that pattern (issue #175) — one of them in the
- * entry form's own running total, which re-implements `formatPence`'s `£`/`.00`/`'Free'`
- * shape by hand. Putting the arithmetic in the option label costs nothing, works with
- * scripting off, and cannot disagree with what the card is charged, because both sides
- * multiply the same `price_pence`.
+ * a client script that multiplies the price and writes a `£` beside it, which this repository
+ * carried six times over (issue #175) — one of them the entry form's own running total,
+ * re-implementing `formatPence`'s `£`/`.00`/`'Free'` shape by hand. All six are closed now, and
+ * this page never opened a seventh. Putting the arithmetic in the option label costs nothing,
+ * works with scripting off, and cannot disagree with what the card is charged, because both
+ * sides multiply the same `price_pence`.
  */
 export function quantityOptionLabel(quantity: number, pricePence: number): string {
   const tickets = quantity === 1 ? '1 ticket' : `${quantity} tickets`;

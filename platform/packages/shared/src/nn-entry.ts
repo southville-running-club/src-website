@@ -1045,6 +1045,61 @@ function phoneProblem(value: string | undefined): string | null {
   return normalisePhone(value).problem;
 }
 
+/**
+ * Whether three boxes hold digits of the right shape.
+ *
+ * `Number('12abc')` is `NaN` but `Number(' 12 ')` is 12, and both arrive here as strings from
+ * a form. A digits-only test is the honest one — `parseInt` would read `"12abc"` as 12. The
+ * year is **exactly** four digits rather than at least one, so `90` is refused rather than
+ * silently read as the year 90.
+ *
+ * File-local, and called from two places on purpose: `dateOfBirthIssue()` below, which needs
+ * to say *which* rule was broken and in what order, and `civilDateFromBoxes()`, which only
+ * needs a yes or no. One copy of the rule, two questions asked of it.
+ */
+function dobBoxesAreDigits(day: string, month: string, year: string): boolean {
+  return /^\d+$/.test(day) && /^\d+$/.test(month) && /^\d{4}$/.test(year);
+}
+
+/**
+ * Three date-of-birth boxes as a civil date, or `null` if they are not one — **by the same
+ * rule the server applies, because it is the server's rule**.
+ *
+ * ## Why this is exported
+ *
+ * `NnEntryForm.astro`'s enhancement needs a date of birth to show a live age category, and it
+ * was building one by hand: `` `${year.padStart(4, '0')}-${month.padStart(2, '0')}-…` `` fed
+ * straight back into `parseIsoDate()`. That is a second implementation of `toIsoDate()`'s
+ * output — from a module the same file already imports — and it is one of the six re-derived
+ * helpers [#175](https://github.com/southville-running-club/src-website/issues/175) tracks.
+ *
+ * ⚠️ **The two copies did not agree, which is the argument for this rather than for tidiness.**
+ * Padding to a width and testing digits are different rules, and they disagreed in both
+ * directions: a day of `015` was refused a preview the server would have accepted, and a year
+ * of `90` was padded to `0090` and previewed for a submission `/^\d{4}$/` was always going to
+ * refuse. The script's own header says the enhancement and the server *"can never disagree
+ * about whether something was accepted"*; they could, about this.
+ *
+ * It answers a `CivilDate` rather than an ISO string because that is what both callers want
+ * next — `deriveAgeCategory()` and `ageOn()` take one — so nothing has to parse a string this
+ * function has just built out of numbers.
+ */
+export function civilDateFromBoxes(boxes: {
+  day: string;
+  month: string;
+  year: string;
+}): CivilDate | null {
+  const { day, month, year } = boxes;
+
+  if (!dobBoxesAreDigits(day, month, year)) {
+    return null;
+  }
+
+  const date: CivilDate = { year: Number(year), month: Number(month), day: Number(day) };
+
+  return isRealDate(date) ? date : null;
+}
+
 /** Every date-of-birth rule, in the order they should be reported. Null means it is fine. */
 function dateOfBirthIssue(
   values: { dobDay: string; dobMonth: string; dobYear: string },
@@ -1057,12 +1112,14 @@ function dateOfBirthIssue(
     return messages.missing;
   }
 
-  // `Number('12abc')` is `NaN` but `Number(' 12 ')` is 12, and both arrive here as strings
-  // from a form. A digits-only test is the honest one — `parseInt` would read "12abc" as 12.
-  if (!/^\d+$/.test(dobDay) || !/^\d+$/.test(dobMonth) || !/^\d{4}$/.test(dobYear)) {
+  if (!dobBoxesAreDigits(dobDay, dobMonth, dobYear)) {
     return messages.notADate;
   }
 
+  // ⚠️ **Not `civilDateFromBoxes()`, and the order is why.** That helper folds the digit test
+  // and `isRealDate` into one answer; this function has to tell them apart, because an
+  // implausible *year* is reported before an impossible *day* and a merged check would
+  // silently re-order the two messages.
   const date: CivilDate = {
     year: Number(dobYear),
     month: Number(dobMonth),

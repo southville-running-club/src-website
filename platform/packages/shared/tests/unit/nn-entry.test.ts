@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseNnEntry, entryRulesFrom, type NnEntryRules } from '../../src/nn-entry';
+import {
+  civilDateFromBoxes,
+  parseNnEntry,
+  entryRulesFrom,
+  type NnEntryRules,
+} from '../../src/nn-entry';
 import type { EntryState } from '../../src/entry-state';
 
 /**
@@ -862,5 +867,68 @@ describe('the rules, lifted off what the database said', () => {
       minimumAge: 18,
       feeCodes: ['unaffiliated', 'affiliated', 'vi_guide'],
     });
+  });
+});
+
+describe('civilDateFromBoxes — the three boxes, by the rule the server already applies', () => {
+  const boxes = (day: string, month: string, year: string) => ({ day, month, year });
+
+  it('reads three digit strings as a civil date', () => {
+    expect(civilDateFromBoxes(boxes('15', '6', '1990'))).toEqual({
+      year: 1990,
+      month: 6,
+      day: 15,
+    });
+  });
+
+  it('is unpadded numbers, which is what the callers want next', () => {
+    // `deriveAgeCategory()` and `ageOn()` both take a `CivilDate`. Answering `YYYY-MM-DD`
+    // would mean parsing back a string this has just built out of numbers, which is exactly
+    // the round trip `NnEntryForm.astro` was doing.
+    expect(civilDateFromBoxes(boxes('05', '06', '1990'))).toEqual({
+      year: 1990,
+      month: 6,
+      day: 5,
+    });
+  });
+
+  it('refuses a blank box, a non-digit, and a year that is not four digits', () => {
+    expect(civilDateFromBoxes(boxes('', '6', '1990'))).toBeNull();
+    expect(civilDateFromBoxes(boxes('12abc', '6', '1990'))).toBeNull();
+    expect(civilDateFromBoxes(boxes(' 12 ', '6', '1990'))).toBeNull();
+    expect(civilDateFromBoxes(boxes('15', '6', '90'))).toBeNull();
+    expect(civilDateFromBoxes(boxes('15', '6', '01990'))).toBeNull();
+  });
+
+  it('refuses a day that does not exist, rather than rolling it over', () => {
+    // `new Date(1990, 1, 31)` is 3 March. `isRealDate` refuses — see age-category.ts.
+    expect(civilDateFromBoxes(boxes('31', '2', '1990'))).toBeNull();
+    expect(civilDateFromBoxes(boxes('29', '2', '1900'))).toBeNull();
+    expect(civilDateFromBoxes(boxes('29', '2', '2000'))).not.toBeNull();
+  });
+
+  it('agrees with parseNnEntry about the two cases the entry form got wrong', () => {
+    // ⚠️ **The reason this is exported rather than inlined.** `NnEntryForm.astro` built the
+    // same date by padding each box to a width, which is a different rule from testing
+    // digits — and the two disagreed in both directions. Neither case could ever reject a
+    // submission, because the enhancement never blocks one; what they did was show, or
+    // withhold, a live age category that contradicted what the server was about to do.
+    //
+    // A day of `015`: padding leaves it three characters, so `/^\d{2}$/` refused it and no
+    // category appeared — for a submission the server accepts.
+    expect(civilDateFromBoxes(boxes('015', '6', '1990'))).toEqual({
+      year: 1990,
+      month: 6,
+      day: 15,
+    });
+
+    // A year of `90`: padding made it `0090`, so a category appeared — for a submission
+    // `/^\d{4}$/` was always going to refuse.
+    expect(civilDateFromBoxes(boxes('15', '6', '90'))).toBeNull();
+
+    // **Asserted against the schema itself rather than claimed about it**, because "the
+    // preview agrees with the server" is only worth writing down if the server is asked.
+    expect(errorOn(good({ dobDay: '015' }))?.dateOfBirth).toBeUndefined();
+    expect(errorOn(good({ dobYear: '90' }))?.dateOfBirth).toBeDefined();
   });
 });
