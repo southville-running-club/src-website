@@ -149,9 +149,35 @@ nothing else**, which is what the brief asked for; the key is an argument, not a
 | | |
 | --- | --- |
 | **Where the key lives** | `ENTRIES_WEBHOOK_KEY`, a Worker secret set with `wrangler secret put`. Never in this repository, never in `wrangler.jsonc`, never in a `vars` block |
-| **What the database holds** | The SHA-256 digest and never the key. A leak of the table yields a hash of 32 random bytes |
+| **What the table holds** | The SHA-256 digest and never the key. A leak of `entries.webhook_secrets` yields a hash of 32 random bytes. ⚠️ **That is a claim about the table at rest rather than about the whole path** — the key transits as an RPC argument on every delivery; see the qualification below |
 | **Why the comparison need not be constant time** | A perfect timing oracle would reveal the *digest*, which is already assumed public, and leave an attacker needing a preimage |
 | **How it ships** | With a **null digest**, which refuses everything. The same shape as `STRIPE_SECRET_KEY` being unset: a real, safe state rather than a placeholder that half works |
+
+> **Qualified 14 September 2026, issue
+> [#21](https://github.com/southville-running-club/src-website/issues/21) — the decision is
+> unchanged and one factual claim in the table above was scoped too widely.**
+
+The row originally read *"what the database holds"*, which a reviewer takes as **the key never
+reaches the database**. It does, as an argument. `ENTRIES_WEBHOOK_KEY` is the **first parameter**
+of `entries.record_checkout_event()`, so on every delivery the Worker sends it in the JSON body
+of a `POST /rest/v1/rpc/record_checkout_event`, PostgREST binds it into a statement, and Postgres
+executes that statement. The *table* holds only a digest, which is what that row was about and is
+still true. **Where a function argument comes to rest is a different question, and the table does
+not answer it.**
+
+| | |
+| --- | --- |
+| **Postgres statement logs** | **Checked 30 August 2026 — the key does not reach them.** `log_statement = ddl` captures no function call, and `log_min_duration_statement = -1` disables the duration logging a call queued behind the advisory lock would be first to trip. ⚠️ **A point-in-time answer about runtime settings this repository does not pin** |
+| **Supabase API request logs** | **Unverified.** Whether a request *body* is captured, and for how long, is platform behaviour and cannot be read from SQL. This is the half still owed |
+
+**This is not a reason to reopen the decision, and the alternatives below are still rejected for
+the reasons they were rejected.** PostgREST puts RPC arguments in the body by construction, so
+there is no header-shaped fix that does not change how the function authenticates — which is the
+dedicated Postgres role and the hand-minted JWT, weighed and declined immediately below. What the
+qualification buys instead is that the mitigation is a **known operation**: rotating this key is
+manual step 3, not a new procedure.
+[The attention runbook](../../delivery/runbooks/entries-attention.md#the-webhook-key-travels-as-an-rpc-argument--one-check-still-owed)
+carries the check that is owed, who does it, and what to do if the answer is yes.
 
 ### The two alternatives considered
 

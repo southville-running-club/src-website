@@ -43,7 +43,7 @@ are the thing to read for a current number.
 | `intake.health()` | Returns `now()`. The skeleton's connectivity check |
 | `intake.ping()` | Returns `'pipeline-ok'`. The same check for a migration added later |
 | `entries` | Race entries, event configuration and payment references. **The anon role holds no grant on any table in it** — see below |
-| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key. **Both rows are live**: `stripe` for the payment webhook, and `admin` for the five `admin_*` functions below — RLS on, no policy, no grant, ships with a null digest that refuses everything until installed. **The `admin` row is a loose end, not a retired mechanism** — see below |
+| `entries.webhook_secrets` | The **SHA-256 digest** of a shared key a caller must present, never the key — **at rest in this table, which is not the same as anywhere on the path; see the note below the table**. **Both rows are live**: `stripe` for the payment webhook, and `admin` for the five `admin_*` functions below — RLS on, no policy, no grant, ships with a null digest that refuses everything until installed. **The `admin` row is a loose end, not a retired mechanism** — see below |
 | `entries.admin_keys` | One row per person who may read the admin surface via the old scheme: their key's digest, and a handle rather than a name. **The Worker stopped issuing these since #57/#58** — the admin surface is now reached by signing in and holding a role — but this document does not have current evidence of whether the table was ever emptied |
 | `entries.admin_audit` | Who opened the admin surface, who read a medical note, who exported what. **Never the contents.** RLS on, no grant |
 | `entries.entry_state()` | Public configuration for one event: window state and fees. Reads nothing personal |
@@ -78,6 +78,22 @@ bound at all keeps that key live. Do not describe this mechanism as retired unti
 | `entries.admin_interest_list()` | The interest sign-ups, with the consent shown rather than filtered. **Takes the admin key** |
 | `entries.admin_entrant_medical()` | One medical note, and the audit row recording the read, in one transaction. **Takes the admin key** |
 | `entries.admin_export()` | One of three CSV exports, with the audit row, in one transaction. **Takes the admin key** |
+
+**`webhook_secrets` holds the digest, and the call carries the key — issue
+[#21](https://github.com/southville-running-club/src-website/issues/21).** Every function above
+marked *takes a key* takes it as a **parameter**, so the Worker sends it in the JSON body of an
+RPC call, PostgREST binds it into a statement, and Postgres executes that statement. The table
+holds only a digest and always has; *"never the key"* is a claim about the table and reads as a
+claim about the database. `20260813203000_entries_webhook_confirmation.sql`'s own comment is
+scoped the same way and **is applied, so it is not edited** — this is where the correction lives
+instead.
+
+**Postgres statement logging was checked on 30 August 2026 and does not capture it.** Whether
+Supabase's API request logs retain the request body is **unverified**, and
+[the attention runbook](../../../docs/delivery/runbooks/entries-attention.md#the-webhook-key-travels-as-an-rpc-argument--one-check-still-owed)
+owns that check and the rotation it would call for.
+[ADR-010](../../../docs/architecture/decisions/adr-010-webhook-writes-paid.md#decision-3--the-transition-function-takes-a-key-and-the-grant-is-still-anon)
+carries the full qualification.
 
 The admin surface a person actually reaches — `/admin/nn/` and its detail page, gated on
 signing in and holding a permission like `nn.entry.read` — is a **separate, newer set of

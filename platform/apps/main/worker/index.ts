@@ -179,7 +179,15 @@ interface Env {
    * `entries.record_checkout_event()` is granted to the anon role like every other function in
    * that schema — and the anon key is published in page source. So without a second factor,
    * two ordinary PostgREST calls would move a purchase to `paid` without paying for it. The
-   * database holds only this key's SHA-256 digest. The full argument is in the migration.
+   * full argument is in the migration.
+   *
+   * ⚠️ **`entries.webhook_secrets` holds only this key's SHA-256 digest, and that is a fact
+   * about the table rather than about the path.** The key is the first *argument* of
+   * `entries.record_checkout_event()`, so every delivery sends it in an RPC body that
+   * PostgREST binds into a statement. Postgres statement logging was checked on 30 August
+   * 2026 and captures none of it; whether Supabase's API request logs retain the body is
+   * unverified. Issue #21, the qualification in ADR-010, and the check and the rotation it
+   * would call for in docs/delivery/runbooks/entries-attention.md.
    */
   ENTRIES_WEBHOOK_KEY?: string;
   /**
@@ -191,8 +199,9 @@ interface Env {
    * with the published key could take the whole field in half a second for nothing, without
    * ever touching this Worker or the rate-limiting rule in front of it. Issue #178.
    *
-   * The database holds only this key's SHA-256 digest, in `entries.webhook_secrets` under
-   * `entry`, and it ships null — which refuses everything. Installing it is a documented step
+   * `entries.webhook_secrets` holds only this key's SHA-256 digest, under `entry`, and it
+   * ships null — which refuses everything. It travels as an argument like the one above, so
+   * issue #21's qualification applies here too. Installing it is a documented step
    * in `docs/delivery/runbooks/entries-open.md`, and it has to happen **before** the window is
    * opened. See ADR-029.
    */
