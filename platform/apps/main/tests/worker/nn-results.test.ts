@@ -4,9 +4,16 @@ import { describe, expect, it } from 'vitest';
 /**
  * `/nn/<year>/results/` to somebody who is not signed in — **which is what the internet is.**
  *
- * The club has not decided how or when a Nightingale Nightmare result is published, so the
- * page is locked behind `nn.results.read` and answers 404 to everybody else. This run is the
- * right place to prove it for the reason `admin-signed-out.test.ts` gives about itself: it
+ * A Nightingale Nightmare result is published by an explicit act after the race is finished —
+ * #241 and ADR-042 — and **until that act the page is locked behind `nn.results.read` and
+ * answers 404 to everybody else**, which is what every assertion here is about. ⚠️ **A
+ * published race is not yet a case this file can reach**: `handleNnResults` still refuses a
+ * request with no session before it reads anything, and opening it to a signed-out visitor is
+ * [#242](https://github.com/southville-running-club/src-website/issues/242). The published
+ * branch of these same assertions — the cache headers especially — moves with it.
+ *
+ * This run is the right place to prove the locked half, for the reason
+ * `admin-signed-out.test.ts` gives about itself: it
  * has no fixture people, no role granted anywhere and no `globalSetup` that touches
  * `identity` at all, which is the shape of the database somebody probing the site meets.
  *

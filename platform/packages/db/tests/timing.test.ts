@@ -283,14 +283,26 @@ describe('what may be called, and by whom', () => {
    *   * `start_event` and `clear_start` — `timing.event.manage`, #250. ⚠️ **`start_event` is
    *     the one grant on this list that decides a number every result in the race is derived
    *     from**, and it is idempotent by its own `where` clause rather than by anything a
-   *     caller does, which is what the concurrency block at the foot of this file asserts.
+   *     caller does, which is what the concurrency block at the foot of this file asserts;
+   *   * `publish_results` and `unpublish_results` — `timing.result.publish`, #241 and ADR-042,
+   *     which had existed since `20260911100000` and gated nothing until now. ⚠️ **Publishing
+   *     is refused while `finished_at` is null and while any crossing is on the triage list**,
+   *     and unpublishing is refused by nothing beyond the permission, because a correction
+   *     after publication is *unpublish, fix, publish* and an anomaly found afterwards is
+   *     exactly when somebody needs it most.
    *
-   * ⚠️ **`anon` holds none of them, and the bib trigger function is on nobody's list.** The
-   * trigger is reachable from its trigger and nothing else; a grant on it would be a function
-   * anybody could call to probe how bibs resolve. Both migrations revoke it defensively, and
-   * this is what says that held.
+   * ⚠️ **`anon` holds exactly one of them, and that is the decision this list exists to make
+   * visible.** `results_for_event` is granted to `anon` as well as to `authenticated` since
+   * #241, because a published result is public and a signed-out visitor reaches PostgREST as
+   * `anon`. It answers `null` for an unpublished race whoever asks, so the grant discloses
+   * nothing publication has not already made public — and `anon` still holds no grant on any
+   * *table* here, which is the assertion at the head of this file.
+   *
+   * ⚠️ **The bib trigger function is still on nobody's list.** It is reachable from its trigger
+   * and nothing else; a grant on it would be a function anybody could call to probe how bibs
+   * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these twenty-nine functions, and only to authenticated', async () => {
+  it('grants exactly these thirty-one functions, and anon exactly one of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -298,6 +310,8 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
+    // Thirty-one functions and thirty-two rows: `results_for_event` appears twice, which is
+    // the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
       { routine_name: 'assign_bibs', grantee: 'authenticated' },
@@ -316,10 +330,13 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'marshal_event', grantee: 'authenticated' },
       { routine_name: 'open_anomalies', grantee: 'authenticated' },
+      { routine_name: 'publish_results', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
       { routine_name: 'reopen_event', grantee: 'authenticated' },
       { routine_name: 'resolve_crossing', grantee: 'authenticated' },
       { routine_name: 'restore_crossing', grantee: 'authenticated' },
+      // ⚠️ **The first `anon` grant in this schema**, #241. See the block comment above.
+      { routine_name: 'results_for_event', grantee: 'anon' },
       { routine_name: 'results_for_event', grantee: 'authenticated' },
       { routine_name: 'roster_for_event', grantee: 'authenticated' },
       { routine_name: 'set_bib_override', grantee: 'authenticated' },
@@ -327,6 +344,7 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'start_event', grantee: 'authenticated' },
       { routine_name: 'team_status_list', grantee: 'authenticated' },
       { routine_name: 'unassign_marshal', grantee: 'authenticated' },
+      { routine_name: 'unpublish_results', grantee: 'authenticated' },
       { routine_name: 'update_event', grantee: 'authenticated' },
     ]);
   });
@@ -335,6 +353,11 @@ describe('what may be called, and by whom', () => {
    * The refusal, asserted as the specific answer rather than as "something went wrong". A
    * connection with no token has no `auth.uid()`, so `identity.has_permission()` is false and
    * the function answers `null` — not an error, and not the results.
+   *
+   * ⚠️ **Since #241 that refusal has two halves and this asserts the pair.** The permission is
+   * consulted only when the race is unpublished, so what this proves is that an unpublished
+   * race is refused to a caller holding nothing — which is the club's rule, and the state every
+   * race is in until somebody publishes it.
    */
   it('answers null to a caller without nn.results.read, rather than the results', async () => {
     const { rows } = await db.query<{ results: unknown }>(
@@ -472,6 +495,14 @@ describe('the one read, for somebody who holds nn.results.read', () => {
    *
    * `finished_at` goes with them because `nn-results.ts` names it in the payload it reads;
    * `format` is asserted above, and it is what decides whether a bib derives with a leg prefix.
+   *
+   * ⚠️ **`results_published_at` joined them with #241 and it is a key with the same property**:
+   * the page tells a preview from a published table by its presence, so a key that stopped
+   * being built would arrive as `undefined` and every published race would render the
+   * preview's "not published" banner to the public. ⚠️ **`results_published_by` is
+   * deliberately absent** — no results page needs to know which volunteer pressed the button,
+   * and the minimisation rule that keeps a runner's email out of this payload applies to a
+   * staff member's id too.
    */
   it('carries the timestamps a derived time is measured against, as keys', async () => {
     const results = await asPerson(RESULTS_READER);
@@ -481,6 +512,7 @@ describe('the one read, for somebody who holds nn.results.read', () => {
       'finished_at',
       'format',
       'name',
+      'results_published_at',
       'slug',
       'start_at',
     ]);
@@ -3710,6 +3742,742 @@ describe('race status and finishing', () => {
           [SLUG, 'Hopper'],
         ),
       ).toEqual([]);
+    });
+  });
+});
+
+/**
+ * Publishing a race's results, and the one grant that lets the internet read them — #241, under
+ * [ADR-042](../../../docs/architecture/decisions/adr-042-publishing-a-result-is-an-act-somebody-takes.md).
+ *
+ * ⚠️ **The negative cases come first and they are the club's rule rather than a technicality.**
+ * A race that is finished is not a race whose results are published; an anonymous caller is
+ * refused until somebody decides. That ordering — unpublished first, published second, back to
+ * `null` third — is what this block is shaped around, because a file that only ever asserted
+ * the published case would pass just as happily if the gate were not there at all.
+ *
+ * Same fixture style as every block above: `auth.users` written directly, `request.jwt.claims`
+ * set by hand, and every call in a transaction that is rolled back unless a later step has to
+ * see what an earlier one wrote.
+ */
+describe("publishing a race's results", () => {
+  const PUBLISHER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaad01';
+  const MANAGE_ONLY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaad02';
+  const PREVIEWER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaad03';
+  const EVENT_ID = '00000000-0000-4000-8000-000000000f11';
+  const TEAM_ID = '00000000-0000-4000-8000-000000000f12';
+  const SLUG = 'zz-timing-publish';
+
+  type Envelope = { ok: boolean; reason?: string; [key: string]: unknown };
+  type ResultsAnswer = {
+    event: Record<string, unknown>;
+    teams: { runners: Record<string, unknown>[] }[];
+    crossings: unknown[];
+  } | null;
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /** Committed, because publishing and then reading back are two statements. #252's helper. */
+  async function asPersonCommitted<T>(
+    personId: string,
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T> {
+    await db.query("select set_config('role', 'authenticated', false)");
+    await db.query(
+      "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, false)",
+      [personId],
+    );
+
+    try {
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      // ⚠️ `authenticated` holds no grant on any table in `timing`, so a verification read left
+      // under the impersonated role answers `permission denied`. This file warns about it twice
+      // already; this is the third.
+      await db.query("select set_config('role', 'postgres', false)");
+      await db.query("select set_config('request.jwt.claims', null, false)");
+    }
+  }
+
+  /**
+   * ⚠️ **The whole point of the grant, exercised as `anon` rather than as the owner.** Setting
+   * the role is what proves EXECUTE was granted and that USAGE on the schema reaches it — a
+   * call made as `postgres` would answer the same `null` or the same rows while saying nothing
+   * about whether the internet can make it at all. No `sub` claim, so `auth.uid()` is null and
+   * `identity.has_permission()` is false, which is exactly a signed-out visitor.
+   */
+  async function asAnon(): Promise<ResultsAnswer> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'anon', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true)",
+      );
+      const { rows } = await db.query<{ answer: ResultsAnswer }>(
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      return rows[0]?.answer ?? null;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  /**
+   * ⚠️ **A role that exists for the length of one transaction and never commits.** The
+   * definition of done asks for the refusal to a caller holding `timing.event.manage` but *not*
+   * `timing.result.publish`, and **no role in the database is that shape** — `timing-admin` and
+   * `src-admin` both hold the two together. Using an existing role would test something weaker:
+   * that a marshal is refused, which every block above already proves.
+   *
+   * So the role is invented inside the same rolled-back transaction as the call. Nothing is
+   * committed, so `identity-permissions.test.ts`'s "exactly these roles and permissions"
+   * assertion can never see it — which is what makes this safe rather than a second definition
+   * of the club's roles living in a test file.
+   */
+  async function asManageOnly(sql: string, params: unknown[] = []): Promise<Envelope> {
+    await db.query('begin');
+    try {
+      await db.query(
+        `insert into identity.roles (slug, description)
+         values ('zz-timing-manage-only',
+                 'Fixture only, never committed. Runs a race and may not publish it.')`,
+      );
+      await db.query(
+        `insert into identity.role_permissions (role, permission)
+         values ('zz-timing-manage-only', 'timing.event.manage')`,
+      );
+      await db.query(
+        `insert into identity.role_grants (person_id, role, granted_by)
+         values ($1, 'zz-timing-manage-only', $1)`,
+        [MANAGE_ONLY],
+      );
+
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [MANAGE_ONLY],
+      );
+
+      const { rows } = await db.query<{ answer: Envelope }>(sql, params);
+      return rows[0]?.answer as Envelope;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  async function finishRace(): Promise<void> {
+    await db.query(
+      "update timing.events set finished_at = '2026-11-01T13:00:00Z' where id = $1",
+      [EVENT_ID],
+    );
+  }
+
+  async function publishedAt(): Promise<{ at: string | null; by: string | null }> {
+    const { rows } = await db.query<{
+      results_published_at: string | null;
+      results_published_by: string | null;
+    }>(
+      'select results_published_at, results_published_by from timing.events where id = $1',
+      [EVENT_ID],
+    );
+
+    return {
+      at: rows[0]?.results_published_at ?? null,
+      by: rows[0]?.results_published_by ?? null,
+    };
+  }
+
+  async function resetRace(): Promise<void> {
+    await db.query(
+      `update timing.events
+          set finished_at = null, results_published_at = null, results_published_by = null
+        where id = $1`,
+      [EVENT_ID],
+    );
+    await db.query('delete from timing.crossings where event_id = $1', [EVENT_ID]);
+    await db.query(
+      `delete from timing.admin_actions
+        where event_id = $1 and action in ('results_published', 'results_unpublished')`,
+      [EVENT_ID],
+    );
+    // One clean capture, matched to the team, resolved by nothing because it never needed to be.
+    await db.query(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '601', '2026-11-01T11:40:00Z')`,
+      [EVENT_ID],
+    );
+  }
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [PUBLISHER, 'timing-publish-admin@example.com'],
+      [MANAGE_ONLY, 'timing-publish-manage-only@example.com'],
+      [PREVIEWER, 'timing-publish-previewer@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'nn-results', $2)
+       on conflict do nothing`,
+      [PUBLISHER, PREVIEWER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at, actually_started_at)
+       values ($1, $2, 'Publication Fixture', 'solo', '2026-11-01T11:00:00Z',
+               '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    await db.query(
+      `insert into timing.teams (id, event_id, team_number) values ($1, $2, '601')`,
+      [TEAM_ID, EVENT_ID],
+    );
+    // ⚠️ An email address and a club on the fixture, deliberately: the leak assertion below is
+    // worth nothing against a runner who has neither.
+    await db.query(
+      `insert into timing.runners
+         (team_id, leg, firstname, lastname, gender, email, club_name, age_on_day)
+       values ($1, 1, 'Grace', 'Hopper', 'F', 'grace.hopper@example.com',
+               'Fixture Harriers', 45)`,
+      [TEAM_ID],
+    );
+  });
+
+  beforeEach(resetRace);
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [PUBLISHER, MANAGE_ONLY, PREVIEWER],
+    ]);
+    await db.query('delete from identity.people where id = any($1::uuid[])', [
+      [PUBLISHER, MANAGE_ONLY, PREVIEWER],
+    ]);
+    await db.query('delete from auth.users where id = any($1::uuid[])', [
+      [PUBLISHER, MANAGE_ONLY, PREVIEWER],
+    ]);
+  });
+
+  describe('what the public may read, and when', () => {
+    /**
+     * ⚠️ **The assertion the whole rung exists for, and it is the negative one.** A race that
+     * has been captured, finished and never published is `null` to the internet;
+     * `/nn/<year>/results/` 404s on exactly this answer.
+     */
+    it('answers null to an anonymous caller while the race is unpublished', async () => {
+      expect(await asAnon()).toBeNull();
+
+      // And finishing it changes nothing, which is the half people expect to be wrong.
+      await finishRace();
+      expect(await asAnon()).toBeNull();
+    });
+
+    it('answers the results to an anonymous caller once they are published', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      const results = await asAnon();
+
+      expect(results).not.toBeNull();
+      expect(results?.event).toMatchObject({ slug: SLUG, format: 'solo' });
+      expect(results?.event.results_published_at).not.toBeNull();
+      expect(results?.teams).toHaveLength(1);
+      expect(results?.teams[0]?.runners[0]).toMatchObject({
+        firstname: 'Grace',
+        lastname: 'Hopper',
+      });
+    });
+
+    /**
+     * ⚠️ **Publishing widens the audience and never the answer.** This payload can now reach
+     * the internet, so the minimisation assertion that used to protect a preview is protecting
+     * a public page — a runner's email address and club are on `timing.runners` and are not
+     * facts a results table states.
+     */
+    it('still carries no email address, no club and no publisher once it is public', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      const text = JSON.stringify(await asAnon());
+
+      expect(text).not.toContain('grace.hopper@example.com');
+      expect(text).not.toContain('Fixture Harriers');
+      expect(text).not.toMatch(/"email"|"club_name"/);
+      // The volunteer who pressed the button is not on a results page either.
+      expect(text).not.toContain(PUBLISHER);
+      expect(text).not.toMatch(/"results_published_by"/);
+    });
+
+    it('returns to null for an anonymous caller when it is unpublished again', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+      expect(await asAnon()).not.toBeNull();
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          PUBLISHER,
+          'select timing.unpublish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toMatchObject({ ok: true });
+
+      // Back to 404 while a correction is made, which is the honest state for a table somebody
+      // is editing.
+      expect(await asAnon()).toBeNull();
+    });
+
+    it('shows the preview to an nn.results.read holder before publication, and after', async () => {
+      const before = await asPerson<ResultsAnswer>(
+        PREVIEWER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(before).not.toBeNull();
+      expect(before?.event.results_published_at).toBeNull();
+
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      const after = await asPerson<ResultsAnswer>(
+        PREVIEWER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(after?.event.results_published_at).not.toBeNull();
+    });
+
+    it('answers null for a race that does not exist, exactly as it refuses one', async () => {
+      // The same bare `null`, so a 404 cannot be told apart from "nothing there".
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        const { rows } = await db.query<{ answer: unknown }>(
+          'select timing.results_for_event($1) as answer',
+          ['zz-timing-no-such-race'],
+        );
+        expect(rows[0]?.answer).toBeNull();
+      } finally {
+        await db.query('rollback');
+      }
+    });
+  });
+
+  describe('who may publish, and when they are refused', () => {
+    it('refuses a race that has not been finished', async () => {
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'not_finished' });
+    });
+
+    it('refuses while a flagged capture is open, and says how many', async () => {
+      await finishRace();
+      await db.query(
+        `insert into timing.crossings
+           (event_id, bib, captured_at, anomaly_flag, anomaly_reason)
+         values ($1, '601', '2026-11-01T11:41:00Z', true, 'Two taps within a second')`,
+        [EVENT_ID],
+      );
+
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'open_anomalies', open: 1 });
+    });
+
+    /**
+     * ⚠️ **The parity that keeps two predicates honest.** The refusal is a restatement of
+     * `open_anomalies()`'s `where` clause, and a restated rule is the shape `entries` learned
+     * to fear. Every row that blocks publication must be a row somebody can open a page and
+     * clear — so this asserts both answers about the same crossing rather than the refusal
+     * alone.
+     */
+    it('refuses while an orphan is open, and that orphan is on the triage list', async () => {
+      await finishRace();
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, '999', '2026-11-01T11:42:00Z')`,
+        [EVENT_ID],
+      );
+
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'open_anomalies', open: 1 });
+
+      const open = await asPerson<Record<string, unknown>[]>(
+        PUBLISHER,
+        'select timing.open_anomalies($1) as answer',
+        [SLUG],
+      );
+      expect(open).toHaveLength(1);
+      expect(open[0]).toMatchObject({ bib: '999', orphan: true });
+    });
+
+    /**
+     * ⚠️ **The case the literal reading of #241 would have got wrong.** A crossing with no bib
+     * at all also has no team, and `open_anomalies()` excludes it deliberately — it is not
+     * something an admin can resolve from a desk. If publication refused over one, the triage
+     * list would be empty while the button said there were open anomalies, and nobody could
+     * clear either.
+     */
+    it('is not blocked by a capture whose marshal never typed a bib', async () => {
+      await finishRace();
+      await db.query(
+        `insert into timing.crossings (event_id, bib, captured_at)
+         values ($1, null, '2026-11-01T11:43:00Z')`,
+        [EVENT_ID],
+      );
+
+      expect(
+        await asPerson<Record<string, unknown>[]>(
+          PUBLISHER,
+          'select timing.open_anomalies($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual([]);
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    it('is not blocked by an anomaly somebody has already resolved', async () => {
+      await finishRace();
+      await db.query(
+        `insert into timing.crossings
+           (event_id, bib, captured_at, anomaly_flag, anomaly_reason,
+            resolved_at, resolved_action)
+         values ($1, '601', '2026-11-01T11:44:00Z', true, 'Two taps within a second',
+                 now(), 'marked_valid')`,
+        [EVENT_ID],
+      );
+
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    /**
+     * ⚠️ **The permission is the door, and this is what proves it is not the role.** See
+     * `asManageOnly` for why the role is invented inside the transaction.
+     */
+    it('refuses somebody who may run the race but may not publish it', async () => {
+      await finishRace();
+
+      expect(
+        await asManageOnly('select timing.publish_results($1) as answer', [SLUG]),
+      ).toEqual({ ok: false, reason: 'refused' });
+      expect(
+        await asManageOnly('select timing.unpublish_results($1) as answer', [SLUG]),
+      ).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('refuses somebody who may read the preview but may not publish it', async () => {
+      await finishRace();
+
+      // Seeing a result before the public does and deciding the public may see it are two
+      // powers, which is why `nn-results` is a role for looking.
+      expect(
+        await asPerson<Envelope>(
+          PREVIEWER,
+          'select timing.publish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query('select timing.publish_results($1)', [SLUG]),
+        ).rejects.toMatchObject({ code: '42501' });
+        await expect(
+          db.query('select timing.unpublish_results($1)', [SLUG]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('refuses a race that does not exist', async () => {
+      expect(
+        await asPerson<Envelope>(
+          PUBLISHER,
+          'select timing.publish_results($1) as answer',
+          ['zz-timing-no-such-race'],
+        ),
+      ).toEqual({ ok: false, reason: 'no_such_event' });
+    });
+  });
+
+  describe('what it writes, and what it says the second time', () => {
+    it('records when it was published and who published it', async () => {
+      await finishRace();
+
+      const answer = await asPersonCommitted<Envelope>(
+        PUBLISHER,
+        'select timing.publish_results($1) as answer',
+        [SLUG],
+      );
+      expect(answer).toMatchObject({ ok: true, slug: SLUG });
+
+      const stored = await publishedAt();
+      expect(stored.at).not.toBeNull();
+      expect(stored.by).toBe(PUBLISHER);
+    });
+
+    it('answers the winning time to a second press rather than an error', async () => {
+      await finishRace();
+
+      const first = await asPersonCommitted<Envelope>(
+        PUBLISHER,
+        'select timing.publish_results($1) as answer',
+        [SLUG],
+      );
+      const second = await asPersonCommitted<Envelope>(
+        PUBLISHER,
+        'select timing.publish_results($1) as answer',
+        [SLUG],
+      );
+
+      expect(first).toMatchObject({ ok: true });
+      // `start_event()` and `finish_event()`'s rule: two devices agree on the moment rather
+      // than one of them seeing something that reads as a failure.
+      expect(second).toMatchObject({ ok: false, reason: 'already_published' });
+      expect(second.results_published_at).toBe(first.results_published_at);
+    });
+
+    it('clears both columns on unpublishing, and refuses to unpublish twice', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+      await asPersonCommitted(
+        PUBLISHER,
+        'select timing.unpublish_results($1) as answer',
+        [SLUG],
+      );
+
+      expect(await publishedAt()).toEqual({ at: null, by: null });
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          PUBLISHER,
+          'select timing.unpublish_results($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'not_published' });
+    });
+
+    /**
+     * ⚠️ **The reversal is audited as loudly as the act**, which is `set_race_status()`'s rule
+     * and the old application's mistake: somebody asking why a result they had seen is gone is
+     * owed the record of its withdrawal.
+     */
+    it('audits the publishing and the withdrawal, with the time on both', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+      const published = await publishedAt();
+      await asPersonCommitted(
+        PUBLISHER,
+        'select timing.unpublish_results($1) as answer',
+        [SLUG],
+      );
+
+      const { rows } = await db.query<{
+        action: string;
+        actor_id: string | null;
+        detail: Record<string, unknown>;
+      }>(
+        `select action, actor_id, detail from timing.admin_actions
+          where event_id = $1 and action in ('results_published', 'results_unpublished')
+          order by created_at`,
+        [EVENT_ID],
+      );
+
+      expect(rows.map((r) => r.action)).toEqual([
+        'results_published',
+        'results_unpublished',
+      ]);
+      expect(rows[0]?.actor_id).toBe(PUBLISHER);
+      expect(rows[1]?.actor_id).toBe(PUBLISHER);
+      expect(rows[0]?.detail.results_published_at).not.toBeUndefined();
+      expect(rows[1]?.detail.was_published_at).not.toBeUndefined();
+      expect(published.at).not.toBeNull();
+    });
+
+    it('writes no audit row for a refusal', async () => {
+      // Nothing happened, so there is nothing to record. `set_race_status()`'s rule about a
+      // press that moved nothing, applied to one that was refused.
+      await asPerson(PUBLISHER, 'select timing.publish_results($1) as answer', [SLUG]);
+
+      const { rows } = await db.query<{ n: string }>(
+        `select count(*) as n from timing.admin_actions
+          where event_id = $1 and action = 'results_published'`,
+        [EVENT_ID],
+      );
+      expect(rows[0]?.n).toBe('0');
+    });
+  });
+
+  describe('reopening a race whose results are out', () => {
+    /**
+     * ⚠️ **The debt #253 left and `20260913240000` deferred to #241 by name.** Reopening clears
+     * `finished_at`, and publication was conditional on it being set — so allowing this would
+     * produce a race that is published and not finished, a state the state machine has no
+     * arrow into. A race whose results are out is reopened by unpublishing first.
+     */
+    it('refuses to reopen a published race, and says so distinctly', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          PUBLISHER,
+          'select timing.reopen_event($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'published' });
+
+      // And it really was refused: the race is still finished.
+      const { rows } = await db.query<{ finished_at: string | null }>(
+        'select finished_at from timing.events where id = $1',
+        [EVENT_ID],
+      );
+      expect(rows[0]?.finished_at).not.toBeNull();
+    });
+
+    it('reopens once the results have been withdrawn', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+      await asPersonCommitted(
+        PUBLISHER,
+        'select timing.unpublish_results($1) as answer',
+        [SLUG],
+      );
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          PUBLISHER,
+          'select timing.reopen_event($1) as answer',
+          [SLUG],
+        ),
+      ).toMatchObject({ ok: true });
+    });
+
+    it('still answers not_finished for a race that was never finished', async () => {
+      // The two refusals are distinct, which is why the guard is checked before the update
+      // rather than folded into its `where`.
+      expect(
+        await asPersonCommitted<Envelope>(
+          PUBLISHER,
+          'select timing.reopen_event($1) as answer',
+          [SLUG],
+        ),
+      ).toEqual({ ok: false, reason: 'not_finished' });
+    });
+  });
+
+  describe('the coherence of the pair', () => {
+    /**
+     * `events_publication_coherent` is one-directional on purpose. `results_published_by` has
+     * `on delete set null`, so a volunteer's account going away must not un-publish a race —
+     * the results are the club's, not theirs. A `published_by` with no `published_at` is the
+     * half that means nothing, and it is refused.
+     */
+    it('refuses a publisher recorded against a race that is not published', async () => {
+      await expect(
+        db.query('update timing.events set results_published_by = $2 where id = $1', [
+          EVENT_ID,
+          PUBLISHER,
+        ]),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('allows a published race whose publisher is no longer known', async () => {
+      await finishRace();
+      await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
+        SLUG,
+      ]);
+
+      await db.query(
+        'update timing.events set results_published_by = null where id = $1',
+        [EVENT_ID],
+      );
+
+      const stored = await publishedAt();
+      expect(stored.at).not.toBeNull();
+      expect(stored.by).toBeNull();
+      // And it is still public, because the results are the club's.
+      expect(await asAnon()).not.toBeNull();
     });
   });
 });

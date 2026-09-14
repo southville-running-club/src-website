@@ -293,10 +293,11 @@ export function nnEventSlugForPlacesRemainingPath(pathname: string): string | nu
 /**
  * One running's results — `/nn/2026/results/`.
  *
- * **Locked behind `nn.results.read` and answering 404 to everybody else**, which is why this
- * is a Worker address rather than a page in `dist/`: a file in the assets binding is readable
- * by anyone who types its name, and the club has not decided how or when a result is
- * published.
+ * **Locked until the race's results are published, and answering 404 to everybody without
+ * `nn.results.read` before that**, which is why this is a Worker address rather than a page in
+ * `dist/`: a file in the assets binding is readable by anyone who types its name, and whether
+ * this page may be read is a question about the race's own state — `results_published_at`,
+ * #241 and ADR-042 — asked per request.
  *
  * ⚠️ **`/nn/results.css` is deliberately not beneath this**, the same trap `/nn/admin.css` and
  * `/account.css` both document. The year group is four digits, so the stylesheet cannot match
