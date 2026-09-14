@@ -3999,6 +3999,17 @@ describe("publishing a race's results", () => {
                'Fixture Harriers', 45)`,
       [TEAM_ID],
     );
+    // ⚠️ **A guide on leg 2 of the same team, which is the shape `import_from_entries()`
+    // actually produces** — ADR-022 puts a visually impaired runner and their guide on one
+    // entry, leg 1 and leg 2. Without a guide in the fixture the assertion below is vacuous,
+    // and the disclosure it guards against is invisible to every other test in this file.
+    await db.query(
+      `insert into timing.runners
+         (team_id, leg, firstname, lastname, gender, role, email, club_name, age_on_day)
+       values ($1, 2, 'Margaret', 'Hamilton', null, 'guide',
+               'margaret.hamilton@example.com', 'Fixture Harriers', 38)`,
+      [TEAM_ID],
+    );
   });
 
   beforeEach(resetRace);
@@ -4134,16 +4145,76 @@ describe("publishing a race's results", () => {
      * answer carried either**, which compiled only because `apps/main/worker/nn-results.ts`
      * casts through `unknown` — the mismatch that file's own header warns about.
      */
-    it('carries the placement and the role a race category is derived from', async () => {
+    it('carries the placement and the role a race category is derived from, before it is public', async () => {
+      const runner = (
+        await asPerson<ResultsAnswer>(
+          PREVIEWER,
+          'select timing.results_for_event($1) as answer',
+          [SLUG],
+        )
+      )?.teams[0]?.runners[0];
+
+      expect(runner).toHaveProperty('result_placement', null);
+      expect(runner).toHaveProperty('role', 'runner');
+    });
+
+    /**
+     * ⚠️ **The second disclosure in this payload, and this one is Article 9.**
+     * `import_from_entries()` puts a visually impaired runner on **leg 1 and their guide on
+     * leg 2 of the same team** — ADR-022. So a published answer saying *"leg 2 is a guide"*
+     * says *"leg 1 is visually impaired"* about a named person, to anybody holding the
+     * published anon key. That it is an inference rather than a column makes it no less a
+     * disclosure of health data, and `/nn/privacy/` publishes results by name, category and
+     * time and says nothing about this.
+     *
+     * **It is the same rule as the age, applied to the field that was left in.** The argument
+     * that a public *payload* is not a public *page*, and that the two are judged apart, was
+     * made for `age_on_day` and not for this.
+     *
+     * `gender` and `result_placement` go with it, because a guide's category is suppressed on
+     * `role` and taking only `role` away would put a guide who happened to have a gender into
+     * a prize band on the published table. The preview keeps all three — it is what
+     * `awards.ts` is handed, and excluding a guide from a prize is the whole reason the column
+     * exists.
+     */
+    it('withholds what marks a guide once the results are public, and keeps it in the preview', async () => {
+      const guideBefore = (
+        await asPerson<ResultsAnswer>(
+          PREVIEWER,
+          'select timing.results_for_event($1) as answer',
+          [SLUG],
+        )
+      )?.teams[0]?.runners[1];
+      expect(guideBefore, 'the fixture has a guide on leg 2').toBeDefined();
+      expect(guideBefore).toHaveProperty('role', 'guide');
+
       await finishRace();
       await asPersonCommitted(PUBLISHER, 'select timing.publish_results($1) as answer', [
         SLUG,
       ]);
 
-      const runner = (await asAnon())?.teams[0]?.runners[0];
+      const published = await asAnon();
+      const guide = published?.teams[0]?.runners[1];
 
-      expect(runner).toHaveProperty('result_placement', null);
-      expect(runner).toHaveProperty('role', 'runner');
+      // The guide is still a finisher with a name and a bib — they ran the course and took one
+      // of the 250. What is gone is every field that says *which* of the two they are.
+      expect(guide).toHaveProperty('firstname', 'Margaret');
+      expect(guide).toHaveProperty('role', null);
+      expect(guide).toHaveProperty('gender', null);
+      expect(guide).toHaveProperty('result_placement', null);
+
+      // ⚠️ The whole payload, not one row: `'guide'` must not appear anywhere in it, which is
+      // what catches a future reader adding the marker back somewhere else.
+      expect(JSON.stringify(published)).not.toContain('guide');
+
+      // A permission holder gets the identical answer after publication — the property that
+      // lets the page be cached publicly at all.
+      const holderAfter = await asPerson<ResultsAnswer>(
+        PREVIEWER,
+        'select timing.results_for_event($1) as answer',
+        [SLUG],
+      );
+      expect(holderAfter?.teams[0]?.runners[1]).toHaveProperty('role', null);
     });
 
     it('returns to null for an anonymous caller when it is unpublished again', async () => {

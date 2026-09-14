@@ -192,6 +192,26 @@ begin
           -- published answer is the same answer for every caller, which is what lets the page
           -- carry a public `Cache-Control`, and an exact age beside a full name is a field
           -- beyond the name, category and time the club publishes a result by.
+          --
+          -- ⚠️ **A guide's `role`, `gender` and `result_placement` are withheld too, and this
+          -- one is Article 9.** `import_from_entries()` puts a visually impaired runner on
+          -- **leg 1 and their guide on leg 2 of the same team** - ADR-022 - so a published
+          -- payload saying *"leg 2 is a guide"* says *"leg 1 is visually impaired"* about a
+          -- named person, to anybody holding the published anon key. That it is an inference
+          -- rather than a column makes it no less a disclosure of health data, and
+          -- `/nn/privacy/` publishes results by name, category and time and says nothing about
+          -- this.
+          --
+          -- **It costs the page nothing.** `categoryWords()` suppresses a guide's category on
+          -- `role`, and a guide has no `gender` either - they are never asked for a race
+          -- category, ADR-022 as amended - so withholding all three renders exactly the same
+          -- dash by the route that was already carrying it. The preview keeps every one of
+          -- them, which is where `awards.ts` excludes a guide from a prize band; `results_
+          -- preview()` in #205 is the read that has them.
+          --
+          -- **This is the same rule as the age, applied to the field that was left in.** The
+          -- header above argues a public payload is not a public *page* and that the two must
+          -- be judged apart; that argument was applied to `age_on_day` and not to this.
           'runners', coalesce((
             select jsonb_agg(
               jsonb_build_object(
@@ -199,9 +219,12 @@ begin
                 'leg', r.leg,
                 'firstname', r.firstname,
                 'lastname', r.lastname,
-                'gender', r.gender,
-                'result_placement', r.result_placement,
-                'role', r.role,
+                'gender', case when v_published and r.role = 'guide' then null else r.gender end,
+                'result_placement', case
+                  when v_published and r.role = 'guide' then null
+                  else r.result_placement
+                end,
+                'role', case when v_published then null else r.role end,
                 'age_on_day', case when v_published then null else r.age_on_day end
               ) order by r.leg
             )

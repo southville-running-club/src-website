@@ -111,8 +111,17 @@ export type TimingRunner = {
    *
    * A guide runs the course and takes one of the 250, so they get a bib and appear on the
    * start line; they are in **no category and no prize**. `awards.ts` excludes them.
+   *
+   * ⚠️ **Null once a race's results are published, and that is Article 9 rather than tidiness.**
+   * `import_from_entries()` puts a visually impaired runner on leg 1 and their guide on leg 2
+   * of the same team, so a published payload saying *"leg 2 is a guide"* says *"leg 1 is
+   * visually impaired"* about a named person — to anybody holding the published anon key.
+   * `results_for_event()` withholds it, along with a guide's `gender` and `result_placement`,
+   * once `results_published_at` is set; `results_preview()` keeps all three, which is the read
+   * `awards.ts` is handed. **Every consumer must therefore treat a null as "not a guide as far
+   * as this answer goes" and never as a guarantee that they are a runner.**
    */
-  role: string;
+  role: string | null;
   /** Computed against the race date at import, never stored as a birth date. */
   age_on_day: number | null;
   /**
