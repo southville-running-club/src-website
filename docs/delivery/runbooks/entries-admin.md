@@ -74,7 +74,9 @@ pre-assigns a role to a new volunteer's address before they have registered.
 
 ## Granting somebody a role
 
-- [ ] Sign in as a `super-admin` and open `/admin/people/`
+- [ ] Sign in as somebody holding `super-admin` **or `src-admin`** and open `/admin/people/`.
+      Both carry `identity.role.grant`, which is what the page and the database both ask for
+      since [ADR-047](../../architecture/decisions/adr-047-granting-a-role-asks-for-the-permission.md)
 - [ ] Find them in the list on the left — search by name or email, or narrow it with **Has
       roles** / **Members**. **They must have registered first** — this page grants roles, it
       does not create accounts
@@ -120,8 +122,8 @@ the green band is the way back.
 
 | | |
 | --- | --- |
-| **Revoke the last super-admin** | Refused by `identity.revoke_role()`, not by the page. A club with no super-admin has no service-role key to get back in with. Grant the role to somebody else first |
-| **Grant a role to yourself that you do not have** | Only a `super-admin` may grant anything, and the check is in the database |
+| **Revoke the last super-admin** | Refused by `identity.revoke_role()`, not by the page. Grant the role to somebody else first. ⚠️ Deliberately left in place after ADR-047 even though an `src-admin` could now grant one back — over-strict in the safe direction |
+| **Grant a role to yourself that you do not have** | Only somebody holding `identity.role.grant` may grant anything — `super-admin` and `src-admin` carry it — and the check is in the database |
 | **Grant anything at all, holding `people-admin`** | That role reads this page and changes nothing on it. The page shows no switches and no buttons, and a request made without them is refused twice — by the Worker and again by the database |
 | **Remove super admin in a batch** | `identity.set_roles()` refuses a payload that names it at all. Super admin has its own panel and its own typed confirmation — ADR-046 |
 | **Edit somebody's profile, or delete an account** | Deliberately absent. A change to a record somebody controls needs its own thinking about notification and consent |

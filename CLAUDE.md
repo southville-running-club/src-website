@@ -1313,15 +1313,24 @@ last-super-admin guard in `revoke_role()` need no second copy — the batch cann
 it protects, the same way `transfer_entry()` had to be stopped from being the way round the
 one-place rule.
 
-⚠️ **Who may change a role is two questions that disagree, and it is live.** The page renders its
-controls on the **permission** `identity.role.grant`; `grant_role()`, `revoke_role()` and
-`set_roles()` all ask the **role** `has_role('super-admin')`, which ADR-017's mechanism moved
-`list_people()` and `grantable_roles()` off and never moved these. So **`src-admin` — the club's
-master role, whose published description ends "and granting roles" — is offered controls every one
-of those three refuses**, with the words _"You are no longer a super-admin"_. Nothing on the page
-is wrong to a `super-admin`, which is why it has gone unnoticed since 6 September 2026.
-**Resolving it is a stop-and-ask**, and `packages/db/tests/identity-set-roles.test.ts` pins the
-current refusal so that resolving it has to be a diff somebody writes on purpose.
+⚠️ **Who may change a role was two questions that disagreed, and it is one now** —
+[ADR-047](docs/architecture/decisions/adr-047-granting-a-role-asks-for-the-permission.md),
+19 September 2026. The page renders its controls on the **permission** `identity.role.grant`;
+`grant_role()`, `revoke_role()` and `set_roles()` asked the **role** `has_role('super-admin')`,
+which ADR-017's mechanism moved `list_people()` and `grantable_roles()` off and never moved these.
+So **`src-admin` — the club's master role, whose published description ends "and granting roles" —
+was offered controls every one of those three refused**, with the words _"You are no longer a
+super-admin"_. Nothing looked wrong to a `super-admin`, which is why it survived from 6 September.
+**All three ask the permission now.**
+
+**That was not a new decision about who may change roles** — the club took that one in
+`20260906100000`, when it put `identity.role.grant` on the role and wrote the capability into the
+description; the database never honoured it. And it hands a director nothing new in substance:
+`super-admin` carries exactly two permissions and `src-admin` carries both plus sixteen more, so
+it is a strict subset. ⚠️ **What the guard did not do is move with it**: `revoke_role()` still
+refuses to remove the last `super-admin`, which is now over-strict in the safe direction, because
+an `src-admin` could grant another. Widening it to "the last person who can grant anything" is a
+different guard and a decision nobody has taken.
 
 **The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
 the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308

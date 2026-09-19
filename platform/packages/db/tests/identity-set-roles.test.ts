@@ -229,23 +229,60 @@ describe('who may call it', () => {
   });
 
   /**
-   * ⚠️ **This pins a discrepancy rather than a design.** `src-admin` carries
-   * `identity.role.grant`, and `/admin/people/` renders its controls on exactly that
-   * permission — so a club director is offered buttons that `grant_role()`, `revoke_role()`
-   * and now `set_roles()` all refuse, because those three ask `has_role('super-admin')` and
-   * were never moved onto the permission by ADR-017's mechanism.
+   * ⚠️ **This assertion was the other way round until ADR-047, and flipping it was the point
+   * of writing it.** `src-admin` carries `identity.role.grant` and `/admin/people/` renders its
+   * controls on exactly that permission — but `grant_role()`, `revoke_role()` and `set_roles()`
+   * all asked `has_role('super-admin')`, which ADR-017's mechanism moved `list_people()` off
+   * and never moved these. So a director was offered buttons every one of those three refused,
+   * and the role's own published description ended *"and granting roles"*.
    *
-   * The assertion is here so that resolving it is a decision somebody takes in a diff. It is
-   * the same job `identity-permissions.test.ts`'s exact role and permission sets do, and the
-   * same job `entries.test.ts` does for the anon grant list. Changing who may change roles is
-   * a stop-and-ask; this test going red is what makes somebody notice they are taking it.
+   * It was pinned here as a refusal so that resolving it had to be a diff somebody wrote on
+   * purpose. This is that diff.
    */
-  it('refuses an src-admin, whose own description says it grants roles', async () => {
-    const { data, error } = await setRoles([], ['nn-admin'], director.client);
+  it('lets an src-admin save, which is what its description has always claimed', async () => {
+    const { data, error } = await setRoles(['nn-admin'], ['nn-results'], director.client);
 
     expect(error).toBeNull();
-    expect(data).toEqual({ ok: false, reason: 'not_authorised' });
+    expect(data).toMatchObject({ ok: true, changed: 2 });
+    expect(await heldBy(subject.id)).toEqual(['nn-results', 'registered'].sort());
   });
+
+  /**
+   * **The single-act path moves with the batch**, which is the property `set_roles()` was
+   * written to preserve: the two paths must not disagree about who may act, or the page's
+   * switches and its super-admin panel answer to different rules.
+   */
+  it('lets an src-admin grant and revoke one role at a time as well', async () => {
+    const granted = await director.client
+      .schema('identity')
+      .rpc('grant_role', { p_person: subject.id, p_role: 'timing-marshal' });
+
+    expect(granted.error).toBeNull();
+    expect(granted.data).toEqual({ ok: true });
+    expect(await heldBy(subject.id)).toContain('timing-marshal');
+
+    const revoked = await director.client
+      .schema('identity')
+      .rpc('revoke_role', { p_person: subject.id, p_role: 'timing-marshal' });
+
+    expect(revoked.error).toBeNull();
+    expect(revoked.data).toEqual({ ok: true });
+    expect(await heldBy(subject.id)).not.toContain('timing-marshal');
+  });
+
+  /**
+   * ⚠️ **The last-super-admin guard did not move with the gate, and is deliberately not
+   * re-tested here.** `revoke_role()` still refuses to remove the last active `super-admin`,
+   * even though its argument — that a club with none has no way back in — is weaker now that
+   * an `src-admin` can grant one. It is over-strict in the safe direction, and widening it to
+   * "the last person who can grant anything" is a different guard with a different failure
+   * mode.
+   *
+   * **Asserting it here would need this file to be the only one holding a super-admin**, which
+   * is the whole-database claim `vitest.config.ts` records going wrong the last time two files
+   * made it — and this file holds two super-admins while it runs, so the guard would not even
+   * fire. It stays `identity.test.ts`'s, as the header at the top of this file says.
+   */
 });
 
 // -----------------------------------------------------------------------------------------

@@ -39,13 +39,14 @@ import { cookieValue } from './cookies';
  * second without the first, because granting a role to somebody means finding them in this
  * list first.
  *
- * ⚠️ **`identity.role.grant` is not what the database asks.** `grant_role()`, `revoke_role()`
- * and `set_roles()` all ask `has_role('super-admin')`, which ADR-017's mechanism never moved
- * them off. So `src-admin` — which carries the permission and not the role — is rendered
- * controls that every one of those three refuses. That predates ADR-046 and is deliberately
- * not resolved by it: changing who may change roles is a decision, not a side effect.
- * `identity-set-roles.test.ts` pins the current refusal so that resolving it has to be a diff
- * somebody writes on purpose. See ADR-046's "What this leaves open".
+ * **The page and the database ask the same question, and that is new.** `grant_role()`,
+ * `revoke_role()` and `set_roles()` asked `has_role('super-admin')` until ADR-047; every other
+ * gate on this surface had moved to a permission in #107 and these were left behind. So
+ * `src-admin` — which carries `identity.role.grant` and not the role — was rendered controls
+ * that all three refused, with a message telling a club director they were no longer a
+ * super-admin. Nothing looked wrong to a `super-admin`, which is why it survived a fortnight.
+ * All three ask the permission now, which is what the role's own published description has
+ * claimed since 6 September 2026.
  *
  * ## Switches and one Save, which reverses what this file used to say
  *
@@ -123,7 +124,12 @@ interface Person {
 
 /** What went wrong, in the words the person reading the page needs rather than the database's. */
 const REFUSALS: Record<string, string> = {
-  not_authorised: 'You are no longer a super-admin, so that change was not made.',
+  // **Not "you are no longer a super-admin"**, which is what this said while the database
+  // asked for that role — and which was the sentence a club director met every time, holding
+  // a role whose description says it grants roles. The gate is `identity.role.grant` now
+  // (ADR-047), so the words are about the capability rather than about one role that carries
+  // it.
+  not_authorised: 'You can no longer change roles, so that change was not made.',
   unknown_role: 'That is not a role this club has.',
   unknown_person: 'That person no longer has an account.',
   reserved_role:

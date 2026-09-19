@@ -401,12 +401,14 @@ that reads the same data by role. **Super admin is not in the batch**: it keeps 
 gains a confirmation where the person's name must be typed, so the last-super-admin guard in
 `revoke_role()` needs no second copy — the batch cannot reach the state it protects.
 
-⚠️ **That ADR leaves one thing open and it is live**: `/admin/people/` renders its controls on
-the permission `identity.role.grant`, while `grant_role()`, `revoke_role()` and `set_roles()` all
-ask the role `has_role('super-admin')`. So **`src-admin`, the club's master role for directors,
-is offered controls every one of those functions refuses**. Resolving it is a decision about who
-may change roles rather than a side effect of rebuilding a page; the current refusal is pinned by
-a test so that resolving it has to be deliberate.
+**That rebuild found a live defect and
+[ADR-047](../architecture/decisions/adr-047-granting-a-role-asks-for-the-permission.md) closed it
+the same day.** `/admin/people/` rendered its controls on the permission `identity.role.grant`
+while `grant_role()`, `revoke_role()` and `set_roles()` all asked the role
+`has_role('super-admin')` — so **`src-admin`, the club's master role for directors, was offered
+controls every one of those functions refused**, from 6 September. All three ask the permission
+now, which finishes the migration ADR-017 described and `20260826190000` believed it had
+completed.
 
 ---
 

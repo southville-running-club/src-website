@@ -122,7 +122,14 @@ three functions refuses**, with the words _"You are no longer a super-admin"_.
 **This ADR does not resolve it**, because changing who may change roles is a decision the club
 takes rather than a side effect of rebuilding a page. What it does instead is pin the current
 refusal in `identity-set-roles.test.ts`, so that resolving it has to be a diff somebody writes on
-purpose. Three ways out, in the order they are likely to be right:
+purpose.
+
+> ⚠️ **Resolved the same day by
+> [ADR-047](adr-047-granting-a-role-asks-for-the-permission.md)**, which takes the first of the
+> three below: all three functions ask the permission now. The paragraphs beneath are left as
+> written, because they are the reasoning that was put to the club rather than the answer.
+
+Three ways out, in the order they are likely to be right:
 
 1. move the three functions onto `identity.role.grant`, which makes the role's description true;
 2. drop `identity.role.grant` from `src-admin`, which makes the page honest;
