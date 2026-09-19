@@ -386,7 +386,7 @@ Use `./dev`, or `cd platform` first.
 ./dev e2e     # one Playwright spec on one engine — the fast loop; --linux runs CI's own
               # browser image, for when a laptop passes something CI would fail
 ./dev check   # rebuild the database, then lint, types, generated types, unit and database
-              # tests — the same six steps as CI's "Lint, types and tests" job
+              # tests — CI's "Lint, types and tests" job MINUS its last step, "Worker tests"
 ./dev smoke   # a handful of live assertions against production; --live is explicit about it
 ./dev reset   # rebuild the database from zero without starting the site
 ./dev down    # stop the Workers and the database
@@ -606,6 +606,24 @@ It runs `db:types:check` now, in CI's own order. **The general rule that keeps c
 a step CI runs and `./dev` does not is a divergence that fails in the expensive direction**,
 because the laptop is where it is cheap to find out.
 
+⚠️ **And it is still not true, which is the third instance and the one to read first.** CI's
+`Lint, types and tests` job ends with a **`Worker tests`** step — `npm run test:worker` — and
+`./dev check` stops one step earlier, at `Unit and database tests`. `npm test` is
+`vitest run --project unit --project db`, and `apps/main/tests/worker/**` is in neither project,
+so **a green `./dev check` says nothing at all about the Miniflare layer** even though the CI
+job it is named after runs it. This cost a red pull request on 19 September 2026: a change that
+inserted `<wbr>` into a rendered address passed `./dev check` (2,715 tests) and three green
+per-engine `./dev e2e` runs, and turned **25 Miniflare tests** red — because those assert on the
+**markup string** while Playwright matches `textContent`, which a zero-width break does not
+change. **Until `./dev check` gains that step, a branch carrying a rendering change is not
+verified until the Miniflare layer has run, and `./dev test` is the only thing that runs it.**
+⚠️ A bare `npm run test:worker` from `platform/` is **not** a substitute and fails without
+naming why: the admin config's global setup throws **`supabaseKey is required`** from
+`tests/admin-db.ts`, because the three Supabase variables it needs are exported by `./dev` and
+by nothing else — the same trap `./dev e2e` carries for a scoped Playwright run, one layer
+along. The four configs that need no database pass, so it reports **four files green and the
+admin one "no test files found"**, which reads as a pass.
+
 ⚠️ **A page rendered by the Worker is asserted at two layers, and `./dev e2e` runs only one
 of them.** `apps/main/tests/worker/**` drives the same page through Miniflare and asserts its
 **markup**; `tests/e2e/**` drives it through a browser and asserts its **behaviour**. Rebuilding
@@ -776,6 +794,15 @@ the email when somebody has no name recorded**, and its own header notes no fixt
 repository has one — so the name slots hold addresses in the common case, and taking the property
 off without adding the `<wbr>`s would have stranded a 33-character address in a 320px column.
 `breakableLabel()` is the one that asks which of the two it has been handed.
+
+⚠️ **Adding `<wbr>` to a rendered value breaks every Miniflare assertion that quotes it**, and
+nothing at the acceptance layer notices. Those tests match the **markup string**, so
+`toContain('someone@example.com')` fails against `someone@<wbr>example.<wbr>com`; Playwright
+matches `textContent`, which a zero-width break does not change, so three engines stayed green
+while 25 Worker tests went red. **`squash()` in `tests/worker/admin/admin.test.ts` strips it
+now**, beside the whitespace it already strips for Prettier's reflow — the same trap with a
+different character in the middle of the string, and the assertions stay written as the plain
+address somebody can read.
 
 **A visually-hidden span inside a horizontally scrolling table makes the whole page scroll
 sideways.** `overflow` only clips a descendant whose containing block is inside the scroller, and
