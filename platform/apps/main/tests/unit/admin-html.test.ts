@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, html, raw } from '../../worker/html';
+import { breakableEmail, breakableLabel, escapeHtml, html, raw } from '../../worker/html';
 
 /**
  * The escaping the admin pages are built on.
@@ -120,5 +120,64 @@ describe('the html template', () => {
     const hostile = { toString: () => '<script>' };
 
     expect(html`<td>${hostile}</td>`.toString()).toBe('<td>&lt;script&gt;</td>');
+  });
+});
+
+describe('break opportunities in a long value', () => {
+  /**
+   * ⚠️ **These two are the only places in this module that call `raw()` on a value that came
+   * from a database**, so they are the only places the escaping could be got wrong. Everything
+   * else `raw()` touches is markup this module built itself.
+   *
+   * The property is the same for both: **escape first, then insert a constant.** Asserted
+   * directly rather than by reading the implementation, because `raw()` is what the file's own
+   * header calls *"the one call a reviewer has to check"*.
+   */
+  it('breaks an address after the at-sign and each dot, and nowhere else', () => {
+    expect(breakableEmail('someone@example.co.uk').toString()).toBe(
+      'someone@<wbr>example.<wbr>co.<wbr>uk',
+    );
+  });
+
+  it('adds nothing to an address that has no punctuation to break at', () => {
+    // Not a real address, and the function is not a validator — it is asked to insert break
+    // opportunities and there are none to insert.
+    expect(breakableEmail('nobody').toString()).toBe('nobody');
+  });
+
+  it('escapes the address before it inserts anything', () => {
+    // The whole of the `raw()` audit: markup in, text out, with the breaks still added at the
+    // punctuation of the escaped string.
+    expect(breakableEmail('<script>@evil.example').toString()).toBe(
+      '&lt;script&gt;@<wbr>evil.<wbr>example',
+    );
+  });
+
+  it('leaves a person’s name whole', () => {
+    // ⚠️ The defect this pair exists for: `overflow-wrap: anywhere` rendered `Bindal Shah` as
+    // `Binda` / `l Shah`. A name gets no break opportunities at all — it breaks at its spaces
+    // like any other text, and `break-word` is the only backstop it has.
+    expect(breakableLabel('Bindal Shah').toString()).toBe('Bindal Shah');
+  });
+
+  it('treats a label that is an address as an address', () => {
+    // `displayName()` falls back to the email when somebody has no name recorded, and its own
+    // header notes that no fixture in this repository has one — so this is the common case on
+    // `/admin/people/` rather than the edge one.
+    expect(breakableLabel('someone@example.com').toString()).toBe(
+      'someone@<wbr>example.<wbr>com',
+    );
+  });
+
+  it('escapes a name that contains markup', () => {
+    expect(breakableLabel('<b>Ada</b>').toString()).toBe('&lt;b&gt;Ada&lt;/b&gt;');
+  });
+
+  it('is inserted by the template without being escaped again', () => {
+    // The end-to-end property: an `Html` goes through `html` untouched, so the `<wbr>` survives
+    // and the address around it is still escaped exactly once.
+    expect(html`<p>${breakableEmail("o'neill@example.com")}</p>`.toString()).toBe(
+      '<p>o&#39;neill@<wbr>example.<wbr>com</p>',
+    );
   });
 });

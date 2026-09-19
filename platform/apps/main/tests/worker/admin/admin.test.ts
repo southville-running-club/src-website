@@ -96,9 +96,28 @@ const AUDIT_BRIDGE = 'http://127.0.0.1:54399/';
  *
  * The CSV assertions deliberately do **not** go through this: a byte-order mark and a CRLF are
  * exactly what is being asserted there.
+ *
+ * ## `<wbr>` goes the same way, and for the same reason
+ *
+ * ⚠️ **An address is rendered with break opportunities in it** — `<wbr>` after the `@` and each
+ * `.`, from `breakableEmail()` in `worker/html.ts` — so the markup for one reads
+ * `zz-admin-worker-nn@<wbr>example.<wbr>com` and `toContain('zz-admin-worker-nn@example.com')`
+ * fails on a page that is perfectly correct. **That is this function's existing trap with a
+ * different character in the middle of the string**: a zero-width break opportunity is a
+ * formatting instruction to the line-breaker, exactly as a newline Prettier inserted is, and an
+ * assertion about what the page *says* has no business seeing either.
+ *
+ * It is also what the rendered page does. `<wbr>` contributes no text, so `textContent` is
+ * unchanged and the Playwright assertions that find people by their address never saw this at
+ * all — which is why 25 of these failed while the acceptance layer stayed green, and why the
+ * fix belongs here rather than in the markup.
+ *
+ * **Stripped rather than matched loosely.** A regex tolerant of an optional `<wbr>` at every
+ * punctuation mark would be unreadable and would still miss the next element of this kind; the
+ * assertions stay written as the plain address somebody can read.
  */
 function squash(markup: string): string {
-  return markup.replace(/\s+/g, ' ');
+  return markup.replace(/<wbr>/g, '').replace(/\s+/g, ' ');
 }
 
 async function pageText(response: Response): Promise<string> {

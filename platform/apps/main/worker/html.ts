@@ -128,3 +128,60 @@ function render(value: unknown): string {
 
   return escapeHtml(String(value));
 }
+
+/**
+ * An email address with break opportunities where an address may break.
+ *
+ * ## The defect
+ *
+ * `overflow-wrap: anywhere` was on every long value on `/admin/people/`, addresses and **names
+ * alike**, and at a narrow column it cut inside words: the signed-in volunteer rendered as
+ * `Binda` / `l Shah`, and `admin@southvillerunningclub.co.uk` broke as `…co` / `.uk`. The first
+ * is a page about people mangling a person's name; the second is an address a volunteer is
+ * about to read down a phone, split at a point that is not a seam.
+ *
+ * Taking the property off fixes the name and strands the address: it is one unbreakable token
+ * long enough to push a 320px page sideways on its own, which is the failure that put the rule
+ * there in the first place.
+ *
+ * ## So the break opportunities are markup rather than a property
+ *
+ * `<wbr>` after the `@` and after each `.` — the seams a reader already parses an address at.
+ * The browser uses them only when the line will not fit, so a wide column still shows the whole
+ * address on one line, and a narrow one breaks it where a person would.
+ *
+ * **`<wbr>` is a zero-width opportunity, not a hyphen and not a character**, so the address is
+ * unchanged for copy-and-paste in every browser this club's volunteers use, and a screen reader
+ * announces it as one address. Anything with visible output — a `&shy;`, a zero-width space —
+ * would put a character inside a credential-shaped string, which is the one thing an address
+ * on an admin page must not do.
+ *
+ * ## Why this is a legitimate `raw()`
+ *
+ * **The value is escaped first and the only unescaped thing inserted is a constant.** `<wbr>` is
+ * this function's own literal; every character of the address goes through `escapeHtml` before
+ * it is anywhere near it. An address containing `<script>` comes out as text, which
+ * `tests/unit/admin-html.test.ts` asserts directly rather than by inspection.
+ */
+export function breakableEmail(address: string): Html {
+  return raw(escapeHtml(address).replace(/([@.])/g, '$1<wbr>'));
+}
+
+/**
+ * How somebody is labelled, with break opportunities only where the label allows them.
+ *
+ * ⚠️ **The name slots on `/admin/people/` hold addresses, and that is why this exists.**
+ * `displayName()` falls back to the email when a person has no name recorded — and its own
+ * header notes that *no fixture in this repository has a name at all*, so the fallback is the
+ * common case rather than the edge one. Taking `overflow-wrap: anywhere` off the name to stop
+ * it cutting `Bindal Shah` in half would therefore strand a 33-character address in a 320px
+ * column with nowhere to break.
+ *
+ * So the label is asked what it is. An address gets `<wbr>` at its seams, exactly as
+ * `breakableEmail` gives it; a name is returned whole and breaks only if `overflow-wrap:
+ * break-word` has to, which for a real name is almost never. **`@` is the test** because a name
+ * cannot contain one and every address must.
+ */
+export function breakableLabel(label: string): Html {
+  return label.includes('@') ? breakableEmail(label) : raw(escapeHtml(label));
+}

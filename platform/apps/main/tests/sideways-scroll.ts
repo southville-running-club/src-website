@@ -328,3 +328,94 @@ export async function readWhenSettled<T>(page: Page, read: () => Promise<T>): Pr
 }
 
 export { waitForStyledLayout };
+
+/**
+ * Nothing on the page is wider than the box that holds it.
+ *
+ * **Stricter than `expectNoSidewaysScroll`, and it catches a different defect.** That one
+ * measures the *document*: it asks whether the page can be dragged sideways. This asks whether
+ * any element spills out of its own parent — which a scroller, an `overflow: hidden` or a
+ * clipped flex item all hide from the document measurement while the content is still cut off
+ * or pushed out of view.
+ *
+ * The two together are what the people page needed. `<main class="admin-people">` fell back to
+ * `main`'s prose measure while the masthead above it stayed full width, so the document never
+ * scrolled sideways at any width — the page was *narrow*, not overflowing — and every existing
+ * guard passed while the content sat in a 40rem column on a 1440px screen. A child-against-parent
+ * assertion is the one that would have seen the panes inside it being squeezed.
+ *
+ * **The tolerance is a pixel by default, not zero.** Sub-pixel layout means a child that exactly
+ * fills its parent routinely measures a hundredth wider, and a border swap is worth a whole one
+ * — the repository has already paid for a 0.1px-on-a-Mac, 214px-on-the-runner divergence, and a
+ * zero here would fail on the first of those while saying nothing about the second.
+ *
+ * Waits for the same defined state everything else in this file does: an unstyled document has
+ * every block at viewport width and reports no overflow at all, which is the vacuous pass this
+ * file exists to refuse.
+ */
+export async function expectNoChildOverflow(
+  page: Page,
+  note: string,
+  tolerance = 1,
+): Promise<void> {
+  await waitForStyledLayout(page);
+
+  const measured = await page.evaluate((slack: number) => {
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const offenders: string[] = [];
+
+    const describe = (element: Element) => {
+      const classes =
+        typeof element.className === 'string' && element.className.trim() !== ''
+          ? `.${element.className.trim().split(/\s+/).join('.')}`
+          : '';
+      return `${element.tagName.toLowerCase()}${classes}`;
+    };
+
+    for (const element of Array.from(document.querySelectorAll('*'))) {
+      const parent = element.parentElement;
+      if (parent === null || parent === document.documentElement) continue;
+
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) continue;
+
+      const parentStyles = getComputedStyle(parent);
+
+      // A parent that scrolls is *meant* to hold something wider than itself — that is what a
+      // scroller is. The admin roles table is one on purpose. Overflow inside it is the
+      // scroller's business, and `expectNoSidewaysScroll` is what checks it does not escape.
+      if (/(auto|scroll)/.test(parentStyles.overflowX)) continue;
+
+      // Taken out of the flow: positioned against an ancestor that is not its parent box, so
+      // "wider than its parent" is not a statement about it. The absolutely-positioned
+      // visually-hidden span inside a scrolling table is exactly this case.
+      const styles = getComputedStyle(element);
+      if (styles.position === 'absolute' || styles.position === 'fixed') continue;
+
+      const parentBox = parent.getBoundingClientRect();
+      const spill = Math.max(parentBox.left - box.left, box.right - parentBox.right);
+
+      if (spill <= slack) continue;
+
+      offenders.push(
+        `${describe(element)} spills ${round(spill)}px out of ${describe(parent)}` +
+          ` (child ${round(box.width)}px in parent ${round(parentBox.width)}px)` +
+          ` overflow-wrap=${styles.overflowWrap} word-break=${styles.wordBreak}` +
+          ` :: ${(element.textContent ?? '').trim().slice(0, 50)}`,
+      );
+    }
+
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      stylesheets: document.styleSheets.length,
+      offenders,
+    };
+  }, tolerance);
+
+  expect(
+    measured.offenders,
+    `${note}: ${measured.offenders.length} element(s) wider than their parent at` +
+      ` ${measured.clientWidth}px (${measured.stylesheets} stylesheets applied)` +
+      (measured.offenders.length > 0 ? `\n  ${measured.offenders.join('\n  ')}` : ''),
+  ).toEqual([]);
+}

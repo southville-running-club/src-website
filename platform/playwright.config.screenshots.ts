@@ -50,7 +50,17 @@ import baseConfig from './playwright.config';
  */
 export default defineConfig({
   ...baseConfig,
-  testMatch: ['**/timing-race-night.screens.ts'],
+  // **Named one by one, and a glob was tried and reverted.** `'**/*.screens.ts'` reads better
+  // and couples every screen run to every other: `timing-race-night.screens.ts` has never been
+  // run — its own header says to expect that of the first attempt — so the glob made the people
+  // page's five pictures fail behind somebody else's unfinished nineteen, and five of those did
+  // not run at all. A screen file is added here in the same diff that adds the file, which is
+  // one line and no surprises.
+  //
+  // **The separation from the gate does not rest on this line**, which is what makes an explicit
+  // list cost nothing: the base config's `testMatch` ends in `.spec.ts`, so no `.screens.ts` can
+  // reach the ordinary suite whatever is written here.
+  testMatch: ['**/timing-race-night.screens.ts', '**/admin-people-layout.screens.ts'],
   testIgnore: [
     '**/node_modules/**',
     '**/dist/**',

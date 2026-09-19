@@ -23,7 +23,7 @@ import {
   type PeopleView,
   type RoleGroup,
 } from '@src/shared/people-roles';
-import { html, raw, type Html } from './html';
+import { breakableEmail, breakableLabel, html, raw, type Html } from './html';
 import { can, masthead, notFound, page, type AdminViewer } from './admin-shell';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
 import { cookieValue } from './cookies';
@@ -551,14 +551,16 @@ function peopleBody(model: PageModel): Html {
 
   return html`${masthead(viewer)}
     <main
-      class="${chosen ? 'admin-people admin-people-chosen' : 'admin-people'}"
+      class="${
+        chosen ? 'admin-app admin-people admin-people-chosen' : 'admin-app admin-people'
+      }"
       id="main"
     >
       ${hero(model, people.length, withRoles, supers)}
       ${
         attempt.error === undefined
           ? null
-          : html`<p class="admin-error" role="alert">${attempt.error}</p>`
+          : html`<p class="admin-error admin-app-inset" role="alert">${attempt.error}</p>`
       }
       ${query.saved && attempt.error === undefined ? savedBanner(model) : null}
       ${
@@ -585,7 +587,7 @@ function hero(model: PageModel, total: number, withRoles: number, supers: number
       ? peopleHref(HERE, { ...query, person: null, saved: false, confirming: false })
       : null;
 
-  return html`<section class="admin-hero" aria-labelledby="people-title">
+  return html`<section class="admin-hero admin-app-band" aria-labelledby="people-title">
     ${
       back === null
         ? null
@@ -649,7 +651,7 @@ function viewToggle(query: PeopleQuery): Html {
 function savedBanner(model: PageModel): Html {
   const who = model.selected === null ? null : firstName(model.selected);
 
-  return html`<p class="admin-saved" role="status">
+  return html`<p class="admin-saved admin-app-inset" role="status">
     <span class="admin-saved-tick" aria-hidden="true">✓</span>
     ${
       who === null
@@ -664,7 +666,9 @@ function savedBanner(model: PageModel): Html {
 // -----------------------------------------------------------------------------------------
 
 function personView(model: PageModel): Html {
-  return html`<div class="admin-split">${personList(model)} ${detailPane(model)}</div>`;
+  return html`<div class="admin-split admin-app-band">
+    ${personList(model)} ${detailPane(model)}
+  </div>`;
 }
 
 function personList(model: PageModel): Html {
@@ -770,8 +774,8 @@ function personRow(person: Person, model: PageModel): Html {
     >
       <span class="admin-avatar" aria-hidden="true">${initialsFor(person)}</span>
       <span class="admin-person-who">
-        <span class="admin-person-name">${displayName(person)}</span>
-        <span class="admin-person-email admin-mono">${person.email}</span>
+        <span class="admin-person-name">${breakableLabel(displayName(person))}</span>
+        <span class="admin-person-email admin-mono">${breakableEmail(person.email)}</span>
       </span>
       <span class="admin-person-has">
         ${roleGlyph(person, model.roles)}
@@ -873,8 +877,8 @@ function personHeading(person: Person, model: PageModel): Html {
       >${initialsFor(person)}</span
     >
     <div class="admin-detail-who">
-      <h2 id="person-name">${displayName(person)}</h2>
-      <p class="admin-detail-email admin-mono">${person.email}</p>
+      <h2 id="person-name">${breakableLabel(displayName(person))}</h2>
+      <p class="admin-detail-email admin-mono">${breakableEmail(person.email)}</p>
     </div>
     <span class="admin-chip">${roleSummary(person.roles)}</span>
     ${
@@ -1143,7 +1147,10 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
   });
 
   if (locked) {
-    return html`<section class="admin-confirm" aria-labelledby="confirm-title">
+    return html`<section
+      class="admin-confirm admin-app-inset"
+      aria-labelledby="confirm-title"
+    >
       <h2 id="confirm-title">Cannot remove the last super admin</h2>
       <p>
         ${name} is the only super admin. Grant the role to somebody else first — a club
@@ -1153,7 +1160,10 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
     </section>`;
   }
 
-  return html`<section class="admin-confirm" aria-labelledby="confirm-title">
+  return html`<section
+    class="admin-confirm admin-app-inset"
+    aria-labelledby="confirm-title"
+  >
     ${confirmBody(model, person, isSuper, back)}
   </section>`;
 }
@@ -1281,7 +1291,7 @@ function roleView(model: PageModel): Html {
   // (`landmark-unique`). A list says "eight roles" once and is navigated by heading, which is
   // what somebody is looking for here. Found by running axe over this view for the first time:
   // the desktop pass only ever visited the person view.
-  return html`<ul class="admin-role-cards">
+  return html`<ul class="admin-role-cards admin-app-band">
     ${cards.map((role) => roleCard(role, model))}
   </ul>`;
 }
@@ -1337,7 +1347,7 @@ function roleCard(role: GrantableRole, model: PageModel): Html {
                     <span class="admin-avatar admin-avatar-sm" aria-hidden="true"
                       >${initialsFor(person)}</span
                     >
-                    <span>${displayName(person)}</span>
+                    <span>${breakableLabel(displayName(person))}</span>
                   </a>
                 </li>`,
             )}
