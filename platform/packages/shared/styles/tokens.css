@@ -95,6 +95,14 @@
      never body text. Charcoal ink on it is 7.64:1, which is how it is meant to be read. */
   --src-warning: #ffb020;
 
+  /* The guideline has no readable amber, and `--src-warning` cannot be one: 1.80:1 on white
+     fails even the 3:1 floor a non-text marker has to clear. Derived the same way as the green
+     and the error red — hue (38°) and saturation held from `--src-warning`, lightness moved
+     until it reads. 4.40:1 on white and 4.10:1 on the dark page, which clears 3:1 for the
+     markers and rules it is used for in both schemes. Introduced for the role-group markers on
+     `/admin/people/` (ADR-046), where green, amber and slate distinguish three groups. */
+  --src-amber-text: #a86b00;
+
   /* `color.surface` and `color.surface-muted`. */
   --src-paper: #ffffff;
   --src-paper-dark: #16161a;

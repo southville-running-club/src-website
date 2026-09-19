@@ -127,7 +127,9 @@ worker/admin.ts                The door and the dispatcher. Renders no page itse
 worker/admin-shell.ts          The frame every section is drawn in
 worker/nn-admin.ts             /admin/nn/ — the entries, the interest list, one entry in
                                full, the exports and the start list
-worker/admin-people.ts         /admin/people/ — who holds what, and where it is granted
+worker/admin-people.ts         /admin/people/ — who holds what, and where it is granted.
+                               Switches and one Save, two views, and a confirmation of
+                               its own for super admin — ADR-046
 worker/admin-emails.ts         /admin/emails/ — the outbox, the figures, the re-send
 worker/admin-events.ts         /admin/events/ — the socials, and who bought a ticket
 worker/admin-session.ts        ⚠️ Nothing calls this. The retired two-key scheme's

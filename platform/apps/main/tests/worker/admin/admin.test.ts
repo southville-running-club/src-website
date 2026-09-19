@@ -58,10 +58,6 @@ const ADMIN = '/admin/';
 const NN = '/admin/nn/';
 const PEOPLE = '/admin/people/';
 
-/** `worker/admin-people.ts`'s caption id, written out rather than imported — this file asserts
- *  markup, and an expectation read from the module that produced it asserts nothing. */
-const CAPTION_ID = 'people-table-caption';
-
 /**
  * Cloudflare's own published dummy response token, which `[auth.captcha]`'s matching dummy
  * secret always accepts locally and in CI. See
@@ -211,7 +207,10 @@ async function get(path: string, cookie: string | null = null): Promise<Response
 
 async function post(
   path: string,
-  body: Record<string, string>,
+  // **Pairs as well as an object**, because `/admin/people/` submits repeated fields: one
+  // `expected` and one `role` per switch. An object cannot express that and `URLSearchParams`
+  // accepts both, so the widening is free.
+  body: Record<string, string> | [string, string][],
   cookie: string | null = null,
 ): Promise<Response> {
   return SELF.fetch(`${SITE}${path}`, {
@@ -1464,93 +1463,107 @@ describe('the exports', () => {
 });
 
 // -----------------------------------------------------------------------------------------
-// #59 — people and roles
+// 59 — people and roles, rebuilt by ADR-046
 // -----------------------------------------------------------------------------------------
+// ⚠️ **This whole block was written against the table with a button per role per person**, and
+// every assertion in it was about that shape: three column headers, a `<form>` per control,
+// "Grant nn-admin for …" as an accessible name, and — the one that says it out loud — a test
+// called *"offers one deliberate act per role per person, never a multi-select"* asserting the
+// page contained no checkbox and no Save. ADR-046 reverses that, so the assertions reverse
+// with it.
+//
+// **One of them found a real regression rather than needing a rewrite**: the old table marked
+// which row belonged to the person reading it, and the first draft of the rebuild dropped that.
+// Somebody looking at a list containing themselves is one click from taking away their own way
+// in, so it is back, and the test below is why.
 
-/** The hidden fields of one grant-or-revoke form, read off the page that offered it. */
-type RoleForm = Record<string, string>;
+/** The person id the list links to, read off the row rather than constructed. */
+function personIdFor(markup: string, email: string): string {
+  for (const chunk of markup.split('<a ').slice(1)) {
+    if (!chunk.includes(email)) continue;
+    const match = /[?&]person=([0-9a-f-]{36})/.exec(chunk);
+    if (match) return match[1]!;
+  }
 
-/**
- * The person rows, and only those — the masthead, the nav and the table header are excluded.
- *
- * **A naive `markup.split('<tr>')` is not safe here, and this file found out why.** The
- * masthead renders "Signed in as {viewer.label}" — #58's own improvement over a handle — so
- * whenever the signed-in person's row is the one being looked for, their address is *also* on
- * the page before the first `<tr>` at all. `split('<tr>')`'s first element is everything up to
- * that point, it contains the address, and a filter or a `.find()` over the raw split treats
- * it as a row: no `admin-chip`, no `<form>`, and every assertion about "their own row" or "the
- * super-admin's own control" fails on a segment that is not a row at all. Splitting on
- * `<tbody>` first discards the masthead and the header row before `<tr>` is ever considered.
- */
-function tableRows(markup: string): string[] {
-  const body = markup.split('<tbody>')[1];
-  expect(body, 'the roles page rendered no table body').toBeDefined();
-
-  return body!.split('<tr>').slice(1);
+  expect.fail(`no row on the roles page linking to ${email}`);
 }
 
 /**
- * The form the roles page offers for one person and one role.
+ * The save form, and only it.
  *
- * **Read off the rendered page rather than constructed**, which is the difference between
- * testing the act and testing the endpoint: the person id, the CSRF token and whether the
- * control says Grant or Revoke all come from what a volunteer would actually click.
+ * The page carries a search form and — for a super-admin looking at somebody — a confirmation
+ * form too, both of which have fields with the same names. `data-role-form` is the marker the
+ * enhancement binds to, and it does the same job here.
  */
-function roleFormFor(markup: string, email: string, role: string): RoleForm {
-  const row = tableRows(markup).find((chunk) => chunk.includes(email));
-  expect(row, `no row for ${email} on the roles page`).toBeDefined();
-
-  const forms = row!
-    .split('<form')
-    .slice(1)
-    .map((chunk) => {
-      const fields: RoleForm = {};
-      for (const field of chunk.matchAll(/name="([^"]+)" value="([^"]*)"/g)) {
-        fields[field[1]!] = field[2]!;
-      }
-      return fields;
-    });
-
-  const form = forms.find((fields) => fields['role'] === role);
-  expect(form, `no ${role} control for ${email}`).toBeDefined();
-
+function roleForm(markup: string): string {
+  const form = markup.split('data-role-form')[1]?.split('</form>')[0];
+  expect(form, 'the roles page rendered no save form').toBeDefined();
   return form!;
 }
 
-async function peoplePage(): Promise<{ markup: string; csrfCookie: string }> {
-  const response = await get(PEOPLE, superAdmin);
-  expect(response.status, 'the roles page').toBe(200);
+/** Every role whose switch is rendered checked, which is what the person currently holds. */
+function checkedRoles(markup: string): string[] {
+  return [...roleForm(markup).split('<input').slice(1)]
+    .filter((chunk) => chunk.includes('checked'))
+    .map((chunk) => /value="([^"]*)"/.exec(chunk)?.[1] ?? '')
+    .filter((value) => value !== '');
+}
+
+async function peoplePage(
+  person: string | null = null,
+  who: string = superAdmin,
+): Promise<{ markup: string; csrfCookie: string }> {
+  const path = person === null ? PEOPLE : `${PEOPLE}?person=${person}`;
+  const response = await get(path, who);
+  expect(response.status, `the roles page${person === null ? '' : ', one person'}`).toBe(
+    200,
+  );
 
   const csrfCookie = csrfCookieFrom(response);
   return { markup: await pageText(response), csrfCookie };
 }
 
 /**
- * Grant or revoke one role, the way the page does it.
+ * Save a whole set of roles for one person, the way the page does it.
  *
- * The expected action is asserted rather than read, so a page offering "Grant" where the
- * person already holds the role fails here instead of somewhere confusing later.
+ * **The expected set is read off the rendered page rather than constructed**, which is the
+ * difference between testing the act and testing the endpoint: it is what a volunteer's browser
+ * would actually send, and it is what `identity.set_roles()` compares against to detect that
+ * somebody else got there first.
  */
-async function changeRole(
-  action: 'grant' | 'revoke',
+async function saveRoles(
   email: string,
-  role: string,
-  options: { csrfField?: string; sendCsrfCookie?: boolean } = {},
+  wanted: string[],
+  options: {
+    csrfField?: string;
+    sendCsrfCookie?: boolean;
+    expected?: string[];
+    as?: string;
+  } = {},
 ): Promise<Response> {
-  const { markup, csrfCookie } = await peoplePage();
-  const form = roleFormFor(markup, email, role);
+  const who = options.as ?? superAdmin;
+  const list = await peoplePage(null, who);
+  const person = personIdFor(list.markup, email);
+  const page = await peoplePage(person, who);
+  const form = roleForm(page.markup);
 
-  expect(form['action'], `the control offered for ${email}/${role}`).toBe(action);
+  const csrf = /name="csrf_token" value="([^"]*)"/.exec(form)?.[1] ?? '';
+  const expected =
+    options.expected ??
+    [...form.matchAll(/name="expected" value="([^"]*)"/g)].map((match) => match[1]!);
+
+  const body: [string, string][] = [
+    ['csrf_token', options.csrfField ?? csrf],
+    ['action', 'save'],
+    ['person', person],
+    ...expected.map((role): [string, string] => ['expected', role]),
+    ...wanted.map((role): [string, string] => ['role', role]),
+  ];
 
   return post(
     PEOPLE,
-    {
-      csrf_token: options.csrfField ?? form['csrf_token']!,
-      action,
-      person: form['person']!,
-      role,
-    },
-    jar(superAdmin, options.sendCsrfCookie === false ? null : csrfCookie),
+    body,
+    jar(who, options.sendCsrfCookie === false ? null : page.csrfCookie),
   );
 }
 
@@ -1562,64 +1575,121 @@ describe('the roles page', () => {
     expect(markup).toContain(NN_ADMIN_EMAIL);
     expect(markup).toContain(REGISTERED_EMAIL);
     expect(markup).toContain(SUPER_ADMIN_EMAIL);
-    expect(markup).toContain('A role takes effect on their next request');
+    expect(markup).toContain('A change applies on that person’s next request');
+  });
+
+  it('counts the club from the rows rather than stating a figure', async () => {
+    // A hard-coded number on a page about access is a claim somebody acts on. Three figures,
+    // each a count of real rows.
+    const { markup } = await peoplePage();
+
+    expect(markup).toContain('people');
+    expect(markup).toContain('with admin roles');
+    expect(markup).toContain('super admins');
   });
 
   it('marks the row belonging to whoever is reading it, and only that one', async () => {
-    // A super-admin looking at a list that includes themselves is about to be one click from
-    // revoking their own way in. Which row is theirs is the one thing on this page that is
-    // not the same for everybody reading it.
+    // **A super-admin looking at a list that includes themselves is one click from taking away
+    // their own way in.** Which row is theirs is the one thing on this page that is not the
+    // same for everybody reading it. The rebuild lost this and this assertion is what caught
+    // it — worth keeping exactly as it was.
     const { markup } = await peoplePage();
-    const rows = tableRows(markup).filter((row) => row.includes('@example.com'));
+    const rows = markup
+      .split('<a ')
+      .slice(1)
+      .filter((row) => row.includes('@example.com') && row.includes('person='));
 
     expect(rows.length).toBeGreaterThanOrEqual(3);
 
     for (const row of rows) {
-      expect(row.includes('admin-chip'), row.slice(0, 120)).toBe(
+      expect(row.includes('admin-chip-you'), row.slice(0, 160)).toBe(
         row.includes(SUPER_ADMIN_EMAIL),
       );
     }
   });
 
   it('is a roles page rather than a member list', async () => {
-    // **No date of birth and no address**, which is #59's requirement and is enforced by
-    // `identity.list_people()` returning neither. Three columns, and nothing from `entries`.
-    const { markup } = await peoplePage();
+    // **No date of birth and no address**, which is 59's requirement and is enforced by
+    // `identity.list_people()` returning neither. The assertion is about what the page offers
+    // rather than about the values, because the fixtures have neither recorded — asserting
+    // one is absent would pass whatever the page did.
+    const { markup } = await peoplePage(
+      personIdFor((await peoplePage()).markup, REGISTERED_EMAIL),
+    );
 
-    expect(markup).toContain('<th scope="col">Person</th>');
-    expect(markup).toContain('<th scope="col">Roles</th>');
-    expect(markup).toContain('<th scope="col">Change</th>');
+    expect(markup).toContain('role="switch"');
     expect(markup).not.toContain(AWKWARD_LAST_NAME);
     expect(markup).not.toContain('Nwosu');
     expect(markup).not.toContain('date of birth');
+    expect(markup).not.toContain('emergency');
   });
 
-  it('names the person and the role in every control, for a screen reader', async () => {
-    // Without it a screen reader meets four buttons all called "Grant" and has to infer from
-    // the table which row it is standing in.
-    const { markup } = await peoplePage();
-    const row = tableRows(markup).find((chunk) => chunk.includes(REGISTERED_EMAIL))!;
+  it('draws a switch for every grantable role and for neither reserved one', async () => {
+    const { markup } = await peoplePage(
+      personIdFor((await peoplePage()).markup, REGISTERED_EMAIL),
+    );
+    const form = roleForm(markup);
 
-    // **The accessible name of each button, whole.** The visible half is two words and the
-    // half that names the person is a visually hidden span, so the assertion is on the
-    // button's text content with its tags taken out rather than on the markup between them —
-    // Prettier decides where that markup breaks, and this must not.
-    const names = [...row.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((match) =>
-      squash(match[1]!.replace(/<[^>]*>/g, '')).trim(),
+    expect(form).toContain('value="nn-admin"');
+    expect(form).toContain('value="timing-marshal"');
+
+    // **`registered` is held by everybody and grants nothing; `super-admin` is never in the
+    // batch.** `identity.set_roles()` refuses a payload naming either, so this is the visible
+    // half of a rule the database keeps.
+    expect(form).not.toContain('value="registered"');
+    expect(form).not.toContain('value="super-admin"');
+  });
+
+  it('carries the description the database holds, not one written here', async () => {
+    const { markup } = await peoplePage(
+      personIdFor((await peoplePage()).markup, REGISTERED_EMAIL),
     );
 
-    expect(names).toContain(`Grant nn-admin for ${REGISTERED_EMAIL}`);
-    expect(names).toContain(`Grant super-admin for ${REGISTERED_EMAIL}`);
-    // Two controls, two distinct names — never four buttons all called "Grant".
-    expect(new Set(names).size).toBe(names.length);
+    expect(markup).toContain('May read Nightingale Nightmare entries.');
   });
 
-  it('offers one deliberate act per role per person, never a multi-select', async () => {
-    const { markup } = await peoplePage();
+  it('saves the whole set at once, which reverses what this page used to do', async () => {
+    // ⚠️ **This assertion is the other way round on purpose.** It read *"offers one deliberate
+    // act per role per person, never a multi-select"* and asserted the page contained no
+    // checkbox and no Save, which is exactly the decision ADR-046 supersedes. The half of that
+    // argument which survives is the audit trail, and it survives in `identity.set_roles()`
+    // writing one row per role changed rather than in the shape of this form.
+    const { markup } = await peoplePage(
+      personIdFor((await peoplePage()).markup, REGISTERED_EMAIL),
+    );
 
-    expect(markup).not.toContain('type="checkbox"');
-    expect(markup.toLowerCase()).not.toContain('<select');
-    expect(markup).not.toContain('Save');
+    expect(markup).toContain('type="checkbox"');
+    expect(markup).toContain('Save changes');
+
+    // One form around the lot, not one per control.
+    expect(roleForm(markup).split('<form').length).toBe(1);
+  });
+
+  it('sends the set it rendered as the expected state, so a lost race is detectable', async () => {
+    const list = await peoplePage();
+    const { markup } = await peoplePage(personIdFor(list.markup, NN_ADMIN_EMAIL));
+    const form = roleForm(markup);
+
+    expect(form).toContain('name="expected" value="nn-admin"');
+  });
+
+  it('offers super admin its own act, and never a switch', async () => {
+    const list = await peoplePage();
+    const { markup } = await peoplePage(personIdFor(list.markup, REGISTERED_EMAIL));
+
+    expect(markup).toContain('Make super admin');
+    expect(markup).toContain('confirm=super');
+  });
+
+  it('will not offer to remove the last super admin, and says why in visible text', async () => {
+    // **A disabled control with a tooltip is unreachable by keyboard, invisible on a touch
+    // screen and unread by most screen readers.** The control is not rendered at all and the
+    // panel says so in words.
+    const list = await peoplePage();
+    const { markup } = await peoplePage(personIdFor(list.markup, SUPER_ADMIN_EMAIL));
+
+    expect(markup).toContain('Cannot be removed');
+    expect(markup).not.toContain('Remove super admin…');
   });
 });
 
@@ -1632,14 +1702,15 @@ describe('the roles page', () => {
  * handing itself the entry list.
  */
 describe('the roles page, read by a people-admin', () => {
-  async function readOnlyPage(): Promise<Response> {
-    const response = await get(PEOPLE, peopleAdmin);
+  async function readOnly(person: string | null = null): Promise<string> {
+    const path = person === null ? PEOPLE : `${PEOPLE}?person=${person}`;
+    const response = await get(path, peopleAdmin);
     expect(response.status, 'the roles page, as a people-admin').toBe(200);
-    return response;
+    return pageText(response);
   }
 
   it('shows the same people and the same roles', async () => {
-    const markup = await pageText(await readOnlyPage());
+    const markup = await readOnly();
 
     expect(markup).toContain('People and roles');
     expect(markup).toContain(NN_ADMIN_EMAIL);
@@ -1648,76 +1719,67 @@ describe('the roles page, read by a people-admin', () => {
   });
 
   it('offers no control at all, and says so rather than leaving a gap', async () => {
-    const markup = await pageText(await readOnlyPage());
+    const list = await readOnly();
+    const markup = await readOnly(personIdFor(list, NN_ADMIN_EMAIL));
 
-    // The column is gone, not disabled — a disabled button is a thing somebody keeps trying.
-    expect(markup).not.toContain('<th scope="col">Change</th>');
-    expect(markup).not.toContain('admin-inline-form');
-    expect(markup).not.toContain('<button');
+    // The controls are gone, not disabled — a disabled control is a thing somebody keeps
+    // trying, and it would still name a person and a role.
+    expect(markup).not.toContain('type="checkbox"');
+    expect(markup).not.toContain('method="post"');
     expect(markup).not.toContain('csrf_token');
-    expect(markup).not.toContain('A role takes effect on their next request');
+    expect(markup).not.toContain('Save changes');
+    expect(markup).not.toContain('Make super admin');
 
     // And the page says which of its two readings this is, in words.
     expect(markup).toContain('You can see who holds what, and not change it');
   });
 
-  it('still explains what each role means, because the column is otherwise slugs', async () => {
-    // `identity.grantable_roles()` answers a reader for exactly this: the legend is the only
-    // thing on the page that resolves `nn-tester`, and it discloses what a word means rather
-    // than who holds it.
-    const markup = await pageText(await readOnlyPage());
+  /**
+   * ⚠️ **The search box stays, and that is deliberate** — searching is reading, which is what
+   * this role exists to do. The assertion this replaces was `not.toContain('<button')`, which
+   * was true of a page that had no search box rather than a rule about this role.
+   */
+  it('keeps the search box, because searching is reading', async () => {
+    const markup = await readOnly();
 
-    expect(markup).toContain('What these roles allow');
-    expect(markup).toContain('nn.entry.before_open');
+    expect(markup).toContain('Search people');
+    expect(markup).toContain('method="get"');
   });
 
-  it('leaves the scrolling table reachable by keyboard with no buttons in it', async () => {
-    /**
-     * **The defect this page had for exactly one commit, and only mobile-safari reported it.**
-     * `.admin-scroll` scrolls sideways at narrow widths, and axe's
-     * `scrollable-region-focusable` is satisfied either by the region being focusable or by it
-     * containing something focusable. Every previous version of this table contained a Grant
-     * button on every row, so it passed by accident. Take the controls away and there is
-     * nothing focusable inside it at all — somebody navigating by keyboard at 375px cannot
-     * scroll it, and the Roles column is unreachable to them.
-     *
-     * Chromium was quiet because the table does not overflow at desktop width, and a region
-     * that does not scroll is not a scrollable region. Asserted here as markup as well as in
-     * `admin.spec.ts`'s axe pass, because the axe pass runs on one engine at one width and
-     * this is the property, not the symptom.
-     */
-    const markup = await pageText(await readOnlyPage());
+  it('still explains what each role means, because a slug is not an explanation', async () => {
+    const list = await readOnly();
+    const markup = await readOnly(personIdFor(list, NN_ADMIN_EMAIL));
 
-    expect(markup).toContain('class="admin-scroll" tabindex="0" role="region"');
-    expect(markup).toContain(`aria-labelledby="${CAPTION_ID}"`);
-    expect(markup).toContain(`id="${CAPTION_ID}"`);
+    expect(markup).toContain('nn-admin');
+    expect(markup).toContain('May read Nightingale Nightmare entries.');
   });
 
   it('sets no CSRF cookie, because there is no form to bind one to', async () => {
-    // Minting one anyway would set a cookie on every read this role makes for the rest of the
-    // season, with no POST that could ever spend it. Asserted through `setCookiePairs` rather
-    // than `csrfCookieFrom`, which exists to fail when the cookie is *missing*.
-    const pairs = setCookiePairs(await readOnlyPage());
+    const response = await get(PEOPLE, peopleAdmin);
+    const pairs = setCookiePairs(response);
 
     expect(pairs.some((pair) => pair.startsWith('src_csrf='))).toBe(false);
   });
 
-  it('refuses a hand-crafted grant with a 404, and changes nothing', async () => {
+  it('refuses a hand-crafted save with a 404, and changes nothing', async () => {
     // **A page with no forms on it is not a gate.** The viewer can still write this request by
-    // hand, so the act is refused in `handlePeopleSection` before the form is read — and
-    // `identity.grant_role()` refuses them again underneath, which is the enforcement.
-    const { markup, csrfCookie } = await peoplePage();
-    const form = roleFormFor(markup, PEOPLE_ADMIN_EMAIL, 'nn-admin');
+    // hand, so the act is refused in `handlePeopleSection` before the form is read — and the
+    // database refuses them again underneath, which is the enforcement.
+    const admin = await peoplePage();
+    const person = personIdFor(admin.markup, PEOPLE_ADMIN_EMAIL);
+    const csrf = /name="csrf_token" value="([^"]*)"/.exec(
+      roleForm((await peoplePage(personIdFor(admin.markup, REGISTERED_EMAIL))).markup),
+    )?.[1];
 
     const forged = await post(
       PEOPLE,
-      {
-        csrf_token: form['csrf_token']!,
-        action: 'grant',
-        person: form['person']!,
-        role: 'nn-admin',
-      },
-      jar(peopleAdmin, csrfCookie),
+      [
+        ['csrf_token', csrf ?? ''],
+        ['action', 'save'],
+        ['person', person],
+        ['role', 'nn-admin'],
+      ],
+      jar(peopleAdmin, admin.csrfCookie),
     );
 
     expect(forged.status).toBe(404);
@@ -1728,45 +1790,41 @@ describe('the roles page, read by a people-admin', () => {
     );
   });
 
-  it('refuses a hand-crafted revoke the same way', async () => {
-    const { markup, csrfCookie } = await peoplePage();
-    const form = roleFormFor(markup, NN_ADMIN_EMAIL, 'nn-admin');
+  it('refuses a hand-crafted super-admin confirmation the same way', async () => {
+    const admin = await peoplePage();
+    const person = personIdFor(admin.markup, PEOPLE_ADMIN_EMAIL);
 
     const forged = await post(
       PEOPLE,
-      {
-        csrf_token: form['csrf_token']!,
-        action: 'revoke',
-        person: form['person']!,
-        role: 'nn-admin',
-      },
-      jar(peopleAdmin, csrfCookie),
+      [
+        ['csrf_token', 'whatever-this-page-would-have-minted'],
+        ['action', 'super'],
+        ['person', person],
+        ['intent', 'grant'],
+        ['typed', PEOPLE_ADMIN_EMAIL],
+      ],
+      jar(peopleAdmin, admin.csrfCookie),
     );
 
     expect(forged.status).toBe(404);
-
-    // And the nn-admin still holds it.
-    expect((await get(NN, nnAdmin)).status).toBe(200);
   });
 });
 
-describe('granting and revoking a role', () => {
-  it('refuses a grant with no CSRF token, and changes nothing', async () => {
+describe('saving a set of roles', () => {
+  it('refuses a save with no CSRF token, and changes nothing', async () => {
     // **The CSRF check comes first**, before the form is read for anything else: a request
     // that failed it is not a request from this page and nothing in it should be acted on. The
     // answer is the prefix's ordinary 404, so a forged POST learns nothing from it either.
-    const forged = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin', {
+    const forged = await saveRoles(REGISTERED_EMAIL, ['nn-admin'], {
       csrfField: 'not-the-token-this-page-minted',
     });
 
     expect(forged.status).toBe(404);
-
-    // And the member is still a member.
     expect((await get(NN, member)).status).toBe(404);
   });
 
-  it('refuses a grant when the cookie half of the pair is missing', async () => {
-    const forged = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin', {
+  it('refuses a save when the cookie half of the pair is missing', async () => {
+    const forged = await saveRoles(REGISTERED_EMAIL, ['nn-admin'], {
       sendCsrfCookie: false,
     });
 
@@ -1774,33 +1832,84 @@ describe('granting and revoking a role', () => {
     expect((await get(NN, member)).status).toBe(404);
   });
 
-  it('grants nn-admin, and it takes effect on the very next request', async () => {
+  /**
+   * ⚠️ **Two volunteers on this page at once is the normal case rather than the edge one**, so
+   * the loser of the race is told rather than silently overwritten. 409 because the request was
+   * understood and refused, never a 500 — and the page comes back carrying what they actually
+   * hold now.
+   */
+  it('refuses a save whose expected state has moved on, and says so', async () => {
+    const stale = await saveRoles(REGISTERED_EMAIL, ['nn-admin'], {
+      expected: ['timing-marshal'],
+    });
+
+    expect(stale.status).toBe(409);
+
+    const body = await pageText(stale);
+    expect(body).toContain('Somebody else changed this person’s roles');
+    expect(body).toContain('role="alert"');
+
+    // And nothing was written.
+    expect((await get(NN, member)).status).toBe(404);
+  });
+
+  it('refuses a batch naming a role this club does not have, and writes none of it', async () => {
+    const refused = await saveRoles(REGISTERED_EMAIL, ['nn-admin', 'chief-wizard']);
+
+    // 422 rather than 409: the request was malformed rather than beaten to it.
+    expect(refused.status).toBe(422);
+    expect(await pageText(refused)).toContain('not a role this club has');
+
+    // **Neither role landed**, which is the atomicity claim stated as a test.
+    expect((await get(NN, member)).status).toBe(404);
+  });
+
+  it('saves, and it takes effect on the very next request', async () => {
     // **No session to end and nothing for the person to do.** `identity.my_roles()` is asked
     // per request rather than baked into the token, which is the whole reason this page can
     // be useful at nine on race morning.
     expect((await get(NN, member)).status).toBe(404);
 
-    const granted = await changeRole('grant', REGISTERED_EMAIL, 'nn-admin');
+    const saved = await saveRoles(REGISTERED_EMAIL, ['nn-admin']);
 
-    // 303 rather than the list re-rendered, so a reload does not repeat the act.
-    expect(granted.status).toBe(303);
-    expect(granted.headers.get('location')).toBe(PEOPLE);
+    // 303 rather than the page re-rendered, so a reload does not repeat the act, and back to
+    // the person who was being changed rather than to the top of the list.
+    expect(saved.status).toBe(303);
+    expect(saved.headers.get('location')).toContain('person=');
+    expect(saved.headers.get('location')).toContain('saved=1');
 
     const opened = await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, member);
     expect(opened.status).toBe(200);
     expect(await pageText(opened)).toContain('Nwosu, Harriet');
   });
 
-  it('shows the new role on the page, and offers to take it away again', async () => {
-    const { markup } = await peoplePage();
-    const row = tableRows(markup).find((chunk) => chunk.includes(REGISTERED_EMAIL))!;
+  it('shows the new role as a switch that is on, and says the save landed', async () => {
+    const list = await peoplePage();
+    const person = personIdFor(list.markup, REGISTERED_EMAIL);
+    const response = await get(`${PEOPLE}?person=${person}&saved=1`, superAdmin);
+    const markup = await pageText(response);
 
-    expect(row).toContain('nn-admin, registered');
-    expect(roleFormFor(markup, REGISTERED_EMAIL, 'nn-admin')['action']).toBe('revoke');
+    expect(checkedRoles(markup)).toContain('nn-admin');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('Saved.');
   });
 
-  it('revokes it again, and that also takes effect on the next request', async () => {
-    const revoked = await changeRole('revoke', REGISTERED_EMAIL, 'nn-admin');
+  it('takes several roles in one save, and each is audited on its own', async () => {
+    // **One row per role changed**, which is the half of the superseded decision that survives
+    // — an accidental revoke is as visible afterwards as it ever was.
+    const saved = await saveRoles(REGISTERED_EMAIL, ['nn-admin', 'nn-results']);
+    expect(saved.status).toBe(303);
+
+    const list = await peoplePage();
+    const { markup } = await peoplePage(personIdFor(list.markup, REGISTERED_EMAIL));
+
+    expect(checkedRoles(markup)).toEqual(
+      expect.arrayContaining(['nn-admin', 'nn-results']),
+    );
+  });
+
+  it('revokes by leaving the switch off, and that also takes effect next request', async () => {
+    const revoked = await saveRoles(REGISTERED_EMAIL, []);
 
     expect(revoked.status).toBe(303);
 
@@ -1809,21 +1918,78 @@ describe('granting and revoking a role', () => {
     expect(await pageText(closed)).not.toContain('Nwosu, Harriet');
   });
 
+  /**
+   * ⚠️ **Super admin is not in the batch, so this is the only way to ask for it** — and the
+   * batch refusing it is what means `revoke_role()`'s last-holder guard needs no second copy.
+   */
+  it('refuses a batch that names super admin at all', async () => {
+    const refused = await saveRoles(REGISTERED_EMAIL, ['super-admin']);
+
+    expect(refused.status).toBe(422);
+    expect(await pageText(refused)).toContain('Super admin has its own button');
+  });
+
+  it('refuses the wrong typed name on the super-admin confirmation, and changes nothing', async () => {
+    const list = await peoplePage();
+    const person = personIdFor(list.markup, REGISTERED_EMAIL);
+    const page = await peoplePage(person);
+
+    const csrf = /name="csrf_token" value="([^"]*)"/.exec(roleForm(page.markup))?.[1];
+
+    const refused = await post(
+      PEOPLE,
+      [
+        ['csrf_token', csrf ?? ''],
+        ['action', 'super'],
+        ['person', person],
+        ['intent', 'grant'],
+        ['typed', 'not the right name'],
+      ],
+      jar(superAdmin, page.csrfCookie),
+    );
+
+    expect(refused.status).toBe(422);
+
+    const body = await pageText(refused);
+    expect(body).toContain('did not match');
+    expect(body).toContain('role="alert"');
+
+    // ⚠️ **Back to the confirmation rather than to the pane behind it.** A POST carries no
+    // query string, so an earlier draft re-rendered the person's switches and attached this
+    // message to a screen nobody was looking at — the typed-name box is the whole of the
+    // screen it belongs to.
+    expect(body).toContain('to confirm');
+  });
+
   it('refuses to revoke the last super-admin, in words somebody can act on', async () => {
     /**
      * **A club with no super-admin has no way back in** — there is no service-role key in
      * this repository, on any laptop, or in any Worker. The refusal is the database's, in
-     * `identity.revoke_role()`, and this asserts that the page turns it into a sentence
-     * rather than a shrug.
+     * `identity.revoke_role()`, and the page does not even offer the control — so this posts
+     * it by hand, which is the assertion that the page is not the guard.
      *
      * **Last in the file deliberately.** If this ever stops being refused, the fixture
      * super-admin loses the role mid-run, and everything after it would fail for a reason
      * that had nothing to do with what it was testing.
      */
-    const refused = await changeRole('revoke', SUPER_ADMIN_EMAIL, 'super-admin');
+    const list = await peoplePage();
+    const person = personIdFor(list.markup, SUPER_ADMIN_EMAIL);
+    const page = await peoplePage(personIdFor(list.markup, REGISTERED_EMAIL));
+    const csrf = /name="csrf_token" value="([^"]*)"/.exec(roleForm(page.markup))?.[1];
 
-    // The list, re-rendered with the refusal on it — not a redirect, because nothing changed.
-    expect(refused.status).toBe(200);
+    const refused = await post(
+      PEOPLE,
+      [
+        ['csrf_token', csrf ?? ''],
+        ['action', 'super'],
+        ['person', person],
+        ['intent', 'revoke'],
+        ['typed', SUPER_ADMIN_EMAIL],
+      ],
+      jar(superAdmin, page.csrfCookie),
+    );
+
+    expect(refused.status).toBe(422);
 
     const body = await pageText(refused);
     expect(body).toContain('That is the last super-admin');

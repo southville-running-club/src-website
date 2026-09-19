@@ -606,6 +606,16 @@ It runs `db:types:check` now, in CI's own order. **The general rule that keeps c
 a step CI runs and `./dev` does not is a divergence that fails in the expensive direction**,
 because the laptop is where it is cheap to find out.
 
+⚠️ **A page rendered by the Worker is asserted at two layers, and `./dev e2e` runs only one
+of them.** `apps/main/tests/worker/**` drives the same page through Miniflare and asserts its
+**markup**; `tests/e2e/**` drives it through a browser and asserts its **behaviour**. Rebuilding
+`/admin/people/` under ADR-046 left fifteen Miniflare tests red — asserting `<th scope="col">`,
+a `<form>` per control, and a page containing no checkbox — through four green Playwright runs
+across three engines, because `./dev e2e` never builds or runs that layer at all. **The tell is
+that the page was rewritten and nothing under `tests/worker/` was touched.** One of those
+fifteen turned out to be guarding a real behaviour the rebuild had dropped, so they were not
+merely stale. `./dev test` is what runs both, and the loop is not the gate.
+
 ⚠️ **And a scoped run is not this gate.** `vitest run <one file>` while iterating is the loop;
 `./dev check` is what says the branch is green. Scoping to a new test file hid a sibling
 assertion — `timing.test.ts`'s list of granted functions, which went red on CI the moment a
@@ -883,6 +893,33 @@ found a real defect on its first run.
 
 ### Layout, tests and cross-browser, again
 
+⚠️ **A submit button with `formmethod="get"` inside a POST form puts every field in the URL,
+including the CSRF token.** It reads as a neat way to give one form two destinations — a Discard
+that re-reads from the database beside a Save that writes — and what it actually does is serialise
+the *whole* form into the query string: every checkbox, every hidden input, and
+`worker/csrf.ts`'s token. From there it is in the address bar, in browser history, and in any
+`Referer` the page sends. **A link is what "go back and read it again" means**, and it carries
+nothing. Caught on `/admin/people/` before it shipped; `admin.spec.ts` asserts the token never
+reaches the URL, because nothing else would have noticed.
+
+⚠️ **`getByRole` matches the accessibility tree, so `display: none` content is absent rather than
+hidden — and an assertion written at one width can be wrong at another.** `/admin/people/` shows
+the list and the selected person as two screens below 48rem, so choosing somebody takes the list
+out of the tree entirely. Two assertions about what a `people-admin` can see passed on a desktop
+viewport and failed on `mobile-safari` about a page that was behaving exactly as designed. The
+tell is `Received: 0` from a `toHaveCount` on something plainly in the DOM — `locator('a')` would
+have found it and hidden the mistake. **Assert on the screen the thing is actually on**, which for
+a list means before anything is selected.
+
+⚠️ **A `color-mix` wash has to be mixed over a _surface_, not over a colour.** Darkening a pill by
+mixing `--colour-text` into `--colour-warning` reads fine in the light scheme and measures
+**1.56:1** in the dark one, because `--colour-warning` is deliberately not redefined there and the
+near-white dark-scheme text then lands on full amber. Every wash in `nn-admin.css` mixes over
+`--colour-background` or `--admin-card` for that reason. `admin-contrast.test.ts` finds each one by
+regex and refuses it in both schemes, which is the only reason this was a minute rather than a
+support question in November — and it is the second defect that file has caught.
+
+
 **A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
 no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
 click on the error summary's link — silently, so the person just finds that nothing happens.
@@ -1010,6 +1047,20 @@ worse of the two because the line still looks like coverage.
 shape to copy.
 
 ### Environment, build and tooling, once more
+
+⚠️ **`./dev e2e <spec>` with no `--project` runs all four engines at once, and they collide.**
+The loop is described three lines up as *"one Playwright spec on one engine"*, and that is what it
+is **for** rather than what it does: `cmd_e2e` passes `"$@"` straight to `playwright test`, so
+without a project the four configured ones run in parallel, each executing the same `beforeAll`
+against the same database. The signature is two failures that both read as real bugs in whatever
+is being tested — `duplicate key value violates unique constraint "entry_purchases_pkey"` raised
+from `seedAdminFixtures`, and sign-in answering **422** because four projects' worth of
+authentication in one second is what `[auth.rate_limit]` is set to refuse. Neither is caused by
+the branch, and the first test to fail is usually one the branch never touched, which is what
+makes it expensive: it invites a hunt through the diff for something that is not there. **Say
+`--project=chromium`** — or `no-javascript`, or `mobile-safari` — **every time**, and run them one
+after another rather than together. It cost two full runs on 19 September 2026.
+
 
 **`osascript -e 'quit app "Docker"'` can return cleanly while `com.docker.backend` keeps
 running**, and `open -a Docker` then reattaches to the same wedged instance rather than starting
@@ -1250,7 +1301,46 @@ through `identity.my_roles()` and `identity.my_permissions()` —
 deliberate: `isStaff()` answers "is this person staff", which `nn-tester` must fail even though
 it holds a permission. **`/admin/people/` has two readings and it is one page**: reading it is
 `identity.person.read` and the controls on it are `identity.role.grant`, so a `people-admin` gets
-the same table with no third column and a POST refused with the same 404.
+the same page with no switches and a POST refused with the same 404 — **they keep the search box**,
+because searching is reading.
+
+⚠️ **That page was rebuilt on 19 September 2026 and the shape it used to have is the shape people
+remember** — [ADR-046](docs/architecture/decisions/adr-046-roles-are-saved-as-a-batch.md). It is
+no longer a table with a Grant or Revoke button per role per person, and the heading in
+`worker/admin-people.ts` that argued for that — _"One deliberate act per grant, and never a
+multi-select"_ — is **superseded**. It is a list of people beside the selected person's roles as
+**switches**, saved as one batch in one transaction by `identity.set_roles()`, with a second view
+by role. **The half of the old argument that survives is the audit trail**, and it survives in the
+database rather than in the shape of the form: `set_roles()` writes one `identity.audit` row per
+role changed, using the two actions that already existed, so a batch of four still reads as four
+acts — and therefore **that migration does not restate `identity.audit`'s `action` check
+constraint**, which is the invisible merge conflict this file records against
+`entries.admin_audit.action`.
+
+⚠️ **`super-admin` and `registered` are not switches and `set_roles()` refuses a batch naming
+either.** The first keeps its own act behind a typed-name confirmation, which is what makes the
+last-super-admin guard in `revoke_role()` need no second copy — the batch cannot reach the state
+it protects, the same way `transfer_entry()` had to be stopped from being the way round the
+one-place rule.
+
+⚠️ **Who may change a role was two questions that disagreed, and it is one now** —
+[ADR-047](docs/architecture/decisions/adr-047-granting-a-role-asks-for-the-permission.md),
+19 September 2026. The page renders its controls on the **permission** `identity.role.grant`;
+`grant_role()`, `revoke_role()` and `set_roles()` asked the **role** `has_role('super-admin')`,
+which ADR-017's mechanism moved `list_people()` and `grantable_roles()` off and never moved these.
+So **`src-admin` — the club's master role, whose published description ends "and granting roles" —
+was offered controls every one of those three refused**, with the words _"You are no longer a
+super-admin"_. Nothing looked wrong to a `super-admin`, which is why it survived from 6 September.
+**All three ask the permission now.**
+
+**That was not a new decision about who may change roles** — the club took that one in
+`20260906100000`, when it put `identity.role.grant` on the role and wrote the capability into the
+description; the database never honoured it. And it hands a director nothing new in substance:
+`super-admin` carries exactly two permissions and `src-admin` carries both plus sixteen more, so
+it is a strict subset. ⚠️ **What the guard did not do is move with it**: `revoke_role()` still
+refuses to remove the last `super-admin`, which is now over-strict in the safe direction, because
+an `src-admin` could grant another. Widening it to "the last person who can grant anything" is a
+different guard and a decision nobody has taken.
 
 **The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
 the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308

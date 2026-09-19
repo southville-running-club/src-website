@@ -393,6 +393,23 @@ minute at `/admin/people/`, no deploy, and no credential in a password manager.
 [#63](https://github.com/southville-running-club/src-website/issues/63) removes the four
 key-gated database functions that #57 deliberately left in place.
 
+**`/admin/people/` was rebuilt on 19 September 2026** —
+[ADR-046](../architecture/decisions/adr-046-roles-are-saved-as-a-batch.md). A table with a Grant
+or Revoke button per role per person became a list of people beside the selected person's roles
+as switches, saved as one batch in one transaction by `identity.set_roles()`, plus a second view
+that reads the same data by role. **Super admin is not in the batch**: it keeps its own act and
+gains a confirmation where the person's name must be typed, so the last-super-admin guard in
+`revoke_role()` needs no second copy — the batch cannot reach the state it protects.
+
+**That rebuild found a live defect and
+[ADR-047](../architecture/decisions/adr-047-granting-a-role-asks-for-the-permission.md) closed it
+the same day.** `/admin/people/` rendered its controls on the permission `identity.role.grant`
+while `grant_role()`, `revoke_role()` and `set_roles()` all asked the role
+`has_role('super-admin')` — so **`src-admin`, the club's master role for directors, was offered
+controls every one of those functions refused**, from 6 September. All three ask the permission
+now, which finishes the migration ADR-017 described and `20260826190000` believed it had
+completed.
+
 ---
 
 ## Phase 4 — the timing app on Cloudflare

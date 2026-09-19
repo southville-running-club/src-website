@@ -1128,14 +1128,6 @@ body.admin {
   position: relative;
 }
 
-.admin-inline-form {
-  display: inline-flex;
-}
-
-.admin-inline-form + .admin-inline-form {
-  margin-inline-start: 0.5rem;
-}
-
 /* ---------------------------------------------------------------------------------------
  * The standard clip
  * ---------------------------------------------------------------------------------------
@@ -1282,4 +1274,1185 @@ body.admin {
 .admin-timeline blockquote {
   flex-basis: 100%;
   margin: 0.25rem 0 0;
+}
+
+/* ---------------------------------------------------------------------------------------
+ * People and roles — ADR-046
+ * ---------------------------------------------------------------------------------------
+ * The one page on this surface that is not a table. Everything below is scoped under
+ * `.admin-people` so the vocabulary the rest of the back office shares — `.admin-button`,
+ * `.admin-filter`, `.admin-chip`, `.admin-figs` — is reused rather than restated, and nothing
+ * here leaks onto the entries pages.
+ *
+ * **No hex, as everywhere in this file**, and no shadows or gradients anywhere: the brand is
+ * flat, and `admin-contrast.test.ts` resolves every `color-mix` below in both schemes.
+ * ⚠️ Do not write an issue number with a leading hash in this file — three or more characters
+ * after one reads as a hex literal to that test.
+ */
+
+.admin-people {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 3rem;
+}
+
+/* --- the band ------------------------------------------------------------------------- */
+
+/*
+ * Full-bleed brand green with charcoal ink, which is the one sanctioned use of that primitive
+ * outside the logotype — see `--colour-hero` in `base.css`. 6.26:1.
+ */
+.admin-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem 2rem;
+  padding: 1.5rem 1.25rem;
+  background: var(--colour-hero);
+  color: var(--colour-on-hero);
+}
+
+.admin-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.admin-hero-lede {
+  max-width: 34rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9375rem;
+}
+
+.admin-hero-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* The figures inherit the band's ink rather than the page's, so one set of rules is correct in
+   both schemes — the band does not invert. */
+.admin-hero-figs {
+  margin: 0;
+  gap: 1.5rem;
+}
+
+.admin-hero .admin-fig-label,
+.admin-hero .admin-fig-value {
+  color: var(--colour-on-hero);
+}
+
+/* Charcoal, 3px — visible on the green band as well as on the page. */
+.admin-hero :is(a, button, input):focus-visible {
+  outline: 3px solid var(--colour-on-hero);
+  outline-offset: 2px;
+}
+
+/* --- by person / by role --------------------------------------------------------------- */
+
+.admin-seg ul {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.1875rem;
+  border-radius: calc(var(--radius-button) + 0.1875rem);
+  background: var(--colour-on-hero);
+  list-style: none;
+}
+
+.admin-seg-link {
+  display: block;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-button);
+  color: var(--admin-mast-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* `aria-current` in the markup carries the meaning; this is the visible half. */
+.admin-seg-on {
+  background: var(--colour-hero);
+  color: var(--colour-on-hero);
+}
+
+/* --- the split ------------------------------------------------------------------------- */
+
+.admin-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 0 1.25rem;
+}
+
+/*
+ * **Three arrangements, and only the first is a different page.**
+ *
+ * Below 48rem the list and the person are two screens rather than two columns — see
+ * `.admin-people-chosen` below. From 48rem both are on screen, with the list narrowed to 20rem
+ * so the pane beside it still has room for a switch row; from 64rem the list takes its full
+ * width.
+ */
+@media (min-width: 48rem) {
+  .admin-split {
+    grid-template-columns: 20rem minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (min-width: 64rem) {
+  .admin-split {
+    grid-template-columns: 26.25rem minmax(0, 1fr);
+  }
+}
+
+/* --- the list -------------------------------------------------------------------------- */
+
+.admin-people-list {
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+  overflow: hidden;
+}
+
+.admin-people-search {
+  padding: 1rem 1.25rem 0.875rem;
+}
+
+.admin-people-search label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.admin-people-search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-people-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.6875rem 0.75rem;
+  border: 1px solid var(--colour-muted);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.admin-people-filters {
+  padding-top: 0;
+  padding-bottom: 0.75rem;
+}
+
+.admin-people-filters ul {
+  margin: 0;
+}
+
+.admin-people-empty {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.admin-people-rows {
+  margin: 0;
+  padding: 0.375rem;
+  list-style: none;
+  /* The list is long and the detail beside it is not, so the column scrolls rather than the
+     page — but only where there is a second column to scroll beside. */
+  max-height: none;
+}
+
+@media (min-width: 48rem) {
+  .admin-people-rows {
+    max-height: 34rem;
+    overflow-y: auto;
+  }
+}
+
+.admin-person-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4.5rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-button);
+  color: var(--colour-text);
+  text-decoration: none;
+}
+
+.admin-person-row:hover {
+  background: var(--admin-track);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .admin-person-row {
+    transition: background 150ms ease-out;
+  }
+}
+
+/*
+ * The selected row inverts. Ink becomes the surface and the page background becomes the text,
+ * which is the masthead's arrangement and correct in both schemes for the same reason.
+ */
+.admin-person-row-on,
+.admin-person-row-on:hover {
+  background: var(--admin-mast);
+  color: var(--admin-mast-ink);
+}
+
+.admin-person-who {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-person-name {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-person-email {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-person-row .admin-person-email {
+  color: var(--colour-muted);
+}
+
+.admin-person-row-on .admin-person-email,
+.admin-person-row-on .admin-person-summary {
+  color: var(--admin-mast-ink);
+}
+
+.admin-person-has {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+}
+
+.admin-person-summary {
+  color: var(--colour-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* --- the role glyph --------------------------------------------------------------------- */
+
+/*
+ * Eight bars, grouped. `aria-hidden` in the markup and the summary beside it carries the
+ * meaning — the tint is emphasis, the word is the signal, which is the rule every chip on this
+ * surface follows.
+ */
+.admin-glyph {
+  display: flex;
+  gap: 0.3125rem;
+}
+
+.admin-glyph-group {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.admin-glyph-seg {
+  width: 0.4375rem;
+  height: 1.125rem;
+  border-radius: 2px;
+  background: var(--colour-rule);
+}
+
+.admin-glyph-group[data-group='nn'] .admin-glyph-held {
+  background: var(--colour-accent);
+}
+
+.admin-glyph-group[data-group='timing'] .admin-glyph-held {
+  background: var(--colour-amber);
+}
+
+.admin-glyph-group[data-group='club'] .admin-glyph-held {
+  background: var(--colour-muted);
+}
+
+.admin-glyph-group[data-group='super'] .admin-glyph-held {
+  background: var(--colour-danger);
+}
+
+/* On the inverted row the unheld bars have to lift off ink rather than off paper. */
+.admin-person-row-on .admin-glyph-seg {
+  background: var(--colour-muted);
+}
+
+.admin-person-row-on .admin-glyph-held {
+  background: var(--colour-hero);
+}
+
+.admin-person-row-on .admin-glyph-group[data-group='super'] .admin-glyph-held {
+  background: var(--colour-danger);
+}
+
+/* --- avatars ---------------------------------------------------------------------------- */
+
+.admin-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--admin-track);
+  color: var(--colour-text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.admin-person-row-on .admin-avatar {
+  background: var(--colour-hero);
+  color: var(--colour-on-hero);
+}
+
+.admin-avatar-lg {
+  width: 4rem;
+  height: 4rem;
+  background: var(--admin-mast);
+  color: var(--colour-hero);
+  font-size: 1.5rem;
+}
+
+.admin-avatar-sm {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.6875rem;
+}
+
+/* --- the detail pane -------------------------------------------------------------------- */
+
+.admin-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.admin-detail-empty {
+  padding: 2rem 1.25rem;
+  border: 1px dashed var(--colour-rule);
+  border-radius: var(--radius-card);
+}
+
+.admin-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.125rem;
+}
+
+.admin-detail-who {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.admin-detail-who h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2.75rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.admin-detail-email {
+  margin: 0.25rem 0 0;
+  color: var(--colour-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-role-read dt {
+  margin-top: 0.75rem;
+  font-weight: 700;
+}
+
+.admin-role-read dd {
+  margin: 0.125rem 0 0;
+  color: var(--colour-muted);
+}
+
+/* --- the group cards -------------------------------------------------------------------- */
+
+.admin-role-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+/*
+ * ⚠️ **Two columns at 64rem rather than at 48rem**, which is the opposite way round from the
+ * role cards below. Between 48rem and 64rem there is a 20rem list beside this grid, so the pane
+ * is far narrower than the window — a second column there puts a role's description into three
+ * words a line. The role-card grid has the whole width and breaks at 48rem accordingly.
+ */
+@media (min-width: 64rem) {
+  .admin-role-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 75rem) {
+  .admin-role-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* A fieldset, because these are groups of controls and a legend is what names one. */
+.admin-role-card {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+}
+
+.admin-role-card > legend {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 1rem 1.125rem 0.75rem;
+}
+
+.admin-role-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  background: var(--colour-muted);
+}
+
+[data-group='nn'] .admin-role-dot {
+  background: var(--colour-accent);
+}
+
+[data-group='timing'] .admin-role-dot {
+  background: var(--colour-amber);
+}
+
+[data-group='super'] .admin-role-dot {
+  background: var(--colour-danger);
+}
+
+.admin-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* --- one switch ------------------------------------------------------------------------- */
+
+.admin-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 4.75rem;
+  padding: 0.875rem 1.125rem;
+  border-top: 1px solid var(--colour-rule);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .admin-switch-row {
+    transition: background 150ms ease-out;
+  }
+}
+
+/* The attempted state a refusal came back with, so four decisions are not silently discarded. */
+.admin-switch-changed {
+  background: color-mix(in srgb, var(--colour-warning) 12%, var(--colour-background));
+}
+
+.admin-switch-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  order: 1;
+  cursor: pointer;
+}
+
+.admin-switch-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.admin-switch-desc {
+  color: var(--colour-muted);
+  font-size: 0.875rem;
+}
+
+.admin-switch-key {
+  color: var(--colour-muted);
+  font-size: 0.6875rem;
+}
+
+/*
+ * A real checkbox, painted. `appearance: none` keeps the element — and with it the keyboard
+ * behaviour, the form submission and `aria-checked` — and replaces only the picture.
+ */
+.admin-switch {
+  order: 2;
+  flex: 0 0 auto;
+  appearance: none;
+  position: relative;
+  width: 3.25rem;
+  height: 1.875rem;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  /* Not the brand green: it is 2.19:1 on white and a track is non-text, which wants 3:1.
+     `--colour-muted` is 7.53:1 and `--colour-accent` is 7.04:1. */
+  background: var(--colour-muted);
+  cursor: pointer;
+}
+
+.admin-switch::before {
+  content: '';
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--colour-background);
+}
+
+.admin-switch:checked {
+  background: var(--colour-accent);
+}
+
+.admin-switch:checked::before {
+  left: 1.5625rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .admin-switch,
+  .admin-switch::before {
+    transition:
+      background 150ms ease-out,
+      left 150ms ease-out;
+  }
+}
+
+.admin-tag-pending {
+  padding: 0.125rem 0.4375rem;
+  border-radius: 999px;
+  background: var(--colour-warning);
+  color: var(--colour-on-warning);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* --- the unsaved bar -------------------------------------------------------------------- */
+
+.admin-unsaved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--colour-text);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+}
+
+.admin-unsaved-count {
+  margin: 0;
+  flex: 0 1 auto;
+}
+
+.admin-unsaved-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-pill-pending {
+  padding: 0.5rem 0.875rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--colour-warning) 25%, var(--colour-background));
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.admin-unsaved-actions {
+  display: flex;
+  gap: 0.625rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* --- the super-admin panel --------------------------------------------------------------- */
+
+.admin-super {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  padding: 1.125rem 1.25rem;
+  border-radius: var(--radius-card);
+  background: var(--admin-mast);
+  color: var(--admin-mast-ink);
+}
+
+.admin-super h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.admin-super-key {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.admin-super p {
+  margin: 0.25rem 0 0;
+  max-width: 44rem;
+  font-size: 0.875rem;
+}
+
+.admin-super .admin-button-grave {
+  background: transparent;
+  border: 2px solid var(--colour-danger);
+  color: var(--admin-mast-ink);
+}
+
+/*
+ * ⚠️ **The reason in visible text, not a `title`.** A tooltip is unreachable by keyboard,
+ * invisible on a touch screen and unread by most screen readers, and "why can I not press this"
+ * is exactly the question somebody has at that moment. The sentence above the button says why;
+ * this is the button's place, saying it is not one.
+ */
+.admin-super-locked {
+  margin: 0;
+  padding: 0.6875rem 1rem;
+  border: 2px dashed var(--colour-muted);
+  border-radius: var(--radius-button);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* --- the confirmation ------------------------------------------------------------------- */
+
+.admin-confirm {
+  max-width: 38rem;
+  margin: 0 1.25rem;
+  padding: 1.5rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+}
+
+.admin-confirm-eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--colour-error);
+}
+
+.admin-confirm h2 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.admin-confirm-form {
+  margin-top: 1.25rem;
+}
+
+.admin-confirm-form label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.admin-confirm-form input[type='text'] {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--colour-muted);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.admin-confirm-form .admin-actions {
+  margin-top: 1rem;
+}
+
+/* --- by role --------------------------------------------------------------------------- */
+
+.admin-role-cards {
+  margin: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0 1.25rem;
+  align-items: start;
+}
+
+@media (min-width: 48rem) {
+  .admin-role-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 75rem) {
+  .admin-role-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.admin-role-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1.125rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+}
+
+/* The same fact drawn the same way as its panel: dark, so the two readings look like one. */
+.admin-role-tile-super {
+  border-color: var(--admin-mast);
+  background: var(--admin-mast);
+  color: var(--admin-mast-ink);
+}
+
+.admin-role-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.admin-role-tile-count {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.admin-role-tile h2 {
+  margin: 0;
+  font-size: 1.625rem;
+  font-weight: 800;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.admin-role-tile-key {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.admin-role-tile .admin-role-tile-key,
+.admin-role-tile .admin-role-tile-desc {
+  color: var(--colour-muted);
+}
+
+.admin-role-tile-super .admin-role-tile-key,
+.admin-role-tile-super .admin-role-tile-desc,
+.admin-role-tile-super .admin-quiet {
+  color: var(--admin-mast-ink);
+}
+
+.admin-role-tile-desc {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.admin-role-holders {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-role-holders a {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 3rem;
+  padding: 0.25rem;
+  border-top: 1px solid var(--colour-rule);
+  color: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.admin-role-tile-super .admin-role-holders a {
+  border-top-color: var(--colour-muted);
+}
+
+.admin-role-holders a:hover {
+  text-decoration: underline;
+}
+
+/* --- saved ------------------------------------------------------------------------------ */
+
+.admin-saved {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-card);
+  background: var(--admin-mast);
+  color: var(--admin-mast-ink);
+  font-weight: 700;
+}
+
+.admin-saved-tick {
+  color: var(--colour-hero);
+  font-size: 1.125rem;
+}
+
+.admin-people .admin-error {
+  margin: 0 1.25rem;
+}
+
+.admin-chip-you {
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background: var(--admin-track);
+  color: var(--colour-text);
+  font-weight: 800;
+}
+
+.admin-person-row-on .admin-chip-you {
+  background: var(--admin-mast-ink);
+  color: var(--admin-mast);
+}
+
+/* ---------------------------------------------------------------------------------------
+ * People and roles: the phone
+ * ---------------------------------------------------------------------------------------
+ * **Two screens out of one document.** Below 48rem the list and the selected person are not
+ * two columns that have stacked — they are alternatives, and which one is on screen follows
+ * from whether the query string names a person. `.admin-people-chosen` is the server saying so.
+ *
+ * The alternative was a second address for the detail. That would need its own permission
+ * check, its own 404, and its own copy of the list's filter and search in the URL so that going
+ * back did not lose them. One address and one render is cheaper and cannot drift.
+ */
+
+.admin-hero-back {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .admin-hero {
+    /* The back link sits above the title, so the band stacks rather than spreads. */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem 1rem 1.25rem;
+  }
+
+  .admin-hero-aside {
+    align-items: stretch;
+  }
+
+  .admin-hero-figs {
+    gap: 1.25rem;
+  }
+
+  /* On the detail screen the way back is the page's name, so the link carries it and the
+     heading is taken off screen rather than out of the document — a page with no `h1` in the
+     accessibility tree is a different defect from a page with no `h1` drawn. */
+  .admin-people-chosen .admin-hero-say {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Page-level counts on a screen about one person. They are one tap away on the list. */
+  .admin-people-chosen .admin-hero-figs {
+    display: none;
+  }
+
+  .admin-people-chosen .admin-hero-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    /* 44px of target, per the brief and per every other control on this surface. */
+    min-height: 2.75rem;
+    color: var(--colour-on-hero);
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .admin-people-chosen .admin-hero-back:hover {
+    text-decoration: underline;
+  }
+
+  /* --- which screen is on ------------------------------------------------------------- */
+
+  .admin-people-chosen .admin-people-list {
+    display: none;
+  }
+
+  /* With nobody chosen there is nothing to show beside the list, and the prompt that says so
+     belongs to the two-column arrangement rather than to this one. */
+  .admin-people:not(.admin-people-chosen) .admin-detail-empty {
+    display: none;
+  }
+
+  .admin-split {
+    padding: 0 1rem;
+  }
+
+  .admin-role-cards {
+    padding: 0 1rem;
+  }
+
+  .admin-saved,
+  .admin-people .admin-error,
+  .admin-confirm {
+    margin-inline: 1rem;
+  }
+
+  /* --- the rows ------------------------------------------------------------------------ */
+
+  .admin-switch-row {
+    /* The brief's floor is 68px; the padding rather than the height is what gives it, so the
+       row still grows when a description wraps at 320px. */
+    min-height: 4.25rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .admin-detail-head {
+    gap: 0.75rem;
+  }
+
+  .admin-avatar-lg {
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.25rem;
+  }
+
+  /* --- the save bar --------------------------------------------------------------------- */
+
+  /*
+   * **Sticky rather than fixed**, and that is what keeps it out of the way of everything else.
+   * A fixed bar is out of flow, so the page needs bottom padding to stop the last switch
+   * hiding behind it — a number that has to be kept in step with the bar's own height at every
+   * width, which is the defect ADR-014 spends three paragraphs on one bar along. Sticky stays
+   * in flow: it occupies its own space at the end of the form and lifts off the bottom of the
+   * viewport until it gets there.
+   */
+  .admin-unsaved {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    flex-wrap: wrap;
+    margin-inline: -0.0625rem;
+  }
+
+  .admin-unsaved-actions {
+    display: flex;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Save is the one somebody came for, so it is twice the target Discard is. */
+  .admin-unsaved-actions .admin-button-quiet {
+    flex: 1 1 0;
+  }
+
+  .admin-unsaved-actions .admin-button:not(.admin-button-quiet) {
+    flex: 2 1 0;
+  }
+
+  .admin-unsaved-actions .admin-button {
+    min-height: 3rem;
+  }
+
+  /* --- the super-admin panel ------------------------------------------------------------ */
+
+  .admin-super {
+    align-items: stretch;
+  }
+
+  .admin-super .admin-button-grave,
+  .admin-super-locked {
+    width: 100%;
+    min-height: 3rem;
+    text-align: center;
+  }
+
+  .admin-confirm-form .admin-actions {
+    flex-wrap: wrap;
+  }
+
+  .admin-confirm-form .admin-actions .admin-button {
+    flex: 1 1 8rem;
+    min-height: 3rem;
+    text-align: center;
+  }
+}
+
+/*
+ * 320px, which is where this surface has been bitten before.
+ *
+ * ⚠️ **Every long unbroken value gets `overflow-wrap: anywhere`.** An email address is the
+ * longest thing on this page and it appears four times — the list row, the detail heading, the
+ * role-card holder list, and the confirmation's "type this to confirm". `base.css` carries the
+ * same rule for `mailto:` links, for the same reason and at the same width.
+ */
+@media (max-width: 22.5rem) {
+  .admin-hero {
+    padding-inline: 0.75rem;
+  }
+
+  .admin-split,
+  .admin-role-cards {
+    padding-inline: 0.75rem;
+  }
+
+  .admin-saved,
+  .admin-people .admin-error,
+  .admin-confirm {
+    margin-inline: 0.75rem;
+  }
+
+  .admin-person-row {
+    gap: 0.5rem;
+    padding: 0.625rem 0.5rem;
+  }
+
+  /* The glyph is the first thing to go: it is `aria-hidden` decoration, and the summary beside
+     it carries the whole of its meaning. Nothing is lost by dropping it, and it is 60px of a
+     320px row. */
+  .admin-glyph {
+    display: none;
+  }
+
+  .admin-switch-row {
+    gap: 0.625rem;
+    padding-inline: 0.75rem;
+  }
+
+  .admin-people-search,
+  .admin-people-filters {
+    padding-inline: 0.75rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+ * People and roles: the parts only the enhancement draws
+ * ---------------------------------------------------------------------------------------
+ * A `<dialog>` is `display: none` until `showModal()`, so with scripting off none of this is
+ * reachable and the link beside it goes to the confirmation's own address instead. That is the
+ * whole of why the modal can be layered on rather than built into the flow.
+ */
+
+.admin-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-width: none;
+  margin: auto;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+  color: var(--colour-text);
+}
+
+.admin-dialog::backdrop {
+  /* Not a token: `::backdrop` is a scrim rather than a surface, and it has no text on it to
+     carry. Stated as a channel-less black so it darkens whatever is behind it in both
+     schemes. */
+  background: rgb(0 0 0 / 60%);
+}
+
+/* The undo on a pending pill. 36px of target, and its own accessible name — a bare cross
+   announces nothing, and there is one of these per pending change. */
+.admin-pill-undo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: 0.125rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/*
+ * ⚠️ **Mixed over the background, not over the amber.** The first version of this darkened the
+ * pill by mixing `--colour-text` into `--colour-warning`, which reads fine in the light scheme
+ * and is 1.56:1 in the dark one — `--colour-warning` is deliberately not redefined there, so
+ * the near-white dark-scheme text lands on full amber. Every wash on this surface mixes over a
+ * surface token for that reason, and `admin-contrast.test.ts` refused the other shape.
+ *
+ * 35% is the most amber that still carries text at AAA in the dark scheme — 40% measures
+ * 6.22:1 and 45% measures 5.48:1. The pill under it is 25%, so the hover is still a visible
+ * step.
+ */
+.admin-pill-undo:hover {
+  background: color-mix(in srgb, var(--colour-warning) 35%, var(--colour-background));
+}
+
+/* A pill holding a button needs the button's target inside it rather than beside it. */
+.admin-pill-pending:has(.admin-pill-undo) {
+  padding-right: 0.25rem;
+}
+
+/* The confirm button while the typed name does not match. The label above it says what to
+   type, which is the visible explanation the disabled state needs. */
+.admin-confirm-form .admin-button[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

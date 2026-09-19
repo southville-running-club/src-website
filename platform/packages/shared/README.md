@@ -19,6 +19,7 @@ is expensive in a way a normal bug is not.
 | `medical-retention.ts` | The wording for the medical-note retention period | Tied to the enforced deletion interval by `entries-retention.test.ts` in `packages/db` — the two cannot drift apart without the test catching it |
 | `age-category.ts` | Which prize band a runner's age falls into | The one place this logic lives; the admin surface's category counts and the start list both read it rather than re-deriving |
 | `admin.ts` | `missingFunctionCause()`, among other admin-surface types | Names the "the site is ahead of its database" failure mode CLAUDE.md documents under migration-ordering traps |
+| `people-roles.ts` | How `/admin/people/` groups, labels and diffs a role list | A leaf module importing nothing, for `money.ts`'s reason: the page's enhancement computes the same diff in the browser, and a second implementation of it is how pending state comes to disagree with what a save did. Deliberately holds no role **list** — ADR-017 made that the database's |
 | `contrast.ts` | Colour-pair contrast calculation | What `admin-contrast.test.ts` and `nn-contrast.test.ts` actually call to assert a wash meets its bar — read alongside `styles/tokens.css` |
 
 ## `styles/`
