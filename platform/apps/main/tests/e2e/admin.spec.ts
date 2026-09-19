@@ -1321,22 +1321,31 @@ test.describe('people and roles', () => {
   }) => {
     await signInAs(page, PEOPLE_ADMIN_EMAIL);
     await page.goto(PEOPLE);
+
+    // ⚠️ **The search form is still there, and that is deliberate** — searching is reading, and
+    // this role exists to read. The old page asserted no `<form>` at all, which was true of a
+    // page that had no search box rather than a rule about this role.
+    //
+    // ⚠️ **Asserted on the list screen, before anybody is chosen**, and that is not arbitrary:
+    // below 48rem the list and the person are two screens, so choosing somebody takes the
+    // search box off screen with the rest of the list. Asserting it afterwards passed on a
+    // desktop viewport and failed on mobile-safari, about a page that was behaving correctly.
+    await expect(page.getByRole('searchbox', { name: 'Search people' })).toBeVisible();
+
+    // They can still see everybody — that is what they are for. ⚠️ Also asserted on the list
+    // screen, and for a sharper reason than the search box above: `getByRole` matches the
+    // accessibility tree, and below 48rem the list is `display: none` once somebody is chosen,
+    // so these links are genuinely absent from it rather than merely off screen.
+    await expect(
+      page.getByRole('link').filter({ hasText: SUPER_ADMIN_EMAIL }),
+    ).not.toHaveCount(0);
+
     await choose(page, REGISTERED_EMAIL);
 
     // **No switch and nothing that posts**, which is the whole of `people-admin`. The controls
     // are removed rather than disabled: a disabled control is a thing somebody keeps trying.
     await expect(page.getByRole('switch')).toHaveCount(0);
     await expect(page.locator('form[method="post"]')).toHaveCount(0);
-
-    // ⚠️ **The search form is still there, and that is deliberate** — searching is reading, and
-    // this role exists to read. The old page asserted no `<form>` at all, which was true of a
-    // page that had no search box rather than a rule about this role.
-    await expect(page.getByRole('searchbox', { name: 'Search people' })).toBeVisible();
-
-    // They can still see everybody and what everybody holds — that is what they are for.
-    await expect(
-      page.getByRole('link').filter({ hasText: SUPER_ADMIN_EMAIL }),
-    ).not.toHaveCount(0);
 
     // And the page says which of its two readings this is, rather than leaving a gap that reads
     // as a pane which failed to load. `toContainText` on `main` rather than `getByText`,
@@ -1456,6 +1465,65 @@ test.describe('people and roles', () => {
       'a club with no super admin has no way back in',
     );
   });
+
+  /**
+   * The phone, where the list and the person are two screens rather than two columns.
+   *
+   * **One document and one render**, with the query string deciding which screen is on — so
+   * the way back is a link, the browser's own Back works, and a filtered list is still a URL
+   * somebody can send. 320px as well as 390px, because that is where this surface has been
+   * bitten before.
+   */
+  for (const width of [390, 320]) {
+    test(`is two screens on a phone at ${width}px, and the way back is a link`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 780 });
+      await signInAs(page, SUPER_ADMIN_EMAIL);
+      await page.goto(PEOPLE);
+
+      const list = page.getByRole('complementary', { name: 'People' });
+      // **`getByRole('main')` around it**, because the masthead carries a "People and roles"
+      // link of its own and an unscoped query would match two.
+      const back = page.getByRole('main').getByRole('link', { name: 'People and roles' });
+
+      await expect(list, 'the list is the first screen').toBeVisible();
+      await expect(back, 'and there is nothing to go back to yet').toHaveCount(0);
+
+      await choose(page, REGISTERED_EMAIL);
+
+      await expect(list, 'the list gives way to the person').toBeHidden();
+      await expect(page.getByRole('switch', { name: /nn-admin/ })).toBeVisible();
+      await expect(back).toBeVisible();
+
+      // 44px of target, on the band, for a cold thumb in November.
+      const box = await back.boundingBox();
+      expect(box?.height ?? 0, 'the back link is a thumb target').toBeGreaterThanOrEqual(
+        44,
+      );
+
+      await back.click();
+      await expect(list, 'and back again').toBeVisible();
+      await expect(page).not.toHaveURL(/[?&]person=/);
+    });
+  }
+
+  test('does not scroll sideways at any width, on either view', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    for (const width of [320, 360, 390, 414, 768, 900, 1024, 1280]) {
+      await page.setViewportSize({ width, height: 780 });
+
+      await page.goto(PEOPLE);
+      await expectNoSidewaysScrollAt(page, `the list at ${width}px`);
+
+      await choose(page, REGISTERED_EMAIL);
+      await expectNoSidewaysScrollAt(page, `the selected person at ${width}px`);
+
+      await page.goto(`${PEOPLE}?view=role`);
+      await expectNoSidewaysScrollAt(page, `the role view at ${width}px`);
+    }
+  });
 });
 
 // -------------------------------------------------------------------------------------------
@@ -1468,9 +1536,38 @@ test.describe('accessibility and small screens', () => {
   }) => {
     await signInAs(page, SUPER_ADMIN_EMAIL);
 
-    for (const path of [ADMIN, PEOPLE]) {
+    // ⚠️ **`?view=role` is on this list because leaving it off hid a real defect.** This pass
+    // visited the person view only, so the second view went unread until the phone pass below
+    // was written — and axe refused it at once: two roles shorten to the same word, so two
+    // cards had the same accessible name. A view that nothing looks at is a view with no
+    // coverage, whatever the page next to it scores.
+    for (const path of [ADMIN, PEOPLE, `${PEOPLE}?view=role`]) {
       await page.goto(path);
       expect(await axeViolations(page), path).toEqual([]);
+    }
+  });
+
+  /**
+   * **Both views and both widths.** The phone is a different arrangement rather than the same
+   * one reflowed — the list and the person are alternatives there — so it is a different page
+   * for axe to read, in the same way `people-admin`'s reading is.
+   */
+  test('has no axe violations on either view, on a phone @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 780 });
+
+      await page.goto(PEOPLE);
+      expect(await axeViolations(page), `the list at ${width}px`).toEqual([]);
+
+      await page.getByRole('link').filter({ hasText: REGISTERED_EMAIL }).first().click();
+      expect(await axeViolations(page), `the person at ${width}px`).toEqual([]);
+
+      await page.goto(`${PEOPLE}?view=role`);
+      expect(await axeViolations(page), `the role view at ${width}px`).toEqual([]);
     }
   });
 

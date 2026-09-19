@@ -1,4 +1,5 @@
 import { createUserClient, type SupabaseConfig } from '@src/shared';
+import { plural } from '@src/shared';
 import {
   PEOPLE_FILTERS,
   ROLE_GROUPS,
@@ -535,8 +536,17 @@ function peopleBody(model: PageModel): Html {
   const supers = people.filter((person) => person.roles.includes('super-admin')).length;
   const withRoles = people.filter((person) => grantable(person.roles).length > 0).length;
 
+  // **The phone's two screens are one document and one render.** Which of them is on screen is
+  // a CSS question answered from this class, rather than a second address or a second template
+  // — a detail screen that is its own page would need its own permission check, its own 404 and
+  // its own copy of the list's filters in the URL.
+  const chosen = query.view === 'person' && model.selected !== null;
+
   return html`${masthead(viewer)}
-    <main class="admin-people" id="main">
+    <main
+      class="${chosen ? 'admin-people admin-people-chosen' : 'admin-people'}"
+      id="main"
+    >
       ${hero(model, people.length, withRoles, supers)}
       ${
         attempt.error === undefined
@@ -563,7 +573,19 @@ function peopleBody(model: PageModel): Html {
 function hero(model: PageModel, total: number, withRoles: number, supers: number): Html {
   const { query } = model;
 
+  const back =
+    query.view === 'person' && query.person !== null
+      ? peopleHref(HERE, { ...query, person: null, saved: false, confirming: false })
+      : null;
+
   return html`<section class="admin-hero" aria-labelledby="people-title">
+    ${
+      back === null
+        ? null
+        : html`<a class="admin-hero-back" href="${back}"
+            ><span aria-hidden="true">‹</span> People and roles</a
+          >`
+    }
     <div class="admin-hero-say">
       <h1 id="people-title">People and roles</h1>
       <p class="admin-hero-lede">
@@ -1160,9 +1182,15 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
 function roleView(model: PageModel): Html {
   const cards = model.roles.filter((role) => role.slug !== 'registered');
 
-  return html`<div class="admin-role-cards">
+  // **A list, not eight landmarks.** A `<section>` with an accessible name is a `region`, and
+  // eight of them is eight stops in a landmark rota — while two of the club's roles legitimately
+  // shorten to the same word, so two of those regions had the same name and axe refused them
+  // (`landmark-unique`). A list says "eight roles" once and is navigated by heading, which is
+  // what somebody is looking for here. Found by running axe over this view for the first time:
+  // the desktop pass only ever visited the person view.
+  return html`<ul class="admin-role-cards">
     ${cards.map((role) => roleCard(role, model))}
-  </div>`;
+  </ul>`;
 }
 
 function roleCard(role: GrantableRole, model: PageModel): Html {
@@ -1170,17 +1198,37 @@ function roleCard(role: GrantableRole, model: PageModel): Html {
   const group = groupFor(role.slug);
   const holders = model.people.filter((person) => person.roles.includes(role.slug));
 
-  return html`<section
+  const area = isSuper ? 'Full control' : group.name;
+
+  return html`<li
     class="${isSuper ? 'admin-role-tile admin-role-tile-super' : 'admin-role-tile'}"
     data-group="${isSuper ? 'super' : group.id}"
-    aria-labelledby="card-${role.slug}"
   >
     <p class="admin-role-tile-top">
       <span class="admin-role-dot" aria-hidden="true"></span>
-      <span class="admin-eyebrow">${isSuper ? 'Full control' : group.name}</span>
-      <span class="admin-mono admin-role-tile-count">${String(holders.length)}</span>
+      ${
+        /* **`aria-hidden`, because the heading below carries this word too.** It stays here as
+           the visible eyebrow the design asks for, and reading it twice is the only thing that
+           would otherwise cost. */ null
+      }
+      <span class="admin-eyebrow" aria-hidden="true">${area}</span>
+      <span class="admin-mono admin-role-tile-count"
+        >${String(holders.length)}<span class="admin-visually-hidden">
+          ${plural(holders.length, 'person holds this role', 'people hold this role')}</span
+        ></span
+      >
     </p>
-    <h2 id="card-${role.slug}">${isSuper ? 'Super admin' : roleLabel(role.slug)}</h2>
+    ${
+      /* **The area is part of the heading, and it is what makes the name unique.** `nn-admin`
+         and `timing-admin` both shorten to "Admin", so a heading of the label alone gives two
+         cards the same name — which is what axe refused while these were landmarks, and is no
+         better for somebody navigating by heading now that they are not. */ null
+    }
+    <h2>
+      <span class="admin-visually-hidden">${area} </span>${
+        isSuper ? 'Super admin' : roleLabel(role.slug)
+      }
+    </h2>
     <p class="admin-mono admin-role-tile-key">${role.slug}</p>
     <p class="admin-role-tile-desc">${role.description}</p>
     ${
@@ -1202,7 +1250,7 @@ function roleCard(role: GrantableRole, model: PageModel): Html {
             )}
           </ul>`
     }
-  </section>`;
+  </li>`;
 }
 
 // -----------------------------------------------------------------------------------------

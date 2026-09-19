@@ -1398,10 +1398,24 @@ body.admin {
   padding: 0 1.25rem;
 }
 
+/*
+ * **Three arrangements, and only the first is a different page.**
+ *
+ * Below 48rem the list and the person are two screens rather than two columns — see
+ * `.admin-people-chosen` below. From 48rem both are on screen, with the list narrowed to 20rem
+ * so the pane beside it still has room for a switch row; from 64rem the list takes its full
+ * width.
+ */
+@media (min-width: 48rem) {
+  .admin-split {
+    grid-template-columns: 20rem minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
 @media (min-width: 64rem) {
   .admin-split {
     grid-template-columns: 26.25rem minmax(0, 1fr);
-    align-items: start;
   }
 }
 
@@ -1464,7 +1478,7 @@ body.admin {
   max-height: none;
 }
 
-@media (min-width: 64rem) {
+@media (min-width: 48rem) {
   .admin-people-rows {
     max-height: 34rem;
     overflow-y: auto;
@@ -1695,7 +1709,13 @@ body.admin {
   align-items: start;
 }
 
-@media (min-width: 48rem) {
+/*
+ * ⚠️ **Two columns at 64rem rather than at 48rem**, which is the opposite way round from the
+ * role cards below. Between 48rem and 64rem there is a 20rem list beside this grid, so the pane
+ * is far narrower than the window — a second column there puts a role's description into three
+ * words a line. The role-card grid has the whole width and breaks at 48rem accordingly.
+ */
+@media (min-width: 64rem) {
   .admin-role-groups {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2008,6 +2028,8 @@ body.admin {
 /* --- by role --------------------------------------------------------------------------- */
 
 .admin-role-cards {
+  margin: 0;
+  list-style: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
@@ -2140,4 +2162,224 @@ body.admin {
 
 .admin-chip-you {
   background: var(--admin-track);
+}
+
+/* ---------------------------------------------------------------------------------------
+ * People and roles: the phone
+ * ---------------------------------------------------------------------------------------
+ * **Two screens out of one document.** Below 48rem the list and the selected person are not
+ * two columns that have stacked — they are alternatives, and which one is on screen follows
+ * from whether the query string names a person. `.admin-people-chosen` is the server saying so.
+ *
+ * The alternative was a second address for the detail. That would need its own permission
+ * check, its own 404, and its own copy of the list's filter and search in the URL so that going
+ * back did not lose them. One address and one render is cheaper and cannot drift.
+ */
+
+.admin-hero-back {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .admin-hero {
+    /* The back link sits above the title, so the band stacks rather than spreads. */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem 1rem 1.25rem;
+  }
+
+  .admin-hero-aside {
+    align-items: stretch;
+  }
+
+  .admin-hero-figs {
+    gap: 1.25rem;
+  }
+
+  /* On the detail screen the way back is the page's name, so the link carries it and the
+     heading is taken off screen rather than out of the document — a page with no `h1` in the
+     accessibility tree is a different defect from a page with no `h1` drawn. */
+  .admin-people-chosen .admin-hero-say {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Page-level counts on a screen about one person. They are one tap away on the list. */
+  .admin-people-chosen .admin-hero-figs {
+    display: none;
+  }
+
+  .admin-people-chosen .admin-hero-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    /* 44px of target, per the brief and per every other control on this surface. */
+    min-height: 2.75rem;
+    color: var(--colour-on-hero);
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .admin-people-chosen .admin-hero-back:hover {
+    text-decoration: underline;
+  }
+
+  /* --- which screen is on ------------------------------------------------------------- */
+
+  .admin-people-chosen .admin-people-list {
+    display: none;
+  }
+
+  /* With nobody chosen there is nothing to show beside the list, and the prompt that says so
+     belongs to the two-column arrangement rather than to this one. */
+  .admin-people:not(.admin-people-chosen) .admin-detail-empty {
+    display: none;
+  }
+
+  .admin-split {
+    padding: 0 1rem;
+  }
+
+  .admin-role-cards {
+    padding: 0 1rem;
+  }
+
+  .admin-saved,
+  .admin-people .admin-error,
+  .admin-confirm {
+    margin-inline: 1rem;
+  }
+
+  /* --- the rows ------------------------------------------------------------------------ */
+
+  .admin-switch-row {
+    /* The brief's floor is 68px; the padding rather than the height is what gives it, so the
+       row still grows when a description wraps at 320px. */
+    min-height: 4.25rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .admin-detail-head {
+    gap: 0.75rem;
+  }
+
+  .admin-avatar-lg {
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.25rem;
+  }
+
+  /* --- the save bar --------------------------------------------------------------------- */
+
+  /*
+   * **Sticky rather than fixed**, and that is what keeps it out of the way of everything else.
+   * A fixed bar is out of flow, so the page needs bottom padding to stop the last switch
+   * hiding behind it — a number that has to be kept in step with the bar's own height at every
+   * width, which is the defect ADR-014 spends three paragraphs on one bar along. Sticky stays
+   * in flow: it occupies its own space at the end of the form and lifts off the bottom of the
+   * viewport until it gets there.
+   */
+  .admin-unsaved {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    flex-wrap: wrap;
+    margin-inline: -0.0625rem;
+  }
+
+  .admin-unsaved-actions {
+    display: flex;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Save is the one somebody came for, so it is twice the target Discard is. */
+  .admin-unsaved-actions .admin-button-quiet {
+    flex: 1 1 0;
+  }
+
+  .admin-unsaved-actions .admin-button:not(.admin-button-quiet) {
+    flex: 2 1 0;
+  }
+
+  .admin-unsaved-actions .admin-button {
+    min-height: 3rem;
+  }
+
+  /* --- the super-admin panel ------------------------------------------------------------ */
+
+  .admin-super {
+    align-items: stretch;
+  }
+
+  .admin-super .admin-button-grave,
+  .admin-super-locked {
+    width: 100%;
+    min-height: 3rem;
+    text-align: center;
+  }
+
+  .admin-confirm-form .admin-actions {
+    flex-wrap: wrap;
+  }
+
+  .admin-confirm-form .admin-actions .admin-button {
+    flex: 1 1 8rem;
+    min-height: 3rem;
+    text-align: center;
+  }
+}
+
+/*
+ * 320px, which is where this surface has been bitten before.
+ *
+ * ⚠️ **Every long unbroken value gets `overflow-wrap: anywhere`.** An email address is the
+ * longest thing on this page and it appears four times — the list row, the detail heading, the
+ * role-card holder list, and the confirmation's "type this to confirm". `base.css` carries the
+ * same rule for `mailto:` links, for the same reason and at the same width.
+ */
+@media (max-width: 22.5rem) {
+  .admin-hero {
+    padding-inline: 0.75rem;
+  }
+
+  .admin-split,
+  .admin-role-cards {
+    padding-inline: 0.75rem;
+  }
+
+  .admin-saved,
+  .admin-people .admin-error,
+  .admin-confirm {
+    margin-inline: 0.75rem;
+  }
+
+  .admin-person-row {
+    gap: 0.5rem;
+    padding: 0.625rem 0.5rem;
+  }
+
+  /* The glyph is the first thing to go: it is `aria-hidden` decoration, and the summary beside
+     it carries the whole of its meaning. Nothing is lost by dropping it, and it is 60px of a
+     320px row. */
+  .admin-glyph {
+    display: none;
+  }
+
+  .admin-switch-row {
+    gap: 0.625rem;
+    padding-inline: 0.75rem;
+  }
+
+  .admin-people-search,
+  .admin-people-filters {
+    padding-inline: 0.75rem;
+  }
 }
