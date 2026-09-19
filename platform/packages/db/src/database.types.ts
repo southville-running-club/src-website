@@ -952,6 +952,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_role: { Args: { p_person: string; p_role: string }; Returns: Json }
+      set_roles: {
+        Args: { p_expected: string[]; p_person: string; p_wanted: string[] }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
