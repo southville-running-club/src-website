@@ -317,6 +317,83 @@ body.admin {
   padding: 1.5rem 1rem 4rem;
 }
 
+/*
+ * The other kind of admin page: an app screen rather than a document.
+ *
+ * ## The defect this exists to remove
+ *
+ * `base.css` puts a `max-width` on the bare `main` element, and it is the **prose measure** —
+ * `calc(var(--measure) + var(--space) * 2)`, which is 40rem. `.admin-page` above overrides it
+ * with a class, and the comment there says so. **`/admin/people/` did not carry that class**: it
+ * rendered `<main class="admin-people">`, which sets no width at all, so a screen with a list
+ * and a detail pane beside it was laid out to the width of a paragraph — inside a masthead and a
+ * navigation bar that were both full width, because both sit *outside* `<main>`.
+ *
+ * ⚠️ **Nothing caught it, and the reason is worth keeping.** The page was too *narrow*, not too
+ * wide: the document never scrolled sideways at any width, so every `expectNoSidewaysScroll`
+ * passed; every control was still on screen, so every assertion in `admin.spec.ts` passed; and
+ * contrast, names and landmarks are all width-independent, so axe passed. A measurement that can
+ * only see overflow cannot see a page that has quietly given back half its screen.
+ * `expectNoChildOverflow` and the masthead comparison in `admin-people-layout.spec.ts` are the
+ * two that can.
+ *
+ * ## Why a second class rather than widening `.admin-page` or `main`
+ *
+ * Relaxing `main` in `base.css` would widen **every text page on the public site** — the privacy
+ * notices, the race pages, the account forms — which is the one thing the measure exists to stop.
+ * Widening `.admin-page` would change the entries table, which is a document-shaped page and is
+ * deliberately capped at 70rem. So this is opt-in: a page says it is an app screen by wearing the
+ * class, and nothing that does not wear it moves by a pixel.
+ *
+ * ## Full bleed, with the content still held to a measure
+ *
+ * `padding: 0`, so a band that wants to reach both edges can. The bands themselves take the
+ * padding instead, through `--admin-app-gutter` below, which is what keeps the hero's *background*
+ * full width while its *text* lines up with the panes underneath it. `--admin-app-max` stops an
+ * ultrawide monitor stretching a two-pane layout to 3000px, which is the opposite failure and a
+ * real one.
+ */
+.admin-app {
+  --admin-app-max: 90rem;
+  --admin-app-gutter: 1.25rem;
+
+  width: 100%;
+  max-width: none;
+  padding: 0;
+
+  /*
+   * ⚠️ **This is what makes the breakpoints below honest**, and it is the point of the whole
+   * change rather than a detail of it. The panes inside query *this* box, so a width in a
+   * container query is the space the component actually has. While the prose measure was
+   * applying, `@media (min-width: 64rem)` was firing on a 1440px viewport for a component that
+   * had 600px — the query was true and the thing it implied was false.
+   */
+  container-type: inline-size;
+  container-name: admin-app;
+}
+
+/*
+ * A band that fills the width and whose content does not.
+ *
+ * `max()` rather than a wrapper element: the inset is the gutter until the page is wider than
+ * the measure, and half the overspill after that. So a filled band reaches both edges at every
+ * width while the words inside it line up with every other band on the page — with no extra
+ * `<div>` to keep in step across three renderers.
+ *
+ * **Two classes because a band and a card want the same inset on different properties.** The
+ * hero is a filled band: its background must reach the edge, so the inset is *padding*, inside
+ * the element. A confirmation box is a card with its own border and radius: padding would
+ * stretch the border across the whole screen, so its inset is *margin*, outside the element.
+ * One custom property, two ways of spending it, and neither can drift from the other.
+ */
+.admin-app-band {
+  padding-inline: max(var(--admin-app-gutter), calc((100% - var(--admin-app-max)) / 2));
+}
+
+.admin-app-inset {
+  margin-inline: max(var(--admin-app-gutter), calc((100% - var(--admin-app-max)) / 2));
+}
+
 /* The section labels. Mono and small, so they read as the page's structure rather than as
    headings competing with the panel titles under them. */
 .admin-h2 {
@@ -1309,7 +1386,9 @@ body.admin {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1.25rem 2rem;
-  padding: 1.5rem 1.25rem;
+  /* The inline padding is `.admin-app-band`'s, so the band reaches both edges of the screen
+     while its words line up with the panes below it. Only the block padding is this rule's. */
+  padding-block: 1.5rem;
   background: var(--colour-hero);
   color: var(--colour-on-hero);
 }
@@ -1337,14 +1416,56 @@ body.admin {
 
 /* The figures inherit the band's ink rather than the page's, so one set of rules is correct in
    both schemes — the band does not invert. */
+
+/*
+ * ⚠️ **Inline on the band, and emphatically not cards.**
+ *
+ * `.admin-figs` is the entries page's grid — `repeat(auto-fit, minmax(13rem, 1fr))` — and
+ * `.admin-fig` gives each cell `--admin-card`, a rule border and a radius. That vocabulary is
+ * right on a white page and wrong on a filled band: three white cards sitting on the green read
+ * as a panel that has landed on top of the hero rather than as the hero's own figures.
+ *
+ * It was also the visible half of the width defect. At 13rem apiece the auto-fit grid needed
+ * 39rem plus gaps to make one row; inside a 40rem `<main>` it never got it, so the three cards
+ * stacked **vertically** and the band grew to five hundred pixels of mostly empty green. The
+ * cards were the symptom people saw; the measure was the cause.
+ *
+ * So the grid is replaced by a wrapping flex row rather than tuned. Three short figures on one
+ * line is what a band is for, and a flex row wraps to two and then to one as the space narrows
+ * without any breakpoint having to name the widths.
+ */
 .admin-hero-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2.5rem;
   margin: 0;
-  gap: 1.5rem;
+}
+
+.admin-hero .admin-fig {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .admin-hero .admin-fig-label,
 .admin-hero .admin-fig-value {
   color: var(--colour-on-hero);
+}
+
+/* The label above its number rather than beside it, so a wrapped row stays readable as pairs.
+   `dt`/`dd` are the markup; this is only which way round they sit. */
+.admin-hero .admin-fig-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin-hero .admin-fig-value {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
 /* Charcoal, 3px — visible on the green band as well as on the page. */
@@ -1387,7 +1508,6 @@ body.admin {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
-  padding: 0 1.25rem;
 }
 
 /*
@@ -1397,15 +1517,25 @@ body.admin {
  * `.admin-people-chosen` below. From 48rem both are on screen, with the list narrowed to 20rem
  * so the pane beside it still has room for a switch row; from 64rem the list takes its full
  * width.
+ *
+ * ⚠️ **`@container`, not `@media`, and the widths are unchanged.** They were always the right
+ * numbers and they were being asked of the wrong box: `<main>` was capped at the prose measure,
+ * so on a 1440px screen `(min-width: 64rem)` was true while the grid it governed had about
+ * 600px to lay out in. The list took 26.25rem of that and the person got what was left, which is
+ * how a detail pane on a desktop monitor ended up narrower than a phone.
+ *
+ * `.admin-app` is the container. A query against it is a question about the space this component
+ * actually has, so the breakpoint names and the arrangement agree again — and they keep agreeing
+ * if the page is ever put in a narrower shell, which a viewport query cannot do.
  */
-@media (min-width: 48rem) {
+@container admin-app (min-width: 48rem) {
   .admin-split {
     grid-template-columns: 20rem minmax(0, 1fr);
     align-items: start;
   }
 }
 
-@media (min-width: 64rem) {
+@container admin-app (min-width: 64rem) {
   .admin-split {
     grid-template-columns: 26.25rem minmax(0, 1fr);
   }
@@ -1519,12 +1649,19 @@ body.admin {
 .admin-person-name {
   font-weight: 700;
   font-size: 0.9375rem;
-  overflow-wrap: anywhere;
+  /* ⚠️ **Never `anywhere` on a person's name.** It rendered the signed-in volunteer as
+     `Binda` / `l Shah` — a page whose whole subject is which human may do what, cutting a
+     human's name in half. `break-word` breaks an over-long token only when it would otherwise
+     overflow, which is what a name may do at 320px and nothing narrower. */
+  overflow-wrap: break-word;
 }
 
 .admin-person-email {
   font-size: 0.75rem;
-  overflow-wrap: anywhere;
+  /* An address breaks at its own punctuation and nowhere else: the opportunities are `<wbr>`
+     elements after the `@` and each `.`, put there by `breakableEmail()`. `break-word` is the
+     backstop for a single label longer than the column, not the mechanism. */
+  overflow-wrap: break-word;
 }
 
 .admin-person-row .admin-person-email {
@@ -1672,14 +1809,21 @@ body.admin {
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
+  /* ⚠️ **Never `anywhere` on a person's name.** It rendered the signed-in volunteer as
+     `Binda` / `l Shah` — a page whose whole subject is which human may do what, cutting a
+     human's name in half. `break-word` breaks an over-long token only when it would otherwise
+     overflow, which is what a name may do at 320px and nothing narrower. */
+  overflow-wrap: break-word;
 }
 
 .admin-detail-email {
   margin: 0.25rem 0 0;
   color: var(--colour-muted);
   font-size: 0.875rem;
-  overflow-wrap: anywhere;
+  /* An address breaks at its own punctuation and nowhere else: the opportunities are `<wbr>`
+     elements after the `@` and each `.`, put there by `breakableEmail()`. `break-word` is the
+     backstop for a single label longer than the column, not the mechanism. */
+  overflow-wrap: break-word;
 }
 
 .admin-role-read dt {
@@ -1972,7 +2116,8 @@ body.admin {
 
 .admin-confirm {
   max-width: 38rem;
-  margin: 0 1.25rem;
+  /* Inline margin is `.admin-app-inset`'s, so this card and the bands above it line up. */
+  margin-block: 0;
   padding: 1.5rem;
   border: 1px solid var(--colour-rule);
   border-radius: var(--radius-card);
@@ -2025,7 +2170,7 @@ body.admin {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
-  padding: 0 1.25rem;
+  /* Inline padding is `.admin-app-band`'s. */
   align-items: start;
 }
 
@@ -2077,7 +2222,7 @@ body.admin {
   font-size: 1.625rem;
   font-weight: 800;
   line-height: 1.05;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .admin-role-tile-key {
@@ -2117,7 +2262,11 @@ body.admin {
   color: inherit;
   font-size: 0.9375rem;
   font-weight: 700;
-  overflow-wrap: anywhere;
+  /* ⚠️ **Never `anywhere` on a person's name.** It rendered the signed-in volunteer as
+     `Binda` / `l Shah` — a page whose whole subject is which human may do what, cutting a
+     human's name in half. `break-word` breaks an over-long token only when it would otherwise
+     overflow, which is what a name may do at 320px and nothing narrower. */
+  overflow-wrap: break-word;
   text-decoration: none;
 }
 
@@ -2135,7 +2284,8 @@ body.admin {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  margin: 0 1.25rem;
+  /* Inline margin is `.admin-app-inset`'s. */
+  margin-block: 0;
   padding: 0.75rem 1rem;
   border-radius: var(--radius-card);
   background: var(--admin-mast);
@@ -2149,7 +2299,9 @@ body.admin {
 }
 
 .admin-people .admin-error {
-  margin: 0 1.25rem;
+  /* Inline margin is `.admin-app-inset`'s on the page-level one; this keeps the block rhythm
+     for both it and the copy inside the confirmation card. */
+  margin-block: 0;
 }
 
 .admin-chip-you {
@@ -2181,13 +2333,24 @@ body.admin {
   display: none;
 }
 
-@media (max-width: 47.99rem) {
+/* ⚠️ `@container`, for the reason the two `min-width` queries above are: this is a statement
+   about the space the component has, and while `<main>` was capped at the prose measure the
+   viewport was not it. The width is unchanged. */
+@container admin-app (max-width: 47.99rem) {
+  /* One gutter for every band and every card on the page, narrowed in one place rather than
+     re-stated per element the way it used to be. */
+  .admin-app {
+    --admin-app-gutter: 1rem;
+  }
+
   .admin-hero {
     /* The back link sits above the title, so the band stacks rather than spreads. */
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
-    padding: 1rem 1rem 1.25rem;
+    /* Block only — the inline padding is the band's gutter, above. Setting `padding` here
+       would clobber it and pull the hero's words back to the screen edge. */
+    padding-block: 1rem 1.25rem;
   }
 
   .admin-hero-aside {
@@ -2242,20 +2405,6 @@ body.admin {
      belongs to the two-column arrangement rather than to this one. */
   .admin-people:not(.admin-people-chosen) .admin-detail-empty {
     display: none;
-  }
-
-  .admin-split {
-    padding: 0 1rem;
-  }
-
-  .admin-role-cards {
-    padding: 0 1rem;
-  }
-
-  .admin-saved,
-  .admin-people .admin-error,
-  .admin-confirm {
-    margin-inline: 1rem;
   }
 
   /* --- the rows ------------------------------------------------------------------------ */
@@ -2341,25 +2490,23 @@ body.admin {
 /*
  * 320px, which is where this surface has been bitten before.
  *
- * ⚠️ **Every long unbroken value gets `overflow-wrap: anywhere`.** An email address is the
- * longest thing on this page and it appears four times — the list row, the detail heading, the
- * role-card holder list, and the confirmation's "type this to confirm". `base.css` carries the
- * same rule for `mailto:` links, for the same reason and at the same width.
+ * ⚠️ **This paragraph said the opposite until the width fix, and it was the policy rather than
+ * an oversight**: *"every long unbroken value gets `overflow-wrap: anywhere`"*. Applied to an
+ * address that is right and applied to a **name** it is not — it rendered the signed-in
+ * volunteer as `Binda` / `l Shah`, on the one page whose subject is which human may do what.
+ *
+ * So the two are separated now. A **name** gets `break-word`: it breaks only when a single
+ * word would otherwise overflow, which at 320px is rare and is better than the alternative.
+ * An **address** carries its own break opportunities as `<wbr>` elements after the `@` and each
+ * `.` — put there by `breakableEmail()` in `worker/html.ts` — so it wraps at the seams a reader
+ * expects and never mid-label. `base.css` still carries `anywhere` for `mailto:` links on the
+ * public pages, which is a different surface and a separate decision.
  */
-@media (max-width: 22.5rem) {
-  .admin-hero {
-    padding-inline: 0.75rem;
-  }
-
-  .admin-split,
-  .admin-role-cards {
-    padding-inline: 0.75rem;
-  }
-
-  .admin-saved,
-  .admin-people .admin-error,
-  .admin-confirm {
-    margin-inline: 0.75rem;
+@container admin-app (max-width: 22.5rem) {
+  /* One gutter, narrowed once. The four rules that used to set `padding-inline` and
+     `margin-inline` per element are gone — they were four chances to disagree. */
+  .admin-app {
+    --admin-app-gutter: 0.75rem;
   }
 
   .admin-person-row {

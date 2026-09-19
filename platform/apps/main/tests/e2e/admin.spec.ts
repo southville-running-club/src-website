@@ -3,7 +3,11 @@ import { axeViolations } from '../axe';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
 import { CSRF_COOKIE, CSRF_FIELD, forgetSessions, signInAs } from './sign-in';
-import { expectNoSidewaysScroll as expectNoSidewaysScrollAt } from '../sideways-scroll';
+import {
+  expectNoChildOverflow,
+  expectNoSidewaysScroll as expectNoSidewaysScrollAt,
+  waitForStyledLayout,
+} from '../sideways-scroll';
 import {
   ACTIONS_EVENT_SLUG,
   ASSIGN_TO_FIRST_NAME,
@@ -1645,6 +1649,174 @@ test.describe('people and roles', () => {
       await page.goto(`${PEOPLE}?view=role`);
       await expectNoSidewaysScrollAt(page, `the role view at ${width}px`);
     }
+  });
+
+  /**
+   * Nothing is wider than the box that holds it, at the five widths the design names.
+   *
+   * ⚠️ **Stricter than the sweep above, and it catches what that one provably cannot.** That
+   * asks whether the *document* can be dragged sideways. This page's defect was the opposite:
+   * `<main class="admin-people">` carried no width class, so it fell back to `base.css`'s bare
+   * `main` rule — the **prose measure**, 40rem — while the masthead above it stayed full width.
+   * The page was too *narrow*, so it never scrolled, and the sweep above passed at all eight
+   * widths while the detail pane was about 130px on a 1440px monitor.
+   *
+   * Verified against the unfixed stylesheet: 18 elements spilling, fieldsets collapsed to 32px.
+   */
+  test('has nothing wider than its own parent, at any width', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    for (const width of [320, 390, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 780 });
+
+      await page.goto(PEOPLE);
+      await expectNoChildOverflow(page, `the list at ${width}px`);
+
+      await choose(page, REGISTERED_EMAIL);
+      await expectNoChildOverflow(page, `the selected person at ${width}px`);
+
+      await page.goto(`${PEOPLE}?view=role`);
+      await expectNoChildOverflow(page, `the role view at ${width}px`);
+    }
+  });
+
+  /**
+   * The content uses the width the chrome uses.
+   *
+   * **A comparison rather than a number, deliberately.** Asserting `<main>` is 1440px wide would
+   * pin a layout decision; asserting it is as wide as the masthead pins the *relationship* that
+   * was broken — a full-width bar over a prose-width page — and survives any later change to the
+   * page's own padding. The masthead is the reference because it sits outside `<main>` and was
+   * never constrained, which is exactly why the mismatch was plain on screen and invisible to
+   * every measurement this suite had.
+   */
+  test('is as wide as the chrome above it, and the band is full bleed', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    for (const width of [1024, 1440]) {
+      await page.setViewportSize({ width, height: 780 });
+      await page.goto(PEOPLE);
+      await waitForStyledLayout(page);
+
+      const mast = await page.locator('.admin-mast').first().boundingBox();
+      const body = await page.locator('main').first().boundingBox();
+      const band = await page.locator('.admin-hero').first().boundingBox();
+
+      expect(body!.width, `the page body at ${width}px`).toBeGreaterThanOrEqual(
+        mast!.width - 1,
+      );
+
+      // `--colour-hero` is the one sanctioned full-bleed use of the raw brand green, and a band
+      // that stops short of the edge reads as a card. Measured against the viewport rather than
+      // against `main`, so a padded wrapper cannot satisfy it by accident.
+      expect(band!.width, `the hero band at ${width}px`).toBeGreaterThanOrEqual(
+        width - 1,
+      );
+    }
+  });
+
+  /**
+   * The split falls where the space says, not where the viewport does.
+   *
+   * ⚠️ **The breakpoints were always 48rem and 64rem and were being asked of the wrong box.**
+   * On a 1440px screen `@media (min-width: 64rem)` was true while the grid it governed had about
+   * 600px, so the 26.25rem list took most of it. They are `@container` queries against
+   * `.admin-app` now. Read as geometry rather than as a class name, so it keeps meaning the same
+   * thing if the implementation stops using a grid.
+   */
+  test('puts the list beside the person at 1024px and not at 390px', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+
+    await page.setViewportSize({ width: 1024, height: 780 });
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+    await waitForStyledLayout(page);
+
+    const list = await page.locator('.admin-people-list').first().boundingBox();
+    const detail = await page.locator('.admin-detail').first().boundingBox();
+
+    expect(detail!.x, 'the person sits to the right of the list').toBeGreaterThan(
+      list!.x,
+    );
+    expect(
+      Math.abs(detail!.y - list!.y),
+      'the two panes start on the same line',
+    ).toBeLessThan(40);
+
+    // Below 48rem they are two screens rather than two columns — the list is not merely under
+    // the person, it is off this screen entirely. That is `.admin-people-chosen`.
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    await expect(page.locator('.admin-people-list')).toBeHidden();
+    await expect(page.locator('.admin-detail')).toBeVisible();
+  });
+
+  /**
+   * A name is never breakable mid-word; an address breaks at its own punctuation.
+   *
+   * ⚠️ **`overflow-wrap: anywhere` was on both**, and it rendered the signed-in volunteer as
+   * `Binda` / `l Shah` — on the one page whose subject is which human may do what. The address
+   * went the same way, breaking as `…co` / `.uk`.
+   *
+   * Asserted as the computed property rather than by measuring line boxes, because the fixtures
+   * here have no names at all — `displayName()` falls back to the email, so there is no
+   * two-word name on the page to watch wrap. The property is what the defect was.
+   */
+  test('never makes a name breakable at any character', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 780 });
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+    await waitForStyledLayout(page);
+
+    for (const selector of ['.admin-detail h2', '.admin-person-name']) {
+      const broken = await page
+        .locator(selector)
+        .first()
+        .evaluate((element) => {
+          const styles = getComputedStyle(element);
+          return { wrap: styles.overflowWrap, br: styles.wordBreak };
+        });
+
+      expect(broken.wrap, selector).not.toBe('anywhere');
+      expect(broken.br, selector).not.toBe('break-all');
+    }
+  });
+
+  /**
+   * And the address carries its own break opportunities instead.
+   *
+   * `<wbr>` contributes no text, so `textContent` is unchanged and the address is still one
+   * string to copy, to read aloud and to match on — which is what lets every other assertion in
+   * this file go on finding people by their address.
+   */
+  test('breaks an address at its own punctuation and nowhere else', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.setViewportSize({ width: 320, height: 780 });
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+    await waitForStyledLayout(page);
+
+    const email = page.locator('.admin-detail-email').first();
+
+    expect(
+      await email.evaluate((element) => getComputedStyle(element).overflowWrap),
+    ).not.toBe('anywhere');
+
+    // The opportunities are markup, and they are only after the `@` and the dots.
+    const marks = await email.evaluate((element) => ({
+      text: element.textContent ?? '',
+      before: [...element.querySelectorAll('wbr')].map((mark) =>
+        (mark.previousSibling?.textContent ?? '').slice(-1),
+      ),
+    }));
+
+    expect(marks.text).toBe(REGISTERED_EMAIL);
+    expect(new Set(marks.before)).toEqual(new Set(['@', '.']));
   });
 });
 

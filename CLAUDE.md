@@ -641,6 +641,30 @@ one step further on rather than a separate one.
 withheld, an apostrophe in a name, the repeated hour on the clocks-change weekend — because
 those are what break rendering.
 
+⚠️ **A fixture set has exactly one owning spec file, and a second one racing it fails in a way
+that names neither.** `seedAdminFixtures()` writes one global set of people and events — only
+the two timing addresses carry `TEST_PARALLEL_INDEX`, and `admin-fixtures.ts`'s own header says
+the design assumes sequential clear-then-create. A new spec calling it in its own `beforeAll`
+ran on a second worker alongside `admin.spec.ts` and produced **`User already registered` from
+GoTrue, a foreign-key violation in teardown, and a knock-on ten-second locator timeout** — five
+failures across three projects, **not one of them about the thing being tested**, and green on a
+single-project run. **So add a test about `/admin/people/` to `admin.spec.ts` rather than beside
+it**, or give the new file its own people and its own event slug. A `.screens.ts` is safe on
+`workers: 1`, which is what the screenshots config already sets.
+
+⚠️ **There is a second race of the same kind already live on `main`, and it is not that one.**
+`fullyParallel: false` keeps one file's tests on one worker; it does **not** stop the same file's
+**three projects** running two-at-a-time on `workers: 2`. So `admin.spec.ts` seeds the one global
+fixture set twice over, and `./dev e2e apps/main/tests/e2e/admin.spec.ts` fails in `beforeAll`
+with `duplicate key value violates unique constraint "entry_purchases_pkey"`, `User already
+registered`, or a sign-in refused **422** — always in `the door`, always in fixture setup, and a
+`beforeAll` failure takes the rest of that project with it (169 of 264 did not run). **Measured
+on a clean tree at `d0821e6`: identical three failures on two consecutive runs**, so it is
+deterministic rather than flaky, and it is not caused by whatever branch is being blamed for it.
+**A single-project run is the way to verify a change against this file** —
+`--project=chromium`, then the other two — until somebody makes the fixture slugs and addresses
+carry `TEST_PARALLEL_INDEX` the way the two timing ones already do.
+
 ---
 
 ## Traps that have already cost time
@@ -714,6 +738,44 @@ squash whitespace before matching; the tag keeps its name because readable marku
 than exact-output assertions.
 
 ### Layout, tests and cross-browser
+
+⚠️ **`base.css` puts a `max-width` on the bare `main` element, and it is the _prose_ measure — so
+an admin page that forgets `.admin-page` silently becomes 40rem wide and every guard in this
+suite passes.** `main { max-width: calc(var(--measure) + var(--space) * 2) }` is 640px.
+`.admin-page` overrides it with a class and the comment there says why; `/admin/people/` rendered
+`<main class="admin-people">`, which sets no width at all, so the redesigned split view was laid
+out to the width of a paragraph **inside a masthead and a navigation bar that were both full
+width** — because both are rendered outside `<main>`. On a 1440px monitor the detail pane came out
+at about 130px, and "Choose somebody from the list" wrapped at two words a line.
+
+**Nothing went red, and that is the part worth keeping.** The page was too _narrow_, not too wide,
+so the document never scrolled sideways and every `expectNoSidewaysScroll` passed; every control
+was still on screen, so every assertion in `admin.spec.ts` passed; contrast, names and landmarks
+are width-independent, so axe passed. **A measurement that can only see overflow cannot see a page
+that has given back half its screen.** The two that can are now in
+`admin.spec.ts`'s **people and roles** describe: `expectNoChildOverflow()` in
+`sideways-scroll.ts`, which fails when anything is wider than its own parent, and a comparison of
+`<main>`'s width against the masthead's — a _relationship_ rather than a number, so it does not
+pin a layout decision. Verified by stashing the fix and re-running: 18 elements spilling, panes
+collapsed to 32px.
+
+⚠️ **The second half is that a viewport media query inside a constrained box is a lie.** The split
+branched on `@media (min-width: 64rem)`, which was true on a 1440px screen while the grid it
+governed had about 600px — so the 26.25rem list took most of it and the person got the rest. The
+widths were right and the box being asked was wrong. `.admin-app` carries
+`container-type: inline-size` and the three arrangements are `@container` queries now, at the same
+48rem and 64rem. **When a component's width is not the viewport's, a `@media` breakpoint is
+measuring something the component cannot see.**
+
+⚠️ **And `overflow-wrap: anywhere` is wrong on a name.** That file's policy comment said *"every
+long unbroken value"* gets it; applied to an address that is right, applied to a person it rendered
+the signed-in volunteer as `Binda` / `l Shah` — on the one page whose subject is which human may do
+what. Names get `break-word`; addresses carry their own break opportunities as `<wbr>` after the
+`@` and each `.`, from `breakableEmail()` in `worker/html.ts`. ⚠️ **`displayName()` falls back to
+the email when somebody has no name recorded**, and its own header notes no fixture in this
+repository has one — so the name slots hold addresses in the common case, and taking the property
+off without adding the `<wbr>`s would have stranded a 33-character address in a 320px column.
+`breakableLabel()` is the one that asks which of the two it has been handed.
 
 **A visually-hidden span inside a horizontally scrolling table makes the whole page scroll
 sideways.** `overflow` only clips a descendant whose containing block is inside the scroller, and
