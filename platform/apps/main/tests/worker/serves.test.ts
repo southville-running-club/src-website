@@ -17,7 +17,12 @@ import { SELF } from 'cloudflare:test';
 const SITE = 'https://new.southvillerunningclub.co.uk';
 
 describe('the club website', () => {
-  it('serves the holding page at the root', async () => {
+  it('serves the club’s front page at the root', async () => {
+    // ⚠️ **Renamed, not rewritten.** This was "serves the holding page at the root" until
+    // 19 September 2026, when `/` moved onto the club's own chrome (ADR-048). The assertions
+    // below are unchanged and still true — what stopped being true is the word "holding" in
+    // the title, and a test whose name describes a page that no longer exists is the kind of
+    // stale documentation this repository treats as worse than none.
     const response = await SELF.fetch(`${SITE}/`);
 
     expect(response.status).toBe(200);
@@ -28,6 +33,11 @@ describe('the club website', () => {
   it('carries the banner, on the built output rather than in a browser', async () => {
     // The banner is in the layout, so every page gets it — including `/nn/`, and this is
     // the only layer that reads what the static-assets binding actually returns.
+    //
+    // ⚠️ **It fetches `/nn/` rather than `/`, which was incidental and is now load-bearing.**
+    // Since ADR-048 the club pages carry a different banner sentence and `/` is one of them;
+    // `/nn/` is a money page and keeps this one until after the race. So this assertion needs
+    // no limiting — it was already pointed at a page that still says these words.
     const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
     expect(page).toContain('Welcome to Southville Running Club');

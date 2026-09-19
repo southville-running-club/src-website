@@ -340,10 +340,21 @@ test.describe("the club's privacy notice", () => {
   }) => {
     // A notice nobody can find is not a notice. The footer is on every page of both front
     // doors, which is what makes this the club's notice rather than the account area's.
+    //
+    // ⚠️ **Located by landmark, not by class — and that is the point rather than a tidy-up.**
+    // This read `.site-footer` until 19 September 2026 and went red on all three engines when
+    // `/` moved to the club's own chrome (ADR-048), where the footer is `.club-footer`. The
+    // class was never what this test is about: the property is *"the notice is reachable from
+    // the foot of every page"*, and `contentinfo` is that property. Both footers are the one
+    // `contentinfo` on their page, which `site.spec.ts` and `club-chrome.spec.ts` each assert
+    // on their own surface.
+    //
+    // So `/` stays in this list rather than being swapped out, and this keeps working through
+    // the change after the race that moves the money pages across.
     for (const path of ['/', '/nn/', '/nn/2026/', '/timing']) {
       await page.goto(path);
 
-      const link = page.locator('.site-footer').getByRole('link', {
+      const link = page.getByRole('contentinfo').getByRole('link', {
         name: 'Privacy notice',
       });
       await expect(link, path).toHaveCount(1);

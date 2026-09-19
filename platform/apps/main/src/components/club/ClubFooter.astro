@@ -1,0 +1,108 @@
+---
+import ClubLogo from '../ClubLogo.astro';
+import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
+import { parseClub } from '@src/shared/club-content';
+import club from '../../content/club.json';
+
+// The foot of every club page: where the club meets, where to find it, and the privacy notice.
+//
+// ## A filled band in the club green, and one ink on it
+//
+// ⚠️ **Everything in here is `currentcolor`.** `--club-on-brand` is the one colour measured
+// against the green fill — 5.07:1 — and a link in here that reached for `--club-link` would
+// be 2.1:1 on it. That is the exact defect `NnSchedule` was written up for: a component whose
+// colours were computed against a surface it does not itself carry, which looks right until
+// the day somebody moves it. The band and its ink travel together, in `club.css`.
+//
+// **Never white on the green**, which is 3.50:1 and fails AA for body text. The temptation is
+// real because white-on-green is what most club websites do; this one may not.
+//
+// ## Outside `<main>`, which is what makes it the one `contentinfo`
+//
+// A `<footer>` inside `main`, `article`, `aside`, `nav` or `section` is generic rather than a
+// landmark. `ClubBase.astro` renders this after `</main>` so there is exactly one, which is
+// also what lets a page carry its own closing `<footer>` without competing with it.
+//
+// ## Where the facts come from
+//
+// `club.json`, parsed here rather than trusted: a malformed file fails the build with the
+// path to the key, instead of rendering `undefined` into the one element that is on every
+// page. See `club-content.ts` for why the schema lives in `@src/shared` and the data does not.
+//
+// **The social row is `SOCIAL_LINKS`**, the same four profiles and the same artwork the money
+// pages' footer renders — the club has one set of accounts, and a second list is a second
+// thing to get wrong. Icons rather than words, matching the old site: the `aria-label` on each
+// link carries the name and the `<svg>` is `aria-hidden`, so each is announced once.
+//
+// ## What is deliberately not here yet
+//
+// The contact address and the club policy links, because both come from `links.json` and that
+// file lands with the pages that need it. The footer's grid is `auto-fit` rather than a column
+// count precisely so that adding them is an edit to the markup and not to the layout.
+
+const { legalName, affiliation, meet } = parseClub(club);
+
+// ⚠️ **Joined here rather than written as `{meet.city} {meet.postcode}` in the markup, and
+// this is not a style preference.** Prettier reflowed that pair onto two lines, and Astro
+// compresses the newline between two expressions to **nothing** — so the built page read
+// `BristolBS3 1DB`. It looks correct in the source, the formatter is behaving as designed,
+// and no test that checks for `BS3 1DB` alone would ever see it.
+//
+// One expression cannot be split, so the space is safe from any future reflow. This is the
+// same trap `SITE_BANNER` is split into three strings to survive, one element along.
+const town = `${meet.city} ${meet.postcode}`;
+---
+
+<footer class="club-footer">
+  <div class="club-wrap club-footer-grid">
+    <div>
+      {
+        /* `labelled` is left on here, unlike in the header: this mark is not inside a link
+        that already names the club, so it carries its own accessible name. */
+      }
+      <ClubLogo class="club-footer-mark" width={150} />
+      <p class="club-footer-small">
+        {legalName}<br />{affiliation}
+      </p>
+    </div>
+
+    <div>
+      <h2>Come and run</h2>
+      <p>
+        {meet.days}<br />{meet.time}<br />{meet.venue},<br />{town}
+      </p>
+      <p><a href={meet.mapUrl}>Open in maps</a></p>
+    </div>
+
+    <div>
+      <h2>Follow the club</h2>
+      <ul class="club-footer-social">
+        {
+          SOCIAL_LINKS.map((link) => (
+            <li>
+              <a href={link.href} aria-label={link.name}>
+                <svg
+                  viewBox={SOCIAL_ICON_VIEWBOX}
+                  width="24"
+                  height="24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d={link.d} fill="currentColor" />
+                </svg>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      {
+        /* **On every page rather than only the pages that collect something.** A notice is
+          only a notice if it can be found without already knowing it exists, and the person
+          deciding whether to create an account is exactly the person who has filled nothing
+          in yet. The money pages' footer carries the same link for the same reason. */
+      }
+      <p class="club-footer-small"><a href="/privacy/">Privacy notice</a></p>
+    </div>
+  </div>
+</footer>

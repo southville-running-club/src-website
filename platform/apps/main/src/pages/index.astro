@@ -1,14 +1,20 @@
 ---
-import Base from '../layouts/Base.astro';
+import ClubBase from '../layouts/ClubBase.astro';
 
-// The root of `new.southvillerunningclub.co.uk` — the front door the club website will
-// eventually be, and for now a holding page that says so.
+// The root of `new.southvillerunningclub.co.uk`.
 //
-// It states no date. When the new site replaces the old one is a committee decision and
-// [a factual claim not to be invented](../../../../docs/architecture/principles.md#stop-and-ask).
+// ⚠️ **The chrome here is Direction A and the copy is still the holding page's**, which is a
+// deliberate half-step rather than an oversight. This change is the club's header, footer,
+// palette and type — a diff two volunteers can read as one thing — and moving one page onto it
+// is what makes it reviewable at all. The Direction A home page, with its hero, its facts
+// strip and its "Coming up" cards, replaces everything below in the next change, along with
+// the five pages the bar already links to.
+//
+// It states no date for the cutover. When the new site replaces the old one is a committee
+// decision and [a factual claim not to be invented](../../../../docs/architecture/principles.md#stop-and-ask).
 ---
 
-<Base
+<ClubBase
   title="Southville Running Club — a new website is on the way"
   description="The club's new website, being built around race sign-ups and race timing."
 >
@@ -18,36 +24,36 @@ import Base from '../layouts/Base.astro';
       site that is nervous. The page still needs an h1 — dropping it outright is an
       accessibility failure, not a tidy-up. */
   }
-  <h1>Southville Running Club</h1>
+  <div class="club-wrap">
+    <h1>Southville Running Club</h1>
 
-  <p class="lede">The club's new website is being built here, a piece at a time.</p>
+    <p class="club-lede">
+      The club's new website is being built here, a piece at a time.
+    </p>
 
-  <p>Two parts of it are already here:</p>
+    <p>Two parts of it are already here:</p>
 
-  <ul>
-    <li>
-      <a href="/nn/"><strong>Nightingale Nightmare</strong></a> — the race, and its sign-up
-    </li>
+    <ul>
+      <li>
+        <a href="/nn/"><strong>Nightingale Nightmare</strong></a> — the race, and its sign-up
+      </li>
+      {
+        /* **No link to `/timing`**, since 11 September 2026. It is staff-only now and
+        answers 404 to everybody else, so linking it from the club's front page would send
+        a runner to a page that says there is nothing there. Race results, when there are
+        some to show, belong on the race's own year page. */
+      }
+    </ul>
+
     {
-      /* **No link to `/timing`**, since 11 September 2026. It is staff-only now and
-      answers 404 to everybody else, so linking it from the club's front page would send
-      a runner to a page that says there is nothing there. Race results, when there are
-      some to show, belong on the race's own year page. */
+      /* What was here before — "nothing that is already working will move" — was true of
+        the paths and false of the address, which is the only part a member sees. The whole
+        site moves to southvillerunningclub.co.uk at the cutover. Saying otherwise is a
+        promise the club would have to break. */
     }
-  </ul>
-
-  {
-    /* What was here before — "nothing that is already working will move" — was true of
-      the paths and false of the address, which is the only part a member sees. The whole
-      site moves to southvillerunningclub.co.uk at the cutover. Saying otherwise is a
-      promise the club would have to break. */
-  }
-  <p>
-    The rest of the club's website will be added here as it is built. When it is all here,
-    this becomes the club's main website.
-  </p>
-
-  <footer>
-    <p>Southville Running Club.</p>
-  </footer>
-</Base>
+    <p>
+      The rest of the club's website will be added here as it is built. When it is all
+      here, this becomes the club's main website.
+    </p>
+  </div>
+</ClubBase>

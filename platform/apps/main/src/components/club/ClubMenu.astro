@@ -1,0 +1,47 @@
+---
+import { CLUB_CTA, CLUB_NAV } from '@src/shared/club-nav';
+
+// The club bar on a narrow screen: one control that opens the same six links.
+//
+// **A `<details>`, so it opens and closes with JavaScript disabled.** Every spec in this suite
+// runs in a `no-javascript` project, so a scripted disclosure would simply not open there —
+// and it is where it matters most, because most of the people reading this are on a phone,
+// often outdoors on poor signal, where a script is the thing most likely not to have arrived.
+//
+// ⚠️ **A `<summary>` styled as a button, not a `<button>` inside one.** The summary *is* the
+// control: it is focusable, it responds to Enter and Space, and the browser manages its
+// expanded state without an `aria-expanded` for anybody to keep in step. Putting a real
+// `<button>` inside a `<summary>` gives the keyboard two stops for one control and the
+// accessibility tree a button inside a button.
+//
+// **Its own `<nav>` with its own label.** A page may have more than one navigation landmark
+// and a screen reader offers them by name, so this cannot be called the same thing as the
+// desktop bar next door — `NnNav` and `SiteNav` are labelled apart for the same reason. Only
+// one of the two is ever rendered at a width, but both are in the DOM at every width, which
+// is what makes the label mandatory rather than tidy.
+//
+// **The call to action is repeated at the foot of the panel**, full width, because on a phone
+// the header's own copy of it is the first thing that runs out of room.
+
+const pathname = Astro.url.pathname;
+---
+
+<details class="club-menu">
+  <summary class="club-btn club-btn-secondary">Menu</summary>
+
+  <nav aria-label="Southville Running Club, menu">
+    <ul>
+      {
+        CLUB_NAV.map(({ href, label, match }) => (
+          <li>
+            <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
+              {label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <a class="club-btn club-btn-primary" href={CLUB_CTA.href}>{CLUB_CTA.label}</a>
+  </nav>
+</details>

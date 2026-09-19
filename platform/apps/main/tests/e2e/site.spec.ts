@@ -53,7 +53,12 @@ test.describe('the banner that says which site this is', () => {
   // link with no idea the club has two sites, and a test that only covered `/` would pass
   // while that page was a dead end.
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
   ] as const) {
     test(`${name} says it is unfinished and links to the club website`, async ({
@@ -138,7 +143,12 @@ test.describe('the club wordmark', () => {
   // is inline `<svg>` filled with `currentColor` now, and these tests are what stop it
   // quietly going back to a colour of its own.
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['the brand page', '/brand/'],
     ['race timing', '/timing'],
   ] as const) {
@@ -288,7 +298,11 @@ test.describe('the bar between the parts of this site', () => {
   ] as const;
 
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
     ['the privacy notice', '/privacy/'],
   ] as const) {
     test(`${name} offers every part of the site`, async ({ page }) => {
@@ -315,8 +329,13 @@ test.describe('the bar between the parts of this site', () => {
     // they are, and without the attribute nobody else is told at all.
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
 
-    await page.goto('/');
-    await expect(nav.locator('[aria-current="page"]')).toHaveText('Home');
+    // ⚠️ **This used to mark `Home` on `/`, and `/` is on the club's chrome now** — ADR-048,
+    // where there is no "Home" item at all: the wordmark is the Home link and carries
+    // `aria-current` itself, which `club-chrome.spec.ts` asserts. `/events/` still renders
+    // this bar, so it is what proves the marking mechanism here rather than the label.
+    // **Put `/` and `Home` back** in the change that moves the money pages across.
+    await page.goto('/events/');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Events');
   });
 
   test.describe('the Events submenu', () => {
@@ -331,7 +350,10 @@ test.describe('the bar between the parts of this site', () => {
      */
 
     test('is a real link to a real page, not a menu button', async ({ page }) => {
-      await page.goto('/');
+      // ⚠️ `/privacy/` rather than `/` until after the race — see ADR-048. Every test in this
+      // describe used the home page, which is on the club's chrome now and has no `.site-nav`
+      // at all. **Put `/` back** when the money pages move across.
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
 
@@ -344,7 +366,7 @@ test.describe('the bar between the parts of this site', () => {
 
     test('opens on hover, and on keyboard focus of the parent', async ({ page }) => {
       await page.setViewportSize({ width: 1100, height: 800 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
       const parent = nav.getByRole('link', { name: 'Events', exact: true });
@@ -371,7 +393,7 @@ test.describe('the bar between the parts of this site', () => {
       page,
     }) => {
       await page.setViewportSize({ width: 320, height: 720 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
 
@@ -385,7 +407,7 @@ test.describe('the bar between the parts of this site', () => {
 
     test('does not make the page scroll sideways when it is open', async ({ page }) => {
       await page.setViewportSize({ width: 800, height: 800 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       await page
         .getByRole('navigation', { name: 'Southville Running Club' })
@@ -404,7 +426,9 @@ test.describe('the bar between the parts of this site', () => {
     }) => {
       // One is Astro and one is a template literal in a Worker; they share `SITE_NAV` rather
       // than a component, so this is what catches one of them being edited alone.
-      for (const path of ['/', '/account/sign-in/']) {
+      // ⚠️ `/privacy/` for the Astro side until after the race — see ADR-048. Both renderings
+      // of `SITE_NAV` are still live and still must not drift; only the sample page moved.
+      for (const path of ['/privacy/', '/account/sign-in/']) {
         await page.setViewportSize({ width: 1100, height: 800 });
         await page.goto(path);
 
@@ -446,7 +470,12 @@ test.describe('the footer the whole site carries', () => {
   const PROFILES = ['Instagram', 'Facebook', 'X', 'TikTok'] as const;
 
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
     ['race timing', '/timing'],
   ] as const) {
@@ -497,7 +526,11 @@ test.describe('the footer the whole site carries', () => {
         .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
     };
 
-    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/'));
+    // ⚠️ `/privacy/` rather than `/` until after the race — see ADR-048. The club's own pages
+    // render `ClubFooter` from the same `SOCIAL_LINKS`, asserted in `club-chrome.spec.ts`;
+    // this one is about the two *old* renderings staying in step. **Put `/` back** when the
+    // money pages move across and there is one footer again.
+    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/privacy/'));
   });
 });
 

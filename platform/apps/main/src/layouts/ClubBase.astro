@@ -1,0 +1,95 @@
+---
+// One stylesheet for the club's own pages, and it is deliberately not `base.css`.
+//
+// See the head of `club.css` for the full argument. In short: `base.css` and `tokens.css` are
+// rendered by every page that takes or handles money, those pages are frozen until after
+// Nightingale Nightmare on 1 November 2026, and repainting the club by editing the tokens they
+// read would have repainted the entry form and the admin tables in the same commit.
+//
+// ⚠️ **`club.css` imports nothing and `base.css` is not imported here.** A club page loads one
+// stylesheet; a money page loads the other. `build.inlineStylesheets: 'never'` means each is a
+// real `/_astro/*.css` file, so neither is shipped to a page that does not use it. If you find
+// yourself adding `import '@src/shared/styles/base.css'` to this file to get one rule, copy
+// the rule instead — that import puts the money pages' palette on the club's pages and the
+// club's on nothing, and every `--colour-*` name would then resolve to a value from a file
+// nobody may edit until November.
+import '@src/shared/styles/club.css';
+import ClubFooter from '../components/club/ClubFooter.astro';
+import ClubHeader from '../components/club/ClubHeader.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  /** The address this page should be indexed under, when it has two. */
+  canonical?: string;
+}
+
+// The club website's layout — `/` and the pages built alongside it.
+//
+// **`Base.astro` is this file's opposite number and is untouched.** It serves fourteen pages,
+// nine of them frozen, so the club pages get their own layout rather than a prop on that one.
+// The two will be reconciled after the race, when the money pages move onto this chrome.
+//
+// ## The order of the three elements is load-bearing
+//
+// `<header>` **before** `<main>`, because the skip link points at `#main`: a navigation
+// rendered inside `main` would put the links after the thing the skip link exists to skip.
+// It is also what makes `<header>` map to the `banner` landmark at all — it does so only when
+// it is *not* inside `main`, `article`, `aside`, `nav` or `section`.
+//
+// `<footer>` **after** `</main>` for the mirror reason: that is what makes it the page's one
+// `contentinfo`, and what lets a page carry its own closing `<footer>` inside `<main>` without
+// competing with it.
+//
+// ## What this head deliberately keeps from `Base.astro`
+//
+// **`viewport-fit=cover`**, without which `env(safe-area-inset-*)` resolves to 0 on every
+// notched iPhone — correct in a headless browser and wrong on the device, which is the worst
+// combination because no test can see it.
+//
+// **The favicon link**, pointing at the one `/favicon.svg` every front door uses.
+// `site.spec.ts` asserts exactly one `<link rel="icon">` on the pages it checks, and that
+// assertion is what stops a second one appearing here.
+//
+// **`noindex`.** Nothing on this subdomain is indexed until the Squarespace cutover, which is
+// a separate decision. A club page that looks finished is exactly the page somebody would
+// quietly drop this from.
+//
+// ## What it deliberately drops
+//
+// **`<meta name="theme-color">`.** `Base.astro` sets `#00c85a`, the timing app's brand green,
+// which is not this surface's colour. Setting `#209D50` here would be right for these pages
+// and would leave two different theme colours on one hostname; leaving it out means the
+// browser picks its own, which is what it did before that tag was added. It goes back in,
+// once, when the two surfaces are reconciled after the race.
+
+const { title, description, canonical } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {canonical && <link rel="canonical" href={canonical} />}
+    {/* Nothing here is finished, and none of it should be found in a search yet. */}
+    <meta name="robots" content="noindex" />
+  </head>
+  <body>
+    <a class="club-skip" href="#main">Skip to content</a>
+
+    <ClubHeader />
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <ClubFooter />
+  </body>
+</html>
