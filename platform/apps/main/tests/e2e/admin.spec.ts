@@ -1425,7 +1425,18 @@ test.describe('people and roles', () => {
    */
   test('asks for the name to be typed before making somebody a super admin', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // ⚠️ **The scripting-off path, and it has to be scoped to that project.** With the
+    // enhancement running, this link opens a `<dialog>` instead of navigating and the confirm
+    // button is disabled until the name matches — so neither the address nor the wrong-name
+    // submit below can happen at all. That is the enhancement behaving correctly, and it is
+    // covered by its own test; this one is the address it layers over, which is the whole of
+    // what somebody with scripting off gets.
+    test.skip(
+      testInfo.project.name !== 'no-javascript',
+      'the dialog replaces this flow wherever scripting runs',
+    );
+
     await signInAs(page, SUPER_ADMIN_EMAIL);
     await page.goto(PEOPLE);
     await choose(page, REGISTERED_EMAIL);
@@ -1507,6 +1518,117 @@ test.describe('people and roles', () => {
       await expect(page).not.toHaveURL(/[?&]person=/);
     });
   }
+
+  /**
+   * The enhancement, and the fact that it only decorates.
+   *
+   * Everything asserted above runs in the `no-javascript` project too, which is the claim that
+   * matters. These four are the things that exist *only* with scripting, and each is checked
+   * against the page still being correct without it.
+   */
+  test('tags a flipped switch and offers to undo it @requires-js', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    const bar = page.getByRole('region', { name: 'Unsaved changes' });
+    await expect(bar).toContainText('Nothing is saved until you press Save');
+
+    await page.getByRole('switch', { name: /nn-admin/ }).check();
+
+    // The tag on the row, and the pill in the bar, both naming the same change in the same
+    // words — the row's `data-pending-label` is where both get it from.
+    await expect(bar).toContainText('1 unsaved change');
+    await expect(bar).toContainText('+ NN admin');
+
+    await page.getByRole('switch', { name: /timing-marshal/ }).check();
+    await expect(bar).toContainText('2 unsaved changes');
+
+    // Undo is per change and names the change it undoes — there is one of these per pill, and
+    // a bare cross announces nothing.
+    await page.getByRole('button', { name: 'Undo adding Timing marshal' }).click();
+    await expect(bar).toContainText('1 unsaved change');
+    await expect(page.getByRole('switch', { name: /timing-marshal/ })).not.toBeChecked();
+
+    // ⚠️ **Nothing has been saved by any of that.** The bar is a description of what a Save
+    // would do, and a reload is what proves it — the server never heard about it.
+    await page.reload();
+    await expect(page.getByRole('switch', { name: /nn-admin/ })).not.toBeChecked();
+    await expect(page.getByRole('region', { name: 'Unsaved changes' })).toContainText(
+      'Nothing is saved until you press Save',
+    );
+  });
+
+  test('discards every pending change without saving one @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    await page.getByRole('switch', { name: /nn-admin/ }).check();
+    await page.getByRole('switch', { name: /nn-results/ }).check();
+
+    await page.getByRole('link', { name: 'Discard' }).click();
+
+    await expect(page.getByRole('switch', { name: /nn-admin/ })).not.toBeChecked();
+    await expect(page.getByRole('switch', { name: /nn-results/ })).not.toBeChecked();
+
+    // ⚠️ **And Discard put nothing in the address bar.** It was a `formmethod="get"` submit
+    // once, which serialises every field in the form — the CSRF token included — into the
+    // query string, and from there into history and any `Referer` this page sends.
+    expect(page.url()).not.toContain(CSRF_FIELD);
+    expect(page.url()).not.toContain('role=');
+  });
+
+  test('opens the super-admin confirmation as a dialog, and gives focus back @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    const opener = page.getByRole('link', { name: /Make super admin/ });
+    await opener.click();
+
+    // A dialog rather than a navigation — the address has not moved.
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(page).not.toHaveURL(/confirm=super/);
+
+    const confirm = dialog.getByRole('button', { name: 'Make super admin' });
+    const typed = dialog.getByLabel(/to confirm/);
+
+    // **Disabled until the name matches**, and the match is trimmed and case-insensitive
+    // because the box exists to make somebody read the sentence above it.
+    await expect(confirm).toBeDisabled();
+    await typed.fill('not the right name');
+    await expect(confirm).toBeDisabled();
+    await typed.fill(`  ${REGISTERED_EMAIL.toUpperCase()}  `);
+    await expect(confirm).toBeEnabled();
+
+    // Esc closes it, and focus goes back to what opened it rather than to the top of the page.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+
+    // And nothing was changed by opening it.
+    await page.reload();
+    await expect(page.getByRole('link', { name: /Make super admin/ })).toBeVisible();
+  });
+
+  test('has no axe violations with the dialog open @requires-js', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    // A pending change as well, so the pills and their undo buttons are on the page too.
+    await page.getByRole('switch', { name: /nn-admin/ }).check();
+    await page.getByRole('link', { name: /Make super admin/ }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    expect(await axeViolations(page)).toEqual([]);
+  });
 
   test('does not scroll sideways at any width, on either view', async ({ page }) => {
     await signInAs(page, SUPER_ADMIN_EMAIL);

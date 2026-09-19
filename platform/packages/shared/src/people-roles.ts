@@ -161,12 +161,23 @@ export function sameRoles(a: string[], b: string[]): boolean {
  * exactly where it is least able to be checked.
  */
 export function typedNameMatches(typed: string, expected: string | null): boolean {
-  const wanted = collapse(expected ?? '');
+  const wanted = normaliseTypedName(expected ?? '');
   if (wanted === '') return false;
-  return collapse(typed) === wanted;
+  return normaliseTypedName(typed) === wanted;
 }
 
-function collapse(value: string): string {
+/**
+ * The normalisation both sides of that comparison go through.
+ *
+ * ⚠️ **Exported because the browser has to agree with it.** `/admin/people/` enables its
+ * confirm button as somebody types, and there is no bundler reaching a Worker-rendered page —
+ * so the enhancement carries its own copy of this one line, and the server hands it the
+ * *expected* value already normalised so only the typed side is done twice. That is the whole
+ * of the duplication and it is deliberate; `people-roles.test.ts` pins the contract both must
+ * meet. If this rule ever grows past one line, it stops being worth duplicating and the
+ * button should stop being disabled instead.
+ */
+export function normaliseTypedName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 

@@ -10,6 +10,7 @@ import {
   initialsFor,
   isUuid,
   matchesSearch,
+  normaliseTypedName,
   parsePeopleQuery,
   peopleHref,
   pendingLabel,
@@ -920,7 +921,7 @@ function roleForm(person: Person, model: PageModel, supers: number): Html {
   const diff = roleDiff(person.roles, checkedNow);
   const pendingCount = diff.added.length + diff.removed.length;
 
-  return html`<form method="post" action="${HERE}" class="admin-role-form">
+  return html`<form method="post" action="${HERE}" class="admin-role-form" data-role-form>
       <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
       <input type="hidden" name="action" value="save" />
       <input type="hidden" name="person" value="${person.id}" />
@@ -933,10 +934,11 @@ function roleForm(person: Person, model: PageModel, supers: number): Html {
         ${ROLE_GROUPS.map((group) => groupCard(group, model, checkedNow, person))}
       </div>
 
-      ${unsavedBar(diff, pendingCount)}
+      ${unsavedBar(diff, pendingCount, peopleHref(HERE, { ...model.query, person: person.id, saved: false, confirming: false }))}
     </form>
 
-    ${superPanel(person, model, supers)}`;
+    ${superPanel(person, model, supers)} ${superDialog(model, person, supers)}
+    ${enhancement()}`;
 }
 
 function groupCard(
@@ -976,8 +978,14 @@ function switchRow(role: GrantableRole, checked: string[], person: Person): Html
   const on = checked.includes(role.slug);
   const was = person.roles.includes(role.slug);
 
+  // **The pill's word comes from here rather than from the browser.** The enhancement builds
+  // "+ NN results" out of this attribute instead of deriving it again — the rule
+  // `outboxAttemptsWords()` established when two admin pages called one `attempts` row "3
+  // attempts" and "Failed after 3 tries". Sharing the conditional stops a surface re-deriving
+  // it; sharing the **noun** stops a third surface picking a third word.
   return html`<div
     class="${on !== was ? 'admin-switch-row admin-switch-changed' : 'admin-switch-row'}"
+    data-pending-label="${pendingLabel(role.slug)}"
   >
     <input
       type="checkbox"
@@ -989,9 +997,13 @@ function switchRow(role: GrantableRole, checked: string[], person: Person): Html
       ${on ? raw('checked') : null}
     />
     <label for="${id}">
-      <span class="admin-switch-name">
+      <span class="admin-switch-name" data-switch-name>
         ${roleLabel(role.slug)}
-        ${on !== was ? html`<span class="admin-tag-pending">Unsaved</span>` : null}
+        ${
+          on !== was
+            ? html`<span class="admin-tag-pending" data-pending-tag>Unsaved</span>`
+            : null
+        }
       </span>
       <span class="admin-switch-desc">${role.description}</span>
       <span class="admin-switch-key admin-mono">${role.slug}</span>
@@ -1007,9 +1019,20 @@ function switchRow(role: GrantableRole, checked: string[], person: Person): Html
  * — so `aria-live` is what makes the enhanced version announce a change rather than the region
  * re-reading itself.
  */
-function unsavedBar(diff: { added: string[]; removed: string[] }, count: number): Html {
-  return html`<div class="admin-unsaved" role="region" aria-label="Unsaved changes">
-    <p class="admin-unsaved-count" aria-live="polite">
+function unsavedBar(
+  diff: { added: string[]; removed: string[] },
+  count: number,
+  discardHref: string,
+): Html {
+  return html`<div
+    class="admin-unsaved"
+    role="region"
+    aria-label="Unsaved changes"
+    data-unsaved
+    data-one="unsaved change"
+    data-many="unsaved changes"
+  >
+    <p class="admin-unsaved-count" aria-live="polite" data-unsaved-count>
       ${
         count === 0
           ? html`<span class="admin-quiet"
@@ -1021,29 +1044,23 @@ function unsavedBar(diff: { added: string[]; removed: string[] }, count: number)
             >`
       }
     </p>
-    ${
-      count === 0
-        ? null
-        : html`<ul class="admin-unsaved-pills">
-            ${diff.added.map(
-              (role) => html`<li class="admin-pill-pending">+ ${pendingLabel(role)}</li>`,
-            )}
-            ${diff.removed.map(
-              (role) => html`<li class="admin-pill-pending">− ${pendingLabel(role)}</li>`,
-            )}
-          </ul>`
-    }
+    <ul class="admin-unsaved-pills" data-unsaved-pills>
+      ${diff.added.map(
+        (role) => html`<li class="admin-pill-pending">+ ${pendingLabel(role)}</li>`,
+      )}
+      ${diff.removed.map(
+        (role) => html`<li class="admin-pill-pending">− ${pendingLabel(role)}</li>`,
+      )}
+    </ul>
     <div class="admin-unsaved-actions">
-      <button
-        type="submit"
-        class="admin-button admin-button-quiet"
-        name="discard"
-        value="1"
-        formmethod="get"
-        formaction="${HERE}"
-      >
-        Discard
-      </button>
+      ${
+        /* ⚠️ **A link, not a submit with `formmethod="get"`.** That was the first shape of this
+           control and it is a disclosure: a GET submit serialises *every* field in the form
+           into the query string — the CSRF token included — so the token would land in the
+           address bar, in the browser's history and in any `Referer` this page sent. Re-reading
+           the person from the database is what discarding means anyway. */ null
+      }
+      <a class="admin-button admin-button-quiet" href="${discardHref}">Discard</a>
       <button type="submit" class="admin-button">Save changes</button>
     </div>
   </div>`;
@@ -1081,6 +1098,7 @@ function superPanel(person: Person, model: PageModel, supers: number): Html {
         : html`<a
             class="admin-button admin-button-grave"
             href="${peopleHref(HERE, { ...model.query, person: person.id, saved: false, confirming: true })}"
+            data-super-open
             >${isSuper ? 'Remove super admin…' : 'Make super admin…'}</a
           >`
     }
@@ -1120,7 +1138,28 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
   }
 
   return html`<section class="admin-confirm" aria-labelledby="confirm-title">
-    <p class="admin-eyebrow admin-confirm-eyebrow">Full control</p>
+    ${confirmBody(model, person, isSuper, back)}
+  </section>`;
+}
+
+/**
+ * The confirmation itself, rendered into two containers and written once.
+ *
+ * Without scripting it is a `<section>` on its own address; with scripting it is the body of a
+ * `<dialog>` on the person's own screen. **The two are never on one page** — `peopleBody`
+ * branches — so the ids below cannot collide, and the form is identical in both, which is what
+ * makes the dialog removable rather than a second implementation of the same act.
+ */
+function confirmBody(
+  model: PageModel,
+  person: Person,
+  isSuper: boolean,
+  cancelHref: string,
+): Html {
+  const name = displayName(person);
+  const first = firstName(person);
+
+  return html`<p class="admin-eyebrow admin-confirm-eyebrow">Full control</p>
     <h2 id="confirm-title">
       ${isSuper ? html`Remove ${first} as super admin?` : html`Make ${first} a super admin?`}
     </h2>
@@ -1147,6 +1186,12 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
       <label for="confirm-name">
         Type <span class="admin-mono">${name}</span> to confirm
       </label>
+      ${
+        /* **`data-expect` is the expected name already normalised by the server.** The
+           enhancement compares against it so only the *typed* side is normalised in the
+           browser — see `normaliseTypedName`, which is the authority and says why that one
+           line is duplicated. The server checks the real thing either way. */ null
+      }
       <input
         id="confirm-name"
         type="text"
@@ -1156,16 +1201,48 @@ function confirmView(model: PageModel, person: Person, supers: number): Html {
         autocapitalize="off"
         spellcheck="false"
         aria-describedby="confirm-detail"
+        data-confirm-input
+        data-expect="${normaliseTypedName(name)}"
         required
       />
       <div class="admin-actions">
-        <a class="admin-button admin-button-quiet" href="${back}">Cancel</a>
-        <button type="submit" class="admin-button admin-button-grave">
+        <a class="admin-button admin-button-quiet" href="${cancelHref}" data-super-cancel
+          >Cancel</a
+        >
+        <button type="submit" class="admin-button admin-button-grave" data-confirm-submit>
           ${isSuper ? 'Remove super admin' : 'Make super admin'}
         </button>
       </div>
-    </form>
-  </section>`;
+    </form>`;
+}
+
+/**
+ * The same confirmation as a modal, for a browser that can run the script.
+ *
+ * **Closed by default and `display: none` until `showModal()`**, so with scripting off it is
+ * not reachable at all and the link beside it goes to the address instead. Focus trapping and
+ * Esc are the element's own; returning focus to the opener is the one part that is not, and
+ * the script does it on `close`.
+ */
+function superDialog(model: PageModel, person: Person, supers: number): Html {
+  const isSuper = person.roles.includes('super-admin');
+  if (isSuper && supers <= 1) return html``;
+
+  const back = peopleHref(HERE, {
+    ...model.query,
+    person: person.id,
+    confirming: false,
+    saved: false,
+  });
+
+  return html`<dialog
+    class="admin-confirm admin-dialog"
+    data-super-dialog
+    aria-labelledby="confirm-title"
+    aria-describedby="confirm-detail"
+  >
+    ${confirmBody(model, person, isSuper, back)}
+  </dialog>`;
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1254,6 +1331,181 @@ function roleCard(role: GrantableRole, model: PageModel): Html {
 }
 
 // -----------------------------------------------------------------------------------------
+
+/**
+ * The enhancement, and the four things it is allowed to do.
+ *
+ * **The server stays the source of truth for every one of them.** This adds the "Unsaved" tag,
+ * the pending pills and their undo, the `<dialog>`, and enabling the confirm button as somebody
+ * types. Take the whole thing away and the page still grants and revokes roles — which is the
+ * property every spec in the `no-javascript` project is asserting.
+ *
+ * ## Why it re-derives almost nothing
+ *
+ * **Whether a switch has changed is `checked !== defaultChecked`.** `defaultChecked` *is* the
+ * `checked` attribute the server sent, so the browser reads the stored state out of the DOM
+ * rather than computing a diff of its own. That is what keeps `roleDiff()` the only
+ * implementation: a second one in here is exactly how pending state comes to disagree with what
+ * a save actually did.
+ *
+ * **The words come from the markup too.** Each row carries `data-pending-label` — "NN results" —
+ * and the bar carries the singular and plural nouns. That is `outboxAttemptsWords()`'s rule:
+ * sharing the conditional stops a surface re-deriving it, and sharing the *noun* stops a third
+ * surface picking a third word.
+ *
+ * ⚠️ **One line is duplicated and it is the name normaliser.** There is no bundler reaching a
+ * Worker-rendered page — `account.ts` carries the only other inline script here for the same
+ * reason — so the trimming-and-lower-casing rule exists once in `normaliseTypedName` and once
+ * below. The *expected* value arrives already normalised in `data-expect`, so only the typed
+ * side is done twice, and `people-roles.test.ts` pins the contract both have to meet. If that
+ * rule ever grows past one line it stops being worth duplicating, and the button should stop
+ * being disabled instead.
+ */
+function enhancement(): Html {
+  return html`<script>
+    ${raw(ENHANCEMENT)};
+  </script>`;
+}
+
+const ENHANCEMENT = `
+(function () {
+  var form = document.querySelector('[data-role-form]');
+
+  if (form) {
+    var bar = form.querySelector('[data-unsaved]');
+    var countEl = bar.querySelector('[data-unsaved-count]');
+    var pills = bar.querySelector('[data-unsaved-pills]');
+    var one = bar.getAttribute('data-one') || 'change';
+    var many = bar.getAttribute('data-many') || 'changes';
+    var rows = Array.prototype.slice.call(form.querySelectorAll('[data-pending-label]'));
+
+    var draw = function () {
+      var changed = [];
+
+      rows.forEach(function (row) {
+        var box = row.querySelector('input[type="checkbox"]');
+        if (!box) return;
+
+        var isChanged = box.checked !== box.defaultChecked;
+        row.classList.toggle('admin-switch-changed', isChanged);
+
+        var tag = row.querySelector('[data-pending-tag]');
+        if (isChanged && !tag) {
+          tag = document.createElement('span');
+          tag.className = 'admin-tag-pending';
+          tag.setAttribute('data-pending-tag', '');
+          tag.textContent = 'Unsaved';
+          var name = row.querySelector('[data-switch-name]');
+          if (name) name.appendChild(tag);
+        } else if (!isChanged && tag) {
+          tag.remove();
+        }
+
+        if (isChanged) {
+          changed.push({
+            box: box,
+            added: box.checked,
+            label: row.getAttribute('data-pending-label') || '',
+          });
+        }
+      });
+
+      pills.textContent = '';
+      changed.forEach(function (change) {
+        var item = document.createElement('li');
+        item.className = 'admin-pill-pending';
+        item.appendChild(
+          document.createTextNode((change.added ? '+ ' : '\\u2212 ') + change.label)
+        );
+
+        var undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'admin-pill-undo';
+        undo.setAttribute(
+          'aria-label',
+          'Undo ' + (change.added ? 'adding ' : 'removing ') + change.label
+        );
+        undo.textContent = '\\u00d7';
+        undo.addEventListener('click', function () {
+          change.box.checked = change.box.defaultChecked;
+          draw();
+          change.box.focus();
+        });
+
+        item.appendChild(undo);
+        pills.appendChild(item);
+      });
+
+      countEl.textContent = '';
+      if (changed.length === 0) {
+        var quiet = document.createElement('span');
+        quiet.className = 'admin-quiet';
+        quiet.textContent =
+          'Flip a switch to change a role. Nothing is saved until you press Save.';
+        countEl.appendChild(quiet);
+      } else {
+        var strong = document.createElement('strong');
+        strong.textContent =
+          String(changed.length) + ' ' + (changed.length === 1 ? one : many);
+        countEl.appendChild(strong);
+      }
+    };
+
+    form.addEventListener('change', function (event) {
+      var target = event.target;
+      if (target && target.type === 'checkbox') draw();
+    });
+
+    draw();
+  }
+
+  var opener = document.querySelector('[data-super-open]');
+  var dialog = document.querySelector('[data-super-dialog]');
+
+  if (opener && dialog && typeof dialog.showModal === 'function') {
+    opener.addEventListener('click', function (event) {
+      event.preventDefault();
+      dialog.showModal();
+      var first = dialog.querySelector('[data-confirm-input]');
+      if (first) first.focus();
+    });
+
+    // Focus back to what opened it. Trapping and Esc are the element's own.
+    dialog.addEventListener('close', function () {
+      opener.focus();
+    });
+
+    var cancel = dialog.querySelector('[data-super-cancel]');
+    if (cancel) {
+      cancel.addEventListener('click', function (event) {
+        event.preventDefault();
+        dialog.close();
+      });
+    }
+  }
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll('[data-confirm-input]'),
+    function (input) {
+      var owner = input.form;
+      if (!owner) return;
+      var submit = owner.querySelector('[data-confirm-submit]');
+      if (!submit) return;
+
+      var expected = input.getAttribute('data-expect') || '';
+
+      var check = function () {
+        // The one line duplicated from normaliseTypedName. See the header above.
+        var typed = input.value.trim().replace(/\\s+/g, ' ').toLowerCase();
+        submit.disabled = expected === '' || typed !== expected;
+      };
+
+      input.addEventListener('input', check);
+      check();
+    }
+  );
+})();
+`;
 
 function asText(form: FormData, field: string): string | null {
   const value = form.get(field);

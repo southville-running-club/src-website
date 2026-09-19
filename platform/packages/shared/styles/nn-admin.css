@@ -2383,3 +2383,75 @@ body.admin {
     padding-inline: 0.75rem;
   }
 }
+
+/* ---------------------------------------------------------------------------------------
+ * People and roles: the parts only the enhancement draws
+ * ---------------------------------------------------------------------------------------
+ * A `<dialog>` is `display: none` until `showModal()`, so with scripting off none of this is
+ * reachable and the link beside it goes to the confirmation's own address instead. That is the
+ * whole of why the modal can be layered on rather than built into the flow.
+ */
+
+.admin-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-width: none;
+  margin: auto;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+  color: var(--colour-text);
+}
+
+.admin-dialog::backdrop {
+  /* Not a token: `::backdrop` is a scrim rather than a surface, and it has no text on it to
+     carry. Stated as a channel-less black so it darkens whatever is behind it in both
+     schemes. */
+  background: rgb(0 0 0 / 60%);
+}
+
+/* The undo on a pending pill. 36px of target, and its own accessible name — a bare cross
+   announces nothing, and there is one of these per pending change. */
+.admin-pill-undo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: 0.125rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/*
+ * ⚠️ **Mixed over the background, not over the amber.** The first version of this darkened the
+ * pill by mixing `--colour-text` into `--colour-warning`, which reads fine in the light scheme
+ * and is 1.56:1 in the dark one — `--colour-warning` is deliberately not redefined there, so
+ * the near-white dark-scheme text lands on full amber. Every wash on this surface mixes over a
+ * surface token for that reason, and `admin-contrast.test.ts` refused the other shape.
+ *
+ * 35% is the most amber that still carries text at AAA in the dark scheme — 40% measures
+ * 6.22:1 and 45% measures 5.48:1. The pill under it is 25%, so the hover is still a visible
+ * step.
+ */
+.admin-pill-undo:hover {
+  background: color-mix(in srgb, var(--colour-warning) 35%, var(--colour-background));
+}
+
+/* A pill holding a button needs the button's target inside it rather than beside it. */
+.admin-pill-pending:has(.admin-pill-undo) {
+  padding-right: 0.25rem;
+}
+
+/* The confirm button while the typed name does not match. The label above it says what to
+   type, which is the visible explanation the disabled state needs. */
+.admin-confirm-form .admin-button[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
