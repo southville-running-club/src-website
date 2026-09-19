@@ -1220,86 +1220,127 @@ test.describe('the printable medical sheet', () => {
  * Zod, and a form, are never where a rule lives.
  */
 test.describe('people and roles', () => {
-  test('names the person on every grant and revoke control', async ({ page }) => {
+  /**
+   * Selecting somebody is a link and a query string, so it works with scripting off and a
+   * filtered view is a URL somebody can send to the other volunteer.
+   */
+  async function choose(page: Page, email: string): Promise<void> {
+    await page.getByRole('link').filter({ hasText: email }).first().click();
+    await expect(page).toHaveURL(/[?&]person=[0-9a-f-]{36}/);
+  }
+
+  test('names the role on every switch, and the person once above them', async ({
+    page,
+  }) => {
     await signInAs(page, SUPER_ADMIN_EMAIL);
     await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
 
-    // **#59's requirement, and not a nicety**: without the person in the accessible name a
-    // screen reader meets four buttons all called "Grant" and has to infer from the table which
-    // row it is standing in. The visible label stays short because the column is narrow at
-    // 320px, so the name is carried by a visually hidden span.
+    // **The person is named once, by the heading, rather than on every control.** That is a
+    // change from the old page and not a loosening of 59's requirement: there, four buttons
+    // called "Grant" sat in a table and a screen reader had to infer the row, so each carried
+    // the address in a hidden span. Here every switch belongs to the one person the pane is
+    // about, and repeating the address on eight of them would read it out eight times.
+    await expect(page.getByRole('heading', { name: REGISTERED_EMAIL })).toBeVisible();
+
+    // The role each switch is for is in its own accessible name, which is what distinguishes
+    // the two called "Admin" — `nn-admin` and `timing-admin` — from each other.
+    await expect(page.getByRole('switch', { name: /nn-admin/ })).toBeVisible();
+    await expect(page.getByRole('switch', { name: /timing-admin/ })).toBeVisible();
+
+    // The description beside each is the database's own, never written in the Worker.
     await expect(
-      page.getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: `Grant super-admin for ${REGISTERED_EMAIL}` }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: `Revoke nn-admin for ${NN_ADMIN_EMAIL}` }),
+      page.getByRole('switch', { name: /May read Nightingale Nightmare entries/ }),
     ).toBeVisible();
 
-    // And the other half of the claim: no control anywhere is named by its verb alone.
-    for (const bare of ['Grant', 'Revoke', 'Grant nn-admin', 'Revoke nn-admin']) {
-      await expect(
-        page.getByRole('button', { name: bare, exact: true }),
-        `no button may be called just "${bare}"`,
-      ).toHaveCount(0);
-    }
+    // **No switch for either reserved role.** `registered` is held by everybody and grants
+    // nothing; `super-admin` is never in the batch and has its own confirmed path.
+    await expect(page.getByRole('switch', { name: /registered/ })).toHaveCount(0);
+    await expect(page.getByRole('switch', { name: /super-admin/ })).toHaveCount(0);
   });
 
   test('is a roles page rather than a member list', async ({ page }) => {
     await signInAs(page, SUPER_ADMIN_EMAIL);
     await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
 
-    // **Three columns, and the assertion is about the columns rather than about the values.**
-    // The fixture people have no date of birth or address recorded at all, so asserting that
-    // one is absent from the markup would pass whatever the page did — the vacuous half of the
-    // trap in `CLAUDE.md`. What the page *can* be held to is that it offers nowhere to put one.
-    await expect(page.getByRole('columnheader')).toHaveText([
-      'Person',
-      'Roles',
-      'Change',
-    ]);
+    // **The assertion is about what the page offers, not about the values.** The fixture people
+    // have no date of birth or address recorded at all, so asserting one is absent from the
+    // markup would pass whatever the page did — the vacuous half of the trap in `CLAUDE.md`.
+    // What the page can be held to is that every control on it is a role switch.
+    const switches = page.getByRole('switch');
+    await expect(switches.first()).toBeVisible();
 
-    // **By row rather than by text**, because the address is in three places in that row — the
-    // Person cell, and the hidden half of both of its buttons' names — so `getByText` matches
-    // all three and fails strict mode on a page that is exactly right.
+    for (const field of ['date of birth', 'address', 'phone', 'emergency']) {
+      await expect(
+        page.getByLabel(new RegExp(field, 'i')),
+        `no control for ${field}`,
+      ).toHaveCount(0);
+    }
+  });
+
+  test('shows the three groups, and counts the club from real rows', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+
+    // Counted server-side from the rows rather than written down — a hard-coded figure on a
+    // page about access is a claim somebody acts on.
+    const people = page.getByRole('term').filter({ hasText: 'people' }).first();
+    await expect(people).toBeVisible();
+
+    await choose(page, REGISTERED_EMAIL);
+    for (const group of ['Nightingale Nightmare', 'Race timing', 'Club']) {
+      await expect(page.getByRole('group', { name: group })).toBeVisible();
+    }
+  });
+
+  test('has a second view, by role, that links back to a person', async ({ page }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+
+    await page.getByRole('link', { name: 'By role' }).click();
+    await expect(page).toHaveURL(/view=role/);
+
+    // A card per role, `super-admin` included — "who can do everything" is the first question
+    // somebody opens this view to answer.
+    await expect(page.getByRole('heading', { name: 'Super admin' })).toBeVisible();
+
+    // And `registered` is not a card, for the reason it is not a switch.
     await expect(
-      page.getByRole('row').filter({ hasText: REGISTERED_EMAIL }),
-    ).toBeVisible();
+      page.getByRole('heading', { name: 'registered', exact: true }),
+    ).toHaveCount(0);
+
+    // Clicking a holder opens them in the By person view.
+    await page.getByRole('link').filter({ hasText: SUPER_ADMIN_EMAIL }).first().click();
+    await expect(page).toHaveURL(/[?&]person=/);
+    await expect(page).not.toHaveURL(/view=role/);
   });
 
   test('is the same page with no controls to somebody who may only read it', async ({
     page,
   }) => {
-    // **Two columns rather than three**, which is the whole of `people-admin`. The column is
-    // removed rather than filled with disabled buttons: a disabled control is a thing somebody
-    // keeps trying, and it would still name a person and a role in its accessible name.
     await signInAs(page, PEOPLE_ADMIN_EMAIL);
     await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
 
-    await expect(page.getByRole('columnheader')).toHaveText(['Person', 'Roles']);
+    // **No switch and nothing that posts**, which is the whole of `people-admin`. The controls
+    // are removed rather than disabled: a disabled control is a thing somebody keeps trying.
+    await expect(page.getByRole('switch')).toHaveCount(0);
+    await expect(page.locator('form[method="post"]')).toHaveCount(0);
 
-    // **`locator` rather than `getByRole('button')`**, and that is not a style choice: the
-    // three engines do not agree on what a `<summary>` is in the accessibility tree — the
-    // roles legend above the table is one — so a role query here would assert something about
-    // the browser rather than about the page. The claim is that there is no control, and no
-    // `<button>` and no `<form>` is exactly that claim.
-    await expect(page.locator('button')).toHaveCount(0);
-    await expect(page.locator('form')).toHaveCount(0);
+    // ⚠️ **The search form is still there, and that is deliberate** — searching is reading, and
+    // this role exists to read. The old page asserted no `<form>` at all, which was true of a
+    // page that had no search box rather than a rule about this role.
+    await expect(page.getByRole('searchbox', { name: 'Search people' })).toBeVisible();
 
     // They can still see everybody and what everybody holds — that is what they are for.
     await expect(
-      page.getByRole('row').filter({ hasText: REGISTERED_EMAIL }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('row').filter({ hasText: SUPER_ADMIN_EMAIL }),
-    ).toBeVisible();
+      page.getByRole('link').filter({ hasText: SUPER_ADMIN_EMAIL }),
+    ).not.toHaveCount(0);
 
-    // And the page says which of its two readings this is, rather than leaving a gap that
-    // reads as a table which failed to load. **`toContainText` on `main` rather than
-    // `getByText`**, because the sentence is inside a `<strong>` inside a `<p>` and both
-    // contain it — two matches, and strict mode fails on a page that is exactly right.
+    // And the page says which of its two readings this is, rather than leaving a gap that reads
+    // as a pane which failed to load. `toContainText` on `main` rather than `getByText`,
+    // because the sentence is inside a `<strong>` inside a `<p>` and both contain it.
     await expect(page.getByRole('main')).toContainText(
       'You can see who holds what, and not change it',
     );
@@ -1314,13 +1355,10 @@ test.describe('people and roles', () => {
     expect((await page.goto(NN))?.status(), 'people-admin at the race section').toBe(404);
   });
 
-  test('grants a role that takes effect on the next request, and takes it back', async ({
+  test('saves a batch that takes effect on the next request, and takes it back', async ({
     page,
     browser,
   }) => {
-    // **Two browser contexts, because this is a claim about two people at once**: the member is
-    // signed in throughout and never signs in again, which is what "takes effect on the next
-    // request" means. There is no session to end and nothing for them to do.
     const memberContext = await browser.newContext();
     const memberPage = await memberContext.newPage();
 
@@ -1333,47 +1371,90 @@ test.describe('people and roles', () => {
 
       await signInAs(page, SUPER_ADMIN_EMAIL);
       await page.goto(PEOPLE);
-      await page
-        .getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` })
-        .click();
+      await choose(page, REGISTERED_EMAIL);
 
-      // A 303 back to the list, so a reload does not repeat the act.
-      await expect(page).toHaveURL(/\/admin\/people\/$/);
-      await expect(
-        page.getByRole('button', { name: `Revoke nn-admin for ${REGISTERED_EMAIL}` }),
-      ).toBeVisible();
+      await page.getByRole('switch', { name: /nn-admin/ }).check();
+      await page.getByRole('button', { name: 'Save changes' }).click();
+
+      // POST → 303 → `?person=…&saved=1` → a status banner, so a reload never repeats the act.
+      await expect(page).toHaveURL(/[?&]saved=1/);
+      await expect(page.getByRole('status')).toContainText('Saved');
+      await expect(page.getByRole('switch', { name: /nn-admin/ })).toBeChecked();
 
       const opened = await memberPage.goto(NN);
       expect(opened?.status(), 'the same session, one request later').toBe(200);
       await expect(memberPage.getByText('Where the race stands')).toBeVisible();
 
-      await page.goto(PEOPLE);
-      await page
-        .getByRole('button', { name: `Revoke nn-admin for ${REGISTERED_EMAIL}` })
-        .click();
-      await expect(
-        page.getByRole('button', { name: `Grant nn-admin for ${REGISTERED_EMAIL}` }),
-      ).toBeVisible();
+      await page.getByRole('switch', { name: /nn-admin/ }).uncheck();
+      await page.getByRole('button', { name: 'Save changes' }).click();
+      await expect(page).toHaveURL(/[?&]saved=1/);
+      await expect(page.getByRole('switch', { name: /nn-admin/ })).not.toBeChecked();
 
       expect(
         (await memberPage.goto(NN))?.status(),
         'and gone again on the next request',
       ).toBe(404);
     } finally {
-      // **The fixture goes back whatever happened**, so the run is repeatable and so that
-      // nothing after this file sees a member holding a staff role. `revoke_role` is idempotent
-      // by state — a role that is not held answers `not_granted` and changes nothing — so this
-      // is safe to run after a failure part-way through.
+      // **The fixture goes back whatever happened**, so the run is repeatable and nothing after
+      // this file sees a member holding a staff role. A save of the set they should hold is
+      // idempotent, so this is safe after a failure part-way through.
       await page.goto(PEOPLE);
-      const revoke = page.getByRole('button', {
-        name: `Revoke nn-admin for ${REGISTERED_EMAIL}`,
-      });
-      if ((await revoke.count()) > 0) {
-        await revoke.click();
+      await choose(page, REGISTERED_EMAIL);
+      const held = page.getByRole('switch', { name: /nn-admin/ });
+      if (await held.isChecked()) {
+        await held.uncheck();
+        await page.getByRole('button', { name: 'Save changes' }).click();
       }
 
       await memberContext.close();
     }
+  });
+
+  /**
+   * Super admin is never part of the batch, and without scripting its confirmation is its own
+   * address with its own form. Phase 4 layers a `<dialog>` over this; the address stays.
+   */
+  test('asks for the name to be typed before making somebody a super admin', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+
+    await page.getByRole('link', { name: /Make super admin/ }).click();
+    await expect(page).toHaveURL(/confirm=super/);
+
+    // **Checked on the server**, not only in the browser: a confirmation only the page enforces
+    // is no confirmation at all against a POST that skipped the page.
+    await page.getByLabel(/to confirm/).fill('not the right name');
+    await page.getByRole('button', { name: 'Make super admin' }).click();
+
+    await expect(page.getByRole('alert')).toContainText('did not match');
+
+    // And nothing changed.
+    await page.goto(PEOPLE);
+    await choose(page, REGISTERED_EMAIL);
+    await expect(page.getByRole('link', { name: /Make super admin/ })).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **The button is disabled and the page says why, in visible text.** A `title` is
+   * unreachable by keyboard, invisible on a touch screen and unread by most screen readers —
+   * and "why can I not press this" is exactly the question somebody has at that moment. The
+   * refusal itself is `revoke_role()`'s, asserted in `packages/db/tests/identity.test.ts`.
+   */
+  test('will not offer to remove the last super admin, and explains itself', async ({
+    page,
+  }) => {
+    await signInAs(page, SUPER_ADMIN_EMAIL);
+    await page.goto(PEOPLE);
+    await choose(page, SUPER_ADMIN_EMAIL);
+
+    await expect(page.getByRole('link', { name: /Remove super admin/ })).toHaveCount(0);
+    await expect(page.getByRole('main')).toContainText('Cannot be removed');
+    await expect(page.getByRole('main')).toContainText(
+      'a club with no super admin has no way back in',
+    );
   });
 });
 
@@ -1523,7 +1604,9 @@ test.describe('accessibility and small screens', () => {
       {
         fields: {
           [CSRF_FIELD]: token ?? '',
-          action: 'grant',
+          // The batch, which is the only shape this page's POST takes since ADR-046 —
+          // `action: 'grant'` was the one-form-per-role contract and is now a 404.
+          action: 'save',
           person: NOBODY_AT_ALL,
           role: 'nn-admin',
         },
