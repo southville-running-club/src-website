@@ -75,19 +75,46 @@ pre-assigns a role to a new volunteer's address before they have registered.
 ## Granting somebody a role
 
 - [ ] Sign in as a `super-admin` and open `/admin/people/`
-- [ ] Find them by email address. **They must have registered first** — this page grants roles,
-      it does not create accounts
-- [ ] Press **Grant nn-admin** on their row — or whichever role you mean. **The buttons come
-      from the database**, so every role the club has appears here, and the collapsed *What
-      these roles allow* panel above the table says what each one carries
+- [ ] Find them in the list on the left — search by name or email, or narrow it with **Has
+      roles** / **Members**. **They must have registered first** — this page grants roles, it
+      does not create accounts
+- [ ] Click their row. Their roles appear as switches, grouped into Nightingale Nightmare, Race
+      timing and Club. **The switches come from the database**, so every role the club has
+      appears here with the description it carries
+- [ ] Flip whichever you mean — as many as you like — then press **Save changes**. Nothing is
+      written until you do, the bar above the button names every pending change, and each one
+      has its own undo. **Discard** throws the lot away
 - [ ] Tell them to open `/admin/`. **It takes effect on their next request** — there is no
       session to end and nothing for them to do
 
-Revoking is the same button, reading **Revoke**. It sets `revoked_at` rather than deleting the
-row, so the audit trail goes on pointing at something.
+**One Save is one transaction**: all of the changes land or none of them do — ADR-046. Revoking
+is the same switch, turned off; it sets `revoked_at` rather than deleting the row, so the audit
+trail goes on pointing at something.
 
 **Every grant and revoke is written to `identity.audit` in the same transaction as the change**,
-so one cannot happen without the other. A refused one writes nothing.
+so one cannot happen without the other. A refused one writes nothing. **A batch of four writes
+four rows**, one per role, exactly as four separate presses did — so an accidental revoke is as
+visible afterwards as it ever was.
+
+### Super admin is not one of the switches
+
+It has its own panel under them, and pressing it asks you to **type the person's name** before it
+will do anything. That is checked on the server as well as in the browser.
+
+**If somebody else has changed that person's roles since you opened the page**, Save is refused
+and says so, and the page redraws with what they actually hold. Nothing is part-saved. Check it
+and try again.
+
+### The second view
+
+**By role** is the same data the other way up: one card per role, how many people hold it, and
+who they are. Clicking a name opens them in **By person**. Useful for _"who can publish
+results?"_, which the list answers one row at a time.
+
+### On a phone
+
+The list and the person are two screens rather than two columns, and **‹ People and roles** on
+the green band is the way back.
 
 ### What the page will not let you do
 
@@ -95,14 +122,16 @@ so one cannot happen without the other. A refused one writes nothing.
 | --- | --- |
 | **Revoke the last super-admin** | Refused by `identity.revoke_role()`, not by the page. A club with no super-admin has no service-role key to get back in with. Grant the role to somebody else first |
 | **Grant a role to yourself that you do not have** | Only a `super-admin` may grant anything, and the check is in the database |
-| **Grant anything at all, holding `people-admin`** | That role reads this page and changes nothing on it. The page shows no controls, and a request made without them is refused twice — by the Worker and again by `identity.grant_role()` |
+| **Grant anything at all, holding `people-admin`** | That role reads this page and changes nothing on it. The page shows no switches and no buttons, and a request made without them is refused twice — by the Worker and again by the database |
+| **Remove super admin in a batch** | `identity.set_roles()` refuses a payload that names it at all. Super admin has its own panel and its own typed confirmation — ADR-046 |
 | **Edit somebody's profile, or delete an account** | Deliberately absent. A change to a record somebody controls needs its own thinking about notification and consent |
 
 ### The same page, read by a `people-admin`
 
-They see every account, every address and every role, and no **Grant** or **Revoke** button
-anywhere. The page says so in a sentence rather than leaving a gap, because a table whose third
-column is simply missing reads as one that failed to load.
+They see every account, every address and every role, and no switch and no button anywhere. The
+page says so in a sentence rather than leaving a gap, because a pane whose controls are simply
+missing reads as one that failed to load. **They keep the search box** — searching is reading,
+which is what the role is for.
 
 **Hand this out instead of `super-admin` for anybody who needs to answer "has so-and-so
 registered yet".** A `super-admin` granted for that reason can give themselves the entry list

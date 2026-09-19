@@ -883,6 +883,33 @@ found a real defect on its first run.
 
 ### Layout, tests and cross-browser, again
 
+⚠️ **A submit button with `formmethod="get"` inside a POST form puts every field in the URL,
+including the CSRF token.** It reads as a neat way to give one form two destinations — a Discard
+that re-reads from the database beside a Save that writes — and what it actually does is serialise
+the *whole* form into the query string: every checkbox, every hidden input, and
+`worker/csrf.ts`'s token. From there it is in the address bar, in browser history, and in any
+`Referer` the page sends. **A link is what "go back and read it again" means**, and it carries
+nothing. Caught on `/admin/people/` before it shipped; `admin.spec.ts` asserts the token never
+reaches the URL, because nothing else would have noticed.
+
+⚠️ **`getByRole` matches the accessibility tree, so `display: none` content is absent rather than
+hidden — and an assertion written at one width can be wrong at another.** `/admin/people/` shows
+the list and the selected person as two screens below 48rem, so choosing somebody takes the list
+out of the tree entirely. Two assertions about what a `people-admin` can see passed on a desktop
+viewport and failed on `mobile-safari` about a page that was behaving exactly as designed. The
+tell is `Received: 0` from a `toHaveCount` on something plainly in the DOM — `locator('a')` would
+have found it and hidden the mistake. **Assert on the screen the thing is actually on**, which for
+a list means before anything is selected.
+
+⚠️ **A `color-mix` wash has to be mixed over a _surface_, not over a colour.** Darkening a pill by
+mixing `--colour-text` into `--colour-warning` reads fine in the light scheme and measures
+**1.56:1** in the dark one, because `--colour-warning` is deliberately not redefined there and the
+near-white dark-scheme text then lands on full amber. Every wash in `nn-admin.css` mixes over
+`--colour-background` or `--admin-card` for that reason. `admin-contrast.test.ts` finds each one by
+regex and refuses it in both schemes, which is the only reason this was a minute rather than a
+support question in November — and it is the second defect that file has caught.
+
+
 **A CSS `@view-transition` breaks the sign-up form with JavaScript disabled.** Four lines,
 no JavaScript, and after the form's POST/422 the `::view-transition` overlay swallows the
 click on the error summary's link — silently, so the person just finds that nothing happens.
@@ -1010,6 +1037,20 @@ worse of the two because the line still looks like coverage.
 shape to copy.
 
 ### Environment, build and tooling, once more
+
+⚠️ **`./dev e2e <spec>` with no `--project` runs all four engines at once, and they collide.**
+The loop is described three lines up as *"one Playwright spec on one engine"*, and that is what it
+is **for** rather than what it does: `cmd_e2e` passes `"$@"` straight to `playwright test`, so
+without a project the four configured ones run in parallel, each executing the same `beforeAll`
+against the same database. The signature is two failures that both read as real bugs in whatever
+is being tested — `duplicate key value violates unique constraint "entry_purchases_pkey"` raised
+from `seedAdminFixtures`, and sign-in answering **422** because four projects' worth of
+authentication in one second is what `[auth.rate_limit]` is set to refuse. Neither is caused by
+the branch, and the first test to fail is usually one the branch never touched, which is what
+makes it expensive: it invites a hunt through the diff for something that is not there. **Say
+`--project=chromium`** — or `no-javascript`, or `mobile-safari` — **every time**, and run them one
+after another rather than together. It cost two full runs on 19 September 2026.
+
 
 **`osascript -e 'quit app "Docker"'` can return cleanly while `com.docker.backend` keeps
 running**, and `open -a Docker` then reattaches to the same wedged instance rather than starting
@@ -1250,7 +1291,37 @@ through `identity.my_roles()` and `identity.my_permissions()` —
 deliberate: `isStaff()` answers "is this person staff", which `nn-tester` must fail even though
 it holds a permission. **`/admin/people/` has two readings and it is one page**: reading it is
 `identity.person.read` and the controls on it are `identity.role.grant`, so a `people-admin` gets
-the same table with no third column and a POST refused with the same 404.
+the same page with no switches and a POST refused with the same 404 — **they keep the search box**,
+because searching is reading.
+
+⚠️ **That page was rebuilt on 19 September 2026 and the shape it used to have is the shape people
+remember** — [ADR-046](docs/architecture/decisions/adr-046-roles-are-saved-as-a-batch.md). It is
+no longer a table with a Grant or Revoke button per role per person, and the heading in
+`worker/admin-people.ts` that argued for that — _"One deliberate act per grant, and never a
+multi-select"_ — is **superseded**. It is a list of people beside the selected person's roles as
+**switches**, saved as one batch in one transaction by `identity.set_roles()`, with a second view
+by role. **The half of the old argument that survives is the audit trail**, and it survives in the
+database rather than in the shape of the form: `set_roles()` writes one `identity.audit` row per
+role changed, using the two actions that already existed, so a batch of four still reads as four
+acts — and therefore **that migration does not restate `identity.audit`'s `action` check
+constraint**, which is the invisible merge conflict this file records against
+`entries.admin_audit.action`.
+
+⚠️ **`super-admin` and `registered` are not switches and `set_roles()` refuses a batch naming
+either.** The first keeps its own act behind a typed-name confirmation, which is what makes the
+last-super-admin guard in `revoke_role()` need no second copy — the batch cannot reach the state
+it protects, the same way `transfer_entry()` had to be stopped from being the way round the
+one-place rule.
+
+⚠️ **Who may change a role is two questions that disagree, and it is live.** The page renders its
+controls on the **permission** `identity.role.grant`; `grant_role()`, `revoke_role()` and
+`set_roles()` all ask the **role** `has_role('super-admin')`, which ADR-017's mechanism moved
+`list_people()` and `grantable_roles()` off and never moved these. So **`src-admin` — the club's
+master role, whose published description ends "and granting roles" — is offered controls every one
+of those three refuses**, with the words _"You are no longer a super-admin"_. Nothing on the page
+is wrong to a `super-admin`, which is why it has gone unnoticed since 6 September 2026.
+**Resolving it is a stop-and-ask**, and `packages/db/tests/identity-set-roles.test.ts` pins the
+current refusal so that resolving it has to be a diff somebody writes on purpose.
 
 **The two-key scheme is retired in the Worker, and the break-glass changed with it.** #58 moved
 the surface off `/nn/admin` — every one of those addresses now redirects, 301 for a GET and 308
