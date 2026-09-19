@@ -775,7 +775,17 @@ function personRow(person: Person, model: PageModel): Html {
       </span>
       <span class="admin-person-has">
         ${roleGlyph(person, model.roles)}
-        <span class="admin-person-summary">${roleSummary(person.roles)}</span>
+        <span class="admin-person-summary">
+          ${
+            /* **Which row is theirs is the one thing on this page that is not the same for
+               everybody reading it**, and somebody looking at a list containing themselves is
+               a click from taking away their own way in. The old table marked it and the
+               first draft of this rebuild lost it — a worker test written for that table is
+               what noticed. */ null
+          }
+          ${person.id === model.viewer.id ? html`<span class="admin-chip-you">you</span> ` : null}
+          ${roleSummary(person.roles)}
+        </span>
       </span>
     </a>
   </li>`;

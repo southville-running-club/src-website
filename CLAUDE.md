@@ -606,6 +606,16 @@ It runs `db:types:check` now, in CI's own order. **The general rule that keeps c
 a step CI runs and `./dev` does not is a divergence that fails in the expensive direction**,
 because the laptop is where it is cheap to find out.
 
+⚠️ **A page rendered by the Worker is asserted at two layers, and `./dev e2e` runs only one
+of them.** `apps/main/tests/worker/**` drives the same page through Miniflare and asserts its
+**markup**; `tests/e2e/**` drives it through a browser and asserts its **behaviour**. Rebuilding
+`/admin/people/` under ADR-046 left fifteen Miniflare tests red — asserting `<th scope="col">`,
+a `<form>` per control, and a page containing no checkbox — through four green Playwright runs
+across three engines, because `./dev e2e` never builds or runs that layer at all. **The tell is
+that the page was rewritten and nothing under `tests/worker/` was touched.** One of those
+fifteen turned out to be guarding a real behaviour the rebuild had dropped, so they were not
+merely stale. `./dev test` is what runs both, and the loop is not the gate.
+
 ⚠️ **And a scoped run is not this gate.** `vitest run <one file>` while iterating is the loop;
 `./dev check` is what says the branch is green. Scoping to a new test file hid a sibling
 assertion — `timing.test.ts`'s list of granted functions, which went red on CI the moment a
