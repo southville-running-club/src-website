@@ -1,5 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
+
+import { parseClub } from '@src/shared/club-content';
+
 import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 
@@ -30,6 +35,23 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
  */
 
 /** Wide enough for the full bar; the Menu is hidden above 62em. */
+/**
+ * The club's own facts, read the way the footer reads them.
+ *
+ * ⚠️ **Read from disk rather than `import`ed.** A bare `import club from '…/club.json'` works
+ * in an Astro page, where Vite handles it, and fails in a Playwright spec with *"needs an
+ * import attribute of type: json"*. `club-content.test.ts` already reads its fixtures this
+ * way; copying that is cheaper than an import attribute the two module systems disagree about.
+ */
+const club = parseClub(
+  JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../src/content/club.json', import.meta.url)),
+      'utf8',
+    ),
+  ),
+);
+
 const DESKTOP = { width: 1280, height: 900 };
 /** A real phone, and the width the club's own visitors mostly arrive at. */
 const PHONE = { width: 390, height: 844 };
@@ -240,20 +262,33 @@ test.describe('the club footer', () => {
     );
   });
 
+  /**
+   * ⚠️ **The meeting details are read out of `club.json`, not quoted here.**
+   *
+   * This test named the strings as literals and went red the moment the home page's facts
+   * strip needed the fuller wording — "Meet 6.00pm for a 6.15pm start" rather than "Meet
+   * 6.00pm, run 6.15pm". Nothing was broken: one fact had one string, the string improved,
+   * and a test that had copied it disagreed.
+   *
+   * That is the drift this whole arrangement exists to prevent, reproduced inside the test
+   * suite. Reading the same source the footer reads asserts the **wiring** — that the footer
+   * renders these facts at all — and leaves the **wording** where it belongs, in the data.
+   * A footer that rendered nothing, or the wrong field, still fails.
+   */
   test('says where and when the club meets, from club.json', async ({ page }) => {
     await page.goto('/');
 
     const footer = page.locator('.club-footer');
 
-    await expect(footer).toContainText('Tuesdays and Thursdays');
-    await expect(footer).toContainText('Meet 6.00pm, run 6.15pm');
-    await expect(footer).toContainText('Southbank Club, Dean Lane');
+    await expect(footer).toContainText(club.meet.days);
+    await expect(footer).toContainText(club.meet.time);
+    await expect(footer).toContainText(club.meet.venue);
 
     // ⚠️ **The whole town and postcode, with the space.** `BS3 1DB` alone passed against a
     // page that read `BristolBS3 1DB` — Prettier reflowed two adjacent expressions onto two
     // lines and Astro compressed the newline between them to nothing. The assertion has to
     // span the join or it cannot see the defect.
-    await expect(footer).toContainText('Bristol BS3 1DB');
+    await expect(footer).toContainText(`${club.meet.city} ${club.meet.postcode}`);
     await expect(footer.getByRole('link', { name: 'Open in maps' })).toBeVisible();
   });
 

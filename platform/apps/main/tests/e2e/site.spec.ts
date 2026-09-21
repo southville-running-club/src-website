@@ -11,40 +11,57 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
  */
 
 test.describe('the club website', () => {
-  test('says a new site is coming, without promising when', async ({ page }) => {
+  /**
+   * ⚠️ **This test used to assert the holding page, and the holding page is gone.**
+   *
+   * It read: an `<h1>` of "Southville Running Club", the words "being built here", and **no
+   * month-and-year anywhere in the body**. The first two described a page that no longer
+   * exists. The third is the one worth keeping, and it could not survive as written — the
+   * home page now legitimately prints "Sunday 1 November 2026" on the race card and "July
+   * 2026" on the newsletter card, both read from data.
+   *
+   * So the rule is scoped to where it actually lives. **When the new site replaces the old one
+   * is a committee decision**, and the only thing on this page that makes a claim about that
+   * is the banner. A date there would be a promise nobody authorised; a date on a race card is
+   * a fact about a race.
+   */
+  test('promises no date for the move from the old site', async ({ page }) => {
     await page.goto('/');
 
-    // The heading is the club's name; the banner above it does the welcoming. What this
-    // test is really guarding is the next assertion — that no date is promised anywhere.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Southville Running Club',
-    );
-    await expect(page.locator('main')).toContainText('being built here');
+    const banner = page.locator('.club-banner');
 
-    // When the new site replaces the old one is a committee decision, and a date invented
-    // here would be a factual claim nobody authorised.
-    const body = (await page.locator('body').textContent()) ?? '';
-    expect(body).not.toMatch(
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/,
+    await expect(banner).toContainText('Some pages are still on the old site');
+
+    const said = (await banner.textContent()) ?? '';
+    expect(
+      said,
+      'the banner promises a date for the cutover, which is the committee’s decision',
+    ).not.toMatch(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/u,
     );
+    expect(said).not.toMatch(/\b20\d\d\b/u);
   });
 
-  test('links to both things that already exist', async ({ page }) => {
+  test('links to the race, and not to the timing app it keeps to staff', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    // **Scoped to `main`, since the navigation arrived.** These two links are also in the
-    // bar now, so an unscoped `getByRole` matches twice and Playwright refuses in strict
-    // mode. Narrowing to the page's own content is the right answer rather than picking a
-    // `.first()`: this test is about what the home page *says*, and the bar has its own.
+    // **Scoped to `main`**, because the bar carries its own links and an unscoped
+    // `getByRole` matches twice, which Playwright refuses in strict mode.
     const content = page.locator('main');
 
-    await expect(
-      content.getByRole('link', { name: /Nightingale Nightmare/ }),
-    ).toHaveAttribute('href', '/nn/');
+    // ⚠️ **By `href` rather than by link text.** This asserted a link *named* "Nightingale
+    // Nightmare", which was true of the holding page's prose and is not true of the card that
+    // replaced it: the race's name is the card's heading and the link beside it reads "Race
+    // details". The property worth holding is that the home page sends somebody to the race
+    // at its evergreen address, not what the button happens to say this month.
+    await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+
     // **And not to `/timing`**, which is staff-only since 11 September 2026 and answers 404
     // to anybody without a `timing.*` permission. Linking a runner there would send them to a
     // page saying there is nothing there.
-    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveCount(0);
+    await expect(content.locator('a[href^="/timing"]')).toHaveCount(0);
   });
 });
 
@@ -2056,8 +2073,12 @@ test.describe('accessibility', () => {
 });
 
 test.describe('what does not exist', () => {
+  // ⚠️ **This asked for `/membership/` until 20 September 2026, when that page was built.**
+  // It is a list of addresses the club has *not* built, so a page arriving is exactly what
+  // should break it — which it did. `/results/` is still unbuilt; the Pass the Buck results
+  // live on the old site and the race results have their own address under `/nn/<year>/`.
   test('404s a page that has not been built', async ({ page }) => {
-    const response = await page.goto('/membership/');
+    const response = await page.goto('/results/');
 
     expect(response?.status()).toBe(404);
   });

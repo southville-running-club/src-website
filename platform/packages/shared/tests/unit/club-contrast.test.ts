@@ -266,6 +266,41 @@ describe('the club palette', () => {
   });
 
   /**
+   * ⚠️ **The photo panel must differ from every surface it can land on.**
+   *
+   * This is the assertion that was missing when a placeholder panel painted
+   * `--club-surface-alt` was dropped into a `.club-sec-alt` band and measured **identical**
+   * to the thing behind it — half a section of empty space, nothing red, and no existing
+   * assertion that could see it. `NnSchedule`'s defect exactly: a component coloured against
+   * a surface it does not itself carry.
+   *
+   * There is no WCAG floor here — the panel is decorative and `aria-hidden`, standing in for
+   * a photograph nobody has supplied. The requirement is only that it is *visible*, which is
+   * why this asserts a difference rather than a ratio. 1:1 is the failure.
+   */
+  it('keeps the photo panel distinct from every surface it can sit on', () => {
+    for (const [name, scheme] of SCHEMES) {
+      const panel = colour(scheme, '--club-photo');
+
+      for (const surface of [
+        '--club-background',
+        '--club-surface',
+        '--club-surface-alt',
+      ] as const) {
+        const behind = colour(scheme, surface);
+
+        expect(panel, `the ${name} panel is the same colour as ${surface}`).not.toBe(
+          behind,
+        );
+        expect(
+          contrastRatio(panel, behind),
+          `the ${name} panel is indistinguishable from ${surface}`,
+        ).toBeGreaterThan(1.1);
+      }
+    }
+  });
+
+  /**
    * The wordmark, which is the one thing here WCAG exempts.
    *
    * 1.4.3 sets no floor for a logotype, so this does not assert one. What it asserts is that

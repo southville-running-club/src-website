@@ -1,0 +1,331 @@
+---
+import ClubBase from '../layouts/ClubBase.astro';
+import {
+  PRICE_TO_BE_CONFIRMED,
+  parseLinks,
+  parseMembership,
+  parsePartners,
+} from '@src/shared/club-content';
+import { formatPriceWords } from '@src/shared/money';
+import links from '../content/links.json';
+import membership from '../content/membership.json';
+import partners from '../content/partners.json';
+
+// `/membership/` — what it costs to run with the club, and what joining adds.
+//
+// ## Every action leaves for the old site, and no form is built here
+//
+// ⚠️ **Nothing on this page collects anything.** The mockup carries a three-step join form
+// asking for date of birth, address and phone number — all personal data, which is a committee
+// decision and a privacy-notice change rather than a build task. Join, renew, cancel, pay and
+// the WhatsApp request are all links, and every one of their addresses comes from
+// `links.json`, never from this markup.
+//
+// **That is what makes the cutover a data change.** When the club's own join page is built,
+// changing `href` and `where` on one key moves this page, the label included.
+//
+// ## The England Athletics price
+//
+// ⚠️ **`englandAthleticsPence` is null and the card says "Price to be confirmed".** The old
+// site quotes £23, £24 and £27 and the club has not said which is right. The card still links
+// to Join, because somebody who wants the licence should not be stopped by a figure — it is
+// the price that is unknown, not the route. `tests/unit/club-content.test.ts` asserts this
+// branch by name, including that it renders none of the three guesses.
+//
+// ## Money goes through `formatPriceWords()`
+//
+// "Run for 50p. Join for £4." is the club's voice. `formatPence()` renders those as "£0.50"
+// and "£4.00", which is a different sentence — so this page uses the sibling, and neither
+// writes its own `£`.
+//
+// ## Club kit is out of scope
+//
+// **Deliberately absent**: no kit section, no order window, no stock table, no collection
+// point. It comes back as its own piece of work. There is no `kit-order` key in `links.json`
+// either, because an unused address sitting in that file is how it quietly returns.
+//
+// ## The partner filter is not here yet
+//
+// A progressive enhancement, landing in the next change. Every partner is listed; the filter
+// only ever hides. With scripting off nothing is lost.
+
+const prices = parseMembership(membership);
+const { partners: businesses } = parsePartners(partners);
+const link = parseLinks(links);
+
+const perRun = formatPriceWords(prices.payPerRunPence);
+const perMonth = formatPriceWords(prices.subscriptionPerMonthPence);
+const perYear = formatPriceWords(prices.membershipPerYearPence);
+const eaPrice =
+  prices.englandAthleticsPence === null
+    ? null
+    : formatPriceWords(prices.englandAthleticsPence);
+
+/** One row of the comparison table. `true` is included, `false` is not. */
+const COMPARISON: ReadonlyArray<
+  readonly [
+    string,
+    string | boolean,
+    string | boolean,
+    string | boolean,
+    string | boolean,
+  ]
+> = [
+  [
+    'Tuesday and Thursday runs',
+    `${perRun} each`,
+    'Unlimited',
+    `${perRun} each*`,
+    `${perRun} each*`,
+  ],
+  ["Members' WhatsApp community", false, false, true, true],
+  ['Local discounts', false, false, true, true],
+  ['Affiliated race entry rate', false, false, false, true],
+  ['Annual race insurance', false, false, false, true],
+];
+---
+
+<ClubBase
+  title="Membership — Southville Running Club"
+  description="Run with Southville Running Club for 50p, subscribe for unlimited runs, or join the club for £4 a year."
+  canonical="https://new.southvillerunningclub.co.uk/membership/"
+>
+  <header class="club-phead">
+    <div class="club-wrap">
+      <h1>Run for {perRun}. Join for {perYear}.</h1>
+      <p class="club-lede">
+        You don't need to be a member to run with us. Pay as you go, subscribe, or join
+        the club: whatever suits you.
+      </p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap">
+      <h2>Choose what suits you</h2>
+
+      <div class="club-g4 club-pricing">
+        <article class="club-card">
+          <h3>Pay as you run</h3>
+          <p class="club-price">{perRun}<small> a run</small></p>
+          <p>
+            Covers hire of the Southbank Club. Trust-based: pop it in the pot or pay
+            online.
+          </p>
+          <a class="club-btn club-btn-secondary" href={link['pay-per-run'].href}>
+            {link['pay-per-run'].label} on our old site
+          </a>
+        </article>
+
+        <article class="club-card">
+          <h3>Unlimited runs</h3>
+          <p class="club-price">{perMonth}<small> a month</small></p>
+          <p>
+            A subscription, not membership. Start or stop any time. Track sessions are
+            paid separately. Non-refundable.
+          </p>
+          <a class="club-btn club-btn-secondary" href={link.subscribe.href}>
+            {link.subscribe.label} on our old site
+          </a>
+        </article>
+
+        <article class="club-card club-featured">
+          {/* The outline is the non-text half; this says it in words. */}
+          <p class="club-badge">Most people start here</p>
+          <h3>SRC membership</h3>
+          <p class="club-price">{perYear}<small> a year</small></p>
+          <p>
+            Supports the club, and gets you into the members' WhatsApp community and local
+            discounts.
+          </p>
+          <a class="club-btn club-btn-primary" href={link.join.href}>
+            {link.join.label} on our old site
+          </a>
+        </article>
+
+        <article class="club-card">
+          <h3>SRC + England Athletics licence</h3>
+          {
+            /* ⚠️ **Never a guess.** Three figures are quoted on the old site and the club has
+              not said which is right, so the card says so and still links to Join. */
+          }
+          <p class={`club-price${eaPrice === null ? ' club-price-unconfirmed' : ''}`}>
+            {eaPrice === null ? PRICE_TO_BE_CONFIRMED : eaPrice}
+            {eaPrice !== null && <small> a year</small>}
+          </p>
+          <p>
+            Everything in membership, plus discounted race entries and annual race
+            insurance.
+          </p>
+          <a class="club-btn club-btn-secondary" href="#england-athletics">
+            About the licence
+          </a>
+        </article>
+      </div>
+
+      <div
+        class="club-table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="What each option includes"
+      >
+        <table class="club-table club-table-compare">
+          <caption>What each option includes</caption>
+          <thead>
+            <tr>
+              <th scope="col"><span class="club-visually-hidden">Feature</span></th>
+              <th scope="col">Pay as you run</th>
+              <th scope="col">Unlimited runs</th>
+              <th scope="col">SRC membership</th>
+              <th scope="col">SRC + EA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              COMPARISON.map(([feature, ...cells]) => (
+                <tr>
+                  <th scope="row">{feature}</th>
+                  {cells.map((cell) =>
+                    typeof cell === 'string' ? (
+                      <td>{cell}</td>
+                    ) : (
+                      <td>
+                        {/* ⚠️ A glyph is not a word. The tick and the dash are `aria-hidden`
+                          and each carries its own text, so the table means the same thing
+                          read aloud as it does read across. */}
+                        <span aria-hidden="true">{cell ? '✓' : '–'}</span>
+                        <span class="club-visually-hidden">
+                          {cell ? 'Included' : 'Not included'}
+                        </span>
+                      </td>
+                    ),
+                  )}
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <p class="club-small">
+        * Or add the {perMonth} monthly subscription for unlimited runs.
+      </p>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt" id="england-athletics">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>The England Athletics licence</h2>
+        <ul class="club-ticks">
+          <li>
+            Discounted entry to affiliated races. It pays for itself after about nine
+            races.
+          </li>
+          <li>Annual race insurance.</li>
+          <li>You need SRC membership first.</li>
+          <li>
+            Renews every April. First-time applicants from January to March get up to
+            three months free.
+          </li>
+          <li>
+            Never enter at the affiliated rate without a valid licence, and wear club
+            green when you do.
+          </li>
+        </ul>
+      </div>
+
+      <div class="club-card">
+        <h3>Join, renew or leave</h3>
+        <ul class="club-actions">
+          <li>
+            <a href={link.join.href}>{link.join.label}</a>
+            <span>New members, on our old site. Takes about three minutes.</span>
+          </li>
+          <li>
+            <a href={link.renew.href}>{link.renew.label}</a>
+            <span>
+              Through the England Athletics portal, after agreeing to club policies. On
+              our old site.
+            </span>
+          </li>
+          <li>
+            <a href={link.cancel.href}>{link.cancel.label}</a>
+            <span>Moving, changing clubs or stopping? Let us know, on our old site.</span>
+          </li>
+        </ul>
+        {
+          /* ⚠️ No `membership@…` address: the club has not confirmed one. The committee page
+            is the route that exists. */
+        }
+        <p class="club-small">
+          Questions? <a href={link.committee.href}>Ask the Membership Officer</a> through the
+          committee page on our old site.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="club-sec" id="discounts">
+    <div class="club-wrap">
+      <h2>Member discounts</h2>
+      <p>
+        Local businesses that look after SRC members. Codes are shared in the members'
+        WhatsApp community, never on this page.
+      </p>
+
+      <ul class="club-g3">
+        {
+          businesses.map((partner) => (
+            <li class="club-card club-partner">
+              <h3>{partner.name}</h3>
+              <p class="club-small">{partner.category}</p>
+              {/* Absent for every partner today — see this file's header. */}
+              {partner.offer !== undefined && <p>{partner.offer}</p>}
+              <p class="club-locked">Code in the members' WhatsApp</p>
+            </li>
+          ))
+        }
+      </ul>
+
+      <p class="club-small">
+        Each partner's offer is being confirmed with them before it is published here.
+      </p>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>Members' WhatsApp community</h2>
+        <p>
+          Club news, lifts to races, lost property and the discount codes. For members
+          only, so we'll check your SRC membership before adding you.
+        </p>
+        <p>
+          <a class="club-btn club-btn-primary" href={link.whatsapp.href}>
+            {link.whatsapp.label} on our old site
+          </a>
+        </p>
+      </div>
+
+      <details class="club-card club-inline">
+        <summary>The community's 12 rules</summary>
+        <ol>
+          <li>Be courteous and kind.</li>
+          <li>Respect other people's views.</li>
+          <li>No bad language.</li>
+          <li>No inappropriate images.</li>
+          <li>Avoid politics and religion.</li>
+          <li>No spam or advertising without admin approval.</li>
+          <li>No harassment or bullying.</li>
+          <li>No unsolicited direct messages to other members.</li>
+          <li>Raise any issues with the admins, not in the group.</li>
+          <li>Keep it relevant to running and the club.</li>
+          <li>Breaches can mean a temporary ban.</li>
+          <li>Serious or repeated breaches mean removal.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+</ClubBase>

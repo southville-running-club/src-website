@@ -1,0 +1,318 @@
+---
+import ClubBase from '../layouts/ClubBase.astro';
+import { parseClub, parsePace } from '@src/shared/club-content';
+import club from '../content/club.json';
+import pace from '../content/pace.json';
+
+// `/run-with-us/` — the first-night guide, and where the header's "Come for a run" goes.
+//
+// **This is the page the whole design points at.** A nervous first-timer is the reader, and
+// the order answers their questions in the order they actually arrive: what happens on the
+// night, who the group leaders are, which group to stand in, what a session is, how to behave,
+// and then the things people are too embarrassed to ask.
+//
+// ## "Come for a run" is not a page of its own
+//
+// It is the header's button and the hero's, and both come here. A separate page would say the
+// same thing twice and give the club two places to keep it true.
+//
+// ## The pace table, and the picker that is not here yet
+//
+// The table is the whole answer on its own: somebody reads across and finds their group.
+// **"Find my group" is a progressive enhancement that lands in the next change** — a script
+// that highlights the matching row for a typed 5K time — and it ships `hidden`, so with
+// scripting off there is nothing to see and nothing is lost. That is the order the brief
+// asks for and the order that keeps the page honest: the enhancement can never be the only
+// way to get the answer.
+//
+// `fiveKMinutes` on each row exists for that picker and is not rendered.
+
+const { meet } = parseClub(club);
+const where = `${meet.venue}, ${meet.street}, ${meet.city} ${meet.postcode}.`;
+const { rows, alsoRunning } = parsePace(pace);
+---
+
+<ClubBase
+  title="Run with us — Southville Running Club"
+  description="Everything you need to turn up on a Tuesday night and enjoy it. No sign-up, no experience needed: just 50p and a pair of running shoes."
+  canonical="https://new.southvillerunningclub.co.uk/run-with-us/"
+>
+  <header class="club-phead">
+    <div class="club-wrap">
+      <h1>Your first night at SRC</h1>
+      <p class="club-lede">
+        Everything you need to turn up on a Tuesday and enjoy it. No sign-up and no
+        experience needed: just 50p and a pair of running shoes.
+      </p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>On the night</h2>
+        <ol class="club-timeline">
+          <li>
+            <b>6.00pm</b><span>Meet at the {where}</span>
+          </li>
+          <li><b>By 6.10pm</b><span>Be there for the pre-run announcements.</span></li>
+          <li>
+            <b>6.10pm</b><span
+              >Each group leader (GL) says what their group is doing tonight.</span
+            >
+          </li>
+          <li><b>6.15pm</b><span>Choose a group by pace and off you go.</span></li>
+          <li>
+            <b>About 7.15pm</b><span>Back at base. Drinks optional, but popular.</span>
+          </li>
+        </ol>
+      </div>
+
+      <aside class="club-card">
+        <h2>About group leaders</h2>
+        <p>
+          GLs are experienced volunteers, and some are England Athletics qualified run
+          leaders. Some run full training sessions, others act as guides. They do their
+          best to get everyone back, especially new runners.
+        </p>
+        <p>
+          Because GLs are volunteers, the groups on offer vary a little from week to week.
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  {/* `id="pace"` is linked from the home page's "A group for every pace". */}
+  <section class="club-sec club-sec-alt" id="pace">
+    <div class="club-wrap">
+      <h2>A group for every pace</h2>
+      <p>
+        Groups are organised by pace, in minutes per mile. Find a recent race time in the
+        table and start in the group beside it — or a slower one, which is what most
+        people wish they had done.
+      </p>
+
+      {
+        /* **Focusable and labelled**, so the table is reachable by keyboard when it scrolls
+          and announced as a region. The page itself never scrolls sideways; this does. */
+      }
+      <div class="club-table-wrap" tabindex="0" role="region" aria-label="Pace guide">
+        <table class="club-table">
+          <caption>Pace guide: pick a group based on your recent race times</caption>
+          <thead>
+            <tr>
+              <th scope="col">Group (min/mile)</th>
+              <th scope="col">Pace (min/km)</th>
+              <th scope="col">5K</th>
+              <th scope="col">Half marathon</th>
+              <th scope="col">Marathon</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              rows.map((row) => (
+                <tr data-pace-group={row.group} data-pace-five-k={row.fiveKMinutes}>
+                  <th scope="row">{row.group}</th>
+                  <td class="club-num">{row.perKm}</td>
+                  <td class="club-num">{row.fiveK}</td>
+                  <td class="club-num">{row.halfMarathon}</td>
+                  <td class="club-num">{row.marathon}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <p class="club-small">{alsoRunning}</p>
+    </div>
+  </section>
+
+  <section class="club-sec">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>What the sessions look like</h2>
+        <p>
+          Most groups run for about an hour. Tuesday sessions range from 4 to 11 miles and
+          might be:
+        </p>
+        <ul class="club-pills">
+          <li>Hill repeats</li>
+          <li>Fartlek</li>
+          <li>Pyramids</li>
+          <li>Kenyan intervals</li>
+          <li>Stamina intervals</li>
+          <li>Exercises</li>
+        </ul>
+        <p>
+          Routes cover all of Bristol: mostly roads in winter, Ashton Court and Leigh
+          Woods in summer and at weekends.
+        </p>
+      </div>
+
+      <div>
+        <h2>Running etiquette</h2>
+        <ul class="club-ticks">
+          <li>Dress for the conditions. No ninja black in the dark.</li>
+          <li>Follow your group leader's instructions.</li>
+          <li>Run no more than two abreast.</li>
+          <li>Be courteous to everyone else on the pavement.</li>
+          <li>Keep left, overtake on the right.</li>
+          <li>Call out hazards: pedestrians, cyclists, dogs, potholes, cars.</li>
+          <li>Dropping out? Tell your GL, so nobody goes looking for you.</li>
+          <li>Enjoy it, and tell us how it went.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>FAQs</h2>
+        <div class="club-acc">
+          <details open>
+            <summary>I'm worried about being left behind</summary>
+            <div class="club-acc-body">
+              <p>
+                We never leave anyone behind. Group leaders wait, loop back and count
+                everyone home. On Tuesdays there's a walk-to-run group for complete
+                beginners.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>How far do you run?</summary>
+            <div class="club-acc-body">
+              <p>
+                Most groups run for about an hour, covering 4 to 7 or 8 miles. The social
+                group does about 4 miles round the harbourside, with rests.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Where do you run?</summary>
+            <div class="club-acc-body">
+              <p>
+                All over Bristol. In winter we mostly stay on roads. In summer and at
+                weekends we head for Ashton Court and Leigh Woods.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Which night is best for beginners?</summary>
+            <div class="club-acc-body">
+              <p>
+                Tuesday. It's our busiest night, with the most groups and the walk-to-run
+                group.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>What should I wear?</summary>
+            <div class="club-acc-body">
+              {
+                /* ⚠️ **"From autumn until the clocks go forward", not a month.** The club has
+                  not confirmed whether hi-viz becomes compulsory in September or October, so
+                  the page says the true, vaguer thing rather than picking one. */
+              }
+              <p>
+                Decent running shoes. Reflective or hi-viz kit is compulsory on dark
+                nights, from autumn until the clocks go forward, so no ninja black. We
+                have a few spares to borrow.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div>
+        <h2>Running terminology</h2>
+        <div class="club-acc">
+          <details>
+            <summary>Intervals</summary>
+            <div class="club-acc-body">
+              <p>
+                Repeated fast efforts with recovery in between, such as 6 × 800m with a
+                90-second jog.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Fartlek</summary>
+            <div class="club-acc-body">
+              <p>
+                Swedish for 'speed play': unstructured bursts of faster running mixed with
+                easy running.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Hills</summary>
+            <div class="club-acc-body">
+              <p>
+                Run up a hill hard, jog or walk down to recover, repeat. Builds strength
+                and form.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Pyramids</summary>
+            <div class="club-acc-body">
+              <p>
+                Efforts that build up and then come back down, such as 1, 2, 3, 2, 1
+                minutes.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Recovery runs</summary>
+            <div class="club-acc-body">
+              <p>Easy, chatty runs that help your body absorb harder sessions.</p>
+            </div>
+          </details>
+          <details>
+            <summary>Stamina</summary>
+            <div class="club-acc-body">
+              <p>Longer, sustained efforts at a strong but controlled pace.</p>
+            </div>
+          </details>
+          <details>
+            <summary>Tempo run</summary>
+            <div class="club-acc-body">
+              <p>
+                A 'comfortably hard' continuous run, near the pace you could hold for an
+                hour.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Threshold run</summary>
+            <div class="club-acc-body">
+              <p>
+                Running just below the point where your legs start to fill with lactate
+                faster than you clear it.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>VO2 max</summary>
+            <div class="club-acc-body">
+              <p>
+                The most oxygen your body can use. Short, hard intervals help raise it.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Warm up</summary>
+            <div class="club-acc-body">
+              <p>
+                Ten to fifteen minutes of easy running and drills before anything fast.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+</ClubBase>

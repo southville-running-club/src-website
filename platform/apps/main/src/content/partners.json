@@ -1,0 +1,71 @@
+{
+  "categories": [
+    "Treatment and physio",
+    "Strength and fitness",
+    "Shops and gear",
+    "Coaching",
+    "Wellbeing"
+  ],
+  "partners": [
+    {
+      "name": "Bristol Kettlebell Club",
+      "category": "Strength and fitness"
+    },
+    {
+      "name": "Calon PT",
+      "category": "Strength and fitness"
+    },
+    {
+      "name": "MyLife PT",
+      "category": "Strength and fitness"
+    },
+    {
+      "name": "Rabble",
+      "category": "Strength and fitness"
+    },
+    {
+      "name": "House Clinics",
+      "category": "Treatment and physio"
+    },
+    {
+      "name": "James Ross Healthcare",
+      "category": "Treatment and physio"
+    },
+    {
+      "name": "Agile Treatments",
+      "category": "Treatment and physio"
+    },
+    {
+      "name": "Lloyd Massage Treatments",
+      "category": "Treatment and physio"
+    },
+    {
+      "name": "Easy Runner",
+      "category": "Shops and gear"
+    },
+    {
+      "name": "MoreMile",
+      "category": "Shops and gear"
+    },
+    {
+      "name": "Up & Running Bristol",
+      "category": "Shops and gear"
+    },
+    {
+      "name": "Kinisi Run Hub",
+      "category": "Shops and gear"
+    },
+    {
+      "name": "The Running School Bristol",
+      "category": "Coaching"
+    },
+    {
+      "name": "Move Well With Sally Trussler",
+      "category": "Coaching"
+    },
+    {
+      "name": "Moti",
+      "category": "Wellbeing"
+    }
+  ]
+}

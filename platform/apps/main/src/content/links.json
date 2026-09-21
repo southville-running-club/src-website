@@ -1,0 +1,62 @@
+{
+  "pay-per-run": {
+    "href": "https://www.southvillerunningclub.co.uk/payment-page",
+    "where": "old-site",
+    "label": "Pay 50p"
+  },
+  "subscribe": {
+    "href": "https://www.southvillerunningclub.co.uk/payment-page",
+    "where": "old-site",
+    "label": "Subscribe"
+  },
+  "join": {
+    "href": "https://www.southvillerunningclub.co.uk/new-members",
+    "where": "old-site",
+    "label": "Join the club"
+  },
+  "renew": {
+    "href": "https://www.southvillerunningclub.co.uk/renew-membership",
+    "where": "old-site",
+    "label": "Renew"
+  },
+  "cancel": {
+    "href": "https://www.southvillerunningclub.co.uk/cancel-membership",
+    "where": "old-site",
+    "label": "Cancel"
+  },
+  "whatsapp": {
+    "href": "https://www.southvillerunningclub.co.uk/whatsapp-community",
+    "where": "old-site",
+    "label": "Ask to join"
+  },
+  "ptb": {
+    "href": "https://www.southvillerunningclub.co.uk/pass-the-buck",
+    "where": "old-site",
+    "label": "Sign up"
+  },
+  "ptb-results-2025": {
+    "href": "https://www.southvillerunningclub.co.uk/pass-the-buck-results-2025",
+    "where": "old-site",
+    "label": "Pass the Buck 2025"
+  },
+  "ptb-results-2026": {
+    "href": "https://www.southvillerunningclub.co.uk/pass-the-buck-results-2026",
+    "where": "old-site",
+    "label": "Pass the Buck 2026"
+  },
+  "committee": {
+    "href": "https://www.southvillerunningclub.co.uk/src-committee",
+    "where": "old-site",
+    "label": "Contact the committee"
+  },
+  "club-documents": {
+    "href": "https://www.southvillerunningclub.co.uk/club-documents",
+    "where": "old-site",
+    "label": "All club documents"
+  },
+  "newsletters": {
+    "href": "https://www.southvillerunningclub.co.uk/news-letters",
+    "where": "old-site",
+    "label": "Read the newsletters"
+  }
+}

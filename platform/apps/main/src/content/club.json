@@ -3,10 +3,12 @@
   "affiliation": "Affiliated to England Athletics",
   "meet": {
     "days": "Tuesdays and Thursdays",
-    "time": "Meet 6.00pm, run 6.15pm",
-    "venue": "Southbank Club, Dean Lane",
+    "time": "Meet 6.00pm for a 6.15pm start",
+    "venue": "Southbank Club",
+    "street": "Dean Lane",
     "city": "Bristol",
     "postcode": "BS3 1DB",
     "mapUrl": "https://www.google.com/maps/search/?api=1&query=Southbank+Club+Dean+Lane+Bristol+BS3+1DB"
-  }
+  },
+  "who": "All abilities, 18+. New runners always welcome"
 }

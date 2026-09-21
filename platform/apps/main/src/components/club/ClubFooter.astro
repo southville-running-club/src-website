@@ -51,6 +51,7 @@ const { legalName, affiliation, meet } = parseClub(club);
 // One expression cannot be split, so the space is safe from any future reflow. This is the
 // same trap `SITE_BANNER` is split into three strings to survive, one element along.
 const town = `${meet.city} ${meet.postcode}`;
+const where = `${meet.venue}, ${meet.street},`;
 ---
 
 <footer class="club-footer">
@@ -69,7 +70,7 @@ const town = `${meet.city} ${meet.postcode}`;
     <div>
       <h2>Come and run</h2>
       <p>
-        {meet.days}<br />{meet.time}<br />{meet.venue},<br />{town}
+        {meet.days}<br />{meet.time}<br />{where}<br />{town}
       </p>
       <p><a href={meet.mapUrl}>Open in maps</a></p>
     </div>

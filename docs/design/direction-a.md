@@ -198,6 +198,65 @@ focusable, labelled wrapper. `prefers-reduced-motion` is respected.
 
 ---
 
+## Photographs
+
+⚠️ **A photograph of identifiable people needs consent from them before it is published**, and
+that is a condition of using one rather than a formality. A photograph whose consent nobody
+can evidence has to come down.
+
+The club supplies them; this repository does not source them. When one is added, record in the
+same commit **who supplied it and when, and that consent was confirmed** — the page's own
+header is the right place, and this table is the index.
+
+| Photograph | Where | Supplied | Consent |
+| --- | --- | --- | --- |
+| `src/assets/club-evening-run.jpg` — about eighteen members on a path through a cemetery at dusk | The home page hero | A club volunteer, 20 September 2026 | Confirmed by that volunteer, 20 September 2026 |
+| `src/assets/club-group-photo.jpg` — about eighty members in club vests and race numbers, with the club's wordmark burnt in | The home page's membership section | A club volunteer, 21 September 2026 | Confirmed by that volunteer, 21 September 2026 |
+
+### A slot has a shape, and a photograph is chosen to fit it
+
+⚠️ **Never a fixed height plus `object-fit: cover` on a photograph of people.** Cover crops
+whatever does not fit, and on a group photograph what does not fit is people. Measured: the
+club group shot is 1.92:1, and the hero slot's original fixed 27rem height made it about
+1.35:1 at desktop — which would have cropped **30% of the width**, taking both ends off a line
+of eighty members with nothing saying so.
+
+Each slot carries an `aspect-ratio` instead, matched to what it holds:
+
+| Class | Ratio | Holds | Cropped |
+| --- | --- | --- | --- |
+| `img.club-hero-photo` | 4:3 | `club-evening-run.jpg`, itself 4:3 | nothing |
+| `img.club-photo-wide` | 16:9 | `club-group-photo.jpg`, 1.92:1 | ~7%, evenly off both sides |
+| `img.club-photo-tall` | 4:3 | any 4:3 photograph | nothing |
+
+**Swapping in a photograph of a very different shape means revisiting the ratio.** That is a
+deliberate cost and the alternative is worse.
+
+### Which photograph goes where
+
+The group shot led the page for about an hour on 21 September 2026 and moved down. The
+reasoning is in `index.astro`'s header; in short, the hero sells Tuesday night and that
+photograph is a race, it carries the wordmark about 200px below the header's own, and eighty
+faces at hero size stop being faces. Beside *"Join the club for £4 a year"* it is the argument
+rather than decoration.
+
+**Everywhere else still renders a flat `--club-photo` panel** — `aria-hidden`, no text, no
+stripe pattern, no `[Photo: …]` caption. Those are replaced by real photographs the same way
+this one was, not filled in.
+
+Two technical notes that travel with any hero photograph here:
+
+- **`<Image>` from `astro:assets`**, not `<img>`, so width, height and a modern format are
+  emitted at build time. The source of the one above is a 1600×1200 phone photograph at
+  382 kB; the build produces four WebP variants from 78 kB.
+- ⚠️ **`loading="lazy"` even though it is above the fold.** The hero photograph is
+  `display: none` below 62em, and an eager image is still *downloaded* when hidden — so 70% of
+  this club's visitors would pay for a picture they never see, on the poor signal the whole
+  design is built around. A lazy image that is not rendered is never fetched, and a lazy image
+  inside the viewport loads immediately, so the desktop case is unaffected.
+
+---
+
 ## Components
 
 Built in this change:

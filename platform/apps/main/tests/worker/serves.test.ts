@@ -301,14 +301,70 @@ describe('Nightingale Nightmare', () => {
 });
 
 describe('what does not exist', () => {
-  it.each(['/membership/', '/results/', '/newsletter/2026-01/'])(
-    '404s %s',
-    async (path) => {
-      const response = await SELF.fetch(`${SITE}${path}`);
+  // ⚠️ **`/membership/` came off this list on 20 September 2026, because it exists now.**
+  // It was here as an address the club had not built; the club website's own pages landed and
+  // this test went red asserting a 404 on a page that was working. That is the list doing its
+  // job — it is a record of what is *not* built, so a page arriving is exactly what should
+  // break it. The two below are still unbuilt.
+  it.each(['/results/', '/newsletter/2026-01/'])('404s %s', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
 
-      expect(response.status).toBe(404);
-    },
-  );
+    expect(response.status).toBe(404);
+  });
+});
+
+/**
+ * The club website's own pages, at the layer that reads what the assets binding returns.
+ *
+ * ⚠️ **This is the layer `./dev e2e` never builds.** Playwright drives a browser and asserts
+ * behaviour; this asserts the **served bytes**, and a rendering change is not verified until
+ * it has run. A `<wbr>` inserted into an address turned 25 of these red through three green
+ * browser runs earlier this week.
+ */
+describe('the club website’s own pages', () => {
+  it.each([
+    ['/run-with-us/', 'Your first night at SRC'],
+    ['/membership/', 'Run for 50p. Join for £4.'],
+    ['/news/', 'Monthly newsletters'],
+    ['/about/', 'A friendly club since 2007'],
+  ])('serves %s', async (path, heading) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
+    const page = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(page).toContain(heading);
+    // Nothing on this subdomain is indexed until the Squarespace cutover.
+    expect(page).toContain('name="robots" content="noindex"');
+  });
+
+  it('keeps the money pages’ chrome off them, and their own off the money pages', async () => {
+    // The fence, at the markup layer. `club-chrome.spec.ts` asserts the same thing in a
+    // browser; this one reads what was actually served.
+    const club = await (await SELF.fetch(`${SITE}/about/`)).text();
+    expect(club).toContain('club-header');
+    expect(club).not.toContain('site-banner');
+
+    const money = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    expect(money).toContain('site-banner');
+    expect(money).not.toContain('club-header');
+  });
+
+  it('ships no placeholder into the built markup', async () => {
+    for (const path of ['/', '/run-with-us/', '/membership/', '/news/', '/about/']) {
+      const page = await (await SELF.fetch(`${SITE}${path}`)).text();
+
+      for (const marker of [
+        '[confirm]',
+        '[placeholder',
+        '[Photo:',
+        '[Name]',
+        'undefined',
+      ]) {
+        expect(page, `${path} contains ${marker}`).not.toContain(marker);
+      }
+    }
+  });
 });
 
 describe('the health endpoint', () => {
