@@ -310,7 +310,17 @@ describe('what the form does not do yet, asserted so that it stays deliberate', 
    * that survives one merge and not two. So the absence is a test.
    */
   it('is linked from no club page', async () => {
-    for (const path of ['/', '/membership/', '/run-with-us/', '/about/', '/news/']) {
+    // ⚠️ **`/privacy/` is on this list because it very nearly linked here.** It names the
+    // application form — the membership privacy wording lives on the form rather than on that
+    // page — and naming a page is one keystroke from linking it. Neither list checked it.
+    for (const path of [
+      '/',
+      '/membership/',
+      '/run-with-us/',
+      '/about/',
+      '/news/',
+      '/privacy/',
+    ]) {
       expect(await built(path), `${path} links to the application form`).not.toContain(
         'href="/membership/join/"',
       );

@@ -212,7 +212,16 @@ test.describe('nothing leads anybody here yet', () => {
    * **Delete this test when the table lands, in the same change.** Not before.
    */
   test('no club page links to the application form', async ({ page }) => {
-    for (const path of ['/', '/membership/', '/run-with-us/', '/about/', '/news/']) {
+    // ⚠️ `/privacy/` is here because it names the application form in prose and very nearly
+    // linked to it. Naming a page is one keystroke from linking it.
+    for (const path of [
+      '/',
+      '/membership/',
+      '/run-with-us/',
+      '/about/',
+      '/news/',
+      '/privacy/',
+    ]) {
       await page.goto(path);
 
       await expect(

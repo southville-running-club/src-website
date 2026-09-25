@@ -70,9 +70,17 @@ const SETTLED = {
   // **The page's own revision date, and it moves on every change to what it renders.** Section
   // 8 promises the notice is updated when the club changes how it uses information, and #179
   // item 3 established for the other notice that a date which does not move on a rendered
-  // change is a promise the page breaks. Same rule here: 31 August 2026 is when the two open
-  // values were answered.
-  lastUpdated: '31 August 2026',
+  // change is a promise the page breaks.
+  //
+  // 31 August 2026 was when the two open values were answered. **25 September 2026 is when
+  // section 2 gained the sentence saying this notice does not cover applying to join** — the
+  // membership privacy wording is on the application form itself, where somebody reads it at
+  // the moment their details are collected, and without that sentence a reader arriving here
+  // from the form would find a notice silent on applying.
+  //
+  // ⚠️ **This pin is the whole mechanism.** Moving `privacy.json` and leaving this alone
+  // fails here, which is the point: the date and the change land in one commit or neither.
+  lastUpdated: '25 September 2026',
 } as const;
 
 /** The notice itself. The page's sign-off sits outside it, and is not part of the count. */
