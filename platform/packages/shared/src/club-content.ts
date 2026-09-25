@@ -201,21 +201,46 @@ export function parsePace(value: unknown): Pace {
 /**
  * What each option costs, in pence, and what it is called.
  *
- * ⚠️ **`englandAthleticsPence` is nullable and that is load-bearing.** The old site quotes
- * £23, £24 and £27 for the England Athletics licence and the club has not said which is
- * right. A null renders **"Price to be confirmed"** and the card still links to Join; it may
- * never render an invented figure, a bracketed placeholder, or one of the three guesses.
- * `tests/unit/club-content.test.ts` asserts that behaviour rather than trusting it.
+ * ## ⚠️ Two of the four prices are deliberately not here
+ *
+ * **Annual membership and the England Athletics option live in `membership.membership_types`
+ * and in no file in this repository.** The club raises its fees about once a year and asked
+ * for that to be one `update` rather than a deploy —
+ *
+ * ```sql
+ * update membership.membership_types set price_pence = 500 where code = 'club';
+ * ```
+ *
+ * — so every page that quotes either reads it at request time, painted by
+ * `worker/membership.ts`. A copy in this file would be a second source that agreed on the day
+ * it was written and silently stopped agreeing the day somebody ran that statement, which is
+ * exactly the failure `entries.fees` and `store.ticket_types` both exist to rule out.
+ *
+ * **What ships in the markup is `PRICE_TO_BE_CONFIRMED`**, and the Worker replaces it. A page
+ * that cannot reach the database therefore says the price is confirmed on the form rather
+ * than quoting a figure it cannot stand behind — the same failure direction `/events/<slug>/`
+ * takes with a date.
+ *
+ * ## What is still here
+ *
+ * The two that are not membership at all: **paying for one run**, which is the Southbank
+ * Club's hire cost, and **the unlimited-runs subscription**, which is not membership and is
+ * not sold by the application form. Neither is in `membership_types`, so neither has anywhere
+ * else to be, and both move by deploy today.
  *
  * Prices are pence so they go through `formatPriceWords()` — "50p", "£4", "£2.50" — and never
  * through a template writing its own `£`.
  */
-export const membershipSchema = z.object({
-  payPerRunPence: z.number().int().nonnegative(),
-  subscriptionPerMonthPence: z.number().int().nonnegative(),
-  membershipPerYearPence: z.number().int().nonnegative(),
-  englandAthleticsPence: z.number().int().nonnegative().nullable(),
-});
+export const membershipSchema = z
+  .object({
+    payPerRunPence: z.number().int().nonnegative(),
+    subscriptionPerMonthPence: z.number().int().nonnegative(),
+  })
+  // ⚠️ **`.strict()`, and it is the only schema in this file that is.** Zod drops an unknown
+  // key silently, so without this a `membershipPerYearPence` added back to `membership.json`
+  // would be accepted, ignored, and invisible — somebody would edit a price, see nothing
+  // change on the page, and have no way to find out why. Refusing it names the problem.
+  .strict();
 
 export type Membership = z.infer<typeof membershipSchema>;
 

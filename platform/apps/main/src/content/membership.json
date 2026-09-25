@@ -1,6 +1,4 @@
 {
   "payPerRunPence": 50,
-  "subscriptionPerMonthPence": 250,
-  "membershipPerYearPence": 400,
-  "englandAthleticsPence": null
+  "subscriptionPerMonthPence": 250
 }

@@ -129,6 +129,10 @@ describe('the club palette', () => {
       ['--club-link', '--club-background'],
       ['--club-link', '--club-surface'],
       ['--club-link', '--club-surface-alt'],
+      // A form error is read, so it clears the body-text floor rather than the non-text one.
+      ['--club-danger', '--club-background'],
+      ['--club-danger', '--club-surface'],
+      ['--club-danger', '--club-surface-alt'],
     ])('%s reads on %s', (ink, surface) => {
       expect(
         contrastRatio(colour(scheme, ink), colour(scheme, surface)),
@@ -163,6 +167,28 @@ describe('the club palette', () => {
           `--club-brand is drawn as a line on ${surface}`,
         ).toBeGreaterThanOrEqual(AA_NON_TEXT);
       }
+    });
+
+    /**
+     * ⚠️ **A red that is not redefined for the dark scheme is not a dark-scheme red.**
+     *
+     * `--club-danger` is `#a3231b` in the light scheme, where it is 7.46:1 on a card. Left
+     * alone in the dark scheme it measures **1.62:1** on the dark page — not hard to read,
+     * absent — because the surfaces inverted and the ink did not. That is precisely the
+     * defect `nn-admin.css` shipped once with an amber wash and `club.css` nearly shipped
+     * with the pace highlight, so it is asserted directly rather than left to the pairings
+     * above to catch by luck.
+     *
+     * The two schemes therefore hold **different** values, and this is what fails if somebody
+     * removes one of them.
+     */
+    it('gives the dark scheme a red of its own', () => {
+      expect(colour(light, '--club-danger')).not.toBe(colour(dark, '--club-danger'));
+
+      // The light scheme's red, put on the dark page, is what this is protecting against.
+      expect(
+        contrastRatio(colour(light, '--club-danger'), colour(dark, '--club-background')),
+      ).toBeLessThan(AA_TEXT);
     });
 
     /** Control borders are non-text UI and have to be findable. */

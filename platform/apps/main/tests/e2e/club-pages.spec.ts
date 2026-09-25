@@ -21,7 +21,7 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 const PAGES = [
   ['Run with us', '/run-with-us/', 'Your first night at SRC'],
-  ['Membership', '/membership/', 'Run for 50p. Join for £4.'],
+  ['Membership', '/membership/', 'Run for 50p. Join when it suits you.'],
   ['News', '/news/', 'Monthly newsletters'],
   ['About', '/about/', 'A friendly club since 2007'],
 ] as const;
@@ -91,21 +91,29 @@ test.describe('nothing unfinished reaches the page', () => {
   /**
    * ⚠️ **The England Athletics licence, which is the sharpest case on the site.**
    *
-   * £23, £24 and £27 are all quoted on the club's old site and the club has not said which is
-   * right. So the card says so — and still links to Join, because it is the price that is
-   * unknown rather than the route.
+   * £23, £24 and £27 were all quoted on the club's old site. The club settled it — £27, of
+   * which £23 is England Athletics' own registration fee — and **that figure is in
+   * `membership.membership_types` rather than in this page**, so a fee rise is one `update`
+   * and no deploy.
+   *
+   * What this asserts in a browser is that the price arrives *and* that the split arrives
+   * with it. £27 beside £4 with no account of the difference is a number somebody argues
+   * with; the sentence beneath it is what makes it explicable, and it is painted from
+   * `ea_fee_pence` so the two cannot disagree. `tests/worker/membership.test.ts` owns the
+   * markup-level half, including that no figure is in the built file at all.
    */
-  test('says the England Athletics price is unconfirmed, and guesses none of the three', async ({
+  test('quotes the England Athletics price and says which part is not the club’s', async ({
     page,
   }) => {
     await page.goto('/membership/');
 
     const card = page.locator('article').filter({ hasText: 'England Athletics licence' });
 
-    await expect(card).toContainText('Price to be confirmed');
-    for (const guess of ['£23', '£24', '£27']) {
-      await expect(card, `the card quotes ${guess}`).not.toContainText(guess);
-    }
+    await expect(card).toContainText('£27');
+    await expect(card).toContainText(
+      '£4 club membership plus £23 England Athletics registration',
+    );
+    await expect(card).not.toContainText('Price to be confirmed');
   });
 
   test('names nobody on the committee until the club supplies names', async ({

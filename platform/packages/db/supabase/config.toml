@@ -51,13 +51,23 @@ port = 54321
 # `tests/timing.test.ts` walks all six tables. Added on 11 September 2026, inside the
 # Nightingale Nightmare entry window — as `store` was on 5 September, with entries selling.
 #
+# `membership` joined on 21 September 2026, the fourth schema to do so and the third added
+# inside the Nightingale Nightmare entry window. It holds what club membership costs and the
+# minimum age to join — prices the club changes with a query rather than a deploy — and it
+# grants `anon` exactly one function, `membership_state()`, which returns published prices.
+# `tests/membership.test.ts` names that grant and walks both tables in both verbs.
+#
 # ⚠️ **This whole file ships to production on the next merge that touches a migration, and
 # there is no partial apply** — a rejected value here would take `[auth]`'s `site_url`, the
 # redirect allowlist and the captcha secret down with it while `db push`, which runs first,
 # went on succeeding. That is issue #79 and it cost four red deploys. This edit is additive
 # and names a schema `db push` will have created moments earlier, which is the only ordering
 # in which it is safe.
-schemas = ["public", "graphql_public", "intake", "entries", "identity", "store", "timing"]
+# ⚠️ **One line, and `tests/unit/config.test.ts` requires it.** That file parses this with
+# `/^schemas\s*=\s*\[(.+)\]/m`, so a multi-line array makes every assertion about what the
+# Data API exposes throw "config.toml has no [api] schemas list" — six red tests describing a
+# parser rather than a problem. Reformatting this for readability costs more than it buys.
+schemas = ["public", "graphql_public", "intake", "entries", "identity", "store", "timing", "membership"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size

@@ -56,8 +56,9 @@ and nothing else. If you find yourself importing one into the other, read ADR-04
 | `--club-logo` | `#1A7D3F` | The wordmark |
 | `--club-rule` | `#D3E3CF` | Dividers |
 | `--club-rule-strong` | `#76887A` | Control borders |
-| `--club-highlight` | `#FFE9A8` | The pace guide's "start here" row, only |
+| `--club-highlight` | `#FFE9A8` | The pace guide's "start here" row, and a form's "we can't show the price" notice |
 | `--club-on-highlight` | `#16301F` | Text on that row |
+| `--club-danger` | `#A3231B` | A form error. **Never the only signal** |
 | `--club-focus` | `#16301F` | The focus outline |
 
 ### Dark
@@ -66,6 +67,11 @@ Only these are redefined. Everything else falls through, **which is the point**:
 green, its ink, the highlight and its ink are the same in both schemes, because a fill that
 inverted would stop being the club's colour and a highlight that inverted would stop being a
 highlight.
+
+⚠️ **`--club-danger` is redefined here and has to be.** It is ink rather than a fill, so it
+follows the surfaces: `#A3231B` measures 7.46:1 on a light card and **1.62:1** on the dark
+page — not hard to read, absent. That is the amber-wash defect `nn-admin.css` shipped once,
+and `club-contrast.test.ts` asserts directly that the two schemes hold different values.
 
 | Token | Value |
 | --- | --- |
@@ -77,6 +83,7 @@ highlight.
 | `--club-link` | `#7FD39A` |
 | `--club-logo` | `#209D50` |
 | `--club-rule` | `#2A4232` |
+| `--club-danger` | `#FF9D94` |
 | `--club-focus` | `#EAF3E7` |
 
 ---

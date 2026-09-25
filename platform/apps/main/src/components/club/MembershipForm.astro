@@ -1,0 +1,702 @@
+---
+import { COUNTRIES, DEFAULT_COUNTRY } from '@src/shared/countries';
+import {
+  MEMBERSHIP_ADDRESS_MAX_LENGTH,
+  MEMBERSHIP_CLUB_NAME_MAX_LENGTH,
+  MEMBERSHIP_EMAIL_MAX_LENGTH,
+  MEMBERSHIP_NAME_MAX_LENGTH,
+  MEMBERSHIP_PHONE_MAX_LENGTH,
+  MEMBERSHIP_TITLES,
+} from '@src/shared/membership-application';
+import { PRICE_TO_BE_CONFIRMED } from '@src/shared/club-content';
+import { parseLinks } from '@src/shared/club-content';
+import links from '../../content/links.json';
+
+// The new-member application form.
+//
+// ## ⚠️ This form does not submit yet, and that is deliberate
+//
+// **Nothing stores an application.** `membership.membership_applications` does not exist,
+// because a table holding eighteen fields of personal data — a date of birth and a home
+// address among them — is a committee decision under this repository's own stop-and-ask
+// rules, and the club has not taken it. Two things are owed before it can:
+//
+//   1. **The decision itself**, and with it a retention period.
+//   2. **Privacy-notice wording** for the collection and for the England Athletics sharing.
+//      `/privacy/` says nothing today about either, and a form that collects an address
+//      under a notice that does not mention one is the breach, not the paperwork.
+//
+// So the page this form is on is **reachable and linked from nowhere** — not the navigation,
+// not `/membership/` — and `tests/e2e/membership-join.spec.ts` asserts that absence rather
+// than trusting it. What exists here is the markup, the validation rules it declares, and the
+// prices painted onto it; what arrives with the table is the POST handler, the check-your-
+// answers step and the two emails.
+//
+// **The error slots below ship `hidden` for that handler to fill.** `HTMLRewriter` can only
+// rewrite elements that are already there, so a server-rendered error needs a place to land
+// on the page as built. That is the expand step, not decoration.
+//
+// ## The field list is the club's own, and its order is one change from it
+//
+// Eighteen fields, from the club's live Squarespace form. `packages/shared/src/membership-
+// application.ts` is the schema and carries the reasoning for each; this file renders it and
+// decides nothing about what is asked.
+//
+// ⚠️ **The country comes after the address lines**, which is the single reordering. Asking
+// for a country first makes somebody choose the format of an address they have not started
+// typing.
+//
+// ## Every control that can be hidden is also disabled
+//
+// ⚠️ `hidden` does not stop a control being validated. A `required` input that is hidden and
+// empty makes the browser refuse to submit the form — silently, with a console line nobody
+// has open and no request on the wire. That took the race entry form down for every signed-in
+// runner and was found on production by luck. The membership options therefore ship
+// `hidden disabled` and the Worker removes both together; see `worker/membership.ts`.
+//
+// ## No JavaScript
+//
+// There is none, and none is needed: every rule here is an HTML attribute the browser already
+// enforces and the server re-checks. The conditional fields are always visible rather than
+// revealed by a script, which costs a little length and buys a form that behaves identically
+// in the `no-javascript` project — where every test in this suite also runs.
+
+const link = parseLinks(links);
+
+/** Input length caps, restated as attributes so the browser refuses before the server does. */
+const MAX = {
+  name: MEMBERSHIP_NAME_MAX_LENGTH,
+  email: MEMBERSHIP_EMAIL_MAX_LENGTH,
+  phone: MEMBERSHIP_PHONE_MAX_LENGTH,
+  address: MEMBERSHIP_ADDRESS_MAX_LENGTH,
+  club: MEMBERSHIP_CLUB_NAME_MAX_LENGTH,
+};
+
+/**
+ * The two memberships the club sells, in the order the database sorts them.
+ *
+ * ⚠️ **The prices are not here and the codes are.** A code is a key the form and the database
+ * agree on; a price is a fact only the database holds. Both rows ship `hidden disabled` and
+ * the Worker opens whichever ones `membership.membership_state()` returns — so withdrawing an
+ * option is an `update`, and so is renaming or repricing one.
+ */
+const OPTIONS = [
+  {
+    code: 'club',
+    name: 'SRC membership',
+    summary:
+      "Supports the club, and gets you into the members' WhatsApp community and local discounts.",
+  },
+  {
+    code: 'club_ea',
+    name: 'SRC membership and an England Athletics licence',
+    summary:
+      'Everything in membership, plus discounted entry to affiliated races and annual race insurance.',
+  },
+] as const;
+---
+
+{
+  /* ⚠️ **`action` names this page.** A form with no action posts to the current address, which
+  is the same thing until somebody moves the page; saying it makes the target a fact in the
+  markup rather than a consequence of where the file happens to live. */
+}
+<form class="club-form" method="post" action="/membership/join/" novalidate={false}>
+  {
+    /* ⚠️ **The summary is the form's first child, not a block above it.** A container's error
+      message belongs to that container — the rule this repository wrote after an error
+      message rendered inside one card started answering for a control in another. It ships
+      `hidden`; the POST handler reveals it and fills the list. */
+  }
+  <div
+    class="club-error-summary"
+    data-membership-error-summary
+    role="alert"
+    tabindex="-1"
+    hidden
+  >
+    <h2>There is a problem</h2>
+    <ul data-membership-error-list></ul>
+  </div>
+
+  {
+    /* **The honeypot.** Named for something a form-filling robot wants to complete and a
+      person never sees. ⚠️ `hidden` rather than off-screen positioning, because an absolutely
+      positioned control inside a scrolling ancestor is how this repository once made a whole
+      page slide sideways — and `autocomplete="off"` with `tabindex="-1"` so a password
+      manager does not fill it on somebody's behalf and get them refused. */
+  }
+  <input
+    class="club-visually-hidden"
+    type="text"
+    name="website"
+    id="website"
+    tabindex="-1"
+    autocomplete="off"
+    aria-hidden="true"
+    hidden
+  />
+
+  <fieldset class="club-fieldset">
+    <legend><h2>About you</h2></legend>
+
+    <div class="club-field">
+      <label class="club-label" for="title">Title</label>
+      <p class="club-error" id="title-error" data-membership-error="title" hidden></p>
+      <select
+        class="club-select"
+        id="title"
+        name="title"
+        required
+        autocomplete="honorific-prefix"
+        aria-describedby="title-error"
+      >
+        <option value="">Choose one</option>
+        {MEMBERSHIP_TITLES.map((title) => <option value={title}>{title}</option>)}
+      </select>
+    </div>
+
+    <div class="club-field-row">
+      <div class="club-field">
+        <label class="club-label" for="firstName">First name</label>
+        <p
+          class="club-error"
+          id="firstName-error"
+          data-membership-error="firstName"
+          hidden
+        >
+        </p>
+        <input
+          class="club-input"
+          id="firstName"
+          name="firstName"
+          type="text"
+          required
+          maxlength={MAX.name}
+          autocomplete="given-name"
+          aria-describedby="firstName-error"
+        />
+      </div>
+
+      <div class="club-field">
+        <label class="club-label" for="lastName">Last name</label>
+        <p class="club-error" id="lastName-error" data-membership-error="lastName" hidden>
+        </p>
+        <input
+          class="club-input"
+          id="lastName"
+          name="lastName"
+          type="text"
+          required
+          maxlength={MAX.name}
+          autocomplete="family-name"
+          aria-describedby="lastName-error"
+        />
+      </div>
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="email">Email address</label>
+      <p class="club-hint" id="email-hint">
+        Where we'll send your membership confirmation and club news.
+      </p>
+      <p class="club-error" id="email-error" data-membership-error="email" hidden></p>
+      <input
+        class="club-input"
+        id="email"
+        name="email"
+        type="email"
+        required
+        maxlength={MAX.email}
+        autocomplete="email"
+        aria-describedby="email-hint email-error"
+      />
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="phone">Phone number</label>
+      {
+        /* ⚠️ **The international hint is the whole reason this is stored in E.164.** A member
+          with a French number should be reachable on it, and a UK-only box could not have
+          held one at all. `packages/shared/src/phone.ts` carries the parsing. */
+      }
+      <p class="club-hint" id="phone-hint">
+        A UK number, or one from anywhere else starting with its country code — for
+        example +33 6 12 34 56 78.
+      </p>
+      <p class="club-error" id="phone-error" data-membership-error="phone" hidden></p>
+      <input
+        class="club-input"
+        id="phone"
+        name="phone"
+        type="tel"
+        required
+        maxlength={MAX.phone}
+        autocomplete="tel"
+        aria-describedby="phone-hint phone-error"
+      />
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="dateOfBirth">Date of birth</label>
+      {
+        /* ⚠️ **One `type="date"` box rather than three, and it is the schema that decides
+          that.** `parseMembershipApplication` takes a single `YYYY-MM-DD` string, which is
+          exactly what a date input posts — so three boxes would need something to join them
+          back up, and that something would be a second implementation of a rule the server
+          already owns. The race entry form uses three boxes and its own joiner; its schema is
+          frozen and cannot be shared, which is why this does not simply reuse it.
+
+          The minimum age is painted from `membership.settings`, so raising it is an `update`
+          and no deploy. */
+      }
+      <p class="club-hint" id="dateOfBirth-hint">
+        You need to be <span data-membership-minimum-age>18</span> or over to join the club.
+      </p>
+      <p
+        class="club-error"
+        id="dateOfBirth-error"
+        data-membership-error="dateOfBirth"
+        hidden
+      >
+      </p>
+      <input
+        class="club-input club-input-date"
+        id="dateOfBirth"
+        name="dateOfBirth"
+        type="date"
+        required
+        autocomplete="bday"
+        aria-describedby="dateOfBirth-hint dateOfBirth-error"
+      />
+    </div>
+  </fieldset>
+
+  <fieldset class="club-fieldset">
+    <legend><h2>Your address</h2></legend>
+
+    <div class="club-field">
+      <label class="club-label" for="addressLine1">Address line 1</label>
+      <p
+        class="club-error"
+        id="addressLine1-error"
+        data-membership-error="addressLine1"
+        hidden
+      >
+      </p>
+      <input
+        class="club-input"
+        id="addressLine1"
+        name="addressLine1"
+        type="text"
+        required
+        maxlength={MAX.address}
+        autocomplete="address-line1"
+        aria-describedby="addressLine1-error"
+      />
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="addressLine2">
+        Address line 2 <span class="club-optional">(optional)</span>
+      </label>
+      <p
+        class="club-error"
+        id="addressLine2-error"
+        data-membership-error="addressLine2"
+        hidden
+      >
+      </p>
+      <input
+        class="club-input"
+        id="addressLine2"
+        name="addressLine2"
+        type="text"
+        maxlength={MAX.address}
+        autocomplete="address-line2"
+        aria-describedby="addressLine2-error"
+      />
+    </div>
+
+    <div class="club-field-row">
+      <div class="club-field">
+        <label class="club-label" for="cityTown">Town or city</label>
+        <p class="club-error" id="cityTown-error" data-membership-error="cityTown" hidden>
+        </p>
+        <input
+          class="club-input"
+          id="cityTown"
+          name="cityTown"
+          type="text"
+          required
+          maxlength={MAX.address}
+          autocomplete="address-level2"
+          aria-describedby="cityTown-error"
+        />
+      </div>
+
+      <div class="club-field">
+        <label class="club-label" for="postcode">Postcode</label>
+        <p class="club-error" id="postcode-error" data-membership-error="postcode" hidden>
+        </p>
+        {
+          /* ⚠️ No `pattern` attribute. The postcode rule applies to a UK address and not to a
+            French one, and the browser cannot know which country has been chosen — a UK
+            pattern here would refuse `75001` before the form was ever submitted. The server
+            checks it against the country; see `membership-application.ts`. */
+        }
+        <input
+          class="club-input club-input-short"
+          id="postcode"
+          name="postcode"
+          type="text"
+          required
+          autocomplete="postal-code"
+          aria-describedby="postcode-error"
+        />
+      </div>
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="country">Country</label>
+      <p class="club-error" id="country-error" data-membership-error="country" hidden></p>
+      <select
+        class="club-select"
+        id="country"
+        name="country"
+        required
+        autocomplete="country"
+        aria-describedby="country-error"
+      >
+        {
+          COUNTRIES.map(([code, name]) => (
+            <option value={code} selected={code === DEFAULT_COUNTRY}>
+              {name}
+            </option>
+          ))
+        }
+      </select>
+    </div>
+  </fieldset>
+
+  {
+    /* ⚠️ **The `<fieldset>` is what `disabled` is on, and that is the whole trick.** Disabling
+      a fieldset disables every control inside it, so one attribute closes the group — and
+      `EnableHandler` in `worker/membership.ts` removes it and `hidden` together the moment a
+      price has been read. A `required` radio left enabled inside a hidden group is the defect
+      that silently killed the race entry form's submit button. */
+  }
+  <fieldset
+    class="club-fieldset club-options"
+    data-membership-options
+    aria-describedby="membershipType-error"
+    disabled
+    hidden
+  >
+    <legend><h2>Which membership</h2></legend>
+
+    <p
+      class="club-error"
+      id="membershipType-error"
+      data-membership-error="membershipType"
+      hidden
+    >
+    </p>
+
+    <div class="club-choices">
+      {
+        OPTIONS.map((option) => (
+          <div class="club-choice" data-membership-option={option.code} hidden>
+            <input
+              class="club-radio"
+              type="radio"
+              id={`membershipType-${option.code}`}
+              name="membershipType"
+              value={option.code}
+              data-membership-input={option.code}
+              required
+              disabled
+              hidden
+            />
+            <label class="club-choice-label" for={`membershipType-${option.code}`}>
+              <span class="club-choice-name">{option.name}</span>
+              <span class="club-choice-price" data-membership-price={option.code}>
+                {PRICE_TO_BE_CONFIRMED}
+              </span>
+              <span class="club-choice-summary">{option.summary}</span>
+              {/* Painted only where the database says part of the price is not the club's. */}
+              <span
+                class="club-choice-split"
+                data-membership-ea-split={option.code}
+                hidden
+              />
+            </label>
+          </div>
+        ))
+      }
+    </div>
+  </fieldset>
+
+  {
+    /* ⚠️ **This ships visible and the Worker hides it.** It is the honest answer when the
+      prices could not be read: the options above are closed, so the form cannot be completed,
+      and saying nothing would leave somebody staring at a gap. Painting a price is what makes
+      this sentence untrue, so painting a price is what removes it. */
+  }
+  <p class="club-notice" data-membership-prices-unavailable>
+    We can't show what membership costs just now. <a href={link.join.href}>
+      {link.join.label}
+    </a> on our old site, or try this page again in a few minutes.
+  </p>
+
+  <fieldset class="club-fieldset">
+    <legend><h2>England Athletics</h2></legend>
+
+    <p>
+      England Athletics is the governing body for athletics in England. The club is
+      affiliated to it, and a licence gets you discounted entry to affiliated races.
+    </p>
+
+    <div class="club-field">
+      <fieldset class="club-subfieldset" aria-describedby="previousAffiliation-error">
+        <legend class="club-label">
+          Have you been a member of another running club, or registered with England
+          Athletics before?
+        </legend>
+        <p
+          class="club-error"
+          id="previousAffiliation-error"
+          data-membership-error="previousAffiliation"
+          hidden
+        >
+        </p>
+        <div class="club-choices club-choices-inline">
+          <div class="club-choice club-choice-small">
+            <input
+              class="club-radio"
+              type="radio"
+              id="previousAffiliation-yes"
+              name="previousAffiliation"
+              value="yes"
+              required
+            />
+            <label class="club-choice-label" for="previousAffiliation-yes">Yes</label>
+          </div>
+          <div class="club-choice club-choice-small">
+            <input
+              class="club-radio"
+              type="radio"
+              id="previousAffiliation-no"
+              name="previousAffiliation"
+              value="no"
+              required
+            />
+            <label class="club-choice-label" for="previousAffiliation-no">No</label>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+
+    {
+      /* ⚠️ **The two conditional fields are after the question, never inside it.** A field
+        revealed inside the group it is a condition of collapses 277px from *above* the
+        controls below it — somebody taps the option they want and the page throws them
+        somewhere else. That is written up twice in this repository, and both times it was the
+        nesting rather than the reveal. They are also simply always visible here, because
+        nothing on this form is scripted. */
+    }
+    <div class="club-field">
+      <label class="club-label" for="previousClubName">
+        Which club <span class="club-optional">(only if you said yes)</span>
+      </label>
+      <p
+        class="club-error"
+        id="previousClubName-error"
+        data-membership-error="previousClubName"
+        hidden
+      >
+      </p>
+      <input
+        class="club-input"
+        id="previousClubName"
+        name="previousClubName"
+        type="text"
+        maxlength={MAX.club}
+        autocomplete="off"
+        aria-describedby="previousClubName-error"
+      />
+    </div>
+
+    <div class="club-field">
+      <label class="club-label" for="eaUrn">
+        England Athletics URN <span class="club-optional">(if you know it)</span>
+      </label>
+      <p class="club-hint" id="eaUrn-hint">
+        Your Unique Reference Number, if you have registered with England Athletics
+        before. Digits only. We'll look it up if you don't have it to hand.
+      </p>
+      <p class="club-error" id="eaUrn-error" data-membership-error="eaUrn" hidden></p>
+      <input
+        class="club-input club-input-short"
+        id="eaUrn"
+        name="eaUrn"
+        type="text"
+        inputmode="numeric"
+        maxlength="12"
+        autocomplete="off"
+        aria-describedby="eaUrn-hint eaUrn-error"
+      />
+    </div>
+
+    <div class="club-field">
+      <fieldset
+        class="club-subfieldset"
+        aria-describedby="eaPortalConsent-hint eaPortalConsent-error"
+      >
+        <legend class="club-label">
+          May we pass your name, date of birth and email address to England Athletics so
+          they can set up your portal account?
+        </legend>
+        {
+          /* ⚠️ **A real yes and a real no, where the club's current form offers only "Yes".**
+            Consent that cannot be withheld is not freely given, which is the whole of what UK
+            GDPR asks of it — so "No" is an answer the form takes and the club acts on. */
+        }
+        <p class="club-hint" id="eaPortalConsent-hint">
+          You can join the club either way. Saying no means you keep club membership
+          without an England Athletics licence.
+        </p>
+        <p
+          class="club-error"
+          id="eaPortalConsent-error"
+          data-membership-error="eaPortalConsent"
+          hidden
+        >
+        </p>
+        <div class="club-choices club-choices-inline">
+          <div class="club-choice club-choice-small">
+            <input
+              class="club-radio"
+              type="radio"
+              id="eaPortalConsent-yes"
+              name="eaPortalConsent"
+              value="yes"
+              required
+            />
+            <label class="club-choice-label" for="eaPortalConsent-yes">Yes</label>
+          </div>
+          <div class="club-choice club-choice-small">
+            <input
+              class="club-radio"
+              type="radio"
+              id="eaPortalConsent-no"
+              name="eaPortalConsent"
+              value="no"
+              required
+            />
+            <label class="club-choice-label" for="eaPortalConsent-no">No</label>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+  </fieldset>
+
+  <fieldset class="club-fieldset">
+    <legend><h2>Club policies</h2></legend>
+
+    {
+      /* ⚠️ **Both policy links go to the club documents page, not to the documents.** The
+        club has not supplied a direct address for either, and inventing one that looks right
+        would produce a checkbox asking somebody to agree to a 404. The documents page is
+        where both actually are, so it is where both point; when the two addresses are
+        supplied, adding a `code-of-conduct` and a `disciplinary-policy` key to `links.json`
+        and naming them here is the whole change. */
+    }
+    <p>
+      Every member agrees to these. Both are on the club documents page; use your
+      browser's back button to come back to the form.
+    </p>
+
+    <div class="club-field">
+      <div class="club-check">
+        <input
+          class="club-checkbox"
+          type="checkbox"
+          id="agreeCodeOfConduct"
+          name="agreeCodeOfConduct"
+          value="true"
+          required
+          aria-describedby="agreeCodeOfConduct-error"
+        />
+        <label class="club-check-label" for="agreeCodeOfConduct">
+          I agree to the <a href={link['club-documents'].href}>club code of conduct</a>.
+        </label>
+      </div>
+      <p
+        class="club-error"
+        id="agreeCodeOfConduct-error"
+        data-membership-error="agreeCodeOfConduct"
+        hidden
+      >
+      </p>
+    </div>
+
+    <div class="club-field">
+      <div class="club-check">
+        <input
+          class="club-checkbox"
+          type="checkbox"
+          id="agreePrivacyPolicy"
+          name="agreePrivacyPolicy"
+          value="true"
+          required
+          aria-describedby="agreePrivacyPolicy-error"
+        />
+        <label class="club-check-label" for="agreePrivacyPolicy">
+          I have read the <a href="/privacy/">privacy notice</a>.
+        </label>
+      </div>
+      <p
+        class="club-error"
+        id="agreePrivacyPolicy-error"
+        data-membership-error="agreePrivacyPolicy"
+        hidden
+      >
+      </p>
+    </div>
+
+    <div class="club-field">
+      <div class="club-check">
+        <input
+          class="club-checkbox"
+          type="checkbox"
+          id="agreeDisciplinaryPolicy"
+          name="agreeDisciplinaryPolicy"
+          value="true"
+          required
+          aria-describedby="agreeDisciplinaryPolicy-error"
+        />
+        <label class="club-check-label" for="agreeDisciplinaryPolicy">
+          I agree to the <a href={link['club-documents'].href}>
+            club disciplinary policy
+          </a>.
+        </label>
+      </div>
+      <p
+        class="club-error"
+        id="agreeDisciplinaryPolicy-error"
+        data-membership-error="agreeDisciplinaryPolicy"
+        hidden
+      >
+      </p>
+    </div>
+  </fieldset>
+
+  <div class="club-form-actions">
+    <button class="club-btn club-btn-primary" type="submit">Send my application</button>
+    <p class="club-small">
+      We'll email you to say we've got it, and the Membership Officer will be in touch
+      about paying.
+    </p>
+  </div>
+</form>

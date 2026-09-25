@@ -24,19 +24,28 @@ import partners from '../content/partners.json';
 // **That is what makes the cutover a data change.** When the club's own join page is built,
 // changing `href` and `where` on one key moves this page, the label included.
 //
-// ## The England Athletics price
+// ## ⚠️ Two of the four prices are painted by the Worker, not rendered here
 //
-// ⚠️ **`englandAthleticsPence` is null and the card says "Price to be confirmed".** The old
-// site quotes £23, £24 and £27 and the club has not said which is right. The card still links
-// to Join, because somebody who wants the licence should not be stopped by a figure — it is
-// the price that is unknown, not the route. `tests/unit/club-content.test.ts` asserts this
-// branch by name, including that it renders none of the three guesses.
+// **Annual membership and the England Athletics option are read from the database on every
+// request**, by `worker/membership.ts`, because the club asked that a fee rise be one SQL
+// statement rather than a deploy. What ships in the markup is `PRICE_TO_BE_CONFIRMED`; the
+// Worker replaces it through the `data-membership-price` attribute on each slot.
+//
+// So **the figure you are looking for is not in this file and must never be added to it.** A
+// literal here would be a second source that agreed on the day it was typed and stopped
+// agreeing the day somebody ran the `update` — the failure `entries.fees` exists to rule out.
+// `parseMembership()` no longer has the keys, so this is enforced rather than remembered.
+//
+// **When nothing is painted the page says the price is confirmed on the form.** That is the
+// shipped state and it is the safe one: a page that cannot reach the database must not quote
+// a figure somebody would act on. The card still links to Join either way, because it is the
+// price that is unknown and not the route.
 //
 // ## Money goes through `formatPriceWords()`
 //
-// "Run for 50p. Join for £4." is the club's voice. `formatPence()` renders those as "£0.50"
-// and "£4.00", which is a different sentence — so this page uses the sibling, and neither
-// writes its own `£`.
+// "Run for 50p" is the club's voice. `formatPence()` renders that as "£0.50", which is a
+// different sentence — so this page uses the sibling, and neither writes its own `£`. The
+// Worker paints through the same function for the same reason.
 //
 // ## Club kit is out of scope
 //
@@ -55,11 +64,6 @@ const link = parseLinks(links);
 
 const perRun = formatPriceWords(prices.payPerRunPence);
 const perMonth = formatPriceWords(prices.subscriptionPerMonthPence);
-const perYear = formatPriceWords(prices.membershipPerYearPence);
-const eaPrice =
-  prices.englandAthleticsPence === null
-    ? null
-    : formatPriceWords(prices.englandAthleticsPence);
 
 /** One row of the comparison table. `true` is included, `false` is not. */
 const COMPARISON: ReadonlyArray<
@@ -87,12 +91,19 @@ const COMPARISON: ReadonlyArray<
 
 <ClubBase
   title="Membership — Southville Running Club"
-  description="Run with Southville Running Club for 50p, subscribe for unlimited runs, or join the club for £4 a year."
+  description="Run with Southville Running Club for 50p, subscribe for unlimited runs, or join the club for the year. What each option includes, and the England Athletics licence."
   canonical="https://new.southvillerunningclub.co.uk/membership/"
 >
   <header class="club-phead">
     <div class="club-wrap">
-      <h1>Run for {perRun}. Join for {perYear}.</h1>
+      {
+        /* ⚠️ **The annual price is not in this heading, and that is deliberate.** It read
+        "Run for 50p. Join for £4." — good copy, and a second place a price would have to be
+        changed. A painted slot in a headline reads as a gap whenever the database is
+        unreachable, so the heading says the half that is settled in this repository and the
+        cards carry the half that is not. */
+      }
+      <h1>Run for {perRun}. Join when it suits you.</h1>
       <p class="club-lede">
         You don't need to be a member to run with us. Pay as you go, subscribe, or join
         the club: whatever suits you.
@@ -133,7 +144,14 @@ const COMPARISON: ReadonlyArray<
           {/* The outline is the non-text half; this says it in words. */}
           <p class="club-badge">Most people start here</p>
           <h3>SRC membership</h3>
-          <p class="club-price">{perYear}<small> a year</small></p>
+          {
+            /* Painted from `membership.membership_types` where `code = 'club'`. The shipped
+            text is what a reader sees if the Worker could not ask. */
+          }
+          <p class="club-price">
+            <span data-membership-price="club">{PRICE_TO_BE_CONFIRMED}</span>
+            <small> a year</small>
+          </p>
           <p>
             Supports the club, and gets you into the members' WhatsApp community and local
             discounts.
@@ -146,13 +164,15 @@ const COMPARISON: ReadonlyArray<
         <article class="club-card">
           <h3>SRC + England Athletics licence</h3>
           {
-            /* ⚠️ **Never a guess.** Three figures are quoted on the old site and the club has
-              not said which is right, so the card says so and still links to Join. */
+            /* ⚠️ **Never a guess, and never a literal.** Painted from `code = 'club_ea'`;
+              the split beneath it is painted too, and ships `hidden` because there is
+              nothing honest to say about how £27 divides until the row has been read. */
           }
-          <p class={`club-price${eaPrice === null ? ' club-price-unconfirmed' : ''}`}>
-            {eaPrice === null ? PRICE_TO_BE_CONFIRMED : eaPrice}
-            {eaPrice !== null && <small> a year</small>}
+          <p class="club-price">
+            <span data-membership-price="club_ea">{PRICE_TO_BE_CONFIRMED}</span>
+            <small> a year</small>
           </p>
+          <p class="club-small" data-membership-ea-split="club_ea" hidden></p>
           <p>
             Everything in membership, plus discounted race entries and annual race
             insurance.

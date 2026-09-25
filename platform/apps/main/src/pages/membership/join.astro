@@ -1,0 +1,132 @@
+---
+import ClubBase from '../../layouts/ClubBase.astro';
+import MembershipForm from '../../components/club/MembershipForm.astro';
+import { parseClub, parseLinks } from '@src/shared/club-content';
+import club from '../../content/club.json';
+import links from '../../content/links.json';
+
+// `/membership/join/` — the club's own new-member application.
+//
+// ## ⚠️ This page is not linked from anywhere, and that is the state it ships in
+//
+// **Nothing stores an application yet.** `membership.membership_applications` does not exist:
+// a table holding eighteen fields of personal data, including a date of birth and a home
+// address, is a committee decision under this repository's own stop-and-ask rules, and it is
+// not one an agent or a single volunteer takes. Two things are owed before the form can take
+// a real submission:
+//
+//   1. **The committee's decision** on the table, with a retention period.
+//   2. **Privacy-notice wording** for this collection and for passing a name, date of birth
+//      and email address to England Athletics. `/privacy/` says nothing about either today,
+//      and collecting an address under a notice that does not mention one is the breach
+//      rather than the paperwork.
+//
+// So this address exists, renders, and is **reached only by typing it**: it is not in
+// `CLUB_NAV`, there is no link to it from `/membership/`, and `tests/e2e/membership-join.spec.ts`
+// asserts both absences. A form somebody can find and fill in that throws their answers away
+// is worse than no form at all, which is the whole reason this is not wired up on a promise.
+//
+// **What is real here** is the markup, the eighteen rules it declares, the prices painted
+// from the database, and the accessibility. What arrives with the table is the POST handler,
+// the check-your-answers step, and the two emails.
+//
+// ## Every price on this page is read at request time
+//
+// ⚠️ **No figure appears in this file or in the component.** `worker/membership.ts` paints
+// them from `membership.membership_types` on every request, so a fee rise is
+//
+// ```sql
+// update membership.membership_types set price_pence = 500 where code = 'club';
+// ```
+//
+// and no deploy — which is what the club asked for. The shipped text says the price is
+// confirmed on the club's own form, and that is the honest answer when the database cannot be
+// reached: a page that quotes a price somebody acts on had better be able to stand behind it.
+//
+// ## Nothing here is scripted
+//
+// The form is HTML and the browser's own constraint validation. Every test in this suite runs
+// in a `no-javascript` project, and this page behaves identically there because there is
+// nothing to degrade.
+
+const meet = parseClub(club).meet;
+const link = parseLinks(links);
+---
+
+<ClubBase
+  title="Join Southville Running Club — new member application"
+  description="Apply to join Southville Running Club. Annual membership, with the option of an England Athletics licence."
+  canonical="https://new.southvillerunningclub.co.uk/membership/join/"
+>
+  <header class="club-phead">
+    <div class="club-wrap club-wrap-narrow">
+      <h1>Join Southville Running Club</h1>
+      <p class="club-lede">
+        Membership runs for a year. It supports the club, gets you into the members'
+        WhatsApp community and local discounts, and — with an England Athletics licence —
+        the affiliated rate at races.
+      </p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap club-wrap-narrow">
+      {
+        /* ⚠️ **Said before the first box, not after the last.** What the club holds, who it
+          goes to and how long it takes are the three things somebody wants to know before
+          they start typing an address, and a notice under the submit button is a notice they
+          read after they have already decided. The wording here describes only what the form
+          does; the notice itself is owed — see this file's header. */
+      }
+      <div class="club-callout">
+        <h2>Before you start</h2>
+        <ul class="club-ticks">
+          <li>
+            It takes about five minutes, and you'll need your address and date of birth.
+          </li>
+          <li>
+            You need to be <span data-membership-minimum-age>18</span> or over.
+          </li>
+          <li>
+            We'll email you to confirm we've got your application. Nothing is charged here
+            — the Membership Officer will be in touch about paying.
+          </li>
+          <li>
+            You don't need to be a member to run with us. <a href="/run-with-us/">
+              Come for a run
+            </a> first if you'd rather.
+          </li>
+        </ul>
+      </div>
+
+      <MembershipForm />
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap club-wrap-narrow">
+      <h2>If you'd rather not fill this in</h2>
+      {
+        /* ⚠️ **`{' '}` before the link, and it is load-bearing.** Prettier reflows this
+          paragraph so the newline lands between "or" and the `<a>`, and Astro compresses that
+          newline to **nothing** — rendering "orask the Membership Officer". This repository
+          has paid for the same trap three times already ("BristolBS3 1DB", "1DB.Map"), and it
+          is invisible in the source every time. An explicit space survives the compression.
+
+          ⚠️ **`meet.time` is the whole phrase**, "Meet 6.00pm for a 6.15pm start" — not a
+          clock value — so it cannot follow "at". It is a sentence of its own here. */
+      }
+      <p>
+        Come and find us at the {meet.venue} on {meet.days}. {meet.time}.
+      </p>
+      <p>
+        You can also{' '}
+        <a href={link.committee.href}>ask the Membership Officer</a>{' '}
+        through the committee page on our old site.
+      </p>
+      <p class="club-small">
+        <a href="/membership/">What membership costs and what it includes</a>
+      </p>
+    </div>
+  </section>
+</ClubBase>

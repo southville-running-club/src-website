@@ -8,6 +8,15 @@ import {
   healthResponse,
 } from '@src/shared';
 import { drainEmailOutbox } from './email-outbox';
+// ⚠️ **The one edit this change makes to a Worker module a money page reads.** It is an
+// import and a single branch below, both additive, and it is declared in the pull request
+// description for the money-page freeze. See the branch itself for what it does and does not
+// touch.
+import {
+  isMembershipPricePath,
+  renderMembershipView,
+  resolveMembershipView,
+} from './membership';
 import { drainTicketOutbox } from './store-outbox';
 import { handleStoreWebhook } from './store-webhook';
 import {
@@ -570,6 +579,25 @@ export default {
       await hideUnpublishedLinks(rewriter, env, response.clone());
     }
 
+    // **What membership costs, on the three club pages that quote it.** Read per request for
+    // `entries.fees`' reason exactly: the club raises its fees about once a year and asked
+    // for that to be an `update` rather than a deploy, so no price is in markup and every
+    // page reads the same row.
+    //
+    // ⚠️ **This is a club-surface read on a club-surface path, and it touches nothing a money
+    // page renders.** `/`, `/membership/` and `/membership/join/` are the whole of it;
+    // `isMembershipPricePath` lives in `worker/membership.ts` rather than in `routing.ts` so
+    // that the frozen module stays frozen.
+    //
+    // Every failure paints nothing, which leaves the shipped page saying the price is
+    // confirmed on the club's own form. A page that cannot reach the database must not quote
+    // a figure somebody would believe.
+    const membershipPrices = isMembershipPricePath(url.pathname);
+
+    if (membershipPrices) {
+      renderMembershipView(rewriter, await resolveMembershipView(env));
+    }
+
     if (isNnEntryCompletePath(url.pathname)) {
       // **What the club has recorded, and never what the redirect implies.** The `confirming`
       // block ships visible, so an unreachable database paints nothing and the page says what
@@ -586,6 +614,7 @@ export default {
       yearSlug !== null ||
       socialSlug !== null ||
       isEventsIndexPath(url.pathname) ||
+      membershipPrices ||
       isNnEntryCompletePath(url.pathname);
 
     // **A page painted for one viewer must not be handed to another.** Issue #145, defect 1.
@@ -604,11 +633,14 @@ export default {
     // has landed gets the copy from before it did, and that page is built around never making
     // a claim it cannot support.
     //
-    // **Only the painted pages**, not every HTML response: `/`, `/privacy/` and the rest are
-    // genuinely the same bytes for everybody and keep the binding's headers untouched. The
-    // cost here is edge caching on `/nn/*`, which is real and is the right way round — these
-    // pages are cheap, the Worker already runs on every request because of
-    // `run_worker_first`, and the alternative is a race page that lies to somebody.
+    // **Only the painted pages**, not every HTML response: `/privacy/`, `/about/`, `/news/`
+    // and the rest are genuinely the same bytes for everybody and keep the binding's headers
+    // untouched. ⚠️ **`/` is no longer one of them**, because it quotes what membership costs
+    // and that figure is read per request — the same trade, for the same reason, one surface
+    // along. The cost is edge caching on `/nn/*` and now on three club pages, which is real
+    // and is the right way round — these pages are cheap, the Worker already runs on every
+    // request because of `run_worker_first`, and the alternative is a page that lies to
+    // somebody about what the club charges.
     return withSessionCookies(
       painted ? uncacheable(rewriter.transform(response)) : rewriter.transform(response),
       refreshedCookies,

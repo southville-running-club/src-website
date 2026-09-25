@@ -324,7 +324,10 @@ describe('what does not exist', () => {
 describe('the club website’s own pages', () => {
   it.each([
     ['/run-with-us/', 'Your first night at SRC'],
-    ['/membership/', 'Run for 50p. Join for £4.'],
+    // ⚠️ The heading no longer quotes the annual price: it is read from the database per
+    // request now, and a painted figure in a headline reads as a gap whenever the database
+    // cannot be asked. `tests/worker/membership.test.ts` owns the prices themselves.
+    ['/membership/', 'Run for 50p. Join when it suits you.'],
     ['/news/', 'Monthly newsletters'],
     ['/about/', 'A friendly club since 2007'],
   ])('serves %s', async (path, heading) => {
