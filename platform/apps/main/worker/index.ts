@@ -1,6 +1,7 @@
 import {
   buildHealthReport,
   createAnonClient,
+  londonCivilDate,
   expirePendingHolds,
   expireTicketHolds,
   fetchPlacesRemaining,
@@ -13,10 +14,17 @@ import { drainEmailOutbox } from './email-outbox';
 // description for the money-page freeze. See the branch itself for what it does and does not
 // touch.
 import {
+  isMembershipJoinPath,
   isMembershipPricePath,
+  MEMBERSHIP_COMPLETE_PATH,
+  processMembershipApplication,
+  renderMembershipErrors,
+  renderMembershipUnavailable,
   renderMembershipView,
   resolveMembershipView,
+  type MembershipOrderOutcome,
 } from './membership';
+import { drainMembershipOutbox } from './membership-outbox';
 import { drainTicketOutbox } from './store-outbox';
 import { handleStoreWebhook } from './store-webhook';
 import {
@@ -252,6 +260,22 @@ interface Env {
   STORE_WEBHOOK_KEY?: string;
   STORE_STRIPE_WEBHOOK_SECRET?: string;
   /**
+   * The membership schema's own two, sharing nothing with `entries` or `store` — ADR-050.
+   *
+   * `MEMBERSHIP_ENTRY_KEY` is what `submit_application()` takes. It exists because that
+   * function is granted to `anon` and inserts a row and enqueues two emails: without a key, a
+   * loop against the key printed in page source fills the table and burns the club's daily
+   * email allowance. ⚠️ **Cloudflare's one rate-limiting rule does not cover `/membership/`**,
+   * and the free plan allows exactly one, so this is the control that exists.
+   *
+   * `MEMBERSHIP_WEBHOOK_KEY` is what both drain functions take. `claim_outbox_batch()`
+   * returns real email addresses and, for the club's own copy, a home address.
+   *
+   * Both ship absent and both digests ship null, which refuses everything.
+   */
+  MEMBERSHIP_ENTRY_KEY?: string;
+  MEMBERSHIP_WEBHOOK_KEY?: string;
+  /**
    * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
    * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*
    * key, never appears in this repository: GoTrue holds it, via
@@ -417,6 +441,15 @@ export default {
     //
     // The body is read once, here, and handed on. Reading a request twice to avoid threading a
     // `FormData` through would be the worse trade.
+    // **Somebody applying to join the club.** A club-surface POST, on a club-surface path.
+    //
+    // ⚠️ **Before the assets binding**, because `dist/` has only a GET for this address — a
+    // POST falling past every predicate reaches the binding and answers 405, which is what
+    // `/nn/` does on purpose and would be plainly wrong here.
+    if (request.method === 'POST' && isMembershipJoinPath(url.pathname)) {
+      return handleMembershipApplication(request, env, url, ctx);
+    }
+
     if (request.method === 'POST' && isNnYearPath(url.pathname)) {
       const form = await readForm(request);
 
@@ -784,6 +817,12 @@ export default {
     // that did not happen. Fourth rather than first because a job that talks to a third party
     // must not decide whether the medical retention sweep above it runs.
     await drainTicketOutbox(env);
+
+    // The third outbox on the same schedule, and for the same reason: `waitUntil` is a best
+    // effort and a 429 stops a batch, so anything left `pending` is picked up within five
+    // minutes. ⚠️ Removing this makes a failed send permanent, which is the one outcome an
+    // outbox exists to rule out.
+    await drainMembershipOutbox(env);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -1237,6 +1276,80 @@ class HideListItem {
   element(element: Element): void {
     element.setAttribute('hidden', '');
   }
+}
+
+/**
+ * Somebody applying to join the club.
+ *
+ * ## ⚠️ The failure direction, and it is not the money path's
+ *
+ * Everything on `/nn/` fails towards taking no money. Nothing here takes any — the Membership
+ * Officer arranges payment afterwards — so what this path protects is somebody's *answers*.
+ * A good submission the club cannot record answers **422 and says so**, rather than a
+ * confirmation page for an application that does not exist. Somebody who is told it worked
+ * will not send it again.
+ *
+ * ## A successful submission redirects, and that is not decoration
+ *
+ * POST/redirect/GET: a reload of the completion page must not re-post eighteen fields. The
+ * browser's own "confirm form resubmission" is the alternative, and people click through it.
+ */
+async function handleMembershipApplication(
+  request: Request,
+  env: Env,
+  url: URL,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const form = await request.formData().catch(() => null);
+
+  // ⚠️ **The club's own day, not the machine's.** An age computed from a UTC date names
+  // yesterday for an hour on a BST morning, which on a minimum-age check is the difference
+  // between accepting somebody and refusing them on their eighteenth birthday.
+  const outcome: MembershipOrderOutcome = await processMembershipApplication(
+    form,
+    env,
+    londonCivilDate(new Date()),
+  );
+
+  if (outcome.status === 'accepted') {
+    // **The acknowledgement goes now rather than at the next tick of a clock** — ADR-032.
+    // `waitUntil` is a best effort; the five-minute cron is the retry net behind it.
+    ctx.waitUntil(drainMembershipOutbox(env));
+
+    return new Response(null, {
+      status: 303,
+      headers: { location: MEMBERSHIP_COMPLETE_PATH, 'cache-control': 'no-store' },
+    });
+  }
+
+  const page = await env.ASSETS.fetch(
+    new Request(new URL('/membership/join/', url).toString(), { method: 'GET' }),
+  );
+
+  if (!page.ok) return page;
+
+  const rewriter = new HTMLRewriter();
+
+  // **Painted every time, before anything else.** The membership options ship `hidden` and
+  // `disabled`, and this POST did not go through the GET path that opens them — so without
+  // this the person is handed their errors and no way to choose a membership to fix them
+  // with. The same defect `handleTicketOrder` documents one surface along.
+  renderMembershipView(rewriter, await resolveMembershipView(env));
+
+  if (outcome.status === 'invalid') {
+    renderMembershipErrors(rewriter, outcome.errors, outcome.submitted);
+  } else {
+    renderMembershipUnavailable(rewriter);
+  }
+
+  return uncacheable(
+    new Response(rewriter.transform(page).body, {
+      // **422, not 200.** The submission was understood and not acted on, and a 200 on a page
+      // full of errors tells every cache and every monitor that this went fine.
+      status: 422,
+      headers: page.headers,
+    }),
+  );
 }
 
 async function handleTicketOrder(

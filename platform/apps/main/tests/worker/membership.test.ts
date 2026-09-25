@@ -324,3 +324,68 @@ describe('what the form does not do yet, asserted so that it stays deliberate', 
     expect(page).not.toContain('/membership/join/');
   });
 });
+
+/**
+ * ⚠️ **The whitespace trap, caught by a machine rather than by somebody reading a rendered
+ * page.**
+ *
+ * Prettier reflows an Astro template so a newline falls between a word and the expression
+ * after it, and Astro compresses that newline to **nothing**. The result is `at theSouthbank
+ * Club`, `live onour old site`, `orask the Membership Officer`, `BristolBS3 1DB`, `1DB.Map` —
+ * five separate instances in this repository, every one of them invisible in the source, every
+ * one found by a human squinting at a built page or a screenshot.
+ *
+ * Nothing could see them: the value is present, the markup is valid, the page does not
+ * overflow, and axe has no opinion about a missing space.
+ *
+ * **This is what can see them.** Every value that gets interpolated into prose is checked for
+ * being glued to the word before or after it. It is deliberately about the *content values*
+ * rather than about tags, because `theSouthbank` has no tag in the middle of it — a scan for
+ * `[a-z]<a` would have missed the very instance that prompted this.
+ */
+describe('no interpolated value is glued to the words around it', () => {
+  /** The club facts that appear inside sentences rather than in their own element. */
+  const INTERPOLATED = [
+    'Southbank Club',
+    'Tuesdays and Thursdays',
+    'Meet 6.00pm for a 6.15pm start',
+    'Bristol',
+    'BS3 1DB',
+  ];
+
+  const PAGES = [
+    '/',
+    '/membership/',
+    '/membership/join/',
+    '/membership/join/complete/',
+    '/run-with-us/',
+    '/about/',
+    '/news/',
+  ];
+
+  it.each(PAGES)('%s', async (path) => {
+    // Tags become spaces: a value legitimately sitting inside its own element is not glued to
+    // anything, and treating it as though it were would make this test unpassable.
+    const text = (await built(path)).replace(/<[^>]*>/gu, ' ');
+
+    for (const value of INTERPOLATED) {
+      const glued = new RegExp(
+        `(\\w${escapeForRegExp(value)})|(${escapeForRegExp(value)}\\w)`,
+        'u',
+      );
+
+      const match = glued.exec(text);
+
+      expect(
+        match,
+        match === null
+          ? ''
+          : `${path} renders "${match[0]}" — a space was compressed away around "${value}"`,
+      ).toBeNull();
+    }
+  });
+});
+
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}

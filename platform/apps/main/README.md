@@ -543,8 +543,56 @@ inventing one that looks right would produce a checkbox asking somebody to agree
 the two addresses are supplied, adding a `code-of-conduct` and a `disciplinary-policy` key to
 `links.json` and naming them in `MembershipForm.astro` is the whole change.
 
-**The notification address the club chose is `membership@southvillerunningclub.co.uk`.** Nothing
-sends to it yet; it arrives with the table, alongside an acknowledgement to the applicant.
+### The application is stored, and two people are told
+
+**The club took the table on 25 September 2026** —
+[ADR-050](../../../docs/architecture/decisions/adr-050-the-club-takes-an-application-and-tells-two-people.md).
+`membership.membership_applications` holds the eighteen fields, and `membership.email_outbox`
+holds the two messages each application owes.
+
+⚠️ **The email is not sent inline, and that is the whole shape.** The obligation is written in
+the same transaction as the application (ADR-021), so a provider that is down cannot lose
+somebody's application silently — the row stays `pending` and the five-minute cron retries.
+Resend's free tier is 100 a day account-wide, shared with every race and account email, so a
+membership acknowledgement is exactly the one that gets refused on a busy day. The outbox makes
+that **late** rather than **lost**.
+
+| Message | To | Carries | Reply-To |
+| --- | --- | --- | --- |
+| `application_received` | the applicant | First name, membership chosen, price | the club |
+| `application_submitted` | `membership@southvillerunningclub.co.uk` | The whole form | **the applicant** |
+
+⚠️ **The split is enforced by `claim_outbox_batch()`, not by the templates.** It returns
+`details: null` for the applicant's copy, so the acknowledgement renders from a row that does
+not contain a home address — an edit to that template cannot leak one, because there is nothing
+there to leak. If that query is ever widened to return both and let the template choose, this
+property is gone and nothing will look wrong.
+
+⚠️ **Every rule is re-checked in the database.** The minimum age, the membership type and **the
+price** are re-derived inside `submit_application()` whatever the caller sent. Zod is the form's
+control, not the system's — Slice G found the race path trusting a form on a rule the database
+never checked, and two PostgREST calls bought a place £2 under.
+
+**Two Worker secrets, both shipping absent**: `MEMBERSHIP_ENTRY_KEY` (which
+`submit_application()` takes) and `MEMBERSHIP_WEBHOOK_KEY` (which both drain functions take).
+Both digests ship null, which refuses everything. The entry key exists because the function is
+granted to `anon` and inserts a row and enqueues two emails — without one, a loop against the
+key printed in page source fills the table and burns the club's daily email allowance. That is
+ADR-029's finding applied before it was needed rather than four days after, and Cloudflare's one
+rate-limiting rule does not cover `/membership/`.
+
+**Retention is 90 days from `processed_at`.** ⚠️ An application still marked `new` is never
+swept, however old: it is outstanding work, and deleting it loses somebody waiting to hear back.
+A sweep written against `created_at` is the obvious implementation and the wrong one.
+
+⚠️ **A good submission the club cannot record answers 422 and says nothing was stored.** It does
+not reach `/membership/join/complete/`. That is the inversion from every `/nn/` path — nothing
+here takes money, so what this path protects is somebody's answers, and a person told their
+application arrived will not send it again.
+
+**Still owed, and it is why the form is linked from nowhere:** privacy-notice wording for this
+collection, the retention period, and passing a name, date of birth and email address to England
+Athletics. `/privacy/` says nothing about any of it today.
 
 ---
 

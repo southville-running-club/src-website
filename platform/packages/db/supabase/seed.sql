@@ -265,6 +265,28 @@ update store.api_secrets
  where name = 'stripe';
 
 -- -------------------------------------------------------------------------------------------
+-- The membership keys, for the same reason and with the same shape
+-- -------------------------------------------------------------------------------------------
+-- **`apps/main`'s preview script passes these two strings**, so somebody can apply to join on
+-- a laptop. Without them `submit_application()` answers `unauthorised`, the form reports that
+-- the club could not record the application, and the whole path is untestable outside a unit
+-- test — which is exactly the state the entries and ticket paths were deliberately taken out
+-- of above.
+--
+-- ⚠️ **The strings are the fake ones, not a hash somebody has to reverse.** Nothing here is a
+-- credential: the digests they produce refuse every real key, and `membership.api_secrets`
+-- ships both columns null in production.
+update membership.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-membership-entry-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'entry';
+
+update membership.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-membership-webhook-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'webhook';
+
+-- -------------------------------------------------------------------------------------------
 -- A fabricated social, on sale, which `christmas-party-2026` is deliberately not
 -- -------------------------------------------------------------------------------------------
 -- **`zz-social` and never `christmas-party-2026`**, which is the rule the `zz-admin` race
