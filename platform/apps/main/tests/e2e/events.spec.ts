@@ -168,23 +168,35 @@ test.describe('the events section', () => {
   });
 
   /**
-   * ⚠️ **The race's date is read from `race.json`; the party's is not in this repository.**
+   * ⚠️ **Two rows, two sources, and neither date is in this page's markup.**
    *
-   * A page showing last year's date looks exactly like one showing this year's, which is why
-   * the race's is asserted as the *same string the build read* rather than as a literal. The
-   * party's lives in `store.socials` and is painted only on its own page, so this one says
-   * TBC — and the expensive failure would be somebody typing a date in here to tidy that up.
+   * The race's comes from `race.json` at build time and is asserted as the *same string the
+   * build read* — a literal stops testing silently the moment the value moves. The party's
+   * comes from `store.socials` at request time, painted by `renderSocialRow()`, and is
+   * asserted as literals for the reason the party's own page asserts them that way: this
+   * passing is the proof the row is reading the database rather than carrying a date in a
+   * template, which is the property that makes confirming one an `update` and no deploy.
    */
-  test('shows the race date it read, and claims nothing about the party', async ({
-    page,
-  }) => {
+  test('shows both dates, and neither is in the markup', async ({ page }) => {
     await page.goto('/events/');
 
     const races = page.locator('#races');
     await expect(races).toContainText(race.date);
     await expect(races).toContainText(race.hqName);
 
-    await expect(page.locator('#socials')).toContainText('Details to be confirmed');
+    // Supplied by a club volunteer on 5 September 2026, and a `store.socials` column since.
+    const socials = page.locator('#socials');
+    await expect(socials).toContainText('Saturday 12 December 2026');
+    await expect(socials).toContainText('The Cock & Tail');
+
+    // The tile agrees with the sentence beneath it — they are split from one formatted string
+    // precisely so they cannot drift.
+    await expect(socials.locator('[data-social-day]')).toHaveText('12');
+    await expect(socials.locator('[data-social-month]')).toHaveText('Dec');
+
+    // And the placeholder it replaced is gone rather than merely covered.
+    await expect(socials.locator('[data-social-tbc]')).toBeHidden();
+    await expect(socials).not.toContainText('Details to be confirmed');
   });
 
   test('has no accessibility violations @requires-js', async ({ page }) => {

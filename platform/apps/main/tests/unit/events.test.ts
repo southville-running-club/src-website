@@ -12,6 +12,7 @@ import {
   quantityOptionLabel,
   refusalMessage,
   notOnSaleWords,
+  socialDateTileParts,
 } from '../../worker/events';
 import {
   TICKET_PURCHASE_REASONS,
@@ -374,5 +375,42 @@ describe('the quantity picker', () => {
     // Never zero: a sold-out occasion is refused by the database with `sold_out`, and a picker
     // with no options at all is a form nobody can submit and nobody can understand.
     expect(offered({ maxTicketsPerPurchase: 6, ticketsRemaining: 0 })).toBe(1);
+  });
+});
+
+/**
+ * The date tile on `/events/`, and the failure direction that keeps the page honest.
+ *
+ * ⚠️ **The row ships saying "TBC" and "Details to be confirmed".** Every one of the nulls
+ * below leaves that in place, which is what makes an unreachable database, an unpublished
+ * social and a half-filled one all safe. A page that filled the tile with a guess — or with
+ * a date typed into the markup — would look exactly the same and be wrong for a year.
+ */
+describe('the date tile on the events list', () => {
+  it('splits a confirmed date into a day and a short month', () => {
+    expect(socialDateTileParts('2026-12-12')).toEqual({ day: '12', month: 'Dec' });
+    expect(socialDateTileParts('2026-11-01')).toEqual({ day: '1', month: 'Nov' });
+  });
+
+  /**
+   * ⚠️ **The one that a timezone would break.** A date this late in the day is the same
+   * calendar day everywhere only if it is never parsed as an instant; through
+   * `new Date('2026-12-12').toLocaleDateString()` in a zone west of London it is the 11th.
+   * `formatSocialDate` builds from the civil parts for that reason and this splits its
+   * answer rather than re-parsing, so the tile cannot disagree with the sentence under it.
+   */
+  it('agrees with the sentence it is split from', () => {
+    const full = formatSocialDate('2026-12-12');
+    const tile = socialDateTileParts('2026-12-12');
+
+    expect(full).toBe('Saturday 12 December 2026');
+    expect(full).toContain(` ${tile?.day} `);
+    expect(full).toContain(`${tile?.month}ember`);
+  });
+
+  it('answers null for every date the club has not confirmed', () => {
+    for (const value of [null, '', 'soon', '2026-13-01', '2026-12-32', '12/12/2026']) {
+      expect(socialDateTileParts(value), `${String(value)} produced a tile`).toBeNull();
+    }
   });
 });

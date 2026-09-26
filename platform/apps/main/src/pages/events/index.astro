@@ -36,11 +36,16 @@ import race from '../../content/race.json';
 // change them, and the failure is silent — a page showing last year's date looks exactly like
 // one showing this year's.
 //
-// **The party's date is not in this repository.** It is `store.socials`, read per request on
-// the party's own page, and this page takes no such read — so the tile says "TBC" and the row
-// says details are to be confirmed, which is what it said before this redesign. Typing
-// "12 December 2026" here would be the club announcing a date out of markup that nothing holds
-// to the column it actually lives in.
+// ⚠️ **The party's date is not in this repository either, and it is still shown.** It is a
+// `store.socials` column, and `renderSocialRow()` paints it onto the row from the record the
+// Worker was already fetching to decide whether to show that row at all — so this costs no
+// extra read and confirming a date stays an `update` and no deploy. Typing "12 December 2026"
+// here would be the club announcing a date out of markup that nothing holds to the column it
+// lives in, and the failure would be silent: a page showing last year's date looks exactly
+// like one showing this year's.
+//
+// What ships is the "TBC" tile and "Details to be confirmed". That is what an unreachable
+// database leaves in place, and it is the direction every other failure on this path takes.
 //
 // ## The surface
 //
@@ -115,14 +120,25 @@ const [raceDay = '', raceMonth = ''] = race.dateShort.split(' ');
 
           <ul class="club-events">
             <li data-social-link="christmas-party-2026">
+              {
+                /* ⚠️ **Three elements that move together, and the shipped state is the
+                  honest one.** "TBC" is what this tile says until the Worker has read a date
+                  out of `store.socials`; `renderSocialRow()` then fills the two halves,
+                  reveals them and hides this one. An unreachable database, or a date the
+                  club has not confirmed, leaves exactly what is rendered here — which is why
+                  the date is **not** written into this markup. It is a column, and confirming
+                  one is an `update` and no deploy. */
+              }
               <p class="club-event-when" aria-hidden="true">
-                <b class="club-event-when-tbc">TBC</b>
+                <b class="club-event-when-tbc" data-social-tbc>TBC</b><b
+                  data-social-day
+                  hidden></b><span data-social-month hidden></span>
               </p>
               <div>
                 <h3>
                   <a href="/events/christmas-party-2026/">SRC Christmas Party 2026</a>
                 </h3>
-                <p class="club-small">Details to be confirmed</p>
+                <p class="club-small" data-social-details>Details to be confirmed</p>
               </div>
             </li>
           </ul>

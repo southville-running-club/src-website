@@ -30,6 +30,7 @@ import { handleStoreWebhook } from './store-webhook';
 import {
   processTicketOrder,
   renderSocialView,
+  renderSocialRow,
   resolveSocialView,
   refusalMessage,
   type TicketOrderOutcome,
@@ -1251,7 +1252,15 @@ async function hideUnpublishedLinks(
     if (view.show === 'missing') {
       rewriter.on(`[data-social-link='${slug}']`, new HideListItem());
       hidden += 1;
+      continue;
     }
+
+    // **The same record, used twice.** This loop resolved the view to decide whether the row
+    // is shown at all, and then threw the rest of it away — so the date, the times and the
+    // venue were already in hand and the row below them said "to be confirmed" about facts
+    // the club had confirmed. Painting them here costs no extra read, and keeps every one of
+    // those values in the column it lives in rather than in this page's markup.
+    renderSocialRow(rewriter, slug, view);
   }
 
   // **Only when every link went, and only when there was at least one to go.** A list with no
