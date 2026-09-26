@@ -1,60 +1,203 @@
 ---
-import Base from '../../layouts/Base.astro';
+import { Image } from 'astro:assets';
 
-// `/events/` — what the club has on besides its races.
+import ClubBase from '../../layouts/ClubBase.astro';
+import race from '../../content/race.json';
+import racePhoto from '../../assets/race-nightingale-marshal.jpg';
+import socialPhoto from '../../assets/social-christmas-party.jpg';
+
+// `/events/` — the races the club puts on, and the socials in between.
 //
-// **A static list, and the one link on it is a page rather than a database read.** There is
-// one social today, so a list painted from `store.socials` would be a round trip to learn
-// something the build already knows — and a second social needs its own content page anyway,
-// which is a deploy either way. When there are enough of these to be worth a query, this is
-// the page that becomes one.
+// ## What this page is, and the one thing it is not
 //
-// **It states no fact about any occasion.** The date, the venue and the price of the Christmas
-// party are not confirmed, and this page deliberately does not preview any of them: a list
-// that says "6 December" because last year's did is the club announcing a date it has not
-// agreed. The occasion's own page reads what the database actually holds.
+// **A static list, and the links on it are pages rather than a database read.** There is one
+// race and one social today, so a list painted from `store.socials` would be a round trip to
+// learn something the build already knows — and a second social needs its own content page
+// anyway, which is a deploy either way. When there are enough of these to be worth a query,
+// this is the page that becomes one.
 //
 // The address is `/events/` because that is what the old Squarespace site published and Phase
-// 5 keeps its paths. The schema calls this a *social*, because the glossary reserves *event*
-// for one running of one race in one year — see ADR-033.
+// 5 keeps its paths. The schema calls a party a *social*, because the glossary reserves
+// *event* for one running of one race in one year — see ADR-033. **Neither word is on the
+// page**: a navigation label and a heading are written for whoever is reading them.
+//
+// ## ⚠️ The two data attributes are a contract with the Worker, not decoration
+//
+// `hideUnpublishedLinks()` in `worker/index.ts` regex-scans the served body for
+// `data-social-link="<slug>"`, asks the database about each slug, and sets `hidden` on **the
+// element it matched** for any it answers nothing for. So the attribute belongs on the `<li>`
+// — the whole row, date tile included — and never on the `<a>` inside it, which would leave a
+// dated row with its link removed.
+//
+// `[data-social-none]` ships `hidden` and is revealed only when *every* social link has been
+// hidden. It lives inside the socials section because that is what it is about: the race
+// above it is not a social and is never hidden.
+//
+// ## ⚠️ Nothing here states a fact it has not read
+//
+// The race's date, distance and headquarters come from `race.json`, which is where they live
+// and which `/` already reads the same way. A copy in this markup would be a second place to
+// change them, and the failure is silent — a page showing last year's date looks exactly like
+// one showing this year's.
+//
+// ⚠️ **The party's date is not in this repository either, and it is still shown.** It is a
+// `store.socials` column, and `renderSocialRow()` paints it onto the row from the record the
+// Worker was already fetching to decide whether to show that row at all — so this costs no
+// extra read and confirming a date stays an `update` and no deploy. Typing "12 December 2026"
+// here would be the club announcing a date out of markup that nothing holds to the column it
+// lives in, and the failure would be silent: a page showing last year's date looks exactly
+// like one showing this year's.
+//
+// What ships is the "TBC" tile and "Details to be confirmed". That is what an unreachable
+// database leaves in place, and it is the direction every other failure on this path takes.
+//
+// ## The surface
+//
+// `ClubBase`, not `Base` — ADR-048. This page is the club's own, and `club-pages.spec.ts` has
+// said since that change that it *"becomes the races-and-events hub in the next change"*. The
+// party's own page at `/events/<slug>/` takes money and keeps the old chrome until after the
+// race on 1 November 2026; that fence is `club-chrome.spec.ts`'s and is untouched here.
+
+// **Composed here rather than in the markup.** Prettier reflows adjacent expressions onto
+// separate lines and Astro compresses the newline between them to nothing, which silently eats
+// the space — this repository has already shipped "BristolBS3 1DB" and "live onour old site"
+// that way. One expression cannot lose a join it does not have.
+const raceDetails = `${race.date} · ${race.distance} · ${race.hqName}`;
+
+// The tile's two halves, split from the one field that holds them. `dateShort` is "1 November";
+// the month is cut to three letters because the tile is 4.25rem wide, which is a way of writing
+// the month rather than a different fact.
+const [raceDay = '', raceMonth = ''] = race.dateShort.split(' ');
 ---
 
-<Base
-  title="Events — Southville Running Club"
-  description="Socials, parties and other club events at Southville Running Club."
+<ClubBase
+  title="Races and events — Southville Running Club"
+  description="The races Southville Running Club organises, and the socials in between."
+  canonical="https://new.southvillerunningclub.co.uk/events/"
 >
-  <h1>Events</h1>
-
-  <p class="lede">Club socials, parties and everything that is not a race.</p>
-
-  {
-    /* **Each item carries its slug, and the Worker hides the ones nobody may see yet.** A
-      social is unpublished until somebody publishes it, so a page built with a link to next
-      year's party cannot leak it — the link ships and is hidden per request.
-
-      The list is markup rather than painted from the database because listing published
-      socials publicly would need an eighth anon-callable function, which is a decision
-      nobody has taken. One social today; a dozen would be the moment to revisit that. */
-  }
-  <ul>
-    <li data-social-link="christmas-party-2026">
-      <a href="/events/christmas-party-2026/"><strong>SRC Christmas Party 2026</strong></a
-      > — details to be confirmed
-    </li>
-  </ul>
+  <header class="club-phead">
+    <div class="club-wrap">
+      <h1>Races and events</h1>
+      <p class="club-lede">The races we organise and the socials in between.</p>
+      <p class="club-jump">
+        Jump to: <a href="#races">Races</a>
+        <a href="#socials">Social events</a>
+      </p>
+    </div>
+  </header>
 
   {
-    /* Ships hidden and is revealed only when every link above has been hidden. A list with no
-      visible items and nothing beneath it reads as a broken page; this reads as true. */
+    /* ⚠️ **Two bands, and the alternate one is what separates them.** Each section is its own
+      `.club-sec` with its own photograph beside it, so two full-width grids stacked would
+      otherwise read as one long column with a picture halfway down. `/about/` alternates for
+      exactly this reason. It is also the first thing on this site to put `.club-events` on a
+      `.club-sec-alt` band — which the date tile was built to survive, because it carries
+      `--club-surface` rather than the band's own colour. */
   }
-  <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
+  <section class="club-sec" id="races" aria-labelledby="races-heading">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2 id="races-heading">Races</h2>
+        <p>The races the club organises itself, and where to enter them.</p>
 
-  <p>
-    Looking for a race? <a href="/nn/">Nightingale Nightmare</a> is the club's own 10km off
-    road, and entries are handled separately.
-  </p>
+        <ul class="club-events">
+          <li>
+            {
+              /* ⚠️ **Decorative, because the row already says the date in full.** Left
+                readable, a screen reader announces "1", "Nov" and then the whole date again a
+                line later. The fact is in the text beneath; this is a way of showing it. */
+            }
+            <p class="club-event-when" aria-hidden="true">
+              <b>{raceDay}</b><span>{raceMonth.slice(0, 3)}</span>
+            </p>
+            <div>
+              {
+                /* **`/nn/` and not `/nn/2026/`.** That address is evergreen — it paints on
+                  whichever running is current from `entries.current_entry_state('nn')` — so
+                  this link keeps working when 2027 is published, and the entry journey from it
+                  is untouched by this change. */
+              }
+              <h3><a href="/nn/">Nightingale Nightmare</a></h3>
+              <p class="club-small">{raceDetails}</p>
+            </div>
+          </li>
+        </ul>
+      </div>
 
-  <footer>
-    <p>Southville Running Club.</p>
-  </footer>
-</Base>
+      {
+        /* ⚠️ **Not `aria-hidden`, unlike the panel it replaced.** A flat placeholder is
+          decoration and is hidden from a screen reader because there is nothing to describe;
+          a photograph of the club's own race is content, and somebody who cannot see it is
+          told what is in it. `loading="lazy"` because it is below the header at every width.
+
+          The slot is `club-photo-portrait` — 3:4, the photograph's own ratio, so nothing is
+          cropped. See `club.css` for why the width rather than the ratio is what was
+          constrained to stop it towering over the race beside it. */
+      }
+      <Image
+        class="club-photo club-photo-portrait"
+        src={racePhoto}
+        alt="A Nightingale Nightmare marshal in a skull mask and long grey wig standing among autumn trees, with a hooded figure in a yellow marshal's bib hanging from a branch behind them."
+        widths={[360, 540, 720]}
+        sizes="(min-width: 62em) 24rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+      />
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt" id="socials" aria-labelledby="socials-heading">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2 id="socials-heading">Social events</h2>
+        <p>Parties, and everything else the club does that is not a run.</p>
+
+        <ul class="club-events">
+          <li data-social-link="christmas-party-2026">
+            {
+              /* ⚠️ **Three elements that move together, and the shipped state is the honest
+                one.** "TBC" is what this tile says until the Worker has read a date out of
+                `store.socials`; `renderSocialRow()` then fills the two halves, reveals them
+                and hides this one. An unreachable database, or a date the club has not
+                confirmed, leaves exactly what is rendered here — which is why the date is
+                **not** written into this markup. It is a column, and confirming one is an
+                `update` and no deploy. */
+            }
+            <p class="club-event-when" aria-hidden="true">
+              <b class="club-event-when-tbc" data-social-tbc>TBC</b><b
+                data-social-day
+                hidden></b><span data-social-month hidden></span>
+            </p>
+            <div>
+              <h3>
+                <a href="/events/christmas-party-2026/">SRC Christmas Party 2026</a>
+              </h3>
+              <p class="club-small" data-social-details>Details to be confirmed</p>
+            </div>
+          </li>
+        </ul>
+
+        {
+          /* Ships hidden and is revealed only when every social link above has been hidden. A
+            list with no visible items and nothing beneath it reads as a broken page; this
+            reads as true. */
+        }
+        <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
+      </div>
+
+      {
+        /* 16:9 against a 1.90:1 photograph, which trims about 6% off the width evenly — the
+          club group shot's arrangement exactly. ⚠️ **The alt text says what the picture is
+          without naming anybody in it**, which is the same line the club draws everywhere
+          else it publishes a photograph of its members. */
+      }
+      <Image
+        class="club-photo club-photo-wide"
+        src={socialPhoto}
+        alt="Southville Running Club members dancing under disco lights at the club's Christmas party, with green and white balloons floating above the crowd."
+        widths={[640, 960, 1280, 1600]}
+        sizes="(min-width: 62em) 35rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+      />
+    </div>
+  </section>
+</ClubBase>

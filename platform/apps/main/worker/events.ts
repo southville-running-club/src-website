@@ -195,6 +195,38 @@ export function formatSocialDate(date: string | null): string | null {
 }
 
 /**
+ * The two halves of a date tile: `2026-12-12` → `{ day: '12', month: 'Dec' }`.
+ *
+ * **The same civil-date parts `formatSocialDate` reads, and never a `Date` in a timezone** —
+ * for that function's reason exactly, which is worth restating because this one looks small
+ * enough to write with `toLocaleDateString` and that is banned here for precisely this case.
+ * The value is a `date` in Postgres and a published fact on a poster; round-tripping it
+ * through an instant is how a party on the 12th becomes a party on the 11th for anybody east
+ * of London.
+ *
+ * The month is cut to three letters because the tile is 4.25rem wide. That is a way of
+ * writing the month rather than a different fact, and it is done here rather than in the page
+ * so that the page has one source for the whole tile.
+ *
+ * Null in, null out — the tile keeps the "TBC" it ships with.
+ */
+export function socialDateTileParts(
+  date: string | null,
+): { day: string; month: string } | null {
+  const full = formatSocialDate(date);
+
+  if (full === null) {
+    return null;
+  }
+
+  // `Saturday 12 December 2026` — split rather than re-parsed, so the tile and the sentence
+  // beneath it cannot disagree about which day this is.
+  const [, day = '', month = ''] = full.split(' ');
+
+  return { day, month: month.slice(0, 3) };
+}
+
+/**
  * `19:30:00` → `7:30pm`, and `13:00:00` → `1pm`.
  *
  * The club's own register, taken from the 2025 party page — `7:30pm-1am`, lower case, no
@@ -395,6 +427,76 @@ class ValueHandler {
  * confirmed" line exactly where it is; there is no branch that falls back to a previous
  * year's answer, and adding one would be the club announcing a party it has not agreed.
  */
+/**
+ * One row on `/events/`, painted from the same record that decides whether it is shown at all.
+ *
+ * ## Why this exists rather than a date in the markup
+ *
+ * The party's date, times and venue are `store.socials` columns — the property that schema was
+ * built for, and the reason confirming a date is an `update` and no deploy. A date typed into
+ * `events/index.astro` would be a second place to change it, and the failure is silent: a page
+ * showing last year's date looks exactly like one showing this year's. This is the same
+ * arrangement `renderSocialView` already gives the occasion's own page, one surface along.
+ *
+ * ## It costs no extra read
+ *
+ * `hideUnpublishedLinks` already resolves every slug on the page to decide which rows to hide,
+ * and then used only the `show` field. The date was in its hand and thrown away. So this is a
+ * second use of a record already fetched rather than a new round trip, on a page that was
+ * already making one per social.
+ *
+ * ## ⚠️ Every selector is scoped to the row
+ *
+ * `[data-social-link='<slug>'] [data-social-day]`, never a bare `[data-social-day]`. With one
+ * social today a bare selector is indistinguishable; with two it paints the first one's date
+ * onto both, which is the kind of defect that ships because the fixture has one row in it.
+ *
+ * ## The failure direction is the one the rest of this file takes
+ *
+ * Each fact is painted only when it exists, and the row **ships** saying "TBC" and "Details to
+ * be confirmed". So an unreachable database, an unconfirmed date, or a social the club has
+ * half-filled all leave the honest shipped answer in place. Nothing here can make the page
+ * claim something the club has not recorded.
+ */
+export function renderSocialRow(
+  rewriter: HTMLRewriter,
+  slug: string,
+  view: SocialView,
+): HTMLRewriter {
+  if (view.show !== 'social') {
+    return rewriter;
+  }
+
+  const row = `[data-social-link='${slug}']`;
+  const { state } = view;
+
+  const tile = socialDateTileParts(state.socialDate);
+
+  if (tile !== null) {
+    // Three elements move together: the two halves of the date appear and the "TBC" that
+    // stood in for them goes. Painted without revealing, the tile would be blank.
+    rewriter.on(`${row} [data-social-day]`, new TextHandler(tile.day, true));
+    rewriter.on(`${row} [data-social-month]`, new TextHandler(tile.month, true));
+    rewriter.on(`${row} [data-social-tbc]`, new HideHandler());
+  }
+
+  // **Composed from whatever is confirmed, rather than gated on all of it.** A social with a
+  // date and no venue yet should say the date; `socialDetailsConfirmed` asks whether *every*
+  // fact is in, which is the right question for the occasion's own page and too strict a one
+  // for a single line on a list.
+  const details = [
+    formatSocialDate(state.socialDate),
+    formatSocialTimes(state.startTime, state.endTime),
+    state.venue,
+  ].filter((part): part is string => part !== null && part !== '');
+
+  if (details.length > 0) {
+    rewriter.on(`${row} [data-social-details]`, new TextHandler(details.join(' · ')));
+  }
+
+  return rewriter;
+}
+
 export function renderSocialView(rewriter: HTMLRewriter, view: SocialView): HTMLRewriter {
   if (view.show !== 'social') {
     // Every failure: the page keeps its shipped markup, which sells nothing and claims

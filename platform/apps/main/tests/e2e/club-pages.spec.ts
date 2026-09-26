@@ -6,9 +6,12 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
 /**
  * The four club pages the navigation links to.
  *
- * ⚠️ **`/events/` is deliberately not here.** It still carries the socials list and becomes
- * the races-and-events hub in the next change. `club-chrome.spec.ts` covers the header, Menu
- * and footer on every club page; this file is about what the pages themselves say.
+ * ⚠️ **`/events/` is deliberately not here, and it is a club page now.** It became the
+ * races-and-events hub on 26 September 2026 — this comment predicted that change and is kept
+ * because the reason it is still absent has changed: `events.spec.ts` owns it, since what that
+ * page says is bound up with the two addresses on it that must never move.
+ * `club-chrome.spec.ts` covers the header, Menu and footer on every club page; this file is
+ * about what the pages themselves say.
  *
  * ## What it is actually guarding
  *
