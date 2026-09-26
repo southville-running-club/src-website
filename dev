@@ -414,7 +414,17 @@ start_workers() {
   # Stripe stub, which `apps/main` calls when somebody submits an entry.
   spawn timing "$PLATFORM/apps/timing" \
     npx --no-install opennextjs-cloudflare preview --port "$TIMING_PORT"
-  wait_for "http://localhost:$TIMING_PORT/timing" "the timing Worker"
+  # ⚠️ **`/timing/health`, not `/timing`.** This probe is `curl -sf`, which fails on any
+  # HTTP >= 400 — and `/timing` has been staff-only since 11 September 2026, so it answers a
+  # perfectly correct 404 to an anonymous readiness check and `./dev up` timed out after 90
+  # seconds against a Worker that had already logged "Ready on http://localhost:8788".
+  #
+  # `middleware.ts` excludes `health` from the gate for exactly this reason and says so:
+  # "a readiness check does not accept a 404, so gating it would stop every test from
+  # starting". Playwright's own `webServer` already waits on it; this was the one caller
+  # left behind, which is why plain `./dev test` and `./dev e2e` kept working and only
+  # `./dev up`, `./dev test --keep-up` and `./dev e2e --linux` broke.
+  wait_for "http://localhost:$TIMING_PORT/timing/health" "the timing Worker"
   info "timing  → :$TIMING_PORT"
 
   spawn stripe "$PLATFORM" node scripts/stripe-stub.mjs
