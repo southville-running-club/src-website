@@ -923,6 +923,132 @@ img.club-photo-wide {
   margin: 0.25rem 0 0;
 }
 
+/* -------------------------------------------------------------------------------------
+ * The races and events list
+ * -------------------------------------------------------------------------------------
+ * A date beside what is happening on it, divided by the same hairline `.club-docs` and
+ * `.club-acc` already draw. `/events/` is the only caller today.
+ *
+ * ⚠️ **The tile carries its own surface, and that is the whole reason it has one.** Painted
+ * in `--club-surface-alt` it would be *identical* to the band behind it the day somebody put
+ * this list on a `.club-sec-alt` section — half a row of empty space, nothing red, and no
+ * assertion in this suite that could see it. That is exactly how `--club-photo` and
+ * `NnSchedule` were both got wrong. `--club-surface` differs from `--club-background` and
+ * from `--club-surface-alt` in both schemes, so neither call site has to know which band it
+ * is on, and the hairline guarantees an edge where the difference is subtle.
+ *
+ * Ink on that surface is 14.22:1 and `--club-muted` on it is 7.16:1 — both already in the
+ * token block, so nothing new is measured here.
+ */
+.club-events {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-events li {
+  display: grid;
+  grid-template-columns: 4.25rem 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-events li:last-child {
+  border-bottom: 1px solid var(--club-rule);
+}
+
+/* The date tile. `tabular-nums` so a column of these lines up, which is what
+   `.club-price` and `.club-timeline b` already ask for and the reason the figures are set
+   in the display face rather than a monospace one this surface does not load. */
+.club-event-when {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  margin: 0;
+  min-height: 4.25rem;
+  padding: 0.4rem 0.3rem;
+  max-width: none;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+  font-family: var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.club-event-when b {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.club-event-when span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--club-muted);
+}
+
+/* ⚠️ **A date nobody has confirmed is not a date, and must not be set like one.** At the
+   tile's full 1.5rem display size "TBC" is the loudest thing in the row — louder than the
+   race beside it, which does have a date — so the row the club knows least about shouts the
+   hardest. It is the rule `.club-price-unconfirmed` already carries, one component along:
+   still unmissable, but reading as a note rather than as a number. */
+.club-event-when-tbc {
+  font-family: var(--club-font-body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--club-muted);
+}
+
+.club-events h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+/* ⚠️ **44px, not the 24px WCAG 2.2 AA asks for.** The footer's links carry the same floor
+   for the same reason: most of the people reading this are on a phone, outdoors, with cold
+   hands. `inline-flex` rather than padding so the box is the height it claims. */
+.club-events h3 a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.club-events p {
+  margin: 0;
+  max-width: none;
+}
+
+/* The in-page links to the two sections.
+ *
+ * ⚠️ **The `gap` is what separates these, and it is not a preference.** Prettier puts the two
+ * anchors on their own lines and Astro compresses the newline between them to nothing, so the
+ * served markup is literally `</a><a` — the same trap that shipped "BristolBS3 1DB" and "live
+ * onour old site". Laid out as flex items the whitespace is dropped anyway and the gap is the
+ * only spacing there is, so this cannot regress into two links with no space between them the
+ * next time somebody reformats the page. */
+.club-jump {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1rem;
+  margin-bottom: 1rem;
+  max-width: none;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+}
+
+.club-jump a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 /* A document, and what kind of file it is. */
 .club-docs {
   margin: 0 0 1.5rem;
