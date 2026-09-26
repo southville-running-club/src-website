@@ -442,6 +442,7 @@ template.
 | File | Holds |
 | --- | --- |
 | `club.json` | Where and when the club meets, the map link, the legal name and the affiliation line |
+| `membership.json` | What a run and the subscription cost, the England Athletics registration year, and the whole of `/membership/`'s comparison table. See below |
 
 ⚠️ **The site is static, so editing one of these does nothing until the site is rebuilt.**
 There is no database read behind them and no cache to bust: `npm run build` in this workspace,
@@ -465,6 +466,65 @@ the action follows, label included. No component changes and no search for the o
 places it appears.
 
 *(`links.json` lands with the pages that use it.)*
+
+### `membership.json` — the comparison table, and the licence year
+
+**`/membership/`'s "What each option includes" is a content file, not markup.** Sixteen
+benefits in five groups, four options across — and every one of them is a row in
+`membership.json`. Adding, removing or reordering a benefit is an edit to that file and a
+rebuild; **no page changes and no code changes.** England Athletics republishes its benefit
+list each year and the club does not control it, so the alternative is a template somebody
+edits annually.
+
+```jsonc
+"comparison": [
+  {
+    "group": "Club life",                     // the full-width heading above the rows
+    "rows": [
+      {
+        "benefit": "Supports the club",       // the row's name
+        "note": "Membership fees keep ...",   // optional, one short line beneath it
+        "cells": [false, false, true, true]   // exactly four, in the columns' own order
+      }
+    ]
+  }
+]
+```
+
+**A cell is one of three things and there is deliberately no fourth.** `true` is a tick,
+`false` is a dash, and a string is text. A cell holding `null`, `0` or `""` renders as a
+blank, which reads as "we forgot" rather than as either answer — so `membershipSchema` refuses
+all three, along with a group with no name and a row whose `cells` is not exactly four.
+⚠️ **A row with three cells shifts every option after it one column to the left**, which reads
+as a benefit somebody does not get and looks like nothing at all; that is the mistake the
+length check exists for.
+
+⚠️ **A cell quotes a price as `{perRun}` or `{perMonth}`, never as the words.** Three cells say
+"50p each", and 50p is `payPerRunPence` — written out, that is a fourth place the price is
+stated, agreeing on the day it was typed. `comparisonText()` substitutes it at render time,
+and **a token that is not one of those two is refused at parse time** rather than reaching a
+reader verbatim.
+
+**The licence year is four dates and one optional sentence**, in `membership.json`'s `licence`:
+
+| Key | Is | Changing it |
+| --- | --- | --- |
+| `year` | `"2026/27"` — England Athletics' own name for the registration year | A deploy |
+| `yearStarts`, `yearEnds` | `"1 April"`, `"31 March"` | A deploy |
+| `renewBy` | `"30 June"` | A deploy |
+| `secondClaim` | The second-claim sentence. ⚠️ **Optional, and absent publishes nothing** — the committee has not signed the wording off, and an absent key is what "not agreed yet" should look like | A deploy |
+
+**The dates are here and the money is not**, which is the next section. Nothing in the database
+holds the registration year: `membership.settings`' `ea_cutoff_month` and `ea_cutoff_day` are
+what the *application form* validates a date of birth against, not the sentence a reader is
+shown, and nothing holds the renewal deadline at all.
+
+⚠️ **Two sentences on `/membership/` need one of each, so the markup hands the year to the
+Worker.** The card's split line and the small print's fee line both carry
+`data-membership-ea-year`, and `worker/membership.ts` reads it off the element it is painting —
+so "£23 England Athletics registration **for 2026/27**" is one phrase built from two sources,
+and neither source had to learn about the other. **An absent year drops that clause** rather
+than guessing one.
 
 ### ⚠️ What membership costs is not content, and may not go back into `membership.json`
 
@@ -490,8 +550,14 @@ Every page changes on the next request. Nothing is deployed and no page can be m
 
 **Three pages carry a painted price**: `/`, `/membership/` and `/membership/join/`.
 `worker/membership.ts` resolves `membership.membership_state()` and fills every
-`[data-membership-price]`, `[data-membership-ea-split]` and `[data-membership-minimum-age]` on
-them.
+`[data-membership-price]`, `[data-membership-ea-split]`, `[data-membership-ea-fee]` and
+`[data-membership-minimum-age]` on them.
+
+⚠️ **`[data-membership-ea-fee]` is `/membership/`'s small print and it ships `hidden` and
+empty**, like the split line it sits below. The card's line accounts for the total — *"£4 club
+membership plus £23 England Athletics registration for 2026/27"* — and this one says the club
+does not set the larger half of it. **Unpainted, the page makes neither claim**, which is the
+direction every other failure here takes.
 
 ⚠️ **`membershipSchema` is `.strict()`, which is the only strict schema in `club-content.ts`.**
 Zod drops an unknown key silently, so without it a `membershipPerYearPence` added back to

@@ -1,4 +1,114 @@
 {
   "payPerRunPence": 50,
-  "subscriptionPerMonthPence": 250
+  "subscriptionPerMonthPence": 250,
+  "licence": {
+    "year": "2026/27",
+    "yearStarts": "1 April",
+    "yearEnds": "31 March",
+    "renewBy": "30 June",
+    "secondClaim": "Already registered with another club? Ask us about second-claim membership, which has no EA fee."
+  },
+  "comparison": [
+    {
+      "group": "Club life",
+      "rows": [
+        {
+          "benefit": "Tuesday and Thursday runs",
+          "cells": ["{perRun} each", "Unlimited", "{perRun} each*", "{perRun} each*"]
+        },
+        {
+          "benefit": "Members' WhatsApp community",
+          "cells": [false, false, true, true]
+        },
+        {
+          "benefit": "Local discounts from Southville businesses",
+          "cells": [false, false, true, true]
+        },
+        {
+          "benefit": "Supports the club",
+          "note": "Membership fees keep the club running.",
+          "cells": [false, false, true, true]
+        }
+      ]
+    },
+    {
+      "group": "Racing",
+      "rows": [
+        {
+          "benefit": "£2 off every licensed road and multi-terrain race",
+          "note": "The \"affiliated\" entry rate. Ten races a year covers the licence.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "TCS London Marathon club ballot",
+          "note": "Registered athletes are eligible for the club's ballot places.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "Other event discounts, e.g. Manchester Marathon",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "England road running championships",
+          "note": "Eligible to enter, and for the England Masters programme.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "Power of 10 profile",
+          "note": "Your race results and PBs tracked in one place.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "RunEvents online race entry",
+          "note": "England Athletics' entry system for road and multi-terrain events.",
+          "cells": [false, false, false, true]
+        }
+      ]
+    },
+    {
+      "group": "Insurance and support",
+      "rows": [
+        {
+          "benefit": "Annual race insurance",
+          "note": "Personal accident cover through the UK Athletics scheme.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "Safeguarding and welfare support",
+          "note": "Including #RunAndTalk mental health support.",
+          "cells": [false, false, false, true]
+        }
+      ]
+    },
+    {
+      "group": "Kit and rewards",
+      "rows": [
+        {
+          "benefit": "England Athletics Rewards Hub",
+          "note": "40% off selected Garmin watches · 15% off SportsShoes.com · 20% off SiS nutrition · 10% off Shokz · 10% off MyProtein · 10% off Headspace · 79% off Runner's World · Kukri kit discount · Coopah free trial",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "Early-bird tickets to major athletics events",
+          "note": "Via British Athletics, plus monthly partner offers in The Edge newsletter.",
+          "cells": [false, false, false, true]
+        }
+      ]
+    },
+    {
+      "group": "Coaching and development",
+      "rows": [
+        {
+          "benefit": "Up to 50% off coaching and run leader courses",
+          "note": "If you fancy leading a Tuesday group one day.",
+          "cells": [false, false, false, true]
+        },
+        {
+          "benefit": "myAthletics portal and digital registration card",
+          "note": "Your unique registration number (URN), athlete newsletter, and a say in EA consultations.",
+          "cells": [false, false, false, true]
+        }
+      ]
+    }
+  ]
 }
