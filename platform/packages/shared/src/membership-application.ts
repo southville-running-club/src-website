@@ -91,7 +91,6 @@ export const MEMBERSHIP_FIELDS = [
   'previousAffiliation',
   'previousClubName',
   'eaUrn',
-  'eaPortalConsent',
   'agreeCodeOfConduct',
   'agreePrivacyPolicy',
   'agreeDisciplinaryPolicy',
@@ -150,7 +149,6 @@ const MESSAGES = {
   previousAffiliationMissing: 'Choose yes or no.',
   clubNameTooLong: `Use ${String(MEMBERSHIP_CLUB_NAME_MAX_LENGTH)} characters or fewer.`,
   eaUrnShape: 'A URN is digits only, with no spaces or letters.',
-  eaPortalConsentMissing: 'Choose yes or no.',
   agreeRequired: 'You need to agree to this to join.',
 } as const;
 
@@ -393,11 +391,6 @@ function membershipSchema(
         })
         .optional(),
 
-      // ⚠️ **A real yes or no, where the club's current form offers only "Yes".** Consent
-      // that cannot be withheld is not freely given, which is the whole of what UK GDPR
-      // asks of it — so "no" is an answer the form accepts and the club acts on.
-      eaPortalConsent: yesNo(MESSAGES.eaPortalConsentMissing),
-
       agreeCodeOfConduct: z.literal(true, { error: MESSAGES.agreeRequired }),
       agreePrivacyPolicy: z.literal(true, { error: MESSAGES.agreeRequired }),
       agreeDisciplinaryPolicy: z.literal(true, { error: MESSAGES.agreeRequired }),
@@ -475,7 +468,6 @@ export interface MembershipApplication {
   previousAffiliation: boolean;
   previousClubName?: string | undefined;
   eaUrn?: string | undefined;
-  eaPortalConsent: boolean;
   agreeCodeOfConduct: true;
   agreePrivacyPolicy: true;
   agreeDisciplinaryPolicy: true;

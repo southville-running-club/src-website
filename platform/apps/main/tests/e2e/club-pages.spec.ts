@@ -248,14 +248,25 @@ test.describe('outbound links', () => {
   test('say they leave the site, in visible text', async ({ page }) => {
     await page.goto('/membership/');
 
-    // Somebody about to leave for a different site should be told before they click, not by
+    // ⚠️ **This used to check the Join button, and Join is no longer outbound.** The club's
+    // own application form replaced the Squarespace one, so the label lost "on our old site"
+    // along with the destination — a button saying it leaves the site while staying on it
+    // would be worse than either.
+    //
+    // Renew is the nearest action that genuinely still leaves, so it inherits the check:
+    // somebody about to land on a different site should be told before they click, not by
     // the address bar afterwards.
-    const join = page.getByRole('link', { name: /Join the club on our old site/ });
+    const renew = page.getByRole('link', { name: /Renew/ }).first();
 
-    await expect(join).toHaveAttribute(
+    await expect(renew).toHaveAttribute(
       'href',
-      'https://www.southvillerunningclub.co.uk/new-members',
+      'https://www.southvillerunningclub.co.uk/renew-membership',
     );
+
+    // And the button that no longer leaves does not claim to.
+    const join = page.getByRole('link', { name: 'Join the club' }).first();
+
+    await expect(join).toHaveAttribute('href', '/membership/join/');
   });
 
   test('point at the old site only where one is expected', async ({ page }) => {

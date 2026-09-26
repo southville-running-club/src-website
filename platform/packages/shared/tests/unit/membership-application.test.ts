@@ -43,7 +43,6 @@ function application(overrides: Record<string, unknown> = {}): Record<string, un
     country: 'GB',
     membershipType: 'club',
     previousAffiliation: 'no',
-    eaPortalConsent: 'yes',
     agreeCodeOfConduct: true,
     agreePrivacyPolicy: true,
     agreeDisciplinaryPolicy: true,
@@ -74,7 +73,12 @@ describe('a complete application', () => {
     // The list is what the form renders from and what the errors map is keyed by. A field
     // appearing in one and not the other is how a box arrives that nothing validates.
     expect(MEMBERSHIP_FIELDS).toContain('dateOfBirth');
-    expect(MEMBERSHIP_FIELDS).toContain('eaPortalConsent');
+    // ⚠️ **`eaPortalConsent` is deliberately NOT on this list, since 26 September 2026.**
+    // It asked whether England Athletics may have somebody's details, and the club processes
+    // every member on the England Athletics portal — so it asked permission for something
+    // that happened either way, and told anybody answering "no" something false. The form
+    // states it instead; the basis is the contract, not consent.
+    expect(MEMBERSHIP_FIELDS).not.toContain('eaPortalConsent');
     expect(new Set(MEMBERSHIP_FIELDS).size).toBe(MEMBERSHIP_FIELDS.length);
   });
 });
@@ -301,22 +305,29 @@ describe('the previous affiliation, and the fields that depend on it', () => {
 
 describe('consent, which has to be capable of being withheld', () => {
   /**
-   * ⚠️ **The club's current form offers only "Yes".** Consent that cannot be refused is not
-   * freely given, which is the whole of what UK GDPR asks of it — so "no" is an answer this
-   * form accepts and the club acts on.
+   * ⚠️ **The England Athletics question was removed on 26 September 2026, and this asserts
+   * that it stays removed.**
+   *
+   * It asked *"May we pass your name, date of birth and email address to England Athletics?"*
+   * as a real yes/no. The club processes **every** new member on the England Athletics portal
+   * — that is how a membership is set up, and England Athletics is what sends the payment
+   * link — so it asked permission for something that happened either way, and its hint told
+   * anybody answering "no" that their details stayed with the club, which was false.
+   *
+   * The lawful basis is the **contract**: passing the details on is how the club gives
+   * somebody the membership they applied for. So the form states it rather than asking.
+   *
+   * ⚠️ **Putting the question back is a decision, not a fix.** A submission carrying the key
+   * is accepted and the key is ignored — Zod strips what the shape does not name — which is
+   * what keeps a deployed Worker that still sends it working through the change.
    */
-  it('accepts no to the England Athletics portal', () => {
-    const result = parse({ eaPortalConsent: 'no' });
+  it('ignores an England Athletics consent somebody posts anyway', () => {
+    const result = parse({ eaPortalConsent: 'no' } as Record<string, unknown>);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.eaPortalConsent).toBe(false);
-  });
-
-  it('still insists the question is answered', () => {
-    const result = parse({ eaPortalConsent: undefined });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.eaPortalConsent).toMatch(/yes or no/u);
+    if (result.ok) {
+      expect(result.value).not.toHaveProperty('eaPortalConsent');
+    }
   });
 
   /**

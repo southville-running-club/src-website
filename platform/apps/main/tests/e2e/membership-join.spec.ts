@@ -103,9 +103,16 @@ test.describe('the application form', () => {
     await expect(
       page.getByRole('group', { name: /registered with England Athletics before/u }),
     ).toBeVisible();
+
+    // ⚠️ **The second group was "may we set up your portal account", and it is gone.** The
+    // club processes every member on the England Athletics portal, so that asked permission
+    // for something that happened either way — ADR-051. The form states it now.
     await expect(
       page.getByRole('group', { name: /set up your portal account/u }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expect(page.locator('main')).toContainText(
+      'Your details go to England Athletics.',
+    );
   });
 
   /**
@@ -200,42 +207,52 @@ test.describe('the form at the widths people fill it in at', () => {
   });
 });
 
-test.describe('nothing leads anybody here yet', () => {
+test.describe('the form is the way in now', () => {
   /**
-   * ⚠️ **The most valuable test in this file.**
+   * ⚠️ **This replaces "no club page links to the application form", which was the guard while
+   * the form stored nothing.** Both tests said in their own comments to delete that assertion
+   * in the same change that made the form real, and not before. This is that change.
    *
-   * The form stores nothing, so a visitor who finds it, fills in eighteen fields and presses
-   * the button gets nowhere — and there is no wording anywhere that would tell them so. The
-   * page exists to be built against and reviewed, not to be used, and that stays true only
-   * while nothing links to it.
-   *
-   * **Delete this test when the table lands, in the same change.** Not before.
+   * What replaces it is the opposite assertion, because the link is now the thing that can
+   * silently regress: `links.json`'s `join` key is what every page reads, so a revert of that
+   * one key would quietly send every "Join the club" button back to Squarespace with nothing
+   * looking wrong on any page.
    */
-  test('no club page links to the application form', async ({ page }) => {
-    // ⚠️ `/privacy/` is here because it names the application form in prose and very nearly
-    // linked to it. Naming a page is one keystroke from linking it.
-    for (const path of [
-      '/',
-      '/membership/',
-      '/run-with-us/',
-      '/about/',
-      '/news/',
-      '/privacy/',
-    ]) {
+  test('every Join link on the club site points at the club’s own form', async ({
+    page,
+  }) => {
+    for (const path of ['/membership/', '/privacy/']) {
       await page.goto(path);
 
+      const offsite = page.locator('a[href*="southvillerunningclub.co.uk/new-members"]');
+
       await expect(
-        page.locator('a[href="/membership/join/"]'),
-        `${path} links to the application form`,
+        offsite,
+        `${path} still links to the old Squarespace form`,
       ).toHaveCount(0);
     }
   });
 
-  test('the navigation does not offer it', async ({ page }) => {
+  test('the membership page’s main call to action reaches the form', async ({ page }) => {
     await page.goto('/membership/');
 
-    // ⚠️ A CSS locator rather than `getByRole('navigation')`, which matches both the bar and
-    // the Menu's own nav and would fail strict mode on the page rather than on the assertion.
-    await expect(page.locator('nav a[href*="/membership/join/"]')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Join the club' }).first().click();
+
+    await expect(page).toHaveURL(/\/membership\/join\/$/u);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Join Southville Running Club',
+    );
+  });
+
+  /**
+   * ⚠️ **The form must not offer a way back to itself.** Its "we can't show what membership
+   * costs" notice used to reuse `links.json`'s `join` key to send somebody to the old site;
+   * that key now points here, so reusing it would hand a person stuck on this page a link to
+   * this page.
+   */
+  test('the form’s own fallback does not link to the form', async ({ page }) => {
+    await page.goto('/membership/join/');
+
+    await expect(page.locator('form a[href="/membership/join/"]')).toHaveCount(0);
   });
 });

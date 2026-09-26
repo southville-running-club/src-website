@@ -1087,7 +1087,7 @@ export type Database = {
           country: string
           created_at: string
           date_of_birth: string
-          ea_portal_consent: boolean
+          ea_portal_consent: boolean | null
           ea_urn: string | null
           email: string
           first_name: string
@@ -1111,7 +1111,7 @@ export type Database = {
           country: string
           created_at?: string
           date_of_birth: string
-          ea_portal_consent: boolean
+          ea_portal_consent?: boolean | null
           ea_urn?: string | null
           email: string
           first_name: string
@@ -1135,7 +1135,7 @@ export type Database = {
           country?: string
           created_at?: string
           date_of_birth?: string
-          ea_portal_consent?: boolean
+          ea_portal_consent?: boolean | null
           ea_urn?: string | null
           email?: string
           first_name?: string

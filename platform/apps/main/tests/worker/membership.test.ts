@@ -244,7 +244,6 @@ describe('the application form itself', () => {
       'previousAffiliation',
       'previousClubName',
       'eaUrn',
-      'eaPortalConsent',
       'agreeCodeOfConduct',
       'agreePrivacyPolicy',
       'agreeDisciplinaryPolicy',
@@ -286,52 +285,70 @@ describe('the application form itself', () => {
     expect(page).not.toContain('<option value="UK"');
   });
 
-  it('asks for a real yes or no about England Athletics', async () => {
-    // Consent that cannot be withheld is not freely given, which is the whole of what UK
-    // GDPR asks of it. The club's current form offers only "Yes".
+  /**
+   * ⚠️ **It asked; now it tells, and this asserts the question does not come back.**
+   *
+   * The form carried *"May we pass your name, date of birth and email address to England
+   * Athletics?"* as a real yes/no. The club processes **every** new member on the England
+   * Athletics portal — that is how a membership is set up, and England Athletics is what
+   * sends the payment link — so the question asked permission for something that happened
+   * either way, and told anybody answering "no" something false.
+   */
+  it('states the England Athletics sharing rather than asking about it', async () => {
     const page = squash(await built('/membership/join/'));
 
-    expect(page).toMatch(/name="eaPortalConsent"[^>]*value="yes"/u);
-    expect(page).toMatch(/name="eaPortalConsent"[^>]*value="no"/u);
+    expect(page).not.toContain('name="eaPortalConsent"');
+    expect(text(page)).toContain('Your details go to England Athletics.');
+  });
+
+  it('says who sends the payment link, and that it is not the club', async () => {
+    // The club takes no payment on this website. Three places said the Membership Officer
+    // would "be in touch about paying", which is not what happens.
+    const page = text(await built('/membership/join/'));
+
+    expect(page).toContain('England Athletics will send you the link to pay');
+    expect(page).not.toContain('in touch about paying');
   });
 });
 
-describe('what the form does not do yet, asserted so that it stays deliberate', () => {
+describe('the form is the way in now', () => {
   /**
-   * ⚠️ **Nothing stores an application, so nothing may lead somebody to one.**
+   * ⚠️ **This replaces "is linked from no club page".** That guard existed while the form
+   * stored nothing, and said in its own comment to be deleted in the same change that made
+   * the form real. This is that change.
    *
-   * `membership.membership_applications` does not exist — a table holding eighteen fields of
-   * personal data, a date of birth and a home address among them, is a committee decision,
-   * and the privacy notice says nothing about this collection or about the England Athletics
-   * sharing. Until both land, the page is reached only by typing its address.
-   *
-   * **A form somebody can find and fill in that throws their answers away is worse than no
-   * form at all**, and "we'll link it when the table lands" is exactly the kind of intention
-   * that survives one merge and not two. So the absence is a test.
+   * The assertion inverts because the risk inverts. What can now regress silently is
+   * `links.json`'s `join` key: every page reads it, so reverting that one key sends every
+   * "Join the club" button back to Squarespace and no page looks wrong.
    */
-  it('is linked from no club page', async () => {
-    // ⚠️ **`/privacy/` is on this list because it very nearly linked here.** It names the
-    // application form — the membership privacy wording lives on the form rather than on that
-    // page — and naming a page is one keystroke from linking it. Neither list checked it.
-    for (const path of [
-      '/',
-      '/membership/',
-      '/run-with-us/',
-      '/about/',
-      '/news/',
-      '/privacy/',
-    ]) {
-      expect(await built(path), `${path} links to the application form`).not.toContain(
-        'href="/membership/join/"',
-      );
-    }
-  });
-
-  it('is in no navigation and no footer', async () => {
-    // The nav and the footer are rendered on every club page, so one page proves both.
+  it('links the club’s own form rather than the old site', async () => {
     const page = await built('/membership/');
 
-    expect(page).not.toContain('/membership/join/');
+    expect(page).toContain('href="/membership/join/"');
+    expect(page, 'still points at the old Squarespace form').not.toContain(
+      'southvillerunningclub.co.uk/new-members',
+    );
+  });
+
+  it('no longer calls it “on our old site”', async () => {
+    // The label and the destination moved together. A button reading "Join the club on our
+    // old site" that goes to a page on this one is worse than either.
+    const page = squash(await built('/membership/'));
+
+    expect(page).toMatch(/Join the club\s*<\/a>/u);
+  });
+
+  /**
+   * ⚠️ **The form must not offer a way back to itself.** Its "we can't show what membership
+   * costs" notice reused `links.json`'s `join` key while that key meant "the old site". The
+   * key now means this page.
+   */
+  it('gives the form’s fallback somewhere other than the form', async () => {
+    const page = await built('/membership/join/');
+    const form = page.slice(page.indexOf('<form'), page.indexOf('</form>'));
+
+    expect(form).not.toContain('href="/membership/join/"');
+    expect(page).toContain('data-membership-prices-unavailable');
   });
 });
 

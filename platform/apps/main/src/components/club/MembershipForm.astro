@@ -443,10 +443,22 @@ const OPTIONS = [
       and saying nothing would leave somebody staring at a gap. Painting a price is what makes
       this sentence untrue, so painting a price is what removes it. */
   }
+  {
+    /* ⚠️ **This deliberately does not use `links.json`'s `join` key any more.** It used to,
+      back when that key pointed at the club's old site and this notice's job was to send
+      somebody there instead. The key now points at **this page**, so reusing it would offer
+      a person looking at a form they cannot complete a link back to the form they are
+      looking at.
+
+      The flip was a two-field edit to one file — which is the property that file exists for —
+      and this is the one call site where "wherever joining happens" was the wrong idea all
+      along. What this notice wants is *somewhere else*, and that is the committee. */
+  }
   <p class="club-notice" data-membership-prices-unavailable>
-    We can't show what membership costs just now. <a href={link.join.href}>
-      {link.join.label}
-    </a> on our old site, or try this page again in a few minutes.
+    We can't show what membership costs just now. Please try this page again in a few
+    minutes, or{' '}
+    <a href={link.committee.href}>ask the Membership Officer</a>{' '}
+    through the committee page on our old site.
   </p>
 
   <fieldset class="club-fieldset">
@@ -548,57 +560,29 @@ const OPTIONS = [
       />
     </div>
 
-    <div class="club-field">
-      <fieldset
-        class="club-subfieldset"
-        aria-describedby="eaPortalConsent-hint eaPortalConsent-error"
-      >
-        <legend class="club-label">
-          May we pass your name, date of birth and email address to England Athletics so
-          they can set up your portal account?
-        </legend>
-        {
-          /* ⚠️ **A real yes and a real no, where the club's current form offers only "Yes".**
-            Consent that cannot be withheld is not freely given, which is the whole of what UK
-            GDPR asks of it — so "No" is an answer the form takes and the club acts on. */
-        }
-        <p class="club-hint" id="eaPortalConsent-hint">
-          You can join the club either way. Saying no means you keep club membership
-          without an England Athletics licence.
-        </p>
-        <p
-          class="club-error"
-          id="eaPortalConsent-error"
-          data-membership-error="eaPortalConsent"
-          hidden
-        >
-        </p>
-        <div class="club-choices club-choices-inline">
-          <div class="club-choice club-choice-small">
-            <input
-              class="club-radio"
-              type="radio"
-              id="eaPortalConsent-yes"
-              name="eaPortalConsent"
-              value="yes"
-              required
-            />
-            <label class="club-choice-label" for="eaPortalConsent-yes">Yes</label>
-          </div>
-          <div class="club-choice club-choice-small">
-            <input
-              class="club-radio"
-              type="radio"
-              id="eaPortalConsent-no"
-              name="eaPortalConsent"
-              value="no"
-              required
-            />
-            <label class="club-choice-label" for="eaPortalConsent-no">No</label>
-          </div>
-        </div>
-      </fieldset>
-    </div>
+    {
+      /* ⚠️ **This was a yes/no question and it should never have been one.**
+        It asked *"May we pass your name, date of birth and email address to England
+        Athletics?"* — and the club processes **every** new member on the England Athletics
+        portal, including a £4 club-only one. That is how a membership is set up, and England
+        Athletics is what sends the payment link.
+
+        So the question asked permission for something that happened either way. That is
+        worse than not asking: consent that cannot be withheld is not freely given, and the
+        hint beneath it told somebody their details stayed with the club if they answered no,
+        which was false.
+
+        **The lawful basis is the contract** — passing the details on is how the club gives
+        somebody the membership they applied for — so what belongs here is a statement, not a
+        box. UK GDPR asks that a person is told; it does not ask their permission for
+        something necessary to the thing they requested. */
+    }
+    <p>
+      <strong>Your details go to England Athletics.</strong> That is how your membership is
+      set up, whichever one you chose, and it is England Athletics who will email you the link
+      to pay. They decide what they do with your details themselves and have their own privacy
+      notice.
+    </p>
   </fieldset>
 
   <fieldset class="club-fieldset">
@@ -649,10 +633,10 @@ const OPTIONS = [
           reaches you about your application, and about the club once you are a member.
         </li>
         <li>
-          <strong>England Athletics only see your details if you say yes above.</strong> If
-          you do, we send them your name, date of birth, email address and postal address so
-          they can register you. They decide what they do with it themselves. If you say no,
-          we send them nothing, and you keep club membership without a racing licence.
+          <strong>Your details go to England Athletics.</strong> We send them your name, date
+          of birth, email address and postal address so they can set your membership up — that
+          is how it is done, whichever membership you chose — and they are who emails you the
+          link to pay. They decide what they do with your details themselves.
         </li>
         <li>
           <strong>Nobody else sees it.</strong> We do not sell it and we do not share it for
@@ -759,8 +743,9 @@ const OPTIONS = [
   <div class="club-form-actions">
     <button class="club-btn club-btn-primary" type="submit">Send my application</button>
     <p class="club-small">
-      We'll email you to say we've got it, and the Membership Officer will be in touch
-      about paying.
+      We'll email you to say we've got it. England Athletics will send you the link to pay
+      once the Membership Officer has set your membership up — nothing is paid on this
+      website.
     </p>
   </div>
 </form>
