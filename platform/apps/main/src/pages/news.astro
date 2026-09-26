@@ -1,0 +1,106 @@
+---
+import ClubBase from '../layouts/ClubBase.astro';
+import { parseLinks, parseNewsletters } from '@src/shared/club-content';
+import links from '../content/links.json';
+import newsletters from '../content/newsletters.json';
+
+// `/news/` — the club's monthly newsletters.
+//
+// ## Every issue links to the archive, not to itself
+//
+// ⚠️ **No issue has a confirmed address of its own**, so each card links to the old site's
+// newsletter archive through `links.json`. That is deliberately worse-looking and better: a
+// guessed per-issue URL 404s on a site this repository cannot fix, and nothing here would
+// notice. When the club supplies real addresses they go in `newsletters.json` as `href` and
+// each card follows, with no change to this page.
+//
+// **The summary line is absent for the same reason.** The mockup shows "[First line of the
+// issue as a summary]" on every card; that is a placeholder, so a card shows its title and
+// month alone until somebody writes the summaries.
+//
+// ## No sign-up form
+//
+// The mockup ends with "Get the newsletter" and an email box. **That collects personal data**,
+// which needs the privacy-notice treatment the Nightingale Nightmare interest list already
+// has, and is a committee decision rather than a build one. The page says where the
+// newsletters are and stops there.
+//
+// ## The year filter is not here yet
+//
+// It is a progressive enhancement and lands in the next change. Every issue is listed, newest
+// first, and the filter only ever hides things — so with scripting off nothing is lost, which
+// is the order the brief asks for.
+
+const { newsletters: archive } = parseLinks(links);
+const { issues } = parseNewsletters(newsletters);
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/**
+ * `2026-07` as "July 2026".
+ *
+ * ⚠️ **Not `toLocaleDateString`**, which is banned repository-wide: it takes the ambient
+ * locale, so a build machine in one region and a browser in another render the same month two
+ * ways. And not `formatLondon()` either — that formats an **instant**, and a month is not one.
+ * `YYYY-MM` split on the hyphen is the whole rule, with no timezone anywhere near it.
+ */
+function monthName(month: string): string {
+  const [year, index] = month.split('-');
+  return `${MONTHS[Number(index) - 1] ?? ''} ${year ?? ''}`.trim();
+}
+---
+
+<ClubBase
+  title="Newsletters — Southville Running Club"
+  description="Race reports, results, socials and club news from Southville Running Club, once a month."
+  canonical="https://new.southvillerunningclub.co.uk/news/"
+>
+  <header class="club-phead">
+    <div class="club-wrap">
+      <h1>Monthly newsletters</h1>
+      <p class="club-lede">Race reports, results, socials and club news, once a month.</p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap">
+      {
+        /* Said once, above the list, rather than on twenty cards. Every card goes to the same
+          place, and twenty copies of "on our old site" is noise rather than information. */
+      }
+      <p>
+        Every issue below opens on <a href={archive.href}
+          >the club's newsletter archive on our old site</a
+        >. They move across here as the rest of the site does.
+      </p>
+
+      <ul class="club-g3">
+        {
+          issues.map((issue) => (
+            <li class="club-card">
+              <p class="club-small">{monthName(issue.month)}</p>
+              <h2>
+                <a href={issue.href ?? archive.href}>{issue.title}</a>
+              </h2>
+              {/* `summary` is absent for every issue today — see this file's header. */}
+              {issue.summary !== undefined && <p>{issue.summary}</p>}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+</ClubBase>

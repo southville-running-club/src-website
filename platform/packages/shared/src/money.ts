@@ -44,3 +44,49 @@ export function formatPence(pence: number): string {
 
   return `£${pounds}.${remainder}`;
 }
+
+/**
+ * The same money, in the words the club actually uses on its own website.
+ *
+ * ⚠️ **A second renderer, and the split is by audience rather than by taste.**
+ * `formatPence()` above is what the money path renders with: a receipt, a refund notice, an
+ * entry fee, an admin table. It is deliberately uniform — `£18.00`, `£0.50` — because a
+ * column of prices that sometimes says `50p` and sometimes says `£2.50` is a column somebody
+ * has to read twice, and because a figure quoted back to Stripe should look like the figure
+ * Stripe holds.
+ *
+ * The club's own pages are the other audience, and there nobody writes `£0.50 a run`. The
+ * membership page's heading is *"Run for 50p. Join for £4."* — the club's voice, in the
+ * club's words, which is exactly what the Direction A copy is. Rendering that through
+ * `formatPence()` would give *"Run for £0.50. Join for £4.00."*, which is not a formatting
+ * preference but a different sentence.
+ *
+ * **So this is additive and `formatPence()` is untouched.** Nothing on the money path calls
+ * this, and nothing that calls `formatPence()` changed. The `£` still belongs to this module
+ * and to no template — which is the property that made `formatPence()` worth having, and the
+ * only reason this lives here rather than becoming a seventh re-implementation on a page.
+ *
+ * The rule, in full:
+ *
+ * | pence | renders |
+ * | --- | --- |
+ * | `0` | `Free` — `formatPence()`'s answer, for `formatPence()`'s reason |
+ * | under 100 | `50p` — pence, as they are said |
+ * | whole pounds | `£4` — no decimals nobody reads |
+ * | anything else | `£2.50`, `£23.50` |
+ */
+export function formatPriceWords(pence: number): string {
+  if (pence === 0) {
+    return 'Free';
+  }
+
+  if (pence < 100) {
+    return `${String(pence)}p`;
+  }
+
+  if (pence % 100 === 0) {
+    return `£${String(pence / 100)}`;
+  }
+
+  return formatPence(pence);
+}

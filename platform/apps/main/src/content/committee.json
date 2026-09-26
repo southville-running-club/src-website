@@ -1,0 +1,44 @@
+{
+  "officers": [
+    {
+      "role": "Co-Chair"
+    },
+    {
+      "role": "Co-Chair"
+    },
+    {
+      "role": "Club Secretary"
+    },
+    {
+      "role": "Treasurer"
+    },
+    {
+      "role": "Membership Officer"
+    }
+  ],
+  "volunteers": [
+    {
+      "role": "Co-Club Captain"
+    },
+    {
+      "role": "Co-Club Captain"
+    },
+    {
+      "role": "Quartermaster"
+    },
+    {
+      "role": "Web Manager"
+    },
+    {
+      "role": "Lead Welfare Officer",
+      "welfare": true
+    },
+    {
+      "role": "Welfare Officer",
+      "welfare": true
+    },
+    {
+      "role": "Committee Member"
+    }
+  ]
+}

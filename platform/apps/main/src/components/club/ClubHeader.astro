@@ -1,0 +1,95 @@
+---
+import ClubLogo from '../ClubLogo.astro';
+import ClubMenu from './ClubMenu.astro';
+import { CLUB_BANNER, CLUB_CTA, CLUB_HOME, CLUB_NAV } from '@src/shared/club-nav';
+
+// The club website's header: the notice, the wordmark, the bar and the Menu.
+//
+// ## ⚠️ One `<header>`, and it is the page's `banner` landmark
+//
+// This is where the club pages and the money pages deliberately differ in markup, so read
+// this before "fixing" the inconsistency against `SiteBanner.astro`.
+//
+// Over on the money pages the notice is an `<aside class="site-banner">` and the bar is a
+// separate `<nav class="site-nav">`, neither inside a `<header>`. That is forced: five
+// Nightingale Nightmare pages carry `NnMasthead`, which *is* a `<header>` outside `<main>`
+// and therefore the `banner` landmark, and a second one is `landmark-no-duplicate-banner`.
+//
+// **No club page has a masthead.** So the constraint does not apply here and the cost of
+// copying it does — as a bare `<aside>` plus a bare `<nav>`, the welcome sentence sits outside
+// the page's landmark structure, which is exactly what axe's `region` rule flags and what
+// cost 39 violations the last time this repository got it wrong. One `<header>`, the notice
+// inside it, everything in a landmark.
+//
+// ## Why it is rendered before `<main>`
+//
+// The skip link points at `#main`. A navigation rendered *inside* `<main>` would put the links
+// after the thing the skip link skips to — the one control that exists to jump past the
+// navigation would land in front of it. `ClubBase.astro` renders this above `<main>` for that
+// reason, and it is also what makes `<header>` map to `banner` at all.
+//
+// ## The wordmark is the Home link
+//
+// There is no "Home" item in the bar, which is the one departure from the money pages' nav.
+// The mark carries `aria-label="Southville Running Club, home"` so it is announced as what it
+// does rather than as three words of artwork, and it takes `aria-current="page"` on `/` —
+// without which somebody using a screen reader would be told which section they are in
+// everywhere except the home page.
+//
+// ## The banner sentence is written wall to wall, on purpose
+//
+// ⚠️ Astro compresses the newline between a tag and the text after it to **nothing**, so any
+// line break inside the sentence below silently swallows the space before "the old site" or
+// the one before "while". `CLUB_BANNER` is split into `lead` / `linkLabel` / `tail` precisely
+// so the join carries its own spacing; do not reflow these lines to satisfy a formatter.
+
+const pathname = Astro.url.pathname;
+---
+
+<header class="club-header">
+  <div class="club-banner">
+    <div class="club-wrap">
+      <p>
+        <strong>{CLUB_BANNER.welcome}</strong>
+        <span
+          >{CLUB_BANNER.lead}<a href={CLUB_BANNER.clubWebsite}>{CLUB_BANNER.linkLabel}</a
+          >{CLUB_BANNER.tail}</span
+        >
+      </p>
+    </div>
+  </div>
+
+  <div class="club-wrap club-header-inner">
+    <a
+      class="club-mark"
+      href={CLUB_HOME.href}
+      aria-label={CLUB_HOME.label}
+      aria-current={CLUB_HOME.match.test(pathname) ? 'page' : undefined}
+    >
+      {
+        /* `labelled={false}`, because the link's own `aria-label` already says the club's
+        name — announcing it twice in a row helps nobody. */
+      }
+      <ClubLogo class="club-logo" width={132} labelled={false} />
+    </a>
+
+    <nav class="club-nav" aria-label="Southville Running Club">
+      <ul>
+        {
+          CLUB_NAV.map(({ href, label, match }) => (
+            <li>
+              <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
+                {label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <a class="club-btn club-btn-primary club-cta" href={CLUB_CTA.href}>{CLUB_CTA.label}</a
+    >
+
+    <ClubMenu />
+  </div>
+</header>

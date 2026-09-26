@@ -1,0 +1,273 @@
+---
+import ClubBase from '../layouts/ClubBase.astro';
+import { parseCommittee, parseLinks } from '@src/shared/club-content';
+import committee from '../content/committee.json';
+import links from '../content/links.json';
+
+// `/about/` — who the club is, who runs it, and where its documents are.
+//
+// ## The committee is roles, and not yet names
+//
+// ⚠️ **Nobody is named on this page.** A committee member's name is personal data the club
+// publishes about a volunteer, and the club has not supplied the list — so the page shows the
+// roles, which is the useful half anyway ("who do I ask about membership?"). It never shows
+// "[Name]", and it never shows the mockup's avatar with a question mark in it, which is a
+// placeholder wearing a costume.
+//
+// `committee.json` has an optional `name` on each role. Supplying one makes it appear here,
+// with no change to this file.
+//
+// ## And no email addresses
+//
+// The mockup has `welfare@[placeholder]` and a per-role "Email the treasurer". The club has
+// not confirmed addresses, so every route to a human goes through the old site's committee
+// page — one link, from `links.json`, which becomes a new-site address by editing two fields
+// when the club is ready.
+//
+// ⚠️ **The welfare call-out still had to say something true.** Somebody who needs a welfare
+// officer needs them now, so the panel names the role, says it is in confidence, and points at
+// the one contact route that exists rather than at an address nobody has confirmed.
+//
+// ## Club documents
+//
+// Grouped as the mockup groups them, but **only the groups whose documents actually have a
+// home**. Governance and Policies are named because they exist and are findable on the old
+// site; the meeting-minutes accordion — twelve years of "[AGM and QGM minutes, 2019]" — is a
+// list of placeholders, so it is one link to the documents page instead.
+
+const { officers, volunteers } = parseCommittee(committee);
+const { committee: committeeLink, 'club-documents': documents } = parseLinks(links);
+
+const GOVERNANCE = ['Constitution', 'Articles of Association'];
+
+const POLICIES = [
+  'Inclusion policy',
+  'Health and safety policy and risk assessment',
+  'Disciplinary and grievance policy',
+  'Welfare policy',
+  'Adult safeguarding policy',
+  'Code of conduct: senior athletes',
+  'England Athletics guide to managing disputes',
+];
+---
+
+<ClubBase
+  title="About the club — Southville Running Club"
+  description="A friendly running club in South Bristol since 2007. Mixed abilities and ages 18+, run by volunteers."
+  canonical="https://new.southvillerunningclub.co.uk/about/"
+>
+  <header class="club-phead">
+    <div class="club-wrap">
+      <h1>A friendly club since 2007</h1>
+      <p class="club-lede">
+        Mixed abilities and ages 18+, running together in South Bristol. Run by
+        volunteers, for everyone who fancies it.
+      </p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>Questions people ask</h2>
+        <div class="club-acc">
+          <details open>
+            <summary>Who are we?</summary>
+            <div class="club-acc-body">
+              <p>
+                A friendly club founded in 2007. Some of us run or walk 5km, some enjoy
+                social runs round South Bristol, and some are chasing race times.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>What happens after the run?</summary>
+            <div class="club-acc-body">
+              <p>
+                Drinks at the Southbank Club, plus regular socials. Keep an eye on
+                Facebook.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Do I need hi-viz?</summary>
+            <div class="club-acc-body">
+              {
+                /* ⚠️ **"From autumn", not a month.** Whether it becomes compulsory in
+                  September or October is not confirmed, so the page says the true, vaguer
+                  thing rather than picking one and being wrong for a month every year. */
+              }
+              <p>
+                Yes, from autumn until the clocks go forward in spring. We have spares to
+                borrow.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Can I cycle there?</summary>
+            <div class="club-acc-body">
+              <p>Yes. Bikes can be locked in the garden behind the Southbank Club.</p>
+            </div>
+          </details>
+          <details>
+            <summary>Where do I leave my bag?</summary>
+            <div class="club-acc-body">
+              <p>
+                There's bag storage from 6.00 to 6.15pm, but it isn't secure. The
+                Southbank Club rents lockers for a £5 deposit.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>Do people race?</summary>
+            <div class="club-acc-body">
+              <p>
+                Some run for fun and fitness. Many race on road and trail, in the UK and
+                abroad.
+              </p>
+            </div>
+          </details>
+          <details>
+            <summary>How do I keep up with club news?</summary>
+            <div class="club-acc-body">
+              <p>
+                Read <a href="/news/">the monthly newsletter</a>, and come on a Tuesday.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      {
+        /* ⚠️ **A flat panel, `aria-hidden`, with nothing written on it.** The mockup drew a
+          striped box captioned "[Photo: the Tuesday crowd outside the Southbank Club]".
+          Neither the stripes nor the caption ship — a stripe reads as a broken image and the
+          bracket is the placeholder this build may not publish. When the club supplies
+          photographs, with consent from the people in them, this is replaced rather than
+          filled in. */
+      }
+      <div class="club-photo club-photo-tall" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap">
+      <h2>The committee</h2>
+      <p>
+        Everyone here is a volunteer. If you'd like to help, talk to any of us on a
+        Tuesday.
+      </p>
+
+      <div class="club-card club-welfare-call">
+        <h3>Need to talk to someone?</h3>
+        <p>
+          Our welfare officers are here, in confidence, for anything that's worrying you
+          about the club. <a href={committeeLink.href}
+            >Get in touch through the committee page on our old site</a
+          > and ask for a welfare officer.
+        </p>
+      </div>
+
+      <h3>Officers</h3>
+      <ul class="club-g4">
+        {
+          officers.map((person) => (
+            <li
+              class={`club-card club-person${person.welfare === true ? ' club-welfare' : ''}`}
+            >
+              {/* The role is the heading, because the role is what the page knows. */}
+              <h4>{person.role}</h4>
+              {person.name !== undefined && <p>{person.name}</p>}
+              {person.welfare === true && (
+                <p class="club-badge">Talk to us in confidence</p>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+
+      <h3>Volunteers</h3>
+      <ul class="club-g4">
+        {
+          volunteers.map((person) => (
+            <li
+              class={`club-card club-person${person.welfare === true ? ' club-welfare' : ''}`}
+            >
+              <h4>{person.role}</h4>
+              {person.name !== undefined && <p>{person.name}</p>}
+              {person.welfare === true && (
+                <p class="club-badge">Talk to us in confidence</p>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="club-sec" id="documents">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>Club documents</h2>
+        <p>
+          The club's governing documents and policies live on
+          <a href={documents.href}>our old site</a> for now.
+        </p>
+
+        <h3>Governance</h3>
+        <ul class="club-docs">
+          {
+            GOVERNANCE.map((name) => (
+              <li>
+                <a href={documents.href}>{name}</a>
+              </li>
+            ))
+          }
+        </ul>
+
+        <h3>Policies</h3>
+        <ul class="club-docs">
+          {
+            POLICIES.map((name) => (
+              <li>
+                <a href={documents.href}>{name}</a>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div>
+        <h2>Meeting minutes</h2>
+        {
+          /* ⚠️ **One link, not twelve years of accordions.** The mockup lists 2015 to 2026,
+            and every entry under them is "[AGM and QGM minutes, 2019]" — a placeholder per
+            year. Until the club supplies which minutes exist and where they are, a year with
+            nothing behind it is a promise the page cannot keep. */
+        }
+        <p>
+          Minutes from the club's AGMs and quarterly meetings are published with the rest
+          of the club's documents.
+        </p>
+        <p>
+          <a class="club-btn club-btn-secondary" href={documents.href}>
+            {documents.label} on our old site
+          </a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt" id="contact">
+    <div class="club-wrap">
+      <h2>Contact us</h2>
+      <p>
+        The quickest way to reach anybody on the committee — membership, welfare, kit or
+        anything else — is <a href={committeeLink.href}
+          >the committee page on our old site</a
+        >.
+      </p>
+      <p>Or just come and say hello on a Tuesday.</p>
+    </div>
+  </section>
+</ClubBase>

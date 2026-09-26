@@ -1,0 +1,21 @@
+{
+  "comingUp": [
+    {
+      "key": "nightingale-nightmare",
+      "title": "Nightingale Nightmare",
+      "summary": "Our Halloween 10km trail race through Nightingale Valley and Leigh Woods. Fancy dress strongly encouraged.",
+      "href": "/nn/",
+      "cta": "Race details",
+      "dateFrom": "race",
+      "showUntil": "2026-11-01T23:59:59Z"
+    },
+    {
+      "key": "latest-newsletter",
+      "title": "Latest newsletter",
+      "summary": "Race reports, results, socials and what's coming up.",
+      "href": "/news/",
+      "cta": "Read the newsletters",
+      "dateFrom": "newsletter"
+    }
+  ]
+}

@@ -11,40 +11,57 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
  */
 
 test.describe('the club website', () => {
-  test('says a new site is coming, without promising when', async ({ page }) => {
+  /**
+   * ⚠️ **This test used to assert the holding page, and the holding page is gone.**
+   *
+   * It read: an `<h1>` of "Southville Running Club", the words "being built here", and **no
+   * month-and-year anywhere in the body**. The first two described a page that no longer
+   * exists. The third is the one worth keeping, and it could not survive as written — the
+   * home page now legitimately prints "Sunday 1 November 2026" on the race card and "July
+   * 2026" on the newsletter card, both read from data.
+   *
+   * So the rule is scoped to where it actually lives. **When the new site replaces the old one
+   * is a committee decision**, and the only thing on this page that makes a claim about that
+   * is the banner. A date there would be a promise nobody authorised; a date on a race card is
+   * a fact about a race.
+   */
+  test('promises no date for the move from the old site', async ({ page }) => {
     await page.goto('/');
 
-    // The heading is the club's name; the banner above it does the welcoming. What this
-    // test is really guarding is the next assertion — that no date is promised anywhere.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Southville Running Club',
-    );
-    await expect(page.locator('main')).toContainText('being built here');
+    const banner = page.locator('.club-banner');
 
-    // When the new site replaces the old one is a committee decision, and a date invented
-    // here would be a factual claim nobody authorised.
-    const body = (await page.locator('body').textContent()) ?? '';
-    expect(body).not.toMatch(
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/,
+    await expect(banner).toContainText('Some pages are still on the old site');
+
+    const said = (await banner.textContent()) ?? '';
+    expect(
+      said,
+      'the banner promises a date for the cutover, which is the committee’s decision',
+    ).not.toMatch(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/u,
     );
+    expect(said).not.toMatch(/\b20\d\d\b/u);
   });
 
-  test('links to both things that already exist', async ({ page }) => {
+  test('links to the race, and not to the timing app it keeps to staff', async ({
+    page,
+  }) => {
     await page.goto('/');
 
-    // **Scoped to `main`, since the navigation arrived.** These two links are also in the
-    // bar now, so an unscoped `getByRole` matches twice and Playwright refuses in strict
-    // mode. Narrowing to the page's own content is the right answer rather than picking a
-    // `.first()`: this test is about what the home page *says*, and the bar has its own.
+    // **Scoped to `main`**, because the bar carries its own links and an unscoped
+    // `getByRole` matches twice, which Playwright refuses in strict mode.
     const content = page.locator('main');
 
-    await expect(
-      content.getByRole('link', { name: /Nightingale Nightmare/ }),
-    ).toHaveAttribute('href', '/nn/');
+    // ⚠️ **By `href` rather than by link text.** This asserted a link *named* "Nightingale
+    // Nightmare", which was true of the holding page's prose and is not true of the card that
+    // replaced it: the race's name is the card's heading and the link beside it reads "Race
+    // details". The property worth holding is that the home page sends somebody to the race
+    // at its evergreen address, not what the button happens to say this month.
+    await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+
     // **And not to `/timing`**, which is staff-only since 11 September 2026 and answers 404
     // to anybody without a `timing.*` permission. Linking a runner there would send them to a
     // page saying there is nothing there.
-    await expect(content.getByRole('link', { name: /Race timing/ })).toHaveCount(0);
+    await expect(content.locator('a[href^="/timing"]')).toHaveCount(0);
   });
 });
 
@@ -53,7 +70,12 @@ test.describe('the banner that says which site this is', () => {
   // link with no idea the club has two sites, and a test that only covered `/` would pass
   // while that page was a dead end.
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
   ] as const) {
     test(`${name} says it is unfinished and links to the club website`, async ({
@@ -138,7 +160,12 @@ test.describe('the club wordmark', () => {
   // is inline `<svg>` filled with `currentColor` now, and these tests are what stop it
   // quietly going back to a colour of its own.
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['the brand page', '/brand/'],
     ['race timing', '/timing'],
   ] as const) {
@@ -288,7 +315,11 @@ test.describe('the bar between the parts of this site', () => {
   ] as const;
 
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
     ['the privacy notice', '/privacy/'],
   ] as const) {
     test(`${name} offers every part of the site`, async ({ page }) => {
@@ -315,8 +346,13 @@ test.describe('the bar between the parts of this site', () => {
     // they are, and without the attribute nobody else is told at all.
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(0);
 
-    await page.goto('/');
-    await expect(nav.locator('[aria-current="page"]')).toHaveText('Home');
+    // ⚠️ **This used to mark `Home` on `/`, and `/` is on the club's chrome now** — ADR-048,
+    // where there is no "Home" item at all: the wordmark is the Home link and carries
+    // `aria-current` itself, which `club-chrome.spec.ts` asserts. `/events/` still renders
+    // this bar, so it is what proves the marking mechanism here rather than the label.
+    // **Put `/` and `Home` back** in the change that moves the money pages across.
+    await page.goto('/events/');
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Events');
   });
 
   test.describe('the Events submenu', () => {
@@ -331,7 +367,10 @@ test.describe('the bar between the parts of this site', () => {
      */
 
     test('is a real link to a real page, not a menu button', async ({ page }) => {
-      await page.goto('/');
+      // ⚠️ `/privacy/` rather than `/` until after the race — see ADR-048. Every test in this
+      // describe used the home page, which is on the club's chrome now and has no `.site-nav`
+      // at all. **Put `/` back** when the money pages move across.
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
 
@@ -344,7 +383,7 @@ test.describe('the bar between the parts of this site', () => {
 
     test('opens on hover, and on keyboard focus of the parent', async ({ page }) => {
       await page.setViewportSize({ width: 1100, height: 800 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
       const parent = nav.getByRole('link', { name: 'Events', exact: true });
@@ -371,7 +410,7 @@ test.describe('the bar between the parts of this site', () => {
       page,
     }) => {
       await page.setViewportSize({ width: 320, height: 720 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
 
@@ -385,7 +424,7 @@ test.describe('the bar between the parts of this site', () => {
 
     test('does not make the page scroll sideways when it is open', async ({ page }) => {
       await page.setViewportSize({ width: 800, height: 800 });
-      await page.goto('/');
+      await page.goto('/privacy/');
 
       await page
         .getByRole('navigation', { name: 'Southville Running Club' })
@@ -404,7 +443,9 @@ test.describe('the bar between the parts of this site', () => {
     }) => {
       // One is Astro and one is a template literal in a Worker; they share `SITE_NAV` rather
       // than a component, so this is what catches one of them being edited alone.
-      for (const path of ['/', '/account/sign-in/']) {
+      // ⚠️ `/privacy/` for the Astro side until after the race — see ADR-048. Both renderings
+      // of `SITE_NAV` are still live and still must not drift; only the sample page moved.
+      for (const path of ['/privacy/', '/account/sign-in/']) {
         await page.setViewportSize({ width: 1100, height: 800 });
         await page.goto(path);
 
@@ -446,7 +487,12 @@ test.describe('the footer the whole site carries', () => {
   const PROFILES = ['Instagram', 'Facebook', 'X', 'TikTok'] as const;
 
   for (const [name, path] of [
-    ['the home page', '/'],
+    // ⚠️ **`/privacy/` stands in for the home page until after the race.** `/` moved to the
+    // club's own chrome — ADR-048 — and the money pages keep today's banner, bar and footer
+    // until 1 November 2026. `/privacy/` is a club page that deliberately did not move, so
+    // it is what proves the old chrome still renders. **Put `/` back here** in the change
+    // that moves the money pages across, and delete this comment with it.
+    ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
     ['race timing', '/timing'],
   ] as const) {
@@ -497,7 +543,11 @@ test.describe('the footer the whole site carries', () => {
         .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
     };
 
-    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/'));
+    // ⚠️ `/privacy/` rather than `/` until after the race — see ADR-048. The club's own pages
+    // render `ClubFooter` from the same `SOCIAL_LINKS`, asserted in `club-chrome.spec.ts`;
+    // this one is about the two *old* renderings staying in step. **Put `/` back** when the
+    // money pages move across and there is one footer again.
+    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/privacy/'));
   });
 });
 
@@ -2023,8 +2073,12 @@ test.describe('accessibility', () => {
 });
 
 test.describe('what does not exist', () => {
+  // ⚠️ **This asked for `/membership/` until 20 September 2026, when that page was built.**
+  // It is a list of addresses the club has *not* built, so a page arriving is exactly what
+  // should break it — which it did. `/results/` is still unbuilt; the Pass the Buck results
+  // live on the old site and the race results have their own address under `/nn/<year>/`.
   test('404s a page that has not been built', async ({ page }) => {
-    const response = await page.goto('/membership/');
+    const response = await page.goto('/results/');
 
     expect(response?.status()).toBe(404);
   });

@@ -1,0 +1,45 @@
+{
+  "rows": [
+    {
+      "group": "Sub 7:00",
+      "perKm": "Sub 4:21",
+      "fiveK": "< 21 min",
+      "halfMarathon": "< 1:31",
+      "marathon": "< 3:05",
+      "fiveKMinutes": 21
+    },
+    {
+      "group": "Sub 8:00",
+      "perKm": "Sub 4:58",
+      "fiveK": "< 24 min",
+      "halfMarathon": "< 1:45",
+      "marathon": "< 3:48",
+      "fiveKMinutes": 24
+    },
+    {
+      "group": "Sub 9:00",
+      "perKm": "Sub 5:35",
+      "fiveK": "< 27 min",
+      "halfMarathon": "< 2:03",
+      "marathon": "< 4:06",
+      "fiveKMinutes": 27
+    },
+    {
+      "group": "Sub 10:00",
+      "perKm": "Sub 6:12",
+      "fiveK": "< 30 min",
+      "halfMarathon": "< 2:18",
+      "marathon": "< 4:46",
+      "fiveKMinutes": 30
+    },
+    {
+      "group": "Sub 11:00",
+      "perKm": "Sub 6:49",
+      "fiveK": "< 33 min",
+      "halfMarathon": "< 2:34",
+      "marathon": "< 5:00",
+      "fiveKMinutes": 33
+    }
+  ],
+  "alsoRunning": "Plus the walk-to-run group on Tuesdays, and the social group: about 4 miles round the harbourside, with rests."
+}

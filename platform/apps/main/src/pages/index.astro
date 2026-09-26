@@ -1,53 +1,347 @@
 ---
-import Base from '../layouts/Base.astro';
+import { Image } from 'astro:assets';
 
-// The root of `new.southvillerunningclub.co.uk` — the front door the club website will
-// eventually be, and for now a holding page that says so.
+import ClubBase from '../layouts/ClubBase.astro';
+import heroPhoto from '../assets/club-evening-run.jpg';
+import joinPhoto from '../assets/club-group-photo.jpg';
+import { CLUB_CTA } from '@src/shared/club-nav';
+import {
+  comingUpOn,
+  parseClub,
+  parseEvents,
+  parseMembership,
+  parseNewsletters,
+  parsePace,
+} from '@src/shared/club-content';
+import { formatPriceWords } from '@src/shared/money';
+import club from '../content/club.json';
+import events from '../content/events.json';
+import membership from '../content/membership.json';
+import newsletters from '../content/newsletters.json';
+import pace from '../content/pace.json';
+import race from '../content/race.json';
+
+// `/` — the club's front page.
 //
-// It states no date. When the new site replaces the old one is a committee decision and
-// [a factual claim not to be invented](../../../../docs/architecture/principles.md#stop-and-ask).
+// The order answers a stranger's questions in the order they actually arrive: who are you,
+// when do you meet, what happens if I turn up, which group, what is on, and what does joining
+// cost. A nervous first-timer is the reader throughout.
+//
+// ## ⚠️ Nightingale Nightmare links to `/nn/`, and takes its date from `race.json`
+//
+// **`/nn/` and not `/nn/2026/`.** That address is evergreen — it paints on whichever running
+// is current from `entries.current_entry_state('nn')` — so a link to it keeps working when
+// 2027 is published, and the entry journey from there is untouched by this change.
+//
+// **The date is read rather than restated.** `race.json` is where it lives, and a copy here
+// would be a second place to change it — with a silent failure, because a card showing last
+// year's date looks exactly like one showing this year's.
+//
+// ## The heading, and the one phrase it may not use
+//
+// ⚠️ **Not "Welcome to Southville Running Club".** The banner rendered directly above already
+// reads *"Welcome to Southville Running Club's new website."*, so a heading one line below
+// saying almost the same words is duplication a sighted reader skims past and a screen-reader
+// user hears twice in a row. The holding page this replaced carried the same note for the same
+// reason, and it is the one heading that collides with the chrome.
+//
+// It was *"Come and run with friends you haven't met yet"* in the mockup. The sentiment is
+// right and the stock phrase was not: *"friends you haven't met yet"* reads as dating-app copy,
+// which is a strange first impression for a running club. Cutting the clause leaves the
+// invitation, which is what the line is for — and the lede beneath already does the
+// inclusivity work, so the heading does not need to.
+//
+// ## What is deliberately not on this page
+//
+// **No testimonial.** The mockup carries three quotes attributed to "[Member name]". A
+// testimonial is a real person saying a real thing with their consent, and the club has not
+// supplied one — so the whole section is absent rather than greyed out. It comes back when
+// there is a quote to print.
+//
+// **No club kit card.** Kit is out of scope for this build entirely.
+//
+// ## The hero photograph
+//
+// ⚠️ **Two real photographs of identifiable club members, which is a consent question before
+// it is a technical one.** About eighty people are recognisable in the hero and about eighteen
+// in the membership section.
+//
+// The rule is that the club supplies photographs **with consent from the people shown**. Both
+// were supplied by a club volunteer — the evening-run photograph on **20 September 2026**, the
+// group photograph on **21 September 2026** — and consent was confirmed for each. Those
+// confirmations are recorded here and in `docs/design/direction-a.md` rather than left in a
+// conversation, because a photograph whose consent nobody can evidence has to come down.
+//
+// ## Which photograph goes where, which was decided rather than defaulted
+//
+// The group photograph was in the hero for about an hour on 21 September 2026 and moved down.
+// Three reasons, and they are worth keeping because the obvious instinct is to lead with the
+// biggest picture:
+//
+//   1. **The hero is selling Tuesday night and that photograph is a race** — numbers, a finish
+//      gazebo, a summer field — directly above a facts strip that says *Tuesdays and Thursdays,
+//      50p a run*. The evening-run photograph is the thing the page is actually offering.
+//   2. ⚠️ **It carries the club's wordmark burnt into it**, so in the hero it sat about 200px
+//      below the header's own artwork. WCAG 1.4.5 exempts a logotype, so this was allowed
+//      rather than wrong; it simply read as the logo dropped in twice. Beside the membership
+//      invitation it reads as a club banner.
+//   3. **Eighty faces at hero size are not faces.** Scaled into roughly 580×325px the group
+//      becomes a green mass; eighteen people at that size are legible. A nervous first-timer
+//      is scanning for *somebody like me*, which a crowd cannot answer and a group can.
+//
+// It also crops better: the evening-run photograph is exactly 4:3 and the hero slot is 4:3, so
+// nothing is lost, where the panoramic group shot lost about 7% of its width up there.
+//
+// Swapping either is one import and one `alt`; removing one leaves the flat `--club-photo`
+// panel the rest of the site still uses.
+//
+// **`<Image>` rather than `<img>`**, so Astro emits width, height and a modern format at
+// build time — the source is 1600×1200 and 382 kB, which is a phone photograph rather than a
+// web asset.
+//
+// ⚠️ **`loading="lazy"` on an image that is above the fold**, which looks wrong and is
+// deliberate. This element is `display: none` below 62em — the facts strip has to be inside
+// the first screen on a phone, and a photograph above it costs the whole budget. An eager
+// image would still be **downloaded** there, so 70% of this club's visitors would pay for a
+// picture they never see. A lazy image that is not rendered is not fetched, and a lazy image
+// that *is* in the viewport loads immediately, so the desktop case is unaffected.
+//
+// **The other panels are still flat colour.** `--club-photo`, `aria-hidden`, no text and no
+// stripe pattern — see `club.css`. They are replaced by real photographs the same way this
+// one was, not filled in.
+
+const { meet, who } = parseClub(club);
+const { rows, alsoRunning } = parsePace(pace);
+const prices = parseMembership(membership);
+const { issues } = parseNewsletters(newsletters);
+
+// **Resolved at build time**, so an expired card leaves the page at the next build rather
+// than at midnight. `comingUpOn` compares two UTC instants and never a civil date — the race
+// is run the weekend after the clocks change, and that is exactly where a date comparison
+// goes wrong by an hour.
+const upcoming = comingUpOn(parseEvents(events), new Date());
+
+const latestIssue = issues[0];
+
+/** The date a card shows, read from wherever that fact actually lives. */
+function dateFor(source: string): string | null {
+  if (source === 'race') return race.date;
+  if (source === 'newsletter')
+    return latestIssue?.title.replace(/^.*Newsletter /u, '') ?? null;
+  return null;
+}
+
+// Composed here rather than in the markup, for the reason `ClubFooter` carries at length:
+// Prettier reflows adjacent expressions onto separate lines and Astro compresses the newline
+// between them to nothing, which silently eats the space.
+const where = `${meet.venue}, ${meet.street}, ${meet.postcode}.`;
+
+const perRun = formatPriceWords(prices.payPerRunPence);
+const perYear = formatPriceWords(prices.membershipPerYearPence);
+
+// The pace bands, plus the two groups that are not bands. The table itself is on
+// `/run-with-us/#pace`; these are the shortest possible answer to "is there a group for me?"
+const paceLabels = [
+  'Walk-to-run',
+  'Social, about 4 miles with rests',
+  ...[...rows].reverse().map((row) => row.group.replace(':00', '')),
+];
 ---
 
-<Base
-  title="Southville Running Club — a new website is on the way"
-  description="The club's new website, being built around race sign-ups and race timing."
+<ClubBase
+  title="Southville Running Club — a friendly running club in South Bristol"
+  description="A friendly running club of mixed abilities and ages 18+, meeting Tuesdays and Thursdays at the Southbank Club in Bedminster, Bristol. New runners always welcome."
+  canonical="https://new.southvillerunningclub.co.uk/"
 >
+  <section class="club-hero">
+    <div class="club-wrap club-hero-inner">
+      <div>
+        <h1>Come and run with us</h1>
+        <p class="club-lede">
+          A friendly club of mixed abilities and ages 18+. Whatever your pace, there's a
+          group for you.
+        </p>
+        <p class="club-btns">
+          <a class="club-btn club-btn-primary" href={CLUB_CTA.href}>{CLUB_CTA.label}</a>
+          <a class="club-btn club-btn-secondary" href="/membership/">Join the club</a>
+        </p>
+      </div>
+
+      {
+        /* The alt text describes what is in the frame and claims nothing outside it — no
+          place name, no date, no names. A reader who cannot see it should learn what the
+          club looks like on an ordinary evening, which is the whole job of this picture. */
+      }
+      <Image
+        class="club-hero-photo"
+        src={heroPhoto}
+        alt="Around eighteen Southville Running Club members, several in club green, gathered on a path through a cemetery at dusk before an evening run."
+        widths={[640, 960, 1280, 1600]}
+        sizes="(min-width: 62em) 46rem, 0px"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  </section>
+
   {
-    /* Just the club's name. The banner directly above already welcomes the visitor to the
-      new website, and a heading one line below saying the same thing again reads as a
-      site that is nervous. The page still needs an h1 — dropping it outright is an
-      accessibility failure, not a tidy-up. */
+    /* ⚠️ **Inside the first screen on a 390×844 phone**, which is what the hidden hero photo
+      pays for. Somebody who has just heard about the club wants the when and the where. */
   }
-  <h1>Southville Running Club</h1>
+  <section class="club-facts" aria-labelledby="facts-heading">
+    <div class="club-wrap">
+      <h2 id="facts-heading" class="club-visually-hidden">When and where we run</h2>
+      <ul>
+        <li><b>When</b>{meet.days}</li>
+        <li><b>Time</b>{meet.time}</li>
+        <li>
+          {
+            /* ⚠️ **`{' '}` and not a literal space.** This is the third time this trap has
+              been paid for on this branch: Prettier reflows `{where}` and the link onto
+              separate lines, and Astro compresses the newline between them to **nothing** —
+              so the strip rendered "BS3 1DB.Map". A space written as an expression is a
+              token, and no formatter moves it. Composing in the frontmatter fixes the other
+              two instances; it cannot fix this one, because half the join is a link. */
+          }
+          <b>Where</b>{where}{' '}<a href={meet.mapUrl}>Map</a>
+        </li>
+        <li><b>Cost</b>{perRun} a run</li>
+        <li><b>Who</b>{who}</li>
+      </ul>
+    </div>
+  </section>
 
-  <p class="lede">The club's new website is being built here, a piece at a time.</p>
+  <section class="club-sec">
+    <div class="club-wrap">
+      <h2>Your first run, in three steps</h2>
+      <ol class="club-g3 club-steps">
+        <li>
+          <span class="club-step-number" aria-hidden="true">1</span>
+          <h3>Turn up on a Tuesday</h3>
+          <p>
+            Arrive by 6.10pm at the {meet.venue}. Tuesday is our busiest night, with 80 to
+            100 runners and the most groups, including walk-to-run.
+          </p>
+        </li>
+        <li>
+          <span class="club-step-number" aria-hidden="true">2</span>
+          <h3>Pick a pace group</h3>
+          <p>
+            Each group leader says what they're planning. Not sure? Ask one, and start in
+            a slower group than you think.
+          </p>
+        </li>
+        <li>
+          <span class="club-step-number" aria-hidden="true">3</span>
+          <h3>Run, then chat</h3>
+          <p>
+            Pop {perRun} in the pot. Most groups are back within the hour, and plenty of us
+            stay for a drink at the {meet.venue}.
+          </p>
+        </li>
+      </ol>
+      <p>
+        <a class="club-btn club-btn-primary" href="/run-with-us/"
+          >Read the new runners' guide</a
+        >
+      </p>
+    </div>
+  </section>
 
-  <p>Two parts of it are already here:</p>
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>Tuesday or Thursday?</h2>
+        <dl class="club-compare">
+          <div>
+            <dt>Tuesday</dt>
+            <dd>
+              80 to 100 runners, the widest choice of groups and the walk-to-run
+              beginners' group. Best for your first time.
+            </dd>
+          </div>
+          <div>
+            <dt>Thursday</dt>
+            <dd>Around 30 runners. A smaller, quieter night.</dd>
+          </div>
+        </dl>
+      </div>
 
-  <ul>
-    <li>
-      <a href="/nn/"><strong>Nightingale Nightmare</strong></a> — the race, and its sign-up
-    </li>
-    {
-      /* **No link to `/timing`**, since 11 September 2026. It is staff-only now and
-      answers 404 to everybody else, so linking it from the club's front page would send
-      a runner to a page that says there is nothing there. Race results, when there are
-      some to show, belong on the race's own year page. */
-    }
-  </ul>
+      <div>
+        <h2>A group for every pace</h2>
+        <ul class="club-pills">
+          {paceLabels.map((label) => <li>{label}</li>)}
+        </ul>
+        <p>{alsoRunning}</p>
+        <p><a href="/run-with-us/#pace">See the full pace guide</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="club-sec">
+    <div class="club-wrap">
+      <h2>Coming up</h2>
+      <div class="club-g3">
+        {
+          upcoming.map((entry) => {
+            const when = dateFor(entry.dateFrom);
+
+            return (
+              <article class="club-card">
+                {/* Absent rather than empty when there is no date to show. */}
+                {when !== null && <p class="club-small">{when}</p>}
+                <h3>{entry.title}</h3>
+                <p>{entry.summary}</p>
+                <a class="club-btn club-btn-secondary" href={entry.href}>
+                  {entry.cta}
+                </a>
+              </article>
+            );
+          })
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2>Join the club for {perYear} a year</h2>
+        <p>
+          You don't need to be a member to run with us. Membership supports the club and
+          gets you into the members' WhatsApp community and local discounts. Racing a lot?
+          Add an England Athletics licence.
+        </p>
+        <p>
+          <a class="club-btn club-btn-primary" href="/membership/">
+            Compare membership options
+          </a>
+        </p>
+      </div>
+
+      {
+        /* ⚠️ **The whole club, next to the invitation to join it** — which is the one place
+          on the site where showing *everyone* is the argument rather than a crowd shot. It
+          also puts the wordmark burnt into this photograph a long way from the header's own,
+          where it reads as a club banner rather than as the logo dropped in twice. */
+      }
+      <Image
+        class="club-photo club-photo-wide"
+        src={joinPhoto}
+        alt="Around eighty Southville Running Club members in green club vests and race numbers, gathered on grass for a group photograph at a summer race."
+        widths={[640, 960, 1280, 1640]}
+        sizes="(min-width: 62em) 34rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  </section>
 
   {
-    /* What was here before — "nothing that is already working will move" — was true of
-      the paths and false of the address, which is the only part a member sees. The whole
-      site moves to southvillerunningclub.co.uk at the cutover. Saying otherwise is a
-      promise the club would have to break. */
+    /* ⚠️ **"What members say" is deliberately absent.** The mockup has three quotes, each
+      attributed to "[Member name]" and tagged as a placeholder. A testimonial is a real person
+      saying a real thing with their consent; until the club supplies one, the honest page is
+      the one without the section. It is not greyed out, not stubbed, and not filled with a
+      plausible quote — it simply is not here yet. */
   }
-  <p>
-    The rest of the club's website will be added here as it is built. When it is all here,
-    this becomes the club's main website.
-  </p>
-
-  <footer>
-    <p>Southville Running Club.</p>
-  </footer>
-</Base>
+</ClubBase>

@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SRC website redesign, direction A: Community and warmth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&amp;family=Nunito+Sans:wght@400;600;700;800;900&amp;display=swap">
+<style>
+:root{--chrome-bg:#DDE0DC;--chrome-ink:#1b1d1b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--chrome-bg:#101211;--chrome-ink:#e8ebe7}}
+:root[data-theme="dark"]{--chrome-bg:#101211;--chrome-ink:#e8ebe7}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--chrome-bg);color:var(--chrome-ink);font-family:system-ui,sans-serif}
+/* ---- mockup chrome (not part of the design) ---- */
+.tb{position:sticky;top:env(safe-area-inset-top,0px);z-index:100;display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .9rem;padding:.5rem .75rem;background:#1b1d1b;color:#f1f3f0;font:13px/1.3 system-ui,sans-serif}
+.tb .grp{display:flex;flex-wrap:wrap;gap:.25rem}
+.tb button{font:inherit;color:inherit;background:#2c302d;border:1px solid #454a46;border-radius:6px;padding:.35rem .6rem;min-height:32px;cursor:pointer}
+.tb button[aria-pressed="true"]{background:#f1f3f0;color:#1b1d1b}
+.tb button:focus-visible,#notes button:focus-visible{outline:2px solid #8fc1ff;outline-offset:2px}
+#notes{max-width:40rem;border:0;border-radius:12px;padding:1.5rem 1.75rem;background:#fff;color:#1b1d1b;font:15px/1.55 system-ui,sans-serif}
+#notes::backdrop{background:rgba(0,0,0,.55)}
+#notes h2{margin-top:0}
+#notes .sw{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding:0}
+#notes .sw li{display:flex;align-items:center;gap:.4rem;font-size:13px}
+#notes .sw i{width:28px;height:28px;border-radius:6px;border:1px solid #0002;display:inline-block}
+#notes button{font:inherit;padding:.5rem 1rem;border-radius:6px;border:1px solid #1b1d1b;background:#1b1d1b;color:#fff;cursor:pointer}
+.stage{display:flex;justify-content:center;transition:padding .25s}
+.stage.mobile{padding:1.5rem .75rem 3rem}
+.site{container:site/inline-size;width:100%;max-width:1440px;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;transition:max-width .25s ease-out;position:relative;overflow:clip}
+.stage.mobile .site{max-width:390px;border-radius:28px;box-shadow:0 0 0 10px #1b1d1b}
+@media (prefers-reduced-motion:reduce){.site,.stage{transition:none}}
+
+@media (max-width:760px){.tb{flex-wrap:nowrap;overflow-x:auto}.tb .grp{flex-wrap:nowrap}.tb b,.tb button{white-space:nowrap}}
+/* ---- structure ---- */
+.site :focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.site [tabindex="-1"]:focus{outline:none}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:1rem;top:-4rem;z-index:30;background:var(--ink);color:var(--bg);padding:.6rem 1rem;border-radius:var(--radius)}
+.skip:focus{top:1rem}
+.wrap{max-width:1200px;margin:0 auto;padding:0 1.25rem}
+.narrow{max-width:46rem}
+.sec{padding:2.5rem 0}
+.alt{background:var(--surface-2)}
+.site h1,.site h2,.site h3,.site h4{font-family:var(--font-display);line-height:1.12;margin:0 0 .6em;text-wrap:balance}
+.site h1{font-size:2.2rem}.site h2{font-size:1.6rem}.site h3{font-size:1.2rem}.site h4{font-size:1.05rem}
+.site p{margin:0 0 1em;max-width:68ch}
+.lede{font-size:1.15rem;color:var(--ink)}
+.small{font-size:.875rem;color:var(--muted)}
+.site a:not(.btn){color:var(--link);text-underline-offset:.18em}
+.num{font-variant-numeric:tabular-nums;font-family:var(--font-num,inherit)}
+.confirm{display:inline-block;font:700 .72rem/1.3 system-ui,sans-serif;background:#FFE58F;color:#3b2f00;padding:.1em .45em;border-radius:4px;vertical-align:.1em;letter-spacing:0;text-transform:none}
+.g2,.g3,.g4{display:grid;gap:1.25rem}
+.site ul.g3,.site ul.g4,.site ol.g3{list-style:none;padding:0;margin:0 0 1.25rem}
+.split{align-items:start}
+.btns{display:flex;flex-wrap:wrap;gap:.75rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:48px;padding:.7rem 1.25rem;border-radius:var(--radius);font:inherit;font-weight:700;text-decoration:none;border:2px solid transparent;cursor:pointer;line-height:1.2;text-align:center}
+.btn-p{background:var(--brand);color:var(--brand-ink)}
+.btn-s{background:transparent;color:inherit;border-color:currentColor}
+.card{background:var(--surface);border-radius:var(--radius-lg);padding:1.25rem 1.4rem;border:1px solid var(--rule)}
+.card>:last-child{margin-bottom:0}
+.ph{display:grid;place-items:center;min-height:170px;padding:1rem;text-align:center;border-radius:var(--radius-lg);background:repeating-linear-gradient(135deg,var(--ph1) 0 14px,var(--ph2) 14px 28px)}
+.ph span{background:var(--surface);color:var(--ink);font-size:.8rem;padding:.3rem .6rem;border-radius:6px;max-width:26ch}
+.ph.tall{min-height:280px}
+
+/* header */
+.hdr{position:relative;z-index:10;background:var(--hdr-bg,var(--bg));color:var(--hdr-ink,var(--ink))}
+.hdr-in{display:flex;align-items:center;gap:.75rem;min-height:72px}
+.logo{display:flex;flex-direction:column;margin:0 auto 0 0;font-family:var(--font-logo,var(--font-display));font-weight:900;text-transform:uppercase;line-height:.92;font-size:.95rem;letter-spacing:.02em;text-decoration:none;color:var(--logo,inherit)!important}
+.nav-d,.hdr .cta{display:none}
+.hdr nav a:not(.btn){color:inherit;text-decoration:none;font-weight:700;padding:.65rem .8rem;border-radius:var(--radius)}
+.hdr nav a[aria-current="page"]{box-shadow:inset 0 -3px 0 var(--brand-line)}
+.nav-m{position:relative}
+.nav-m summary{list-style:none;min-height:44px;padding:.5rem 1rem}
+.nav-m summary::-webkit-details-marker{display:none}
+.nav-m nav{position:absolute;right:0;top:calc(100% + .5rem);width:min(18rem,86cqw);display:grid;gap:.15rem;padding:.6rem;background:var(--surface);color:var(--ink);border:1px solid var(--rule);border-radius:var(--radius-lg);box-shadow:0 12px 32px rgba(0,0,0,.18)}
+.nav-m nav a:not(.btn){padding:.8rem .75rem}
+.nav-m nav .btn{margin-top:.4rem}
+
+/* facts strip */
+.facts{padding:1.1rem 0;background:var(--facts-bg);color:var(--facts-ink)}
+.facts ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.8rem 1.25rem}
+.facts li:nth-child(3){grid-column:1/-1}
+.facts b{display:block;font-size:.8rem;letter-spacing:.02em;opacity:.85;font-weight:700}
+.facts li{font-weight:600;line-height:1.35}
+.facts a:not(.btn){color:inherit;font-weight:700}
+
+/* bits */
+.steps li{position:relative}
+.stepn{display:grid;place-items:center;width:2.4rem;height:2.4rem;margin-bottom:.75rem;font-weight:800}
+.compare{margin:0}.compare div{padding:.9rem 0;border-top:1px solid var(--rule)}
+.compare dt{font-weight:800;font-family:var(--font-display);font-size:1.1rem}.compare dd{margin:.25rem 0 0}
+.pills{list-style:none;padding:0;margin:0 0 1rem;display:flex;flex-wrap:wrap;gap:.5rem}
+.pills li{padding:.35rem .8rem;border-radius:999px;background:var(--pill-bg);color:var(--pill-ink);font-weight:600;font-size:.92rem}
+.event .date,.race .date{font-weight:700;color:var(--muted);font-size:.92rem}
+.badge{display:inline-block;font-size:.78rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;background:var(--pill-bg);color:var(--pill-ink);margin:0 .4rem .5rem 0}
+.quotes figure{margin:0}.quotes blockquote{margin:0}.quotes blockquote p{font-size:1.1rem;font-family:var(--font-display)}
+.quotes figcaption{font-size:.9rem;color:var(--muted)}
+.gallery .ph{min-height:150px}
+.phead{padding:2.25rem 0 1.25rem}
+.phead .lede{margin-bottom:0}
+.crumb{font-size:.9rem}
+.timeline{list-style:none;padding:0;margin:0}
+.timeline li{display:grid;grid-template-columns:6.5rem 1fr;gap:.75rem;padding:.8rem 0;border-top:1px solid var(--rule)}
+.timeline b{font-variant-numeric:tabular-nums}
+.checks{list-style:none;padding:0;margin:0}
+.checks li{position:relative;padding:.5rem 0 .5rem 1.9rem;border-top:1px solid var(--rule)}
+.checks li::before{content:"";position:absolute;left:.25rem;top:.95rem;width:.7rem;height:.38rem;border-left:3px solid var(--brand-line);border-bottom:3px solid var(--brand-line);transform:rotate(-45deg)}
+.picker{margin:1rem 0 1.5rem}
+.picker label,.field label{display:block;font-weight:700;margin-bottom:.35rem}
+.row{display:flex;flex-wrap:wrap;gap:.6rem}
+.row input{flex:1 1 10rem}
+.pout{margin:.9rem 0 0;font-weight:600}
+.site input,.site select{min-height:48px;width:100%;padding:.6rem .75rem;border:2px solid var(--rule-strong);border-radius:var(--radius);font:inherit;background:var(--input-bg,var(--surface));color:var(--ink)}
+.site input[type=radio],.site input[type=checkbox]{width:1.35rem;height:1.35rem;min-height:0;accent-color:var(--brand-line);flex:none;margin:.1rem 0 0}
+.field{margin-bottom:1rem}
+.tbl-wrap{overflow-x:auto;margin:0 0 1rem;border-radius:var(--radius-lg);border:1px solid var(--rule);background:var(--surface)}
+.tbl{border-collapse:collapse;width:100%;font-size:.95rem}
+.tbl caption{text-align:left;padding:.9rem 1rem;font-weight:700}
+.tbl th,.tbl td{padding:.7rem 1rem;text-align:left;border-top:1px solid var(--rule);white-space:nowrap}
+.tbl thead th{font-size:.85rem;background:var(--th-bg);color:var(--th-ink)}
+.tbl tr.hl{background:var(--hl-bg);color:var(--hl-ink)}
+.tbl tr.hl th::after{content:"  Start here";font-size:.78rem;font-weight:800}
+.cmp td,.cmp thead th{text-align:center}
+.cmp td span[aria-hidden]{font-weight:800;font-size:1.1rem}
+.results th button{all:unset;cursor:pointer;display:inline-flex;gap:.3rem;align-items:center;min-height:32px}
+.results th button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.results th[aria-sort="ascending"] button::after{content:"▲";font-size:.65em}
+.results th[aria-sort="descending"] button::after{content:"▼";font-size:.65em}
+.results tr.dns td{color:var(--muted)}
+.st{font-weight:700}
+.search{max-width:26rem}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1.25rem}
+.chip{font:inherit;font-weight:700;min-height:44px;padding:.45rem 1rem;border-radius:999px;border:2px solid var(--rule-strong);background:transparent;color:inherit;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
+.podium .pod-l{font-weight:700;color:var(--muted);margin:0}
+.podium .pod-t{font-size:2rem;font-weight:800;margin:.1rem 0;font-variant-numeric:tabular-nums;font-family:var(--font-num,var(--font-display))}
+.podium .pod-n{font-weight:700;font-size:1.1rem;margin:0 0 .25rem}
+.pricing .card{display:flex;flex-direction:column}
+.pricing .btn{margin-top:auto}
+.price{font-family:var(--font-display);font-size:2.3rem;font-weight:800;line-height:1.1;margin:.2rem 0 .6rem}
+.price small{font-size:.95rem;font-weight:600;color:var(--muted);font-family:var(--font-body)}
+.feat{outline:3px solid var(--brand-line);outline-offset:-1px}
+.actions{list-style:none;padding:0;margin:0 0 1rem}
+.actions li{display:grid;gap:.1rem;padding:.7rem 0;border-top:1px solid var(--rule)}
+.actions a{font-weight:800;font-size:1.1rem}
+.actions span{color:var(--muted);font-size:.93rem}
+.stepper{list-style:none;padding:0;margin:0 0 1.25rem;display:flex;gap:.5rem;counter-reset:s}
+.stepper li{flex:1;counter-increment:s;font-size:.85rem;font-weight:700;color:var(--muted);padding-top:.55rem;border-top:4px solid var(--rule)}
+.stepper li::before{content:counter(s) ". "}
+.stepper li[aria-current],.stepper li.done{color:var(--ink);border-color:var(--brand-line)}
+.join fieldset{border:0;padding:0;margin:0 0 1rem;min-width:0}
+.join legend{font-family:var(--font-display);font-weight:800;font-size:1.25rem;margin-bottom:.8rem;padding:0}
+.radios{margin-bottom:1rem!important}
+.radios legend{font-family:var(--font-body)!important;font-size:1rem!important}
+.radios label,.tick{display:flex;gap:.6rem;align-items:flex-start;padding:.45rem 0;font-weight:500!important}
+.opt{font-weight:400;color:var(--muted)}
+.tight{gap:0 1rem}
+.partners .partner{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:start}
+.partners h3{font-size:1.05rem;margin-bottom:.15rem}
+.plogo{width:3rem;height:3rem;border-radius:var(--radius);display:grid;place-items:center;font-weight:800;background:var(--pill-bg);color:var(--pill-ink)}
+.lock{font-size:.85rem;font-weight:700;margin:0}
+.lock::before{content:"🔒 ";}
+.kit{padding-left:1.1rem;margin:0 0 1rem}.kit li{padding:.2rem 0}
+.rules summary,.acc summary,.inline summary{cursor:pointer;font-weight:700;list-style-position:outside}
+.rules ol{padding-left:1.4rem}.rules li{padding:.2rem 0}
+.acc details{border-top:1px solid var(--rule)}
+.acc details:last-child{border-bottom:1px solid var(--rule)}
+.acc summary{padding:.95rem 2rem .95rem 0;position:relative;list-style:none;min-height:48px}
+.acc summary::-webkit-details-marker{display:none}
+.acc summary::after{content:"+";position:absolute;right:.25rem;top:.7rem;font-size:1.4rem;line-height:1;font-weight:400}
+.acc details[open]>summary::after{content:"–"}
+.acc-b{padding:0 0 .8rem}
+.inline{margin:0 0 1rem}.inline summary{padding:.4rem 0}
+.meta{margin:0 0 1rem;display:grid;gap:.35rem}
+.meta div{display:grid;grid-template-columns:5.5rem 1fr;gap:.5rem}
+.meta dt{font-weight:700;color:var(--muted)}.meta dd{margin:0}
+.link-card{display:block;text-decoration:none;color:inherit!important}
+.link-card h3{text-decoration:underline;text-underline-offset:.18em}
+.people .person{display:flex;gap:.9rem;align-items:flex-start}
+.people p{margin:0 0 .3rem}
+.avatar{width:3.2rem;height:3.2rem;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:800;background:var(--pill-bg);color:var(--pill-ink)}
+.welfare{border:2px solid var(--brand-line)}
+.welfare-call{margin:1rem 0 2rem;border-left:6px solid var(--brand-line)}
+.docs{list-style:none;padding:0;margin:0 0 1.5rem}
+.docs li{display:flex;justify-content:space-between;gap:1rem;padding:.65rem 0;border-top:1px solid var(--rule)}
+.docs span{font-size:.78rem;font-weight:700;color:var(--muted)}
+.contact{margin:0 0 1rem}.contact div{display:grid;grid-template-columns:7rem 1fr;padding:.5rem 0;border-top:1px solid var(--rule)}
+.contact dt{font-weight:700}.contact dd{margin:0}
+.news .issue h3{font-size:1.1rem}
+.ftr{background:var(--ftr-bg);color:var(--ftr-ink);padding:2.75rem 0 2rem}
+.ftr a:not(.btn){color:inherit}
+.ftr .logo{--logo:currentColor}.ftr .fh{font-size:1rem;margin-bottom:.6rem}
+.ftr .small{color:inherit;opacity:.85}
+.plain{list-style:none;padding:0;margin:0}.plain li{padding:.25rem 0}
+.mbar{display:none}
+
+/* nightingale nightmare */
+.nnhero{position:relative;overflow:hidden;background:var(--nn-bg);color:var(--nn-ink);padding:2.5rem 0 7rem}
+.nn-sky{position:absolute;top:.75rem;right:-.25rem;width:96px;height:auto;pointer-events:none}
+.nn-sky .moon{fill:var(--nn-moon)}.nn-sky .bats,.nn-trees{fill:var(--nn-trees)}
+.nn-trees{position:absolute;left:0;bottom:0;width:100%;height:80px;pointer-events:none}
+.nn-in{position:relative}
+.nnhero h1{font-size:3rem;line-height:.95;max-width:11ch}
+.nnhero .lede{color:inherit;max-width:40ch}
+.nnhero .btn-p{background:var(--nn-cta);color:var(--nn-cta-ink)}
+.nnhero .small{color:inherit}
+.nn-pre{font-weight:700;max-width:34ch;padding-right:5rem}
+
+/* ---- wider containers ---- */
+@container site (min-width:480px){.hdr .cta{display:inline-flex;padding:.55rem 1rem}}
+@container site (min-width:700px){
+  .g2,.g3{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1fr 1fr}
+  .tight{gap:0 1rem}
+}
+@container site (min-width:980px){
+  .nav-d{display:flex;gap:.1rem}
+  .nav-m{display:none}
+  .hdr .cta{padding:.7rem 1.25rem}
+  .g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+  .g2{gap:3rem}
+  .sec{padding:4.5rem 0}
+  .site h1{font-size:3.4rem}.site h2{font-size:2.1rem}
+  .phead{padding:3.5rem 0 1.5rem}
+  .facts ul{grid-template-columns:1fr 1.2fr 1.6fr .8fr 1.4fr}
+  .facts li:nth-child(3){grid-column:auto}
+  .nnhero{padding:5rem 0 9rem}.nn-sky{width:min(34%,440px);top:2rem;right:4%}.nn-trees{height:120px}.nn-pre{max-width:40ch;padding-right:0}.nnhero h1{font-size:6rem}
+}
+
+.theme-a{--bg:#F1F7EF;--surface:#FFFFFF;--surface-2:#E6F1E3;--ink:#16301F;--muted:#4A5C4E;
+ --brand:#209D50;--brand-ink:#0D1B12;--brand-line:#209D50;--link:#236A33;--focus:#16301F;
+ --rule:#D3E3CF;--rule-strong:#76887A;--ph1:#D6E8D1;--ph2:#CCE2C6;--pill-bg:#E6F1E3;--pill-ink:#16301F;
+ --facts-bg:#209D50;--facts-ink:#0D1B12;--th-bg:#E6F1E3;--th-ink:#16301F;--hl-bg:#FFE9A8;--hl-ink:#16301F;
+ --chip-on:#16301F;--chip-on-ink:#FFFFFF;--ftr-bg:#209D50;--ftr-ink:#0D1B12;--logo:#1A7D3F;
+ --nn-bg:#1B3324;--nn-ink:#F7F1DE;--nn-moon:#FFD25A;--nn-trees:#0D1B12;--nn-cta:#FFD25A;--nn-cta-ink:#16301F;
+ --radius:999px;--radius-lg:20px;
+ --font-display:"Bricolage Grotesque","Nunito Sans",system-ui,sans-serif;--font-body:"Nunito Sans",system-ui,sans-serif;
+ color-scheme:light}
+.theme-a h1,.theme-a h2{font-weight:800;letter-spacing:-.02em}
+.theme-a .logo{font-family:"Nunito Sans",sans-serif}
+.theme-a .card{border:0}
+.theme-a .ftr .small{opacity:1}
+.theme-a .sec{padding:3rem 0}
+.theme-a .heroA{padding:1.25rem 0 1.75rem}
+.theme-a .heroA h1{font-size:2.15rem}
+.theme-a .heroA-pic{display:none}
+.theme-a .stepn{border-radius:50%;background:var(--surface-2);color:var(--ink);font-size:1.1rem}
+.theme-a .steps .card,.theme-a .quotes .card,.theme-a .event{background:transparent;padding:0}
+.theme-a .quotes blockquote p{font-size:1.15rem;font-weight:700}
+.theme-a .quotes figure:nth-child(n+2){display:none}
+.theme-a .gallery-sec{display:none}
+.theme-a .pills li{background:#fff;border:1px solid var(--rule)}
+.theme-a .tbl-wrap{border-radius:16px}
+.theme-a .nnhero h1{font-family:"Bricolage Grotesque",sans-serif}
+.theme-a .nnfacts{background:#FFD25A;color:#16301F}
+@container site (min-width:980px){
+ .theme-a .sec{padding:5rem 0}
+ .theme-a .heroA{padding:3.5rem 0 4rem}
+ .theme-a .heroA-in{display:grid;grid-template-columns:1fr 1.1fr;gap:4rem;align-items:center}
+ .theme-a .heroA h1{font-size:4rem;line-height:1.02}
+ .theme-a .heroA-pic{display:grid;min-height:440px;border-radius:28px}
+ .theme-a .quotes{grid-template-columns:1fr}
+ .theme-a .quotes blockquote p{font-size:1.6rem;max-width:34ch}
+}</style></head>
+<body>
+<div class="tb" role="toolbar" aria-label="Mockup controls">
+  <b>Direction A: Community and warmth</b>
+  <div class="grp" aria-label="Pages"><button type="button" data-go="home" data-tab="home" aria-pressed="false">Home</button><button type="button" data-go="run" data-tab="run" aria-pressed="false">Run with us</button><button type="button" data-go="races" data-tab="races" aria-pressed="false">Races hub</button><button type="button" data-go="nn" data-tab="nn" aria-pressed="false">Nightingale Nightmare</button><button type="button" data-go="results" data-tab="results" aria-pressed="false">PtB results</button><button type="button" data-go="membership" data-tab="membership" aria-pressed="false">Membership</button><button type="button" data-go="about" data-tab="about" aria-pressed="false">About</button><button type="button" data-go="news" data-tab="news" aria-pressed="false">News</button></div>
+  <div class="grp" aria-label="Viewport"><button type="button" data-vp="d" aria-pressed="true">Desktop 1440</button>
+    <button type="button" data-vp="m" aria-pressed="false">Mobile 390</button></div>
+  <button type="button" id="notesbtn">Design notes</button>
+</div>
+<dialog id="notes" aria-labelledby="notes-h"><h2 id="notes-h">Direction A: Community and warmth</h2><p><b>Mood:</b> a Tuesday night on the harbourside. Friendly faces, the walk-to-run
+group setting off, drinks after. It leads with people and reassurance, which is what a nervous
+first-timer needs, and it's the direction most like the club's own voice.</p>
+<p><b>Type:</b> Bricolage Grotesque for headings (warm, slightly quirky, reads like a hand-painted
+club banner) with Nunito Sans for body text (open humanist letterforms, very legible at small
+sizes on a phone).</p>
+<p><b>Restraint:</b> one big photo in the hero, then flat sections with plenty of space.
+Cards only where something is clickable, one testimonial rather than three, and yellow kept
+for the pace highlight and the Nightingale Nightmare page.</p><ul class="sw"><li><i style="background:#209D50"></i>Club green (from the current site) #209D50</li><li><i style="background:#236A33"></i>Link green (text on light) #236A33</li><li><i style="background:#F1F7EF"></i>Mint field #F1F7EF</li><li><i style="background:#16301F"></i>Deep ink #16301F</li><li><i style="background:#FFD25A"></i>Sunshine #FFD25A</li></ul>
+  <p><button type="button" id="notesclose">Close</button></p></dialog>
+<div class="stage"><div class="site theme-a">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hdr"><div class="wrap hdr-in">
+  <a href="#home" data-go="home" class="logo" aria-label="Southville Running Club, home">
+    <span>Southville</span><span>Running</span><span>Club</span></a>
+  <nav class="nav-d" aria-label="Main"><a href="#run" data-go="run">Run with us</a><a href="#races" data-go="races">Races &amp; events</a><a href="#membership" data-go="membership">Membership</a><a href="#news" data-go="news">News</a><a href="#about" data-go="about">About</a></nav>
+  <a href="#run" data-go="run" class="btn btn-p cta">Come for a run</a>
+  <details class="nav-m"><summary class="btn btn-s">Menu</summary>
+    <nav aria-label="Main (mobile)"><a href="#run" data-go="run">Run with us</a><a href="#races" data-go="races">Races &amp; events</a><a href="#membership" data-go="membership">Membership</a><a href="#news" data-go="news">News</a><a href="#about" data-go="about">About</a>
+      <a href="#run" data-go="run" class="btn btn-p">Come for a run</a></nav></details>
+</div></header><main id="main">
+<section data-page="home">
+
+<section class="heroA"><div class="wrap heroA-in">
+  <div class="heroA-copy">
+    <h1>Come and run with friends you haven't met yet</h1>
+    <p class="lede">A friendly club of mixed abilities and ages 18+. Whatever your pace,
+    there's a group for you.</p>
+    <p class="btns"><a class="btn btn-p" href="#run" data-go="run">Come for a run</a>
+      <a class="btn btn-s" href="#membership" data-go="membership">Join the club</a></p>
+  </div>
+  <div class="ph heroA-pic" role="img" aria-label="Photo placeholder: laughing group in green club vests on the harbourside at dusk"><span>[Photo: laughing group in green club vests on the harbourside at dusk]</span></div>
+</div></section>
+
+<section class="facts" aria-labelledby="facts-h"><div class="wrap">
+  <h2 id="facts-h" class="sr">When and where we run</h2>
+  <ul>
+    <li><b>When</b>Tuesdays and Thursdays</li>
+    <li><b>Time</b>Meet 6.00pm for a 6.15pm start</li>
+    <li><b>Where</b>Southbank Club, Dean Lane, BS3 1DB. <a href="https://www.google.com/maps/search/?api=1&amp;query=Southbank+Club+Dean+Lane+Bristol+BS3+1DB">Map</a></li>
+    <li><b>Cost</b>50p a run</li>
+    <li><b>Who</b>All abilities, 18+. New runners always welcome</li>
+  </ul></div></section>
+<section class="sec"><div class="wrap">
+  <h2>Your first run, in three steps</h2>
+  <ol class="steps g3">
+    <li class="card"><span class="stepn" aria-hidden="true">1</span><h3>Turn up on a Tuesday</h3>
+      <p>Arrive by 6.10pm at the Southbank Club. Tuesday is our busiest night, with 80 to 100
+      runners and the most groups, including walk-to-run.</p></li>
+    <li class="card"><span class="stepn" aria-hidden="true">2</span><h3>Pick a pace group</h3>
+      <p>Each group leader says what they're planning. Not sure? Ask one, and start in a
+      slower group than you think.</p></li>
+    <li class="card"><span class="stepn" aria-hidden="true">3</span><h3>Run, then chat</h3>
+      <p>Pop 50p in the pot. Most groups are back within the hour, and plenty of us stay for
+      a drink at the Southbank Club.</p></li>
+  </ol>
+  <p><a class="btn btn-p" href="#run" data-go="run">Read the new runners' guide</a></p>
+</div></section>
+<section class="sec alt"><div class="wrap g2 split">
+  <div><h2>Tuesday or Thursday?</h2>
+    <dl class="compare">
+      <div><dt>Tuesday</dt><dd>80 to 100 runners, the widest choice of groups and the
+        walk-to-run beginners' group. Best for your first time.</dd></div>
+      <div><dt>Thursday</dt><dd>Around 30 runners. A smaller, quieter night.</dd></div>
+    </dl></div>
+  <div><h2>A group for every pace</h2>
+    <ul class="pills"><li>Walk-to-run</li><li>Social, about 4 miles with rests</li>
+      <li>Sub 11 min/mile</li><li>Sub 10</li><li>Sub 9</li><li>Sub 8</li><li>Sub 7</li></ul>
+    <p><a href="#run" data-go="run">Find my group</a></p></div>
+</div></section>
+<section class="sec"><div class="wrap">
+  <h2>Coming up</h2>
+  <div class="g3">
+    <article class="card event"><p class="date"><time datetime="2026-11-01">Sunday 1 November 2026</time> <span class="confirm">[confirm]</span></p>
+      <h3>Nightingale Nightmare</h3>
+      <p>Our Halloween 10km trail race through Nightingale Valley and Leigh Woods. Fancy
+      dress strongly encouraged.</p>
+      <a class="btn btn-s" href="#nn" data-go="nn">Race details</a></article>
+    <article class="card event"><p class="date">Order by <time datetime="2026-10-05">Monday 5 October</time></p>
+      <h3>Club kit order window</h3>
+      <p>Vests, tees, buffs and hi-viz, delivered in November.</p>
+      <a class="btn btn-s" href="#membership" data-go="membership">See the kit</a></article>
+    <article class="card event"><p class="date">July 2026</p>
+      <h3>Latest newsletter</h3>
+      <p>Race reports, results and what's coming up. [One-line summary from the issue]</p>
+      <a class="btn btn-s" href="#news" data-go="news">Read the July issue</a></article>
+  </div>
+</div></section>
+<section class="sec alt"><div class="wrap g2 split">
+  <div><h2>Join the club for £4 a year</h2>
+    <p>You don't need to be a member to run with us. Membership supports the club and gets
+    you into the members' WhatsApp community and local discounts. Racing a lot? Add an
+    England Athletics licence.</p>
+    <p><a class="btn btn-p" href="#membership" data-go="membership">Compare membership options</a></p></div>
+  <div class="ph tall" role="img" aria-label="Photo placeholder: members in green club vests cheering at a race finish"><span>[Photo: members in green club vests cheering at a race finish]</span></div>
+</div></section>
+<section class="sec"><div class="wrap">
+  <h2>What members say</h2>
+  <div class="g3 quotes">
+    <figure class="card"><blockquote><p>"I turned up not knowing a soul and ran with the social
+      group. Six months later I did my first 10K."</p></blockquote>
+      <figcaption>[Member name], joined 2025 <span class="confirm">[placeholder quote]</span></figcaption></figure>
+    <figure class="card"><blockquote><p>"Hill reps on a Tuesday, a pint afterwards. Best 50p I
+      spend all week."</p></blockquote>
+      <figcaption>[Member name] <span class="confirm">[placeholder quote]</span></figcaption></figure>
+    <figure class="card"><blockquote><p>"The group leaders genuinely don't leave anyone behind.
+      That's why I kept coming back."</p></blockquote>
+      <figcaption>[Member name] <span class="confirm">[placeholder quote]</span></figcaption></figure>
+  </div>
+</div></section>
+<section class="sec gallery-sec" aria-labelledby="gal-h"><div class="wrap">
+  <h2 id="gal-h" class="sr">Photos</h2>
+  <div class="g4 gallery">
+    <div class="ph " role="img" aria-label="Photo placeholder: head torches on a winter harbourside run"><span>[Photo: head torches on a winter harbourside run]</span></div>
+    <div class="ph " role="img" aria-label="Photo placeholder: walk-to-run group setting off from Dean Lane"><span>[Photo: walk-to-run group setting off from Dean Lane]</span></div>
+    <div class="ph " role="img" aria-label="Photo placeholder: fancy dress at Nightingale Nightmare"><span>[Photo: fancy dress at Nightingale Nightmare]</span></div>
+    <div class="ph " role="img" aria-label="Photo placeholder: relay handover at Pass the Buck"><span>[Photo: relay handover at Pass the Buck]</span></div>
+  </div></div></section>
+</section>
+<section data-page="run">
+<header class="phead"><div class="wrap">
+  <h1>Your first night at SRC</h1>
+  <p class="lede">Everything you need to turn up on a Tuesday and enjoy it. No sign-up and no
+  experience needed: just 50p and a pair of running shoes.</p></div></header>
+<section class="sec"><div class="wrap g2 split">
+  <div><h2>On the night</h2>
+    <ol class="timeline">
+      <li><b>6.00pm</b><span>Meet at the Southbank Club, Dean Lane, BS3 1DB.</span></li>
+      <li><b>By 6.10pm</b><span>Be there for the pre-run announcements.</span></li>
+      <li><b>6.10pm</b><span>Each group leader (GL) says what their group is doing tonight.</span></li>
+      <li><b>6.15pm</b><span>Choose a group by pace and off you go.</span></li>
+      <li><b>About 7.15pm</b><span>Back at base. Drinks optional, but popular.</span></li>
+    </ol></div>
+  <aside class="card note"><h3>About group leaders</h3>
+    <p>GLs are experienced volunteers, and some are England Athletics qualified run leaders.
+    Some run full training sessions, others act as guides. They do their best to get everyone
+    back, especially new runners.</p>
+    <p>Because GLs are volunteers, the groups on offer vary a little from week to week.</p></aside>
+</div></section>
+<section class="sec alt" id="pace"><div class="wrap">
+  <h2>Find my group</h2>
+  <p>Groups are organised by pace, in minutes per mile. Enter a recent 5K time and we'll
+  suggest where to start.</p>
+  <div class="picker card">
+    <label for="p5k">My 5K time is about (minutes)</label>
+    <div class="row"><input id="p5k" type="number" inputmode="decimal" min="12" max="90" placeholder="For example, 28">
+      <button class="btn btn-p" id="pgo" type="button">Suggest a group</button></div>
+    <p id="pout" class="pout" aria-live="polite">Never timed a 5K? Start with the social group or
+    walk-to-run on a Tuesday.</p>
+  </div>
+  <div class="tbl-wrap" tabindex="0" role="region" aria-label="Pace guide table">
+  <table class="tbl" id="ptable"><caption>Pace guide: pick a group based on your recent race times</caption>
+    <thead><tr><th scope="col">Group (min/mile)</th><th scope="col">Pace (min/km)</th><th scope="col">5K</th>
+    <th scope="col">Half marathon</th><th scope="col">Marathon</th></tr></thead>
+    <tbody><tr data-g="sub7"><th scope="row">Sub 7:00</th><td class="num">Sub 4:21</td><td class="num">&lt; 21 min</td><td class="num">&lt; 1:31</td><td class="num">&lt; 3:05</td></tr><tr data-g="sub8"><th scope="row">Sub 8:00</th><td class="num">Sub 4:58</td><td class="num">&lt; 24 min</td><td class="num">&lt; 1:45</td><td class="num">&lt; 3:48</td></tr><tr data-g="sub9"><th scope="row">Sub 9:00</th><td class="num">Sub 5:35</td><td class="num">&lt; 27 min</td><td class="num">&lt; 2:03</td><td class="num">&lt; 4:06</td></tr><tr data-g="sub10"><th scope="row">Sub 10:00</th><td class="num">Sub 6:12</td><td class="num">&lt; 30 min</td><td class="num">&lt; 2:18</td><td class="num">&lt; 4:46</td></tr><tr data-g="sub11"><th scope="row">Sub 11:00</th><td class="num">Sub 6:49</td><td class="num">&lt; 33 min</td><td class="num">&lt; 2:34</td><td class="num">&lt; 5:00</td></tr></tbody></table></div>
+  <p class="small">Plus the walk-to-run group on Tuesdays, and the social group: about 4 miles round
+  the harbourside, with rests.</p>
+</div></section>
+<section class="sec"><div class="wrap g2 split">
+  <div><h2>What the sessions look like</h2>
+    <p>Most groups run for about an hour. Tuesday sessions range from 4 to 11 miles and might be:</p>
+    <ul class="pills"><li>Hill repeats</li><li>Fartlek</li><li>Pyramids</li><li>Kenyan intervals</li>
+      <li>Stamina intervals</li><li>Exercises</li></ul>
+    <p>Routes cover all of Bristol: mostly roads in winter, Ashton Court and Leigh Woods in
+    summer and at weekends.</p></div>
+  <div><h2>Running etiquette</h2>
+    <ul class="checks">
+      <li>Dress for the conditions. No ninja black in the dark.</li>
+      <li>Follow your group leader's instructions.</li>
+      <li>Run no more than two abreast.</li>
+      <li>Be courteous to everyone else on the pavement.</li>
+      <li>Keep left, overtake on the right.</li>
+      <li>Call out hazards: pedestrians, cyclists, dogs, potholes, cars.</li>
+      <li>Dropping out? Tell your GL, so nobody goes looking for you.</li>
+      <li>Enjoy it, and tell us how it went.</li>
+    </ul></div>
+</div></section>
+<section class="sec alt"><div class="wrap g2 split">
+  <div><h2>FAQs</h2><div class="acc"><details open><summary>I'm worried about being left behind</summary><div class="acc-b"><p>We never leave anyone behind. Group leaders wait, loop back and count everyone home. On Tuesdays there's a walk-to-run group for complete beginners.</p></div></details><details><summary>How far do you run?</summary><div class="acc-b"><p>Most groups run for about an hour, covering 4 to 7 or 8 miles. The social group does about 4 miles round the harbourside, with rests.</p></div></details><details><summary>Where do you run?</summary><div class="acc-b"><p>All over Bristol. In winter we mostly stay on roads. In summer and at weekends we head for Ashton Court and Leigh Woods.</p></div></details><details><summary>Which night is best for beginners?</summary><div class="acc-b"><p>Tuesday. It's our busiest night, with the most groups and the walk-to-run group.</p></div></details><details><summary>What should I wear?</summary><div class="acc-b"><p>Decent running shoes. Reflective or hi-viz kit is compulsory on dark nights, so no ninja black. We have a few spares to borrow.</p></div></details></div></div>
+  <div><h2>Running terminology</h2><div class="acc"><details><summary>Intervals</summary><div class="acc-b"><p>Repeated fast efforts with recovery in between, such as 6 × 800m with a 90-second jog.</p></div></details><details><summary>Fartlek</summary><div class="acc-b"><p>Swedish for 'speed play': unstructured bursts of faster running mixed with easy running.</p></div></details><details><summary>Hills</summary><div class="acc-b"><p>Run up a hill hard, jog or walk down to recover, repeat. Builds strength and form.</p></div></details><details><summary>Pyramids</summary><div class="acc-b"><p>Efforts that build up and then come back down, such as 1, 2, 3, 2, 1 minutes.</p></div></details><details><summary>Recovery runs</summary><div class="acc-b"><p>Easy, chatty runs that help your body absorb harder sessions.</p></div></details><details><summary>Stamina</summary><div class="acc-b"><p>Longer, sustained efforts at a strong but controlled pace.</p></div></details><details><summary>Tempo run</summary><div class="acc-b"><p>A 'comfortably hard' continuous run, near the pace you could hold for an hour.</p></div></details><details><summary>Threshold run</summary><div class="acc-b"><p>Running just below the point where your legs start to fill with lactate faster than you clear it.</p></div></details><details><summary>VO2 max</summary><div class="acc-b"><p>The most oxygen your body can use. Short, hard intervals help raise it.</p></div></details><details><summary>Warm up</summary><div class="acc-b"><p>Ten to fifteen minutes of easy running and drills before anything fast.</p></div></details></div></div>
+</div></section>
+</section>
+<section data-page="races">
+<header class="phead"><div class="wrap">
+  <h1>Races and events</h1>
+  <p class="lede">We put on two races a year, open to members and non-members alike, and a
+  steady supply of socials in between.</p></div></header>
+<section class="sec"><div class="wrap g2 races">
+  <article class="card race nn-card">
+    <p class="date">Sunday 1 November 2026, 11:00 <span class="confirm">[confirm]</span></p>
+    <h2>Nightingale Nightmare</h2>
+    <p>A spooktacular 10km off-road Halloween run along the towpath, up Nightingale Valley and
+    through Leigh Woods. 250 places, and fancy dress strongly encouraged.</p>
+    <dl class="meta"><div><dt>Distance</dt><dd>10km trail</dd></div>
+      <div><dt>Entry</dt><dd>£20 unaffiliated, £18 affiliated <span class="confirm">[confirm]</span></dd></div></dl>
+    <p class="btns"><a class="btn btn-p" href="#nn" data-go="nn">Race details and entry</a></p></article>
+  <article class="card race" id="ptb">
+    <p class="date">Date to be confirmed <span class="confirm">[date TBC]</span></p>
+    <h2>Pass the Buck</h2>
+    <p>A two-person relay at Ashton Court Estate. Each of you runs one 5km lap of road and
+    trail, and your combined time needs to beat the 1h20 cut-off.</p>
+    <dl class="meta"><div><dt>Format</dt><dd>2 × 5km relay, max 100 teams</dd></div>
+      <div><dt>Entry</dt><dd>£8 per runner (EA registered), £10 (unregistered)</dd></div>
+      <div><dt>Venue</dt><dd>HQ at Ashton Park School, start at Ashton Court Mansion</dd></div></dl>
+    <details class="inline"><summary>Prizes and rules</summary>
+      <p>Prizes for 1st and 2nd male, female and mixed pairs, the closest-matched pair, the
+      biggest time difference, and the fastest male and female. VI runners are welcome with
+      guides. No dogs on the course; they can woof from the side.</p></details>
+    <p class="btns"><a class="btn btn-p" href="#" aria-describedby="ptb-note">Sign up</a>
+      <a class="btn btn-s" href="#results" data-go="results" data-year="2026">See results</a></p>
+    <p class="small" id="ptb-note">Entries open once the date is set.</p></article>
+</div></section>
+<section class="sec alt"><div class="wrap">
+  <h2>Results</h2>
+  <div class="g3">
+    <a class="card link-card" href="#results" data-go="results" data-year="2026"><h3>Pass the Buck 2026</h3>
+      <p>43 finishers. Winning time 33:01.85</p></a>
+    <a class="card link-card" href="#results" data-go="results" data-year="2025"><h3>Pass the Buck 2025</h3>
+      <p>Full results and prize winners</p></a>
+    <div class="card"><h3>Nightingale Nightmare 2026</h3><p>Results appear here after the race.</p></div>
+  </div></div></section>
+<section class="sec"><div class="wrap">
+  <h2>Socials</h2>
+  <div class="g3">
+    <article class="card event past"><p class="date"><span class="badge">Past event</span>
+      Saturday 25 July 2026</p><h3>SRC Summer Party</h3>
+      <p>The Hen and Chicken. £6, over-18s.</p><p class="small">Tickets have closed. Thanks to everyone who came.</p></article>
+    <article class="card event"><p class="date">Next social: date to be announced</p>
+      <h3>The next night out</h3><p>Socials are announced in the newsletter and on Facebook.</p>
+      <a class="btn btn-s" href="#">Follow us on Facebook</a></article>
+  </div></div></section>
+</section>
+<section data-page="nn">
+<section class="nnhero"><svg class="nn-sky" viewBox="200 0 200 160" aria-hidden="true" focusable="false">
+  <circle class="moon" cx="318" cy="72" r="46"/>
+  <g class="bats"><path transform="translate(222 50) scale(1.5)" d="M0 6 Q4 0 8 4 Q10 0 12 3 Q14 0 16 4 Q20 0 24 6 Q18 5 16 9 Q14 6 12 9 Q10 6 8 9 Q6 5 0 6Z"/>
+  <path transform="translate(290 126) scale(1.1)" d="M0 6 Q4 0 8 4 Q10 0 12 3 Q14 0 16 4 Q20 0 24 6 Q18 5 16 9 Q14 6 12 9 Q10 6 8 9 Q6 5 0 6Z"/><path transform="translate(356 22) scale(.8)" d="M0 6 Q4 0 8 4 Q10 0 12 3 Q14 0 16 4 Q20 0 24 6 Q18 5 16 9 Q14 6 12 9 Q10 6 8 9 Q6 5 0 6Z"/></g></svg>
+<svg class="nn-trees" viewBox="0 0 400 80" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 80 L0 25 L14 67 L26 10 L38 68 L45 39 L61 53 L71 37 L84 54 L98 17 L112 65 L119 24 L132 70 L142 23 L155 65 L165 22 L185 59 L192 19 L212 58 L226 25 L238 63 L251 23 L262 53 L272 40 L286 52 L296 8 L309 57 L321 22 L337 56 L345 26 L359 62 L365 35 L375 56 L385 10 L406 60 L400 80Z"/></svg><div class="wrap nn-in">
+  <p class="nn-pre">Southville Running Club presents a spooktacular Halloween trail race</p>
+  <h1>Nightingale Nightmare</h1>
+  <p class="lede">10km off-road. Towpath, up Nightingale Valley and through Leigh Woods. Rocks,
+  roots, hills, and a lot of people dressed as pumpkins.</p>
+  <p class="btns"><a class="btn btn-p" href="#">Enter now</a>
+    <a class="btn btn-s" href="#nn-course">About the course</a></p>
+  <p class="small"><span class="confirm">[entry link and opening date]</span></p>
+</div></section>
+<section class="facts nnfacts" aria-label="Race facts"><div class="wrap"><ul>
+  <li><b>Date</b>Sunday 1 November 2026 <span class="confirm">[confirm]</span></li>
+  <li><b>Start</b>11:00 <span class="confirm">[confirm]</span></li>
+  <li><b>Distance</b>10km off-road</li>
+  <li><b>Places</b>250</li>
+  <li><b>Entry</b>£20 unaffiliated, £18 affiliated <span class="confirm">[confirm]</span></li></ul></div></section>
+<section class="sec" id="nn-course"><div class="wrap g2 split">
+  <div><h2>The course</h2>
+    <p>Out along the towpath, then up Nightingale Valley and into Leigh Woods. It's tough and
+    hilly, with rocks and roots underfoot, so trail shoes are a good idea. Expect to be slower
+    than your road 10K.</p>
+    <div class="ph tall" role="img" aria-label="Photo placeholder: runners in costumes climbing through autumn leaves in Nightingale Valley"><span>[Photo: runners in costumes climbing through autumn leaves in Nightingale Valley]</span></div></div>
+  <div><h2>On the day</h2>
+    <ul class="checks">
+      <li>Race HQ: Ashton Park School <span class="confirm">[confirm venue]</span></li>
+      <li>Race briefing at HQ, then we all walk to the start together.</li>
+      <li>Fully marshalled course.</li>
+      <li>Water station at halfway.</li>
+      <li>No headphones: you need to hear the marshals.</li>
+      <li>Fancy dress strongly encouraged. The spookier the better.</li>
+    </ul></div>
+</div></section>
+<section class="sec alt"><div class="wrap narrow">
+  <h2>Good to know</h2>
+  <div class="acc"><details><summary>Who can enter?</summary><div class="acc-b"><p>Anyone, member or not. <span class="confirm">[minimum age]</span></p></div></details><details><summary>Affiliated or unaffiliated?</summary><div class="acc-b"><p>If you hold an England Athletics competition licence, pay the affiliated rate. Everyone else pays the unaffiliated rate. Please don't enter at the affiliated rate without a valid licence.</p></div></details><details><summary>Can I transfer my place?</summary><div class="acc-b"><p><span class="confirm">[transfer policy and deadline]</span></p></div></details><details><summary>Where do I park?</summary><div class="acc-b"><p><span class="confirm">[parking and spectator access]</span></p></div></details></div>
+</div></section>
+</section>
+<section data-page="results">
+<header class="phead"><div class="wrap">
+  <p class="crumb"><a href="#races" data-go="races">Races and events</a> / Results</p>
+  <h1>Pass the Buck results</h1>
+  <div class="chips" role="group" aria-label="Choose a year">
+    <button type="button" class="chip" data-year="2026" aria-pressed="true">2026</button>
+    <button type="button" class="chip" data-year="2025" aria-pressed="false">2025</button></div>
+  <p id="rsum" class="lede"></p>
+  <p class="small">Mockup data: all runner and team names are invented.</p></div></header>
+<section class="sec"><div class="wrap">
+  <h2>Prize winners</h2>
+  <ul class="g4 podium" id="podium"></ul></div></section>
+<section class="sec alt"><div class="wrap">
+  <h2>Full results</h2>
+  <div class="field search"><label for="rq">Search by runner, team or number</label>
+    <input id="rq" type="search" autocomplete="off"></div>
+  <div class="tbl-wrap" tabindex="0" role="region" aria-label="Full results table">
+  <table class="tbl results" id="rtable"><caption class="sr">Pass the Buck results. Select a column heading to sort.</caption>
+    <thead><tr>
+      <th scope="col" data-k="pos"><button type="button">Pos</button></th>
+      <th scope="col" data-k="no"><button type="button">Team no.</button></th>
+      <th scope="col" data-k="team"><button type="button">Team</button></th>
+      <th scope="col" data-k="n1"><button type="button">Leg 1 runner</button></th>
+      <th scope="col" data-k="n2"><button type="button">Leg 2 runner</button></th>
+      <th scope="col" data-k="l1"><button type="button">Leg 1</button></th>
+      <th scope="col" data-k="l2"><button type="button">Leg 2</button></th>
+      <th scope="col" data-k="total"><button type="button">Total</button></th>
+      <th scope="col" data-k="st"><button type="button">Status</button></th></tr></thead>
+    <tbody></tbody></table></div>
+  <p id="rcount" class="small" aria-live="polite"></p>
+</div></section>
+</section>
+<section data-page="membership">
+<header class="phead"><div class="wrap">
+  <h1>Run for 50p. Join for £4.</h1>
+  <p class="lede">You don't need to be a member to run with us. Pay as you go, subscribe, or join
+  the club: whatever suits you.</p></div></header>
+<section class="sec"><div class="wrap">
+  <h2>Choose what suits you</h2>
+  <div class="g4 pricing">
+    <article class="card"><h3>Pay as you run</h3><p class="price">50p<small> a run</small></p>
+      <p>Covers hire of the Southbank Club. Trust-based: pop it in the pot or pay online.</p>
+      <a class="btn btn-s" href="#">Pay 50p</a></article>
+    <article class="card"><h3>Unlimited runs</h3><p class="price">£2.50<small> a month</small></p>
+      <p>A subscription, not membership. Start or stop any time. Track sessions are paid
+      separately. Non-refundable.</p>
+      <a class="btn btn-s" href="#">Subscribe</a></article>
+    <article class="card feat"><p class="badge">Most people start here</p><h3>SRC membership</h3>
+      <p class="price">£4<small> a year</small></p>
+      <p>Supports the club, and gets you into the members' WhatsApp community and local discounts.</p>
+      <a class="btn btn-p" href="#join">Join the club</a></article>
+    <article class="card"><h3>SRC + EA licence</h3><p class="price">£24<small> a year</small> <span class="confirm">[£23, £24 and £27 all quoted]</span></p>
+      <p>Everything in membership, plus discounted race entries and annual race insurance.</p>
+      <a class="btn btn-s" href="#ea">About the licence</a></article>
+  </div>
+  <div class="tbl-wrap" tabindex="0" role="region" aria-label="Membership comparison">
+  <table class="tbl cmp"><caption>What each option includes</caption>
+    <thead><tr><th scope="col">&nbsp;</th><th scope="col">Pay as you run</th><th scope="col">Unlimited runs</th>
+    <th scope="col">SRC membership</th><th scope="col">SRC + EA</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Tuesday and Thursday runs</th><td>50p each</td><td>Unlimited</td><td>50p each*</td><td>50p each*</td></tr>
+      <tr><th scope="row">Members' WhatsApp community</th><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td></tr>
+      <tr><th scope="row">Local discounts</th><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td></tr>
+      <tr><th scope="row">Affiliated race entry rate</th><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td></tr>
+      <tr><th scope="row">Annual race insurance</th><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">–</span><span class="sr">Not included</span></td><td><span aria-hidden="true">✓</span><span class="sr">Included</span></td></tr>
+    </tbody></table></div>
+  <p class="small">* Or add the £2.50 monthly subscription for unlimited runs.</p>
+</div></section>
+<section class="sec alt" id="ea"><div class="wrap g2 split">
+  <div><h2>The England Athletics licence</h2>
+    <ul class="checks">
+      <li>Discounted entry to affiliated races. It pays for itself after about nine races.</li>
+      <li>Annual race insurance.</li>
+      <li>You need SRC membership first.</li>
+      <li>Renews every April. First-time applicants from January to March get up to three months free.</li>
+      <li>Never enter at the affiliated rate without a valid licence, and wear club green when you do.</li>
+    </ul></div>
+  <div class="card"><h3>Join, renew or leave</h3>
+    <ul class="actions">
+      <li><a href="#join">Join</a><span>New members. Takes about three minutes.</span></li>
+      <li><a href="#">Renew</a><span>Through the England Athletics portal, after agreeing to club policies.</span></li>
+      <li><a href="#">Cancel</a><span>Moving, changing clubs or stopping? Let us know.</span></li>
+    </ul>
+    <p class="small">Questions? Email the Membership Officer at membership@[placeholder].</p></div>
+</div></section>
+<section class="sec" id="join"><div class="wrap narrow">
+  <h2>Join the club</h2>
+  <form class="card join" id="joinf" novalidate>
+    <ol class="stepper"><li>About you</li><li>Membership</li><li>Agreements</li></ol>
+    <fieldset class="step"><legend>About you</legend>
+      <div class="g2 tight">
+        <div class="field"><label for="jt">Title <span class="opt">(optional)</span></label>
+          <select id="jt"><option></option><option>Mr</option><option>Mrs</option><option>Ms</option><option>Mx</option><option>Dr</option></select></div>
+        <div class="field"></div>
+        <div class="field"><label for="jf">First name</label><input id="jf" autocomplete="given-name"></div>
+        <div class="field"><label for="jl">Last name</label><input id="jl" autocomplete="family-name"></div>
+        <div class="field"><label for="je">Email</label><input id="je" type="email" autocomplete="email"></div>
+        <div class="field"><label for="jp">Phone</label><input id="jp" type="tel" autocomplete="tel"></div>
+        <div class="field"><label for="jd">Date of birth</label><input id="jd" type="date" autocomplete="bday">
+          <p class="small">England Athletics needs this for your licence.</p></div>
+      </div></fieldset>
+    <fieldset class="step" hidden><legend>Address and membership</legend>
+      <div class="field"><label for="ja">Address</label><input id="ja" autocomplete="address-line1"></div>
+      <div class="g2 tight">
+        <div class="field"><label for="jc">Town or city</label><input id="jc" autocomplete="address-level2"></div>
+        <div class="field"><label for="jz">Postcode</label><input id="jz" autocomplete="postal-code"></div></div>
+      <div class="field"><label for="jn">Country</label><select id="jn" autocomplete="country-name"><option selected>United Kingdom</option><option>Other</option></select></div>
+      <fieldset class="radios"><legend>Membership type</legend>
+        <label><input type="radio" name="mt" checked> SRC membership, £4 a year</label>
+        <label><input type="radio" name="mt"> SRC + England Athletics licence <span class="confirm">[price]</span></label></fieldset>
+      <fieldset class="radios"><legend>Have you been a member of another athletics club?</legend>
+        <label><input type="radio" name="pc"> Yes</label><label><input type="radio" name="pc" checked> No</label></fieldset>
+    </fieldset>
+    <fieldset class="step" hidden><legend>Agreements</legend>
+      <label class="tick"><input type="checkbox"> I consent to SRC sharing my details with England Athletics</label>
+      <label class="tick"><input type="checkbox"> I agree to the <a href="#about" data-go="about">Code of Conduct</a></label>
+      <label class="tick"><input type="checkbox"> I have read the <a href="#">Privacy Policy</a></label>
+      <label class="tick"><input type="checkbox"> I agree to the <a href="#about" data-go="about">Disciplinary Policy</a></label>
+    </fieldset>
+    <p class="btns"><button type="button" class="btn btn-s" id="jback">Back</button>
+      <button type="button" class="btn btn-p" id="jnext">Continue</button>
+      <button type="submit" class="btn btn-p" id="jsub">Pay £4 and join</button></p>
+    <p id="jmsg" class="small" role="status"></p>
+  </form></div></section>
+<section class="sec alt" id="discounts"><div class="wrap">
+  <h2>Member discounts</h2>
+  <p>Local businesses that look after SRC members. Codes are shared in the members' WhatsApp community.</p>
+  <div class="chips" role="group" aria-label="Filter discounts">
+    <button type="button" class="chip" data-filter="all" aria-pressed="true">All</button>
+    <button type="button" class="chip" data-filter="treat" aria-pressed="false">Treatment and physio</button>
+    <button type="button" class="chip" data-filter="fitness" aria-pressed="false">Strength and fitness</button>
+    <button type="button" class="chip" data-filter="shops" aria-pressed="false">Shops and gear</button>
+    <button type="button" class="chip" data-filter="coach" aria-pressed="false">Coaching</button>
+    <button type="button" class="chip" data-filter="other" aria-pressed="false">Other</button></div>
+  <ul class="g3 partners"><li class="card partner" data-cat="fitness"><div class="plogo" aria-hidden="true">BK</div><div><h3>Bristol Kettlebell Club</h3><p class="small">Strength and fitness</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="fitness"><div class="plogo" aria-hidden="true">CP</div><div><h3>Calon PT</h3><p class="small">Strength and fitness</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="shops"><div class="plogo" aria-hidden="true">ER</div><div><h3>Easy Runner</h3><p class="small">Shops and gear</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="treat"><div class="plogo" aria-hidden="true">HC</div><div><h3>House Clinics</h3><p class="small">Treatment and physio</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="treat"><div class="plogo" aria-hidden="true">JR</div><div><h3>James Ross Healthcare</h3><p class="small">Treatment and physio</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="shops"><div class="plogo" aria-hidden="true">M</div><div><h3>MoreMile</h3><p class="small">Shops and gear</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="other"><div class="plogo" aria-hidden="true">M</div><div><h3>Moti</h3><p class="small">Wellbeing</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="fitness"><div class="plogo" aria-hidden="true">MP</div><div><h3>MyLife PT</h3><p class="small">Strength and fitness</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="fitness"><div class="plogo" aria-hidden="true">R</div><div><h3>Rabble</h3><p class="small">Strength and fitness</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="coach"><div class="plogo" aria-hidden="true">TR</div><div><h3>The Running School Bristol</h3><p class="small">Coaching</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="shops"><div class="plogo" aria-hidden="true">UR</div><div><h3>Up & Running Bristol</h3><p class="small">Shops and gear</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="shops"><div class="plogo" aria-hidden="true">KR</div><div><h3>Kinisi Run Hub</h3><p class="small">Shops and gear</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="treat"><div class="plogo" aria-hidden="true">AT</div><div><h3>Agile Treatments</h3><p class="small">Treatment and physio</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="treat"><div class="plogo" aria-hidden="true">LM</div><div><h3>Lloyd Massage Treatments</h3><p class="small">Treatment and physio</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li><li class="card partner" data-cat="coach"><div class="plogo" aria-hidden="true">MW</div><div><h3>Move Well With Sally Trussler</h3><p class="small">Coaching</p><p>[Offer summary, e.g. % off first session] <span class="confirm">[offer]</span></p><p class="lock">Code in the members' WhatsApp</p></div></li></ul>
+  <p class="small">Categories and offers to be confirmed with each partner.</p>
+</div></section>
+<section class="sec" id="kit"><div class="wrap g2 split">
+  <div><h2>Club kit</h2>
+    <p>We take orders two or three times a year. <strong>The current window closes on 5 October</strong>
+    for delivery in November.</p>
+    <p><a class="btn btn-p" href="#">Order kit</a></p>
+    <p class="small">Uncollected orders wait at Kinisi Run Hub, East Street, Bedminster. Unsure of
+    your size? Try on a clubmate's kit. We buy back unworn items.</p>
+    <ul class="kit">
+      <li>Black SRC Buff</li><li>Green SRC Buff</li><li>Green technical T-shirt</li>
+      <li>Green technical vest</li><li>Hi-viz T-shirt</li>
+      <li>Hi-viz vest, fluorescent green with reflective logos and stitching</li>
+      <li>Old-style darker green vest</li></ul></div>
+  <div><h3>In stock now</h3>
+    <div class="tbl-wrap"><table class="tbl"><caption class="sr">Kit in stock</caption>
+      <thead><tr><th scope="col">Item</th><th scope="col">Price</th><th scope="col">Sizes available</th></tr></thead>
+      <tbody><tr><th scope="row">Vest</th><td class="num">£24</td><td>Male S (1), Female XS (2)</td></tr>
+        <tr><th scope="row">T-shirt</th><td class="num">£26</td><td>Male S (1), Male M (1), Female XS (1)</td></tr></tbody></table></div>
+    <p class="small">Members: email the Quartermaster to buy from stock.</p>
+    <div class="ph " role="img" aria-label="Photo placeholder: hi-viz vest and green club vest laid side by side"><span>[Photo: hi-viz vest and green club vest laid side by side]</span></div></div>
+</div></section>
+<section class="sec alt"><div class="wrap g2 split">
+  <div><h2>Members' WhatsApp community</h2>
+    <p>Club news, lifts to races, lost property and the discount codes. For members only, so
+    we'll check your SRC membership before adding you.</p>
+    <p><a class="btn btn-p" href="#">Ask to join</a></p></div>
+  <details class="card rules"><summary>The community's 12 rules</summary>
+    <ol><li>Be courteous and kind.</li><li>Respect other people's views.</li><li>No bad language.</li><li>No inappropriate images.</li><li>Avoid politics and religion.</li><li>No spam or advertising without admin approval.</li><li>No harassment or bullying.</li><li>No unsolicited direct messages to other members.</li><li>Raise any issues with the admins, not in the group.</li><li>Keep it relevant to running and the club.</li><li>Breaches can mean a temporary ban.</li><li>Serious or repeated breaches mean removal.</li></ol>
+    <p class="small">Condensed wording <span class="confirm">[check against the club's code]</span></p></details>
+</div></section>
+</section>
+<section data-page="about">
+<header class="phead"><div class="wrap">
+  <h1>A friendly club since 2007</h1>
+  <p class="lede">Mixed abilities and ages 18+, running together in South Bristol. Run by
+  volunteers, for everyone who fancies it.</p></div></header>
+<section class="sec"><div class="wrap g2 split">
+  <div><h2>Questions people ask</h2><div class="acc"><details open><summary>Who are we?</summary><div class="acc-b"><p>A friendly club founded in 2007. Some of us run or walk 5km, some enjoy social runs round South Bristol, and some are chasing race times.</p></div></details><details><summary>What happens after the run?</summary><div class="acc-b"><p>Drinks at the Southbank Club, plus regular socials. Keep an eye on Facebook.</p></div></details><details><summary>Do I need hi-viz?</summary><div class="acc-b"><p>Yes, from autumn <span class="confirm">[September or October?]</span> until the clocks go forward in spring. We have spares to borrow.</p></div></details><details><summary>Can I cycle there?</summary><div class="acc-b"><p>Yes. Bikes can be locked in the garden behind the Southbank Club.</p></div></details><details><summary>Where do I leave my bag?</summary><div class="acc-b"><p>There's bag storage from 6.00 to 6.15pm, but it isn't secure. The Southbank Club rents lockers for a £5 deposit.</p></div></details><details><summary>Do people race?</summary><div class="acc-b"><p>Some run for fun and fitness. Many race on road and trail, in the UK and abroad.</p></div></details><details><summary>How do I keep up with club news?</summary><div class="acc-b"><p>Join the monthly newsletter. Kit pre-orders open a few times a year.</p></div></details></div></div>
+  <div class="ph tall" role="img" aria-label="Photo placeholder: the Tuesday crowd outside the Southbank Club before a run"><span>[Photo: the Tuesday crowd outside the Southbank Club before a run]</span></div>
+</div></section>
+<section class="sec alt"><div class="wrap">
+  <h2>The committee</h2>
+  <p>Everyone here is a volunteer. If you'd like to help, talk to any of us on a Tuesday.</p>
+  <aside class="card welfare-call"><h3>Need to talk to someone?</h3>
+    <p>Our welfare officers are here for anything that's worrying you about the club, in
+    confidence. Email welfare@[placeholder].</p></aside>
+  <h3>Officers</h3><ul class="g4 people"><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Co-Chair</p><a href="#">Email the co-chair</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Co-Chair</p><a href="#">Email the co-chair</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Club Secretary</p><a href="#">Email the club secretary</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Treasurer</p><a href="#">Email the treasurer</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Membership Officer</p><a href="#">Email the membership officer</a></div></li></ul>
+  <h3>Volunteers</h3><ul class="g4 people"><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Co-Club Captain</p><a href="#">Email the co-club captain</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Co-Club Captain</p><a href="#">Email the co-club captain</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Quartermaster</p><a href="#">Email the quartermaster</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Web Manager</p><a href="#">Email the web manager</a></div></li><li class="card person welfare"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Lead Welfare Officer</p><p class="badge">Talk to us in confidence</p><a href="#">Email the lead welfare officer</a></div></li><li class="card person welfare"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Welfare Officer</p><p class="badge">Talk to us in confidence</p><a href="#">Email the welfare officer</a></div></li><li class="card person"><div class="avatar" aria-hidden="true">?</div><div><h4>[Name]</h4><p>Committee Member</p><a href="#">Email the committee member</a></div></li></ul>
+</div></section>
+<section class="sec" id="docs"><div class="wrap g2 split">
+  <div><h2>Club documents</h2>
+    <h3>Governance</h3><ul class="docs"><li><a href="#">Constitution, June 2024</a><span>PDF</span></li><li><a href="#">Articles of Association</a><span>PDF</span></li></ul>
+    <h3>Policies</h3><ul class="docs"><li><a href="#">Inclusion policy</a><span>PDF</span></li><li><a href="#">Health and safety policy and risk assessment</a><span>PDF</span></li><li><a href="#">Disciplinary and grievance policy</a><span>PDF</span></li><li><a href="#">Welfare policy 2026</a><span>PDF</span></li><li><a href="#">Adult safeguarding policy</a><span>PDF</span></li><li><a href="#">Code of conduct: senior athletes</a><span>PDF</span></li><li><a href="#">England Athletics guide to managing disputes</a><span>PDF</span></li></ul></div>
+  <div><h2>Meeting minutes</h2><div class="acc"><details open><summary>2026</summary><div class="acc-b"><ul class="docs"><li><a href="#">QGM minutes, August 2026</a><span>PDF</span></li><li><a href="#">[Earlier 2026 minutes]</a><span>PDF</span></li></ul></div></details><details><summary>2025</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2025]</a><span>PDF</span></li></ul></div></details><details><summary>2024</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2024]</a><span>PDF</span></li></ul></div></details><details><summary>2023</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2023]</a><span>PDF</span></li></ul></div></details><details><summary>2022</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2022]</a><span>PDF</span></li></ul></div></details><details><summary>2021</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2021]</a><span>PDF</span></li></ul></div></details><details><summary>2020</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2020]</a><span>PDF</span></li></ul></div></details><details><summary>2019</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2019]</a><span>PDF</span></li></ul></div></details><details><summary>2018</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2018]</a><span>PDF</span></li></ul></div></details><details><summary>2017</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2017]</a><span>PDF</span></li></ul></div></details><details><summary>2016</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2016]</a><span>PDF</span></li></ul></div></details><details><summary>2015</summary><div class="acc-b"><ul class="docs"><li><a href="#">[AGM and QGM minutes, 2015]</a><span>PDF</span></li></ul></div></details></div></div>
+</div></section>
+<section class="sec alt" id="contact"><div class="wrap g2 split">
+  <div><h2>Contact us</h2>
+    <dl class="contact"><div><dt>General</dt><dd>hello@[placeholder]</dd></div>
+      <div><dt>Membership</dt><dd>membership@[placeholder]</dd></div>
+      <div><dt>Welfare</dt><dd>welfare@[placeholder]</dd></div></dl>
+    <p>Or just come and say hello on a Tuesday.</p></div>
+  <div class="ph " role="img" aria-label="Photo placeholder: map: Southbank Club, Dean Lane, Bedminster, Bristol BS3 1DB"><span>[Photo: map: Southbank Club, Dean Lane, Bedminster, Bristol BS3 1DB]</span></div>
+</div></section>
+</section>
+<section data-page="news">
+<header class="phead"><div class="wrap">
+  <h1>Monthly newsletters</h1>
+  <p class="lede">Race reports, results, socials and club news, once a month.</p></div></header>
+<section class="sec"><div class="wrap">
+  <div class="chips" role="group" aria-label="Filter by year">
+    <button type="button" class="chip" data-nf="all" aria-pressed="true">All</button>
+    <button type="button" class="chip" data-nf="2026" aria-pressed="false">2026</button>
+    <button type="button" class="chip" data-nf="2025" aria-pressed="false">2025</button>
+    <button type="button" class="chip" data-nf="2024" aria-pressed="false">2024</button></div>
+  <ul class="g3 news"><li class="card issue" data-y="2026"><p class="date">July 2026</p><h3><a href="#">Southville RC Newsletter July 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">June 2026</p><h3><a href="#">Southville RC Newsletter June 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">May 2026</p><h3><a href="#">Southville RC Newsletter May 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">April 2026</p><h3><a href="#">Southville RC Newsletter April 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">March 2026</p><h3><a href="#">Southville RC Newsletter March 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">February 2026</p><h3><a href="#">Southville RC Newsletter February 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2026"><p class="date">January 2026</p><h3><a href="#">Southville RC Newsletter January 2026</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">December 2025</p><h3><a href="#">Southville RC Newsletter December 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">November 2025</p><h3><a href="#">Southville RC Newsletter November 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">October 2025</p><h3><a href="#">Southville RC Newsletter October 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">September 2025</p><h3><a href="#">Southville RC Newsletter September 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">August 2025</p><h3><a href="#">Southville RC Newsletter August 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">July 2025</p><h3><a href="#">Southville RC Newsletter July 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">June 2025</p><h3><a href="#">Southville RC Newsletter June 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">May 2025</p><h3><a href="#">Southville RC Newsletter May 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">April 2025</p><h3><a href="#">Southville RC Newsletter April 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">March 2025</p><h3><a href="#">Southville RC Newsletter March 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">February 2025</p><h3><a href="#">Southville RC Newsletter February 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2025"><p class="date">January 2025</p><h3><a href="#">Southville RC Newsletter January 2025</a></h3><p>[First line of the issue as a summary]</p></li><li class="card issue" data-y="2024"><p class="date">December 2024</p><h3><a href="#">Southville RC Newsletter December 2024</a></h3><p>[First line of the issue as a summary]</p></li></ul></div></section>
+<section class="sec alt"><div class="wrap narrow">
+  <form class="card signup" id="nlf"><h2>Get the newsletter</h2>
+    <p>One email a month. Unsubscribe any time.</p>
+    <div class="field"><label for="nle">Email address</label>
+      <div class="row"><input id="nle" type="email" autocomplete="email">
+      <button class="btn btn-p" type="submit">Sign me up</button></div></div>
+    <p class="small">We only use your address to send the newsletter. <a href="#">Privacy notice</a></p>
+    <p id="nlmsg" class="small" role="status"></p></form></div></section>
+</section></main>
+<footer class="ftr"><div class="wrap g4">
+  <div><p class="logo"><span>Southville</span><span>Running</span><span>Club</span></p>
+    <p class="small">Southville Running Club Limited <span class="confirm">[company number]</span><br>Affiliated to England Athletics</p></div>
+  <div><h2 class="fh">Come and run</h2>
+    <p>Tuesdays and Thursdays<br>Meet 6.00pm, run 6.15pm<br>Southbank Club, Dean Lane,<br>Bristol BS3 1DB</p>
+    <p><a href="https://www.google.com/maps/search/?api=1&amp;query=Southbank+Club+Dean+Lane+Bristol+BS3+1DB">Open in maps</a></p></div>
+  <div><h2 class="fh">Say hello</h2><p>hello@[placeholder]</p>
+    <ul class="plain"><li><a href="#">Facebook</a></li><li><a href="#">Instagram</a></li><li><a href="#">Strava</a></li></ul></div>
+  <div><h2 class="fh">Club policies</h2>
+    <ul class="plain"><li><a href="#about" data-go="about">Code of conduct</a></li>
+      <li><a href="#about" data-go="about">Welfare and safeguarding</a></li>
+      <li><a href="#about" data-go="about">Inclusion policy</a></li>
+      <li><a href="#">Privacy notice</a></li>
+      <li><a href="#about" data-go="about">All club documents</a></li></ul></div>
+</div></footer>
+</div></div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const PARENT = { nn: 'races', results: 'races' };
+
+function go(p, focus = true) {
+  if (!$(`[data-page="${p}"]`)) p = 'home';
+  $$('[data-page]').forEach((s) => (s.hidden = s.dataset.page !== p));
+  $$('[data-tab]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === p)));
+  const top = PARENT[p] || p;
+  $$('.hdr nav a[data-go]').forEach((a) =>
+    a.dataset.go === top ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  $$('.nav-m').forEach((d) => (d.open = false));
+  history.replaceState(null, '', '#' + p);
+  window.scrollTo({ top: 0 });
+  if (focus) {
+    const h = $(`[data-page="${p}"] h1`);
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  }
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-go]');
+  if (!a) return;
+  e.preventDefault();
+  go(a.dataset.go, !a.closest('.tb'));
+  if (a.dataset.year) setYear(a.dataset.year);
+});
+
+// viewport + notes
+$$('[data-vp]').forEach((b) => (b.onclick = () => {
+  $('.stage').classList.toggle('mobile', b.dataset.vp === 'm');
+  $$('[data-vp]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+}));
+$('#notesbtn').onclick = () => $('#notes').showModal();
+$('#notesclose').onclick = () => $('#notes').close();
+
+// pace picker
+const PG = [[21, 'sub7', 'Sub 7:00'], [24, 'sub8', 'Sub 8:00'], [27, 'sub9', 'Sub 9:00'], [30, 'sub10', 'Sub 10:00'], [33, 'sub11', 'Sub 11:00']];
+function suggest() {
+  const v = parseFloat($('#p5k').value), out = $('#pout');
+  $$('#ptable tr[data-g]').forEach((r) => r.classList.remove('hl'));
+  if (!v || v < 12 || v > 90) { out.textContent = 'Enter your 5K time in minutes, for example 28.'; return; }
+  const i = PG.findIndex((g) => v < g[0]);
+  if (i < 0) { out.innerHTML = 'Try the <b>social group</b>, about 4 miles round the harbourside with rests, or <b>walk-to-run</b> on a Tuesday.'; return; }
+  $(`#ptable tr[data-g="${PG[i][1]}"]`).classList.add('hl');
+  const easier = i < PG.length - 1 ? `the <b>${PG[i + 1][2]}</b> group` : 'the <b>social</b> group';
+  out.innerHTML = `That's about <b>${PG[i][2]} min/mile</b> pace. On your first night, try ${easier} and move up when you're ready.`;
+}
+$('#pgo').onclick = suggest;
+$('#p5k').addEventListener('keydown', (e) => { if (e.key === 'Enter') suggest(); });
+
+// results (invented data, deterministic)
+const MEN = ['Tom', 'Raj', 'Olu', 'Dan', 'Leo', 'Josh', 'Ben', 'Marcus', 'Will', 'Kwame', 'Rory', 'Finn', 'Sam', 'Alex', 'Jack'];
+const WOMEN = ['Priya', 'Ella', 'Aisha', 'Jo', 'Megan', 'Hannah', 'Kate', 'Fatima', 'Nina', 'Ruth', 'Chloe', 'Zoe', 'Grace', 'Isla', 'Maya'];
+const INI = 'ABCDEFGHJKLMNPRSTW';
+const ADJ = ['Harbourside', 'Bedminster', 'Leigh Woods', 'Ashton', 'Avon', 'Southbank', 'Totterdown', 'Windmill Hill', 'Brunel', 'Dean Lane', 'Nightingale', 'Cumberland'];
+const NOUN = ['Hares', 'Harriers', 'Bucks', 'Dashers', 'Plodders', 'Striders', 'Gazelles', 'Snails', 'Rockets', 'Otters', 'Foxes', 'Pacers'];
+function rng(s) { return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+function makeYear(n, dns, win, seed) {
+  const r = rng(seed), pick = (a) => a[Math.floor(r() * a.length)];
+  const name = (g) => `${pick(g === 'M' ? MEN : WOMEN)} ${INI[Math.floor(r() * INI.length)]}.`;
+  const nums = [];
+  while (nums.length < n + dns) { const x = 1 + Math.floor(r() * 100); if (!nums.includes(x)) nums.push(x); }
+  let gaps = [0]; for (let i = 1; i < n; i++) gaps.push(10 + r() * r() * 200);
+  const sum = gaps.reduce((a, b) => a + b, 0), target = 4540 - win;
+  gaps = gaps.map((g) => (g * target) / sum);
+  const rows = [], used = new Set(); let t = win;
+  const team = () => { let x; do { x = `${pick(ADJ)} ${pick(NOUN)}`; } while (used.has(x)); used.add(x); return x; };
+  for (let i = 0; i < n + dns; i++) {
+    const cat = i === 0 ? 'MM' : pick(['MM', 'FF', 'MX', 'MM', 'MX']), fin = i < n;
+    const [g1, g2] = cat === 'MM' ? ['M', 'M'] : cat === 'FF' ? ['W', 'W'] : r() < 0.5 ? ['M', 'W'] : ['W', 'M'];
+    if (fin) t += gaps[i];
+    const cs = Math.round(t * 100), l1 = fin ? Math.round(cs * (0.45 + r() * 0.1)) : null;
+    rows.push({ pos: fin ? i + 1 : null, no: nums[i], team: team(), n1: name(g1), n2: name(g2),
+      l1: fin ? l1 / 100 : null, l2: fin ? (cs - l1) / 100 : null, total: fin ? cs / 100 : null, st: fin ? 'Finished' : 'DNS', cat });
+  }
+  return rows;
+}
+const DATA = { 2026: makeYear(43, 3, 1981.85, 7), 2025: makeYear(40, 4, 2052.4, 11) };
+const fmt = (s) => {
+  if (s == null) return '—';
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = (s % 60).toFixed(2).padStart(5, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+};
+const CAT = { MM: "men's pair", FF: "women's pair", MX: 'mixed pair' };
+let yr = '2026', sk = 'pos', sd = 1;
+function setYear(y) {
+  yr = String(y);
+  $$('.chip[data-year]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.year === yr)));
+  render();
+}
+function render() {
+  const rows = DATA[yr], fin = rows.filter((r) => r.pos);
+  $('#rsum').textContent = `${fin.length} finishers. Winning time ${fmt(fin[0].total)}.` + (yr === '2025' ? ' (Placeholder figures: confirm against the 2025 results.)' : '');
+  const best = (c) => fin.slice(1).find((r) => r.cat === c);
+  const P = [['Winners, ' + CAT[fin[0].cat], fin[0]], ["Top men's pair", best('MM')], ["Top women's pair", best('FF')], ['Top mixed pair', best('MX')]];
+  $('#podium').innerHTML = P.map(([l, r]) => (r ? `<li class="card pod"><p class="pod-l">${esc(l)}</p><p class="pod-t">${fmt(r.total)}</p><p class="pod-n">${esc(r.team)}</p><p class="small">Team ${r.no}: ${esc(r.n1)} and ${esc(r.n2)}</p></li>` : '')).join('');
+  const q = $('#rq').value.trim().toLowerCase();
+  const v = rows.filter((r) => !q || [r.team, r.n1, r.n2, String(r.no)].some((x) => x.toLowerCase().includes(q)));
+  v.sort((a, b) => {
+    const x = a[sk], y = b[sk];
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y))) * sd;
+  });
+  $('#rtable tbody').innerHTML = v.map((r) => `<tr class="${r.st === 'DNS' ? 'dns' : ''}"><td class="num">${r.pos ?? '—'}</td><td class="num">${r.no}</td><td>${esc(r.team)}</td><td>${esc(r.n1)}</td><td>${esc(r.n2)}</td><td class="num">${fmt(r.l1)}</td><td class="num">${fmt(r.l2)}</td><td class="num"><b>${fmt(r.total)}</b></td><td>${r.st === 'DNS' ? '<span class="st">⨯ Did not start</span>' : '<span class="st">✓ Finished</span>'}</td></tr>`).join('')
+    || '<tr><td colspan="9">No teams match that search.</td></tr>';
+  $('#rcount').textContent = `Showing ${v.length} of ${rows.length} teams`;
+  $$('#rtable th[data-k]').forEach((th) => th.setAttribute('aria-sort', th.dataset.k === sk ? (sd > 0 ? 'ascending' : 'descending') : 'none'));
+}
+$$('#rtable th[data-k] button').forEach((b) => (b.onclick = () => {
+  const k = b.parentElement.dataset.k; if (sk === k) sd = -sd; else { sk = k; sd = 1; } render();
+}));
+$('#rq').addEventListener('input', render);
+$$('.chip[data-year]').forEach((c) => (c.onclick = () => setYear(c.dataset.year)));
+render();
+
+// filters
+function chipFilter(attr, items, key) {
+  $$(`[${attr}]`).forEach((c) => (c.onclick = () => {
+    const f = c.getAttribute(attr);
+    $$(`[${attr}]`).forEach((x) => x.setAttribute('aria-pressed', String(x === c)));
+    $$(items).forEach((li) => (li.hidden = f !== 'all' && li.dataset[key] !== f));
+  }));
+}
+chipFilter('data-filter', '.partners li', 'cat');
+chipFilter('data-nf', '.news li', 'y');
+
+// join stepper
+const steps = $$('#joinf .step'); let si = 0;
+function showStep(i) {
+  si = i;
+  steps.forEach((s, j) => (s.hidden = j !== i));
+  $$('#joinf .stepper li').forEach((l, j) => { l.classList.toggle('done', j < i); j === i ? l.setAttribute('aria-current', 'step') : l.removeAttribute('aria-current'); });
+  $('#jback').hidden = i === 0; $('#jnext').hidden = i === steps.length - 1; $('#jsub').hidden = i !== steps.length - 1;
+}
+$('#jnext').onclick = () => { showStep(si + 1); steps[si].querySelector('input,select').focus(); };
+$('#jback').onclick = () => showStep(si - 1);
+$('#joinf').onsubmit = (e) => { e.preventDefault(); $('#jmsg').textContent = 'Mockup only: nothing has been sent or charged.'; };
+showStep(0);
+$('#nlf').onsubmit = (e) => { e.preventDefault(); $('#nlmsg').textContent = 'Mockup only: nothing has been sent.'; };
+
+// live bits: next club run (C) and race countdown (B)
+const TZ = 'Europe/London';
+const nr = $('#nextrun');
+if (nr) {
+  const now = new Date();
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(now.getTime() + i * 864e5), p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).forEach((x) => (p[x.type] = x.value));
+    const late = +p.hour * 60 + +p.minute >= 18 * 60 + 15;
+    if ((p.weekday === 'Tue' || p.weekday === 'Thu') && !(i === 0 && late)) {
+      nr.textContent = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+      break;
+    }
+  }
+}
+const cd = $('#cd');
+if (cd) cd.textContent = Math.max(0, Math.ceil((Date.UTC(2026, 10, 1, 11) - Date.now()) / 864e5));
+
+go((location.hash || '#home').slice(1), false);
+</script></body></html>

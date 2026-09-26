@@ -1,0 +1,1411 @@
+/*
+ * The club website's own stylesheet — Direction A, "Community and warmth".
+ *
+ * Vanilla CSS with custom properties, no framework and no build step, for `base.css`'s
+ * reasons: a third volunteer can read it cold, and it is the smallest payload for somebody on
+ * poor mobile signal, which is most of the people who will load it. 70% of visitors are on a
+ * phone.
+ *
+ * ## ⚠️ Why this is a second stylesheet and not an edit to `base.css`
+ *
+ * `base.css` and `tokens.css` are rendered by every page that takes or handles money —
+ * `/nn/*`, `/account/*`, `/admin/*`, `/events/<slug>/` and the whole of `apps/timing`. Until
+ * after Nightingale Nightmare on **1 November 2026** those pages are frozen, and that freeze
+ * covers the shared files they render through. Repainting the club in a new palette by
+ * editing the tokens those pages read would have repainted the entry form, the admin tables
+ * and the race-night console in the same commit, during an entry window, two weeks before the
+ * race.
+ *
+ * So this file is **self-contained**: its own reset, its own focus ring, its own skip link,
+ * its own tokens. It imports nothing. A club page loads this and not `base.css`; a money page
+ * loads `base.css` and not this. Neither can reach the other, which is the entire point.
+ *
+ * **That duplicates perhaps 120 lines of unremarkable reset and layout CSS**, and the
+ * duplication was chosen deliberately over importing `base.css` and overriding it. Overriding
+ * would have coupled every club rule to a token whose value lives in a file nobody may edit
+ * until November, and would have shipped both stylesheets to every club page.
+ *
+ * **After the race**, a separate change moves the money pages onto this chrome, and at that
+ * point the two files are reconciled. Until then, expect to see a rule here that has a near
+ * twin in `base.css`. That is the arrangement working, not drift.
+ *
+ * ## Two layers, as ever
+ *
+ * `--club-*` are this surface's tokens; `.club-*` are its components. The prefix is what
+ * makes it obvious at a glance which surface a rule belongs to, and it means a club rule can
+ * never silently resolve against a `--colour-*` name defined somewhere this file cannot see.
+ *
+ * ## Contrast
+ *
+ * ⚠️ **Every ratio in this file was computed, not estimated**, and
+ * `packages/shared/tests/unit/club-contrast.test.ts` recomputes all of them from this file's
+ * own declarations and fails on drift. That test is modelled on `nn-contrast.test.ts`, which
+ * resolves both sides of each pairing out of the stylesheet so that moving a surface
+ * recomputes the pairing rather than making the assertion quietly vacuous.
+ *
+ * **The club green is `#209D50`, the accent from the club's current Squarespace site, and two
+ * rules follow from it that are not negotiable:**
+ *
+ *   1. **Never white text on the brand green.** It is 3.50:1, which fails AA for body text.
+ *      Button labels, the facts strip and the footer use `--club-on-brand` (5.07:1).
+ *   2. **Never the brand green as text on a light background.** 3.22:1 on the page, 3.50:1 on
+ *      a card. Text links use `--club-link` (6.06:1 and 6.60:1).
+ *
+ * It *is* legitimate as a non-text graphic — ticks, underlines, outlines — where WCAG asks
+ * 3:1. ⚠️ **On `--club-surface-alt` that measures 3.01:1**, which clears the floor by one
+ * hundredth. The contrast test asserts that pairing by name for exactly that reason: a one-hex
+ * nudge to the alternate band would break it with nothing looking wrong.
+ */
+
+/* -------------------------------------------------------------------------------------
+ * The face
+ * -------------------------------------------------------------------------------------
+ * **Bricolage Grotesque for headings, and the system stack for body text.**
+ *
+ * Direction A specifies Bricolage Grotesque at 800 for headings and Nunito Sans for body.
+ * Body is the system stack instead, by decision: a second family is another 30–45 kB on every
+ * page for a difference most readers cannot name, and `system-ui` is the one face already on
+ * the device. Headings are where the design actually lives — they carry the voice, there are
+ * a handful per page, and the fallback metrics are close enough that `swap` does not lurch.
+ *
+ * **Self-hosted, never Google's CDN**, which would send every visitor's IP address to a third
+ * party and would have to be said so on `/privacy/`. This follows the arrangement
+ * `nn-theme.css` already uses for Nosifer, Inter and JetBrains Mono: the `woff2` in
+ * `apps/main/public/fonts/`, the OFL text committed beside it, `font-display: swap`.
+ *
+ * **One static instance at weight 800, not the variable font.** The full variable face with
+ * its `opsz` axis is 76,868 bytes for the latin subset; pinning weight 800 is **21,820**. The
+ * design asks for one weight, so the other 55 kB would be axis nobody moves. Measured, not
+ * assumed.
+ */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/bricolage-grotesque-800-latin.woff2') format('woff2');
+  /* The latin subset Google Fonts serves, restated so the browser skips the download
+     outright for a page with no characters in it. */
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Tokens — light
+ * ------------------------------------------------------------------------------------- */
+:root {
+  /* The page, and the two surfaces on it. Ink is 13.06:1 on the page, 14.22:1 on a card
+     and 12.23:1 on the alternate band. */
+  --club-background: #f1f7ef;
+  --club-surface: #ffffff;
+  --club-surface-alt: #e6f1e3;
+
+  --club-text: #16301f;
+  /* Secondary text. 6.58:1 on the page, 7.16:1 on a card, 6.16:1 on the alternate band. */
+  --club-muted: #4a5c4e;
+
+  /* ⚠️ **The club green: a fill and a non-text line, never text.** 3.22:1 on the page and
+     3.50:1 on a card — above WCAG's 3:1 floor for non-text, below the 4.5:1 body-text floor.
+     The facts strip, the footer and the primary button are filled with it; ticks, the
+     current-section underline and the featured-card outline are drawn in it. Nothing reads
+     it. */
+  --club-brand: #209d50;
+  /* What goes on top of that fill: 5.07:1. **Not white**, which is 3.50:1 and fails. */
+  --club-on-brand: #0d1b12;
+
+  /* Text links on the light surfaces: 6.06:1 on the page, 6.60:1 on a card, 5.68:1 on the
+     alternate band. This is what a link is; `--club-brand` never is. */
+  --club-link: #236a33;
+
+  /* The wordmark. A logotype is exempt from WCAG's contrast requirement (1.4.3), which is
+     what lets it be a green of its own rather than ink — 4.76:1 on the page, so comfortably
+     visible regardless. */
+  --club-logo: #1a7d3f;
+
+  /* Dividers. Decorative: a hairline between rows carries no information that the layout
+     does not, so it is deliberately quiet rather than contrast-rated. */
+  --club-rule: #d3e3cf;
+  /* Input and control borders, which **are** non-text UI and must clear 3:1: 3.77:1 on a
+     card, 3.46:1 on the page. */
+  --club-rule-strong: #76887a;
+
+  /* ⚠️ **A photograph the club has not supplied yet, and it carries its own surface.**
+     This was `--club-surface-alt`, which is also what `.club-sec-alt` paints a band — so on
+     an alternate band the panel measured **identical** to the thing behind it and simply was
+     not there. Half a section of empty space, nothing red, and no assertion in the suite that
+     could see it.
+
+     It is the defect `NnSchedule` is written up for — a component whose colour was computed
+     against a surface it does not itself carry — and the fix is that file's fix: the
+     component brings its own, so neither call site has to know which band it is on. A variant
+     passed by the caller is how this arrived in the first place.
+
+     1.31:1 against the page and 1.22:1 against the alternate band; 1.50 and 1.42 in the dark
+     scheme. Quiet — it is standing in for a photograph, not competing with one — but present
+     on both. `club-contrast.test.ts` asserts it differs from every surface it can land on.
+
+     The pace guide's "start here" row, and nowhere else. ⚠️ The row also says "Start here"
+     in text, because colour is never the only signal.
+
+     ⚠️ **It carries its own ink, and that is not decoration.** This yellow is the same in
+     both schemes — a highlight that inverted would stop being a highlight — so the text on
+     it must be dark in both too. Left to `--club-text`, the dark scheme puts near-white
+     `#eaf3e7` on pale `#ffe9a8` and measures **1.06:1**: not hard to read, absent. That is
+     the defect `nn-admin.css` already shipped once with an amber wash, found there at 1.56:1
+     and found here by `club-contrast.test.ts` before it reached a page. Ink on it is
+     11.83:1, in both schemes, because neither token is redefined below. */
+  --club-photo: #c8dfc1;
+
+  --club-highlight: #ffe9a8;
+  --club-on-highlight: #16301f;
+
+  /* The focus ring. 13.06:1 on the page — the same ink as body text, so it is unmistakable
+     on every surface this design has. */
+  --club-focus: #16301f;
+
+  --club-font-display:
+    'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --club-font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Pill buttons, generously rounded cards. No shadows and no gradients anywhere in this
+     design — Direction A is the calm one. */
+  --club-radius-button: 999px;
+  --club-radius-card: 20px;
+
+  --club-wrap: 1200px;
+  --club-gutter: 1.25rem;
+  --club-measure: 68ch;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Tokens — dark
+ * -------------------------------------------------------------------------------------
+ * This repository holds contrast in **both** schemes, so the dark values are computed rather
+ * than dimmed by eye.
+ *
+ * **The brand green and its ink are deliberately not redefined.** The green is the club's
+ * fill in both schemes — it measures 4.89:1 on the dark page, *higher* than on the light one
+ * — so the ink on top of it must stay dark in both. Redefining `--club-on-brand` only here is
+ * the mistake that would make a dark-scheme visitor read near-white on green at 3.5:1.
+ * `--club-highlight` is not redefined for the same reason.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Ink is 15.05:1 on the page, 13.50:1 on a card, 14.31:1 on the alternate band. */
+    --club-background: #0f1f15;
+    --club-surface: #16291c;
+    --club-surface-alt: #122418;
+
+    --club-text: #eaf3e7;
+    /* 8.61:1 on the page, 7.73:1 on a card, 8.19:1 on the alternate band. */
+    --club-muted: #a9bdad;
+
+    /* 9.52:1 on the page, 8.54:1 on a card. A link dark enough to read on paper is
+       unreadable here, which is why this is a separate value rather than the same one. */
+    --club-link: #7fd39a;
+
+    /* ⚠️ **Not `#1A7D3F` here.** That is 2.96:1 on the dark card — not merely
+       non-compliant but genuinely hard to see. WCAG exempts a logotype, which is a
+       permission rather than an instruction, so the mark takes the brand green in this
+       scheme: 4.89:1 on the page. */
+    --club-logo: #209d50;
+
+    --club-photo: #22402c;
+
+    --club-rule: #2a4232;
+    /* 4.54:1 on the page, 4.07:1 on a card. */
+    --club-rule-strong: #76887a;
+
+    /* The ring inverts with the ink it matches: 15.05:1. */
+    --club-focus: #eaf3e7;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Reset and the page
+ * ------------------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  /* No padding: the banner, the facts strip and the alternate bands all run edge to edge,
+     and everything inside them is held by `.club-wrap` instead. */
+  padding: 0;
+  background: var(--club-background);
+  color: var(--club-text);
+  font-family: var(--club-font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+  /* The page must be legible and operable at 320px. */
+  min-width: 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* **Headings are the one place the webfont is used**, which is what keeps it to 21 kB and
+   what makes `swap` unobtrusive: a handful of lines reflow, not the body copy. */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 0.6em;
+  font-family: var(--club-font-display);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: 2.15rem;
+}
+
+h2 {
+  font-size: 1.6rem;
+}
+
+h3 {
+  font-size: 1.2rem;
+}
+
+h4 {
+  font-size: 1.05rem;
+}
+
+p {
+  margin: 0 0 1em;
+  max-width: var(--club-measure);
+}
+
+a {
+  color: var(--club-link);
+  text-underline-offset: 0.18em;
+}
+
+/* Times and prices line up in a column. */
+.club-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Vertical rhythm for the page's own content. `main` carries no width of its own — every
+   band inside it runs edge to edge and `.club-wrap` holds the content — which is the one
+   structural difference from `base.css`, where `main` *is* the measure. ⚠️ A `max-width` on
+   the bare `main` element is what once laid `/admin/people/` out to the width of a paragraph
+   inside a full-width masthead, with every overflow guard passing; this design puts the width
+   on the wrapper so a section can be a full-bleed band. */
+main {
+  padding-block: 2rem;
+}
+
+.club-lede {
+  font-size: 1.15rem;
+}
+
+main ul,
+main ol {
+  max-width: var(--club-measure);
+}
+
+@media (min-width: 62em) {
+  main {
+    padding-block: 3rem;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Focus, and the way past the header
+ * -------------------------------------------------------------------------------------
+ * A visible ring on everything, 3px at 3px offset, in the ink colour rather than the brand
+ * green — the green is 3.22:1 on the page and a focus ring is non-text UI that somebody has
+ * to find quickly. */
+:focus-visible {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 3px;
+}
+
+/* The skip link, which is why `<header>` is rendered before `<main>` rather than inside it:
+   a navigation inside `main` would put the links after the thing the link skips to. */
+.club-skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 30;
+  padding: 0.6rem 1rem;
+  border-radius: var(--club-radius-button);
+  background: var(--club-text);
+  color: var(--club-background);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.club-skip:focus {
+  top: 1rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Layout primitives
+ * ------------------------------------------------------------------------------------- */
+.club-wrap {
+  max-width: var(--club-wrap);
+  margin-inline: auto;
+  padding-inline: var(--club-gutter);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Buttons
+ * -------------------------------------------------------------------------------------
+ * Pills, 48px minimum, 800 weight. Two kinds and no third: a solid one in the club green and
+ * an outlined one that borrows the current text colour, so the secondary works unchanged on
+ * the page, on a card and on the alternate band without a variant per surface. That is the
+ * mistake `NnSchedule` already paid for once — a component whose colours were computed
+ * against a surface it does not carry.
+ */
+.club-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 48px;
+  padding: 0.7rem 1.25rem;
+  border: 2px solid transparent;
+  border-radius: var(--club-radius-button);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 5.07:1. ⚠️ Never `#fff` on this fill — see the contrast note at the head of this file. */
+.club-btn-primary {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.club-btn-secondary {
+  background: transparent;
+  color: inherit;
+  border-color: currentcolor;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The header: the banner, the wordmark, the bar and the Menu
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **One `<header>`, and it is the `banner` landmark.**
+ *
+ * On the money pages this is two elements — an `<aside class="site-banner">` and a separate
+ * `<nav class="site-nav">` — because five Nightingale Nightmare pages already carry
+ * `NnMasthead` as their `banner`, and a second is `landmark-no-duplicate-banner`. **No club
+ * page has a masthead**, so the constraint that forces that split does not exist here, and
+ * the cost of copying it does: as an `<aside>` plus a bare `<nav>` the welcome sentence sits
+ * outside the page's landmark structure, which is what axe's `region` rule flags.
+ *
+ * So the notice lives inside the header, the header is the banner, and every word on the page
+ * is inside a landmark.
+ */
+.club-header {
+  position: relative;
+  z-index: 10;
+  background: var(--club-background);
+  color: var(--club-text);
+}
+
+/* The notice about the old site. Its own band across the top, quiet, above the bar. */
+.club-banner {
+  background: var(--club-surface-alt);
+  font-size: 0.9375rem;
+}
+
+.club-banner p {
+  display: flex;
+  flex-wrap: wrap;
+  /* The gap is what lets the two halves drop onto their own lines on a phone rather than
+     needing a breakpoint. */
+  gap: 0 0.4rem;
+  max-width: none;
+  margin: 0;
+  padding-block: 0.6rem;
+}
+
+.club-banner a {
+  color: var(--club-link);
+}
+
+.club-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 72px;
+}
+
+/* The wordmark, and the route home. `margin-right: auto` is what pushes everything else to
+   the far end at every width without a grid. */
+.club-mark {
+  display: inline-flex;
+  align-items: center;
+  margin-right: auto;
+  padding: 0.25rem 0;
+  color: var(--club-logo);
+  text-decoration: none;
+}
+
+.club-logo {
+  display: block;
+  width: 132px;
+  height: auto;
+}
+
+/* The bar itself, hidden until there is room for it. */
+.club-nav {
+  display: none;
+}
+
+.club-nav ul {
+  display: flex;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.club-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--club-radius-button);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.club-nav a:hover {
+  color: var(--club-link);
+}
+
+/* ⚠️ **An underline *and* `aria-current`.** The green line tells a sighted reader which
+   section they are in; without the attribute nobody else is told at all. `inset` rather than
+   `border-bottom` so the item does not move by 3px when it becomes current. 3.22:1 against
+   the page, which is what a non-text indicator has to clear.
+
+   ⚠️ **The wordmark is deliberately not in this rule.** It is the Home link, so on `/` it took
+   the same green line — under a logotype that already has a horizontal rule drawn into its own
+   artwork, which read as a drawing mistake rather than as a marker. It keeps
+   `aria-current="page"`, so somebody using a screen reader is still told they are on the home
+   page; what it loses is a visual marker that was confusing the mark with the state. The bar's
+   own items are unaffected and still carry both signals. */
+.club-nav a[aria-current='page'] {
+  box-shadow: inset 0 -3px 0 var(--club-brand);
+}
+
+/* The call to action, beside the Menu on a phone and beside the bar on a desktop. Hidden on
+   the narrowest screens, where the header is the wordmark and one control. */
+.club-cta {
+  display: none;
+}
+
+/* ---- The Menu, which is a `<details>` and therefore works with scripting off ----
+ *
+ * **Every spec in this suite runs in a `no-javascript` project**, so a scripted menu would
+ * simply not open there. `<details>`/`<summary>` opens, closes, and is keyboard operable with
+ * no script at all, and it is the same reasoning that made the money pages' Events submenu
+ * CSS-only.
+ *
+ * ⚠️ **`position: relative` on the `<details>`.** An absolutely positioned panel whose
+ * containing block is the *page* is laid out against the document, and a panel wider than the
+ * viewport then makes the whole page scroll sideways — silently, with nothing looking wrong.
+ * This repository has already paid for exactly that twice: once with a visually-hidden span
+ * inside a scrolling admin table, and once with the Events submenu. `club-chrome.spec.ts`
+ * asserts it at 320px with the menu open.
+ */
+.club-menu {
+  position: relative;
+}
+
+.club-menu > summary {
+  /* `list-style: none` plus the WebKit pseudo-element removes the disclosure triangle; the
+     summary is styled as a button instead. */
+  list-style: none;
+}
+
+.club-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.club-menu > nav {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  /* `min()` against the viewport rather than a fixed width, so the panel can never be the
+     thing that makes the page wider than the screen. */
+  width: min(18rem, calc(100vw - var(--club-gutter) * 2));
+  padding: 0.6rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+  color: var(--club-text);
+}
+
+.club-menu > nav ul {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.club-menu > nav a:not(.club-btn) {
+  display: block;
+  padding: 0.8rem 0.75rem;
+  border-radius: var(--club-radius-button);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.club-menu > nav a[aria-current='page'] {
+  box-shadow: inset 0 -3px 0 var(--club-brand);
+}
+
+.club-menu > nav .club-btn {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The home page's hero and facts strip
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **The photograph is hidden below 62em, and that is a content decision rather than a
+ * layout one.** The brief asks for the when/where/cost strip to be inside the first screen on
+ * a 390×844 phone — because somebody who has just been told about the club wants to know when
+ * it meets, not to scroll past a picture to find out. A photo above it costs roughly 300px,
+ * which is the whole of that budget.
+ */
+.club-hero {
+  padding: 1.25rem 0 1.75rem;
+}
+
+.club-hero h1 {
+  font-size: 2.15rem;
+}
+
+.club-hero-photo {
+  display: none;
+}
+
+/* The brand green, full bleed, with the ink that was measured against it — 5.07:1. ⚠️ Never
+   white here: it is 3.50:1 and fails AA. */
+.club-facts {
+  padding: 1.1rem 0;
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.club-facts ul {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-facts li {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* "Where" is the longest of the five and holds an address plus a map link, so it takes the
+   full width on a phone rather than being squeezed into half of it. */
+.club-facts li:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.club-facts b {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* `currentcolor`, for the reason the footer's links are: this band has one ink, and a link
+   reaching for `--club-link` would be 2.1:1 on the green. */
+.club-facts a {
+  color: currentcolor;
+  font-weight: 700;
+}
+
+/* The three steps. Flat rather than carded — Direction A uses a card to mean "clickable", and
+   these are prose. */
+.club-steps {
+  counter-reset: club-step;
+}
+
+.club-step-number {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin-bottom: 0.75rem;
+  border-radius: 50%;
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Sections, and the page's own rhythm
+ * -------------------------------------------------------------------------------------
+ * **Bands run edge to edge and `.club-wrap` holds the content.** That is the one structural
+ * difference from `base.css`, where `main` itself is the measure — and it is what lets an
+ * alternate section be a full-bleed flat band rather than a boxed panel. Square-edged, no
+ * border, no shadow: Direction A as approved is the calm one.
+ */
+.club-sec {
+  padding-block: 3rem;
+}
+
+.club-sec-alt {
+  background: var(--club-surface-alt);
+}
+
+/* The heading block at the top of a page that is not the home page. */
+.club-phead {
+  padding: 2.25rem 0 1.25rem;
+}
+
+.club-phead .club-lede {
+  margin-bottom: 0;
+}
+
+.club-small {
+  font-size: 0.875rem;
+  color: var(--club-muted);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Grids
+ * -------------------------------------------------------------------------------------
+ * Three names, one behaviour: one column until there is room, then two, then the number the
+ * name says. `.club-g2` is also the two-column split for a section with prose beside a card.
+ */
+.club-g2,
+.club-g3,
+.club-g4 {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.club-split {
+  align-items: start;
+}
+
+ul.club-g2,
+ul.club-g3,
+ul.club-g4,
+ol.club-g3 {
+  margin: 0 0 1.25rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Cards
+ * -------------------------------------------------------------------------------------
+ * **Only where something is clickable.** Direction A as approved uses a card to say "this is
+ * a thing you can act on", not to fence off every paragraph — so the step list and the quote
+ * are flat, and an event, a price and a partner are cards.
+ */
+.club-card {
+  padding: 1.25rem 1.4rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.club-card > :last-child {
+  margin-bottom: 0;
+}
+
+/* A card that is itself one big link — the whole box is the target, not just the heading. */
+.club-link-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.club-link-card h3 {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * A photograph the club has not supplied yet
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **A flat panel, and deliberately empty.** The mockup drew a diagonal stripe pattern with
+ * "[Photo: laughing group in green club vests…]" written across it. Neither ships: a stripe
+ * reads as a broken image and the bracketed label is exactly the placeholder this build is
+ * not allowed to publish.
+ *
+ * It is `aria-hidden` wherever it is used and carries no text, so a screen reader is told
+ * nothing rather than told about a photograph that is not there. When the club supplies
+ * photographs — with consent from the people in them — this is replaced by `<Image>`, not
+ * filled in.
+ */
+.club-photo {
+  border-radius: var(--club-radius-card);
+  background: var(--club-photo);
+  min-height: 12rem;
+}
+
+.club-photo-tall {
+  min-height: 18rem;
+}
+
+/* ⚠️ **A real photograph gets a shape, not a height.**
+ *
+ * A fixed height plus `object-fit: cover` crops whatever does not fit, and on a *group*
+ * photograph what does not fit is people. Measured: the club's panoramic group photo is
+ * 1.92:1 and the hero slot was about 1.35:1 at desktop, which would have cropped 30% of the
+ * width — both ends of a line of eighty members, gone, with nothing saying so.
+ *
+ * So each slot carries an `aspect-ratio` close to the photograph it holds, and `cover` then
+ * trims a few percent rather than a third. Swapping in a photograph of a very different shape
+ * means revisiting the ratio here; that is a deliberate cost, and the alternative is silently
+ * cutting people out of the club's own picture of itself. */
+img.club-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+/* 4:3, matching the evening-run photograph exactly, so the hero crops nothing at all. */
+img.club-hero-photo {
+  aspect-ratio: 4 / 3;
+}
+
+/* 4:3, which is the evening-run photograph's own ratio, so nothing is cropped at all. */
+img.club-photo-tall {
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+}
+
+/* 16:9 for a panoramic photograph in a body section — the club group shot is 1.92:1, so this
+   trims about 7% off the width evenly rather than the 30% a fixed height would have taken. */
+img.club-photo-wide {
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Lists that are not prose
+ * ------------------------------------------------------------------------------------- */
+
+/* The night, in order. A time and what happens at it. */
+.club-timeline {
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-timeline li {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: 0.75rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-timeline b {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A tick list. ⚠️ The tick is drawn in the brand green as a **non-text graphic** — 3.22:1 on
+   the page, 3.01:1 on the alternate band, both above the 3:1 floor a line has to clear. It is
+   decoration beside text that already says everything, never the carrier of the meaning. */
+.club-ticks {
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-ticks li {
+  position: relative;
+  padding: 0.5rem 0 0.5rem 1.9rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-ticks li::before {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 0.95rem;
+  width: 0.7rem;
+  height: 0.38rem;
+  border-left: 3px solid var(--club-brand);
+  border-bottom: 3px solid var(--club-brand);
+  transform: rotate(-45deg);
+}
+
+/* Pace groups, session types. A label, not a control — these are not links or buttons. */
+.club-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-pills li {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* A pair of things compared: Tuesday against Thursday. */
+.club-compare {
+  margin: 0;
+  max-width: none;
+}
+
+.club-compare > div {
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-compare dt {
+  font-family: var(--club-font-display);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.club-compare dd {
+  margin: 0.25rem 0 0;
+}
+
+/* A document, and what kind of file it is. */
+.club-docs {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-docs li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+/* A row of facts about one thing — a race's distance and entry, say. */
+.club-meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  max-width: none;
+}
+
+.club-meta > div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.5rem;
+}
+
+.club-meta dt {
+  font-weight: 700;
+  color: var(--club-muted);
+}
+
+.club-meta dd {
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Tables
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **The wrapper scrolls, the page never does.** A wide table inside `overflow-x: auto`,
+ * focusable and labelled so it is reachable and announced as a region — WCAG 2.1.1 and 4.1.2.
+ * `position: relative` on the scroller is what stops an absolutely positioned descendant
+ * being laid out against the *page*: this repository has already shipped a visually-hidden
+ * span inside a scrolling table that made the whole document slide sideways at 320px, with
+ * nothing looking wrong.
+ */
+.club-table-wrap {
+  position: relative;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  border-radius: 16px;
+  background: var(--club-surface);
+}
+
+.club-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.club-table caption {
+  padding: 0.9rem 1rem;
+  text-align: left;
+  font-weight: 700;
+}
+
+.club-table th,
+.club-table td {
+  padding: 0.7rem 1rem;
+  text-align: left;
+  border-top: 1px solid var(--club-rule);
+  white-space: nowrap;
+}
+
+.club-table thead th {
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-size: 0.85rem;
+}
+
+/* The pace guide's "start here" row. ⚠️ **The row also says so in text** — colour is never
+   the only signal — and its ink is `--club-on-highlight`, which does not invert in the dark
+   scheme because the yellow does not either. */
+.club-table tr.club-row-start {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+/* A comparison table, where each cell is included-or-not. The tick and dash are
+   `aria-hidden` and each carries a visually hidden "Included" / "Not included" beside it,
+   because a glyph is not a word. */
+.club-table-compare td,
+.club-table-compare thead th {
+  text-align: center;
+}
+
+.club-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Accordions
+ * -------------------------------------------------------------------------------------
+ * `<details>`, so every one of these opens with JavaScript disabled — the same reason the
+ * Menu is one. The marker is drawn with `::after` rather than the browser's triangle so it
+ * sits where the design wants it; `list-style: none` plus the WebKit pseudo-element is what
+ * removes the default in every engine.
+ */
+.club-acc details {
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-acc details:last-of-type {
+  border-bottom: 1px solid var(--club-rule);
+}
+
+.club-acc summary {
+  position: relative;
+  min-height: 48px;
+  padding: 0.95rem 2rem 0.95rem 0;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.club-acc summary::-webkit-details-marker {
+  display: none;
+}
+
+.club-acc summary::after {
+  content: '+';
+  position: absolute;
+  right: 0.25rem;
+  top: 0.7rem;
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.club-acc details[open] > summary::after {
+  content: '\2013';
+}
+
+.club-acc-body {
+  padding: 0 0 0.8rem;
+}
+
+/* A `<details>` inline in a page, without the accordion's rules and marker. */
+.club-inline > summary {
+  padding: 0.4rem 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Pricing, partners and people
+ * ------------------------------------------------------------------------------------- */
+.club-pricing .club-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.club-pricing .club-btn {
+  margin-top: auto;
+}
+
+.club-price {
+  margin: 0.2rem 0 0.6rem;
+  font-family: var(--club-font-display);
+  font-size: 2.3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ⚠️ **A price nobody has confirmed is not a price, and must not be set like one.**
+   Rendered at the full 2.3rem display size, "Price to be confirmed" was the loudest thing in
+   the pricing row — larger than the £4 beside it — so the card the club least wants to push
+   shouted the hardest. It still has to be unmissable, because the alternative is somebody
+   assuming a figure; it just has to read as a sentence rather than as a number. */
+.club-price-unconfirmed {
+  font-size: 1.3rem;
+  line-height: 1.3;
+  color: var(--club-muted);
+}
+
+.club-price small {
+  font-family: var(--club-font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--club-muted);
+}
+
+/* The one card the club points people at. ⚠️ An outline in the brand green as a non-text
+   graphic, **and** the card says "Most people start here" in words above the heading. */
+.club-featured {
+  outline: 3px solid var(--club-brand);
+  outline-offset: -1px;
+}
+
+.club-badge {
+  display: inline-block;
+  margin: 0 0.4rem 0.5rem 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.club-actions {
+  margin: 0 0 1rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-actions li {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-actions a {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.club-actions span {
+  color: var(--club-muted);
+  font-size: 0.93rem;
+}
+
+.club-partner h3 {
+  margin-bottom: 0.15rem;
+  font-size: 1.05rem;
+}
+
+/* Where the discount code actually lives. It is never on the page. */
+.club-locked {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.club-person h3 {
+  margin-bottom: 0.15rem;
+  font-size: 1.05rem;
+}
+
+/* The two welfare roles, marked because somebody looking for them is usually looking for
+   them urgently. The outline is the non-text half; the badge says it in words. */
+.club-welfare {
+  outline: 2px solid var(--club-brand);
+  outline-offset: -1px;
+}
+
+.club-welfare-call {
+  border-left: 6px solid var(--club-brand);
+}
+
+/* -------------------------------------------------------------------------------------
+ * The footer
+ * -------------------------------------------------------------------------------------
+ * A filled band in the club green with dark ink on it — 5.07:1, the sanctioned use of that
+ * colour and the only other one besides the facts strip and the primary button.
+ *
+ * Outside `<main>`, which is what makes it the page's single `contentinfo` landmark: a
+ * `<footer>` inside `main`, `article`, `aside`, `nav` or `section` is generic instead.
+ */
+.club-footer {
+  padding: 2.75rem 0 2rem;
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+/* ⚠️ **`currentcolor`, not a token.** Everything in this band is the one ink that was
+   measured against the green. A link here that reached for `--club-link` would be 2.1:1 on
+   the fill — the exact shape of defect `NnSchedule` was written up for, a colour computed
+   against a surface the component does not carry. */
+.club-footer a {
+  color: currentcolor;
+}
+
+.club-footer-grid {
+  display: grid;
+  gap: 2rem;
+}
+
+.club-footer h2 {
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.club-footer p {
+  max-width: none;
+}
+
+.club-footer-mark {
+  display: block;
+  width: 150px;
+  height: auto;
+  margin-bottom: 0.75rem;
+  color: currentcolor;
+}
+
+.club-footer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.club-footer-list li {
+  padding: 0.25rem 0;
+}
+
+/* Icons, not words. The `aria-label` on each link carries the accessible name and the SVG is
+   `aria-hidden`, so the club's four profiles are announced once each. Padded to a 44px target
+   even though the drawn icon is 24px. */
+.club-footer-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.club-footer-social a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.5rem;
+  border-radius: var(--club-radius-button);
+}
+
+.club-footer-small {
+  font-size: 0.875rem;
+}
+
+/* ⚠️ **Every link in this band is a 44px tap target, and the small ones are why.**
+ *
+ * WCAG 2.2 AA 2.5.8 (`target-size`) asks for 24×24px, or 24px of clearance from the next
+ * target. The "Privacy notice" link is 0.875rem type on one line: **90.8 × 17px**, sitting
+ * 21px under the social icon row — so it failed on both halves at once, and axe caught it on
+ * all three scans. "Open in maps" is the same shape and was one viewport away from the same
+ * failure.
+ *
+ * `min-height` on an `inline-flex` is what the money pages' footer already does for its race
+ * links — *"44px of target without padding arithmetic"* — and 44px rather than the required 24
+ * because most of the people reading this are on a phone, outdoors, with cold hands. The
+ * visible text does not move; only the box around it grows.
+ *
+ * ⚠️ **Scoped to links in a paragraph, which leaves the social row alone.** The icons already
+ * carry their own 2.75rem box and a negative margin that pulls them back into line; a broader
+ * `.club-footer a` selector out-specifies that rule — `:not()` takes its argument's
+ * specificity — and would quietly turn those links inline-level under it. The two links that
+ * actually failed are both a paragraph of their own. */
+.club-footer p a:not(.club-btn) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Widths
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **Media queries in `em`, not the mockup's container queries.** The mockup put the whole
+ * site in a resizable box so one page could show both layouts, which is what container
+ * queries are for; the real page is the viewport. A `@container` here would be measuring
+ * something that is always the full width anyway, and `@media` is the boring, familiar choice
+ * a third volunteer already knows.
+ *
+ * 30em / 44em / 62em, matching the brief. `em` rather than `px` so the layout responds to a
+ * reader who has changed their browser's base font size, which is the population most likely
+ * to need it.
+ */
+
+/* The call to action joins the header as soon as there is room beside the Menu. */
+@media (min-width: 30em) {
+  .club-cta {
+    display: inline-flex;
+    padding: 0.55rem 1rem;
+  }
+}
+
+@media (min-width: 44em) {
+  .club-g2,
+  .club-g3,
+  .club-g4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* ⚠️ **`auto-fit`, not a column count.** The footer grows a column when `links.json`
+     lands and the contact and policy lists join it, and a hand-written `repeat(4, 1fr)`
+     would leave a dead column in the meantime and need editing again when it fills.
+     `minmax` is what keeps each column wide enough to hold an address without wrapping
+     mid-word. */
+  .club-footer-grid {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  }
+}
+
+/* The full bar, and the Menu goes away. */
+@media (min-width: 62em) {
+  .club-hero {
+    padding: 3.5rem 0 4rem;
+  }
+
+  .club-hero-inner {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 4rem;
+    align-items: center;
+  }
+
+  .club-hero h1 {
+    font-size: 4rem;
+    line-height: 1.02;
+  }
+
+  /* There is room for the photograph now, and the facts strip is still above the fold.
+     The shape comes from `img.club-hero-photo`'s `aspect-ratio`; this only says it is
+     rendered and how it is cornered. */
+  .club-hero-photo {
+    display: block;
+    border-radius: 28px;
+  }
+
+  .club-facts ul {
+    grid-template-columns: 1fr 1.2fr 1.6fr 0.8fr 1.4fr;
+  }
+
+  .club-facts li:nth-child(3) {
+    grid-column: auto;
+  }
+
+  .club-g3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .club-g4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .club-g2 {
+    gap: 3rem;
+  }
+
+  .club-sec {
+    padding-block: 5rem;
+  }
+
+  .club-phead {
+    padding: 3.5rem 0 1.5rem;
+  }
+
+  .club-nav {
+    display: block;
+  }
+
+  .club-menu {
+    display: none;
+  }
+
+  .club-cta {
+    padding: 0.7rem 1.25rem;
+  }
+
+  h1 {
+    font-size: 3.4rem;
+  }
+
+  h2 {
+    font-size: 2.1rem;
+  }
+}
+
+/* There is very little motion in this design. This is what keeps it that way. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

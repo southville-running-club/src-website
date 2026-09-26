@@ -17,7 +17,12 @@ import { SELF } from 'cloudflare:test';
 const SITE = 'https://new.southvillerunningclub.co.uk';
 
 describe('the club website', () => {
-  it('serves the holding page at the root', async () => {
+  it('serves the club’s front page at the root', async () => {
+    // ⚠️ **Renamed, not rewritten.** This was "serves the holding page at the root" until
+    // 19 September 2026, when `/` moved onto the club's own chrome (ADR-048). The assertions
+    // below are unchanged and still true — what stopped being true is the word "holding" in
+    // the title, and a test whose name describes a page that no longer exists is the kind of
+    // stale documentation this repository treats as worse than none.
     const response = await SELF.fetch(`${SITE}/`);
 
     expect(response.status).toBe(200);
@@ -28,6 +33,11 @@ describe('the club website', () => {
   it('carries the banner, on the built output rather than in a browser', async () => {
     // The banner is in the layout, so every page gets it — including `/nn/`, and this is
     // the only layer that reads what the static-assets binding actually returns.
+    //
+    // ⚠️ **It fetches `/nn/` rather than `/`, which was incidental and is now load-bearing.**
+    // Since ADR-048 the club pages carry a different banner sentence and `/` is one of them;
+    // `/nn/` is a money page and keeps this one until after the race. So this assertion needs
+    // no limiting — it was already pointed at a page that still says these words.
     const page = await (await SELF.fetch(`${SITE}/nn/`)).text();
 
     expect(page).toContain('Welcome to Southville Running Club');
@@ -291,14 +301,70 @@ describe('Nightingale Nightmare', () => {
 });
 
 describe('what does not exist', () => {
-  it.each(['/membership/', '/results/', '/newsletter/2026-01/'])(
-    '404s %s',
-    async (path) => {
-      const response = await SELF.fetch(`${SITE}${path}`);
+  // ⚠️ **`/membership/` came off this list on 20 September 2026, because it exists now.**
+  // It was here as an address the club had not built; the club website's own pages landed and
+  // this test went red asserting a 404 on a page that was working. That is the list doing its
+  // job — it is a record of what is *not* built, so a page arriving is exactly what should
+  // break it. The two below are still unbuilt.
+  it.each(['/results/', '/newsletter/2026-01/'])('404s %s', async (path) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
 
-      expect(response.status).toBe(404);
-    },
-  );
+    expect(response.status).toBe(404);
+  });
+});
+
+/**
+ * The club website's own pages, at the layer that reads what the assets binding returns.
+ *
+ * ⚠️ **This is the layer `./dev e2e` never builds.** Playwright drives a browser and asserts
+ * behaviour; this asserts the **served bytes**, and a rendering change is not verified until
+ * it has run. A `<wbr>` inserted into an address turned 25 of these red through three green
+ * browser runs earlier this week.
+ */
+describe('the club website’s own pages', () => {
+  it.each([
+    ['/run-with-us/', 'Your first night at SRC'],
+    ['/membership/', 'Run for 50p. Join for £4.'],
+    ['/news/', 'Monthly newsletters'],
+    ['/about/', 'A friendly club since 2007'],
+  ])('serves %s', async (path, heading) => {
+    const response = await SELF.fetch(`${SITE}${path}`);
+    const page = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(page).toContain(heading);
+    // Nothing on this subdomain is indexed until the Squarespace cutover.
+    expect(page).toContain('name="robots" content="noindex"');
+  });
+
+  it('keeps the money pages’ chrome off them, and their own off the money pages', async () => {
+    // The fence, at the markup layer. `club-chrome.spec.ts` asserts the same thing in a
+    // browser; this one reads what was actually served.
+    const club = await (await SELF.fetch(`${SITE}/about/`)).text();
+    expect(club).toContain('club-header');
+    expect(club).not.toContain('site-banner');
+
+    const money = await (await SELF.fetch(`${SITE}/nn/`)).text();
+    expect(money).toContain('site-banner');
+    expect(money).not.toContain('club-header');
+  });
+
+  it('ships no placeholder into the built markup', async () => {
+    for (const path of ['/', '/run-with-us/', '/membership/', '/news/', '/about/']) {
+      const page = await (await SELF.fetch(`${SITE}${path}`)).text();
+
+      for (const marker of [
+        '[confirm]',
+        '[placeholder',
+        '[Photo:',
+        '[Name]',
+        'undefined',
+      ]) {
+        expect(page, `${path} contains ${marker}`).not.toContain(marker);
+      }
+    }
+  });
 });
 
 describe('the health endpoint', () => {

@@ -25,8 +25,22 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 ```
 src/content/race.json          Every race fact, as data. See below
 src/content/privacy.json       The club notice's own values. Three keys, two of them null
-src/layouts/Base.astro         The document, the banner, and the optional `theme` prop
-src/components/ClubLogo.astro  The club wordmark, inline, once per page
+src/content/club.json          Where and when the club meets. Validated with Zod from
+                               @src/shared/club-content. See "the two surfaces" below
+src/layouts/Base.astro         The document, the banner, and the optional `theme` prop.
+                               Every page but the club's own — see ClubBase.astro
+src/layouts/ClubBase.astro     The club website's document. Loads club.css and NOT
+                               base.css, which is the whole of ADR-048
+src/components/ClubLogo.astro  The club wordmark, inline, once per page. Shared by both
+                               surfaces — it takes its colour from currentColor
+src/components/club/ClubHeader.astro   The club header: the notice, the wordmark, the
+                               six-item bar and the call to action. One <header>, which
+                               is the banner landmark — its own header says why that
+                               differs from SiteBanner.astro
+src/components/club/ClubMenu.astro     The narrow-screen Menu. A <details>, so it opens
+                               with JavaScript disabled
+src/components/club/ClubFooter.astro   The club footer — the green band, the meeting
+                               details from club.json, the four profiles, /privacy/
 src/components/SiteBanner.astro    The club banner — one of three copies of this markup,
                                and site-chrome.ts's header says why
 src/components/SiteNav.astro   The five-item bar, and the Events submenu, from SITE_NAV
@@ -37,7 +51,8 @@ src/components/NnEntryForm.astro   The entry form, and its progressive enhanceme
 src/components/NnRaceSummary.astro The race in brief, with the arrows
 src/components/NnSchedule.astro    Race morning in order. It carries its own surface
 src/components/NnPreviousYears.astro   Four <a> elements the Worker paints years onto
-src/pages/index.astro          The holding page — new.<apex>/
+src/pages/index.astro          new.<apex>/ — on ClubBase and the club's own chrome. The
+                               Direction A copy lands in the next change
 src/pages/404.astro
 src/pages/brand.astro          The palette, with every contrast ratio computed live, for
                                whoever is deciding whether it is right
@@ -59,7 +74,9 @@ src/pages/nn/2026/terms.astro  The entry terms and race rules — the race direc
 src/pages/nn/2026/race-day.astro   Race day — HQ, the morning in order, prizes
 src/pages/nn/2026/spectators.astro Watching the race
 src/pages/nn/2026/entry/complete.astro  Where Stripe sends somebody back to
-src/pages/events/index.astro   The club's socials — what is coming up
+src/pages/events/index.astro   The club's socials — what is coming up. Becomes the races
+                               and events hub in the next change, keeping its
+                               data-social-link mechanism exactly
 src/pages/events/christmas-party-2026.astro         One social, and its ticket form
 src/pages/events/christmas-party-2026/complete.astro    Where Stripe sends a buyer back
                                to. It reports no state at all — deliberately
@@ -351,7 +368,112 @@ would need `setInnerContent(..., { html: true })`, and there is deliberately no 
 anywhere in this repository to audit. A fifth is one more `<a>` and a deploy, which is the same
 trade the three fee cards make.
 
+## The club website, and the two surfaces
+
+⚠️ **This app serves two surfaces now, and they deliberately do not share a stylesheet or a
+header.** [ADR-048](../../../docs/architecture/decisions/adr-048-the-club-website-is-its-own-surface.md)
+is the argument; this is the map.
+
+| | The club website | Everything else |
+| --- | --- | --- |
+| Pages | `/` — and `/run-with-us/`, `/events/` as a hub, `/membership/`, `/news/`, `/about/` as they land | `/nn/*`, `/events/<slug>/`, `/account/*`, `/admin/*`, `/privacy/`, `/404`, `/brand/` |
+| Layout | `src/layouts/ClubBase.astro` | `src/layouts/Base.astro`, or the Worker |
+| Stylesheet | `@src/shared/styles/club.css` | `@src/shared/styles/base.css` |
+| Palette | `--club-*`, Direction A on `#209D50` | `--colour-*`, the timing brand on `#00c85a` |
+| Chrome | `src/components/club/` | `SiteBanner`, `SiteNav`, `SiteFooter`, `worker/site-chrome.ts` |
+| Navigation | `CLUB_NAV` — six items, wordmark as Home | `SITE_NAV` — Home, Nightingale Nightmare, Events, Account |
+| Banner sentence | *"Some pages are still on the old site while we move across."* | *"We just have Nightingale Nightmare for now…"* |
+
+**Neither stylesheet imports the other, and neither reaches a page that does not want it.**
+`club.css` is self-contained — its own reset, focus ring and skip link — and
+`build.inlineStylesheets: 'never'` means each is a real `/_astro/*.css` file, so a club page
+ships one and a money page ships the other. ⚠️ If you are about to add
+`import '@src/shared/styles/base.css'` to `ClubBase.astro` to get one rule, **copy the rule
+instead**: that import puts the money pages' palette on the club's pages, where every
+`--colour-*` name resolves against a file nobody may edit until November.
+
+### Why, and when it ends
+
+Every page that takes or handles money is **frozen until after Nightingale Nightmare on
+1 November 2026** — not its markup, not its styles, not the shared files it renders through.
+The entry window is open and the race is selling; repainting the club by editing
+`tokens.css` would have repainted the entry form and the admin tables in the same commit.
+
+**After the race, one change moves the money pages onto the club's chrome** and reconciles the
+two. Until then the seam is visible and deliberate: clicking "Events" in the old bar lands on
+a page in the new chrome.
+
+`tests/e2e/club-chrome.spec.ts` is the fence. Its last describe block asserts the *absence* of
+the club header, footer and palette on `/nn/`, `/nn/2026/`, `/events/christmas-party-2026/`,
+`/account/sign-in/` and `/privacy/`, and that the old banner sentence and four-item bar still
+render. Without it, somebody adding `ClubHeader` to `Base.astro` to be helpful gives the entry
+form a second navigation with every other test still green.
+
+### The frozen addresses
+
+These are live, shared and linked from elsewhere. They must keep answering **200 at exactly
+these paths, with no redirect**:
+
+| | Reached from |
+| --- | --- |
+| `/nn/` | The races hub, and the home page's "Coming up" |
+| `/nn/2026/` | The entry journey from `/nn/`, which is unchanged |
+| `/events/christmas-party-2026/` | The races hub, under Socials |
+| `/account/sign-in/` | The header's Account item, through `/account/`'s own redirect |
+
+Link to them **root-relative with the trailing slash** — `/nn/`, never `/nn`.
+`trailingSlash: 'always'` is set and the two must not become two answers. The frozen-addresses
+block in `club-chrome.spec.ts` asserts the status, the final pathname *and* that no redirect
+was followed; a 200 reached through a redirect is still a moved address.
+
+### Content is data, and a content change needs a rebuild
+
+Anything that changes over time lives in `src/content/` as JSON and is validated with Zod from
+`@src/shared/club-content`. This is `race.json`'s pattern applied to the club, and it is the
+only arrangement in which *"never ship a placeholder"* can be enforced: a fact the club has not
+supplied is an **absent key**, and an absent key renders "to be confirmed" or renders nothing,
+which a unit test can assert. A fact written into a template can only be checked by reading the
+template.
+
+| File | Holds |
+| --- | --- |
+| `club.json` | Where and when the club meets, the map link, the legal name and the affiliation line |
+
+⚠️ **The site is static, so editing one of these does nothing until the site is rebuilt.**
+There is no database read behind them and no cache to bust: `npm run build` in this workspace,
+or a push to `main`, which is what the deploy runs. That is a deliberate trade — the club's
+meeting time does not change at 3am — and it is the difference between these files and
+`store.socials`, where confirming a date is an `update` and no deploy.
+
+**Every date is formatted through `formatLondon()` and friends from `@src/shared`.** Bare
+`toLocale*String` is banned by ESLint, and so is `new Date().toISOString().slice(0, 10)`,
+which reads as "today" and means "today in UTC".
+
+### Switching an action from the old site to a new page
+
+Every button and link that points at `southvillerunningclub.co.uk` reads its address from
+`links.json` — one entry per action, each with a stable key, the current `href` and a `where`
+flag of `old-site` or `new-site`. Components render the "on our old site" label from `where`.
+
+**So moving one action onto the new site is a two-field edit to one file**: change that key's
+`href` to the new root-relative path and its `where` to `new-site`, and every page that offers
+the action follows, label included. No component changes and no search for the other three
+places it appears.
+
+*(`links.json` lands with the pages that use it.)*
+
+---
+
 ## The banner
+
+⚠️ **There are two of these now, saying different things, and that is deliberate.** This
+section describes the one on the money pages — `SITE_BANNER`, *"We just have Nightingale
+Nightmare for now"* — which is frozen until after the race. The club's own pages carry
+`CLUB_BANNER` instead: *"Some pages are still on the old site while we move across."* The old
+sentence stopped being true the moment the club's own pages existed, and it is still very
+nearly true on `/nn/`. See [the two surfaces](#the-club-website-and-the-two-surfaces).
+**Everything below applies to both**, because the reasoning is about what a banner is for
+rather than about which words are in it.
 
 Every page here opens with a bar that welcomes the visitor, says what is on this site, and
 links to `southvillerunningclub.co.uk`. It is in the layout rather than on a page because it
