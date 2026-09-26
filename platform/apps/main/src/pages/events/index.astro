@@ -75,89 +75,102 @@ const [raceDay = '', raceMonth = ''] = race.dateShort.split(' ');
     <div class="club-wrap">
       <h1>Races and events</h1>
       <p class="club-lede">The races we organise and the socials in between.</p>
+      <p class="club-jump">
+        Jump to: <a href="#races">Races</a>
+        <a href="#socials">Social events</a>
+      </p>
     </div>
   </header>
 
-  <section class="club-sec">
+  {
+    /* ⚠️ **Two bands, and the alternate one is what separates them.** Each section is its own
+      `.club-sec` with its own photograph beside it, so two full-width grids stacked would
+      otherwise read as one long column with a picture halfway down. `/about/` alternates for
+      exactly this reason. It is also the first thing on this site to put `.club-events` on a
+      `.club-sec-alt` band — which the date tile was built to survive, because it carries
+      `--club-surface` rather than the band's own colour. */
+  }
+  <section class="club-sec" id="races" aria-labelledby="races-heading">
     <div class="club-wrap club-g2 club-split">
       <div>
-        <p class="club-jump">
-          Jump to: <a href="#races">Races</a>
-          <a href="#socials">Social events</a>
-        </p>
+        <h2 id="races-heading">Races</h2>
+        <p>The races the club organises itself, and where to enter them.</p>
 
-        <section id="races" aria-labelledby="races-heading">
-          <h2 id="races-heading">Races</h2>
-          <p>The races the club organises itself, and where to enter them.</p>
-
-          <ul class="club-events">
-            <li>
+        <ul class="club-events">
+          <li>
+            {
+              /* ⚠️ **Decorative, because the row already says the date in full.** Left
+                readable, a screen reader announces "1", "Nov" and then the whole date again a
+                line later. The fact is in the text beneath; this is a way of showing it. */
+            }
+            <p class="club-event-when" aria-hidden="true">
+              <b>{raceDay}</b><span>{raceMonth.slice(0, 3)}</span>
+            </p>
+            <div>
               {
-                /* ⚠️ **Decorative, because the row already says the date in full.** Left
-                  readable, a screen reader announces "1", "Nov" and then the whole date again
-                  a line later. The fact is in the text beneath; this is a way of showing it. */
+                /* **`/nn/` and not `/nn/2026/`.** That address is evergreen — it paints on
+                  whichever running is current from `entries.current_entry_state('nn')` — so
+                  this link keeps working when 2027 is published, and the entry journey from it
+                  is untouched by this change. */
               }
-              <p class="club-event-when" aria-hidden="true">
-                <b>{raceDay}</b><span>{raceMonth.slice(0, 3)}</span>
-              </p>
-              <div>
-                {
-                  /* **`/nn/` and not `/nn/2026/`.** That address is evergreen — it paints on
-                    whichever running is current from `entries.current_entry_state('nn')` — so
-                    this link keeps working when 2027 is published, and the entry journey from
-                    it is untouched by this change. */
-                }
-                <h3><a href="/nn/">Nightingale Nightmare</a></h3>
-                <p class="club-small">{raceDetails}</p>
-              </div>
-            </li>
-          </ul>
-        </section>
-
-        <section id="socials" aria-labelledby="socials-heading">
-          <h2 id="socials-heading">Social events</h2>
-          <p>Parties, and everything else the club does that is not a run.</p>
-
-          <ul class="club-events">
-            <li data-social-link="christmas-party-2026">
-              {
-                /* ⚠️ **Three elements that move together, and the shipped state is the
-                  honest one.** "TBC" is what this tile says until the Worker has read a date
-                  out of `store.socials`; `renderSocialRow()` then fills the two halves,
-                  reveals them and hides this one. An unreachable database, or a date the
-                  club has not confirmed, leaves exactly what is rendered here — which is why
-                  the date is **not** written into this markup. It is a column, and confirming
-                  one is an `update` and no deploy. */
-              }
-              <p class="club-event-when" aria-hidden="true">
-                <b class="club-event-when-tbc" data-social-tbc>TBC</b><b
-                  data-social-day
-                  hidden></b><span data-social-month hidden></span>
-              </p>
-              <div>
-                <h3>
-                  <a href="/events/christmas-party-2026/">SRC Christmas Party 2026</a>
-                </h3>
-                <p class="club-small" data-social-details>Details to be confirmed</p>
-              </div>
-            </li>
-          </ul>
-
-          {
-            /* Ships hidden and is revealed only when every social link above has been hidden.
-              A list with no visible items and nothing beneath it reads as a broken page; this
-              reads as true. */
-          }
-          <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
-        </section>
+              <h3><a href="/nn/">Nightingale Nightmare</a></h3>
+              <p class="club-small">{raceDetails}</p>
+            </div>
+          </li>
+        </ul>
       </div>
 
       {
-        /* ⚠️ **A flat panel, `aria-hidden`, with nothing written on it** — `/about/`'s exactly,
-          and for its reasons. A stripe pattern reads as a broken image and a bracketed caption
-          is the placeholder this build may not publish. When the club supplies photographs,
-          with consent from the people in them, this is replaced rather than filled in. */
+        /* ⚠️ **A flat panel until the club supplies a photograph, and it is replaced rather
+          than filled in.** `/about/`'s exactly, and for its reasons: a stripe pattern reads as
+          a broken image and a bracketed caption is the placeholder this build may not publish.
+          When a real photograph goes in here it becomes an `<Image>` — and `club.css`'s own
+          rule applies, that the slot's `aspect-ratio` is revisited to match the photograph
+          rather than cropping a third of it away. */
       }
+      <div class="club-photo club-photo-tall" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="club-sec club-sec-alt" id="socials" aria-labelledby="socials-heading">
+    <div class="club-wrap club-g2 club-split">
+      <div>
+        <h2 id="socials-heading">Social events</h2>
+        <p>Parties, and everything else the club does that is not a run.</p>
+
+        <ul class="club-events">
+          <li data-social-link="christmas-party-2026">
+            {
+              /* ⚠️ **Three elements that move together, and the shipped state is the honest
+                one.** "TBC" is what this tile says until the Worker has read a date out of
+                `store.socials`; `renderSocialRow()` then fills the two halves, reveals them
+                and hides this one. An unreachable database, or a date the club has not
+                confirmed, leaves exactly what is rendered here — which is why the date is
+                **not** written into this markup. It is a column, and confirming one is an
+                `update` and no deploy. */
+            }
+            <p class="club-event-when" aria-hidden="true">
+              <b class="club-event-when-tbc" data-social-tbc>TBC</b><b
+                data-social-day
+                hidden></b><span data-social-month hidden></span>
+            </p>
+            <div>
+              <h3>
+                <a href="/events/christmas-party-2026/">SRC Christmas Party 2026</a>
+              </h3>
+              <p class="club-small" data-social-details>Details to be confirmed</p>
+            </div>
+          </li>
+        </ul>
+
+        {
+          /* Ships hidden and is revealed only when every social link above has been hidden. A
+            list with no visible items and nothing beneath it reads as a broken page; this
+            reads as true. */
+        }
+        <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
+      </div>
+
       <div class="club-photo club-photo-tall" aria-hidden="true"></div>
     </div>
   </section>
