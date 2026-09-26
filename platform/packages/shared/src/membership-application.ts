@@ -149,7 +149,15 @@ const MESSAGES = {
   previousAffiliationMissing: 'Choose yes or no.',
   clubNameTooLong: `Use ${String(MEMBERSHIP_CLUB_NAME_MAX_LENGTH)} characters or fewer.`,
   eaUrnShape: 'A URN is digits only, with no spaces or letters.',
-  agreeRequired: 'You need to agree to this to join.',
+  // ⚠️ **Three messages, not one, and the error summary is why.** All three said "You need
+  // to agree to this to join", so a failed submission produced three identical links that
+  // named nothing — a list telling somebody there are three problems and not which. The
+  // summary is the one thing that makes a failed form navigable, so each entry has to be
+  // able to stand on its own.
+  agreeCodeOfConductRequired: 'You need to agree to the club code of conduct to join.',
+  agreePrivacyRequired:
+    'You need to confirm you have read how the club will use your details.',
+  agreeDisciplinaryRequired: 'You need to agree to the club disciplinary policy to join.',
 } as const;
 
 /** ⚠️ Worded here rather than in `phone.ts`, which returns a code so one rule can serve more
@@ -275,6 +283,30 @@ const yesNo = (missing: string) =>
     .transform((value) => value === true || value === 'yes');
 
 /**
+ * A checkbox that has to be ticked.
+ *
+ * ⚠️ **A ticked checkbox posts a string, and `z.literal(true)` can never match one.** This was
+ * `z.literal(true, …)` for all three policy boxes — which is the right *shape* and the wrong
+ * *type*: `<input type="checkbox" value="true">` submits the characters `true`, and the Worker
+ * reads a form body into `Record<string, string>`, so nothing on the real path has ever been a
+ * boolean. **The form could not be submitted at all**, and every attempt reported all three
+ * boxes as un-ticked while they were plainly ticked.
+ *
+ * ⚠️ **The tests passed throughout, because the fixture used booleans** — a shape the browser
+ * cannot produce. That is the failure this repository warns about in as many words: a test
+ * that asserts something the real path never does is a test that has stopped testing.
+ *
+ * `'on'` is accepted as well as `'true'`: a checkbox with **no** `value` attribute posts `on`,
+ * which is the default somebody would reintroduce by deleting one attribute from the markup.
+ * Booleans stay accepted because `create_manual_entry`-style callers and the database tests
+ * pass real ones.
+ */
+const ticked = (missing: string) =>
+  z
+    .union([z.literal(true), z.literal('true'), z.literal('on')], { error: missing })
+    .transform(() => true as const);
+
+/**
  * ⚠️ **`today` is a closure variable, not a field on the parsed object.**
  *
  * The first draft threaded it through the input so `superRefine` could read `value.today` —
@@ -391,9 +423,9 @@ function membershipSchema(
         })
         .optional(),
 
-      agreeCodeOfConduct: z.literal(true, { error: MESSAGES.agreeRequired }),
-      agreePrivacyPolicy: z.literal(true, { error: MESSAGES.agreeRequired }),
-      agreeDisciplinaryPolicy: z.literal(true, { error: MESSAGES.agreeRequired }),
+      agreeCodeOfConduct: ticked(MESSAGES.agreeCodeOfConductRequired),
+      agreePrivacyPolicy: ticked(MESSAGES.agreePrivacyRequired),
+      agreeDisciplinaryPolicy: ticked(MESSAGES.agreeDisciplinaryRequired),
     })
     .superRefine((value, ctx) => {
       const born = civilDate(value.dateOfBirth);

@@ -176,6 +176,92 @@ test.describe('the application form', () => {
   });
 });
 
+/**
+ * ⚠️ **Filling the form in and pressing the button — the test that was missing.**
+ *
+ * Every other test in this file inspects the form; none of them ever **submitted** it. That
+ * gap let a defect reach production that made the form impossible to submit at all: a ticked
+ * `<input type="checkbox" value="true">` posts the **string** `true`, the schema demanded the
+ * **boolean** `true`, and every attempt reported all three policy boxes as un-ticked while
+ * they were plainly ticked.
+ *
+ * **2,932 tests were green while that was true**, because the unit fixture used booleans — a
+ * shape a browser cannot produce. No amount of care in that file would have found it; only
+ * driving the real thing does.
+ *
+ * So this walks the whole path: type, tick, press, and land on the completion page. It is
+ * deliberately not a unit test of the schema, which is covered exhaustively elsewhere.
+ */
+test.describe('applying, all the way through', () => {
+  /** Invented, deterministic, at example.com — never a real address. */
+  const applicant = {
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+    email: 'zz-e2e-applicant@example.com',
+    phone: '07700 900123',
+    dateOfBirth: '1990-04-12',
+    addressLine1: '12 Dean Lane',
+    cityTown: 'Bristol',
+    postcode: 'BS3 1DB',
+  };
+
+  test('a completed form reaches the confirmation page', async ({ page }) => {
+    await page.goto('/membership/join/');
+
+    await page.getByLabel('Title').selectOption('Ms');
+    await page.getByLabel('First name').fill(applicant.firstName);
+    await page.getByLabel('Last name').fill(applicant.lastName);
+    await page.getByLabel('Email address').fill(applicant.email);
+    await page.getByLabel('Phone number').fill(applicant.phone);
+    await page.getByLabel('Date of birth').fill(applicant.dateOfBirth);
+    await page.getByLabel('Address line 1').fill(applicant.addressLine1);
+    await page.getByLabel('Town or city').fill(applicant.cityTown);
+    await page.getByLabel('Postcode').fill(applicant.postcode);
+
+    // ⚠️ **By id, not by accessible name.** The name of this radio is the whole card — the
+    // option, the painted price and the summary beneath it — so anchoring on "SRC membership"
+    // matches nothing and matching loosely would also match the £27 option.
+    await page.locator('#membershipType-club').check();
+    await page
+      .getByRole('group', { name: /registered with England Athletics before/u })
+      .getByRole('radio', { name: 'No' })
+      .check();
+
+    // ⚠️ **The three ticks are the point of this test.** Checking them through a browser is
+    // what sends `"true"` rather than `true`, which is the difference nothing else could see.
+    await page
+      .getByRole('checkbox', { name: /how the club will use my details/u })
+      .check();
+    await page.getByRole('checkbox', { name: /code of conduct/u }).check();
+    await page.getByRole('checkbox', { name: /disciplinary policy/u }).check();
+
+    await page.getByRole('button', { name: 'Send my application' }).click();
+
+    await expect(page).toHaveURL(/\/membership\/join\/complete\/$/u);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Thanks — we have your application',
+    );
+  });
+
+  /**
+   * ⚠️ **The summary is what makes a failed form navigable**, and three identical entries make
+   * it useless. All three policy messages read "You need to agree to this to join" until
+   * 26 September 2026, so somebody was told there were three problems and not which.
+   */
+  test('a submission missing the ticks says which tick', async ({ page }) => {
+    await page.goto('/membership/join/');
+
+    await page.getByLabel('First name').fill(applicant.firstName);
+    await page.getByRole('button', { name: 'Send my application' }).click();
+
+    // The browser stops it before the server is asked, which is the first guard working.
+    await expect(page).toHaveURL(/\/membership\/join\/$/u);
+    await expect(
+      page.getByRole('checkbox', { name: /code of conduct/u }),
+    ).toHaveAttribute('required', '');
+  });
+});
+
 test.describe('the form at the widths people fill it in at', () => {
   for (const [label, size] of [
     ['a phone', PHONE],
