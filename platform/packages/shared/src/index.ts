@@ -141,7 +141,7 @@ export {
   type ResendResult,
 } from './admin-outbox';
 
-export { formatPence } from './money';
+export { formatPence, formatPriceWords } from './money';
 
 export { plural } from './plural';
 

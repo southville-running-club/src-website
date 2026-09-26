@@ -1147,6 +1147,18 @@ worse of the two because the line still looks like coverage.
 `nn-entry-complete.spec.ts`'s "a real session id reveals nothing about anybody either" is the
 shape to copy.
 
+⚠️ **The mirror of that is a needle colliding with the club's own boilerplate, and a _realistic_
+fixture is what walks into it.** The rule above says derive the value rather than write a
+literal; this says the derived value still has to be a string only a leak could put there. The
+club's real address is **Dean Lane, Southville**, and both words are printed in the membership
+acknowledgement as the club's own name and its meeting place — so a fixture giving the applicant
+a plausible Bristol address made `expect(html).not.toContain('Southville')` fail against a
+template that had leaked nothing at all. It cost one run on 26 September 2026 and was cheap only
+because it failed towards **failing**; the same collision in a presence assertion passes
+silently for ever, which is the expensive direction and is the paragraph above. Invented, yes —
+and invented *away from* whatever the template prints about the club itself.
+`membership-email-skin.test.ts`'s fixture says so where somebody changing it will read it.
+
 ### Environment, build and tooling, once more
 
 ⚠️ **`./dev e2e <spec>` with no `--project` runs all four engines at once, and they collide.**
