@@ -1,10 +1,33 @@
 import { expect, test } from '@playwright/test';
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
+
 import { axeViolations } from '../axe';
 
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
- * `/events/` — the club's socials, and the Christmas party's page.
+ * The race's own facts, read the way the page reads them.
+ *
+ * ⚠️ **The same file the page reads, rather than the date typed out here.** A literal stops
+ * testing silently the moment the value moves, and this repository has already shipped a leak
+ * assertion that passed for months because its literal had gone stale.
+ *
+ * ⚠️ **Read from disk rather than `import`ed.** A bare `import race from '…/race.json'` works
+ * in an Astro page, where Vite handles it, and fails in a Playwright spec with *"needs an
+ * import attribute of type: json"*. `club-chrome.spec.ts` already reads `club.json` this way;
+ * copying that is cheaper than an import attribute the two module systems disagree about.
+ */
+const race = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../src/content/race.json', import.meta.url)),
+    'utf8',
+  ),
+) as { date: string; hqName: string };
+
+/**
+ * `/events/` — the races-and-events hub, and the Christmas party's page.
  *
  * ## Why the axe scans carry `@requires-js` and nothing else here does
  *
@@ -26,22 +49,142 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
  * or offered a form that cannot take money.
  */
 
+/**
+ * ⚠️ **Every address `/events/` served before it moved onto the club surface.**
+ *
+ * This is the most important assertion in the file, and the reason it is a list rather than a
+ * handful of `toBeVisible()` calls. `/events/christmas-party-2026/` is where somebody buys a
+ * ticket; `/nn/` is the way into an entry window with real money going through it. A redesign
+ * that quietly renamed one, dropped a trailing slash, or pointed it at a prettier address
+ * would break a live payment route and **look completely fine on the page**.
+ *
+ * So the rule this file enforces is: *nothing here may disappear and nothing may be
+ * re-pointed.* The page is allowed to grow links — moving onto `ClubBase` brings the club's
+ * own six sections, its call to action and the footer's map link, which is not optional once
+ * the page wears that header — and it is not allowed to lose one.
+ */
+const PRESERVED = [
+  '#main',
+  '/',
+  'https://southvillerunningclub.co.uk',
+  '/nn/',
+  '/events/',
+  '/events/christmas-party-2026/',
+  '/account/',
+  '/privacy/',
+  'https://www.instagram.com/southvillerunningclub/',
+  'https://www.facebook.com/groups/22333122208',
+  'https://twitter.com/SouthvilleRC',
+  'https://www.tiktok.com/@southvillerunningclub',
+] as const;
+
 test.describe('the events section', () => {
-  test('is offered from the club bar and lists the party', async ({ page }) => {
+  /**
+   * ⚠️ **The one that guards the money routes.**
+   *
+   * Read off the DOM rather than asserted link by link, so a destination that changed shape —
+   * `/nn` for `/nn/`, an absolute URL for a root-relative one — fails here rather than passing
+   * a `toBeVisible()` on whatever happens to carry the same words.
+   */
+  test('still serves every address it served before the redesign', async ({ page }) => {
     await page.goto('/events/');
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Events' })).toBeVisible();
+    const hrefs = new Set(
+      await page
+        .locator('a[href]')
+        .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? '')),
+    );
+
+    for (const href of PRESERVED) {
+      expect(hrefs, `${href} is no longer on /events/`).toContain(href);
+    }
+  });
+
+  /**
+   * The page itself is one of those addresses.
+   *
+   * `trailingSlash` is `'always'`, and a 200 reached *through a redirect* is still a moved
+   * address — which is the shape a trailing-slash mistake takes and the shape that costs a
+   * link somebody has already shared.
+   */
+  test('is still at /events/, with no redirect', async ({ page }) => {
+    const response = await page.goto('/events/');
+
+    expect(response?.status()).toBe(200);
+    expect(new URL(page.url()).pathname).toBe('/events/');
+    expect(response?.request().redirectedFrom()).toBeNull();
+  });
+
+  test('is headed Races and events', async ({ page }) => {
+    await page.goto('/events/');
+
     await expect(
-      page.getByRole('link', { name: 'SRC Christmas Party 2026' }),
+      page.getByRole('heading', { level: 1, name: 'Races and events' }),
     ).toBeVisible();
   });
 
+  /**
+   * ⚠️ **Located by class, not by role name.** The club header renders two navigations — the
+   * bar and the Menu — whose accessible names are "Southville Running Club" and "Southville
+   * Running Club, menu". `getByRole`'s `name` matches a **substring** by default, so the
+   * obvious locator matches both and fails strict mode at any width where the Menu is in the
+   * tree. `club-chrome.spec.ts` gets away with it only by setting a desktop viewport first.
+   */
   test('marks itself as the section being read', async ({ page }) => {
     await page.goto('/events/');
 
-    const nav = page.getByRole('navigation', { name: 'Southville Running Club' });
+    await expect(page.locator('.club-nav [aria-current="page"]')).toHaveText(
+      'Races and events',
+    );
+  });
 
-    await expect(nav.locator('[aria-current="page"]')).toHaveText('Events');
+  /**
+   * The two sections, and that the right race and the right party are in each.
+   *
+   * Scoped to the section rather than to the page: both links exist on the page whichever
+   * section they are in, so an assertion that did not scope would pass with the two swapped.
+   */
+  test('files the race under Races and the party under Social events', async ({
+    page,
+  }) => {
+    await page.goto('/events/');
+
+    await expect(
+      page.locator('#races').getByRole('link', { name: 'Nightingale Nightmare' }),
+    ).toHaveAttribute('href', '/nn/');
+
+    await expect(
+      page.locator('#socials').getByRole('link', { name: 'SRC Christmas Party 2026' }),
+    ).toHaveAttribute('href', '/events/christmas-party-2026/');
+
+    // And the jump links reach them, which is the only thing this change adds to the page.
+    await expect(page.getByRole('link', { name: 'Races', exact: true })).toHaveAttribute(
+      'href',
+      '#races',
+    );
+    await expect(
+      page.getByRole('link', { name: 'Social events', exact: true }),
+    ).toHaveAttribute('href', '#socials');
+  });
+
+  /**
+   * ⚠️ **The race's date is read from `race.json`; the party's is not in this repository.**
+   *
+   * A page showing last year's date looks exactly like one showing this year's, which is why
+   * the race's is asserted as the *same string the build read* rather than as a literal. The
+   * party's lives in `store.socials` and is painted only on its own page, so this one says
+   * TBC — and the expensive failure would be somebody typing a date in here to tidy that up.
+   */
+  test('shows the race date it read, and claims nothing about the party', async ({
+    page,
+  }) => {
+    await page.goto('/events/');
+
+    const races = page.locator('#races');
+    await expect(races).toContainText(race.date);
+    await expect(races).toContainText(race.hqName);
+
+    await expect(page.locator('#socials')).toContainText('Details to be confirmed');
   });
 
   test('has no accessibility violations @requires-js', async ({ page }) => {
@@ -51,6 +194,47 @@ test.describe('the events section', () => {
     const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
+  });
+
+  test('has none on a phone either @requires-js', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/events/');
+
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  for (const [name, size] of [
+    ['320', { width: 320, height: 720 }],
+    ['1440', { width: 1440, height: 900 }],
+  ] as const) {
+    test(`does not scroll sideways at ${name}px`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await page.goto('/events/');
+
+      await expectNoSidewaysScroll(page, `/events/ at ${name}px`);
+    });
+  }
+
+  /**
+   * ⚠️ **44px, at the width where it matters.** The rows are the page's whole purpose and
+   * they are read on a phone, outdoors. The club footer carries a named assertion of the same
+   * floor for the same reason — *"a named assertion beats a rule that happens to cover it"*:
+   * this says which link and how tall, where the axe sweep says only that some target is
+   * too small.
+   */
+  test('gives every event link a real tap target', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto('/events/');
+
+    for (const name of ['Nightingale Nightmare', 'SRC Christmas Party 2026']) {
+      const box = await page
+        .locator('.club-events')
+        .getByRole('link', { name })
+        .boundingBox();
+
+      expect(box, `${name} was not on the page`).not.toBeNull();
+      expect(box?.height ?? 0, `${name} is too short to tap`).toBeGreaterThanOrEqual(44);
+    }
   });
 });
 

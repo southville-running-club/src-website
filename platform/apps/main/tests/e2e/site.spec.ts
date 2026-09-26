@@ -348,10 +348,15 @@ test.describe('the bar between the parts of this site', () => {
 
     // ⚠️ **This used to mark `Home` on `/`, and `/` is on the club's chrome now** — ADR-048,
     // where there is no "Home" item at all: the wordmark is the Home link and carries
-    // `aria-current` itself, which `club-chrome.spec.ts` asserts. `/events/` still renders
-    // this bar, so it is what proves the marking mechanism here rather than the label.
-    // **Put `/` and `Home` back** in the change that moves the money pages across.
-    await page.goto('/events/');
+    // `aria-current` itself, which `club-chrome.spec.ts` asserts.
+    //
+    // ⚠️ **And it used to read `/events/`, which moved to the club's chrome on 26 September
+    // 2026 and renders no `.site-nav` at all.** The party's own page is the stand-in: it is
+    // frozen until after the race, it still renders this bar, and `/^\/events(\/|$)/` marks
+    // the same item under the same label — so this goes on proving the marking mechanism
+    // rather than the address. **Put `/` and `Home` back** in the change that moves the money
+    // pages across.
+    await page.goto('/events/christmas-party-2026/');
     await expect(nav.locator('[aria-current="page"]')).toHaveText('Events');
   });
 
