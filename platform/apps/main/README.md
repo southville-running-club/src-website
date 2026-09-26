@@ -462,6 +462,90 @@ places it appears.
 
 *(`links.json` lands with the pages that use it.)*
 
+### ⚠️ What membership costs is not content, and may not go back into `membership.json`
+
+**Two prices are read from the database on every request** —
+[ADR-049](../../../docs/architecture/decisions/adr-049-what-membership-costs-lives-in-the-database.md).
+The club asked that a fee rise be one SQL statement rather than a deploy, which is what
+`entries.fees` and `store.ticket_types` already give the race and the party:
+
+```sql
+update membership.membership_types set price_pence = 500 where code = 'club';
+```
+
+Every page changes on the next request. Nothing is deployed and no page can be missed.
+
+| Fact | Where it lives | Changing it |
+| --- | --- | --- |
+| Annual membership — **£4** | `membership.membership_types`, `code = 'club'` | `update`, no deploy |
+| Membership + England Athletics — **£27** | `membership.membership_types`, `code = 'club_ea'` | `update`, no deploy |
+| England Athletics' own share — **£23** | the same row's `ea_fee_pence` | `update`, no deploy |
+| Minimum age — **18** | `membership.settings.minimum_age` | `update`, no deploy |
+| Paying for one run — **50p** | `membership.json` | A deploy. Not membership; it is the Southbank Club's hire cost |
+| The unlimited-runs subscription — **£2.50 a month** | `membership.json` | A deploy. A subscription rather than membership |
+
+**Three pages carry a painted price**: `/`, `/membership/` and `/membership/join/`.
+`worker/membership.ts` resolves `membership.membership_state()` and fills every
+`[data-membership-price]`, `[data-membership-ea-split]` and `[data-membership-minimum-age]` on
+them.
+
+⚠️ **`membershipSchema` is `.strict()`, which is the only strict schema in `club-content.ts`.**
+Zod drops an unknown key silently, so without it a `membershipPerYearPence` added back to
+`membership.json` would be accepted, ignored, and invisible — somebody would edit a price, see
+nothing change, and have no way to find out why. `tests/worker/membership.test.ts` also asserts
+that **no built page contains `£4`, `£27` or `£23` at all**, which is what actually keeps the
+statement above true.
+
+**Every failure paints nothing**, and the shipped page then says it cannot show what membership
+costs and links to the club's existing form. ⚠️ A page that cannot reach the database must never
+quote a price: a figure somebody joins on is one they will act on.
+
+⚠️ **`/` is therefore no longer edge-cacheable.** The assets binding serves `dist/` with an
+`ETag` describing the file and the Worker rewrites the body, so a painted response is marked
+uncacheable — otherwise a conditional request answers `304` with the unpainted page. The home
+page joins `/nn/*` in paying one small database read per view.
+
+### `/membership/join/` — the application form, which is linked from nowhere
+
+**The form renders and stores nothing**, and that is the state it ships in.
+`membership.membership_applications` does not exist, because a table holding eighteen fields of
+personal data — a date of birth and a home address among them — is a committee decision under
+[the stop-and-ask list](../../../CLAUDE.md#stop-and-ask--do-not-resolve-these-by-inference),
+not a build one. Two things are owed before it can be built:
+
+1. **The committee's decision**, with a retention period.
+2. **Privacy-notice wording** for this collection and for passing a name, date of birth and
+   email address to England Athletics. `/privacy/` says nothing about either today, and
+   collecting an address under a notice that does not mention one is the breach rather than
+   the paperwork.
+
+⚠️ **So nothing links to it** — not `CLUB_NAV`, not `/membership/` — and that absence is
+asserted by `tests/e2e/membership-join.spec.ts` and `tests/worker/membership.test.ts` rather
+than left to intention. **A form somebody can find and fill in that throws their answers away
+is worse than no form at all**, and "we will link it when the table lands" is exactly the kind
+of plan that survives one merge and not two. Both tests say in their own comments to delete
+that assertion in the same change that adds the table, and not before.
+
+What is real today: the markup, the eighteen rules it declares
+(`packages/shared/src/membership-application.ts`), the country list
+(`packages/shared/src/countries.ts`), the phone parsing into E.164
+(`packages/shared/src/phone.ts`), the painted prices, and the accessibility.
+
+⚠️ **The membership radios ship `hidden` *and* `disabled`, and both come off together.**
+`hidden` alone does not stop a control being validated — a `required` control that is hidden
+and empty makes the browser refuse to submit the form, silently, with no request on the wire.
+That took the entry form down for every signed-in runner on 31 August 2026. `EnableHandler` in
+`worker/membership.ts` is the half that opens them.
+
+⚠️ **Both policy checkboxes link to the club documents page rather than to the documents.** The
+club has not supplied a direct address for the code of conduct or the disciplinary policy, and
+inventing one that looks right would produce a checkbox asking somebody to agree to a 404. When
+the two addresses are supplied, adding a `code-of-conduct` and a `disciplinary-policy` key to
+`links.json` and naming them in `MembershipForm.astro` is the whole change.
+
+**The notification address the club chose is `membership@southvillerunningclub.co.uk`.** Nothing
+sends to it yet; it arrives with the table, alongside an acknowledgement to the applicant.
+
 ---
 
 ## The banner

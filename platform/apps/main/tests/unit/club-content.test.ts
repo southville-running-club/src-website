@@ -135,53 +135,68 @@ describe('the schemas refuse a malformed file', () => {
     const membership = content('membership.json') as Record<string, unknown>;
 
     expect(() =>
-      membershipSchema.parse({ ...membership, membershipPerYearPence: -400 }),
+      membershipSchema.parse({ ...membership, payPerRunPence: -50 }),
     ).toThrow();
+  });
+
+  /**
+   * ⚠️ **The two membership prices are in the database and may not come back here.**
+   *
+   * `membership.membership_types` holds what a year of membership costs and what the England
+   * Athletics option costs, so that raising a fee is one `update` and no deploy — which is
+   * what the club asked for. A key reappearing in this file would be a second source that
+   * agreed on the day it was added and stopped agreeing the day somebody ran that statement,
+   * and nothing on the page would look wrong.
+   *
+   * The schema has no such key, so this asserts the **strictness** rather than the absence:
+   * Zod strips unknown keys by default, and a `parseMembership` that quietly accepted a
+   * `membershipPerYearPence` somebody had re-added would make this file's whole argument
+   * unenforceable.
+   */
+  it('refuses a membership price re-added to the content file', () => {
+    const membership = content('membership.json') as Record<string, unknown>;
+
+    for (const key of ['membershipPerYearPence', 'englandAthleticsPence']) {
+      expect(() => membershipSchema.parse({ ...membership, [key]: 400 }), key).toThrow();
+    }
   });
 });
 
 describe('an absent fact renders honestly', () => {
   /**
-   * ⚠️ **The England Athletics licence price, which is the sharpest case on the site.**
+   * ⚠️ **What the markup ships where a database price will be painted.**
    *
-   * The old site quotes **£23, £24 and £27** and the club has not said which is right. So the
-   * card reads "Price to be confirmed" and still links to Join. What it may never do is pick
-   * one of the three, render `£NaN`, render an empty string, or render the word `null` —
-   * every one of which is a plausible outcome of somebody "simplifying" the branch away.
+   * Annual membership and the England Athletics option are read from
+   * `membership.membership_types` on every request, so the built page carries a placeholder
+   * and `worker/membership.ts` replaces it. That placeholder is what a reader sees whenever
+   * the database cannot be reached, so it has to be a sentence somebody can act on — and it
+   * may never be `£NaN`, an empty string, the word `null`, or one of the three figures the
+   * old site quotes for the licence, every one of which is a plausible outcome of somebody
+   * "simplifying" the branch away.
    */
-  it('renders the England Athletics price as to-be-confirmed while it is null', () => {
-    const membership = parseMembership(content('membership.json'));
-
-    expect(membership.englandAthleticsPence).toBeNull();
-
-    const shown =
-      membership.englandAthleticsPence === null
-        ? PRICE_TO_BE_CONFIRMED
-        : formatPriceWords(membership.englandAthleticsPence);
+  it('ships a placeholder rather than a figure where a price is painted', () => {
+    const shown = PRICE_TO_BE_CONFIRMED;
 
     expect(shown).toBe('Price to be confirmed');
     expect(shown).not.toBe('');
     expect(shown).not.toContain('undefined');
     expect(shown).not.toContain('null');
     expect(shown).not.toContain('NaN');
-    // And it is not quietly one of the three figures the old site quotes.
     for (const guess of ['£23', '£24', '£27']) expect(shown).not.toContain(guess);
   });
 
-  it('renders a supplied England Athletics price through formatPriceWords', () => {
-    // The other half of the branch, so that confirming the figure is a one-key edit and the
-    // rendering is already proved.
-    const shown = formatPriceWords(2400);
-
-    expect(shown).toBe('£24');
+  it('renders a painted price through formatPriceWords', () => {
+    // The other half, so the Worker's rendering is proved here rather than only where it is
+    // called. £4 and £27 are what `membership.membership_types` holds today.
+    expect(formatPriceWords(400)).toBe('£4');
+    expect(formatPriceWords(2700)).toBe('£27');
   });
 
   it('shows the club’s own prices in the club’s own words', () => {
     const m = parseMembership(content('membership.json'));
 
-    // "Run for 50p. Join for £4." — the page's heading, and what these have to produce.
+    // "Run for 50p" — the membership page's heading, and what this has to produce.
     expect(formatPriceWords(m.payPerRunPence)).toBe('50p');
-    expect(formatPriceWords(m.membershipPerYearPence)).toBe('£4');
     expect(formatPriceWords(m.subscriptionPerMonthPence)).toBe('£2.50');
   });
 

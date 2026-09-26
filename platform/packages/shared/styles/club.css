@@ -160,6 +160,15 @@
   --club-highlight: #ffe9a8;
   --club-on-highlight: #16301f;
 
+  /* ⚠️ **The one red in this design, and it is text rather than decoration.** A form error
+     is read, so it clears the 4.5:1 body-text floor rather than the 3:1 non-text one:
+     7.46:1 on a card, 6.86:1 on the page, 6.42:1 on the alternate band.
+
+     **The error message is never the only signal.** Each one names the box it is about, sits
+     beside that box, and is repeated in the summary at the top of the form — so somebody who
+     cannot see the colour loses nothing. Colour alone would be 1.4.1, whatever it measured. */
+  --club-danger: #a3231b;
+
   /* The focus ring. 13.06:1 on the page — the same ink as body text, so it is unmistakable
      on every surface this design has. */
   --club-focus: #16301f;
@@ -216,6 +225,12 @@
     --club-rule: #2a4232;
     /* 4.54:1 on the page, 4.07:1 on a card. */
     --club-rule-strong: #76887a;
+
+    /* The same rule one scheme along: 8.56:1 on the page, 7.68:1 on a card, 8.13:1 on the
+       alternate band. A dark scheme needs a *lighter* red rather than the light scheme’s
+       dimmed — `#a3231b` measures 1.62:1 on the dark page, which is the mistake an amber
+       wash already shipped once in `nn-admin.css`. */
+    --club-danger: #ff9d94;
 
     /* The ring inverts with the ink it matches: 15.05:1. */
     --club-focus: #eaf3e7;
@@ -1285,6 +1300,350 @@ img.club-photo-wide {
 }
 
 /* -------------------------------------------------------------------------------------
+ * Forms
+ * -------------------------------------------------------------------------------------
+ * The membership application, and whatever the club builds next.
+ *
+ * ## ⚠️ Nothing here is a custom control
+ *
+ * The radios and checkboxes are the browser's own, sized up and tinted with `accent-color`.
+ * A hand-drawn control means re-implementing focus, the high-contrast modes, the indeterminate
+ * state, forced colours and every screen reader's idea of what a radio is — and this
+ * repository has one accessibility budget, spent on getting the ordinary things right rather
+ * than on rebuilding a control that already works. The label does the clickable-area work
+ * instead, which is what makes the target big without anything being redrawn.
+ *
+ * ## The measure
+ *
+ * `.club-wrap-narrow` is a form's width, not a page's. A text input as wide as a 1200px
+ * container is a target somebody has to track across a monitor, and a line of hint text at
+ * that width is past every legibility measure there is.
+ */
+
+/* The form and the page it sits on share one narrow column. */
+.club-wrap-narrow {
+  max-width: 44rem;
+}
+
+.club-form {
+  margin-top: 2rem;
+}
+
+/* ⚠️ **A `<fieldset>` with no border, and the `min-width: 0` is load-bearing.** A fieldset
+   has a UA default of `min-inline-size: min-content`, which makes it refuse to shrink below
+   its widest child — so a long `<legend>` or a wide select inside one stops the whole column
+   narrowing and the page scrolls sideways at 320px. Nothing looks wrong at desktop width. */
+.club-fieldset,
+.club-subfieldset {
+  min-width: 0;
+  margin: 0 0 2.5rem;
+  padding: 0;
+  border: 0;
+}
+
+.club-subfieldset {
+  margin-bottom: 0;
+}
+
+.club-fieldset > legend {
+  padding: 0;
+}
+
+/* The section headings inside a legend carry the page's own heading scale. A legend is not a
+   heading to a screen reader, so the `<h2>` inside it is what puts these in the outline. */
+.club-fieldset > legend h2 {
+  margin: 0 0 1rem;
+}
+
+.club-fieldset + .club-fieldset {
+  padding-top: 2rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-field {
+  margin-bottom: 1.5rem;
+}
+
+/* Two fields that belong on one line where there is room — a first and last name, a town and
+   a postcode. They stack below 30em, which is every phone. */
+.club-field-row {
+  display: grid;
+  gap: 0 1rem;
+}
+
+.club-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+/* A legend used as a label needs the same weight and the same spacing, and it is a legend so
+   it does not inherit the block layout a `<label>` has. */
+legend.club-label {
+  padding: 0;
+}
+
+.club-optional {
+  font-weight: 400;
+  color: var(--club-muted);
+}
+
+.club-hint {
+  margin: 0 0 0.5rem;
+  color: var(--club-muted);
+  font-size: 0.95rem;
+}
+
+/* ⚠️ **Never colour alone.** Every message names its own field, sits beside that field, and
+   is repeated in the summary at the top of the form. The red is the fourth signal, not the
+   first. */
+.club-error {
+  margin: 0 0 0.5rem;
+  color: var(--club-danger);
+  font-weight: 700;
+}
+
+.club-input,
+.club-select {
+  display: block;
+  width: 100%;
+  /* 48px at the default size, which clears WCAG 2.2's 24px target floor with room for a
+     thumb. The form is filled in on a phone by most of the people who fill it in. */
+  min-height: 48px;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--club-rule-strong);
+  border-radius: 10px;
+  background: var(--club-surface);
+  color: inherit;
+  /* ⚠️ `font: inherit` and not a size: a control that inherits nothing renders at the UA's
+     13px, which iOS then zooms the page to reach. `inherit` is what stops that. */
+  font: inherit;
+}
+
+.club-select {
+  /* The UA arrow needs somewhere to go that is not on top of the text. */
+  padding-right: 2.5rem;
+}
+
+/* A postcode and a URN are short. A box the width of the column invites a sentence. */
+.club-input-short {
+  max-width: 12rem;
+}
+
+/* ⚠️ **A date input is not a text input and must not be stretched like one.** Safari renders
+   `type="date"` at its intrinsic width and centres its own spinner; a full-width one leaves a
+   long empty strip somebody taps and nothing happens. */
+.club-input-date {
+  max-width: 16rem;
+}
+
+.club-input:focus-visible,
+.club-select:focus-visible {
+  border-color: var(--club-focus);
+}
+
+/* An error's own box says so without colour: the border is twice as thick, which survives a
+   forced-colours mode and a monochrome screen. */
+.club-input[aria-invalid='true'],
+.club-select[aria-invalid='true'] {
+  border-color: var(--club-danger);
+  border-width: 3px;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Radios and checkboxes
+ * ------------------------------------------------------------------------------------- */
+
+.club-choices {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Yes and no belong on one line. They wrap rather than shrink, because two 44px targets side
+   by side at 320px is tighter than it reads. */
+.club-choices-inline {
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  justify-content: start;
+  gap: 0.75rem;
+}
+
+/* ⚠️ **The label is the target, and it is the label rather than the card.**
+   The first draft stretched a `::after` over the whole card so any part of it would toggle
+   the radio — which works, and puts an absolutely positioned overlay on top of the control
+   itself. A pointer landing on the overlay is a pointer that did not land on the radio, and
+   every automated actionability check then has to reason about whether the label forwards it.
+   The label already holds the name, the price and the summary, so it is three lines tall
+   without any help; that is the target, and the radio beside it is the other one. */
+.club-choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid var(--club-rule-strong);
+  border-radius: 14px;
+  background: var(--club-surface);
+}
+
+.club-choice-small {
+  padding: 0.75rem 1.25rem;
+  align-items: center;
+}
+
+.club-radio,
+.club-checkbox {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin: 0;
+  /* The club green as a fill on a control, which is what that green is for. */
+  accent-color: var(--club-brand);
+}
+
+/* The radio sits on the first line of a label that may run to three. */
+.club-choice .club-radio {
+  margin-top: 0.15rem;
+}
+
+.club-choice-small .club-radio {
+  margin-top: 0;
+}
+
+.club-choice-label {
+  display: grid;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.club-choice-name {
+  font-weight: 700;
+}
+
+.club-choice-price {
+  font-family: var(--club-font-display);
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.club-choice-summary,
+.club-choice-split {
+  color: var(--club-muted);
+  font-size: 0.95rem;
+}
+
+/* A chosen option is outlined in the club green rather than merely ticked. `:has()` is what
+   lets the card know, and a browser without it simply shows the ordinary border — the radio
+   itself is still checked, so nothing is lost but the emphasis. */
+.club-choice:has(:checked) {
+  border-color: var(--club-brand);
+  box-shadow: inset 0 0 0 1px var(--club-brand);
+}
+
+/* ⚠️ **The focus ring goes on the card, not on the 20px circle inside it.** `:focus-within`
+   is what moves it, and without this a keyboard user gets a ring around something they can
+   barely see on a card that gives no sign of being the current one. */
+.club-choice:focus-within {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 3px;
+}
+
+.club-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  /* 44px of vertical room for a single-line label, so the checkbox and its words are one
+     target rather than two small ones. */
+  min-height: 44px;
+  padding: 0.5rem 0;
+}
+
+.club-checkbox {
+  margin-top: 0.2rem;
+}
+
+.club-check-label {
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The blocks around a form
+ * ------------------------------------------------------------------------------------- */
+
+/* What to expect before the first box. */
+.club-callout {
+  padding: 1.5rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+  border-left: 6px solid var(--club-brand);
+}
+
+.club-callout h2 {
+  margin-top: 0;
+  font-size: 1.3rem;
+}
+
+.club-callout > :last-child {
+  margin-bottom: 0;
+}
+
+/* ⚠️ **The highlight carries its own ink and that is not decoration.** `--club-highlight` is
+   the same pale yellow in both schemes — a highlight that inverted would stop being one — so
+   the text on it has to be dark in both. Left to `--club-text` the dark scheme puts near-white
+   on pale yellow and measures 1.06:1: not hard to read, absent. 11.83:1 as written. */
+.club-notice {
+  padding: 1rem 1.25rem;
+  margin-bottom: 2.5rem;
+  border-radius: 14px;
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.club-notice a {
+  color: inherit;
+}
+
+/* ⚠️ **The summary is bordered and headed, never a red paragraph.** It is the first child of
+   the form and takes focus on a failed submission, so it has to read as a thing somebody has
+   been sent to rather than as a line that changed colour. */
+.club-error-summary {
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  border: 3px solid var(--club-danger);
+  border-radius: 14px;
+  background: var(--club-surface);
+}
+
+.club-error-summary h2 {
+  margin: 0 0 0.75rem;
+  color: var(--club-danger);
+  font-size: 1.3rem;
+}
+
+.club-error-summary ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.club-error-summary a {
+  color: var(--club-danger);
+}
+
+.club-form-actions {
+  padding-top: 1rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-form-actions .club-btn {
+  width: 100%;
+}
+
+.club-form-actions .club-small {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------------------
  * Widths
  * -------------------------------------------------------------------------------------
  * ⚠️ **Media queries in `em`, not the mockup's container queries.** The mockup put the whole
@@ -1303,6 +1662,20 @@ img.club-photo-wide {
   .club-cta {
     display: inline-flex;
     padding: 0.55rem 1rem;
+  }
+
+  /* A first and last name, or a town and a postcode, side by side. Below this they stack —
+     two text inputs on one line at 320px are two boxes too narrow to read what is in them. */
+  .club-field-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* ⚠️ **Full-width below this, and it is not only aesthetics.** A submit button that fills
+     a 320px screen is the one target somebody is certain to hit with a thumb; at any width
+     where the form itself is comfortable, a button as wide as the column reads as a banner
+     rather than as a control. */
+  .club-form-actions .club-btn {
+    width: auto;
   }
 }
 

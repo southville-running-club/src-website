@@ -42,7 +42,7 @@ try {
       // separate strings in separate files: widen one and CI regenerates a different set of
       // schemas than a volunteer does, so the committed file is stale or spuriously dirty
       // depending on which ran last. `timing` joined both on 12 September 2026.
-      'club,intake,entries,identity,store,timing',
+      'club,intake,entries,identity,store,timing,membership',
     ],
     { cwd: packageRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   );

@@ -1005,6 +1005,84 @@ export type Database = {
       [_ in never]: never
     }
   }
+  membership: {
+    Tables: {
+      membership_types: {
+        Row: {
+          active: boolean
+          code: string
+          display_name: string
+          ea_fee_pence: number | null
+          price_pence: number
+          sort_order: number
+          summary: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          display_name: string
+          ea_fee_pence?: number | null
+          price_pence: number
+          sort_order?: number
+          summary?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          display_name?: string
+          ea_fee_pence?: number | null
+          price_pence?: number
+          sort_order?: number
+          summary?: string | null
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          ea_cutoff_day: number
+          ea_cutoff_month: number
+          id: boolean
+          minimum_age: number
+        }
+        Insert: {
+          ea_cutoff_day?: number
+          ea_cutoff_month?: number
+          id?: boolean
+          minimum_age: number
+        }
+        Update: {
+          ea_cutoff_day?: number
+          ea_cutoff_month?: number
+          id?: boolean
+          minimum_age?: number
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      membership_state: {
+        Args: never
+        Returns: {
+          code: string
+          display_name: string
+          ea_fee_pence: number
+          minimum_age: number
+          price_pence: number
+          sort_order: number
+          summary: string
+        }[]
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   store: {
     Tables: {
       api_secrets: {
@@ -1967,6 +2045,9 @@ export const Constants = {
     Enums: {},
   },
   intake: {
+    Enums: {},
+  },
+  membership: {
     Enums: {},
   },
   store: {

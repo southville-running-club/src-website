@@ -98,7 +98,7 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).toContain('store');
   });
 
-  it('exposes nothing beyond public, graphql_public, intake, entries, identity, store and timing', () => {
+  it('exposes nothing beyond public, graphql_public, intake, entries, identity, store, timing and membership', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
     // silently is precisely the failure this file exists to prevent — and it worked: adding
     // `store` to `config.toml` for ADR-033 turned this line red before anything else noticed,
@@ -108,11 +108,24 @@ describe('what the Data API can route to', () => {
     // for one object — `timing.results_for_event()`, the read behind `/nn/<year>/results/` —
     // and deliberately absent until that function existed. Every `timing` table refuses both
     // roles; `tests/timing.test.ts` is what asserts it.
+    //
+    // **`membership` is the eighth**, added on 21 September 2026 for one object as well:
+    // `membership.membership_state()`, the read behind the membership page's prices. The club
+    // raises its fees about once a year and asked for that to be a query rather than a deploy,
+    // which is only possible if the page can read the table's answer at request time. Both
+    // `membership` tables refuse `anon` and `authenticated` in both verbs;
+    // `tests/membership.test.ts` walks them and names the one granted function.
+    //
+    // ⚠️ **It holds no personal data and must not acquire any quietly.** A
+    // `membership_applications` table — a date of birth, a home address, a phone number — is a
+    // committee decision, and `tests/membership.test.ts` asserts it does not exist so that
+    // adding it fails loudly for whoever has the committee's answer.
     expect(exposedSchemas().sort()).toEqual([
       'entries',
       'graphql_public',
       'identity',
       'intake',
+      'membership',
       'public',
       'store',
       'timing',

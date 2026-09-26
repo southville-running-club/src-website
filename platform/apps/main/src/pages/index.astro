@@ -6,6 +6,7 @@ import heroPhoto from '../assets/club-evening-run.jpg';
 import joinPhoto from '../assets/club-group-photo.jpg';
 import { CLUB_CTA } from '@src/shared/club-nav';
 import {
+  PRICE_TO_BE_CONFIRMED,
   comingUpOn,
   parseClub,
   parseEvents,
@@ -137,7 +138,6 @@ function dateFor(source: string): string | null {
 const where = `${meet.venue}, ${meet.street}, ${meet.postcode}.`;
 
 const perRun = formatPriceWords(prices.payPerRunPence);
-const perYear = formatPriceWords(prices.membershipPerYearPence);
 
 // The pace bands, plus the two groups that are not bands. The table itself is on
 // `/run-with-us/#pace`; these are the shortest possible answer to "is there a group for me?"
@@ -306,7 +306,18 @@ const paceLabels = [
   <section class="club-sec club-sec-alt">
     <div class="club-wrap club-g2 club-split">
       <div>
-        <h2>Join the club for {perYear} a year</h2>
+        {
+          /* ⚠️ **The price in this heading is painted, not rendered.** It comes from
+          `membership.membership_types` on every request, so a fee rise is one `update` and
+          no deploy — see `worker/membership.ts`. A literal here would be a second source
+          that stopped agreeing the moment somebody ran that statement. The shipped text is
+          what a reader sees if the Worker could not ask, and it is true either way. */
+        }
+        <h2>
+          Join the club for <span data-membership-price="club"
+            >{PRICE_TO_BE_CONFIRMED}</span
+          > a year
+        </h2>
         <p>
           You don't need to be a member to run with us. Membership supports the club and
           gets you into the members' WhatsApp community and local discounts. Racing a lot?

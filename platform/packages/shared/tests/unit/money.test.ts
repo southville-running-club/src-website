@@ -43,9 +43,9 @@ describe('formatPriceWords', () => {
   /**
    * The club's own voice, for the club's own pages.
    *
-   * The membership page's heading is *"Run for 50p. Join for £4."* Through `formatPence` that
-   * reads *"Run for £0.50. Join for £4.00."*, which is not a formatting preference but a
-   * different sentence.
+   * The membership page says *"Run for 50p"* and the home page *"Join the club for £4 a
+   * year"*. Through `formatPence` those read *"Run for £0.50"* and *"£4.00 a year"*, which is
+   * not a formatting preference but a different sentence.
    */
   it('says pence in pence', () => {
     expect(formatPriceWords(50)).toBe('50p');

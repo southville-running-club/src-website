@@ -56,10 +56,10 @@ export function formatPence(pence: number): string {
  * Stripe holds.
  *
  * The club's own pages are the other audience, and there nobody writes `£0.50 a run`. The
- * membership page's heading is *"Run for 50p. Join for £4."* — the club's voice, in the
- * club's words, which is exactly what the Direction A copy is. Rendering that through
- * `formatPence()` would give *"Run for £0.50. Join for £4.00."*, which is not a formatting
- * preference but a different sentence.
+ * membership page says *"Run for 50p"* and the home page *"Join the club for £4 a year"* —
+ * the club's voice, in the club's words, which is exactly what the Direction A copy is.
+ * Rendering those through `formatPence()` would give *"Run for £0.50"* and *"£4.00 a year"*,
+ * which is not a formatting preference but a different sentence.
  *
  * **So this is additive and `formatPence()` is untouched.** Nothing on the money path calls
  * this, and nothing that calls `formatPence()` changed. The `£` still belongs to this module

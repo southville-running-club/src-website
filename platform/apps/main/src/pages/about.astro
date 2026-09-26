@@ -210,7 +210,11 @@ const POLICIES = [
       <div>
         <h2>Club documents</h2>
         <p>
-          The club's governing documents and policies live on
+          {
+            /* ⚠️ `{' '}`: Prettier puts the newline before the link and Astro compresses it
+            to nothing, rendering "live onour old site". Same trap as "BristolBS3 1DB". */
+          }
+          The club's governing documents and policies live on{' '}
           <a href={documents.href}>our old site</a> for now.
         </p>
 
