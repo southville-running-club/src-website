@@ -727,6 +727,18 @@ goes green on the same commit, and why `./dev check`, which also does not build,
 a machine that has built once before. `npm run build:next --workspace apps/timing` and run it
 again. The tell is that the type it refuses and the type it wants read identically.
 
+⚠️ **A `.js` extension on a sibling import in `packages/shared` breaks `apps/timing`'s build,
+and only on the day that module joins the barrel.** `import { formatPriceWords } from
+'./money.js'` resolves perfectly under `tsc` and under vitest — the file is `money.ts`, and
+both are configured to look for it — so a module written that way typechecks clean, unit-tests
+clean and passes `./dev check` entire. **Next's webpack does not resolve it.** And webpack only
+ever meets these files through `packages/shared/src/index.ts`, because that barrel is what
+`apps/timing` imports — so nothing happens until somebody exports the new module from
+`index.ts`, at which point `next build` fails with `module-not-found` naming a file that plainly
+exists, in an application that never referenced it. `membership-application.ts` carried the
+same import for four days without symptom, because it is not on the barrel. Every other module
+in that package omits the extension; matching them is the whole fix.
+
 **An ambient `NODE_ENV=development` breaks the Next.js build**, reporting it as
 `Cannot read properties of null (reading 'useContext')` while prerendering a page nobody
 wrote. Every build script pins `NODE_ENV=production`.

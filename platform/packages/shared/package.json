@@ -28,6 +28,7 @@
     "./money": "./src/money.ts",
     "./phone": "./src/phone.ts",
     "./membership-application": "./src/membership-application.ts",
+    "./membership-email": "./src/membership-email.ts",
     "./people-roles": "./src/people-roles.ts",
     "./timing/bib": "./src/timing/bib.ts",
     "./timing/anomaly": "./src/timing/anomaly.ts",

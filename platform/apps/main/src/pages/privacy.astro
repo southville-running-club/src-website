@@ -189,10 +189,31 @@ const club = race.privacy;
       <a href="/nn/privacy/">the {race.name} privacy notice</a>.
     </p>
 
+    {
+      /* ⚠️ **A membership application is a third thing, and this page deliberately does not
+        set it out.** The wording that covers it is **on the application form itself**, where
+        somebody reads it at the moment their details are collected rather than behind a link
+        they may not follow. What this paragraph does is stop that being an *omission*: a
+        reader who arrives here from the form's own link would otherwise find a notice that
+        says nothing about applying, and conclude the club had not thought about it.
+
+        ⚠️ **Named rather than linked, deliberately.** The form is not linked from anywhere
+        yet, and two tests assert that; a link from here would break it silently — this page
+        is not on the list either of them checks. When the form is published, adding the
+        `href` here is part of the same change. */
+    }
     <p>
-      <strong>An account and a race entry are separate things.</strong> Entering a race does
-      not create an account, having an account does not enter you into anything, and the details
-      on one are not copied to the other.
+      <strong>It does not cover applying to join the club.</strong> What the club collects when
+      you apply for membership, who sees it and how long it is kept is set out on the application
+      form itself, next to the questions it is about.
+    </p>
+
+    <p>
+      <strong
+        >An account, a race entry and a membership application are separate things.</strong
+      >{' '}
+      Applying to join does not create an account and does not enter you into anything, having
+      an account does not make you a member, and the details on one are not copied to another.
     </p>
 
     {

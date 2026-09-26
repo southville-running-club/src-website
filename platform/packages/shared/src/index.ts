@@ -311,3 +311,11 @@ export {
   ticketEmailDate,
   type TicketOutboxMessage,
 } from './ticket-outbox';
+
+export {
+  claimMembershipOutboxBatch,
+  membershipEmailBody,
+  recordMembershipSendResult,
+  type MembershipApplicationDetails,
+  type MembershipOutboxMessage,
+} from './membership-email';

@@ -1,0 +1,88 @@
+---
+import ClubBase from '../../../layouts/ClubBase.astro';
+import { parseClub, parseLinks } from '@src/shared/club-content';
+import club from '../../../content/club.json';
+import links from '../../../content/links.json';
+
+// `/membership/join/complete/` — what the club has recorded.
+//
+// ## ⚠️ This page is only ever reached by a redirect, and it makes exactly one claim
+//
+// The Worker answers `303` here **only** after `membership.submit_application()` returned
+// `ok: true` — which means the row is committed and the two emails are owed in the same
+// transaction. So "we have your application" is a fact this page can stand behind.
+//
+// **Every other outcome stays on the form.** A submission the club could not record answers
+// 422 on `/membership/join/` with a notice saying nothing was stored; it never reaches here.
+// That direction is the whole point: somebody told their application arrived will not send it
+// again, and the club would never know it was missing.
+//
+// ⚠️ **It must never grow a negative claim either.** `/nn/<year>/entry/complete/` carries the
+// same rule and the reason is sharper there — a page saying "nothing was charged" while a
+// webhook is merely late sends somebody to pay twice. The membership equivalent is a page
+// saying "your application did not arrive" to somebody whose application did, which sends a
+// duplicate into the Membership Officer's inbox and reads as a club that loses things.
+//
+// ## Nothing here is personalised
+//
+// No name, no membership type, no price. The page is a static file and the Worker paints
+// nothing onto it, so it is the same bytes for everybody and stays cacheable — and an address
+// somebody shares or a browser restores reveals nothing about who applied.
+//
+// **It is reachable by typing**, like any static page, and that is fine because it discloses
+// nothing. What it deliberately does not do is *confirm* anything on a direct visit: the
+// wording is what the club does next, not "your application was received", which would be a
+// claim about a record for somebody who has no record.
+
+const meet = parseClub(club).meet;
+const link = parseLinks(links);
+---
+
+<ClubBase
+  title="Application sent — Southville Running Club"
+  description="What happens next after applying to join Southville Running Club."
+  canonical="https://new.southvillerunningclub.co.uk/membership/join/complete/"
+>
+  <header class="club-phead">
+    <div class="club-wrap club-wrap-narrow">
+      <h1>Thanks — we have your application</h1>
+      <p class="club-lede">
+        We have emailed you to say it arrived. If it is not there in a few minutes, check
+        your spam folder before sending it again.
+      </p>
+    </div>
+  </header>
+
+  <section class="club-sec">
+    <div class="club-wrap club-wrap-narrow">
+      <div class="club-callout">
+        <h2>What happens next</h2>
+        <ul class="club-ticks">
+          <li>
+            The Membership Officer will be in touch about paying. <strong>
+              Nothing has been charged.
+            </strong>
+          </li>
+          <li>
+            If you asked for an England Athletics licence, they will set that up once your
+            membership is paid.
+          </li>
+          <li>
+            You are welcome at a run in the meantime, member or not. Come and find us at
+            the{' '}{meet.venue} on {meet.days}. {meet.time}.
+          </li>
+        </ul>
+      </div>
+
+      <p>
+        Something not right, or changed your mind?{' '}
+        <a href={link.committee.href}>Ask the Membership Officer</a>{' '}
+        through the committee page on our old site.
+      </p>
+
+      <p class="club-small">
+        <a href="/membership/">What membership costs and what it includes</a>
+      </p>
+    </div>
+  </section>
+</ClubBase>

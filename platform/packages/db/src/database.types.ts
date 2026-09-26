@@ -1007,6 +1007,160 @@ export type Database = {
   }
   membership: {
     Tables: {
+      api_secrets: {
+        Row: {
+          key_sha256: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          key_sha256?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          key_sha256?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_outbox: {
+        Row: {
+          application_id: string
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          provider_message_id: string | null
+          recipient: string
+          sent_at: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          application_id: string
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          recipient: string
+          sent_at?: string | null
+          status?: string
+          template: string
+        }
+        Update: {
+          application_id?: string
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "membership_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_applications: {
+        Row: {
+          address_line1: string
+          address_line2: string | null
+          city_town: string
+          consents_version: string
+          country: string
+          created_at: string
+          date_of_birth: string
+          ea_portal_consent: boolean
+          ea_urn: string | null
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          membership_type: string
+          phone: string
+          postcode: string
+          previous_affiliation: boolean
+          previous_club_name: string | null
+          price_pence: number
+          processed_at: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          address_line1: string
+          address_line2?: string | null
+          city_town: string
+          consents_version: string
+          country: string
+          created_at?: string
+          date_of_birth: string
+          ea_portal_consent: boolean
+          ea_urn?: string | null
+          email: string
+          first_name: string
+          id?: string
+          last_name: string
+          membership_type: string
+          phone: string
+          postcode: string
+          previous_affiliation: boolean
+          previous_club_name?: string | null
+          price_pence: number
+          processed_at?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          address_line1?: string
+          address_line2?: string | null
+          city_town?: string
+          consents_version?: string
+          country?: string
+          created_at?: string
+          date_of_birth?: string
+          ea_portal_consent?: boolean
+          ea_urn?: string | null
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          membership_type?: string
+          phone?: string
+          postcode?: string
+          previous_affiliation?: boolean
+          previous_club_name?: string | null
+          price_pence?: number
+          processed_at?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_applications_membership_type_fkey"
+            columns: ["membership_type"]
+            isOneToOne: false
+            referencedRelation: "membership_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       membership_types: {
         Row: {
           active: boolean
@@ -1043,18 +1197,24 @@ export type Database = {
           ea_cutoff_month: number
           id: boolean
           minimum_age: number
+          notification_email: string
+          processed_retention: string
         }
         Insert: {
           ea_cutoff_day?: number
           ea_cutoff_month?: number
           id?: boolean
           minimum_age: number
+          notification_email: string
+          processed_retention?: string
         }
         Update: {
           ea_cutoff_day?: number
           ea_cutoff_month?: number
           id?: boolean
           minimum_age?: number
+          notification_email?: string
+          processed_retention?: string
         }
         Relationships: []
       }
@@ -1063,17 +1223,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_outbox_batch: {
+        Args: { p_key: string; p_limit?: number }
+        Returns: Json
+      }
+      delete_old_applications: { Args: never; Returns: number }
+      key_ok: { Args: { p_key: string; p_name: string }; Returns: boolean }
       membership_state: {
         Args: never
         Returns: {
           code: string
           display_name: string
+          ea_cutoff_day: number
+          ea_cutoff_month: number
           ea_fee_pence: number
           minimum_age: number
           price_pence: number
           sort_order: number
           summary: string
         }[]
+      }
+      record_send_result: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_key: string
+          p_provider_message_id?: string
+          p_rate_limited?: boolean
+          p_sent: boolean
+        }
+        Returns: Json
+      }
+      submit_application: {
+        Args: { p_application: Json; p_key: string }
+        Returns: Json
       }
     }
     Enums: {

@@ -602,7 +602,7 @@ const OPTIONS = [
   </fieldset>
 
   <fieldset class="club-fieldset">
-    <legend><h2>Club policies</h2></legend>
+    <legend><h2>Your details and the club’s policies</h2></legend>
 
     {
       /* ⚠️ **Both policy links go to the club documents page, not to the documents.** The
@@ -616,6 +616,94 @@ const OPTIONS = [
       Every member agrees to these. Both are on the club documents page; use your
       browser's back button to come back to the form.
     </p>
+
+    {
+      /* ⚠️ **The notice is on the form, not behind a link, and that is the decision.**
+        UK GDPR asks that somebody is *told* what happens to their details; a link they can
+        follow satisfies the letter of that and a block they actually read satisfies the point
+        of it. This is the moment the details are collected, which is the moment the telling is
+        worth anything.
+
+        ⚠️ **It is visible rather than inside a `<details>`.** A checkbox saying "I have read"
+        beside a disclosure that ships closed is a checkbox nobody has read, and the club would
+        be relying on a claim it has arranged for people not to be able to make honestly.
+
+        ⚠️ **`/privacy/` is still linked and still says something different.** That notice is
+        about an **account** on this website; this is about a membership application, and the
+        two are separate things — you do not need an account to apply. */
+    }
+    <div class="club-callout">
+      <h3>How the club will use your details</h3>
+
+      <ul class="club-ticks">
+        <li>
+          <strong>To decide on your application and set your membership up.</strong> That is
+          the agreement between you and the club, and we cannot do it without your answers.
+        </li>
+        <li>
+          <strong>Your date of birth</strong> is how we check you are old enough to join. England
+          Athletics also register a member on their date of birth.
+        </li>
+        <li>
+          <strong>Your email address and phone number</strong> are how the Membership Officer
+          reaches you about your application, and about the club once you are a member.
+        </li>
+        <li>
+          <strong>England Athletics only see your details if you say yes above.</strong> If
+          you do, we send them your name, date of birth, email address and postal address so
+          they can register you. They decide what they do with it themselves. If you say no,
+          we send them nothing, and you keep club membership without a racing licence.
+        </li>
+        <li>
+          <strong>Nobody else sees it.</strong> We do not sell it and we do not share it for
+          marketing. It is stored in the club's own database, in London.
+        </li>
+        <li>
+          <strong
+            >We keep your application until the Membership Officer has dealt with it, and
+            for 90 days after that.</strong
+          > Your membership itself is a separate record.
+        </li>
+        <li>
+          <strong>You can ask to see it, correct it or have it deleted</strong> at any time.
+          The <a href="/privacy/">privacy notice</a> explains how, and who to complain to.
+        </li>
+      </ul>
+
+      <p class="club-small">We do not ask you anything about your health on this form.</p>
+    </div>
+
+    <div class="club-field">
+      <div class="club-check">
+        <input
+          class="club-checkbox"
+          type="checkbox"
+          id="agreePrivacyPolicy"
+          name="agreePrivacyPolicy"
+          value="true"
+          required
+          aria-describedby="agreePrivacyPolicy-error"
+        />
+        {
+          /* ⚠️ **"I have read", never "I consent".** The lawful basis for processing an
+            application is the agreement between the member and the club, not consent — and a
+            consent box somebody cannot refuse is not freely given, which is the whole of what
+            UK GDPR asks of consent. Wording this as consent would make it invalid *and* imply
+            the club needs permission it does not need. The one genuinely refusable consent on
+            this form is the England Athletics question above, which takes a real no. */
+        }
+        <label class="club-check-label" for="agreePrivacyPolicy">
+          I have read how the club will use my details.
+        </label>
+      </div>
+      <p
+        class="club-error"
+        id="agreePrivacyPolicy-error"
+        data-membership-error="agreePrivacyPolicy"
+        hidden
+      >
+      </p>
+    </div>
 
     <div class="club-field">
       <div class="club-check">
@@ -636,30 +724,6 @@ const OPTIONS = [
         class="club-error"
         id="agreeCodeOfConduct-error"
         data-membership-error="agreeCodeOfConduct"
-        hidden
-      >
-      </p>
-    </div>
-
-    <div class="club-field">
-      <div class="club-check">
-        <input
-          class="club-checkbox"
-          type="checkbox"
-          id="agreePrivacyPolicy"
-          name="agreePrivacyPolicy"
-          value="true"
-          required
-          aria-describedby="agreePrivacyPolicy-error"
-        />
-        <label class="club-check-label" for="agreePrivacyPolicy">
-          I have read the <a href="/privacy/">privacy notice</a>.
-        </label>
-      </div>
-      <p
-        class="club-error"
-        id="agreePrivacyPolicy-error"
-        data-membership-error="agreePrivacyPolicy"
         hidden
       >
       </p>

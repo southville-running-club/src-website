@@ -29,7 +29,7 @@
  */
 import { z } from 'zod';
 
-import { parsePhone, type PhoneProblem } from './phone.js';
+import { parsePhone, type PhoneProblem } from './phone';
 
 /* -----------------------------------------------------------------------------------------
  * The shape of an answer
