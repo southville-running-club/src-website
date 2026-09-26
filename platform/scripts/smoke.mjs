@@ -175,7 +175,22 @@ const CHECKS = [
   },
   {
     name: 'nothing unbuilt is reachable',
-    url: `${SITE}/membership/`,
+    // ⚠️ **A nonsense address, and it may never be a plausible one again.**
+    //
+    // This was `/membership/` — an address the club obviously wanted and had not built yet,
+    // which made it a natural example. ADR-048 built it, and this check began asserting that
+    // a real page does not exist. It went red on the **next** merge rather than that one,
+    // because the smoke test runs on push and raced ahead of the Cloudflare deploy: the page
+    // was still 404ing when its own build's smoke test asked.
+    //
+    // **Neither `./dev check` nor `./dev test` runs this file**, so nothing local could have
+    // caught it. Its twin in `tests/worker/serves.test.ts` was updated in the same change and
+    // this one was missed, which is the cost of the same fact living in two places.
+    //
+    // So the address is deliberately one nobody will ever build. Any address a reader might
+    // plausibly type is an address the club may want, and this assertion would then be
+    // waiting to go off again.
+    url: `${SITE}/not-a-page-and-never-will-be/`,
     proves: 'the site serves only what exists, rather than a stray index',
     check: async (response) =>
       response.status === 404 ? null : `expected 404, got ${response.status}`,
