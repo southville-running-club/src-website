@@ -169,6 +169,35 @@ class RevealHandler {
 }
 
 /**
+ * Fills a slot with a sentence about the England Athletics fee, and reveals it.
+ *
+ * ## ⚠️ Why the registration year is read off the element rather than passed in
+ *
+ * The sentence has two facts in it and they live in two different places on purpose. **The
+ * money is the database's** — `membership_types.ea_fee_pence`, so a fee rise is one `update`
+ * — and **the year is `membership.json`'s**, because nothing in the database holds it and
+ * nothing needs to: `membership.settings`' cut-off is what the application form validates a
+ * date of birth against, not what a reader is told.
+ *
+ * So the markup carries `data-membership-ea-year` and this reads it, which keeps one fact in
+ * each of its own homes and still lets the two arrive as one phrase. A year passed in from
+ * here would mean the Worker knowing a content file, which is what the static build is for.
+ *
+ * **An absent year drops that clause rather than guessing one**, for this file's own rule:
+ * every failure leaves the page saying less, never something it cannot stand behind.
+ */
+class EaSentenceHandler {
+  constructor(private readonly sentence: (year: string | null) => string) {}
+
+  element(element: Element): void {
+    element.setInnerContent(
+      this.sentence(element.getAttribute('data-membership-ea-year')),
+    );
+    element.removeAttribute('hidden');
+  }
+}
+
+/**
  * Reveals a control **and lets it be submitted**.
  *
  * ⚠️ **`hidden` does not stop a control being validated, and this repository has already lost
@@ -203,6 +232,11 @@ class HideHandler {
  * each from the database. An option the page knows about but the database no longer offers is
  * **hidden entirely** rather than left showing a price nobody sells — the same reasoning that
  * makes `membership_state()` return only active rows.
+ *
+ * Two further slots exist for the England Athletics option and both ship `hidden`:
+ * `[data-membership-ea-split]` accounts for the total on the card, and
+ * `[data-membership-ea-fee]` says in the small print that the club does not set the larger
+ * half of it. Each reads its registration year from its own `data-membership-ea-year`.
  */
 export function renderMembershipView(
   rewriter: HTMLRewriter,
@@ -228,15 +262,35 @@ export function renderMembershipView(
     // page states a number with no account of it.
     if (type.eaFeePence !== null) {
       const clubShare = type.pricePence - type.eaFeePence;
+      const eaFee = formatPriceWords(type.eaFeePence);
 
+      // ⚠️ **One handler now, where there were two.** `getAttribute` is only available
+      // inside an element handler, and registering a second `on` for the same selector would
+      // read the year in one and write the text in the other — so the two were merged rather
+      // than left to run in an order nothing states.
       rewriter.on(
         `[data-membership-ea-split='${code}']`,
-        new TextHandler(
-          `${formatPriceWords(clubShare)} club membership plus ` +
-            `${formatPriceWords(type.eaFeePence)} England Athletics registration`,
+        new EaSentenceHandler(
+          (year) =>
+            `${formatPriceWords(clubShare)} club membership plus ` +
+            `${eaFee} England Athletics registration` +
+            (year === null ? '' : ` for ${year}`),
         ),
       );
-      rewriter.on(`[data-membership-ea-split='${code}']`, new RevealHandler());
+
+      // ⚠️ **Whose money it is, in the small print, and it is a second slot rather than a
+      // longer first one.** The card's line accounts for the total; this one says the club
+      // does not set the larger half of it. Both ship `hidden`, so a page that could not
+      // reach the database makes neither claim.
+      rewriter.on(
+        `[data-membership-ea-fee='${code}']`,
+        new EaSentenceHandler(
+          (year) =>
+            `The ${eaFee} fee is set by England Athletics` +
+            (year === null ? '' : ` for ${year}`) +
+            ', not by the club.',
+        ),
+      );
     }
 
     // ⚠️ **Two attributes for one option, and the second is the one that matters.** The

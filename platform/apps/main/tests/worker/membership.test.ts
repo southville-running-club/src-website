@@ -134,6 +134,66 @@ describe('the price the club charges is in the database and nowhere else', () =>
     expect(page).toContain('£4 club membership plus £23 England Athletics registration');
   });
 
+  /**
+   * ⚠️ **Two facts in one sentence, from two different places, and neither is in the markup.**
+   *
+   * The £23 is `membership_types.ea_fee_pence` — a figure no built page may contain — and the
+   * registration year is `membership.json`'s `licence.year`, because nothing in the database
+   * holds it. The Worker reads the year off `data-membership-ea-year` on the slot it is
+   * painting, so the two arrive as one phrase without either knowing where the other lives.
+   *
+   * **The small print's sentence is a second slot rather than a longer first one**: the card's
+   * line accounts for the total, and this one says the club does not set the larger half.
+   */
+  it('says which registration year the England Athletics fee is for', async () => {
+    const page = squash(await (await SELF.fetch(`${SITE}/membership/`)).text());
+
+    expect(page).toContain(
+      '£4 club membership plus £23 England Athletics registration for 2026/27',
+    );
+    expect(text(page)).toContain(
+      'The £23 fee is set by England Athletics for 2026/27, not by the club.',
+    );
+  });
+
+  /**
+   * ⚠️ **Both England Athletics sentences ship hidden and empty**, which is the failure
+   * direction the whole mechanism takes: a page that could not reach the database makes
+   * neither claim rather than quoting a fee it cannot stand behind. The year is in the
+   * *attribute* either way, because the attribute is how the year reaches the Worker at all.
+   */
+  it('ships both England Athletics sentences hidden and unsaid', async () => {
+    const shipped = squash(await built('/membership/'));
+
+    for (const slot of ['data-membership-ea-split', 'data-membership-ea-fee']) {
+      expect(shipped, slot).toMatch(
+        new RegExp(`<p[^>]*${slot}="club_ea"[^>]*hidden[^>]*>\\s*</p>`, 'u'),
+      );
+      expect(shipped, `${slot} has no registration year to paint`).toMatch(
+        new RegExp(`<p[^>]*${slot}="club_ea"[^>]*data-membership-ea-year="2026/27"`, 'u'),
+      );
+    }
+
+    const served = squash(await (await SELF.fetch(`${SITE}/membership/`)).text());
+
+    for (const slot of ['data-membership-ea-split', 'data-membership-ea-fee']) {
+      expect(served, slot).not.toMatch(new RegExp(`${slot}="club_ea"[^>]*hidden`, 'u'));
+    }
+  });
+
+  /**
+   * The registration year, the affiliation dates and the renewal deadline are `membership.json`'s
+   * and are rendered at build time — so unlike the fee, they are in the built file, and this
+   * is what says they came from the content file rather than from prose somebody typed.
+   */
+  it('states the registration year and the renewal deadline from the content file', async () => {
+    const shipped = text(await built('/membership/'));
+
+    expect(shipped).toContain(
+      'England Athletics registration runs 1 April to 31 March and must be renewed by 30 June.',
+    );
+  });
+
   it('paints the minimum age rather than stating it', async () => {
     const shipped = await built('/membership/join/');
     const served = await (await SELF.fetch(`${SITE}/membership/join/`)).text();
