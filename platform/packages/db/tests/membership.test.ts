@@ -360,7 +360,6 @@ describe('submitting an application, as an anonymous caller', () => {
     previousAffiliation: true,
     previousClubName: 'Bristol AC',
     eaUrn: '1234567',
-    eaPortalConsent: true,
     consentsVersion: '2026-09-25',
     ...overrides,
   });
@@ -527,12 +526,12 @@ describe('deleting an application the club has finished with', () => {
          title, first_name, last_name, email, phone, date_of_birth,
          address_line1, city_town, postcode, country,
          membership_type, price_pence,
-         previous_affiliation, ea_portal_consent, consents_version,
+         previous_affiliation, consents_version,
          status, processed_at
        ) values (
          'Mx', 'Grace', 'Hopper', $1, '+447700900124', date '1980-01-01',
          '1 Dean Lane', 'Bristol', 'BS3 1DB', 'GB',
-         'club', 400, false, false, '2026-09-25', $2, $3
+         'club', 400, false, '2026-09-25', $2, $3
        ) returning id`,
       [email, status, processedAt],
     );

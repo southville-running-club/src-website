@@ -27,7 +27,21 @@ const RULES: MembershipRules = {
 
 const TODAY = { year: 2026, month: 9, day: 21 };
 
-/** A complete, valid application. Each test changes one thing about it. */
+/**
+ * A complete, valid application. Each test changes one thing about it.
+ *
+ * ⚠️ **Every value is a string, because every value the form sends is a string.**
+ *
+ * This fixture used booleans for the three policy boxes, and that single detail hid a defect
+ * that made the form **impossible to submit**: a ticked `<input type="checkbox" value="true">`
+ * posts the characters `true`, the Worker reads a form body into `Record<string, string>`, and
+ * the schema demanded a real boolean. Every attempt reported all three boxes as un-ticked
+ * while they were plainly ticked, and 2,932 tests stayed green throughout.
+ *
+ * **A fixture that cannot be produced by the thing it stands in for is not a fixture.** The
+ * boolean shape is still accepted and still tested — below, by name — but the default is now
+ * what a browser actually sends.
+ */
 function application(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     title: 'Mr',
@@ -43,10 +57,9 @@ function application(overrides: Record<string, unknown> = {}): Record<string, un
     country: 'GB',
     membershipType: 'club',
     previousAffiliation: 'no',
-    eaPortalConsent: 'yes',
-    agreeCodeOfConduct: true,
-    agreePrivacyPolicy: true,
-    agreeDisciplinaryPolicy: true,
+    agreeCodeOfConduct: 'true',
+    agreePrivacyPolicy: 'true',
+    agreeDisciplinaryPolicy: 'true',
     ...overrides,
   };
 }
@@ -74,7 +87,12 @@ describe('a complete application', () => {
     // The list is what the form renders from and what the errors map is keyed by. A field
     // appearing in one and not the other is how a box arrives that nothing validates.
     expect(MEMBERSHIP_FIELDS).toContain('dateOfBirth');
-    expect(MEMBERSHIP_FIELDS).toContain('eaPortalConsent');
+    // ⚠️ **`eaPortalConsent` is deliberately NOT on this list, since 26 September 2026.**
+    // It asked whether England Athletics may have somebody's details, and the club processes
+    // every member on the England Athletics portal — so it asked permission for something
+    // that happened either way, and told anybody answering "no" something false. The form
+    // states it instead; the basis is the contract, not consent.
+    expect(MEMBERSHIP_FIELDS).not.toContain('eaPortalConsent');
     expect(new Set(MEMBERSHIP_FIELDS).size).toBe(MEMBERSHIP_FIELDS.length);
   });
 });
@@ -301,22 +319,29 @@ describe('the previous affiliation, and the fields that depend on it', () => {
 
 describe('consent, which has to be capable of being withheld', () => {
   /**
-   * ⚠️ **The club's current form offers only "Yes".** Consent that cannot be refused is not
-   * freely given, which is the whole of what UK GDPR asks of it — so "no" is an answer this
-   * form accepts and the club acts on.
+   * ⚠️ **The England Athletics question was removed on 26 September 2026, and this asserts
+   * that it stays removed.**
+   *
+   * It asked *"May we pass your name, date of birth and email address to England Athletics?"*
+   * as a real yes/no. The club processes **every** new member on the England Athletics portal
+   * — that is how a membership is set up, and England Athletics is what sends the payment
+   * link — so it asked permission for something that happened either way, and its hint told
+   * anybody answering "no" that their details stayed with the club, which was false.
+   *
+   * The lawful basis is the **contract**: passing the details on is how the club gives
+   * somebody the membership they applied for. So the form states it rather than asking.
+   *
+   * ⚠️ **Putting the question back is a decision, not a fix.** A submission carrying the key
+   * is accepted and the key is ignored — Zod strips what the shape does not name — which is
+   * what keeps a deployed Worker that still sends it working through the change.
    */
-  it('accepts no to the England Athletics portal', () => {
-    const result = parse({ eaPortalConsent: 'no' });
+  it('ignores an England Athletics consent somebody posts anyway', () => {
+    const result = parse({ eaPortalConsent: 'no' } as Record<string, unknown>);
 
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.eaPortalConsent).toBe(false);
-  });
-
-  it('still insists the question is answered', () => {
-    const result = parse({ eaPortalConsent: undefined });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.eaPortalConsent).toMatch(/yes or no/u);
+    if (result.ok) {
+      expect(result.value).not.toHaveProperty('eaPortalConsent');
+    }
   });
 
   /**
@@ -326,14 +351,18 @@ describe('consent, which has to be capable of being withheld', () => {
    * none of them.
    */
   it.each([
-    'agreeCodeOfConduct',
-    'agreePrivacyPolicy',
-    'agreeDisciplinaryPolicy',
-  ] as const)('refuses an application with %s unticked', (field) => {
+    ['agreeCodeOfConduct', /code of conduct/u],
+    ['agreePrivacyPolicy', /how the club will use your details/u],
+    ['agreeDisciplinaryPolicy', /disciplinary policy/u],
+  ] as const)('refuses an application with %s unticked', (field, names) => {
     const result = parse({ [field]: false });
 
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors[field]).toMatch(/agree to this/u);
+
+    // ⚠️ **Each message names its own document.** All three read "You need to agree to this
+    // to join" until 26 September 2026, which gave a failed submission an error summary of
+    // three identical links — a list saying there are three problems and not which.
+    if (!result.ok) expect(result.errors[field]).toMatch(names);
   });
 });
 
@@ -397,5 +426,86 @@ describe('what a bad submission looks like', () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.dateOfBirth).toMatch(/18 or over/u);
+  });
+});
+
+/**
+ * ⚠️ **What a browser actually posts, asserted directly.**
+ *
+ * The defect these cover made the form unsubmittable in production while every test was green:
+ * a ticked checkbox posts a **string**, and the schema demanded a **boolean**. The fixture
+ * above used booleans, so nothing in this file could see it.
+ *
+ * These pin every shape the real path can produce, so the next person to touch that schema
+ * cannot narrow it back without a named test going red.
+ */
+describe('the three policy checkboxes, in every shape they arrive in', () => {
+  it.each([
+    ['value="true", which is what the markup sends today', 'true'],
+    ['no value attribute, which posts "on"', 'on'],
+    ['a real boolean, which the database tests pass', true],
+  ])('accepts %s', (_name, ticked) => {
+    const result = parseMembershipApplication(
+      application({
+        agreeCodeOfConduct: ticked,
+        agreePrivacyPolicy: ticked,
+        agreeDisciplinaryPolicy: ticked,
+      }),
+      RULES,
+      TODAY,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.agreeCodeOfConduct).toBe(true);
+  });
+
+  /**
+   * An unticked checkbox sends **nothing at all** — the browser omits it entirely rather than
+   * sending `false`. So absence is the refusal that matters, and `'false'` is a shape no
+   * checkbox produces but somebody posting by hand might.
+   */
+  it.each([
+    ['absent, which is what an unticked box sends', undefined],
+    ['the string "false"', 'false'],
+    ['a real false', false],
+  ])('refuses %s', (_name, value) => {
+    const result = parseMembershipApplication(
+      application({ agreeCodeOfConduct: value }),
+      RULES,
+      TODAY,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.agreeCodeOfConduct).toBeDefined();
+  });
+
+  /**
+   * ⚠️ **Three distinct messages.** They were identical, so a failed submission produced an
+   * error summary of three links all reading "You need to agree to this to join" — a list
+   * that says there are three problems and not which. The summary is the one thing that makes
+   * a failed form navigable.
+   */
+  it('tells the three boxes apart in the error summary', () => {
+    const result = parseMembershipApplication(
+      application({
+        agreeCodeOfConduct: undefined,
+        agreePrivacyPolicy: undefined,
+        agreeDisciplinaryPolicy: undefined,
+      }),
+      RULES,
+      TODAY,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    const messages = [
+      result.errors.agreeCodeOfConduct,
+      result.errors.agreePrivacyPolicy,
+      result.errors.agreeDisciplinaryPolicy,
+    ];
+
+    expect(new Set(messages).size, 'two boxes share a message').toBe(3);
+    for (const message of messages) expect(message).toBeDefined();
   });
 });

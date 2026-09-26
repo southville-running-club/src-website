@@ -10,8 +10,8 @@
     "label": "Subscribe"
   },
   "join": {
-    "href": "https://www.southvillerunningclub.co.uk/new-members",
-    "where": "old-site",
+    "href": "/membership/join/",
+    "where": "new-site",
     "label": "Join the club"
   },
   "renew": {

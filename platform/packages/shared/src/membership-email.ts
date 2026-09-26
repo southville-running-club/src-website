@@ -76,7 +76,6 @@ export interface MembershipApplicationDetails {
   previousAffiliation: boolean;
   previousClubName: string | null;
   eaUrn: string | null;
-  eaPortalConsent: boolean;
   consentsVersion: string;
 }
 
@@ -94,7 +93,6 @@ const detailsShape = z.object({
   previousAffiliation: z.boolean(),
   previousClubName: z.string().nullable(),
   eaUrn: z.string().nullable(),
-  eaPortalConsent: z.boolean(),
   consentsVersion: z.string(),
 });
 
@@ -203,7 +201,7 @@ export function membershipEmailBody(
           '',
           `Thanks for applying to join Southville Running Club. We have your application for ${message.membershipName}, ${price} a year.`,
           '',
-          'The Membership Officer will be in touch about paying. Nothing has been charged yet and there is nothing you need to do for now.',
+          'The Membership Officer will set your membership up on the England Athletics portal, and England Athletics will email you the link to pay. Nothing is paid on the club website.',
           '',
           `You are welcome at a run in the meantime, member or not. ${MEET}`,
           '',
@@ -265,7 +263,6 @@ export function membershipEmailBody(
               : 'No',
           ),
           row('  URN', details.eaUrn ?? 'Not given'),
-          row('  May pass details', details.eaPortalConsent ? 'Yes' : 'No'),
           '',
           'Agreed to the code of conduct, the privacy notice and the disciplinary policy.',
           '',
