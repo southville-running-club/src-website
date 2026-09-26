@@ -823,11 +823,29 @@ img.club-photo-tall {
   min-height: 0;
 }
 
-/* 16:9 for a panoramic photograph in a body section — the club group shot is 1.92:1, so this
-   trims about 7% off the width evenly rather than the 30% a fixed height would have taken. */
+/* 16:9 for a panoramic photograph in a body section — the club group shot is 1.92:1 and the
+   Christmas party one is 1.90:1, so this trims about 6% off the width of each, evenly, rather
+   than the 30% a fixed height would have taken. */
 img.club-photo-wide {
   aspect-ratio: 16 / 9;
   min-height: 0;
+}
+
+/* ⚠️ **3:4, and it is the first portrait photograph this site has had.**
+ *
+ * The marshal shot is 720×960 — exactly 3:4 — so the slot is its own ratio and crops nothing
+ * at all, which is what the rule above asks for. **What it cost is the column beside it**: at
+ * a desktop width that is a photograph about 740px tall next to a heading, a line of intro and
+ * one race, so the section was mostly empty space with a very tall picture in it.
+ *
+ * `max-width` on the image is the answer rather than a different ratio, because the ratio is
+ * the photograph's and the *width* is the layout's. The image sits at the top of its column at
+ * a size that balances the text, and no part of the picture is thrown away to get there —
+ * `cover` never runs, because the box is still 3:4. */
+img.club-photo-portrait {
+  aspect-ratio: 3 / 4;
+  min-height: 0;
+  max-width: 24rem;
 }
 
 /* -------------------------------------------------------------------------------------

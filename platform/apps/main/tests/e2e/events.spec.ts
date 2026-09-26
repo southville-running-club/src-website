@@ -199,6 +199,49 @@ test.describe('the events section', () => {
     await expect(socials).not.toContainText('Details to be confirmed');
   });
 
+  /**
+   * A photograph per section, and each one actually decoded.
+   *
+   * ⚠️ **`naturalWidth` rather than `toBeVisible()`.** These slots carry
+   * `background: var(--club-photo)` — the flat panel they replaced — so an `<img>` whose file
+   * 404s, or whose name drifts after a rename, paints the *placeholder green* and is still
+   * perfectly "visible" at the right size in the right place. Nothing else in this suite
+   * could tell the difference, and neither could somebody glancing at the page. A decoded
+   * image is the only thing that says the photograph is really there.
+   *
+   * The alt text is asserted as non-empty rather than by its words: it is a description
+   * somebody will improve, and pinning the sentence would make improving it a test failure.
+   * What must not happen is it going empty, which would make a photograph of the club's own
+   * members decoration.
+   */
+  test('shows a photograph in each section, decoded and described', async ({ page }) => {
+    await page.goto('/events/');
+
+    for (const section of ['#races', '#socials']) {
+      const photo = page.locator(`${section} img.club-photo`);
+
+      await expect(photo, `${section} has no photograph`).toHaveCount(1);
+
+      // ⚠️ **Scrolled to first, and this test failed on `mobile-safari` without it.** Both
+      // images are `loading="lazy"`, so one below the fold is never fetched at all — on a
+      // 390px phone the socials photograph is a long way down, `complete` stays false for
+      // ever, and even a retrying assertion just waits out its timeout. The image was fine;
+      // the test was asserting that an off-screen lazy image had loaded, which is the one
+      // thing `loading="lazy"` exists to prevent. Scrolling to it is also what a reader does.
+      await photo.scrollIntoViewIfNeeded();
+
+      await expect(photo).toHaveJSProperty('complete', true);
+
+      const decoded = await photo.evaluate(
+        (img) => (img as HTMLImageElement).naturalWidth,
+      );
+      expect(decoded, `${section}'s photograph did not decode`).toBeGreaterThan(0);
+
+      const alt = await photo.getAttribute('alt');
+      expect(alt?.trim(), `${section}'s photograph has no alt text`).toBeTruthy();
+    }
+  });
+
   test('has no accessibility violations @requires-js', async ({ page }) => {
     await page.goto('/events/');
 

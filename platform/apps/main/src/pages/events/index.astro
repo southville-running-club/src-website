@@ -1,6 +1,10 @@
 ---
+import { Image } from 'astro:assets';
+
 import ClubBase from '../../layouts/ClubBase.astro';
 import race from '../../content/race.json';
+import racePhoto from '../../assets/race-nightingale-marshal.jpg';
+import socialPhoto from '../../assets/social-christmas-party.jpg';
 
 // `/events/` — the races the club puts on, and the socials in between.
 //
@@ -121,14 +125,23 @@ const [raceDay = '', raceMonth = ''] = race.dateShort.split(' ');
       </div>
 
       {
-        /* ⚠️ **A flat panel until the club supplies a photograph, and it is replaced rather
-          than filled in.** `/about/`'s exactly, and for its reasons: a stripe pattern reads as
-          a broken image and a bracketed caption is the placeholder this build may not publish.
-          When a real photograph goes in here it becomes an `<Image>` — and `club.css`'s own
-          rule applies, that the slot's `aspect-ratio` is revisited to match the photograph
-          rather than cropping a third of it away. */
+        /* ⚠️ **Not `aria-hidden`, unlike the panel it replaced.** A flat placeholder is
+          decoration and is hidden from a screen reader because there is nothing to describe;
+          a photograph of the club's own race is content, and somebody who cannot see it is
+          told what is in it. `loading="lazy"` because it is below the header at every width.
+
+          The slot is `club-photo-portrait` — 3:4, the photograph's own ratio, so nothing is
+          cropped. See `club.css` for why the width rather than the ratio is what was
+          constrained to stop it towering over the race beside it. */
       }
-      <div class="club-photo club-photo-tall" aria-hidden="true"></div>
+      <Image
+        class="club-photo club-photo-portrait"
+        src={racePhoto}
+        alt="A Nightingale Nightmare marshal in a skull mask and long grey wig standing among autumn trees, with a hooded figure in a yellow marshal's bib hanging from a branch behind them."
+        widths={[360, 540, 720]}
+        sizes="(min-width: 62em) 24rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+      />
     </div>
   </section>
 
@@ -171,7 +184,20 @@ const [raceDay = '', raceMonth = ''] = race.dateShort.split(' ');
         <p data-social-none hidden>Nothing is coming up just now. Check back soon.</p>
       </div>
 
-      <div class="club-photo club-photo-tall" aria-hidden="true"></div>
+      {
+        /* 16:9 against a 1.90:1 photograph, which trims about 6% off the width evenly — the
+          club group shot's arrangement exactly. ⚠️ **The alt text says what the picture is
+          without naming anybody in it**, which is the same line the club draws everywhere
+          else it publishes a photograph of its members. */
+      }
+      <Image
+        class="club-photo club-photo-wide"
+        src={socialPhoto}
+        alt="Southville Running Club members dancing under disco lights at the club's Christmas party, with green and white balloons floating above the crowd."
+        widths={[640, 960, 1280, 1600]}
+        sizes="(min-width: 62em) 35rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+      />
     </div>
   </section>
 </ClubBase>
