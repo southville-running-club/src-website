@@ -1166,6 +1166,49 @@ img.club-photo-portrait {
   text-align: center;
 }
 
+/* -------------------------------------------------------------------------------------
+ * The grouped comparison table
+ * -------------------------------------------------------------------------------------
+ * Sixteen benefits in five groups, four options across. Two presentations and never both
+ * at once: a table above 48em, a stack of labelled blocks below it.
+ *
+ * ⚠️ **The stack is the default and the table is the `@media` rule**, which is this file's
+ * own mobile-first order and is also the safe direction: a width query that never matches
+ * leaves a page somebody can read, and one that always matches leaves five columns at 320px.
+ */
+
+/* The tick, drawn rather than typed. `currentcolor` is what makes it legible in both schemes
+   without a colour of its own — the mistake `NnSchedule` paid for was a component whose
+   colours were computed against a surface it does not carry. */
+.club-tick {
+  display: inline-block;
+  vertical-align: -0.15em;
+}
+
+/* The line under a benefit's name. ⚠️ **A `<span>` in the row header rather than a row of its
+   own**: a second row would carry four empty cells beside it and be announced as one. */
+.club-row-note {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--club-muted);
+}
+
+/* A group's heading row — "Club life", "Racing". Small caps on the alternate band, which is
+   `thead`'s own treatment one step louder, so the two read as the same kind of thing. It is
+   the one rule that is identical in both presentations, because a section heading is a
+   section heading whether or not there are columns under it. */
+.club-row-group th {
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-family: var(--club-font-display);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .club-visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -1820,6 +1863,129 @@ legend.club-label {
      rather than as a control. */
   .club-form-actions .club-btn {
     width: auto;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The grouped table, stacked
+ * -------------------------------------------------------------------------------------
+ * ⚠️ **Below 48em every row becomes a block and the column headings go.** Five columns do
+ * not fit at 320px, and a table that merely scrolls there asks somebody to swipe sideways to
+ * find out whether a tick belongs to membership or to the licence.
+ *
+ * `::before` draws each cell's `data-label`, which is the column heading the page is no
+ * longer showing — and **generated content is in the accessibility tree**, so what replaces
+ * the `<th scope="col">` association for a screen reader is the label itself rather than
+ * nothing. That is why `display: none` on `thead` is correct here and would be wrong if the
+ * labels were decorative: hiding the headings *and* leaving the cells unlabelled is how a
+ * responsive table loses its meaning.
+ */
+.club-table-grouped,
+.club-table-grouped caption,
+.club-table-grouped tbody,
+.club-table-grouped tr,
+.club-table-grouped th,
+.club-table-grouped td {
+  display: block;
+}
+
+.club-table-grouped thead {
+  display: none;
+}
+
+.club-table-grouped caption {
+  /* A `display: block` caption is no longer a caption as far as layout goes, so it needs the
+     padding the table's own cells would have given it. */
+  padding: 0.9rem 1rem 0.5rem;
+}
+
+.club-table-grouped tr {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+/* ⚠️ **`white-space: normal`, because `.club-table` sets `nowrap` on every cell.** That is
+   what makes the pace guide scroll rather than squash, and on a stacked block it would put
+   a 200-character Rewards Hub line on one unbreakable line at 320px. */
+.club-table-grouped th,
+.club-table-grouped td {
+  padding: 0;
+  border-top: 0;
+  text-align: left;
+  white-space: normal;
+}
+
+.club-table-grouped th[scope='row'] {
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+.club-table-grouped td::before {
+  content: attr(data-label) ': ';
+  font-weight: 700;
+}
+
+.club-table-grouped .club-row-group {
+  padding: 0;
+  border-top: 0;
+}
+
+.club-table-grouped .club-row-group th {
+  padding: 0.5rem 1rem;
+}
+
+/* There is room for five columns. Everything above goes back to being a table. */
+@media (min-width: 48em) {
+  .club-table-grouped {
+    display: table;
+  }
+
+  .club-table-grouped caption {
+    display: table-caption;
+    padding: 0.9rem 1rem;
+  }
+
+  .club-table-grouped thead {
+    display: table-header-group;
+  }
+
+  .club-table-grouped tbody {
+    display: table-row-group;
+  }
+
+  .club-table-grouped tr,
+  .club-table-grouped .club-row-group {
+    display: table-row;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .club-table-grouped th,
+  .club-table-grouped td {
+    display: table-cell;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--club-rule);
+  }
+
+  .club-table-grouped td {
+    width: 6.5rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ⚠️ **The prose column wraps and the four option columns do not.** Inherited `nowrap`
+     on a benefit name and its note would make the table thousands of pixels wide inside its
+     own scroller; `6.5rem` is enough for "50p each*" and leaves the rest of the width to the
+     column that needs it. */
+  .club-table-grouped th[scope='row'] {
+    min-width: 12rem;
+    margin-bottom: 0;
+    white-space: normal;
+  }
+
+  /* The heading a cell carried while the table was stacked. */
+  .club-table-grouped td::before {
+    content: none;
   }
 }
 

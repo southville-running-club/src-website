@@ -8,8 +8,10 @@ import { fileURLToPath, URL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  COMPARISON_TOKENS,
   PRICE_TO_BE_CONFIRMED,
   clubSchema,
+  comparisonText,
   committeeSchema,
   linksSchema,
   membershipSchema,
@@ -160,6 +162,136 @@ describe('the schemas refuse a malformed file', () => {
       expect(() => membershipSchema.parse({ ...membership, [key]: 400 }), key).toThrow();
     }
   });
+
+  /**
+   * The comparison table, which is sixteen benefits in five groups and is the largest thing
+   * in any of these files.
+   *
+   * ⚠️ **Each of these is the mistake a volunteer editing the table would actually make**,
+   * and each fails in a way nothing else would catch. A group with no name renders a blank
+   * heading band; a row with three cells shifts every cell after it one column left, so
+   * "England road running championships" reads as included in pay-as-you-run; and a cell
+   * holding `null` renders as a gap, which reads as "we forgot" rather than as either answer.
+   */
+  describe('the comparison table', () => {
+    /** The real file with one group replaced, so everything else stays valid. */
+    const withFirstGroup = (group: unknown): unknown => {
+      const membership = content('membership.json') as Record<string, unknown>;
+      const groups = membership.comparison as unknown[];
+
+      return { ...membership, comparison: [group, ...groups.slice(1)] };
+    };
+
+    const ROWS = [
+      { benefit: 'Tuesday and Thursday runs', cells: [true, true, true, true] },
+    ];
+
+    /**
+     * ⚠️ **The positive control, and without it every refusal below could be passing for the
+     * wrong reason.** `withFirstGroup` rebuilds the whole file, so a mistake in the helper
+     * makes the object invalid for a reason that has nothing to do with the case under test —
+     * and every `toThrow()` would go on passing while asserting nothing.
+     */
+    it('accepts a well-formed group', () => {
+      expect(() =>
+        membershipSchema.parse(withFirstGroup({ group: 'Club life', rows: ROWS })),
+      ).not.toThrow();
+    });
+
+    it('refuses a group with no name', () => {
+      expect(() => membershipSchema.parse(withFirstGroup({ rows: ROWS }))).toThrow();
+      expect(() =>
+        membershipSchema.parse(withFirstGroup({ group: '', rows: ROWS })),
+      ).toThrow();
+    });
+
+    it('refuses a group with no rows in it', () => {
+      expect(() =>
+        membershipSchema.parse(withFirstGroup({ group: 'Club life', rows: [] })),
+      ).toThrow();
+    });
+
+    it('refuses a row with the wrong number of cells', () => {
+      for (const cells of [[true, true, true], [true, true, true, true, true], []]) {
+        expect(
+          () =>
+            membershipSchema.parse(
+              withFirstGroup({
+                group: 'Club life',
+                rows: [{ benefit: 'Tuesday and Thursday runs', cells }],
+              }),
+            ),
+          `${String(cells.length)} cells`,
+        ).toThrow();
+      }
+    });
+
+    it('refuses a cell that is neither tick, dash nor text', () => {
+      for (const cell of [null, 0, 1, '', {}, []]) {
+        expect(
+          () =>
+            membershipSchema.parse(
+              withFirstGroup({
+                group: 'Club life',
+                rows: [
+                  {
+                    benefit: 'Tuesday and Thursday runs',
+                    cells: [cell, true, true, true],
+                  },
+                ],
+              }),
+            ),
+          JSON.stringify(cell),
+        ).toThrow();
+      }
+    });
+
+    it('refuses a row with a blank benefit or a blank note', () => {
+      for (const row of [
+        { benefit: '', cells: [true, true, true, true] },
+        { benefit: 'Supports the club', note: '', cells: [true, true, true, true] },
+      ]) {
+        expect(
+          () =>
+            membershipSchema.parse(withFirstGroup({ group: 'Club life', rows: [row] })),
+          JSON.stringify(row),
+        ).toThrow();
+      }
+    });
+
+    /**
+     * ⚠️ **A token the page cannot substitute is a placeholder, and a placeholder may not
+     * ship.** Three cells say "50p each", and 50p is `payPerRunPence` — so a cell quotes
+     * `{perRun}` rather than the words, and the only thing stopping `{perWeek}` reaching a
+     * reader verbatim is this refusal.
+     */
+    it('refuses a cell quoting a price the page cannot fill', () => {
+      expect(() =>
+        membershipSchema.parse(
+          withFirstGroup({
+            group: 'Club life',
+            rows: [
+              {
+                benefit: 'Tuesday and Thursday runs',
+                cells: ['{perWeek} each', true, true, true],
+              },
+            ],
+          }),
+        ),
+      ).toThrow(/perWeek/u);
+    });
+  });
+
+  /** The England Athletics registration year — four dates, none of them optional. */
+  describe('the licence year', () => {
+    it.each(['year', 'yearStarts', 'yearEnds', 'renewBy'])('refuses no %s', (key) => {
+      const membership = content('membership.json') as Record<string, unknown>;
+      const licence = { ...(membership.licence as Record<string, unknown>) };
+      delete licence[key];
+
+      expect(() => membershipSchema.parse({ ...membership, licence })).toThrow();
+    });
+  });
 });
 
 describe('an absent fact renders honestly', () => {
@@ -198,6 +330,46 @@ describe('an absent fact renders honestly', () => {
     // "Run for 50p" — the membership page's heading, and what this has to produce.
     expect(formatPriceWords(m.payPerRunPence)).toBe('50p');
     expect(formatPriceWords(m.subscriptionPerMonthPence)).toBe('£2.50');
+  });
+
+  /**
+   * ⚠️ **The table quotes one source for 50p rather than restating it in three cells.**
+   *
+   * "Tuesday and Thursday runs" costs 50p in three of the four columns, and 50p is
+   * `payPerRunPence`. Written as the words, that is a fourth place the price is stated —
+   * agreeing on the day it was typed, silently stale the day the hall's hire cost goes up.
+   */
+  it('fills a cell’s price from the one place it is held', () => {
+    const m = parseMembership(content('membership.json'));
+    const prices = {
+      perRun: formatPriceWords(m.payPerRunPence),
+      perMonth: formatPriceWords(m.subscriptionPerMonthPence),
+    };
+
+    expect(comparisonText('{perRun} each*', prices)).toBe('50p each*');
+    expect(comparisonText('Unlimited', prices)).toBe('Unlimited');
+    expect(comparisonText('{perMonth} a month', prices)).toBe('£2.50 a month');
+
+    // Every token the schema permits has a value, so none can reach a reader unsubstituted.
+    for (const token of COMPARISON_TOKENS) {
+      expect(comparisonText(`{${token}}`, prices), token).not.toContain('{');
+    }
+  });
+
+  /**
+   * ⚠️ **Second-claim membership is a sentence the committee has not signed off**, so the key
+   * is optional and an absent one publishes nothing. This asserts the *behaviour* rather than
+   * the current value: the page must render no sentence at all when the club has not agreed
+   * one, which is what "not decided yet" is allowed to look like.
+   */
+  it('publishes no second-claim sentence when the club has not supplied one', () => {
+    const membership = content('membership.json') as Record<string, unknown>;
+    const licence = { ...(membership.licence as Record<string, unknown>) };
+    delete licence.secondClaim;
+
+    const parsed = parseMembership({ ...membership, licence });
+
+    expect(parsed.licence.secondClaim).toBeUndefined();
   });
 
   /**

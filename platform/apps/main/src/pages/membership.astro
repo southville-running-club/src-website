@@ -2,6 +2,7 @@
 import ClubBase from '../layouts/ClubBase.astro';
 import {
   PRICE_TO_BE_CONFIRMED,
+  comparisonText,
   parseLinks,
   parseMembership,
   parsePartners,
@@ -65,28 +66,39 @@ const link = parseLinks(links);
 const perRun = formatPriceWords(prices.payPerRunPence);
 const perMonth = formatPriceWords(prices.subscriptionPerMonthPence);
 
-/** One row of the comparison table. `true` is included, `false` is not. */
-const COMPARISON: ReadonlyArray<
-  readonly [
-    string,
-    string | boolean,
-    string | boolean,
-    string | boolean,
-    string | boolean,
-  ]
-> = [
-  [
-    'Tuesday and Thursday runs',
-    `${perRun} each`,
-    'Unlimited',
-    `${perRun} each*`,
-    `${perRun} each*`,
-  ],
-  ["Members' WhatsApp community", false, false, true, true],
-  ['Local discounts', false, false, true, true],
-  ['Affiliated race entry rate', false, false, false, true],
-  ['Annual race insurance', false, false, false, true],
-];
+const { comparison, licence } = prices;
+
+/** What a cell's `{perRun}` and `{perMonth}` tokens resolve to. One source, four cells. */
+const cellPrices = { perRun, perMonth };
+
+/**
+ * The four options, in the table's column order, which is `cells`' order.
+ *
+ * ⚠️ **These strings are the column headings *and* each cell's `data-label`.** Below 48em the
+ * table stacks and the headings go, so `::before` reads the label off the cell — and a cell
+ * labelled differently from the column it came from would be a lie nobody could see, because
+ * the two presentations are never on screen at once. One list is what stops that.
+ */
+const COLUMNS = [
+  'Pay as you run',
+  'Unlimited runs',
+  'SRC membership',
+  'SRC + EA',
+] as const;
+
+/**
+ * England Athletics' registration year, as a sentence.
+ *
+ * ⚠️ **Composed here rather than interpolated into the markup**, because three values inside
+ * one sentence is three chances to meet the trap this repository has already paid for five
+ * times: Prettier puts a newline between a word and the expression after it, and Astro
+ * compresses that newline to nothing — `renewed by30 June`. A single expression cannot be
+ * glued to anything.
+ */
+const licenceTerms =
+  `England Athletics registration runs ${licence.yearStarts} to ` +
+  `${licence.yearEnds} and must be renewed by ${licence.renewBy}. Benefits are as ` +
+  `published by England Athletics and may change.`;
 ---
 
 <ClubBase
@@ -113,7 +125,25 @@ const COMPARISON: ReadonlyArray<
 
   <section class="club-sec">
     <div class="club-wrap">
-      <h2>Choose what suits you</h2>
+      {
+        /* An `h2` because the page already has an `h1`, and the lede sits under it rather
+        than in the page header: the header's lede is about not needing to be a member at
+        all, and this one is about which of the four to pick. */
+      }
+      <h2>Run with us, join us, or race with us</h2>
+      {
+        /* ⚠️ **The annual price in this lede is painted, exactly as the home page's heading
+        is.** "Join for £4" is a literal the built file may not contain — `membership.test.ts`
+        asserts that of every page — so the slot ships `PRICE_TO_BE_CONFIRMED` and the Worker
+        fills it. Unpainted the sentence is clumsier and still true, which is the trade `/`
+        already makes; the cards below say it again in their own right. */
+      }
+      <p class="club-lede">
+        Pay per run or subscribe to cover the hall. Join for <span
+          data-membership-price="club">{PRICE_TO_BE_CONFIRMED}</span
+        > to support the club. Add the England Athletics licence if you race: cheaper entries,
+        insurance and partner discounts usually pay it back within the year.
+      </p>
 
       <div class="club-g4 club-pricing">
         <article class="club-card">
@@ -156,80 +186,201 @@ const COMPARISON: ReadonlyArray<
             Supports the club, and gets you into the members' WhatsApp community and local
             discounts.
           </p>
-          <a class="club-btn club-btn-primary" href={link.join.href}>
+          {
+            /* ⚠️ **Outlined, and the filled one is now the card beside it.** Both cards are
+            a membership and only one can be the loudest; the licence card is where the club
+            points somebody who races. This still reads "Most people start here" in words. */
+          }
+          <a class="club-btn club-btn-secondary" href={link.join.href}>
             {link.join.label}
           </a>
         </article>
 
         <article class="club-card">
+          {/* Same pill as the card beside it: the badge is the words, not a colour. */}
+          <p class="club-badge">Best value if you race</p>
           <h3>SRC + England Athletics licence</h3>
           {
             /* ⚠️ **Never a guess, and never a literal.** Painted from `code = 'club_ea'`;
               the split beneath it is painted too, and ships `hidden` because there is
-              nothing honest to say about how £27 divides until the row has been read. */
+              nothing honest to say about how £27 divides until the row has been read.
+
+              `data-membership-ea-year` is read by the same handler and appended — the money
+              is the database's and the registration year is `membership.json`'s, so neither
+              is written here and the sentence still arrives as one phrase. */
           }
           <p class="club-price">
             <span data-membership-price="club_ea">{PRICE_TO_BE_CONFIRMED}</span>
             <small> a year</small>
           </p>
-          <p class="club-small" data-membership-ea-split="club_ea" hidden></p>
-          <p>
-            Everything in membership, plus discounted race entries and annual race
-            insurance.
+          <p
+            class="club-small"
+            data-membership-ea-split="club_ea"
+            data-membership-ea-year={licence.year}
+            hidden
+          >
           </p>
-          <a class="club-btn club-btn-secondary" href="#england-athletics">
-            About the licence
+          <p>
+            Everything in membership, plus £2 off every licensed race, race insurance, the
+            London Marathon club ballot and the EA Rewards Hub.
+          </p>
+          {
+            /* ⚠️ **The licence section keeps an inbound link, because the button no longer
+            is one.** This card's button used to be the only route to `#england-athletics`.
+            A small link keeps it, and the button below it stays the card's last element so
+            `.club-pricing`'s `margin-top: auto` still lines the four up. */
+          }
+          <p class="club-small">
+            <a href="#england-athletics">What the licence covers</a>
+          </p>
+          {
+            /* ⚠️ **Not "on our old site", and not an invented address.** Joining with a
+            licence is the club's own form — it is what `membership_types`' `club_ea` row is
+            for — so this is `links.json`'s `join` key, which is on this site. A button
+            claiming to leave while staying is worse than either, and `club-pages.spec.ts`
+            asserts that in as many words. */
+          }
+          <a class="club-btn club-btn-primary" href={link.join.href}>
+            Join with a licence
           </a>
         </article>
       </div>
 
+      {
+        /* ## The comparison table
+          
+          ⚠️ **Every row and every group is in `membership.json`, and removing one removes it
+          from the page.** England Athletics republishes its benefit list each year and the
+          club does not control it, so the alternative is a template somebody edits annually.
+          Nothing here names a benefit.
+
+          **A `<tbody>` per group**, which is what a row group actually is, with the group's
+          name as a `<th colspan="5">` above it. The heading is a real table header rather
+          than a styled `<td>`, so "Racing" is announced as a heading over the rows beneath
+          it instead of as an empty cell.
+
+          **Below 48em the whole thing stacks** — five columns cannot be read at 320px — and
+          each cell carries its column's name in `data-label` for `::before` to draw. The
+          headings go with `display: none` at that width, so the label is what associates a
+          cell with its option; that is why `COLUMNS` supplies both and neither is typed
+          twice. */
+      }
       <div
         class="club-table-wrap"
         tabindex="0"
         role="region"
         aria-label="What each option includes"
       >
-        <table class="club-table club-table-compare">
+        <table class="club-table club-table-compare club-table-grouped">
           <caption>What each option includes</caption>
           <thead>
             <tr>
-              <th scope="col"><span class="club-visually-hidden">Feature</span></th>
-              <th scope="col">Pay as you run</th>
-              <th scope="col">Unlimited runs</th>
-              <th scope="col">SRC membership</th>
-              <th scope="col">SRC + EA</th>
+              <th scope="col"><span class="club-visually-hidden">Benefit</span></th>
+              {COLUMNS.map((column) => <th scope="col">{column}</th>)}
             </tr>
           </thead>
-          <tbody>
-            {
-              COMPARISON.map(([feature, ...cells]) => (
-                <tr>
-                  <th scope="row">{feature}</th>
-                  {cells.map((cell) =>
-                    typeof cell === 'string' ? (
-                      <td>{cell}</td>
-                    ) : (
-                      <td>
-                        {/* ⚠️ A glyph is not a word. The tick and the dash are `aria-hidden`
-                          and each carries its own text, so the table means the same thing
-                          read aloud as it does read across. */}
-                        <span aria-hidden="true">{cell ? '✓' : '–'}</span>
-                        <span class="club-visually-hidden">
-                          {cell ? 'Included' : 'Not included'}
-                        </span>
-                      </td>
-                    ),
-                  )}
+          {
+            comparison.map((group) => (
+              <tbody>
+                <tr class="club-row-group">
+                  {/* Five, because the row header counts as a column. */}
+                  <th scope="colgroup" colspan="5">
+                    {group.group}
+                  </th>
                 </tr>
-              ))
-            }
-          </tbody>
+                {group.rows.map((row) => (
+                  <tr>
+                    <th scope="row">
+                      {row.benefit}
+                      {/* ⚠️ A `<span>` inside the row header, not a second row: a supporting
+                        line in a row of its own would have four empty cells beside it, and
+                        would be read out as a row somebody has to work out the shape of. */}
+                      {row.note !== undefined && (
+                        <span class="club-row-note">{row.note}</span>
+                      )}
+                    </th>
+                    {row.cells.map((cell, column) =>
+                      typeof cell === 'string' ? (
+                        <td data-label={COLUMNS[column]}>
+                          {comparisonText(cell, cellPrices)}
+                        </td>
+                      ) : (
+                        <td data-label={COLUMNS[column]}>
+                          {/* ⚠️ A glyph is not a word, and colour is never the signal. The
+                            tick is drawn rather than typed — an inline SVG takes the current
+                            ink, so it is legible in both schemes without a colour of its own
+                            — and each cell carries its own text, so the table means the same
+                            thing read aloud as it does read across. */}
+                          {cell ? (
+                            <svg
+                              class="club-tick"
+                              viewBox="0 0 16 16"
+                              width="16"
+                              height="16"
+                              aria-hidden="true"
+                              focusable="false"
+                            >
+                              <path
+                                d="M2 8.5 6 12.5 14 3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                              />
+                            </svg>
+                          ) : (
+                            <span aria-hidden="true">–</span>
+                          )}
+                          <span class="club-visually-hidden">
+                            {cell ? 'Included' : 'Not included'}
+                          </span>
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            ))
+          }
         </table>
       </div>
 
       <p class="club-small">
         * Or add the {perMonth} monthly subscription for unlimited runs.
       </p>
+
+      {
+        /* ⚠️ **The England Athletics fee is a sentence of its own, and it ships hidden.**
+          The £23 is `membership_types.ea_fee_pence` and no built page may contain it, so
+          this is painted like the split line in the card — the registration year comes off
+          `data-membership-ea-year` and the money out of the database. Unpainted, the page
+          simply does not make the claim, which is the direction every other failure here
+          takes. */
+      }
+      <p
+        class="club-small"
+        data-membership-ea-fee="club_ea"
+        data-membership-ea-year={licence.year}
+        hidden
+      >
+      </p>
+
+      <p class="club-small">{licenceTerms}</p>
+
+      {
+        /* ⚠️ **Absent until the committee agrees the wording.** Second-claim membership is
+          offered here as a sentence the club supplied and the committee has not signed off;
+          an absent key publishes nothing, which is what "not agreed yet" should look like.
+          Plain text rather than a link, because the route that exists — the Membership
+          Officer, through the committee page — is in the licence section below and
+          `links.json` has no second-claim address to invent one from. */
+      }
+      {
+        licence.secondClaim !== undefined && (
+          <p class="club-small">{licence.secondClaim}</p>
+        )
+      }
     </div>
   </section>
 

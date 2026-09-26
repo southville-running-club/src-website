@@ -231,21 +231,170 @@ export function parsePace(value: unknown): Pace {
  * Prices are pence so they go through `formatPriceWords()` — "50p", "£4", "£2.50" — and never
  * through a template writing its own `£`.
  */
+/**
+ * The England Athletics registration year, and the words the page says about it.
+ *
+ * ## ⚠️ Why the fee is not here and the dates are
+ *
+ * **Every figure about the licence is in `membership.membership_types`** — the £27, the £4 the
+ * club keeps and the £23 England Athletics' own registration costs — and
+ * `tests/worker/membership.test.ts` asserts that no built page contains any of the three. The
+ * dates are different in kind: nothing in the database holds them, because nothing in the
+ * database needs them. `membership.settings` has `ea_cutoff_month` and `ea_cutoff_day`, which
+ * are what the *application form* validates a date of birth against — not the sentence a
+ * reader is shown, and not the renewal deadline at all.
+ *
+ * So these four are facts with nowhere else to live, and they move every year.
+ *
+ * `year` is a label rather than two numbers because "2026/27" is what England Athletics
+ * publishes and what a member will look for; deriving it from a start date would be this file
+ * restating a convention it does not own.
+ */
+export const membershipLicenceSchema = z.object({
+  /** "2026/27" — England Athletics' own name for the registration year. */
+  year: z.string().min(1),
+  /** "1 April". The day the registration year opens. */
+  yearStarts: z.string().min(1),
+  /** "31 March". The day it closes. */
+  yearEnds: z.string().min(1),
+  /** "30 June" — the deadline a lapsed registration has to be renewed by. */
+  renewBy: z.string().min(1),
+
+  /**
+   * ⚠️ **Optional, and absent is the safe state, because the committee has not signed this
+   * off.** Second-claim membership — for somebody already registered with another club — is
+   * offered on the page as a sentence the club supplied, and whether the club wants to say it
+   * at all is theirs to decide. An absent key publishes nothing, which is what "we have not
+   * agreed that yet" should look like; a present one is published word for word.
+   */
+  secondClaim: z.string().min(1).optional(),
+});
+
+/**
+ * One cell of the comparison table.
+ *
+ * `true` is a tick, `false` is a dash, and a string is text — "Unlimited", "50p each*". There
+ * is deliberately no fourth kind: a cell holding `null`, `0` or `""` would render as a blank,
+ * which reads as "we forgot" rather than as either answer, and is what
+ * `club-content.test.ts` refuses by name.
+ */
+export const comparisonCellSchema = z.union([z.boolean(), z.string().min(1)]);
+
+/**
+ * The prices a cell may quote, by name.
+ *
+ * ⚠️ **This closed list is the whole reason cells carry a token rather than a figure.** The
+ * table has to say "50p each" in three of its cells, and 50p lives in `payPerRunPence` — so a
+ * cell written as the words would be a fourth place that price is stated, agreeing on the day
+ * it was typed. `{perRun}` is substituted at render time from the one source.
+ *
+ * A token that is not on this list is **refused rather than left unsubstituted**, because an
+ * unsubstituted `{perWeek}` reaching the page is a placeholder, and the rule here is that a
+ * placeholder cannot ship.
+ */
+export const COMPARISON_TOKENS = ['perRun', 'perMonth'] as const;
+
+export type ComparisonToken = (typeof COMPARISON_TOKENS)[number];
+
+/** The rendered price for each token, in the club's own words — "50p", "£2.50". */
+export type ComparisonPrices = Record<ComparisonToken, string>;
+
+const TOKEN_PATTERN = /\{([^}]*)\}/gu;
+
+function unknownTokens(text: string): readonly string[] {
+  return [...text.matchAll(TOKEN_PATTERN)]
+    .map((match) => match[1] ?? '')
+    .filter((name) => !COMPARISON_TOKENS.includes(name as ComparisonToken));
+}
+
+/**
+ * One benefit, and what each of the four options gives you of it.
+ *
+ * `cells` is exactly four and in the table's own column order — pay as you run, unlimited
+ * runs, SRC membership, SRC + EA. **A length check rather than a tuple of four named keys**:
+ * the table's columns are positional on the page, a row with three cells is a row that would
+ * silently shift every cell after it one column left, and `.length(4)` is what a volunteer
+ * editing this file gets told about.
+ *
+ * `note` is the one short line under the benefit's name. Optional, because most rows say
+ * enough in their own title, and absent renders nothing rather than an empty line.
+ */
+export const comparisonRowSchema = z.object({
+  benefit: z.string().min(1),
+  note: z.string().min(1).optional(),
+  cells: z.array(comparisonCellSchema).length(4),
+});
+
+/** A group of rows, under a heading of its own — "Club life", "Racing". */
+export const comparisonGroupSchema = z.object({
+  group: z.string().min(1),
+  rows: z.array(comparisonRowSchema).min(1),
+});
+
 export const membershipSchema = z
   .object({
     payPerRunPence: z.number().int().nonnegative(),
     subscriptionPerMonthPence: z.number().int().nonnegative(),
+    licence: membershipLicenceSchema,
+    /**
+     * The comparison table, in the order it is read.
+     *
+     * ⚠️ **Groups and rows are data so that the committee can add or drop a benefit without
+     * touching markup**, which is the same argument `pace.json` makes for its rows. England
+     * Athletics republishes its benefit list every year and the club does not control it, so
+     * the alternative is a template edited annually by whoever is available.
+     */
+    comparison: z.array(comparisonGroupSchema).min(1),
   })
   // ⚠️ **`.strict()`, and it is the only schema in this file that is.** Zod drops an unknown
   // key silently, so without this a `membershipPerYearPence` added back to `membership.json`
   // would be accepted, ignored, and invisible — somebody would edit a price, see nothing
   // change on the page, and have no way to find out why. Refusing it names the problem.
-  .strict();
+  .strict()
+  // Every token in every cell has to be one the page can actually substitute. Checked here
+  // rather than at each cell so the message names the row a volunteer has to go and fix.
+  .superRefine((value, ctx) => {
+    for (const group of value.comparison) {
+      for (const row of group.rows) {
+        for (const cell of row.cells) {
+          if (typeof cell !== 'string') continue;
+
+          for (const name of unknownTokens(cell)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                `"${row.benefit}" quotes {${name}}, which is not one of ` +
+                COMPARISON_TOKENS.map((token) => `{${token}}`).join(', '),
+            });
+          }
+        }
+      }
+    }
+  });
 
 export type Membership = z.infer<typeof membershipSchema>;
+export type MembershipLicence = z.infer<typeof membershipLicenceSchema>;
+export type ComparisonGroup = z.infer<typeof comparisonGroupSchema>;
+export type ComparisonRow = z.infer<typeof comparisonRowSchema>;
+export type ComparisonCell = z.infer<typeof comparisonCellSchema>;
 
 export function parseMembership(value: unknown): Membership {
   return membershipSchema.parse(value);
+}
+
+/**
+ * Substitute a cell's price tokens, so the table quotes one source rather than restating it.
+ *
+ * The schema has already refused any token that is not in `COMPARISON_TOKENS`, so every
+ * `{name}` reaching here has a value — which is why this replaces rather than defaulting.
+ * A token surviving to the page would be a placeholder, and the guard against that is the
+ * refusal at parse time, not a fallback here.
+ */
+export function comparisonText(text: string, prices: ComparisonPrices): string {
+  return text.replace(
+    TOKEN_PATTERN,
+    (whole, name: string) => prices[name as ComparisonToken] ?? whole,
+  );
 }
 
 /* -----------------------------------------------------------------------------------------

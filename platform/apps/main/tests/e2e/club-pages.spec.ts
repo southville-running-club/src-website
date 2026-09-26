@@ -1,4 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
+import { expect, test, type Locator } from '@playwright/test';
+
+import { parseMembership } from '@src/shared/club-content';
+import { formatPriceWords } from '@src/shared/money';
 
 import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
@@ -31,6 +36,22 @@ const PAGES = [
 
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
+
+/**
+ * The membership comparison, read the way the page reads it.
+ *
+ * ⚠️ **Read from disk rather than `import`ed**, for the reason `club-chrome.spec.ts` gives:
+ * a bare JSON import works in an Astro page, where Vite handles it, and fails in a Playwright
+ * spec with *"needs an import attribute of type: json"*.
+ */
+const membership = parseMembership(
+  JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../src/content/membership.json', import.meta.url)),
+      'utf8',
+    ),
+  ),
+);
 
 /**
  * The home page joins the four for everything that is about **what a page says** rather than
@@ -208,6 +229,208 @@ test.describe('wide tables scroll inside themselves', () => {
     });
   }
 });
+
+/**
+ * The comparison table on `/membership/`.
+ *
+ * ⚠️ **What this actually guards is that the table is the content file and not a copy of it.**
+ * Sixteen benefits in five groups is the largest thing in `src/content/`, and the failure it
+ * invites is the quiet one: a row that renders twice, a row that renders nowhere, or a row
+ * whose four cells came out as three so every option after it reads one column to the left.
+ * None of those looks wrong, and none of them is a schema error — the file is valid either
+ * way, so only the built page can answer it.
+ *
+ * **Not tagged `@requires-js`**: none of it needs scripting, and the `no-javascript` project
+ * is where the stacked presentation matters most.
+ */
+test.describe('what each option includes', () => {
+  const groups = membership.comparison;
+  const rows = groups.flatMap((group) => group.rows);
+
+  /** The cell text the page must produce, from the one place the price is held. */
+  const perRun = formatPriceWords(membership.payPerRunPence);
+
+  test('renders every group from the content file, once each', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+
+    for (const group of groups) {
+      await expect(
+        table.locator('th[scope="colgroup"]').filter({ hasText: group.group }),
+        `${group.group} does not render exactly once`,
+      ).toHaveCount(1);
+    }
+
+    await expect(table.locator('th[scope="colgroup"]')).toHaveCount(groups.length);
+  });
+
+  test('renders every row once, with four cells and no more', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+    const bodyRows = table.locator('tbody tr:not(.club-row-group)');
+
+    // ⚠️ **The count is compared against the file rather than written down**, because a row
+    // dropped from the middle of the table is invisible to the eye and to every assertion
+    // that names a benefit.
+    await expect(bodyRows).toHaveCount(rows.length);
+
+    // ⚠️ **Positional, which is what makes "exactly once" a real claim.** Matching each
+    // benefit by its own text would pass a table that rendered one row twice and another not
+    // at all, and would pass a table whose groups came out in a different order.
+    const rendered = await bodyRows.locator('th[scope="row"]').allTextContents();
+
+    rows.forEach((row, index) => {
+      // A note is a `<span>` inside the row header, so it is part of that header's text, and
+      // there is no separator between the two in the markup: the span is `display: block`,
+      // which is where both a reader and the accessible-name algorithm take the break from.
+      expect(squash(rendered[index] ?? ''), `row ${String(index + 1)}`).toBe(
+        squash(`${row.benefit}${row.note ?? ''}`),
+      );
+    });
+
+    // Four options, so four cells on every row. A row with three shifts every option after it
+    // one column to the left, which reads as a benefit somebody does not get.
+    for (const [index, row] of rows.entries()) {
+      await expect(
+        bodyRows.nth(index).locator('td'),
+        `${row.benefit} has the wrong number of cells`,
+      ).toHaveCount(4);
+    }
+  });
+
+  /**
+   * ⚠️ **A glyph is not a word, and colour is never the signal.** Each cell carries the tick
+   * or the dash for a reader and "Included" / "Not included" for everybody else, so the table
+   * means the same thing read aloud as it does read across.
+   */
+  test('says included and not included in words, not only in glyphs', async ({
+    page,
+  }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+
+    const ticks = rows.flatMap((row) => row.cells).filter((cell) => cell === true).length;
+    const dashes = rows
+      .flatMap((row) => row.cells)
+      .filter((cell) => cell === false).length;
+
+    await expect(table.getByText('Included', { exact: true })).toHaveCount(ticks);
+    await expect(table.getByText('Not included', { exact: true })).toHaveCount(dashes);
+  });
+
+  /**
+   * ⚠️ **The price in a cell comes from `payPerRunPence` and is not written out.** Three cells
+   * say it, and a cell holding the words would be a fourth place 50p is stated — agreeing on
+   * the day it was typed. `comparisonText()` is what fills it; this is what says it arrived.
+   */
+  test('quotes the club’s own price rather than restating it', async ({ page }) => {
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+
+    const cells = await table.locator('tbody td').allTextContents();
+
+    expect(cells.filter((cell) => squash(cell) === `${perRun} each*`)).toHaveLength(2);
+    expect(cells.filter((cell) => squash(cell) === `${perRun} each`)).toHaveLength(1);
+    // And nothing reached the page still holding a token the page was meant to fill.
+    expect(cells.filter((cell) => cell.includes('{'))).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **Five columns do not fit at 320px, so below 48em there are no columns.** Each cell
+   * draws its column's name from `data-label` through `::before` — which is in the
+   * accessibility tree, and is what replaces the `<th scope="col">` association once the
+   * headings are `display: none`. Exactly one labelling mechanism is live at each width,
+   * which is why the pseudo-element is `content: none` above the breakpoint.
+   */
+  test('stacks each row at 320px and is a table again at 1440', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+    const headings = table.locator('thead');
+    const firstCell = table.locator('tbody tr:not(.club-row-group) td').first();
+
+    await expect(headings).toBeHidden();
+    await expect(firstCell).toHaveCSS('display', 'block');
+
+    // ⚠️ **The label is drawn by `::before`, which `textContent` cannot see** — that is what
+    // this assertion was written as first, and it failed against a page behaving correctly.
+    // What the two presentations have to guarantee is that exactly one labelling mechanism is
+    // live at each width: the pseudo-element while the headings are hidden, and the headings
+    // once they are back. `attr()` is resolved differently by the three engines, so this asks
+    // whether the label is drawn rather than what it says — the attribute it draws is
+    // asserted against the headings themselves in the test below.
+    expect(await labelContent(firstCell)).not.toBe('none');
+
+    await expectNoSidewaysScroll(page, '/membership/ comparison table at 320px');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await expect(headings).toBeVisible();
+    await expect(firstCell).toHaveCSS('display', 'table-cell');
+    // The heading is at the top of the column again, so the cell stops repeating it.
+    expect(await labelContent(firstCell)).toBe('none');
+  });
+
+  /**
+   * ⚠️ **A relationship rather than a list of four strings.** Below 48em the column headings
+   * are `display: none` and each cell's `data-label` is all that says which option it belongs
+   * to — so a label that disagreed with its column would be a lie nobody could see, because
+   * the two presentations are never on screen at the same time. Comparing the page's own
+   * headings against the page's own labels needs neither written down here.
+   */
+  test('labels every cell with the column it came from', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/membership/');
+
+    const table = page.getByRole('region', { name: 'What each option includes' });
+
+    // The first heading is the benefit column, which has no cells of its own to label.
+    const columns = (await table.locator('thead th').allTextContents())
+      .slice(1)
+      .map(squash);
+
+    expect(columns).toHaveLength(4);
+
+    const bodyRows = table.locator('tbody tr:not(.club-row-group)');
+
+    for (const [index, row] of rows.entries()) {
+      const labels = await bodyRows
+        .nth(index)
+        .locator('td')
+        .evaluateAll((cells) =>
+          cells.map((cell) => cell.getAttribute('data-label') ?? ''),
+        );
+
+      expect(labels, `${row.benefit} is labelled wrongly`).toEqual(columns);
+    }
+  });
+});
+
+/** Whitespace in rendered markup is a build artefact; what a reader sees is not. */
+function squash(text: string): string {
+  return text.replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * The `content` of a cell's `::before` — `'none'` when the stacked label is not drawn.
+ *
+ * ⚠️ **`page.evaluate` and not `waitForFunction`**, which installs its loop *in* the page and
+ * so never runs at all with `javaScriptEnabled: false`. This suite's `no-javascript` project
+ * is exactly where the stacked presentation matters most.
+ */
+async function labelContent(cell: Locator): Promise<string> {
+  return await cell.evaluate(
+    (element) => globalThis.getComputedStyle(element, '::before').content,
+  );
+}
 
 /**
  * The accordions are `<details>`, so they open with no script at all.
