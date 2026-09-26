@@ -6,6 +6,8 @@ import {
   type MembershipOutboxMessage,
 } from '@src/shared';
 
+import { renderMembershipEmailHtml } from './membership-email-skin';
+
 /**
  * The membership outbox drain — what the club sends about an application to join.
  *
@@ -17,12 +19,16 @@ import {
  * acknowledgement in seconds rather than at the next tick of a clock, which is ADR-032 — and
  * again from the cron, which is the retry net.
  *
- * ## ⚠️ Text only, deliberately, and this is the seam an HTML part lands on
+ * ## ⚠️ The acknowledgement carries an HTML part; the club's copy does not
  *
- * Both messages send as text today. `membershipEmailBody()` states every fact; an HTML part
- * would render from the **same `MembershipOutboxMessage`** and never from that function's
- * output, so the two could differ in presentation and never in what they say. That is ADR-026's
- * rule for the race emails and ADR-041's for the ticket one, and the same shape applies here.
+ * `membershipEmailBody()` states every fact and the text part is unchanged and authoritative.
+ * `renderMembershipEmailHtml()` renders from the **same `MembershipOutboxMessage`** and never
+ * from that function's output, so the two can differ in presentation and never in what they
+ * say — ADR-026's rule for the race emails and ADR-041's for the ticket one.
+ *
+ * It answers `null` for `application_submitted`, which then sends as text alone rather than not
+ * at all: no design was supplied for the club's own copy, and that is the message carrying the
+ * whole form. `store-outbox.ts` does the same for `ticket_refunded`.
  *
  * ## ⚠️ What must never be logged
  *
@@ -56,9 +62,22 @@ interface SendOutcome {
   error?: string;
 }
 
-async function deliver(
+export interface MembershipEmailConfig {
+  apiKey: string;
+  apiBase: string;
+}
+
+/**
+ * Send one message, and answer what happened.
+ *
+ * **Exported so a test can read what actually leaves the Worker**, which is `email.ts`'s
+ * argument for exporting `sendOutboxMessage()`: the thing worth protecting is the request body
+ * the provider receives, and a test that stubs `fetch` and reads it is checking exactly that.
+ * The drain below is the only caller in production code.
+ */
+export async function sendMembershipMessage(
   message: MembershipOutboxMessage,
-  config: { apiKey: string; apiBase: string },
+  config: MembershipEmailConfig,
 ): Promise<SendOutcome> {
   let body: { subject: string; text: string };
 
@@ -73,6 +92,10 @@ async function deliver(
       error: `unknown template ${message.template}`,
     };
   }
+
+  // **The HTML part is rendered after the text and never from it** — ADR-026, ADR-041. `null`
+  // for a template this skin has no design for, which today is `application_submitted`.
+  const html = renderMembershipEmailHtml(message);
 
   let response: Response;
 
@@ -93,6 +116,10 @@ async function deliver(
         reply_to: message.replyTo,
         subject: body.subject,
         text: body.text,
+        // **Omitted rather than sent as null.** Resend's own validation rejects a null `html`
+        // — the same shape `email.ts` and `store-outbox.ts` both settled on, for the same
+        // reason.
+        ...(html === null ? {} : { html }),
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -160,7 +187,7 @@ export async function drainMembershipOutbox(env: MembershipOutboxEnv): Promise<v
     let failed = 0;
 
     for (const message of messages) {
-      const outcome = await deliver(message, config);
+      const outcome = await sendMembershipMessage(message, config);
 
       await recordMembershipSendResult(client, webhookKey, message.id, {
         sent: outcome.ok,

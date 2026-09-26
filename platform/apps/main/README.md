@@ -129,6 +129,10 @@ worker/email-attachment.ts     An inline image read out of the Worker's own asse
 worker/email-outbox.ts         The drain. Nothing here can lose a message
 worker/ticket-email-skin.ts    The HTML part of a ticket confirmation. A second skin,
                                not a widened first one — ADR-041
+worker/membership-outbox.ts    The membership outbox drain, and the Resend send
+worker/membership-email-skin.ts
+                               The HTML part of the applicant's acknowledgement. A third
+                               skin, for the same reason — the applicant's copy only
 
   Tickets to a club social
 worker/events.ts               /events/ — the socials, and the ticket form for one
@@ -557,10 +561,30 @@ Resend's free tier is 100 a day account-wide, shared with every race and account
 membership acknowledgement is exactly the one that gets refused on a busy day. The outbox makes
 that **late** rather than **lost**.
 
-| Message | To | Carries | Reply-To |
-| --- | --- | --- | --- |
-| `application_received` | the applicant | First name, membership chosen, price | the club |
-| `application_submitted` | `membership@southvillerunningclub.co.uk` | The whole form | **the applicant** |
+| Message | To | Carries | Parts | Reply-To |
+| --- | --- | --- | --- | --- |
+| `application_received` | the applicant | First name, membership chosen, price | text + HTML | the club |
+| `application_submitted` | `membership@southvillerunningclub.co.uk` | The whole form | text | **the applicant** |
+
+**The acknowledgement has an HTML part**, in `worker/membership-email-skin.ts` — a third skin
+beside `email-skin.ts` and `ticket-email-skin.ts`, built the same way and for the same reason
+ADR-041 gave for not widening the first one. The text part is unchanged and stays
+authoritative: both render from the **same `MembershipOutboxMessage`**, and the HTML never from
+the text's output, so the two can differ in presentation and never in what they state. It
+carries the same three facts the table above lists and no fourth — no image, no webfont, no
+tracking pixel, and so no attachment and no `ASSETS` read.
+
+⚠️ **The club's own copy gets `null` and sends as text alone**, which is what `store-outbox.ts`
+does for `ticket_refunded`. No design was supplied for it, and it is the message carrying a
+home address and a date of birth — so text-only is the safe answer twice over.
+
+⚠️ **The HTML says less than the text about paying, and that was decided rather than missed.**
+The text names the England Athletics portal and says EA will email the link to pay; the
+approved design says only that the Membership Officer will be in touch and that nothing has
+been charged. Nothing is contradicted, so the never-state-a-fact-the-text-does-not rule holds —
+but an HTML-reading applicant does not learn where the payment request will come from. Raised
+before the change shipped and accepted as designed; the fix, if it is wanted, is new design
+copy rather than an edit here.
 
 ⚠️ **The split is enforced by `claim_outbox_batch()`, not by the templates.** It returns
 `details: null` for the applicant's copy, so the acknowledgement renders from a row that does
