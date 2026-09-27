@@ -3,7 +3,7 @@
 // which is a different type with a different iterator. The error names `searchParams.entries()`
 // and `Symbol.dispose`, which says nothing at all about the actual problem. `nn-nav.test.ts`
 // and `events.test.ts` already import it this way; this is that, copied.
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -125,10 +125,40 @@ describe('the schemas refuse a malformed file', () => {
   });
 
   it('refuses a committee role that is an empty string', () => {
+    const person = { name: 'Someone', role: 'Web Manager', photo: 'someone.webp' };
+
     expect(() =>
       committeeSchema.parse({
-        officers: [{ role: '' }],
-        volunteers: [{ role: 'Web Manager' }],
+        officers: [{ ...person, role: '' }],
+        volunteers: [person],
+        welfare: [person],
+      }),
+    ).toThrow();
+  });
+
+  // Every person has a photograph, by decision: an initials fallback was declined so that a
+  // missing file is a failing test rather than a quietly different card.
+  it('refuses a committee member with no photo', () => {
+    const person = { name: 'Someone', role: 'Web Manager', photo: 'someone.webp' };
+
+    expect(() =>
+      committeeSchema.parse({
+        officers: [{ name: 'Someone', role: 'Treasurer' }],
+        volunteers: [person],
+        welfare: [person],
+      }),
+    ).toThrow();
+  });
+
+  // A path would be joined onto `/images/committee/` and resolve somewhere nobody meant.
+  it('refuses a committee photo that is a path rather than a file name', () => {
+    const person = { name: 'Someone', role: 'Web Manager', photo: 'someone.webp' };
+
+    expect(() =>
+      committeeSchema.parse({
+        officers: [{ ...person, photo: '../someone.webp' }],
+        volunteers: [person],
+        welfare: [person],
       }),
     ).toThrow();
   });
@@ -389,24 +419,58 @@ describe('an absent fact renders honestly', () => {
     }
   });
 
-  it('names no committee member until the club supplies one', () => {
-    const { officers, volunteers } = parseCommittee(content('committee.json'));
+  /**
+   * ⚠️ **This asserted the opposite until 27 September 2026** — that nobody was named, because
+   * the club had not supplied the list. It has now, with each person's consent, so what is
+   * guarded is the placeholder rather than the name.
+   */
+  it('names every committee member with no placeholder in the way', () => {
+    const { officers, volunteers, welfare } = parseCommittee(content('committee.json'));
 
-    for (const person of [...officers, ...volunteers]) {
-      expect(person.name, `${person.role} has a name on it`).toBeUndefined();
+    for (const person of [...officers, ...volunteers, ...welfare]) {
+      expect(person.name).not.toMatch(/\[|placeholder|tbc|confirm/iu);
       expect(person.role).not.toMatch(/\[|name|placeholder/iu);
     }
   });
 
-  it('marks exactly the two welfare roles', () => {
-    const { officers, volunteers } = parseCommittee(content('committee.json'));
-    const welfare = [...officers, ...volunteers].filter((p) => p.welfare === true);
+  /**
+   * ⚠️ **A named photo that is not on disk fails here, before any page is built.** The
+   * alternative is a broken image on the live site, which no schema can see because the schema
+   * lives in a package that has no business reading `apps/main/public/`.
+   */
+  it('has every committee photo on disk, and nothing else in that folder', () => {
+    const { officers, volunteers, welfare } = parseCommittee(content('committee.json'));
+    const named = [...officers, ...volunteers, ...welfare].map((p) => p.photo);
+    const folder = fileURLToPath(
+      new URL('../../public/images/committee/', import.meta.url),
+    );
+
+    for (const photo of named) {
+      expect(
+        existsSync(`${folder}${photo}`),
+        `${photo} is not in public/images/committee/`,
+      ).toBe(true);
+    }
+
+    // One file per person, each used once: a photo left behind after somebody steps down is a
+    // face still being published about them, just at an address nothing links to.
+    expect(new Set(named).size, 'two people share a photo').toBe(named.length);
+    expect(readdirSync(folder).sort()).toEqual([...named].sort());
+  });
+
+  it('puts exactly the two welfare officers in the welfare panel, and only there', () => {
+    const { officers, volunteers, welfare } = parseCommittee(content('committee.json'));
 
     // Somebody looking for these is usually looking for them urgently.
     expect(welfare.map((p) => p.role)).toEqual([
       'Lead Welfare Officer',
       'Welfare Officer',
     ]);
+
+    const elsewhere = new Set([...officers, ...volunteers].map((p) => p.name));
+    for (const person of welfare) {
+      expect(elsewhere.has(person.name), `${person.name} appears twice`).toBe(false);
+    }
   });
 
   /**

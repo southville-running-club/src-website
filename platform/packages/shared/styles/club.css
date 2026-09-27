@@ -1378,20 +1378,222 @@ img.club-photo-portrait {
   font-weight: 700;
 }
 
-.club-person h3 {
-  margin-bottom: 0.15rem;
-  font-size: 1.05rem;
+/* -------------------------------------------------------------------------------------
+ * The committee
+ * -------------------------------------------------------------------------------------
+ * A card per person — photograph, name, role — in a list, and the welfare panel after them.
+ *
+ * **Two columns at 320px, five at 62em.** Two columns at 320px leaves each card about 134px,
+ * and a 96px photograph fits in that only with 0.75rem of padding a side — the ordinary card's
+ * 1.4rem would push it out and the page would scroll sideways. So these cards carry their own
+ * padding rather than `.club-card`'s, and widen it once there is room.
+ *
+ * ⚠️ **Photographs are a fixed size in both dimensions at every width**, and the `width` and
+ * `height` attributes in the markup match the desktop size. The attributes reserve the box
+ * before the image arrives; the CSS then states both sides, so there is no moment at which a
+ * photograph is the attribute's size and then another one — no layout shift at either width.
+ *
+ * ⚠️ **Names wrap with `break-word`, never `anywhere`**, which once rendered a volunteer as
+ * `Binda` / `l Shah` on `/admin/people/`. A name breaks between words, and only mid-word if a
+ * single word is wider than the card.
+ */
+/* The group headings and the panel's carry the section, as the mockup draws them — larger
+   than an ordinary `h3`, and still one level under "The committee". */
+.club-committee h3 {
+  font-size: 1.4rem;
 }
 
-/* The two welfare roles, marked because somebody looking for them is usually looking for
-   them urgently. The outline is the non-text half; the badge says it in words. */
-.club-welfare {
-  outline: 2px solid var(--club-brand);
-  outline-offset: -1px;
+ul.club-people {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 2rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
 }
 
-.club-welfare-call {
-  border-left: 6px solid var(--club-brand);
+.club-person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0.75rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+  text-align: center;
+}
+
+.club-person img,
+.club-welfare-person img {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 0.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  /* The quiet panel colour shows while a lazy photograph is still on its way. */
+  background: var(--club-photo);
+}
+
+/* A name is a heading for the structure and body type for the look: the display face at this
+   size, in a narrow card, reads as a label rather than a person. */
+.club-person h4,
+.club-welfare-person h4 {
+  margin: 0 0 0.15rem;
+  font-family: var(--club-font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  overflow-wrap: break-word;
+}
+
+/* `--club-role`: 6.15:1 on a card, 5.28:1 on the alternate band — see the token. */
+.club-role {
+  margin: 0;
+  color: var(--club-role);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* The welfare panel. On the card surface rather than the band, so it reads as one box with
+   something to do in it, and the two officers inside it sit on the band's colour. */
+.club-welfare-panel {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1.5rem 1.25rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.club-welfare-panel > :first-child > :last-child {
+  margin-bottom: 0;
+}
+
+.club-welfare-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.club-welfare-head h3 {
+  margin: 0;
+}
+
+/* The speech bubble. A non-text graphic in the brand green on the alternate band: 3.01:1 in
+   the light scheme, 4.65:1 in the dark — both over the 3:1 floor, and the heading beside it
+   carries the meaning anyway. */
+.club-welfare-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--club-surface-alt);
+  color: var(--club-brand);
+}
+
+.club-welfare-action {
+  margin-bottom: 0.5rem;
+}
+
+.club-welfare-action svg {
+  flex: none;
+}
+
+ul.club-welfare-people {
+  display: grid;
+  /* Two side by side only once each has room for its pill on two lines; one per row before. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  align-content: start;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-welfare-person {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem;
+  border-radius: calc(var(--club-radius-card) * 0.75);
+  background: var(--club-surface-alt);
+  /* A long role or the pill must wrap inside the card rather than widen it. */
+  min-width: 0;
+}
+
+.club-welfare-person > div {
+  min-width: 0;
+}
+
+.club-welfare-person img {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 0;
+}
+
+/* The pill: the card surface on the band, with the ink on it — 14.22:1 light, 13.50:1 dark. */
+.club-confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.club-confidence svg {
+  flex: none;
+}
+
+@media (min-width: 48em) {
+  ul.club-people {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .club-person {
+    padding: 1.5rem 1rem;
+  }
+
+  .club-welfare-panel {
+    padding: 2.25rem 2.5rem;
+  }
+
+  .club-welfare-person img {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+@media (min-width: 62em) {
+  ul.club-people {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .club-committee h3 {
+    font-size: 1.6rem;
+  }
+
+  .club-person img {
+    width: 128px;
+    height: 128px;
+  }
+
+  .club-welfare-panel {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 2.5rem;
+    align-items: center;
+  }
 }
 
 /* -------------------------------------------------------------------------------------

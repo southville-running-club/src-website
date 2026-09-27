@@ -443,6 +443,7 @@ template.
 | --- | --- |
 | `club.json` | Where and when the club meets, the map link, the legal name and the affiliation line |
 | `membership.json` | What a run and the subscription cost, the England Athletics registration year, and the whole of `/membership/`'s comparison table. See below |
+| `committee.json` | Who is on the committee, in three lists — officers, volunteers and the welfare officers — each person a name, a role and a photo. Rendered as the committee section of `/about/`. See below |
 
 ⚠️ **The site is static, so editing one of these does nothing until the site is rebuilt.**
 There is no database read behind them and no cache to bust: `npm run build` in this workspace,
@@ -466,6 +467,31 @@ the action follows, label included. No component changes and no search for the o
 places it appears.
 
 *(`links.json` lands with the pages that use it.)*
+
+### `committee.json` — changing a role or a photo
+
+The committee section of `/about/` is rendered from this file and nothing else: an
+**Officers** grid, a **Volunteers** grid, and the **"Need to talk to someone?"** panel with the
+welfare officers in it. The welfare officers are a list of their own, so they appear in the
+panel and in neither grid.
+
+- **Somebody changes role** — edit their `role`. Moving between officer and volunteer is
+  moving their entry from one list to the other.
+- **Somebody new joins** — add `{ "name", "role", "photo" }` to the right list, and put their
+  photograph in `public/images/committee/` as a **480×480 WebP, already cropped square**,
+  named exactly as `photo` says (`<first>-<last>.webp`, lower case). Nothing resizes or
+  re-encodes it.
+- **Somebody steps down** — remove their entry **and** their photo. The unit test fails if a
+  photo is left in the folder that nobody names, because a face nobody links to is still being
+  published about them.
+
+**All three fields are required and there is no initials fallback**, by decision: a missing
+file fails `club-content.test.ts` rather than rendering a broken image. Somebody who joins
+without a photograph is a separate change. **Names and photos are published with each
+person's consent** — the club supplied the list on 27 September 2026 — so adding somebody is
+the committee's decision, not a build one.
+
+Like every file here, a change needs a rebuild, which a push to `main` does.
 
 ### `membership.json` — the comparison table, and the licence year
 

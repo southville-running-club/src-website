@@ -140,18 +140,9 @@ test.describe('nothing unfinished reaches the page', () => {
     await expect(card).not.toContainText('Price to be confirmed');
   });
 
-  test('names nobody on the committee until the club supplies names', async ({
-    page,
-  }) => {
-    await page.goto('/about/');
-
-    // Roles are here; people are not. A volunteer's name is personal data the club publishes
-    // about them, and the club has not supplied the list.
-    await expect(
-      page.getByRole('heading', { name: 'Lead Welfare Officer' }),
-    ).toBeVisible();
-    await expect(page.locator('body')).not.toContainText('[Name]');
-  });
+  // ⚠️ **"Names nobody on the committee" was asserted here until 27 September 2026.** The club
+  // has supplied the names and photographs, with consent, and `about-committee.spec.ts` owns
+  // the committee section now.
 });
 
 /**
