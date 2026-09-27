@@ -118,6 +118,13 @@
      alternate band. This is what a link is; `--club-brand` never is. */
   --club-link: #236a33;
 
+  /* A committee member's role, under their name. Semibold at 14px, so it is body text and
+     clears 4.5:1: **6.15:1 on a card** (`--club-surface`), 5.65:1 on the page and 5.28:1 on
+     the alternate band, which is what a welfare officer's card is painted. Darker than the
+     brand green (3.50:1 on a card, which fails) and deliberately **not `--club-link`**, so a
+     role that is not a link does not borrow the colour that says "this is one". */
+  --club-role: #17703b;
+
   /* The wordmark. A logotype is exempt from WCAG's contrast requirement (1.4.3), which is
      what lets it be a green of its own rather than ink — 4.76:1 on the page, so comfortably
      visible regardless. */
@@ -213,6 +220,12 @@
     /* 9.52:1 on the page, 8.54:1 on a card. A link dark enough to read on paper is
        unreadable here, which is why this is a separate value rather than the same one. */
     --club-link: #7fd39a;
+
+    /* ⚠️ **The light value is 2.50:1 on the dark card**, so the role needs one of its own:
+       8.54:1 on a card, 9.05:1 on the alternate band, 9.52:1 on the page. The same hex as the
+       link here, because a green light enough to read on this surface leaves little room for
+       a second one; they differ in weight and in never being underlined. */
+    --club-role: #7fd39a;
 
     /* ⚠️ **Not `#1A7D3F` here.** That is 2.96:1 on the dark card — not merely
        non-compliant but genuinely hard to see. WCAG exempts a logotype, which is a

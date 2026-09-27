@@ -129,6 +129,9 @@ describe('the club palette', () => {
       ['--club-link', '--club-background'],
       ['--club-link', '--club-surface'],
       ['--club-link', '--club-surface-alt'],
+      // A committee member's role: on their card, and on a welfare officer's tinted card.
+      ['--club-role', '--club-surface'],
+      ['--club-role', '--club-surface-alt'],
       // A form error is read, so it clears the body-text floor rather than the non-text one.
       ['--club-danger', '--club-background'],
       ['--club-danger', '--club-surface'],
