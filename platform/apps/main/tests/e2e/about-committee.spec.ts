@@ -146,6 +146,14 @@ test.describe('the committee on /about/', () => {
     await expect(panel).not.toContainText('old site');
   });
 
+  test("sends everything else to the club's general address", async ({ page }) => {
+    const contact = page.locator('#contact');
+    const link = contact.getByRole('link', { name: 'info@southvillerunningclub.co.uk' });
+
+    await expect(link).toHaveAttribute('href', 'mailto:info@southvillerunningclub.co.uk');
+    await expect(contact).not.toContainText('old site');
+  });
+
   test('does not scroll sideways at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 720 });
     await page.goto('/about/');
