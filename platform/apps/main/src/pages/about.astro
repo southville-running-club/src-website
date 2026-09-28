@@ -18,16 +18,21 @@ import links from '../content/links.json';
 // **The welfare officers are in the panel and nowhere else.** They are a list of their own in
 // `committee.json` rather than a flag on a volunteer, so the page cannot render them twice.
 //
-// ## And no email addresses
+// ## Two email addresses, and no trip to the old site
 //
-// The club has not confirmed addresses, so every route to a human goes through the old site's
-// committee page — one link, from `links.json`, which becomes a new-site address by editing two
-// fields when the club is ready.
+// Until 28 September 2026 every route to a human on this page went through the old site's
+// committee page, because the club had not confirmed any addresses. **Contact us** now gives
+// `info@southvillerunningclub.co.uk`, the club's general address, which `/privacy/` and the
+// ticket emails already publish. Other pages still link to the old committee page through
+// `links.json`'s `committee` entry; this page no longer reads it.
 //
-// ⚠️ **The welfare panel still had to say something true.** Somebody who needs a welfare
-// officer needs them now, so the panel says it is in confidence, gives the one contact route
-// that exists as a button, and says under it where that button goes — the old site, and to ask
-// for a welfare officer when they get there.
+// ⚠️ **The welfare panel has its own address, since 28 September 2026.** The club supplied
+// `welfare@southvillerunningclub.co.uk`, so the button is a `mailto:` for that address rather
+// than a trip to the old site with an instruction to ask for somebody when you get there — the
+// best the panel could honestly say before, and a poor thing to ask of a person who needs a
+// welfare officer now. The address is also printed under the button, because a `mailto:` does nothing
+// on a machine with no mail client and somebody has to be able to copy it. It carries `<wbr>`
+// after the `@` and each `.`, so 38 unbroken characters cannot push a 320px page sideways.
 //
 // ## Club documents
 //
@@ -40,7 +45,13 @@ const { officers, volunteers, welfare } = parseCommittee(committee);
 
 /** Every committee photograph lives here, named by `committee.json`'s `photo`. */
 const PHOTOS = '/images/committee/';
-const { committee: committeeLink, 'club-documents': documents } = parseLinks(links);
+const { 'club-documents': documents } = parseLinks(links);
+
+/** The welfare officers' address — supplied by the club, 28 September 2026. */
+const WELFARE_EMAIL = 'welfare@southvillerunningclub.co.uk';
+
+/** The club's general address, already published on `/privacy/` and in the ticket emails. */
+const INFO_EMAIL = 'info@southvillerunningclub.co.uk';
 
 const GOVERNANCE = ['Constitution', 'Articles of Association'];
 
@@ -230,7 +241,7 @@ const POLICIES = [
             about the club.
           </p>
           <p class="club-welfare-action">
-            <a class="club-btn club-btn-primary" href={committeeLink.href}>
+            <a class="club-btn club-btn-primary" href={`mailto:${WELFARE_EMAIL}`}>
               Contact a welfare officer
               <svg
                 aria-hidden="true"
@@ -250,7 +261,7 @@ const POLICIES = [
             </a>
           </p>
           <p class="club-small">
-            Opens the committee page on our old site — ask for a welfare officer.
+            Or email us at welfare@<wbr />southvillerunningclub.<wbr />co.<wbr />uk.
           </p>
         </div>
 
@@ -367,8 +378,8 @@ const POLICIES = [
       <h2>Contact us</h2>
       <p>
         The quickest way to reach anybody on the committee — membership, welfare, kit or
-        anything else — is <a href={committeeLink.href}
-          >the committee page on our old site</a
+        anything else — is to email <a href={`mailto:${INFO_EMAIL}`}
+          >info@<wbr />southvillerunningclub.<wbr />co.<wbr />uk</a
         >.
       </p>
       <p>Or just come and say hello on a Tuesday.</p>
