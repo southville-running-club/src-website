@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import { expect, test } from '@playwright/test';
 
-import { parseCommittee, parseLinks } from '@src/shared/club-content';
+import { parseCommittee } from '@src/shared/club-content';
 
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 
@@ -34,7 +34,6 @@ const content = (name: string): unknown =>
 
 const { officers, volunteers, welfare } = parseCommittee(content('committee.json'));
 const everybody = [...officers, ...volunteers, ...welfare];
-const { committee: committeeLink } = parseLinks(content('links.json'));
 
 test.describe('the committee on /about/', () => {
   test.beforeEach(async ({ page }) => {
@@ -127,20 +126,24 @@ test.describe('the committee on /about/', () => {
     await expect(panel.getByText('Talk to us in confidence')).toHaveCount(welfare.length);
   });
 
-  test('sends somebody to the committee page on the old site to ask for welfare', async ({
-    page,
-  }) => {
+  test('gives the welfare email address, as a button and in words', async ({ page }) => {
     const button = page.getByRole('link', { name: 'Contact a welfare officer' });
 
-    await expect(button).toHaveAttribute('href', committeeLink.href);
+    await expect(button).toHaveAttribute(
+      'href',
+      'mailto:welfare@southvillerunningclub.co.uk',
+    );
 
     // WCAG 2.5.8 asks 24px; the club's own rule for a button is 48.
     const box = await button.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
 
-    await expect(page.locator('.club-welfare-panel')).toContainText(
-      'Opens the committee page on our old site — ask for a welfare officer.',
+    // Printed as well, for a machine with no mail client. `textContent` ignores the `<wbr>`s.
+    const panel = page.locator('.club-welfare-panel');
+    await expect(panel).toContainText(
+      'Or email us at welfare@southvillerunningclub.co.uk.',
     );
+    await expect(panel).not.toContainText('old site');
   });
 
   test('does not scroll sideways at 320px', async ({ page }) => {
