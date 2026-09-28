@@ -91,7 +91,12 @@ failed simulation cuts the Durable Objects leaderboard rather than the platform.
 
 **`/timing` is staff-only since 11 September 2026.** `middleware.ts` reads the session and
 refuses anybody without a `timing.*` permission — the signed-out public included — and
-nothing links to it any more.
+nothing public links to it. **The two links that exist are drawn only for somebody who may
+follow them**: "Race timing" on `/account/`, from `holdsAnyTimingPermission()` in
+`@src/shared/timing/door` — the predicate `lib/access.ts` asks for the landing page — and
+one in `/admin/`'s bar behind `timing.event.manage`, the permission this app's table demands
+for `/timing/events/`. A link to a page that 404s tells somebody it exists, which is the
+disclosure the 404 is there to avoid.
 
 ⚠️ **A refused request is rewritten to an address that matches no route**, so Next serves its
 prerendered not-found page: real server-rendered HTML, status 404, with the banner, the

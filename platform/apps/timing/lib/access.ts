@@ -44,6 +44,8 @@
  * is the one place that makes it.
  */
 
+import { holdsAnyTimingPermission } from '@src/shared/timing/door';
+
 /**
  * The landing page's rule: any `timing.*` permission at all.
  *
@@ -469,7 +471,9 @@ export function holdsPermissionFor(
   surface: TimingSurface,
 ): boolean {
   if (surface.permission === ANY_TIMING_PERMISSION) {
-    return permissions.some((p) => p.startsWith('timing.'));
+    // The shared predicate rather than a prefix spelled here, because `apps/main` draws its
+    // link to this page from the same function — see `@src/shared/timing/door`.
+    return holdsAnyTimingPermission(permissions);
   }
 
   // A list is `or` — any one of them opens the address. See {@link TimingSurface.permission}:

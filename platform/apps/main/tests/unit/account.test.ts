@@ -183,6 +183,9 @@ beforeEach(() => {
   // what this answers — every test that renders that page would fail on the fake rather than
   // on the code. The shape is the one supabase-js gives when it has no user to report.
   userGetUser.mockResolvedValue({ data: { user: null }, error: null });
+  // The same reason, for `/account/`'s `my_permissions()` read: an account holding nothing
+  // beyond `registered`, which carries no permission at all.
+  rpc.mockResolvedValue({ data: [], error: null });
 });
 
 afterEach(() => {
@@ -377,6 +380,62 @@ describe('GET /account/, signed in', () => {
     expect(body).not.toContain('nn-admin');
     expect(body).not.toContain('Roles:');
     expect(body).not.toContain('No roles beyond');
+  });
+
+  /**
+   * The way in for a timing volunteer, who holds no staff role and so never sees `/admin/`.
+   *
+   * Drawn from `holdsAnyTimingPermission()`, the same predicate `/timing/`'s door asks — so the
+   * cases are a permission that opens it, permissions that do not, and a read that failed.
+   */
+  describe('the Race timing link', () => {
+    async function homeWith(answer: { data: unknown; error: unknown }): Promise<string> {
+      getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+      userGetUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+        error: null,
+      });
+      rpc.mockImplementation(async (name: string) =>
+        name === 'my_permissions' ? answer : { data: null, error: null },
+      );
+
+      const response = await handleAccount(
+        get('/account/', SIGNED_IN),
+        ENV,
+        new URL('http://localhost:8787/account/'),
+      );
+
+      expect(response.status).toBe(200);
+      return response.text();
+    }
+
+    it('is drawn for a timing-marshal, whose one permission opens the landing page', async () => {
+      const body = await homeWith({ data: ['timing.crossing.record'], error: null });
+
+      expect(body).toContain('<a href="/timing">Race timing</a>');
+    });
+
+    it('is not drawn for somebody holding nothing under timing', async () => {
+      // `nn.results.read` is about timing's output and is not a timing permission.
+      const body = await homeWith({
+        data: ['nn.entry.read', 'nn.results.read'],
+        error: null,
+      });
+
+      expect(body).not.toContain('href="/timing');
+      expect(body).not.toContain('Race timing');
+    });
+
+    it('is not drawn when the permissions cannot be read, and the page still renders', async () => {
+      const body = await homeWith({
+        data: null,
+        error: { code: 'PGRST301', message: 'unavailable' },
+      });
+
+      expect(body).not.toContain('href="/timing');
+      expect(body).toContain('grace@example.com');
+      expect(body).toContain('Sign out');
+    });
   });
 
   it('still says somebody is signed in when Supabase Auth does not answer', async () => {
