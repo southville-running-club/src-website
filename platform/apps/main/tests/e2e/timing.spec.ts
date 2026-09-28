@@ -292,7 +292,9 @@ test.describe('the landing page', () => {
     await expect(page.getByText('being built here')).toHaveCount(0);
   });
 
-  test('has no accessibility violations for either role', async ({ page }) => {
+  test('has no accessibility violations for either role @requires-js', async ({
+    page,
+  }) => {
     for (const email of [TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL]) {
       await signInAs(page, email);
       await page.goto('/timing');
