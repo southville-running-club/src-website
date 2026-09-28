@@ -245,6 +245,63 @@ test.describe('who may open the events pages', () => {
   });
 });
 
+/**
+ * The landing page lists where each person may go, and nowhere else.
+ *
+ * ⚠️ **Each link is asserted beside the door it leads to.** A link on this page is only worth
+ * something if following it opens — which is the rule the page is built on — so every
+ * positive assertion follows the link, and every negative one is about an address the
+ * describe above proves this person is refused.
+ */
+test.describe('the landing page', () => {
+  test('offers a timing-admin the races list, and it opens', async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing');
+
+    await page.getByRole('link', { name: 'Races', exact: true }).click();
+
+    await expect(page).toHaveURL(/\/timing\/events\/?$/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Races');
+  });
+
+  test('offers a timing-marshal the race they are on, and no races list', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto('/timing');
+
+    // The races list is refused to a marshal — the describe above proves it — so a link to it
+    // here would be a link to a 404.
+    await expect(page.getByRole('link', { name: 'Races', exact: true })).toHaveCount(0);
+
+    // `beforeAll` rosters this marshal on the capture race. Matched on the address rather than
+    // the name, because the same marshal may be on another project's races as well.
+    const capture = `/timing/marshal/${captureEventSlug(testInfo.project.name)}`;
+    const link = page.locator(`a[href="${capture}"]`);
+    await expect(link).toHaveCount(1);
+
+    const response = await page.goto(capture);
+    expect(response?.status()).toBe(200);
+  });
+
+  test('no longer says the tools are still being built', async ({ page }) => {
+    // What this page said for a fortnight after every one of them shipped.
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto('/timing');
+
+    await expect(page.getByText('being built here')).toHaveCount(0);
+  });
+
+  test('has no accessibility violations for either role', async ({ page }) => {
+    for (const email of [TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL]) {
+      await signInAs(page, email);
+      await page.goto('/timing');
+
+      expect(await axeViolations(page), email).toEqual([]);
+    }
+  });
+});
+
 test.describe('the events list', () => {
   test('lists the races a timing-admin may manage', async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
