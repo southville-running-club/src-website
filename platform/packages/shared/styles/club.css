@@ -844,6 +844,13 @@ img.club-photo-wide {
   min-height: 0;
 }
 
+/* 2000:961, the riverside group photograph on `/about/` exactly — wider than 16:9, so it gets
+   its own ratio rather than losing the members at either end to `cover`. */
+img.club-photo-panorama {
+  aspect-ratio: 2000 / 961;
+  min-height: 0;
+}
+
 /* ⚠️ **3:4, and it is the first portrait photograph this site has had.**
  *
  * The marshal shot is 720×960 — exactly 3:4 — so the slot is its own ratio and crops nothing

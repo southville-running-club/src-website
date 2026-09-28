@@ -1,8 +1,10 @@
 ---
+import { Image } from 'astro:assets';
 import ClubBase from '../layouts/ClubBase.astro';
 import { parseCommittee, parseLinks } from '@src/shared/club-content';
 import committee from '../content/committee.json';
 import links from '../content/links.json';
+import groupPhoto from '../assets/club-group-riverside.webp';
 
 // `/about/` — who the club is, who runs it, and where its documents are.
 //
@@ -143,14 +145,22 @@ const POLICIES = [
       </div>
 
       {
-        /* ⚠️ **A flat panel, `aria-hidden`, with nothing written on it.** The mockup drew a
-          striped box captioned "[Photo: the Tuesday crowd outside the Southbank Club]".
-          Neither the stripes nor the caption ship — a stripe reads as a broken image and the
-          bracket is the placeholder this build may not publish. When the club supplies
-          photographs, with consent from the people in them, this is replaced rather than
-          filled in. */
+        /* ⚠️ **The flat panel is a photograph now**, supplied by the club on 28 September
+          2026 — the mockup's "[Photo: …]" slot, replaced rather than filled in, as the
+          comment that stood here promised. It is 2000×961, about 2.08:1, which none of the
+          existing slots is close to: `club-photo-wide`'s 16:9 would have cut 14% off the
+          width, and on a group photograph that is the people at both ends. So it carries
+          its own ratio in `club.css` and crops nothing. */
       }
-      <div class="club-photo club-photo-tall" aria-hidden="true"></div>
+      <Image
+        class="club-photo club-photo-panorama"
+        src={groupPhoto}
+        alt="Around seventy Southville Running Club members in green club tops and race numbers, gathered on the grass under trees on a sunny evening for a group photograph."
+        widths={[640, 960, 1280, 2000]}
+        sizes="(min-width: 62em) 34rem, (min-width: 44em) 44vw, 90vw"
+        loading="lazy"
+        decoding="async"
+      />
     </div>
   </section>
 
