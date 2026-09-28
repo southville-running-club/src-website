@@ -6,27 +6,28 @@ import links from '../content/links.json';
 
 // `/about/` — who the club is, who runs it, and where its documents are.
 //
-// ## The committee is roles, and not yet names
+// ## The committee is people now, with a face each
 //
-// ⚠️ **Nobody is named on this page.** A committee member's name is personal data the club
-// publishes about a volunteer, and the club has not supplied the list — so the page shows the
-// roles, which is the useful half anyway ("who do I ask about membership?"). It never shows
-// "[Name]", and it never shows the mockup's avatar with a question mark in it, which is a
-// placeholder wearing a costume.
+// ⚠️ **This section named nobody until 27 September 2026.** A committee member's name — and a
+// photograph more so — is personal data the club publishes about a volunteer, so the page
+// showed roles only until the club supplied the list. It has now, with each person's consent,
+// and `committee.json` holds a name, a role and a photo for every one of them. A role change
+// at the AGM is an edit to that file; a new face is a 480×480 WebP in
+// `public/images/committee/`. `club-content.test.ts` fails if a named photo is not on disk.
 //
-// `committee.json` has an optional `name` on each role. Supplying one makes it appear here,
-// with no change to this file.
+// **The welfare officers are in the panel and nowhere else.** They are a list of their own in
+// `committee.json` rather than a flag on a volunteer, so the page cannot render them twice.
 //
 // ## And no email addresses
 //
-// The mockup has `welfare@[placeholder]` and a per-role "Email the treasurer". The club has
-// not confirmed addresses, so every route to a human goes through the old site's committee
-// page — one link, from `links.json`, which becomes a new-site address by editing two fields
-// when the club is ready.
+// The club has not confirmed addresses, so every route to a human goes through the old site's
+// committee page — one link, from `links.json`, which becomes a new-site address by editing two
+// fields when the club is ready.
 //
-// ⚠️ **The welfare call-out still had to say something true.** Somebody who needs a welfare
-// officer needs them now, so the panel names the role, says it is in confidence, and points at
-// the one contact route that exists rather than at an address nobody has confirmed.
+// ⚠️ **The welfare panel still had to say something true.** Somebody who needs a welfare
+// officer needs them now, so the panel says it is in confidence, gives the one contact route
+// that exists as a button, and says under it where that button goes — the old site, and to ask
+// for a welfare officer when they get there.
 //
 // ## Club documents
 //
@@ -35,7 +36,10 @@ import links from '../content/links.json';
 // site; the meeting-minutes accordion — twelve years of "[AGM and QGM minutes, 2019]" — is a
 // list of placeholders, so it is one link to the documents page instead.
 
-const { officers, volunteers } = parseCommittee(committee);
+const { officers, volunteers, welfare } = parseCommittee(committee);
+
+/** Every committee photograph lives here, named by `committee.json`'s `photo`. */
+const PHOTOS = '/images/committee/';
 const { committee: committeeLink, 'club-documents': documents } = parseLinks(links);
 
 const GOVERNANCE = ['Constitution', 'Articles of Association'];
@@ -150,58 +154,154 @@ const POLICIES = [
     </div>
   </section>
 
-  <section class="club-sec club-sec-alt">
+  <section class="club-sec club-sec-alt club-committee" aria-labelledby="committee">
     <div class="club-wrap">
-      <h2>The committee</h2>
-      <p>
+      <h2 id="committee">The committee</h2>
+      <p class="club-lede">
         Everyone here is a volunteer. If you'd like to help, talk to any of us on a
         Tuesday.
       </p>
 
-      <div class="club-card club-welfare-call">
-        <h3>Need to talk to someone?</h3>
-        <p>
-          Our welfare officers are here, in confidence, for anything that's worrying you
-          about the club. <a href={committeeLink.href}
-            >Get in touch through the committee page on our old site</a
-          > and ask for a welfare officer.
-        </p>
-      </div>
-
+      {
+        /* ⚠️ **`alt=""` on every photograph, deliberately.** The person's name is the heading
+          right beside it, so a descriptive alt — "Photo of Amy Webb" — would be read out twice
+          and tell a screen-reader user nothing the heading had not. `width` and `height` are
+          set so the space is reserved before the image arrives; the whole section is below
+          the fold, so every one is lazy. */
+      }
       <h3>Officers</h3>
-      <ul class="club-g4">
+      <ul class="club-people">
         {
           officers.map((person) => (
-            <li
-              class={`club-card club-person${person.welfare === true ? ' club-welfare' : ''}`}
-            >
-              {/* The role is the heading, because the role is what the page knows. */}
-              <h4>{person.role}</h4>
-              {person.name !== undefined && <p>{person.name}</p>}
-              {person.welfare === true && (
-                <p class="club-badge">Talk to us in confidence</p>
-              )}
+            <li class="club-person">
+              <img
+                src={`${PHOTOS}${person.photo}`}
+                alt=""
+                width="128"
+                height="128"
+                loading="lazy"
+                decoding="async"
+              />
+              <h4>{person.name}</h4>
+              <p class="club-role">{person.role}</p>
             </li>
           ))
         }
       </ul>
 
       <h3>Volunteers</h3>
-      <ul class="club-g4">
+      <ul class="club-people">
         {
           volunteers.map((person) => (
-            <li
-              class={`club-card club-person${person.welfare === true ? ' club-welfare' : ''}`}
-            >
-              <h4>{person.role}</h4>
-              {person.name !== undefined && <p>{person.name}</p>}
-              {person.welfare === true && (
-                <p class="club-badge">Talk to us in confidence</p>
-              )}
+            <li class="club-person">
+              <img
+                src={`${PHOTOS}${person.photo}`}
+                alt=""
+                width="128"
+                height="128"
+                loading="lazy"
+                decoding="async"
+              />
+              <h4>{person.name}</h4>
+              <p class="club-role">{person.role}</p>
             </li>
           ))
         }
       </ul>
+
+      <div class="club-welfare-panel">
+        <div>
+          <div class="club-welfare-head">
+            {/* A speech bubble. Decoration: the heading beside it says it in words. */}
+            <span class="club-welfare-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" focusable="false">
+                <path
+                  d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5.5A1.5 1.5 0 0 1 4 14.5z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linejoin="round"></path>
+              </svg>
+            </span>
+            <h3>Need to talk to someone?</h3>
+          </div>
+          <p>
+            Our welfare officers are here, in confidence, for anything that's worrying you
+            about the club.
+          </p>
+          <p class="club-welfare-action">
+            <a class="club-btn club-btn-primary" href={committeeLink.href}>
+              Contact a welfare officer
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+              >
+                <path
+                  d="M5 12h13M13 6l6 6-6 6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.25"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"></path>
+              </svg>
+            </a>
+          </p>
+          <p class="club-small">
+            Opens the committee page on our old site — ask for a welfare officer.
+          </p>
+        </div>
+
+        <ul class="club-welfare-people">
+          {
+            welfare.map((person) => (
+              <li class="club-welfare-person">
+                <img
+                  src={`${PHOTOS}${person.photo}`}
+                  alt=""
+                  width="96"
+                  height="96"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div>
+                  <h4>{person.name}</h4>
+                  <p class="club-role">{person.role}</p>
+                  <p class="club-confidence">
+                    <svg
+                      aria-hidden="true"
+                      focusable="false"
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                    >
+                      <rect
+                        x="5"
+                        y="11"
+                        width="14"
+                        height="9"
+                        rx="1.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      />
+                      <path
+                        d="M8 11V8a4 4 0 0 1 8 0v3"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      />
+                    </svg>
+                    Talk to us in confidence
+                  </p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
     </div>
   </section>
 

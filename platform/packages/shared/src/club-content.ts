@@ -436,27 +436,44 @@ export function parsePartners(value: unknown): Partners {
  * ----------------------------------------------------------------------------------------- */
 
 /**
- * A role on the committee, and the person in it when the club has supplied one.
+ * One person on the committee: who they are, what they do, and their photograph.
  *
- * ⚠️ **`name` is optional and is absent for everybody today.** The page shows roles only.
- * A name is personal data the club publishes about a volunteer, so it appears when the club
- * supplies it and not before — never "[Name]", never an avatar with a question mark in it.
+ * **All three are required.** The club supplied the names and photographs on 27 September
+ * 2026, with the consent of each person named — a name and a face are personal data the club
+ * publishes about a volunteer, so they are here because somebody said yes, not because the
+ * mockup had a slot for them. Somebody who joins without a photograph is a separate change,
+ * not an optional field: an initials avatar was considered for exactly that case and declined,
+ * because a required file is what lets a missing one fail a test rather than a page.
  *
- * **No email address either.** "Contact the committee" points at the old site's committee
- * page until the club confirms addresses.
+ * `photo` is a **bare file name** in `apps/main/public/images/committee/` — a 480×480 WebP,
+ * already cropped square. `club-content.test.ts` fails if a named file is not on disk, which is
+ * the only way to learn about it before somebody sees a broken image.
  *
- * `welfare` marks the two roles that get highlighted, because somebody looking for them is
- * usually looking for them urgently.
+ * **No email address.** "Contact a welfare officer" points at the old site's committee page
+ * until the club confirms addresses.
  */
-export const committeeRoleSchema = z.object({
+export const committeeMemberSchema = z.object({
+  name: z.string().min(1),
   role: z.string().min(1),
-  name: z.string().min(1).optional(),
-  welfare: z.boolean().optional(),
+  photo: z
+    .string()
+    .regex(/^[a-z0-9-]+\.webp$/u, 'photo must be a bare <slug>.webp file name'),
 });
 
+export type CommitteeMember = z.infer<typeof committeeMemberSchema>;
+
+/**
+ * The committee in the three groups the page renders.
+ *
+ * ⚠️ **`welfare` is its own list rather than a flag on a volunteer**, and that is what puts the
+ * two welfare officers in the "Need to talk to someone?" panel and nowhere else. A flag let the
+ * same person appear twice, once in the Volunteers grid and once in the panel; a list of their
+ * own means the page cannot.
+ */
 export const committeeSchema = z.object({
-  officers: z.array(committeeRoleSchema).min(1),
-  volunteers: z.array(committeeRoleSchema).min(1),
+  officers: z.array(committeeMemberSchema).min(1),
+  volunteers: z.array(committeeMemberSchema).min(1),
+  welfare: z.array(committeeMemberSchema).min(1),
 });
 
 export type Committee = z.infer<typeof committeeSchema>;

@@ -1,44 +1,24 @@
 {
   "officers": [
-    {
-      "role": "Co-Chair"
-    },
-    {
-      "role": "Co-Chair"
-    },
-    {
-      "role": "Club Secretary"
-    },
-    {
-      "role": "Treasurer"
-    },
-    {
-      "role": "Membership Officer"
-    }
+    { "name": "Kayleigh Doherty", "role": "Co-Chair", "photo": "kayleigh-doherty.webp" },
+    { "name": "Liam Coleman", "role": "Co-Chair", "photo": "liam-coleman.webp" },
+    { "name": "Amy Webb", "role": "Club Secretary", "photo": "amy-webb.webp" },
+    { "name": "Dave Unsworth", "role": "Treasurer", "photo": "dave-unsworth.webp" },
+    { "name": "Bindal Shah", "role": "Membership Officer", "photo": "bindal-shah.webp" }
   ],
   "volunteers": [
+    { "name": "Sophie Patten", "role": "Co-Club Captain", "photo": "sophie-patten.webp" },
+    { "name": "Laura Pease", "role": "Co-Club Captain", "photo": "laura-pease.webp" },
+    { "name": "Robin Nash", "role": "Quartermaster", "photo": "robin-nash.webp" },
+    { "name": "Mark Chesser", "role": "Web Manager", "photo": "mark-chesser.webp" },
+    { "name": "Sam Blanning", "role": "Committee Member", "photo": "sam-blanning.webp" }
+  ],
+  "welfare": [
     {
-      "role": "Co-Club Captain"
-    },
-    {
-      "role": "Co-Club Captain"
-    },
-    {
-      "role": "Quartermaster"
-    },
-    {
-      "role": "Web Manager"
-    },
-    {
+      "name": "Nicholas Mimmack",
       "role": "Lead Welfare Officer",
-      "welfare": true
+      "photo": "nicholas-mimmack.webp"
     },
-    {
-      "role": "Welfare Officer",
-      "welfare": true
-    },
-    {
-      "role": "Committee Member"
-    }
+    { "name": "Clara K", "role": "Welfare Officer", "photo": "clara-k.webp" }
   ]
 }
