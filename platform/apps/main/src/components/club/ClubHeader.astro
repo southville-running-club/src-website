@@ -1,7 +1,13 @@
 ---
 import ClubLogo from '../ClubLogo.astro';
 import ClubMenu from './ClubMenu.astro';
-import { CLUB_BANNER, CLUB_CTA, CLUB_HOME, CLUB_NAV } from '@src/shared/club-nav';
+import {
+  CLUB_BANNER,
+  CLUB_CTA,
+  CLUB_HOME,
+  CLUB_NAV,
+  activeClubNavItem,
+} from '@src/shared/club-nav';
 
 // The club website's header: the notice, the wordmark, the bar and the Menu.
 //
@@ -44,6 +50,7 @@ import { CLUB_BANNER, CLUB_CTA, CLUB_HOME, CLUB_NAV } from '@src/shared/club-nav
 // so the join carries its own spacing; do not reflow these lines to satisfy a formatter.
 
 const pathname = Astro.url.pathname;
+const active = activeClubNavItem(pathname);
 ---
 
 <header class="club-header">
@@ -76,10 +83,10 @@ const pathname = Astro.url.pathname;
     <nav class="club-nav" aria-label="Southville Running Club">
       <ul>
         {
-          CLUB_NAV.map(({ href, label, match }) => (
+          CLUB_NAV.map((item) => (
             <li>
-              <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
-                {label}
+              <a href={item.href} aria-current={item === active ? 'page' : undefined}>
+                {item.label}
               </a>
             </li>
           ))

@@ -1,5 +1,5 @@
 ---
-import { CLUB_CTA, CLUB_NAV } from '@src/shared/club-nav';
+import { CLUB_CTA, CLUB_NAV, activeClubNavItem } from '@src/shared/club-nav';
 
 // The club bar on a narrow screen: one control that opens the same six links.
 //
@@ -24,6 +24,7 @@ import { CLUB_CTA, CLUB_NAV } from '@src/shared/club-nav';
 // the header's own copy of it is the first thing that runs out of room.
 
 const pathname = Astro.url.pathname;
+const active = activeClubNavItem(pathname);
 ---
 
 <details class="club-menu">
@@ -32,10 +33,10 @@ const pathname = Astro.url.pathname;
   <nav aria-label="Southville Running Club, menu">
     <ul>
       {
-        CLUB_NAV.map(({ href, label, match }) => (
+        CLUB_NAV.map((item) => (
           <li>
-            <a href={href} aria-current={match.test(pathname) ? 'page' : undefined}>
-              {label}
+            <a href={item.href} aria-current={item === active ? 'page' : undefined}>
+              {item.label}
             </a>
           </li>
         ))
