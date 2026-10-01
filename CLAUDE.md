@@ -425,7 +425,7 @@ One hostname, several paths — the same locally and in production:
 | `/events`  | The races the club puts on and the socials in between — `apps/main`. **The index moved onto the club surface on 26 September 2026** and is headed "Races and events": it renders through `ClubBase`, and `/events/<slug>/` — which takes the money — keeps `Base` and today's chrome until after the race, which is the split ADR-048 fenced. **The index paints the social's date, times and venue onto its row** from the record `hideUnpublishedLinks()` was already fetching to decide whether to show that row — no extra read, and no date in markup, so confirming one stays an `update` and no deploy; the row ships "TBC" and every failure leaves it there. **The schema calls a party `store.socials`, never an event**: the glossary reserves _event_ for one running of one race in one year, and neither word is on the page — the club bar says "Races and events" and the frozen bar still says "Events", both pointing here — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
 | `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
-| `/timing`  | Race timing — `apps/timing`, a different Worker. **Staff-only since 11 September 2026**: it answers 404 to anybody without a `timing.*` permission, the signed-out public included, and is **linked only for those who may open it** — a "Race timing" link on `/account/` for anybody holding a `timing.*` permission, from the same `holdsAnyTimingPermission()` the door asks, and one in `/admin/`'s bar behind `timing.event.manage`. `/timing/health` stays public for the smoke test |
+| `/timing`  | Race timing — `apps/timing`, a different Worker. **Staff-only since 11 September 2026**: it answers 404 to anybody without a `timing.*` permission, the signed-out public included, and is **linked only for those who may open it** — a "Race timing" tab in the account section bar for anybody holding a `timing.*` permission (ADR-052; it was a link in `/account/`'s body until then), from the same `holdsAnyTimingPermission()` the door asks, and one in `/admin/`'s bar behind `timing.event.manage`. `/timing/health` stays public for the smoke test |
 
 ---
 
@@ -1275,6 +1275,41 @@ as one digit too many unless it is explicitly recognised and dropped.
 `packages/db/tests/entries-rules.test.ts` already used this exact shape as a fixture before
 this was noticed, at the database layer, which does not validate phone shape at all — so
 nothing failed until a form-level normaliser was checked against it.
+
+### The club header, twice over
+
+**The club bar's items live in `packages/shared/src/club-nav.ts` and nowhere else** — the
+labels, the hrefs, their order, "Come for a run", the banner sentence, and which item is
+current (`activeClubNavItem()`). A list typed into a component is a second copy, and the bar
+already exists in two frameworks. ⚠️ **The markup does exist twice**, deliberately:
+`src/components/club/ClubHeader.astro` for the club pages and `worker/club-chrome.ts` for
+`/account/**` and `/admin/**`, which the Worker builds as strings — ADR-052. **Change one and
+you change the other**; `club-chrome.spec.ts` compares them in a browser and fails when they
+drift. `apps/timing` will be the third, after the race.
+
+⚠️ **`club-chrome.css`, never `club.css`, on a page `base.css` styles.** `club.css` restyles bare
+`body`, `h1`–`h4`, `p`, `a` and `main`, so on `/account/` it repaints every form; the chrome file
+is `.club-*`-scoped throughout and is what `/account.css` and `/admin.css` append. The club pages
+load **both, chrome first** — the order the rules had as one file. A new chrome rule goes in
+`club-chrome.css` and must be scoped to a `.club-*` class.
+
+⚠️ **The account bar's Race timing and Club admin tabs are filled in on the way out of
+`handleAccount()`, on GET only.** `page()` writes a slot comment; `withStaffTabs()` reads
+`my_roles()` and `my_permissions()` and fills it, with the same predicates `/timing` and
+`/admin/` ask. On a POST the slot is emptied unread, because a refused form — a stale CSRF token
+— must ask the database nothing, and `account.test.ts` asserts that. A new account page that
+wants the bar passes `tab:` to `page()`; it does not read roles itself.
+
+⚠️ **The admin 404 has no club header because `masthead()` adds it** and `notFound()` never
+calls `masthead()`. Moving the header into `page()` would put the club's navigation on the page
+ADR-013 keeps bare for a signed-out stranger.
+
+⚠️ **`/timing/events/` answering "Not found" is not a trailing-slash defect**, though it looks
+exactly like one. OpenNext answers the slash form with a **308** to `/timing/events` before
+middleware runs; the 404 after it is `middleware.ts` refusing somebody signed out or without
+`timing.event.manage` — rewritten to the prerendered not-found page, and indistinguishable from
+a missing route on purpose (ADR-044). Check the session and the permission before touching
+`trailingSlash`.
 
 ---
 

@@ -254,7 +254,16 @@ async function post(
  * about is the *entrants'* addresses, so the frame comes off first.
  */
 function withoutMasthead(markup: string): string {
-  return markup.replace(/<header class="admin-mast">[\s\S]*?<\/header>/, '');
+  // A `<section>` since ADR-052, under the club website's header — and the header comes off
+  // too, so a leak assertion is about the page and nothing in the frame around it. Asserted
+  // below to remove something, because a pattern that silently stopped matching would turn
+  // every leak test that uses it into one that passes against the signed-in email address.
+  const stripped = markup
+    .replace(/<header class="club-header">[\s\S]*?<\/header>/, '')
+    .replace(/<section class="admin-mast"[\s\S]*?<\/section>/, '');
+  if (stripped.includes('admin-mast-who'))
+    throw new Error('withoutMasthead() removed nothing');
+  return stripped;
 }
 
 interface AuditRow {

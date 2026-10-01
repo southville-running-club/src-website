@@ -22,6 +22,10 @@
  * the old bar lands on a page headed "Races and events" in the new chrome — a seam that is
  * visible, temporary, and very much cheaper than the alternative.
  *
+ * ⚠️ **`/account/*` and `/admin/*` moved onto this chrome on 1 October 2026**, ahead of the
+ * rest, under a written freeze exception for their chrome alone — ADR-052. `worker/club-chrome.ts`
+ * renders this file's items there. `/nn/*` and `/events/<slug>/` are still on `SITE_NAV`.
+ *
  * ## The shapes here mirror `brand.ts` deliberately
  *
  * `match` is a regular expression rather than an href, which is the convention `SITE_NAV` and
@@ -69,13 +73,33 @@ export const CLUB_NAV: readonly ClubNavItem[] = [
     // race pages are what it lists. The schema calls a party a `social` and a running of a
     // race an `event`, and neither word appears here — a navigation label is written for
     // whoever is looking at it. ADR-033.
-    match: /^\/(events|nn)(\/|$)/u,
+    //
+    // **`/timing/**` is in this section too**, because race timing is how a race the club
+    // puts on is run and its results reached. The boundary is `(\/|$)`, so `/timing` and
+    // `/timing/…` match and `/timings` does not — the same answer `isTimingPath()` in
+    // `apps/main/worker/routing.ts` gives, which is the rule `/timing` is routed by.
+    match: /^\/(events|nn|timing)(\/|$)/u,
   },
   { href: '/membership/', label: 'Membership', match: /^\/membership(\/|$)/u },
   { href: '/news/', label: 'News', match: /^\/news(\/|$)/u },
   { href: '/about/', label: 'About', match: /^\/about(\/|$)/u },
   { href: '/account/', label: 'Account', match: /^\/account(\/|$)/u },
 ];
+
+/**
+ * Which item in the bar is the section a pathname is in, or `undefined` for none.
+ *
+ * **This is the only place that question is answered.** The Astro header, its phone menu and
+ * the Worker's copy of the same header for `/account/**` and `/admin/**` all call it, so the
+ * three cannot disagree about which link carries `aria-current="page"` — and a page can never
+ * mark two, because this returns the first match and nothing else.
+ *
+ * The wordmark is not an item and is not answered here: it is current on `/` alone, by
+ * `CLUB_HOME.match`, and on `/` this returns `undefined`.
+ */
+export function activeClubNavItem(pathname: string): ClubNavItem | undefined {
+  return CLUB_NAV.find(({ match }) => match.test(pathname));
+}
 
 /**
  * The call to action, in the header and again in the home page's hero.

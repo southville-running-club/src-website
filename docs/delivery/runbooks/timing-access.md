@@ -2,8 +2,9 @@
 
 `/timing` is the club's race-timing surface. It answers **404 to everybody without a
 `timing.*` permission**, the signed-out public included, and the public site links nowhere to
-it. **Somebody who holds a timing role finds a "Race timing" link on `/account/`**, drawn from
-the same rule the door asks, so it appears exactly when following it would work. This
+it. **Somebody who holds a timing role finds a "Race timing" tab in the bar across every
+signed-in `/account/` page** (ADR-052 — it was a link in `/account/`'s body until 1 October
+2026), drawn from the same rule the door asks, so it appears exactly when following it would work. This
 is how a named human gets from "no account at all" to "can open the thing I was asked to
 open" — and how to work out which step was missed when they cannot.
 

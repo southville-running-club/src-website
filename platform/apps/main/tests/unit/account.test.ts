@@ -120,6 +120,7 @@ vi.mock('@src/shared', async () => {
 
 const { handleAccount } = await import('../../worker/account');
 const { CSRF_COOKIE, CSRF_FIELD, mintCsrfToken } = await import('../../worker/csrf');
+const { CLUB_BANNER, CLUB_CTA, CLUB_NAV } = await import('@src/shared/club-nav');
 
 const ENV = {
   PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
@@ -193,128 +194,297 @@ afterEach(() => {
 });
 
 /**
- * The club's chrome on the pages the **Worker** renders.
+ * The club's chrome on the pages the **Worker** renders — the club website's own header and
+ * footer since ADR-052, replacing the old banner and four-item bar.
  *
- * **`base.css` has carried these styles all along and `account.css` already concatenates it**,
- * so this was never a branding decision that went the other way — it was markup that no layout
- * put there, because `Base.astro` is an Astro layout and a Worker cannot reach it. Three
- * rendering paths, two layouts, and this is the third one catching up.
+ * `worker/club-chrome.ts` is the Worker's copy of `ClubHeader.astro` and `ClubFooter.astro`,
+ * and these assert the markup it produces here; `club-chrome.spec.ts` compares the two copies
+ * in a browser. Everything is squashed before matching, for the Prettier-and-`html`-tag reason
+ * `CLAUDE.md` gives.
  */
 describe('the club chrome, on every account page', () => {
-  async function accountPage(): Promise<string> {
+  async function render(path: string, cookie?: string): Promise<string> {
     const response = await handleAccount(
-      get('/account/sign-in/'),
+      get(path, cookie),
       ENV,
-      new URL('http://localhost:8787/account/sign-in/'),
+      new URL(`http://localhost:8787${path}`),
     );
-    return response.text();
+    return (await response.text()).replace(/\s+/g, ' ');
+  }
+
+  const signIn = () => render('/account/sign-in/');
+
+  /** The markup of one element and everything inside it, by its opening tag. */
+  function element(markup: string, opening: RegExp, tag: string): string {
+    const start = markup.search(opening);
+    if (start === -1) return '';
+    return markup.slice(start, markup.indexOf(`</${tag}>`, start) + tag.length + 3);
   }
 
   it('links the favicon, so the tab is not a blank glyph', async () => {
     // `apps/timing/app/layout.tsx` carries this exact link with a comment saying that without
-    // it "`/timing` showed a browser's blank page glyph beside every other tab". The same
-    // reasoning was never applied here, so `/account/` showed that glyph from the day it was
-    // built. One file, three front doors.
-    expect(await accountPage()).toContain('<link rel="icon" href="/favicon.svg"');
+    // it "`/timing` showed a browser's blank page glyph beside every other tab". One file,
+    // three front doors.
+    expect(await signIn()).toContain('<link rel="icon" href="/favicon.svg"');
   });
 
-  it('makes the banner a landmark, and the same one the other two front doors use', async () => {
-    // ⚠️ **This test used to be called "unlike the Astro one", and the divergence it recorded
-    // is closed.** Its own comment is the history: axe's `region` rule flagged the welcome
-    // sentence and the link to the old site as content outside every landmark — 39 violations,
-    // the first time this change reached CI — and the fix made *this* rendering a `<header>`
-    // while `SiteBanner.astro` stayed a `div`, because five campaign pages already carry
-    // `NnMasthead` as their `<header>` and two `banner` landmarks is
-    // `landmark-no-duplicate-banner`.
-    //
-    // **The reason the Astro side was never challenged is #219's whole subject.** `region` is
-    // a `best-practice` rule, and this surface was the only one in the suite running axe's
-    // default set — five bare `.analyze()` calls in `account.spec.ts`. Every other page ran a
-    // five-tag WCAG list that does not contain `region`, so the same defect sat on `/`,
-    // `/nn/`, `/privacy/`, `/events/` and the terms page, unseen, for as long as the banner
-    // has existed. One rule list found nine of them in one run.
-    //
-    // `<aside>` is what all three say now: `<header>` was right here and could never be right
-    // on a campaign page, and complementary is what a site-wide notice beside the page's own
-    // content actually is.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
+  it('carries the club header as the one banner landmark, and none of the old chrome', async () => {
+    // **One `<header>` and it is the page's `banner`.** The welcome sentence is inside it, so
+    // every word on the page is inside a landmark — the `region` rule that cost 39 violations
+    // the first time this surface reached CI. A second `<header>` outside `<main>` would be
+    // `landmark-no-duplicate-banner`, which is why `/admin/`'s masthead stopped being one.
+    const markup = await signIn();
 
-    expect(markup).toContain('<aside class="site-banner">');
+    expect(markup).toContain('<header class="club-header">');
+    expect(markup.match(/<header/g) ?? []).toHaveLength(1);
+    expect(markup).toContain(CLUB_BANNER.welcome.replace("'", '&#39;'));
 
-    // **No `banner` landmark on this surface at all, which is the point rather than a gap.**
-    // If these pages ever grow a masthead it must be the only `<header>`, and this failing is
-    // how somebody finds out they have to decide that rather than inherit it.
-    expect(markup.match(/<header/g) ?? []).toHaveLength(0);
+    expect(markup).not.toContain('class="site-banner"');
+    expect(markup).not.toContain('class="site-nav"');
+    expect(markup).not.toContain('class="site-footer"');
   });
 
-  it('offers a way back to the club site', async () => {
-    // **The part a member actually notices.** Before this there was no route from the account
-    // area back to the website at all — no logo, no link, no breadcrumb. Somebody who signed
-    // in and then wanted the race page had to edit the address bar.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
+  it('offers a way past the header that lands on the page', async () => {
+    // These pages had no skip link and no `id="main"` before ADR-052: the one control that
+    // exists to jump past the navigation had nowhere to land.
+    const markup = await signIn();
 
-    expect(markup).toContain('href="/" aria-label="Southville Running Club, home"');
+    expect(markup).toContain('<a class="club-skip" href="#main">Skip to content</a>');
+    expect(markup).toContain('<main class="account-page" id="main">');
+    expect(markup.indexOf('club-skip')).toBeLessThan(markup.indexOf('<header'));
   });
 
-  it('offers the way to every other part of the site', async () => {
-    // **The half a signed-in member notices.** Before this, `/account/` was somewhere you
-    // arrived and could not leave except by editing the address bar: no link to the race, none
-    // to timing, none home.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
-
-    expect(markup).toContain(
-      '<nav class="site-nav" aria-label="Southville Running Club">',
-    );
-    // No `/timing`: it is staff-only since 11 September 2026 and has left the bar.
-    for (const href of ['/', '/nn/', '/account/']) {
-      expect(markup, `the bar must link ${href}`).toContain(`href="${href}"`);
+  it('gives every page a <main id="main"> for the skip link to land on', async () => {
+    // Signed out, a form, an acknowledgement and the not-found page: four different bodies,
+    // each building its own `<main>`, and the skip link is in the shell around all of them.
+    for (const path of [
+      '/account/sign-in/',
+      '/account/sign-up/',
+      '/account/reset/',
+      '/account/nope/',
+    ]) {
+      expect(await render(path), path).toMatch(/<main [^>]*id="main"/);
     }
   });
 
-  it('marks the account section as the one being read', async () => {
-    // `aria-current="page"` and not merely a class. A visual marker tells a sighted reader
-    // where they are; without the attribute nobody else is told at all.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
-
-    expect(markup).toContain('<a href="/account/" aria-current="page">');
-    // And exactly one section is current — a marker on two is worse than none, because it is
-    // confidently wrong rather than absent.
-    expect(markup.match(/aria-current="page"/g) ?? []).toHaveLength(1);
+  it('offers a way back to the club site', async () => {
+    expect(await signIn()).toContain(
+      '<a class="club-mark" href="/" aria-label="Southville Running Club, home"',
+    );
   });
 
-  it('carries the footer, and with it the privacy notice', async () => {
-    // #60 published a site-wide privacy notice and every other page foots with a link to it.
-    // The account area is where somebody's standing record actually lives, so it was the one
-    // place the link was missing and the one place it matters most.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
+  it('offers the club bar, item for item and in order, with the call to action', async () => {
+    // The labels, hrefs and order come from `CLUB_NAV` and nowhere else, so this reads them
+    // from there rather than restating them — a restated list is a second copy that goes stale.
+    const markup = await signIn();
+    const bar = element(markup, /<nav class="club-nav"/, 'nav');
 
-    expect(markup).toContain('class="site-footer"');
-    expect(markup).toContain('href="/privacy/"');
+    expect(bar).toContain('aria-label="Southville Running Club"');
+    const hrefs = [...bar.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs).toEqual(CLUB_NAV.map((item) => item.href));
+    for (const item of CLUB_NAV) expect(bar).toContain(`>${item.label}</a>`);
+
+    expect(markup).toContain(
+      `<a class="club-btn club-btn-primary club-cta" href="${CLUB_CTA.href}" >${CLUB_CTA.label}</a >`,
+    );
+  });
+
+  it('offers the same links in the phone Menu, which opens with scripting off', async () => {
+    const markup = await signIn();
+    const menu = element(markup, /<details class="club-menu">/, 'details');
+
+    expect(menu).toContain('<summary class="club-btn club-btn-secondary">Menu</summary>');
+    expect(menu).toContain('aria-label="Southville Running Club, menu"');
+    const hrefs = [...menu.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs).toEqual([...CLUB_NAV.map((item) => item.href), CLUB_CTA.href]);
+  });
+
+  it('marks Account, and only Account, as the section being read in each bar', async () => {
+    // A marker on two items is worse than none, because it is confidently wrong. Counted per
+    // navigation, because the desktop bar and the phone Menu are two navigations over the same
+    // six links and each says where the reader is.
+    const markup = await signIn();
+
+    for (const opening of [/<nav class="club-nav"/, /<details class="club-menu">/]) {
+      const nav = element(
+        markup,
+        opening,
+        opening.source.includes('details') ? 'details' : 'nav',
+      );
+      expect(nav.match(/aria-current="page"/g) ?? []).toHaveLength(1);
+      expect(nav).toContain('<a href="/account/" aria-current="page">Account</a>');
+    }
+    // The wordmark is current only on `/`.
+    expect(element(markup, /<a class="club-mark"/, 'a')).not.toContain('aria-current');
   });
 
   it('does not announce the wordmark on top of the link that already names it', async () => {
-    // The wordmark is `aria-hidden` because the link around it is already labelled
-    // "Southville Running Club, home". Giving the artwork `role="img"` and its own
-    // `aria-label` as well announces the club twice in a row — the exact thing
-    // `ClubLogo.astro`'s `labelled` prop exists to avoid, and the easiest thing to lose when
-    // copying markup between frameworks.
-    //
-    // **Asserted on the `<svg>` rather than on the page.** The first version of this test
-    // forbade the string `aria-label="Southville Running Club"` anywhere in the document, and
-    // it went red the moment the navigation landmark arrived carrying that label legitimately
-    // — naming the *navigation*, which is what `NnNav` does with "Nightingale Nightmare". A
-    // blunt assertion that fails on a correct change is one somebody eventually deletes.
-    // Squashed before matching, for the Prettier-and-`html`-tag reason `CLAUDE.md` gives:
-    // formatting `site-chrome.ts` reflows the markup inside the template, so `<svg` and its
-    // own class attribute arrive on separate lines. This assertion failed on exactly that
-    // before the squash went in, on markup that was perfectly correct.
-    const markup = (await accountPage()).replace(/\s+/g, ' ');
-    const svg = /<svg class="site-logo"[^>]*>/.exec(markup)?.[0] ?? '';
+    // `aria-hidden` on the header's mark because the link around it is already labelled
+    // "Southville Running Club, home" — `ClubLogo.astro`'s `labelled={false}`. The footer's
+    // mark is in no link, so it keeps its own name.
+    const markup = await signIn();
+    const headerSvg = /<svg class="club-logo"[^>]*>/.exec(markup)?.[0] ?? '';
+    const footerSvg = /<svg class="club-footer-mark"[^>]*>/.exec(markup)?.[0] ?? '';
 
-    expect(svg).not.toBe('');
-    expect(svg).toContain('aria-hidden="true"');
-    expect(svg).not.toContain('role="img"');
-    expect(svg).not.toContain('aria-label');
+    expect(headerSvg).toContain('aria-hidden="true"');
+    expect(headerSvg).not.toContain('role="img"');
+    expect(footerSvg).toContain('role="img"');
+    expect(footerSvg).toContain('aria-label="Southville Running Club"');
+  });
+
+  it('carries the club footer, and with it the privacy notice', async () => {
+    // The account area is where somebody's standing record actually lives, so the privacy link
+    // at its foot is the one that matters most.
+    const footer = element(await signIn(), /<footer class="club-footer">/, 'footer');
+
+    expect(footer).toContain('<h2>Come and run</h2>');
+    expect(footer).toContain('<h2>Follow the club</h2>');
+    expect(footer).toContain('href="/privacy/"');
+  });
+
+  it('puts breadcrumbs first in the page, ending on the page being read', async () => {
+    const markup = await signIn();
+    const main = element(markup, /<main class="account-page" id="main">/, 'main');
+    const crumbs = element(main, /<nav class="club-crumbs"/, 'nav');
+
+    expect(main.indexOf('club-crumbs')).toBeLessThan(main.indexOf('<h1'));
+    expect(crumbs).toContain('aria-label="Breadcrumb"');
+    expect(crumbs).toContain('<li><a href="/account/">Account</a></li>');
+    // The last crumb is the page: not a link, and the only thing marked current.
+    expect(crumbs).toContain('<span aria-current="page">Sign in</span>');
+    expect(crumbs.match(/<a /g) ?? []).toHaveLength(1);
+    // The chevrons are decoration, hidden from a screen reader.
+    expect(crumbs).toMatch(/<svg [^>]*aria-hidden="true"/);
+  });
+
+  it('shows no section bar to somebody signed out', async () => {
+    // The five tabs are all pages that need a session, so the bar is only shown to somebody
+    // who has one — which is also why none of its tabs carries a lock.
+    expect(await signIn()).not.toContain('club-section');
+  });
+
+  /**
+   * The tabs that depend on who is signed in, drawn by the predicate each door asks.
+   *
+   * A member — an account and nothing beyond `registered` — sees the five account tabs. A
+   * timing volunteer sees Race timing as well, staff see Club admin, and `src-admin` sees both.
+   * Each case is the role's own permissions as `identity-permissions.test.ts` asserts them.
+   */
+  describe('the tabs that depend on who is signed in', () => {
+    function signedInAs(roles: string[], permissions: string[]) {
+      getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+      userGetUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+        error: null,
+      });
+      rpc.mockImplementation(async (name: string) =>
+        name === 'my_roles'
+          ? { data: roles, error: null }
+          : name === 'my_permissions'
+            ? { data: permissions, error: null }
+            : { data: [], error: null },
+      );
+    }
+
+    async function tabsOn(path: string): Promise<string[]> {
+      const markup = await render(path, SIGNED_IN);
+      const bar = element(markup, /<nav class="club-section"/, 'nav');
+      expect(markup, 'the slot must never reach a page').not.toContain('staff tabs');
+      return [...bar.matchAll(/<a href="[^"]+"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]!);
+    }
+
+    const ACCOUNT = [
+      'Your account',
+      'Your entries',
+      'Your details',
+      'Change your password',
+      'Your data',
+    ];
+
+    it('gives a member the five account tabs and nothing else', async () => {
+      signedInAs(['registered'], []);
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+    });
+
+    it('adds Race timing for a marshal, and not Club admin', async () => {
+      signedInAs(['registered', 'timing-marshal'], ['timing.crossing.record']);
+      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Race timing']);
+    });
+
+    it('adds Club admin for staff, and not Race timing', async () => {
+      signedInAs(['registered', 'nn-admin'], ['nn.entry.read', 'nn.email.read']);
+      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Club admin']);
+    });
+
+    it('does not count nn-tester as staff, because /admin/ would answer it 404', async () => {
+      signedInAs(['registered', 'nn-tester'], ['nn.entry.before_open']);
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+    });
+
+    it('gives src-admin both', async () => {
+      signedInAs(
+        ['registered', 'src-admin'],
+        ['identity.person.read', 'timing.event.manage'],
+      );
+      expect(await tabsOn('/account/')).toEqual([
+        ...ACCOUNT,
+        'Race timing',
+        'Club admin',
+      ]);
+    });
+
+    it('draws neither when the read fails, rather than guessing', async () => {
+      signedInAs(['registered'], []);
+      rpc.mockImplementation(async (name: string) =>
+        name === 'my_roles'
+          ? { data: null, error: { code: 'PGRST202', message: 'no such function' } }
+          : { data: ['timing.event.manage'], error: null },
+      );
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+      expect(errors.mock.calls.flat().join(' ')).toContain('PGRST202');
+      errors.mockRestore();
+    });
+
+    it('links each to the page its own door opens', async () => {
+      signedInAs(['registered', 'src-admin'], ['timing.event.manage']);
+      const bar = element(
+        await render('/account/', SIGNED_IN),
+        /<nav class="club-section"/,
+        'nav',
+      );
+
+      expect(bar).toContain('<li><a href="/timing">Race timing</a></li>');
+      expect(bar).toContain('<li><a href="/admin/">Club admin</a></li>');
+    });
+  });
+
+  it('shows a signed-in person the section bar, with the page they are on marked', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+    userGetUser.mockResolvedValue({
+      data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+      error: null,
+    });
+
+    const markup = await render('/account/', SIGNED_IN);
+    const bar = element(markup, /<nav class="club-section"/, 'nav');
+
+    expect(bar).toContain('aria-label="Account"');
+    expect([...bar.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      '/account/',
+      '/account/entries/',
+      '/account/details/',
+      '/account/password/',
+      '/account/data/',
+    ]);
+    expect(bar.match(/aria-current="page"/g) ?? []).toHaveLength(1);
+    expect(bar).toContain('<a href="/account/" aria-current="page">Your account</a>');
+    // Between the header and the page, so the skip link still jumps past it.
+    expect(markup.indexOf('club-section')).toBeGreaterThan(markup.indexOf('</header>'));
+    expect(markup.indexOf('club-section')).toBeLessThan(markup.indexOf('<main'));
+    // "Account › Your account" would be two names for one page, so there are none here.
+    expect(markup).not.toContain('club-crumbs');
   });
 });
 
@@ -387,6 +557,8 @@ describe('GET /account/, signed in', () => {
    *
    * Drawn from `holdsAnyTimingPermission()`, the same predicate `/timing/`'s door asks — so the
    * cases are a permission that opens it, permissions that do not, and a read that failed.
+   * **It is the account bar's tab since ADR-052**; the page used to draw a second copy of the
+   * same link in its body, and the first case below asserts there is only one.
    */
   describe('the Race timing link', () => {
     async function homeWith(answer: { data: unknown; error: unknown }): Promise<string> {
@@ -413,6 +585,10 @@ describe('GET /account/, signed in', () => {
       const body = await homeWith({ data: ['timing.crossing.record'], error: null });
 
       expect(body).toContain('<a href="/timing">Race timing</a>');
+      // One link, in the bar — not the bar's and a second in the page that went to the same
+      // place. Two would also make `getByRole('link', { name: 'Race timing' })` ambiguous.
+      expect(body.match(/href="\/timing"/g) ?? []).toHaveLength(1);
+      expect(body).toContain('<li><a href="/timing">Race timing</a></li>');
     });
 
     it('is not drawn for somebody holding nothing under timing', async () => {

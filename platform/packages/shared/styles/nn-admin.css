@@ -134,35 +134,22 @@ body.admin {
  * 1. The masthead
  * --------------------------------------------------------------------------------------- */
 
+/* A slim strip under the club's header since ADR-052: where you are, who you are signed in
+   as, and the way to your account. No wordmark — the header above carries it. */
 .admin-mast {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.5rem;
-  padding: 0.875rem 1rem;
+  gap: 0 1.5rem;
+  padding: 0 1rem;
   background: var(--admin-mast);
   color: var(--admin-mast-ink);
-}
-
-.admin-mast-mark {
-  display: flex;
-  /* The wordmark takes the band's own ink rather than the brand green. On this band the
-     undiluted green is a logotype, which WCAG exempts — but the lockup here is doing the job of
-     a page title, and a title should be as readable as the words beside it. */
-  color: var(--admin-mast-ink);
-}
-
-.admin-mast-mark svg {
-  display: block;
-  width: 9.5rem;
-  height: auto;
+  font-size: 0.9375rem;
 }
 
 .admin-mast-title {
   margin: 0;
-  padding-inline-start: 1.5rem;
-  border-inline-start: 1px solid currentcolor;
-  font-weight: 600;
+  padding-block: 0.5rem;
 }
 
 .admin-mast-who {
@@ -1138,9 +1125,14 @@ body.admin {
     color: var(--src-ink);
   }
 
+  /* The club website's header, Menu, footer and skip link too since ADR-052: a start list or a
+     medical sheet is a document for a desk, and the site's navigation on it is ink and a page. */
   .admin-mast,
   .admin-eventbar,
-  .admin-noprint {
+  .admin-noprint,
+  .club-skip,
+  .club-header,
+  .club-footer {
     display: none;
   }
 
