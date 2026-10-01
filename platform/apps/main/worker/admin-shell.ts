@@ -1,4 +1,3 @@
-import { CLUB_LOGO } from '@src/shared/brand';
 import { clubFooter, clubHeader, clubSkipLink } from './club-chrome';
 import { html, type Html } from './html';
 import { ADMIN_PREFIX } from './routing';
@@ -219,6 +218,13 @@ export interface AdminViewer {
  * The masthead: the club lockup, what this is, who is signed in, and the way out — under the
  * club website's own header since ADR-052.
  *
+ * **A slim strip that says where you are, and no second logo**, since ADR-052: the club
+ * header above it already carries the wordmark and the way home, so the strip keeps only what
+ * is particular to this surface — that this is Club admin, which account is signed in, and
+ * "My account". **"Signed in as" stays** for the reason given below: it is what stops a
+ * volunteer granting a role from the wrong one of their two accounts. The Dashboard the
+ * wordmark used to link is the first item in the bar beneath it.
+ *
  * ⚠️ **A `<section>`, not a `<header>`, since ADR-052.** The club header above it is the page's
  * one `banner` landmark, and a second `<header>` outside `<main>` is
  * `landmark-no-duplicate-banner`. It is not a `<div>` either: everything on it — which account
@@ -244,24 +250,9 @@ export function masthead(viewer: AdminViewer): Html {
 
   return html`${clubSkipLink()} ${clubHeader(`${ADMIN_PREFIX}/`)}
     <section class="admin-mast" aria-labelledby="admin-mast-title">
-      <a class="admin-mast-mark" href="${ADMIN_PREFIX}/">
-        <svg
-          viewBox="${CLUB_LOGO.viewBox}"
-          role="img"
-          aria-label="${CLUB_LOGO.title}"
-          focusable="false"
-        >
-          ${CLUB_LOGO.paths.map(
-            (path) =>
-              html`<path
-                d="${path.d}"
-                transform="${path.transform}"
-                fill="currentColor"
-              />`,
-          )}
-        </svg>
-      </a>
-      <p class="admin-mast-title" id="admin-mast-title">Club admin</p>
+      <p class="admin-mast-title" id="admin-mast-title">
+        You are in <strong>Club admin</strong>
+      </p>
       <div class="admin-mast-who">
         <span class="admin-mast-role">
           <span class="admin-mast-role-label">Signed in as</span>
