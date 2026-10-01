@@ -35,7 +35,14 @@ import {
 import { holdsAnyTimingPermission } from '@src/shared/timing/door';
 import { html, raw, type Html } from './html';
 import { cookieValue } from './cookies';
-import { faviconLink, siteBanner, siteFooter, siteNav } from './site-chrome';
+import {
+  breadcrumbs,
+  clubFooter,
+  clubHeader,
+  clubSkipLink,
+  sectionBar,
+} from './club-chrome';
+import { faviconLink } from './site-chrome';
 import {
   REFRESH_COOKIE,
   clearedSessionCookies,
@@ -360,6 +367,7 @@ export async function handleAccount(
       if (url.searchParams.get('done') === 'ok') {
         const emailPending = url.searchParams.get('email') === 'pending';
         return page('Details saved', detailsAcknowledgement(emailPending), {
+          tab: '/account/details/',
           secure,
           cookies: refreshedCookies,
         });
@@ -478,7 +486,7 @@ async function accountHome(
   const csrfToken = mintCsrfToken();
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Your account</h1>
       <p>
         ${
@@ -510,6 +518,7 @@ async function accountHome(
   `;
 
   return page('Your account', body, {
+    tab: '/account/',
     secure,
     cookies: [...refreshedCookies, csrfCookie(csrfToken, secure)],
   });
@@ -631,7 +640,7 @@ function signUpPage(
   const csrfToken = mintCsrfToken();
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Create an account</h1>
       ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/sign-up/" class="signup" novalidate>
@@ -679,7 +688,7 @@ function signUpPage(
 
 function signUpAcknowledgement(): Html {
   return html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Check your inbox</h1>
       <p>
         If that email address does not already have an account, we have sent a
@@ -832,7 +841,7 @@ function signInPage(
     Object.keys(magicLinkErrors).length > 0;
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Sign in</h1>
       ${problemNotice(
         message,
@@ -1080,7 +1089,7 @@ async function handleConfirm(
         return page(
           'Confirm your email',
           html`
-            <main class="account-page">
+            <main class="account-page" id="main">
               <h1>That did not work</h1>
               <p>
                 The club’s database could not be reached. Try the link again in a moment.
@@ -1094,7 +1103,7 @@ async function handleConfirm(
   }
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       ${
         failed
           ? html`<h1>That link did not work</h1>
@@ -1436,7 +1445,7 @@ async function handleCallback(
     return page(
       'Sign in',
       html`
-        <main class="account-page">
+        <main class="account-page" id="main">
           <h1>That did not work</h1>
           <p>The club’s database could not be reached. Try again in a moment.</p>
           <p><a href="/account/sign-in/">Back to sign in</a></p>
@@ -1458,7 +1467,7 @@ function callbackFailurePage(
   reason: 'expired' | 'other-browser',
 ): Response {
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>That link did not work</h1>
       ${
         reason === 'other-browser'
@@ -1567,7 +1576,7 @@ function resetRequestPage(
   const csrfToken = mintCsrfToken();
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Reset your password</h1>
       ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/reset/" class="signup" novalidate>
@@ -1595,7 +1604,7 @@ function resetRequestPage(
 
 function resetRequestAcknowledgement(): Html {
   return html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Check your inbox</h1>
       <p>
         If there is an account for that address, we have sent a link to reset its
@@ -1739,7 +1748,7 @@ function resetConfirmPage(
 
   if (failed) {
     const body = html`
-      <main class="account-page">
+      <main class="account-page" id="main">
         <h1>That link did not work</h1>
         <p>
           It may have expired, or already been used.
@@ -1751,7 +1760,7 @@ function resetConfirmPage(
   }
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Choose a new password</h1>
       ${problemNotice(message, Object.keys(errors).length === 0)}
       <p class="notice notice-bad" data-reset-needs-js>
@@ -1959,7 +1968,7 @@ function changePasswordPage(
   const csrfToken = mintCsrfToken();
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Change your password</h1>
       ${problemNotice(message, Object.keys(errors).length === 0)}
       <form method="post" action="/account/password/" class="signup" novalidate>
@@ -1983,6 +1992,7 @@ function changePasswordPage(
   `;
 
   return page('Change your password', body, {
+    tab: '/account/password/',
     status: message !== null || Object.keys(errors).length > 0 ? 422 : 200,
     secure,
     cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
@@ -2249,7 +2259,7 @@ function detailsPage(
   const csrfToken = mintCsrfToken();
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Your details</h1>
       <p>
         What each of these is for, and how long the club keeps it, is at
@@ -2296,6 +2306,7 @@ function detailsPage(
   `;
 
   return page('Your details', body, {
+    tab: '/account/details/',
     status: message !== null || Object.keys(errors).length > 0 ? 422 : 200,
     secure,
     cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
@@ -2342,7 +2353,7 @@ async function dataPage(
       : null;
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Your data</h1>
       ${problemNotice(message, true)}
 
@@ -2416,6 +2427,7 @@ async function dataPage(
   `;
 
   return page('Your data', body, {
+    tab: '/account/data/',
     status: message !== null ? 422 : 200,
     secure,
     cookies: [...extraCookies, csrfCookie(csrfToken, secure)],
@@ -2648,7 +2660,7 @@ function dobField(submitted: DetailsFormValues, error: string | undefined): Html
 
 function detailsAcknowledgement(emailPending: boolean): Html {
   return html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Details saved</h1>
       ${
         emailPending
@@ -2883,14 +2895,57 @@ function turnstile(
 }
 
 function notFoundBody(): Html {
-  return html`<main class="account-page"><h1>Not found</h1></main>`;
+  return html`<main class="account-page" id="main"><h1>Not found</h1></main>`;
 }
 
+/**
+ * The pages of the account section a signed-in person moves between, in the order the bar
+ * shows them. **The labels are each page's own `<h1>`**, so the tab somebody presses and the
+ * heading they land on say the same thing. Only these five carry the bar: every one needs a
+ * session, and the signed-out pages (sign in, sign up, the password reset) are steps in getting
+ * one rather than places in the section. So no tab carries a "sign-in needed" lock — the bar
+ * is only ever shown to somebody who is already signed in.
+ */
+const ACCOUNT_TABS = [
+  { href: '/account/', label: 'Your account' },
+  { href: '/account/entries/', label: 'Your entries' },
+  { href: '/account/details/', label: 'Your details' },
+  { href: '/account/password/', label: 'Change your password' },
+  { href: '/account/data/', label: 'Your data' },
+] as const;
+
+type AccountTab = (typeof ACCOUNT_TABS)[number]['href'];
+
+/**
+ * Every account page's shell: the club's header, the section bar on the five signed-in pages,
+ * the page, and the club's footer. ADR-052.
+ *
+ * **The breadcrumbs go inside `<main>`**, as the first thing in it, so they line up with the
+ * page's own column — which is where the mockup draws them. They are written in here rather
+ * than at the thirty call sites, which all build `<main class="account-page" id="main">` the same
+ * way; a page whose `<main>` does not open like that simply gets none, and the test that renders
+ * every page asserts none of them is in that state. **No breadcrumbs on `/account/` itself**:
+ * "Account › Your account" is two names for the one page.
+ *
+ * Every page this shell renders is under `/account/`, so the current item in the club bar is
+ * constant — Account — and `clubHeader()` is told so rather than threading a pathname through
+ * thirty call sites to compute a value that cannot vary.
+ */
 function page(
   title: string,
   body: Html,
-  options: { status?: number; secure: boolean; cookies: string[] },
+  options: { status?: number; secure: boolean; cookies: string[]; tab?: AccountTab },
 ): Response {
+  const crumbs =
+    options.tab === '/account/'
+      ? ''
+      : breadcrumbs([
+          { href: `${ACCOUNT_PREFIX}/`, label: 'Account' },
+          { label: title },
+        ]).toString();
+  const opening = '<main class="account-page" id="main">';
+  const main = raw(body.toString().replace(opening, () => opening + crumbs));
+
   const document = html`<!doctype html>
     <html lang="en-GB">
       <head>
@@ -2902,11 +2957,9 @@ function page(
         <link rel="stylesheet" href="/account.css" />
       </head>
       <body>
-        ${siteBanner()}
-        <!-- Every page this shell renders is under ACCOUNT_PREFIX, so the current-section
-             marker is constant. Threading a pathname through thirty call sites to compute a
-             value that cannot vary would be a parameter nobody could get right. -->
-        ${siteNav(ACCOUNT_PREFIX)} ${body} ${siteFooter()}
+        ${clubSkipLink()} ${clubHeader(`${ACCOUNT_PREFIX}/`)}
+        ${options.tab === undefined ? '' : sectionBar('Account', ACCOUNT_TABS, options.tab)}
+        ${main} ${clubFooter()}
       </body>
     </html>`;
 
@@ -3140,7 +3193,7 @@ async function entriesPage(
     return page(
       'Your entries',
       html`
-        <main class="account-page">
+        <main class="account-page" id="main">
           <h1>Your entries</h1>
           <p class="notice">
             The club cannot reach its entry records at the moment, so this page cannot
@@ -3150,7 +3203,7 @@ async function entriesPage(
           <p><a href="/account/">Back to your account</a></p>
         </main>
       `,
-      { status: 503, secure, cookies: refreshedCookies },
+      { status: 503, secure, cookies: refreshedCookies, tab: '/account/entries/' },
     );
   }
 
@@ -3247,7 +3300,7 @@ async function entriesPage(
   const stale = url.searchParams.get('problem') === 'stale';
 
   const body = html`
-    <main class="account-page">
+    <main class="account-page" id="main">
       <h1>Your entries</h1>
       ${
         asked === 'cancel' || asked === 'transfer'
@@ -3361,6 +3414,7 @@ async function entriesPage(
   `;
 
   return page('Your entries', body, {
+    tab: '/account/entries/',
     secure,
     cookies: [...refreshedCookies, csrfCookie(csrfToken, secure)],
   });

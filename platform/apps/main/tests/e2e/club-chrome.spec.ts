@@ -435,6 +435,176 @@ test.describe('the frozen addresses', () => {
 });
 
 /**
+ * The account pages, which carry the club's header and footer since ADR-052.
+ *
+ * `/account/**` is built by the Worker as strings, so its header is a **second copy** of
+ * `ClubHeader.astro` — `worker/club-chrome.ts`. The items cannot drift, because both read
+ * `CLUB_NAV`; the markup can, and this is what compares the two in a browser. `/admin/**` gets
+ * the same header and is asserted in `admin.spec.ts`, which owns the fixtures that sign
+ * somebody in.
+ */
+test.describe('the account pages carry the club chrome', () => {
+  const SIGN_IN = '/account/sign-in/';
+
+  /** What a reader can see of a navigation: each link's name and where it goes, in order. */
+  async function linksOf(page: Page, name: string): Promise<string[][]> {
+    const links = page.getByRole('navigation', { name, exact: true }).getByRole('link');
+    return links.evaluateAll((elements) =>
+      elements.map((a) => [a.textContent?.trim() ?? '', a.getAttribute('href') ?? '']),
+    );
+  }
+
+  test('offers the same bar as the club pages, item for item', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+
+    await page.goto('/');
+    const astro = await linksOf(page, 'Southville Running Club');
+    const astroCta = await page.locator('.club-cta').getAttribute('href');
+
+    await page.goto(SIGN_IN);
+    const worker = await linksOf(page, 'Southville Running Club');
+
+    expect(astro).toEqual(SECTIONS.map(([label, href]) => [label, href]));
+    expect(worker, 'the Worker’s header has drifted from the Astro one').toEqual(astro);
+    await expect(page.locator('.club-cta')).toHaveAttribute('href', astroCta ?? '');
+    await expect(page.locator('.club-cta')).toHaveText('Come for a run');
+  });
+
+  test('offers the same footer as the club pages', async ({ page }) => {
+    const footerLinks = async () =>
+      page
+        .getByRole('contentinfo')
+        .getByRole('link')
+        .evaluateAll((elements) =>
+          elements.map((a) => [
+            a.getAttribute('aria-label') ?? a.textContent?.trim() ?? '',
+            a.getAttribute('href') ?? '',
+          ]),
+        );
+
+    await page.goto('/');
+    const astro = await footerLinks();
+    await page.goto(SIGN_IN);
+
+    expect(await footerLinks()).toEqual(astro);
+    await expect(page.getByRole('contentinfo')).toContainText(club.legalName);
+  });
+
+  test('marks Account as the section being read, and nothing else', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto(SIGN_IN);
+
+    const nav = page.getByRole('navigation', {
+      name: 'Southville Running Club',
+      exact: true,
+    });
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(nav.getByRole('link', { name: 'Account', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(
+      page.getByRole('link', { name: 'Southville Running Club, home' }),
+    ).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  test('has one banner landmark and a skip link that lands on the page', async ({
+    page,
+  }) => {
+    await page.goto(SIGN_IN);
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.locator('a.club-skip')).toHaveAttribute('href', '#main');
+    await expect(page.locator('main#main')).toHaveCount(1);
+  });
+
+  test('says where the page sits, ending on the page itself', async ({ page }) => {
+    await page.goto(SIGN_IN);
+
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(
+      crumbs.getByRole('link', { name: 'Account', exact: true }),
+    ).toHaveAttribute('href', '/account/');
+    await expect(crumbs.locator('[aria-current="page"]')).toHaveText('Sign in');
+    // Inside `<main>`, so it is on the far side of the skip link with the page it describes.
+    await expect(page.locator('main#main nav[aria-label="Breadcrumb"]')).toHaveCount(1);
+  });
+
+  /** No `@requires-js`: the Menu is a `<details>` on these pages too. */
+  test('opens the Menu on a phone with scripting off', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto(SIGN_IN);
+
+    await page.locator('.club-menu > summary').click();
+    const panel = page.getByRole('navigation', { name: 'Southville Running Club, menu' });
+    for (const [label, href] of SECTIONS) {
+      await expect(panel.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+        'href',
+        href,
+      );
+    }
+    await expect(panel.locator('[aria-current="page"]')).toHaveText('Account');
+  });
+
+  for (const width of [320, 390, 768, 1280]) {
+    test(`does not scroll sideways at ${width}px, with the Menu open where there is one`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(SIGN_IN);
+      if (await page.locator('.club-menu > summary').isVisible()) {
+        await page.locator('.club-menu > summary').click();
+      }
+
+      await expectNoSidewaysScroll(page, `${SIGN_IN} at ${width}px`);
+    });
+  }
+
+  test('leaves the sign-in form looking as it did', async ({ page }) => {
+    // The chrome stylesheet is appended to `/account.css`, and every rule in it is scoped to
+    // a `.club-*` class. If one ever is not, `base.css`'s look on the form is what it will
+    // change first — so this pins the two things a stray `club.css` rule would repaint.
+    await page.goto(SIGN_IN);
+
+    const fontOf = (selector: string) =>
+      page
+        .locator(selector)
+        .first()
+        .evaluate((el) => getComputedStyle(el).fontFamily);
+    const bodyFont = await page.evaluate(
+      () => getComputedStyle(document.body).fontFamily,
+    );
+
+    expect(await fontOf('main h1')).not.toContain('Bricolage');
+    expect(await fontOf('main p')).toBe(bodyFont);
+    expect(bodyFont).not.toBe(
+      await page
+        .locator('.club-header')
+        .evaluate((el) => getComputedStyle(el).fontFamily),
+    );
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto(SIGN_IN);
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('has none on a phone, with the Menu open @requires-js', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto(SIGN_IN);
+    await page.locator('.club-menu > summary').click();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('has none in the dark scheme @requires-js', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(SIGN_IN);
+    expect(await axeViolations(page)).toEqual([]);
+  });
+});
+
+/**
  * ⚠️ **The fence: the money pages keep today's chrome until after the race.**
  *
  * Every assertion below is about the *absence* of this change. They are the reason somebody
@@ -445,6 +615,11 @@ test.describe('the frozen addresses', () => {
  * **After the race these go**, in the change that moves the money pages across. They are
  * deliberately a separate describe block, with this comment on it, so that removing them is a
  * decision somebody takes rather than a tidy-up.
+ *
+ * ⚠️ **`/account/sign-in/` came off this list on 1 October 2026, and that was such a decision**
+ * — ADR-052, under a freeze exception granted in writing for the account and admin pages'
+ * chrome alone. Their header and footer are the club's now, and the next describe block
+ * asserts that instead. Every address still listed here is one that change left alone.
  */
 test.describe('the pages that keep today’s chrome until after the race', () => {
   /** `/privacy/` and `/404` are club pages that are deliberately not in this change either. */
@@ -452,7 +627,6 @@ test.describe('the pages that keep today’s chrome until after the race', () =>
     '/nn/',
     '/nn/2026/',
     '/events/christmas-party-2026/',
-    '/account/sign-in/',
     '/privacy/',
   ] as const;
 

@@ -448,9 +448,15 @@ test.describe('the bar between the parts of this site', () => {
     }) => {
       // One is Astro and one is a template literal in a Worker; they share `SITE_NAV` rather
       // than a component, so this is what catches one of them being edited alone.
-      // ⚠️ `/privacy/` for the Astro side until after the race — see ADR-048. Both renderings
-      // of `SITE_NAV` are still live and still must not drift; only the sample page moved.
-      for (const path of ['/privacy/', '/account/sign-in/']) {
+      // ⚠️ `/privacy/` for the Astro side until after the race — see ADR-048.
+      //
+      // ⚠️ **`/account/sign-in/` was the Worker's sample page until 1 October 2026**, and it
+      // carries the club's header since ADR-052, so it offers no "Events" item to focus. The
+      // Worker's `siteNav()` is still rendered — by `/nn/<year>/results/`, which answers 404 to
+      // a signed-out visitor until a race is published — so this checks the Astro side alone,
+      // and the Worker's copy of the *club* header is compared with the Astro one in
+      // `club-chrome.spec.ts` instead.
+      for (const path of ['/privacy/']) {
         await page.setViewportSize({ width: 1100, height: 800 });
         await page.goto(path);
 
