@@ -1283,9 +1283,20 @@ labels, the hrefs, their order, "Come for a run", the banner sentence, and which
 current (`activeClubNavItem()`). A list typed into a component is a second copy, and the bar
 already exists in two frameworks. ⚠️ **The markup does exist twice**, deliberately:
 `src/components/club/ClubHeader.astro` for the club pages and `worker/club-chrome.ts` for
-`/account/**` and `/admin/**`, which the Worker builds as strings — ADR-052. **Change one and
-you change the other**; `club-chrome.spec.ts` compares them in a browser and fails when they
-drift. `apps/timing` will be the third, after the race.
+`/account/**` and `/admin/**`, which the Worker builds as strings — ADR-052 — and
+`apps/timing/app/chrome/club-chrome.tsx` for `/timing`, ADR-053. **Change one and you change all
+three**; `club-chrome.spec.ts` compares the Worker's and the timing app's with the Astro one in
+a browser and fails when they drift.
+
+⚠️ **Every page under `/timing` wraps itself in a frame, and the root layout draws none.**
+`apps/timing/lib/chrome.ts` is the route table — `TimingFrame`, `RaceFrame`, `FocusFrame` or
+`ClubFrame` — and `tests/unit/chrome.test.ts` fails on a `page.tsx` that is not in it or does
+not use its frame. **A new timing page is a row in that table first.** The race console and the
+marshal's capture screen are `FocusFrame` and must carry no club navigation — one stray tap
+mid-race. ⚠️ **The not-found page and `ClubFrame` must read nothing**: the not-found page is what
+every refusal at the door is rewritten to (ADR-044) and a session read would stop it
+prerendering — `club-frame.tsx` is kept apart from `frames.tsx` for exactly that. ⚠️ **Club links
+in `apps/timing` are plain `<a>`, never `<Link>`**, which would prefix them with `/timing`.
 
 ⚠️ **`club-chrome.css`, never `club.css`, on a page `base.css` styles.** `club.css` restyles bare
 `body`, `h1`–`h4`, `p`, `a` and `main`, so on `/account/` it repaints every form; the chrome file

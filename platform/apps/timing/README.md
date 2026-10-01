@@ -92,15 +92,18 @@ failed simulation cuts the Durable Objects leaderboard rather than the platform.
 **`/timing` is staff-only since 11 September 2026.** `middleware.ts` reads the session and
 refuses anybody without a `timing.*` permission — the signed-out public included — and
 nothing public links to it. **The two links that exist are drawn only for somebody who may
-follow them**: "Race timing" on `/account/`, from `holdsAnyTimingPermission()` in
+follow them**: the "Race timing" tab in `/account/`'s section bar (ADR-052), from
+`holdsAnyTimingPermission()` in
 `@src/shared/timing/door` — the predicate `lib/access.ts` asks for the landing page — and
 one in `/admin/`'s bar behind `timing.event.manage`, the permission this app's table demands
 for `/timing/events/`. A link to a page that 404s tells somebody it exists, which is the
 disclosure the 404 is there to avoid.
 
 ⚠️ **A refused request is rewritten to an address that matches no route**, so Next serves its
-prerendered not-found page: real server-rendered HTML, status 404, with the banner, the
+prerendered not-found page: real server-rendered HTML, status 404, with the club header, the
 footer and the privacy notice on it, byte for byte what a genuinely missing address returns.
+⚠️ **It is drawn in `ClubFrame` and nothing that reads**, since ADR-053 — a frame that read the
+session would stop it prerendering, and this is the page every refusal depends on.
 
 **It does not throw `notFound()`, and that was learned the expensive way.** Thrown during a
 dynamic render — reading cookies makes it dynamic — `notFound()` returns an empty
@@ -213,20 +216,47 @@ worker.
 
 ## The club's chrome, on a path the club does not own the framework of
 
-This app is Next and `apps/main` is Astro, so a banner, a footer and a wordmark cannot be
-one component. They are one *set of values* instead — `CLUB_LOGO`, `SITE_BANNER` and
-`SOCIAL_LINKS` in `packages/shared` — with a dozen lines of JSX here and a dozen lines of
-Astro there. `apps/main/tests/e2e/site.spec.ts` visits both front doors and asserts they
-agree, because each app builds green on its own and nothing else would notice a drift.
+**`/timing` wears the club website's own header and footer since
+[ADR-053](../../../docs/architecture/decisions/adr-053-the-timing-app-wears-the-club-header.md)**
+— the welcome strip, the wordmark, the six items with "Races and events" current, "Come for
+a run" and the phone Menu. This app is Next and `apps/main` is Astro, so they cannot be one
+component; they are one set of **data** — `club-nav.ts`, `@src/shared/content/club.json`,
+`SOCIAL_LINKS` — rendered three times, by `ClubHeader.astro`, by `apps/main`'s
+`worker/club-chrome.ts` and by `app/chrome/club-chrome.tsx` here. `club-chrome.spec.ts`
+compares this header with the Astro one in a browser, because each app builds green on its
+own and nothing else would notice a drift.
 
-Three of them arrived after the club's front door already had them, and the gap was visible
-to anybody who reached `/timing` from a search: the club's colours, and no way back to the
-club.
+⚠️ **Every club link is a plain `<a>`, never `<Link>`.** They all leave this app, and Next
+prefixes a `<Link>`'s href with the base path — `/run-with-us/` would become
+`/timing/run-with-us/` and 404. A test asserts no club link starts with `/timing`.
+
+**The root layout draws the document and nothing else; every page wraps itself in a frame**,
+because the frame depends on what only the page knows — which race, its name, which tab:
+
+| Frame | Pages | What it draws |
+| --- | --- | --- |
+| `TimingFrame` | `/timing`, `/timing/events` | Club header, "Race timing" bar, breadcrumbs, footer |
+| `RaceFrame` | a race's overview, leaderboard, results, entry list, marshals, danger zone | Club header, the race's bar with its tab current, breadcrumbs, footer |
+| `FocusFrame` | the race console, the marshal's capture screen | A slim dark header — the screen, the race, one way out — and nothing else |
+| `ClubFrame` | not found (both statuses), `global-error.tsx` | Club header and footer, reading nothing |
+
+`lib/chrome.ts` is that table, and **`tests/unit/chrome.test.ts` reads every `page.tsx` under
+`app/` and fails unless it is in the table and uses the frame named for it.** A new page is a
+row there first. Tabs are drawn from `canOpen()` — filtered, never locked — so nobody is shown
+a link to a 404. `app/chrome/club-frame.tsx` is the read-free half, kept apart from
+`frames.tsx` so the error page (a client component) can import it and the not-found page stays
+prerendered.
+
+Styles: `club-chrome.css`, imported after `base.css` in `app/layout.tsx` — every rule
+`.club-*`-scoped, so the pages' own bodies are `base.css`'s exactly as before. **Never
+`club.css`**, which restyles bare elements.
 
 | | |
 | --- | --- |
-| `app/site-banner.tsx` | The bar that says which site this is, and the wordmark that links home |
-| `app/site-footer.tsx` | The club's four social profiles, outside `<main>` so it is the one `contentinfo` |
+| `app/chrome/club-chrome.tsx` | The club header, Menu and footer |
+| `app/chrome/club-frame.tsx` | `ClubFrame`, the section bar and the breadcrumbs, reading nothing |
+| `app/chrome/frames.tsx` | `TimingFrame`, `RaceFrame`, `FocusFrame` — the ones that read permissions |
+| `lib/chrome.ts` | The route table and the two tab lists |
 | `metadata.icons` in `app/layout.tsx` | The browser-tab icon |
 
 **The favicon is `/favicon.svg`, which this app does not serve.** It is
