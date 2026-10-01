@@ -891,9 +891,9 @@ function eventBar(list: AdminEntryList, figures: AdminEventFigures | null): Html
   // navigation. `region` is the rule; nothing ran it on this surface until the suite settled on
   // one list.
   //
-  // **It cannot be `<header>`**: `admin-mast` is already this page's `banner` and a second is
-  // `landmark-no-duplicate-banner`. **And it is not moved inside `<main>`**, which is the other
-  // obvious answer and is a visual change rather than a semantic one — `.admin-eventbar` is
+  // **It cannot be `<header>`**: the club header above `admin-mast` is this page's `banner`
+  // since ADR-052, and a second is `landmark-no-duplicate-banner`. **And it is not moved
+  // inside `<main>`**, which is the other obvious answer and is a visual change rather than a semantic one — `.admin-eventbar` is
   // full-bleed with a rule across the viewport, and `.admin-page` is `max-width: 70rem` with
   // padding, so moving it indents the bar and stops the rule reaching the edges. A `<section>`
   // named by the heading it already contains costs nothing on screen.

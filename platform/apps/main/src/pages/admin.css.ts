@@ -1,6 +1,7 @@
 import tokens from '@src/shared/styles/tokens.css?raw';
 import base from '@src/shared/styles/base.css?raw';
 import admin from '@src/shared/styles/nn-admin.css?raw';
+import clubChrome from '@src/shared/styles/club-chrome.css?raw';
 
 /**
  * `/admin.css` — on the exact pattern of `src/pages/nn/admin.css.ts`, which see for why this
@@ -22,6 +23,12 @@ import admin from '@src/shared/styles/nn-admin.css?raw';
  * sign-in redirect, and every admin page renders unstyled. `tests/unit/routing.test.ts` pins
  * it.
  *
+ * **`club-chrome.css` is the fourth and it goes last** — the club website's header and footer,
+ * which sit above and below the admin masthead since ADR-052. Every rule in it is scoped to a
+ * `.club-*` class and it names no `--colour-*` token, so it leaves the tables and forms here
+ * exactly as `nn-admin.css` draws them. `club.css` must never be added; it restyles bare
+ * elements.
+ *
  * `/nn/admin.css` stays where it is. Nothing links it any more, but it costs one prerendered
  * file and removing it is the same contraction #63 is for.
  */
@@ -29,7 +36,7 @@ import admin from '@src/shared/styles/nn-admin.css?raw';
 const IMPORT_STATEMENT = /^@import[^;]*;\s*$/m;
 
 export function GET(): Response {
-  const css = [tokens, base.replace(IMPORT_STATEMENT, ''), admin].join('\n');
+  const css = [tokens, base.replace(IMPORT_STATEMENT, ''), admin, clubChrome].join('\n');
 
   return new Response(css, {
     headers: {

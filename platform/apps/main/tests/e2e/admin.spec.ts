@@ -332,6 +332,49 @@ test.describe('the navigation', () => {
     await expect(page.getByRole('link', { name: 'My account' })).toBeVisible();
   });
 
+  /**
+   * The club website's header and footer sit around the back office since ADR-052, and the
+   * masthead and this bar stay under it. Option A of that decision: the club header is the
+   * page's one `banner`, and the masthead is a named `<section>` rather than a second.
+   */
+  test('sits under the club header, with one banner and the club footer', async ({
+    page,
+  }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ADMIN);
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('banner')).toHaveClass(/club-header/);
+    await expect(page.getByRole('region', { name: 'Club admin' })).toContainText(
+      'Signed in as',
+    );
+    await expect(page.getByRole('contentinfo')).toHaveClass(/club-footer/);
+    await expect(page.locator('a.club-skip')).toHaveAttribute('href', '#main');
+    await expect(page.locator('main#main')).toHaveCount(1);
+
+    // **No item in the club bar is current here**: the back office is not one of its six
+    // sections, and marking one would tell somebody they were somewhere they are not.
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Southville Running Club', exact: true })
+        .locator('[aria-current="page"]'),
+    ).toHaveCount(0);
+    // And the back office's own bar is still there, below it.
+    await expect(sections(page).first()).toHaveText('Dashboard');
+  });
+
+  test('keeps the club chrome off the 404, which links a stranger into nothing', async ({
+    page,
+  }) => {
+    // ADR-013: everything under `/admin/` answers a signed-out stranger with a bare not-found
+    // page. The club header is added by `masthead()`, which the 404 never calls.
+    const response = await page.goto(`${ADMIN}nothing-here/`);
+
+    expect(response?.status()).toBe(404);
+    await expect(page.locator('.club-header')).toHaveCount(0);
+    await expect(page.locator('.club-footer')).toHaveCount(0);
+  });
+
   test('names the account somebody is signed in as, not a handle', async ({ page }) => {
     // **A change from `/nn/admin`, which showed a slug out of `entries.admin_keys` because a
     // handle was the only identity it had and the runbook held the mapping to a human.** This

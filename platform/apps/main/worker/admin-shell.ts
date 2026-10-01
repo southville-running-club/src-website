@@ -1,4 +1,5 @@
 import { CLUB_LOGO } from '@src/shared/brand';
+import { clubFooter, clubHeader, clubSkipLink } from './club-chrome';
 import { html, type Html } from './html';
 import { ADMIN_PREFIX } from './routing';
 import { faviconLink } from './site-chrome';
@@ -215,7 +216,19 @@ export interface AdminViewer {
 }
 
 /**
- * The masthead: the club lockup, what this is, who is signed in, and the way out.
+ * The masthead: the club lockup, what this is, who is signed in, and the way out — under the
+ * club website's own header since ADR-052.
+ *
+ * ⚠️ **A `<section>`, not a `<header>`, since ADR-052.** The club header above it is the page's
+ * one `banner` landmark, and a second `<header>` outside `<main>` is
+ * `landmark-no-duplicate-banner`. It is not a `<div>` either: everything on it — which account
+ * is signed in, the way to "My account" — would then be in no landmark at all, which is axe's
+ * `region` rule and #219's whole subject. Named by its own title, the way `eventBar()` is.
+ *
+ * **This is where the club chrome is added, and that is what keeps the 404 bare.** Every page a
+ * signed-in member of staff can see calls this; `notFound()` never does, so a signed-out
+ * stranger is still linked into nothing — ADR-013's rule, unchanged. `page()` adds the club
+ * footer to exactly the documents that carry the club header, for the same reason.
  *
  * **The email address rather than a role, and that is a change from `/nn/admin`.** That
  * surface showed a handle from `entries.admin_keys` because a handle was the only identity it
@@ -229,7 +242,8 @@ export function masthead(viewer: AdminViewer): Html {
     (section) => section.permission === null || can(viewer, section.permission),
   );
 
-  return html`<header class="admin-mast">
+  return html`${clubSkipLink()} ${clubHeader(`${ADMIN_PREFIX}/`)}
+    <section class="admin-mast" aria-labelledby="admin-mast-title">
       <a class="admin-mast-mark" href="${ADMIN_PREFIX}/">
         <svg
           viewBox="${CLUB_LOGO.viewBox}"
@@ -247,7 +261,7 @@ export function masthead(viewer: AdminViewer): Html {
           )}
         </svg>
       </a>
-      <p class="admin-mast-title">Club admin</p>
+      <p class="admin-mast-title" id="admin-mast-title">Club admin</p>
       <div class="admin-mast-who">
         <span class="admin-mast-role">
           <span class="admin-mast-role-label">Signed in as</span>
@@ -255,7 +269,7 @@ export function masthead(viewer: AdminViewer): Html {
         </span>
         <a class="admin-mast-out" href="/account/">My account</a>
       </div>
-    </header>
+    </section>
     <nav class="admin-nav" aria-label="Club admin">
       <ul>
         ${open.map(
@@ -278,6 +292,9 @@ export function page(
   body: Html,
   options: { status?: number; cookies?: string[] } = {},
 ): Response {
+  // The footer follows the header: a page that carries the club's header — every page
+  // `masthead()` drew — gets its footer too, and the bare 404 gets neither.
+  const hasClubHeader = body.toString().includes('<header class="club-header">');
   const document = html`<!doctype html>
     <html lang="en-GB">
       <head>
@@ -289,7 +306,7 @@ export function page(
         <link rel="stylesheet" href="/admin.css" />
       </head>
       <body class="admin">
-        ${body}
+        ${body} ${hasClubHeader ? clubFooter() : ''}
       </body>
     </html>`;
 
