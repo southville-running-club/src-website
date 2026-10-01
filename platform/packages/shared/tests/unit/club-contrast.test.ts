@@ -43,10 +43,17 @@ import { contrastRatio } from '../../src/contrast.js';
  * and the ones WCAG 2.2 AA requires; raising them later is a palette change, not a test edit.
  */
 
-const css = readFileSync(
-  fileURLToPath(new URL('../../styles/club.css', import.meta.url)),
-  'utf8',
-);
+/**
+ * The club's two stylesheets, in the order `ClubBase.astro` loads them. The tokens and both
+ * of their blocks live in `club-chrome.css` since ADR-052 split the header and footer out, so
+ * reading `club.css` alone would find no `:root` at all — and every rule-level check below
+ * (no `--colour-*`, no `@import`) has to hold for both files, because both reach a page.
+ */
+const css = ['club-chrome.css', 'club.css']
+  .map((file) =>
+    readFileSync(fileURLToPath(new URL(`../../styles/${file}`, import.meta.url)), 'utf8'),
+  )
+  .join('\n');
 
 /** WCAG 2.2 AA. Text, and the brief's stated bar for this surface. */
 const AA_TEXT = 4.5;

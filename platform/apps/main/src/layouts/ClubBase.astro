@@ -13,6 +13,9 @@
 // the rule instead — that import puts the money pages' palette on the club's pages and the
 // club's on nothing, and every `--colour-*` name would then resolve to a value from a file
 // nobody may edit until November.
+// ⚠️ **Two imports and the order is load-bearing**: `club-chrome.css` holds the tokens, the
+// header and the footer, and `club.css` must come after it — ADR-052.
+import '@src/shared/styles/club-chrome.css';
 import '@src/shared/styles/club.css';
 import ClubFooter from '../components/club/ClubFooter.astro';
 import ClubHeader from '../components/club/ClubHeader.astro';

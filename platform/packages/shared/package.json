@@ -13,6 +13,7 @@
     "./styles/account.css": "./styles/account.css",
     "./styles/nn-results.css": "./styles/nn-results.css",
     "./styles/club.css": "./styles/club.css",
+    "./styles/club-chrome.css": "./styles/club-chrome.css",
     "./account": "./src/account.ts",
     "./brand": "./src/brand.ts",
     "./club-nav": "./src/club-nav.ts",
