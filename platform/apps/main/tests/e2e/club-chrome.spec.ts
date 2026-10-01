@@ -46,7 +46,9 @@ import { expectNoSidewaysScroll } from '../sideways-scroll';
 const club = parseClub(
   JSON.parse(
     readFileSync(
-      fileURLToPath(new URL('../../src/content/club.json', import.meta.url)),
+      fileURLToPath(
+        new URL('../../../../packages/shared/content/club.json', import.meta.url),
+      ),
       'utf8',
     ),
   ),

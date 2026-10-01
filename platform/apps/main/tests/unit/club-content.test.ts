@@ -48,10 +48,19 @@ import { formatPriceWords } from '@src/shared/money';
  * the old site and one of them is probably right.
  */
 
+// `club.json` lives in `packages/shared/content/` since ADR-052's timing half, because the
+// timing app's footer reads it too; every other content file is still this app's own.
 const content = (name: string): unknown =>
   JSON.parse(
     readFileSync(
-      fileURLToPath(new URL(`../../src/content/${name}`, import.meta.url)),
+      fileURLToPath(
+        new URL(
+          name === 'club.json'
+            ? '../../../../packages/shared/content/club.json'
+            : `../../src/content/${name}`,
+          import.meta.url,
+        ),
+      ),
       'utf8',
     ),
   );

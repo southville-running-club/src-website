@@ -8,7 +8,7 @@ import {
   activeClubNavItem,
 } from '@src/shared/club-nav';
 import { SOCIAL_ICON_VIEWBOX, SOCIAL_LINKS } from '@src/shared/social';
-import club from '../src/content/club.json';
+import club from '@src/shared/content/club.json';
 import { html, raw, type Html } from './html';
 
 /**
