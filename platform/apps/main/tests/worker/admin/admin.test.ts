@@ -673,6 +673,35 @@ describe('the navigation', () => {
     expect(body).toContain(NN_ADMIN_EMAIL);
   });
 
+  it('offers Race timing to none of the staff here, because none of them holds it', async () => {
+    // `nn-admin`, `super-admin` and `people-admin` carry no `timing.*` permission, so a link
+    // into `apps/timing` would be a link to a 404. The positive half is
+    // `tests/unit/admin-shell.test.ts`, against a made-up viewer, because no account in this
+    // fixture set is staff *and* a timing admin.
+    for (const [who, cookie] of [
+      ['nn-admin', nnAdmin],
+      ['super-admin', superAdmin],
+      ['people-admin', peopleAdmin],
+    ] as const) {
+      const body = await pageText(await get(ADMIN, cookie));
+
+      expect(body, who).not.toContain('href="/timing');
+      expect(body, who).not.toContain('Race timing');
+    }
+  });
+
+  it('and neither does their /account/ page, which draws it for timing volunteers', async () => {
+    for (const [who, cookie] of [
+      ['nn-admin', nnAdmin],
+      ['registered', member],
+    ] as const) {
+      const response = await get('/account/', cookie);
+
+      expect(response.status, who).toBe(200);
+      expect(await pageText(response), who).not.toContain('href="/timing');
+    }
+  });
+
   it('is on every page of the surface, not only the dashboard', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 

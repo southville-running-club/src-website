@@ -118,6 +118,29 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     label: 'People and roles',
     permission: 'identity.person.read',
   },
+  {
+    /**
+     * **The one entry that leaves this Worker for another**, and the only one whose door is
+     * not in this repository's `worker/`. `/timing/*` is dispatched to `apps/timing` at the
+     * edge, and that app's `lib/access.ts` is what decides who may open it.
+     *
+     * **`/timing/events`, behind `timing.event.manage`, because that is exactly the row
+     * `lib/access.ts` has for that address.** This field's own rule — a link and the door
+     * behind it name the same permission — is why it is not the landing page: `/timing/`
+     * opens to *any* timing permission, which a single `permission` string cannot say, and
+     * a staff member who holds only `timing.crossing.record` would be shown a link here that
+     * the events list refuses. Nobody like that exists today; the rule is written so nobody
+     * has to check.
+     *
+     * **Who sees it**: `src-admin`, which carries all six timing permissions, and anybody
+     * who holds a staff role *and* `timing-admin`. **A timing volunteer with no staff role
+     * never reaches this bar at all** — neither timing role is on `STAFF_ROLES`, on purpose —
+     * so their way in is the link on `/account/`, which asks the landing page's own rule.
+     */
+    href: '/timing/events',
+    label: 'Race timing',
+    permission: 'timing.event.manage',
+  },
 ];
 
 /**
