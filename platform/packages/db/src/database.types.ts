@@ -2028,6 +2028,7 @@ export type Database = {
       leaderboard: { Args: { p_event_slug: string }; Returns: Json }
       list_events: { Args: never; Returns: Json }
       marshal_event: { Args: { p_event_slug: string }; Returns: Json }
+      my_marshal_events: { Args: never; Returns: Json }
       open_anomalies: { Args: { p_event_slug: string }; Returns: Json }
       open_anomaly_count: { Args: { p_event_id: string }; Returns: number }
       publish_results: { Args: { p_event_slug: string }; Returns: Json }

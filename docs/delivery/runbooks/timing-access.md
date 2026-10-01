@@ -131,6 +131,14 @@ Done by somebody holding **`timing.marshal.assign`**, at
 - [ ] Open `/timing/events/` and follow the race
 - [ ] Open **Marshals**
 - [ ] Choose them under **Add somebody** and press **Add to this roster**
+- [ ] Tell them the race is now listed under **Marshalling** on `/timing`, linking straight to
+      its capture screen. **There is no address to send them any more** — they open
+      `/timing` and follow the race's name
+
+**`/timing` lists a marshal's races from `timing.my_marshal_events()`**, which checks what
+`marshal_event()` checks, in the same order — so a race on that list is one the capture screen
+opens to them. A marshal on no roster sees *"You are not on a race yet"*, which is this step
+not having been done rather than anything being broken.
 
 **The picker only lists people who already hold `timing.crossing.record`**, and
 `assign_marshal()` refuses anybody else outright rather than writing a row that means

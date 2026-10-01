@@ -2127,7 +2127,12 @@ account holding nothing.
 - the **`timing` schema** — six tables, RLS on with no policy (ADR-035);
 - the **pure logic**, ported with its assertions, in `packages/shared/src/timing/` — bibs,
   anomalies, results, awards, categories and the registration parser;
-- **`apps/timing`**, no longer a holding page: `/timing/events/` lists the races and
+- **`apps/timing`**, no longer a holding page — **and since 28 September 2026 its landing
+  page isn't either**: `/timing` lists where the viewer may go, each link decided by
+  `canOpen()` against `lib/access.ts`'s own table, and a marshal's races come from
+  `timing.my_marshal_events()`, the caller's own roster rows checked in `marshal_event()`'s
+  order. It said the tools were "being built here" for a fortnight after they shipped.
+  `/timing/events/` lists the races and
   `/timing/events/<slug>/` is one race's hub (#247), and `/timing/events/<slug>/marshals/` is
   the roster (#245) — each address behind its **own** permission, mapped in
   `apps/timing/lib/access.ts` and enforced in `middleware.ts`, never checked by the page

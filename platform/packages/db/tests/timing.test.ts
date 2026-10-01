@@ -369,6 +369,13 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'leaderboard', grantee: 'authenticated' },
       { routine_name: 'list_events', grantee: 'authenticated' },
       { routine_name: 'marshal_event', grantee: 'authenticated' },
+      /**
+       * ⚠️ **`timing.crossing.record` and the caller's own roster rows** — the same two checks
+       * as `marshal_event()`, in the same order, so a race this lists is exactly a race that
+       * function opens. It is what `/timing`'s landing page sends a marshal on from, because
+       * nothing else answers *"which races am I on"* to the marshal asking.
+       */
+      { routine_name: 'my_marshal_events', grantee: 'authenticated' },
       { routine_name: 'open_anomalies', grantee: 'authenticated' },
       { routine_name: 'publish_results', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
@@ -1746,6 +1753,69 @@ describe('recording a crossing', () => {
       // Indistinguishable from the refusal above, deliberately: otherwise the door is an
       // oracle for which slugs name a race.
       expect(await eventAs(MARSHAL, 'zz-no-such-race')).toBeNull();
+    });
+  });
+
+  /**
+   * `my_marshal_events()` — the landing page's list of where a marshal may go.
+   *
+   * Against the same three people as `marshal_event()` above, because the two have to agree:
+   * a race listed here that the capture screen then refused would be a link to a 404.
+   */
+  describe('the races a marshal is on', () => {
+    const NOBODY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4';
+
+    const racesAs = (person: string) =>
+      asPerson<Record<string, unknown>[] | null>(
+        person,
+        'select timing.my_marshal_events() as answer',
+        [],
+      );
+
+    const eventAs = (person: string, slug: string) =>
+      asPerson<Record<string, unknown> | null>(
+        person,
+        'select timing.marshal_event($1) as answer',
+        [slug],
+      );
+
+    it('lists a rostered marshal the race they are on', async () => {
+      const races = await racesAs(MARSHAL);
+
+      expect(races?.map((race) => race.slug)).toEqual([SLUG]);
+    });
+
+    it('lists exactly what marshal_event() opens to the same person', async () => {
+      for (const person of [MARSHAL, ADMIN, OFF_ROSTER]) {
+        for (const race of (await racesAs(person)) ?? []) {
+          expect(await eventAs(person, race.slug as string), person).not.toBeNull();
+        }
+      }
+    });
+
+    it('carries a subset of marshal_event()’s columns and no more', async () => {
+      // The weakest timing permission there is, so the negative half matters most: a column
+      // copied in from `event_detail()` would be readable by every marshal.
+      const [race] = (await racesAs(MARSHAL)) ?? [];
+
+      expect(Object.keys(race ?? {}).sort()).toEqual([
+        'actually_started_at',
+        'finished_at',
+        'name',
+        'slug',
+        'start_at',
+      ]);
+    });
+
+    it('is an empty array for somebody holding the permission and on no roster, not null', async () => {
+      // An admin holds `timing.crossing.record` and is not rostered, which ADR-036 says is the
+      // same state a marshal is in before anybody has put them on a race.
+      expect(await racesAs(OFF_ROSTER)).toEqual([]);
+      expect(await racesAs(ADMIN)).toEqual([]);
+    });
+
+    it('answers null to somebody without the permission', async () => {
+      expect(await racesAs(NOBODY)).toBeNull();
     });
   });
 });
