@@ -5,6 +5,13 @@ import { html, raw, type Html } from './html';
 /**
  * The club's banner and footer, for the pages the **Worker** renders.
  *
+ * ⚠️ **`/account/` and `/admin/` stopped using `siteBanner()`, `siteNav()` and `siteFooter()` on
+ * 1 October 2026** — they carry the club website's header and footer from `club-chrome.ts`
+ * now, ADR-052. Everything below about `/account/` and `/admin/` is the history of why these
+ * were built. **They are still rendered**, by `/nn/<year>/results/` in `nn-results.ts`, and go
+ * when the race pages move onto the club's chrome after the race. `faviconLink()` is still on
+ * every page the Worker builds.
+ *
  * **This is a third copy of markup that already exists twice, and that is the established
  * shape here rather than a shortcut.** `src/components/SiteBanner.astro` is the Astro one and
  * `apps/timing/app/site-banner.tsx` is the Next one; its own header explains why:

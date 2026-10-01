@@ -29,8 +29,8 @@ src/content/club.json          Where and when the club meets. Validated with Zod
                                @src/shared/club-content. See "the two surfaces" below
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop.
                                Every page but the club's own — see ClubBase.astro
-src/layouts/ClubBase.astro     The club website's document. Loads club.css and NOT
-                               base.css, which is the whole of ADR-048
+src/layouts/ClubBase.astro     The club website's document. Loads club-chrome.css then
+                               club.css, and NOT base.css — ADR-048 and ADR-052
 src/components/ClubLogo.astro  The club wordmark, inline, once per page. Shared by both
                                surfaces — it takes its colour from currentColor
 src/components/club/ClubHeader.astro   The club header: the notice, the wordmark, the
@@ -41,6 +41,9 @@ src/components/club/ClubMenu.astro     The narrow-screen Menu. A <details>, so i
                                with JavaScript disabled
 src/components/club/ClubFooter.astro   The club footer — the green band, the meeting
                                details from club.json, the four profiles, /privacy/
+worker/club-chrome.ts          The same header, Menu and footer for /account/ and /admin/,
+                               plus the section bar and breadcrumbs. The Worker's copy of
+                               the markup; the items come from club-nav.ts — ADR-052
 src/components/SiteBanner.astro    The club banner — one of three copies of this markup,
                                and site-chrome.ts's header says why
 src/components/SiteNav.astro   The five-item bar, and the Events submenu, from SITE_NAV
@@ -380,13 +383,22 @@ is the argument; this is the map.
 
 | | The club website | Everything else |
 | --- | --- | --- |
-| Pages | `/` — and `/run-with-us/`, `/events/` as a hub, `/membership/`, `/news/`, `/about/` as they land | `/nn/*`, `/events/<slug>/`, `/account/*`, `/admin/*`, `/privacy/`, `/404`, `/brand/` |
+| Pages | `/` — and `/run-with-us/`, `/events/` as a hub, `/membership/`, `/news/`, `/about/` as they land | `/nn/*`, `/events/<slug>/`, `/privacy/`, `/404`, `/brand/` |
 | Layout | `src/layouts/ClubBase.astro` | `src/layouts/Base.astro`, or the Worker |
-| Stylesheet | `@src/shared/styles/club.css` | `@src/shared/styles/base.css` |
+| Stylesheet | `@src/shared/styles/club-chrome.css` then `club.css` | `@src/shared/styles/base.css` |
 | Palette | `--club-*`, Direction A on `#209D50` | `--colour-*`, the timing brand on `#00c85a` |
 | Chrome | `src/components/club/` | `SiteBanner`, `SiteNav`, `SiteFooter`, `worker/site-chrome.ts` |
 | Navigation | `CLUB_NAV` — six items, wordmark as Home | `SITE_NAV` — Home, Nightingale Nightmare, Events, Account |
 | Banner sentence | *"Some pages are still on the old site while we move across."* | *"We just have Nightingale Nightmare for now…"* |
+
+⚠️ **`/account/*` and `/admin/*` sit between the two since 1 October 2026** —
+[ADR-052](../../../docs/architecture/decisions/adr-052-one-club-header-on-the-account-and-admin-pages.md).
+Their **chrome** is the club's — the header, the Menu, the footer, from `worker/club-chrome.ts`
+— and their **bodies** are still styled by `base.css`. `/account.css` and `/admin.css` append
+`club-chrome.css`, whose rules are all `.club-*`-scoped; `club.css` must never be added to
+either, because it restyles bare elements. The account pages also carry a section bar, with
+**Race timing** and **Club admin** tabs for the people those doors open for, and breadcrumbs;
+the admin pages carry a slim "You are in Club admin" strip in place of their old masthead.
 
 **Neither stylesheet imports the other, and neither reaches a page that does not want it.**
 `club.css` is self-contained — its own reset, focus ring and skip link — and
@@ -408,8 +420,9 @@ two. Until then the seam is visible and deliberate: clicking "Events" in the old
 a page in the new chrome.
 
 `tests/e2e/club-chrome.spec.ts` is the fence. Its last describe block asserts the *absence* of
-the club header, footer and palette on `/nn/`, `/nn/2026/`, `/events/christmas-party-2026/`,
-`/account/sign-in/` and `/privacy/`, and that the old banner sentence and four-item bar still
+the club header, footer and palette on `/nn/`, `/nn/2026/`, `/events/christmas-party-2026/`
+and `/privacy/` — `/account/sign-in/` came off it with ADR-052, and the describe block before
+it compares that page's header with the Astro one instead, and that the old banner sentence and four-item bar still
 render. Without it, somebody adding `ClubHeader` to `Base.astro` to be helpful gives the entry
 form a second navigation with every other test still green.
 

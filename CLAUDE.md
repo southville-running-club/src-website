@@ -1276,6 +1276,41 @@ as one digit too many unless it is explicitly recognised and dropped.
 this was noticed, at the database layer, which does not validate phone shape at all — so
 nothing failed until a form-level normaliser was checked against it.
 
+### The club header, twice over
+
+**The club bar's items live in `packages/shared/src/club-nav.ts` and nowhere else** — the
+labels, the hrefs, their order, "Come for a run", the banner sentence, and which item is
+current (`activeClubNavItem()`). A list typed into a component is a second copy, and the bar
+already exists in two frameworks. ⚠️ **The markup does exist twice**, deliberately:
+`src/components/club/ClubHeader.astro` for the club pages and `worker/club-chrome.ts` for
+`/account/**` and `/admin/**`, which the Worker builds as strings — ADR-052. **Change one and
+you change the other**; `club-chrome.spec.ts` compares them in a browser and fails when they
+drift. `apps/timing` will be the third, after the race.
+
+⚠️ **`club-chrome.css`, never `club.css`, on a page `base.css` styles.** `club.css` restyles bare
+`body`, `h1`–`h4`, `p`, `a` and `main`, so on `/account/` it repaints every form; the chrome file
+is `.club-*`-scoped throughout and is what `/account.css` and `/admin.css` append. The club pages
+load **both, chrome first** — the order the rules had as one file. A new chrome rule goes in
+`club-chrome.css` and must be scoped to a `.club-*` class.
+
+⚠️ **The account bar's Race timing and Club admin tabs are filled in on the way out of
+`handleAccount()`, on GET only.** `page()` writes a slot comment; `withStaffTabs()` reads
+`my_roles()` and `my_permissions()` and fills it, with the same predicates `/timing` and
+`/admin/` ask. On a POST the slot is emptied unread, because a refused form — a stale CSRF token
+— must ask the database nothing, and `account.test.ts` asserts that. A new account page that
+wants the bar passes `tab:` to `page()`; it does not read roles itself.
+
+⚠️ **The admin 404 has no club header because `masthead()` adds it** and `notFound()` never
+calls `masthead()`. Moving the header into `page()` would put the club's navigation on the page
+ADR-013 keeps bare for a signed-out stranger.
+
+⚠️ **`/timing/events/` answering "Not found" is not a trailing-slash defect**, though it looks
+exactly like one. OpenNext answers the slash form with a **308** to `/timing/events` before
+middleware runs; the 404 after it is `middleware.ts` refusing somebody signed out or without
+`timing.event.manage` — rewritten to the prerendered not-found page, and indistinguishable from
+a missing route on purpose (ADR-044). Check the session and the permission before touching
+`trailingSlash`.
+
 ---
 
 ## How the entries system behaves

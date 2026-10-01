@@ -502,6 +502,19 @@ club's own database.
 
 **Change freeze from the week before.** No deploys, no migrations, nothing.
 
+⚠️ **One club header everywhere is two pull requests, split by this freeze.**
+[ADR-052](../architecture/decisions/adr-052-one-club-header-on-the-account-and-admin-pages.md).
+
+- **PR 1 — `/account/*` and `/admin/*`**, under a written freeze exception for their chrome
+  alone. It has to **merge before the freeze starts (about 25 October)**, or wait until after
+  the race like everything else.
+- **PR 2 — `apps/timing`**: the club header, a "Race timing" section bar, breadcrumbs, and a
+  slim focus header on the race-day operator screens. It may be built on a branch now and is
+  **merged after 1 November**, outside any race-week freeze, because the timing app runs the
+  race. Its pre-flight found the reported `/timing/events/` "Not found" is not a trailing-slash
+  defect — the slash form answers 308 to the bare one — but the ordinary refusal anybody without
+  `timing.event.manage` gets; see `CLAUDE.md`.
+
 ---
 
 ## Phase 5 — the new website

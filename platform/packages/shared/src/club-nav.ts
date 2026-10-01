@@ -22,6 +22,10 @@
  * the old bar lands on a page headed "Races and events" in the new chrome — a seam that is
  * visible, temporary, and very much cheaper than the alternative.
  *
+ * ⚠️ **`/account/*` and `/admin/*` moved onto this chrome on 1 October 2026**, ahead of the
+ * rest, under a written freeze exception for their chrome alone — ADR-052. `worker/club-chrome.ts`
+ * renders this file's items there. `/nn/*` and `/events/<slug>/` are still on `SITE_NAV`.
+ *
  * ## The shapes here mirror `brand.ts` deliberately
  *
  * `match` is a regular expression rather than an href, which is the convention `SITE_NAV` and
