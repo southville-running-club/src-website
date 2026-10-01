@@ -3,6 +3,7 @@ import type { EventFormat } from '@src/shared/timing/anomaly';
 import { readTiming } from '../../../lib/reads';
 import { MarshalScreen } from './marshal-screen';
 import { NotFoundBody } from '../../not-found-body';
+import { ClubFrame, FocusFrame } from '../../chrome/frames';
 
 /**
  * `/timing/marshal/<slug>/` — the screen a marshal stands on a course holding.
@@ -72,45 +73,63 @@ export default async function MarshalPage({
     // hour before it starts, has no way to tell that from the truth. `lib/reads.ts`'s header
     // carries the whole argument.
     return (
-      <>
-        <h1>Recording crossings</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been lost. Try again in a moment.
-        </p>
-      </>
+      <FocusFrame
+        slug={slug}
+        name={null}
+        screen="Recording crossings"
+        leaveLabel="Leave this screen"
+      >
+        <>
+          <h1>Recording crossings</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been lost. Try again in a moment.
+          </p>
+        </>
+      </FocusFrame>
     );
   }
 
   if (read.state === 'none') {
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const event = read.data;
 
   return (
-    <>
-      <h1>{event.name}</h1>
+    <FocusFrame
+      slug={slug}
+      name={event.name}
+      screen="Recording crossings"
+      leaveLabel="Leave this screen"
+    >
+      <>
+        <h1>{event.name}</h1>
 
-      <p className="capture-when">
-        {event.finished_at !== null
-          ? `This race finished at ${formatLondon(event.finished_at)}.`
-          : event.actually_started_at !== null
-            ? `Started at ${formatLondon(event.actually_started_at)}.`
-            : `Scheduled to start at ${formatLondon(event.start_at)}. It has not started yet.`}
-      </p>
+        <p className="capture-when">
+          {event.finished_at !== null
+            ? `This race finished at ${formatLondon(event.finished_at)}.`
+            : event.actually_started_at !== null
+              ? `Started at ${formatLondon(event.actually_started_at)}.`
+              : `Scheduled to start at ${formatLondon(event.start_at)}. It has not started yet.`}
+        </p>
 
-      <MarshalScreen slug={event.slug} format={event.format}>
-        {/* ⚠️ The server's own markup, and what a phone with no JavaScript is left with. It
+        <MarshalScreen slug={event.slug} format={event.format}>
+          {/* ⚠️ The server's own markup, and what a phone with no JavaScript is left with. It
             says what to do instead, because "this needs JavaScript" on its own is of no use to
             somebody standing on a course. */}
-        <p className="notice notice-bad">
-          This screen records crossings on the phone itself, so it needs JavaScript. If it
-          does not appear, write each runner&rsquo;s bib and the time they crossed down on
-          paper and give them to whoever is running the race — nothing is lost that way,
-          and it is what the club did before there was a screen at all.
-        </p>
-      </MarshalScreen>
-    </>
+          <p className="notice notice-bad">
+            This screen records crossings on the phone itself, so it needs JavaScript. If
+            it does not appear, write each runner&rsquo;s bib and the time they crossed
+            down on paper and give them to whoever is running the race — nothing is lost
+            that way, and it is what the club did before there was a screen at all.
+          </p>
+        </MarshalScreen>
+      </>
+    </FocusFrame>
   );
 }

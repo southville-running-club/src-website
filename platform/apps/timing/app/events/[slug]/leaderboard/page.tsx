@@ -5,6 +5,7 @@ import type { SortKey } from '@src/shared/timing/results';
 import { readLeaderboard } from '../../../../lib/leaderboard';
 import { LiveBoard } from './live-board';
 import { NotFoundBody } from '../../../not-found-body';
+import { ClubFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/leaderboard/` — the race as it stands, for the people running it.
@@ -92,18 +93,24 @@ export default async function LeaderboardPage({
     // ⚠️ **Never "Not found" for an outage** — `lib/reads.ts`' header. On a race night the cost of
     // getting this wrong is a volunteer concluding the race they set up has been deleted.
     return (
-      <>
-        <h1>Leaderboard</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
+      <RaceFrame slug={slug} name={null} current="leaderboard" page="Live leaderboard">
+        <>
+          <h1>Leaderboard</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been changed. Try again in a moment.
+          </p>
+        </>
+      </RaceFrame>
     );
   }
 
   if (read.state === 'none') {
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const payload = read.data;
@@ -111,65 +118,74 @@ export default async function LeaderboardPage({
   const relay = event.format === 'relay';
 
   return (
-    <>
-      <h1>Leaderboard</h1>
-      <p>{event.name}</p>
+    <RaceFrame
+      slug={slug}
+      name={event.name}
+      current="leaderboard"
+      page="Live leaderboard"
+    >
+      <>
+        <h1>Leaderboard</h1>
+        <p>{event.name}</p>
 
-      <dl>
-        <dt>Started</dt>
-        <dd>
-          {event.actually_started_at === null
-            ? 'Not started'
-            : formatLondon(event.actually_started_at)}
-        </dd>
-        <dt>Finished</dt>
-        <dd>
-          {event.finished_at === null ? 'Not finished' : formatLondon(event.finished_at)}
-        </dd>
-        <dt>Open captures</dt>
-        <dd>{payload.open_anomalies}</dd>
-      </dl>
+        <dl>
+          <dt>Started</dt>
+          <dd>
+            {event.actually_started_at === null
+              ? 'Not started'
+              : formatLondon(event.actually_started_at)}
+          </dd>
+          <dt>Finished</dt>
+          <dd>
+            {event.finished_at === null
+              ? 'Not finished'
+              : formatLondon(event.finished_at)}
+          </dd>
+          <dt>Open captures</dt>
+          <dd>{payload.open_anomalies}</dd>
+        </dl>
 
-      {/* ⚠️ **Plain links rather than a form**, and it is the same decision `/admin/nn/`'s filter
+        {/* ⚠️ **Plain links rather than a form**, and it is the same decision `/admin/nn/`'s filter
           chips took: a sorted board is a URL somebody can send, and it works with scripting off.
           The two leg orderings are hidden on a solo race because a solo race has no legs — see
           `Leaderboard.columns`. */}
-      <p>
-        Order by:{' '}
-        {SORTS.filter((option) => relay || !option.relayOnly).map((option, index) => (
-          <span key={option.key}>
-            {index === 0 ? null : ' · '}
-            {option.key === sort ? (
-              <strong>{option.label}</strong>
-            ) : (
-              <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
-                {option.label}
-              </Link>
-            )}
-          </span>
-        ))}
-      </p>
-
-      <LiveBoard slug={slug} initial={payload} sort={sort} />
-
-      {payload.open_anomalies > 0 ? (
         <p>
-          <Link href={`/events/${slug}/anomalies`}>
-            {payload.open_anomalies === 1
-              ? '1 capture is waiting to be resolved'
-              : `${payload.open_anomalies} captures are waiting to be resolved`}
-          </Link>
-          . A race cannot be published while any of them is open.
+          Order by:{' '}
+          {SORTS.filter((option) => relay || !option.relayOnly).map((option, index) => (
+            <span key={option.key}>
+              {index === 0 ? null : ' · '}
+              {option.key === sort ? (
+                <strong>{option.label}</strong>
+              ) : (
+                <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
+                  {option.label}
+                </Link>
+              )}
+            </span>
+          ))}
         </p>
-      ) : null}
 
-      <p>
-        <Link href={`/events/${slug}/results`}>Results and publishing</Link>
-        {' · '}
-        <Link href={`/events/${slug}/crossings`}>Timing log</Link>
-        {' · '}
-        <Link href={`/events/${slug}`}>Back to this race</Link>
-      </p>
-    </>
+        <LiveBoard slug={slug} initial={payload} sort={sort} />
+
+        {payload.open_anomalies > 0 ? (
+          <p>
+            <Link href={`/events/${slug}/anomalies`}>
+              {payload.open_anomalies === 1
+                ? '1 capture is waiting to be resolved'
+                : `${payload.open_anomalies} captures are waiting to be resolved`}
+            </Link>
+            . A race cannot be published while any of them is open.
+          </p>
+        ) : null}
+
+        <p>
+          <Link href={`/events/${slug}/results`}>Results and publishing</Link>
+          {' · '}
+          <Link href={`/events/${slug}/crossings`}>Timing log</Link>
+          {' · '}
+          <Link href={`/events/${slug}`}>Back to this race</Link>
+        </p>
+      </>
+    </RaceFrame>
   );
 }

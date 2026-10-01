@@ -258,7 +258,11 @@ test.describe('the landing page', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto('/timing');
 
-    await page.getByRole('link', { name: 'Races', exact: true }).click();
+    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: 'Races', exact: true })
+      .click();
 
     await expect(page).toHaveURL(/\/timing\/events\/?$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Races');
@@ -2205,7 +2209,11 @@ test.describe('marking a runner', () => {
     //
     // A regex because the label reports the race's state — "start this race", "the race is
     // running", "this race is finished" — and this fixture's state is not this test's subject.
-    await page.getByRole('link', { name: /^Race console/ }).click();
+    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /^Race console/ })
+      .click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
     // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
     // `<summary>`. Asserting it is what proves the right section was opened rather than
@@ -2293,7 +2301,11 @@ test.describe('finishing a race', () => {
     //
     // A regex because the label reports the race's state — "start this race", "the race is
     // running", "this race is finished" — and this fixture's state is not this test's subject.
-    await page.getByRole('link', { name: /^Race console/ }).click();
+    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /^Race console/ })
+      .click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
     // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
     // `<summary>`. Asserting it is what proves the right section was opened rather than
@@ -3056,7 +3068,8 @@ test.describe('the live leaderboard', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Live leaderboard' }).click();
+    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
+    await page.getByRole('main').getByRole('link', { name: 'Live leaderboard' }).click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
   });
@@ -3144,4 +3157,156 @@ test.describe('the addresses the race console replaced', () => {
     );
     expect(response.status()).not.toBe(308);
   });
+});
+
+/**
+ * Every page's header, walked against the route table — ADR-052's timing half.
+ *
+ * `lib/chrome.ts` says which frame each page wears and `apps/timing/tests/unit/chrome.test.ts`
+ * holds every `page.tsx` to it, so a page added without a row fails there. This is the rendered
+ * half: each treatment, in a browser, with the session that opens it.
+ */
+test.describe('the header every timing page wears', () => {
+  const RACE = `/timing/events/${RESULTS_EVENT_SLUG}`;
+  const CLUB_BAR = { name: 'Southville Running Club', exact: true } as const;
+
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  });
+
+  for (const [path, current] of [
+    ['/timing', 'Overview'],
+    ['/timing/events', 'Races'],
+  ] as const) {
+    test(`${path} carries the club header and the Race timing bar`, async ({ page }) => {
+      await signInAs(page, TIMING_ADMIN_EMAIL);
+      await page.goto(path);
+
+      await expect(page.getByRole('navigation', CLUB_BAR)).toBeVisible();
+      const bar = page.getByRole('navigation', { name: 'Race timing', exact: true });
+      await expect(bar.locator('[aria-current="page"]')).toHaveText(current);
+      await expect(page.getByRole('contentinfo')).toHaveClass(/club-footer/);
+    });
+  }
+
+  for (const [suffix, current] of [
+    ['', 'Overview'],
+    ['/leaderboard', 'Live leaderboard'],
+    ['/results', 'Results'],
+    ['/registration', 'Entry list'],
+    ['/marshals', 'Marshals'],
+    ['/danger-zone', null],
+  ] as const) {
+    test(`${RACE}${suffix} carries the club header and the race's bar`, async ({
+      page,
+    }) => {
+      await signInAs(page, TIMING_ADMIN_EMAIL);
+      await page.goto(`${RACE}${suffix}`);
+
+      await expect(page.getByRole('navigation', CLUB_BAR)).toBeVisible();
+      const bar = page.getByRole('navigation', { name: RESULTS_EVENT_NAME, exact: true });
+      await expect(bar).toBeVisible();
+      // A timing-admin holds every permission a race tab asks for, so the bar is whole.
+      await expect(bar.getByRole('link')).toHaveText([
+        'Overview',
+        'Live leaderboard',
+        'Results',
+        'Entry list',
+        'Marshals',
+        'Race console',
+      ]);
+      // The danger zone has no tab of its own, so nothing on the bar is current there.
+      await expect(bar.locator('[aria-current="page"]')).toHaveCount(
+        current === null ? 0 : 1,
+      );
+      if (current !== null) {
+        await expect(bar.locator('[aria-current="page"]')).toHaveText(current);
+      }
+
+      const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+      await expect(crumbs.getByRole('link', { name: 'Race timing' })).toHaveAttribute(
+        'href',
+        '/timing',
+      );
+      await expect(
+        page.getByRole('main').getByRole('navigation', { name: 'Breadcrumb' }),
+      ).toHaveCount(1);
+    });
+  }
+
+  test('the race console wears the focus header, and no club navigation', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${RACE}/console`);
+
+    // ⚠️ **The absence is the point**: one stray tap mid-race must not leave the race.
+    await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
+    await expect(
+      page.getByRole('navigation', { name: 'Southville Running Club, menu' }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: RESULTS_EVENT_NAME })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole('contentinfo')).toHaveCount(0);
+
+    const header = page.getByRole('banner');
+    await expect(header).toContainText('Race console');
+    await expect(header).toContainText(RESULTS_EVENT_NAME);
+    // A timing-admin may open the race's overview, so that is where the way out goes.
+    await expect(header.getByRole('link', { name: 'Leave console' })).toHaveAttribute(
+      'href',
+      RACE,
+    );
+  });
+
+  test("the marshal's capture screen wears it too, and leaves to where they may go", async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
+    await expect(page.getByRole('contentinfo')).toHaveCount(0);
+    const header = page.getByRole('banner');
+    await expect(header).toContainText('Recording crossings');
+    // A marshal would get a 404 at the race's overview, so the way out is `/timing`, which
+    // lists what they may open.
+    await expect(header.getByRole('link', { name: 'Leave this screen' })).toHaveAttribute(
+      'href',
+      '/timing',
+    );
+  });
+
+  test('gives somebody without a tab no link to it', async ({ page }) => {
+    // A marshal opening `/timing` sees the Overview tab and not Races, which would 404 them.
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto('/timing');
+
+    const bar = page.getByRole('navigation', { name: 'Race timing', exact: true });
+    await expect(bar.getByRole('link')).toHaveText(['Overview']);
+  });
+
+  test('has no accessibility violations on a race page or the console @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    for (const path of [RACE, `${RACE}/results`, `${RACE}/console`]) {
+      await page.goto(path);
+      expect(await axeViolations(page), path).toEqual([]);
+    }
+  });
+
+  for (const width of [320, 390]) {
+    test(`a race page and the console do not scroll sideways at ${width}px`, async ({
+      page,
+    }) => {
+      await signInAs(page, TIMING_ADMIN_EMAIL);
+      await page.setViewportSize({ width, height: 800 });
+      for (const path of [RACE, `${RACE}/console`]) {
+        await page.goto(path);
+        await expectNoSidewaysScroll(page, `${path} at ${width}px`);
+      }
+    });
+  }
 });

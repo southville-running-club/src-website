@@ -8,6 +8,7 @@ import { FinishSection } from './sections/finish';
 import { StatusSection, type StatusTeam } from './sections/status';
 import { AnomaliesSection, type OpenAnomaly } from './sections/anomalies';
 import { CrossingsSection, type LoggedCrossing } from './sections/crossings';
+import { ClubFrame, FocusFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/console` — race night on one screen.
@@ -122,20 +123,31 @@ export default async function ConsolePage({
     // carries the argument: a page that says the race does not exist, during a race, is the
     // worst of the three answers.
     return (
-      <>
-        <h1>Race console</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
+      <FocusFrame
+        slug={slug}
+        name={null}
+        screen="Race console"
+        leaveLabel="Leave console"
+      >
+        <>
+          <h1>Race console</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been changed. Try again in a moment.
+          </p>
+        </>
+      </FocusFrame>
     );
   }
 
   if (detail.state === 'none') {
     // `event_detail()` answers the same `null` for a refusal and for a race that is not there,
     // and `NotFoundBody` is the one wording so this cannot drift from `app/not-found.tsx`.
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const event = detail.data;
@@ -152,88 +164,103 @@ export default async function ConsolePage({
     section === undefined ? openByDefault.has(name) : section === name;
 
   return (
-    <>
-      <h1>Race console</h1>
+    <FocusFrame
+      slug={slug}
+      name={event.name}
+      screen="Race console"
+      leaveLabel="Leave console"
+    >
+      <>
+        <h1>Race console</h1>
 
-      <p className="lede">
-        {event.name}, scheduled to start {formatLondon(event.start_at)}.
-      </p>
+        <p className="lede">
+          {event.name}, scheduled to start {formatLondon(event.start_at)}.
+        </p>
 
-      <dl>
-        <dt>Crossings recorded</dt>
-        <dd>{event.counts.crossings}</dd>
-        <dt>Anomalies needing a human</dt>
-        <dd>{event.counts.open_anomalies}</dd>
-      </dl>
+        <dl>
+          <dt>Crossings recorded</dt>
+          <dd>{event.counts.crossings}</dd>
+          <dt>Anomalies needing a human</dt>
+          <dd>{event.counts.open_anomalies}</dd>
+        </dl>
 
-      {mayManage ? (
-        <>
-          <details className="console-section" id="start" open={isOpen('start')}>
-            <summary>
-              <h2>Start</h2>
-            </summary>
-            <StartSection
-              slug={slug}
-              event={event}
-              outcomeCode={section === 'start' ? outcomeCode : undefined}
-            />
-          </details>
+        {mayManage ? (
+          <>
+            <details className="console-section" id="start" open={isOpen('start')}>
+              <summary>
+                <h2>Start</h2>
+              </summary>
+              <StartSection
+                slug={slug}
+                event={event}
+                outcomeCode={section === 'start' ? outcomeCode : undefined}
+              />
+            </details>
 
-          <details className="console-section" id="finish" open={isOpen('finish')}>
-            <summary>
-              <h2>Finish</h2>
-            </summary>
-            <FinishSection
-              slug={slug}
-              event={event}
-              outcomeCode={section === 'finish' ? outcomeCode : undefined}
-            />
-          </details>
+            <details className="console-section" id="finish" open={isOpen('finish')}>
+              <summary>
+                <h2>Finish</h2>
+              </summary>
+              <FinishSection
+                slug={slug}
+                event={event}
+                outcomeCode={section === 'finish' ? outcomeCode : undefined}
+              />
+            </details>
 
-          <details className="console-section" id="status" open={isOpen('status')}>
-            <summary>
-              <h2>Race status</h2>
-            </summary>
-            <StatusSection
-              slug={slug}
-              teams={teams}
-              search={statusSearch}
-              outcomeCode={section === 'status' ? outcomeCode : undefined}
-            />
-          </details>
-        </>
-      ) : null}
+            <details className="console-section" id="status" open={isOpen('status')}>
+              <summary>
+                <h2>Race status</h2>
+              </summary>
+              <StatusSection
+                slug={slug}
+                teams={teams}
+                search={statusSearch}
+                outcomeCode={section === 'status' ? outcomeCode : undefined}
+              />
+            </details>
+          </>
+        ) : null}
 
-      {mayResolve ? (
-        <>
-          <details className="console-section" id="anomalies" open={isOpen('anomalies')}>
-            <summary>
-              <h2>Anomalies</h2>
-            </summary>
-            <AnomaliesSection
-              slug={slug}
-              anomalies={anomalies}
-              outcomeCode={section === 'anomalies' ? outcomeCode : undefined}
-            />
-          </details>
+        {mayResolve ? (
+          <>
+            <details
+              className="console-section"
+              id="anomalies"
+              open={isOpen('anomalies')}
+            >
+              <summary>
+                <h2>Anomalies</h2>
+              </summary>
+              <AnomaliesSection
+                slug={slug}
+                anomalies={anomalies}
+                outcomeCode={section === 'anomalies' ? outcomeCode : undefined}
+              />
+            </details>
 
-          <details className="console-section" id="crossings" open={isOpen('crossings')}>
-            <summary>
-              <h2>Timing log</h2>
-            </summary>
-            <CrossingsSection
-              slug={slug}
-              crossings={crossings}
-              search={logSearch}
-              outcomeCode={section === 'crossings' ? outcomeCode : undefined}
-            />
-          </details>
-        </>
-      ) : null}
+            <details
+              className="console-section"
+              id="crossings"
+              open={isOpen('crossings')}
+            >
+              <summary>
+                <h2>Timing log</h2>
+              </summary>
+              <CrossingsSection
+                slug={slug}
+                crossings={crossings}
+                search={logSearch}
+                outcomeCode={section === 'crossings' ? outcomeCode : undefined}
+              />
+            </details>
+          </>
+        ) : null}
 
-      <p>
-        <Link href={`/events/${event.slug}`}>Back to {event.name}</Link>
-      </p>
-    </>
+        <p>
+          <Link href={`/events/${event.slug}`}>Back to {event.name}</Link>
+        </p>
+      </>
+    </FocusFrame>
   );
 }

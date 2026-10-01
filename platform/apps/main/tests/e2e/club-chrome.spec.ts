@@ -607,6 +607,109 @@ test.describe('the account pages carry the club chrome', () => {
 });
 
 /**
+ * The timing app, which carries the club's header and footer since ADR-052's timing half.
+ *
+ * `apps/timing` is Next, so its header is a **third copy** of `ClubHeader.astro` —
+ * `apps/timing/app/chrome/club-chrome.tsx`. Signed out, `/timing` is the timing Worker's
+ * not-found page, drawn in the club frame because it reads nothing and must stay prerendered;
+ * that is what makes the comparison possible here without a session. The race pages, their
+ * bars and the focus header are walked in `timing.spec.ts`, which owns the accounts.
+ */
+test.describe('the timing app carries the club chrome', () => {
+  async function linksOf(page: Page, name: string): Promise<string[][]> {
+    return page
+      .getByRole('navigation', { name, exact: true })
+      .getByRole('link')
+      .evaluateAll((elements) =>
+        elements.map((a) => [a.textContent?.trim() ?? '', a.getAttribute('href') ?? '']),
+      );
+  }
+
+  test('offers the same bar as the club pages, item for item', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+
+    await page.goto('/');
+    const astro = await linksOf(page, 'Southville Running Club');
+
+    await page.goto('/timing');
+    expect(
+      await linksOf(page, 'Southville Running Club'),
+      'the timing header has drifted',
+    ).toEqual(astro);
+    await expect(page.locator('.club-cta')).toHaveAttribute('href', '/run-with-us/');
+  });
+
+  test('marks Races and events, which is where race timing belongs', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/timing');
+
+    const nav = page.getByRole('navigation', {
+      name: 'Southville Running Club',
+      exact: true,
+    });
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(nav.getByRole('link', { name: 'Races and events' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  test('leaves the club links unprefixed by the base path', async ({ page }) => {
+    // `<Link>` would have made every one of these `/timing/…`, which 404s.
+    await page.goto('/timing');
+    const hrefs = await page
+      .locator('.club-header a, .club-footer a')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    expect(hrefs.filter((href) => href.startsWith('/timing'))).toEqual([]);
+  });
+
+  test('has one banner landmark and a skip link that lands on the page', async ({
+    page,
+  }) => {
+    await page.goto('/timing');
+
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.locator('a.club-skip')).toHaveAttribute('href', '#main');
+    await expect(page.locator('main#main')).toHaveCount(1);
+  });
+
+  /** No `@requires-js`: the Menu is a `<details>` here too. */
+  test('opens the Menu on a phone with scripting off', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await page.goto('/timing');
+
+    await page.locator('.club-menu > summary').click();
+    const panel = page.getByRole('navigation', { name: 'Southville Running Club, menu' });
+    for (const [label, href] of SECTIONS) {
+      await expect(panel.getByRole('link', { name: label, exact: true })).toHaveAttribute(
+        'href',
+        href,
+      );
+    }
+  });
+
+  for (const width of [320, 390, 1280]) {
+    test(`does not scroll sideways at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/timing');
+      await expectNoSidewaysScroll(page, `/timing at ${width}px`);
+    });
+  }
+
+  test('has no accessibility violations @requires-js', async ({ page }) => {
+    await page.goto('/timing');
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('has none in the dark scheme @requires-js', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize(PHONE);
+    await page.goto('/timing');
+    expect(await axeViolations(page)).toEqual([]);
+  });
+});
+
+/**
  * ⚠️ **The fence: the money pages keep today's chrome until after the race.**
  *
  * Every assertion below is about the *absence* of this change. They are the reason somebody

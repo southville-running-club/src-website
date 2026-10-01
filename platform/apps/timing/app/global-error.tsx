@@ -6,6 +6,8 @@
 // page rendered in browser defaults: serif type, blue links, no brand at all, on the one
 // page most likely to be seen while somebody is standing at a finish line.
 import '@src/shared/styles/base.css';
+import '@src/shared/styles/club-chrome.css';
+import { ClubFrame } from './chrome/club-frame';
 
 /**
  * The last-resort error boundary — it replaces the whole document, so it renders its own
@@ -20,7 +22,9 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
   return (
     <html lang="en-GB">
       <body>
-        <main id="main">
+        {/* The club header and footer, ADR-052 — the error page belongs to the site like the
+            not-found page does. `ClubFrame` draws `<main id="main">`. */}
+        <ClubFrame>
           <h1>Something went wrong</h1>
           <p>
             The page could not be loaded. Nothing captured has been lost — try again, and
@@ -29,7 +33,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
           <button type="button" className="button" onClick={reset}>
             Try again
           </button>
-        </main>
+        </ClubFrame>
       </body>
     </html>
   );

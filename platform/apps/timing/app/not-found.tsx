@@ -1,3 +1,4 @@
+import { ClubFrame } from './chrome/frames';
 import { NotFoundBody } from './not-found-body';
 
 /**
@@ -21,5 +22,12 @@ import { NotFoundBody } from './not-found-body';
  * all still on it.
  */
 export default function NotFound() {
-  return <NotFoundBody />;
+  // `ClubFrame` and no other: it reads nothing, so this page still prerenders — it is what a
+  // refusal at the door is rewritten to (ADR-044). And no race bar or breadcrumbs, because a
+  // trail through `/timing` would say something about an address that is meant to look absent.
+  return (
+    <ClubFrame>
+      <NotFoundBody />
+    </ClubFrame>
+  );
 }

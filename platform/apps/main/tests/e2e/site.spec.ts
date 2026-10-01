@@ -133,19 +133,18 @@ test.describe('the banner that says which site this is', () => {
     await expect(page.getByRole('banner')).toHaveCount(1);
   });
 
-  test('reaches /timing too, from the same words', async ({ page }) => {
-    // **The assertion that the two front doors have not drifted.** `apps/main` is Astro and
-    // `apps/timing` is Next, so the bar is two components; only `SITE_BANNER` in
-    // `@src/shared/brand` keeps them saying the same thing. Nothing but a test that visits
-    // both can prove that, because each app builds green on its own.
-    //
-    // It matters most here: before this, `/timing` imported the stylesheet and nothing else,
-    // so somebody landing on it from a search had the club's colours and no route back to
-    // the club at all.
+  test("reaches /timing too, in the club website's words since ADR-052", async ({
+    page,
+  }) => {
+    // **The timing app wears the club header now**, not the money pages' banner, so the
+    // sentence it carries is `CLUB_BANNER`'s rather than `SITE_BANNER`'s. Signed out `/timing`
+    // is the timing Worker's not-found page, which carries the header too — the frame it is
+    // drawn in reads nothing, so it still prerenders.
     await page.goto('/timing');
 
-    const banner = page.locator('.site-banner');
-    await expect(banner).toContainText('We just have Nightingale Nightmare for now');
+    const banner = page.locator('.club-banner');
+    await expect(banner).toContainText('Some pages are still on the old site');
+    await expect(banner).not.toContainText('We just have Nightingale Nightmare for now');
     await expect(banner.getByRole('link', { name: 'the old site' })).toHaveAttribute(
       'href',
       'https://southvillerunningclub.co.uk',
@@ -167,7 +166,8 @@ test.describe('the club wordmark', () => {
     // that moves the money pages across, and delete this comment with it.
     ['the privacy notice', '/privacy/'],
     ['the brand page', '/brand/'],
-    ['race timing', '/timing'],
+    // `/timing` left this list with ADR-052: it carries the club website's header now, whose
+    // wordmark is the club palette's `--club-logo` and is asserted in `club-chrome.spec.ts`.
   ] as const) {
     test(`${name} carries the wordmark in the club's green`, async ({ page }) => {
       await page.goto(path);
@@ -505,7 +505,8 @@ test.describe('the footer the whole site carries', () => {
     // that moves the money pages across, and delete this comment with it.
     ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
-    ['race timing', '/timing'],
+    // `/timing` left this list with ADR-052 — it carries the club website's footer, which the
+    // last test in this block compares with the club pages' own.
   ] as const) {
     test(`${name} offers the club's four profiles`, async ({ page }) => {
       await page.goto(path);
@@ -541,24 +542,24 @@ test.describe('the footer the whole site carries', () => {
     });
   }
 
-  test('the two front doors say it in the same words, from one list', async ({
+  test('the timing app and the club pages say it in the same words, from one list', async ({
     page,
   }) => {
-    // Astro on one side of the hostname and Next on the other, so the markup is written
-    // twice and only `@src/shared/social` keeps the two in step. Nothing but a test that
-    // visits both can prove it, because each app builds green on its own.
+    // Astro on one side of the hostname and Next on the other, so the club footer is written
+    // twice — three times, with the Worker's — and only `@src/shared/social` keeps them in
+    // step. Nothing but a test that visits both can prove it, because each app builds green
+    // on its own. Signed out, `/timing` is the timing Worker's not-found page, in the club
+    // frame. Since ADR-052; this compared the two *old* footers before.
     const hrefsOn = async (path: string) => {
       await page.goto(path);
       return page
-        .locator('.site-footer-social a')
+        .locator('.club-footer-social a')
         .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
     };
 
-    // ⚠️ `/privacy/` rather than `/` until after the race — see ADR-048. The club's own pages
-    // render `ClubFooter` from the same `SOCIAL_LINKS`, asserted in `club-chrome.spec.ts`;
-    // this one is about the two *old* renderings staying in step. **Put `/` back** when the
-    // money pages move across and there is one footer again.
-    expect(await hrefsOn('/timing')).toEqual(await hrefsOn('/privacy/'));
+    const club = await hrefsOn('/');
+    expect(club).toHaveLength(PROFILES.length);
+    expect(await hrefsOn('/timing')).toEqual(club);
   });
 });
 

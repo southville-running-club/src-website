@@ -3,8 +3,11 @@ import type { Metadata } from 'next';
 // pulls in `tokens.css`, which is where the club's brand actually lives — so this app is on
 // the club's palette by importing one file, and stays on it without a second edit here.
 import '@src/shared/styles/base.css';
-import { SiteBanner } from './site-banner';
-import { SiteFooter } from './site-footer';
+// The club website's header, section bars, breadcrumbs, focus header and footer — ADR-052.
+// **After `base.css`, and never `club.css`**: every rule in this one is `.club-*`-scoped, so the
+// pages' own bodies are drawn by `base.css` exactly as before, where `club.css` would restyle
+// every bare `h1`, `p` and `a` on them.
+import '@src/shared/styles/club-chrome.css';
 
 export const metadata: Metadata = {
   // **A browser tab is consumer-facing too.** This said "Race timing — deployment skeleton",
@@ -56,16 +59,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB">
       <body>
-        <a className="skip-link" href="#main">
-          Skip to content
-        </a>
-        {/* Above `<main>`, like it is on the club's side, so "Skip to content" keeps meaning
-            what it says rather than skipping to something that is already behind it. */}
-        <SiteBanner />
-        <main id="main">{children}</main>
-        {/* Below `<main>`, like it is on the club's side, and for the same reason: a
-            `<footer>` outside `main` is the page's one `contentinfo` landmark. */}
-        <SiteFooter />
+        {/* **The document and nothing else.** Which header a page wears depends on what only the
+            page knows — which race, what it is called, which tab is current — so every page
+            wraps itself in one of the frames in `app/chrome/frames.tsx`, and `lib/chrome.ts`'s
+            route table, held by `tests/unit/chrome.test.ts`, says which. The skip link, the
+            header, `<main id="main">` and the footer are all drawn there. */}
+        {children}
       </body>
     </html>
   );

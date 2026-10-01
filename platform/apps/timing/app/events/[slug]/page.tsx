@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../lib/reads';
 import { NotFoundBody } from '../../not-found-body';
+import { ClubFrame, RaceFrame } from '../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/` — one race, and where it has got to.
@@ -69,13 +70,15 @@ export default async function EventPage({
 
   if (read.state === 'unavailable') {
     return (
-      <>
-        <h1>Race</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed. Try again in a moment.
-        </p>
-      </>
+      <RaceFrame slug={slug} name={null} current="overview" page="Overview">
+        <>
+          <h1>Race</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been changed. Try again in a moment.
+          </p>
+        </>
+      </RaceFrame>
     );
   }
 
@@ -83,63 +86,68 @@ export default async function EventPage({
     // `NotFoundBody` rather than the two elements written out here, so the wording cannot
     // drift from `app/not-found.tsx`'s — `event_detail()` answers the same `null` for a
     // refusal and for a race that does not exist, and the body may not tell them apart either.
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const event = read.data;
 
   return (
-    <>
-      <h1>{event.name}</h1>
+    <RaceFrame slug={slug} name={event.name} current="overview" page="Overview">
+      <>
+        <h1>{event.name}</h1>
 
-      <p className="lede">
-        {event.format === 'relay' ? 'A relay' : 'A solo race'}, starting{' '}
-        {formatLondon(event.start_at)}.
-      </p>
+        <p className="lede">
+          {event.format === 'relay' ? 'A relay' : 'A solo race'}, starting{' '}
+          {formatLondon(event.start_at)}.
+        </p>
 
-      <dl>
-        <dt>Slug</dt>
-        <dd>{event.slug}</dd>
+        <dl>
+          <dt>Slug</dt>
+          <dd>{event.slug}</dd>
 
-        <dt>Scheduled start</dt>
-        <dd>{formatLondon(event.start_at)}</dd>
+          <dt>Scheduled start</dt>
+          <dd>{formatLondon(event.start_at)}</dd>
 
-        <dt>Actually started</dt>
-        <dd>{orDash(event.actually_started_at)}</dd>
+          <dt>Actually started</dt>
+          <dd>{orDash(event.actually_started_at)}</dd>
 
-        <dt>Finished</dt>
-        <dd>{orDash(event.finished_at)}</dd>
+          <dt>Finished</dt>
+          <dd>{orDash(event.finished_at)}</dd>
 
-        <dt>Results published</dt>
-        <dd>{orDash(event.results_published_at)}</dd>
+          <dt>Results published</dt>
+          <dd>{orDash(event.results_published_at)}</dd>
 
-        <dt>Distance</dt>
-        <dd>{event.distance_m === null ? '—' : `${event.distance_m} m`}</dd>
+          <dt>Distance</dt>
+          <dd>{event.distance_m === null ? '—' : `${event.distance_m} m`}</dd>
 
-        <dt>Course notes</dt>
-        <dd>{event.course_notes ?? '—'}</dd>
-      </dl>
+          <dt>Course notes</dt>
+          <dd>{event.course_notes ?? '—'}</dd>
+        </dl>
 
-      <h2>Where it has got to</h2>
+        <h2>Where it has got to</h2>
 
-      <dl>
-        <dt>Entries</dt>
-        <dd>{event.counts.teams}</dd>
+        <dl>
+          <dt>Entries</dt>
+          <dd>{event.counts.teams}</dd>
 
-        <dt>Runners</dt>
-        <dd>{event.counts.runners}</dd>
+          <dt>Runners</dt>
+          <dd>{event.counts.runners}</dd>
 
-        <dt>Marshals rostered</dt>
-        <dd>{event.counts.marshals}</dd>
+          <dt>Marshals rostered</dt>
+          <dd>{event.counts.marshals}</dd>
 
-        <dt>Crossings recorded</dt>
-        <dd>{event.counts.crossings}</dd>
+          <dt>Crossings recorded</dt>
+          <dd>{event.counts.crossings}</dd>
 
-        <dt>Anomalies needing a human</dt>
-        <dd>{event.counts.open_anomalies}</dd>
-      </dl>
+          <dt>Anomalies needing a human</dt>
+          <dd>{event.counts.open_anomalies}</dd>
+        </dl>
 
-      {/*
+        {/*
         ⚠️ **Two links, and the rest are still deliberately absent.** #247 asks this hub to show
         "the next action and nothing that is not yet possible", and linking to a page that does
         not exist is precisely the old application's bug: its marshal navigation carried a
@@ -157,17 +165,19 @@ export default async function EventPage({
         that has to learn to ask.** Today `timing-admin` carries all three — the entry list
         demands `timing.registration.import`, which is a third permission again.
       */}
-      <h2>Set up</h2>
+        <h2>Set up</h2>
 
-      <p>
-        <Link href={`/events/${event.slug}/registration`}>Entry list for this race</Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/registration`}>
+            Entry list for this race
+          </Link>
+        </p>
 
-      <p>
-        <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
+        </p>
 
-      {/*
+        {/*
         ⚠️ **One link where there were five** — [#308](https://github.com/southville-running-club/src-website/issues/308)
         merged `start`, `finish`, `status`, `anomalies` and `crossings` into the console after a
         volunteer ran a race end to end and found the navigation the tiring part.
@@ -186,17 +196,17 @@ export default async function EventPage({
         link is right for everybody this hub already admits — the hub itself demands
         `timing.event.manage`, which is one of the two.
       */}
-      <p>
-        <Link href={`/events/${event.slug}/console`}>
-          {event.actually_started_at === null
-            ? 'Race console — start this race'
-            : event.finished_at === null
-              ? 'Race console — the race is running'
-              : 'Race console — this race is finished'}
-        </Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/console`}>
+            {event.actually_started_at === null
+              ? 'Race console — start this race'
+              : event.finished_at === null
+                ? 'Race console — the race is running'
+                : 'Race console — this race is finished'}
+          </Link>
+        </p>
 
-      {/*
+        {/*
         ⚠️ **The count above is a figure and this is the queue it counts** — #252. They are
         deliberately not one link with a number in it.
 
@@ -211,9 +221,9 @@ export default async function EventPage({
         Both demand `timing.crossing.resolve`, which is a fourth permission again — see the
         note above about what has to change here if these ever come apart in practice.
       */}
-      <h2>During and after the race</h2>
+        <h2>During and after the race</h2>
 
-      {/*
+        {/*
         The live leaderboard — [#204](https://github.com/southville-running-club/src-website/issues/204).
 
         ⚠️ **Linked first in this section, and in every state.** It is the page somebody has open on
@@ -226,41 +236,41 @@ export default async function EventPage({
         `/nn/<year>/results/` after publication. A link inviting a volunteer to share this address
         would be inviting them to share a page the public gets a 404 from.
       */}
-      <p>
-        <Link href={`/events/${event.slug}/leaderboard`}>Live leaderboard</Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/leaderboard`}>Live leaderboard</Link>
+        </p>
 
-      <p>
-        <Link href={`/events/${event.slug}/console#anomalies`}>
-          Captures waiting to be resolved
-        </Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/console#anomalies`}>
+            Captures waiting to be resolved
+          </Link>
+        </p>
 
-      {/*
+        {/*
         ⚠️ **Linked in every state, like the console above and for the same reason.** The results
         preview is where somebody checks the times *before* calling the race over, where they
         publish once it is, and where they take a published table down to correct it — so it is
         useful at every point on #241's state machine and the link may never be conditional on
         one of them.
       */}
-      <p>
-        <Link href={`/events/${event.slug}/results`}>
-          {event.results_published_at === null
-            ? 'Results for this race'
-            : 'Results for this race — published'}
-        </Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/results`}>
+            {event.results_published_at === null
+              ? 'Results for this race'
+              : 'Results for this race — published'}
+          </Link>
+        </p>
 
-      {/* ⚠️ Prize giving was its own address and is a section of the results page since
+        {/* ⚠️ Prize giving was its own address and is a section of the results page since
           #308 — one dataset, one permission, two views of it. */}
 
-      {event.editable ? null : (
-        <p className="notice">
-          This race has started, so its details can no longer be changed.
-        </p>
-      )}
+        {event.editable ? null : (
+          <p className="notice">
+            This race has started, so its details can no longer be changed.
+          </p>
+        )}
 
-      {/*
+        {/*
         ⚠️ **Linked from the bottom, in its own section, and with no count beside it** — #254.
         Every other link on this page is a thing somebody is on their way to do; this one is a
         thing somebody has to go looking for, and the distance is part of the control. The page
@@ -272,17 +282,18 @@ export default async function EventPage({
         **Not hidden once the race has run**, because wiping a rehearsal is exactly the thing
         somebody does after one — see #207.
       */}
-      <h2>Starting again</h2>
+        <h2>Starting again</h2>
 
-      <p>
-        <Link href={`/events/${event.slug}/danger-zone`}>
-          Wipe this race and start again
-        </Link>
-      </p>
+        <p>
+          <Link href={`/events/${event.slug}/danger-zone`}>
+            Wipe this race and start again
+          </Link>
+        </p>
 
-      <p>
-        <Link href="/events">All races</Link>
-      </p>
-    </>
+        <p>
+          <Link href="/events">All races</Link>
+        </p>
+      </>
+    </RaceFrame>
   );
 }
