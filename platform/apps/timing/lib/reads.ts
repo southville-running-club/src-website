@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { cookies } from 'next/headers';
 import type { Database } from '@src/db';
@@ -149,7 +150,10 @@ export async function readTiming<T>(
  * **Bare `.rpc()`, no `.schema()`** — `createUserClient` pins `db.schema` to `identity`, which
  * is the opposite of {@link readTiming}'s requirement and the reason that one says so loudly.
  */
-export async function readPermissions(): Promise<string[]> {
+// **`cache()`, so one request reads the permissions once.** Since ADR-052 a page and the frame
+// around it both ask — the frame to decide which tabs to draw, the page which sections — and
+// React's `cache` is per request on the server, so the second ask is the first answer.
+export const readPermissions = cache(async (): Promise<string[]> => {
   const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
 
   if (!accessToken) {
@@ -174,4 +178,4 @@ export async function readPermissions(): Promise<string[]> {
     );
     return [];
   }
-}
+});

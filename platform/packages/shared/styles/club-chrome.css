@@ -743,6 +743,58 @@
 }
 
 /* -------------------------------------------------------------------------------------
+ * The focus header: the race-day screens
+ * -------------------------------------------------------------------------------------
+ * The race console and the marshal's capture screen, used on a phone mid-race. No navigation:
+ * which screen, which race, and one way out. Dark, so it reads at a glance as "not the
+ * website": the ink as the fill and the page colour as the ink — the skip link's pairing,
+ * 13.06:1 light and 15.05:1 dark, because both tokens invert together. */
+.club-focus {
+  background: var(--club-text);
+  color: var(--club-background);
+  font-family: var(--club-font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.club-focus-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding-block: 0.25rem;
+}
+
+.club-focus-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.35rem;
+  margin: 0;
+}
+
+.club-focus-race {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+}
+
+/* One way out, and a 44px target, because it is pressed with a thumb at the finish line. */
+.club-focus-leave {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
+.club-focus :focus-visible {
+  outline: 3px solid var(--club-background);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------------------------------
  * Widths — the chrome's share of `club.css`'s 30em / 44em / 62em breakpoints
  * ------------------------------------------------------------------------------------- */
 
