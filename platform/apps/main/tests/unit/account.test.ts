@@ -363,6 +363,103 @@ describe('the club chrome, on every account page', () => {
     expect(await signIn()).not.toContain('club-section');
   });
 
+  /**
+   * The tabs that depend on who is signed in, drawn by the predicate each door asks.
+   *
+   * A member — an account and nothing beyond `registered` — sees the five account tabs. A
+   * timing volunteer sees Race timing as well, staff see Club admin, and `src-admin` sees both.
+   * Each case is the role's own permissions as `identity-permissions.test.ts` asserts them.
+   */
+  describe('the tabs that depend on who is signed in', () => {
+    function signedInAs(roles: string[], permissions: string[]) {
+      getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+      userGetUser.mockResolvedValue({
+        data: { user: { id: 'zz-person', email: 'grace@example.com' } },
+        error: null,
+      });
+      rpc.mockImplementation(async (name: string) =>
+        name === 'my_roles'
+          ? { data: roles, error: null }
+          : name === 'my_permissions'
+            ? { data: permissions, error: null }
+            : { data: [], error: null },
+      );
+    }
+
+    async function tabsOn(path: string): Promise<string[]> {
+      const markup = await render(path, SIGNED_IN);
+      const bar = element(markup, /<nav class="club-section"/, 'nav');
+      expect(markup, 'the slot must never reach a page').not.toContain('staff tabs');
+      return [...bar.matchAll(/<a href="[^"]+"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]!);
+    }
+
+    const ACCOUNT = [
+      'Your account',
+      'Your entries',
+      'Your details',
+      'Change your password',
+      'Your data',
+    ];
+
+    it('gives a member the five account tabs and nothing else', async () => {
+      signedInAs(['registered'], []);
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+    });
+
+    it('adds Race timing for a marshal, and not Club admin', async () => {
+      signedInAs(['registered', 'timing-marshal'], ['timing.crossing.record']);
+      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Race timing']);
+    });
+
+    it('adds Club admin for staff, and not Race timing', async () => {
+      signedInAs(['registered', 'nn-admin'], ['nn.entry.read', 'nn.email.read']);
+      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Club admin']);
+    });
+
+    it('does not count nn-tester as staff, because /admin/ would answer it 404', async () => {
+      signedInAs(['registered', 'nn-tester'], ['nn.entry.before_open']);
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+    });
+
+    it('gives src-admin both', async () => {
+      signedInAs(
+        ['registered', 'src-admin'],
+        ['identity.person.read', 'timing.event.manage'],
+      );
+      expect(await tabsOn('/account/')).toEqual([
+        ...ACCOUNT,
+        'Race timing',
+        'Club admin',
+      ]);
+    });
+
+    it('draws neither when the read fails, rather than guessing', async () => {
+      signedInAs(['registered'], []);
+      rpc.mockImplementation(async (name: string) =>
+        name === 'my_roles'
+          ? { data: null, error: { code: 'PGRST202', message: 'no such function' } }
+          : { data: ['timing.event.manage'], error: null },
+      );
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+      expect(errors.mock.calls.flat().join(' ')).toContain('PGRST202');
+      errors.mockRestore();
+    });
+
+    it('links each to the page its own door opens', async () => {
+      signedInAs(['registered', 'src-admin'], ['timing.event.manage']);
+      const bar = element(
+        await render('/account/', SIGNED_IN),
+        /<nav class="club-section"/,
+        'nav',
+      );
+
+      expect(bar).toContain('<li><a href="/timing">Race timing</a></li>');
+      expect(bar).toContain('<li><a href="/admin/">Club admin</a></li>');
+    });
+  });
+
   it('shows a signed-in person the section bar, with the page they are on marked', async () => {
     getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
     userGetUser.mockResolvedValue({

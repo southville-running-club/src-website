@@ -233,6 +233,8 @@ export function sectionBar(
   name: string,
   tabs: readonly SectionTab[],
   currentHref: string,
+  /** Further `<li>`s after the tabs — or a slot for them, which `account.ts` fills per person. */
+  extra: Html | '' = '',
 ): Html {
   return html`<nav class="club-section" aria-label="${name}">
     <div class="club-wrap club-section-inner">
@@ -244,6 +246,7 @@ export function sectionBar(
               <a href="${tab.href}" ${current(tab.href === currentHref)}>${tab.label}</a>
             </li>`,
         )}
+        ${extra}
       </ul>
     </div>
   </nav>`;

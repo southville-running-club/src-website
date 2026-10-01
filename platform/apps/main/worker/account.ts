@@ -35,12 +35,14 @@ import {
 import { holdsAnyTimingPermission } from '@src/shared/timing/door';
 import { html, raw, type Html } from './html';
 import { cookieValue } from './cookies';
+import { isStaff } from './admin-shell';
 import {
   breadcrumbs,
   clubFooter,
   clubHeader,
   clubSkipLink,
   sectionBar,
+  type SectionTab,
 } from './club-chrome';
 import { faviconLink } from './site-chrome';
 import {
@@ -253,6 +255,47 @@ export async function handleAccount(
     return redirectTo('/account/sign-in/?timed-out=ok', secure, refreshedCookies);
   }
 
+  const response = await routeAccount(request, env, url, {
+    secure,
+    cfg,
+    session,
+    refreshedCookies,
+    segments,
+  });
+
+  // **GET only.** A POST that is refused — a stale form, a missing confirmation — re-renders
+  // the page and must still ask the database nothing at all, which is what makes a forged or
+  // replayed submission cheap to turn away. So a re-rendered form shows the five tabs every
+  // account has, and the next ordinary load shows the rest.
+  return session !== null && request.method === 'GET'
+    ? withStaffTabs(response, session, cfg)
+    : withoutStaffTabs(response);
+}
+
+/**
+ * Every address under `/account/` past the session read and the two guards above it.
+ *
+ * Split out of `handleAccount()` so that what this answers can be finished in one place on its
+ * way out — `withStaffTabs()` — rather than at the thirty-odd places a page is built.
+ */
+async function routeAccount(
+  request: Request,
+  env: Env,
+  url: URL,
+  {
+    secure,
+    cfg,
+    session,
+    refreshedCookies,
+    segments,
+  }: {
+    secure: boolean;
+    cfg: SupabaseConfig;
+    session: Session | null;
+    refreshedCookies: string[];
+    segments: string[];
+  },
+): Promise<Response> {
   if (request.method === 'GET' && segments.length === 0) {
     return accountHome(session, cfg, secure, refreshedCookies);
   }
@@ -2917,6 +2960,92 @@ const ACCOUNT_TABS = [
 type AccountTab = (typeof ACCOUNT_TABS)[number]['href'];
 
 /**
+ * Where the tabs that depend on who is signed in go. `page()` writes this comment inside the
+ * section bar's list and `withStaffTabs()` replaces it on the way out of `handleAccount()` with
+ * whatever this person may open — so the thirty-odd places a page is built need to know
+ * nothing about roles.
+ */
+const STAFF_TABS_SLOT = '<!-- account: staff tabs -->';
+
+/**
+ * The tabs only some people get: **Race timing** for anybody holding a `timing.*` permission,
+ * and **Club admin** for anybody holding a staff role. A member — somebody with an account and
+ * no role beyond `registered` — gets neither, and sees the five account tabs alone.
+ *
+ * **Each is drawn by the predicate its own door asks**: `holdsAnyTimingPermission()` is what
+ * `/timing`'s middleware asks and `isStaff()` is what `/admin/` asks. So a tab appears exactly
+ * when following it would open a page, and never when it would answer 404 — a link to a refusal
+ * tells somebody the page exists, which is the disclosure both doors are built to avoid. Read
+ * per request, so a role granted at `/admin/people/` shows on the next load.
+ *
+ * **A failed read draws neither**, with a code in the log and nothing about it on the page: a
+ * missing shortcut costs somebody one typed address, and a drawn one would be a guess about
+ * access. The rule `accountHome()` already keeps for its own Race timing link.
+ *
+ * Only a response carrying the slot pays for the two reads — the five signed-in pages — and a
+ * response without one passes through with its body unchanged.
+ */
+/** The slot, emptied, for a response that is not getting the tabs — a POST's re-render. */
+async function withoutStaffTabs(response: Response): Promise<Response> {
+  if (!(response.headers.get('content-type') ?? '').startsWith('text/html'))
+    return response;
+  const markup = await response.text();
+  return new Response(markup.replace(STAFF_TABS_SLOT, ''), {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
+async function withStaffTabs(
+  response: Response,
+  session: Session,
+  cfg: SupabaseConfig,
+): Promise<Response> {
+  if (!(response.headers.get('content-type') ?? '').startsWith('text/html'))
+    return response;
+
+  const markup = await response.text();
+  const tabs: SectionTab[] = [];
+
+  if (markup.includes(STAFF_TABS_SLOT)) {
+    const client = createUserClient(cfg, session.accessToken);
+    const [roleRead, permissionRead] = await Promise.all([
+      client.rpc('my_roles'),
+      client.rpc('my_permissions'),
+    ]);
+    const failure = roleRead.error ?? permissionRead.error;
+
+    if (failure) {
+      // A code and a message, never a row — the property `/admin/` keeps for the same read.
+      console.error(
+        `identity role/permission read unavailable — ${failure.code}: ${failure.message}`,
+      );
+    } else {
+      const roles = Array.isArray(roleRead.data) ? (roleRead.data as string[]) : [];
+      const permissions = Array.isArray(permissionRead.data)
+        ? (permissionRead.data as string[])
+        : [];
+
+      if (holdsAnyTimingPermission(permissions)) {
+        tabs.push({ href: '/timing', label: 'Race timing' });
+      }
+      if (isStaff(roles)) {
+        tabs.push({ href: '/admin/', label: 'Club admin' });
+      }
+    }
+  }
+
+  const items = html`${tabs.map(
+    (tab) => html`<li><a href="${tab.href}">${tab.label}</a></li>`,
+  )}`.toString();
+
+  return new Response(
+    markup.replace(STAFF_TABS_SLOT, () => items),
+    { status: response.status, headers: response.headers },
+  );
+}
+
+/**
  * Every account page's shell: the club's header, the section bar on the five signed-in pages,
  * the page, and the club's footer. ADR-052.
  *
@@ -2958,7 +3087,7 @@ function page(
       </head>
       <body>
         ${clubSkipLink()} ${clubHeader(`${ACCOUNT_PREFIX}/`)}
-        ${options.tab === undefined ? '' : sectionBar('Account', ACCOUNT_TABS, options.tab)}
+        ${options.tab === undefined ? '' : sectionBar('Account', ACCOUNT_TABS, options.tab, raw(STAFF_TABS_SLOT))}
         ${main} ${clubFooter()}
       </body>
     </html>`;
