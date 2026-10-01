@@ -32,6 +32,7 @@ import {
   type MyEntry,
   type SupabaseConfig,
 } from '@src/shared';
+import { holdsAnyTimingPermission } from '@src/shared/timing/door';
 import { html, raw, type Html } from './html';
 import { cookieValue } from './cookies';
 import { faviconLink, siteBanner, siteFooter, siteNav } from './site-chrome';
@@ -446,8 +447,33 @@ async function accountHome(
   // **`getUser()` rather than a claim decoded out of the token.** It asks Supabase Auth, which
   // is where the confirmed address lives — `identity.people` deliberately does not hold one —
   // and it is the read `worker/admin.ts` already makes for the same purpose.
-  const { data: user } = await client.auth.getUser();
+  //
+  // **`my_permissions()` beside it, for one link and nothing else.** Somebody holding a timing
+  // role — a `timing-admin`, a `timing-marshal` — is not staff, so `/admin/` answers them 404
+  // and its bar never reaches them, and #235 took the public link to `/timing` down because a
+  // link to a page that 404s tells everybody it exists. That left this page as the only one a
+  // timing volunteer can reach that knows who they are, so it is where their way in goes. It is
+  // still not a statement of roles: the link is drawn from the same predicate `/timing/`'s own
+  // door asks, `holdsAnyTimingPermission()`, so it appears exactly when following it would
+  // work — per request, so a role granted at `/admin/people/` shows it on the next load.
+  //
+  // **A failed read draws no link**, silently to the person and with a code in the log. The
+  // page's job is the account; a missing shortcut costs a volunteer one typed address, and a
+  // drawn one on a failed read would be a guess about access.
+  const [{ data: user }, { data: permissionData, error: permissionError }] =
+    await Promise.all([client.auth.getUser(), client.rpc('my_permissions')]);
   const email = user?.user?.email ?? null;
+
+  if (permissionError) {
+    // A code and a message, never a row or an address — the same property `/admin/` keeps.
+    console.error(
+      `identity permission read unavailable — ${permissionError.code}: ${permissionError.message}`,
+    );
+  }
+
+  const permissions =
+    !permissionError && Array.isArray(permissionData) ? (permissionData as string[]) : [];
+  const mayOpenTiming = holdsAnyTimingPermission(permissions);
 
   const csrfToken = mintCsrfToken();
 
@@ -475,6 +501,7 @@ async function accountHome(
       <p><a href="/account/details/">Your details</a></p>
       <p><a href="/account/password/">Change your password</a></p>
       <p><a href="/account/data/">Your data — download or delete it</a></p>
+      ${mayOpenTiming ? html`<p><a href="/timing">Race timing</a></p>` : null}
       <form method="post" action="/account/sign-out/">
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
         <button class="button" type="submit">Sign out</button>

@@ -271,6 +271,14 @@ function dashboard(viewer: AdminViewer): Response {
             : null
         }
       </p>
+      <p>
+        ${
+          can(viewer, 'timing.event.manage')
+            ? html`<a href="/timing/events">Race timing</a> — the entry list, the start,
+                the finish and the results, on race night.`
+            : null
+        }
+      </p>
     </main>`;
 
   return page('Club admin', body);

@@ -304,6 +304,34 @@ test.describe('the landing page', () => {
   });
 });
 
+/**
+ * The way in. Neither timing role is staff, so `/admin/`'s bar never reaches these two people
+ * and #235 took the public link down — `/account/` is the page that knows who they are, and it
+ * draws "Race timing" from the same predicate this Worker's door asks.
+ *
+ * The negative half — an account holding no timing permission sees no link — is in
+ * `tests/worker/admin/admin.test.ts` and `tests/unit/account.test.ts`, against accounts this
+ * file does not own.
+ */
+test.describe('the way in from /account/', () => {
+  for (const [who, email] of [
+    ['a timing-admin', TIMING_ADMIN_EMAIL],
+    ['a timing-marshal', TIMING_MARSHAL_EMAIL],
+  ] as const) {
+    test(`is offered to ${who}, and opens`, async ({ page }) => {
+      await signInAs(page, email);
+      await page.goto('/account/');
+
+      const link = page.getByRole('link', { name: 'Race timing' });
+      await expect(link).toHaveAttribute('href', '/timing');
+
+      await link.click();
+      await expect(page).toHaveURL(/\/timing\/?$/);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
+    });
+  }
+});
+
 test.describe('the events list', () => {
   test('lists the races a timing-admin may manage', async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);

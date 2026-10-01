@@ -1,7 +1,9 @@
 # Runbook — how a marshal or a timing admin gets in
 
 `/timing` is the club's race-timing surface. It answers **404 to everybody without a
-`timing.*` permission**, the signed-out public included, and it is linked from nowhere. This
+`timing.*` permission**, the signed-out public included, and the public site links nowhere to
+it. **Somebody who holds a timing role finds a "Race timing" link on `/account/`**, drawn from
+the same rule the door asks, so it appears exactly when following it would work. This
 is how a named human gets from "no account at all" to "can open the thing I was asked to
 open" — and how to work out which step was missed when they cannot.
 
@@ -70,7 +72,9 @@ same button.
 - [ ] Find them by email address. **They must have done step 1** — this page grants roles,
       it does not create accounts
 - [ ] Press **Grant timing-marshal**, or **Grant timing-admin**
-- [ ] Tell them to open `/timing`. **It takes effect on their next request**
+- [ ] Tell them to open `/account/` and follow **Race timing**, or go to `/timing` directly.
+      **It takes effect on their next request** — the link appears on the next load of
+      `/account/`, with no sign-out needed
 
 Every grant is written to `identity.audit` in the same transaction as the change, so one
 cannot happen without the other.

@@ -32,6 +32,7 @@
     "./people-roles": "./src/people-roles.ts",
     "./timing/bib": "./src/timing/bib.ts",
     "./timing/anomaly": "./src/timing/anomaly.ts",
+    "./timing/door": "./src/timing/door.ts",
     "./timing/results": "./src/timing/results.ts",
     "./timing/leaderboard": "./src/timing/leaderboard.ts",
     "./timing/result-category": "./src/timing/result-category.ts",
