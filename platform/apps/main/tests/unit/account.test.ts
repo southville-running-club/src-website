@@ -557,6 +557,8 @@ describe('GET /account/, signed in', () => {
    *
    * Drawn from `holdsAnyTimingPermission()`, the same predicate `/timing/`'s door asks — so the
    * cases are a permission that opens it, permissions that do not, and a read that failed.
+   * **It is the account bar's tab since ADR-052**; the page used to draw a second copy of the
+   * same link in its body, and the first case below asserts there is only one.
    */
   describe('the Race timing link', () => {
     async function homeWith(answer: { data: unknown; error: unknown }): Promise<string> {
@@ -583,6 +585,10 @@ describe('GET /account/, signed in', () => {
       const body = await homeWith({ data: ['timing.crossing.record'], error: null });
 
       expect(body).toContain('<a href="/timing">Race timing</a>');
+      // One link, in the bar — not the bar's and a second in the page that went to the same
+      // place. Two would also make `getByRole('link', { name: 'Race timing' })` ambiguous.
+      expect(body.match(/href="\/timing"/g) ?? []).toHaveLength(1);
+      expect(body).toContain('<li><a href="/timing">Race timing</a></li>');
     });
 
     it('is not drawn for somebody holding nothing under timing', async () => {
