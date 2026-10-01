@@ -393,7 +393,18 @@ export async function expectNoChildOverflow(
       if (styles.position === 'absolute' || styles.position === 'fixed') continue;
 
       const parentBox = parent.getBoundingClientRect();
-      const spill = Math.max(parentBox.left - box.left, box.right - parentBox.right);
+
+      // **A negative margin is the author saying so.** `margin-inline: -0.5rem` on a 44px tap
+      // target inside a 28px list item — the club footer's social icons — is a deliberate bleed
+      // of exactly that much, written to give a small icon a big target without moving it.
+      // So each side is allowed to overhang by its own negative margin and not a pixel more:
+      // anything spilling further than the stylesheet declared is still caught.
+      const declaredLeft = Math.max(0, -parseFloat(styles.marginLeft) || 0);
+      const declaredRight = Math.max(0, -parseFloat(styles.marginRight) || 0);
+      const spill = Math.max(
+        parentBox.left - box.left - declaredLeft,
+        box.right - parentBox.right - declaredRight,
+      );
 
       if (spill <= slack) continue;
 

@@ -1125,9 +1125,14 @@ body.admin {
     color: var(--src-ink);
   }
 
+  /* The club website's header, Menu, footer and skip link too since ADR-052: a start list or a
+     medical sheet is a document for a desk, and the site's navigation on it is ink and a page. */
   .admin-mast,
   .admin-eventbar,
-  .admin-noprint {
+  .admin-noprint,
+  .club-skip,
+  .club-header,
+  .club-footer {
     display: none;
   }
 
