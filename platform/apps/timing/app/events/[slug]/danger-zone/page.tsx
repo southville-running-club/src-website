@@ -3,6 +3,7 @@ import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
+import { ClubFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/danger-zone/` — wiping a rehearsal.
@@ -85,119 +86,128 @@ export default async function DangerZonePage({
     // that matters: somebody who cannot tell an outage from a refusal presses again, and this
     // is the one button on the platform where pressing again is not free.
     return (
-      <>
-        <h1>Danger zone</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed and nothing has been wiped. Try again in a moment.
-        </p>
-      </>
+      <RaceFrame slug={slug} name={null} current={null} page="Danger zone">
+        <>
+          <h1>Danger zone</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been changed and nothing has been wiped. Try again in a
+            moment.
+          </p>
+        </>
+      </RaceFrame>
     );
   }
 
   if (read.state === 'none') {
     // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
     // `event_detail()` answers the same `null` for a refusal and for a missing race.
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const event = read.data;
   const action = `/timing/events/${encodeURIComponent(slug)}/danger-zone/update`;
 
   return (
-    <>
-      <h1>Danger zone</h1>
+    <RaceFrame slug={slug} name={event.name} current={null} page="Danger zone">
+      <>
+        <h1>Danger zone</h1>
 
-      <p className="lede">{event.name}</p>
+        <p className="lede">{event.name}</p>
 
-      {outcome === null ? null : (
-        <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
-      )}
+        {outcome === null ? null : (
+          <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
+        )}
 
-      <p>
-        Wiping this race removes <strong>every crossing and every entry</strong> recorded
-        against it and puts it back to not started and not finished. It is how the field
-        is cleared between two runs of the same rehearsal. It cannot be undone, and there
-        is no export of what it removes.
-      </p>
+        <p>
+          Wiping this race removes <strong>every crossing and every entry</strong>{' '}
+          recorded against it and puts it back to not started and not finished. It is how
+          the field is cleared between two runs of the same rehearsal. It cannot be
+          undone, and there is no export of what it removes.
+        </p>
 
-      {/* ⚠️ **The blast radius is read from the database rather than described in prose.**
+        {/* ⚠️ **The blast radius is read from the database rather than described in prose.**
           The whole argument for a typed confirmation is that somebody has looked at what they
           are about to remove; a sentence saying "this will remove your crossings" is not
           something anybody can check themselves against. */}
-      <h2>What would be removed</h2>
+        <h2>What would be removed</h2>
 
-      <dl>
-        <dt>Entries</dt>
-        <dd>{event.counts.teams}</dd>
+        <dl>
+          <dt>Entries</dt>
+          <dd>{event.counts.teams}</dd>
 
-        <dt>Runners</dt>
-        <dd>{event.counts.runners}</dd>
+          <dt>Runners</dt>
+          <dd>{event.counts.runners}</dd>
 
-        <dt>Crossings recorded</dt>
-        <dd>{event.counts.crossings}</dd>
+          <dt>Crossings recorded</dt>
+          <dd>{event.counts.crossings}</dd>
 
-        <dt>Anomalies needing a human</dt>
-        <dd>{event.counts.open_anomalies}</dd>
-      </dl>
+          <dt>Anomalies needing a human</dt>
+          <dd>{event.counts.open_anomalies}</dd>
+        </dl>
 
-      {/* ⚠️ **What survives is on the page beside what does not**, because "danger zone" reads
+        {/* ⚠️ **What survives is on the page beside what does not**, because "danger zone" reads
           as "delete the race" and the next thing this volunteer does is look for the race they
           just reset. The marshal count is here rather than above for the same reason: it is the
           number somebody would otherwise fear they had to rebuild. */}
-      <h2>What would be kept</h2>
+        <h2>What would be kept</h2>
 
-      <dl>
-        <dt>Marshals rostered</dt>
-        <dd>{event.counts.marshals}</dd>
+        <dl>
+          <dt>Marshals rostered</dt>
+          <dd>{event.counts.marshals}</dd>
 
-        <dt>Actually started</dt>
-        <dd>{orDash(event.actually_started_at)}</dd>
+          <dt>Actually started</dt>
+          <dd>{orDash(event.actually_started_at)}</dd>
 
-        <dt>Finished</dt>
-        <dd>{orDash(event.finished_at)}</dd>
-      </dl>
+          <dt>Finished</dt>
+          <dd>{orDash(event.finished_at)}</dd>
+        </dl>
 
-      <p>
-        The race itself, its name, its start time and its marshals are kept. The two times
-        above are cleared. What has been done to this race stays recorded, and wiping it
-        is recorded too.
-      </p>
+        <p>
+          The race itself, its name, its start time and its marshals are kept. The two
+          times above are cleared. What has been done to this race stays recorded, and
+          wiping it is recorded too.
+        </p>
 
-      <form method="post" action={action}>
-        <div className="field">
-          <label className="field-label" htmlFor="confirmation">
-            Type <strong>{event.slug}</strong> to confirm
-          </label>
-          <p className="field-hint" id="confirmation-hint">
-            Exactly as it appears above, in lower case.
-          </p>
-          <input
-            className="field-input"
-            id="confirmation"
-            name="confirmation"
-            type="text"
-            required
-            /* ⚠️ Three attributes rather than taste. A phone keyboard capitalises the first
+        <form method="post" action={action}>
+          <div className="field">
+            <label className="field-label" htmlFor="confirmation">
+              Type <strong>{event.slug}</strong> to confirm
+            </label>
+            <p className="field-hint" id="confirmation-hint">
+              Exactly as it appears above, in lower case.
+            </p>
+            <input
+              className="field-input"
+              id="confirmation"
+              name="confirmation"
+              type="text"
+              required
+              /* ⚠️ Three attributes rather than taste. A phone keyboard capitalises the first
                letter of a text field and offers to correct an unfamiliar word, and the
                function compares the phrase exactly — so without these the control would
                refuse a volunteer who typed precisely what the page asked for. */
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            autoComplete="off"
-            aria-describedby="confirmation-hint"
-          />
-        </div>
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              autoComplete="off"
+              aria-describedby="confirmation-hint"
+            />
+          </div>
 
-        <button type="submit" className="button button-wide">
-          Wipe this race
-        </button>
-      </form>
+          <button type="submit" className="button button-wide">
+            Wipe this race
+          </button>
+        </form>
 
-      <p>
-        <Link href={`/events/${slug}`}>Back to this race</Link>
-      </p>
-    </>
+        <p>
+          <Link href={`/events/${slug}`}>Back to this race</Link>
+        </p>
+      </>
+    </RaceFrame>
   );
 }

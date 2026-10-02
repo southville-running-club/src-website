@@ -24,6 +24,7 @@ import {
   lifecycleStateFor,
   resultsOutcomeFor,
 } from '../../../../lib/results-outcomes';
+import { ClubFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/results/` — what somebody reads **before** they publish.
@@ -257,18 +258,25 @@ export default async function ResultsPage({
     // sentence matters: nothing has been published, and somebody who could not tell the two
     // apart might press again.
     return (
-      <>
-        <h1>Results</h1>
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this race could not be read.
-          Nothing has been changed, and nothing has been published. Try again in a moment.
-        </p>
-      </>
+      <RaceFrame slug={slug} name={null} current="results" page="Results">
+        <>
+          <h1>Results</h1>
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this race could not be
+            read. Nothing has been changed, and nothing has been published. Try again in a
+            moment.
+          </p>
+        </>
+      </RaceFrame>
     );
   }
 
   if (read.state === 'none') {
-    return <NotFoundBody />;
+    return (
+      <ClubFrame>
+        <NotFoundBody />
+      </ClubFrame>
+    );
   }
 
   const payload = read.data;
@@ -284,131 +292,135 @@ export default async function ResultsPage({
   const open = payload.open_anomalies;
 
   return (
-    <>
-      <h1>Results</h1>
+    <RaceFrame slug={slug} name={payload.event.name} current="results" page="Results">
+      <>
+        <h1>Results</h1>
 
-      {outcome === null ? null : (
-        <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
-      )}
+        {outcome === null ? null : (
+          <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
+        )}
 
-      <dl>
-        <dt>State</dt>
-        <dd>{words.label}</dd>
-        <dt>Finished</dt>
-        <dd>
-          {payload.event.finished_at === null
-            ? 'Not finished'
-            : formatLondon(payload.event.finished_at)}
-        </dd>
-        <dt>Published</dt>
-        <dd>
-          {payload.event.results_published_at === null
-            ? 'Not published'
-            : formatLondon(payload.event.results_published_at)}
-        </dd>
-        <dt>Open captures</dt>
-        <dd>{open}</dd>
-      </dl>
+        <dl>
+          <dt>State</dt>
+          <dd>{words.label}</dd>
+          <dt>Finished</dt>
+          <dd>
+            {payload.event.finished_at === null
+              ? 'Not finished'
+              : formatLondon(payload.event.finished_at)}
+          </dd>
+          <dt>Published</dt>
+          <dd>
+            {payload.event.results_published_at === null
+              ? 'Not published'
+              : formatLondon(payload.event.results_published_at)}
+          </dd>
+          <dt>Open captures</dt>
+          <dd>{open}</dd>
+        </dl>
 
-      <p>{words.detail}</p>
+        <p>{words.detail}</p>
 
-      <PreviewTable payload={payload} />
+        <PreviewTable payload={payload} />
 
-      <h2>Files</h2>
+        <h2>Files</h2>
 
-      {/* ⚠️ **A POST rather than a link**, like every other write-shaped thing here: a plain
+        {/* ⚠️ **A POST rather than a link**, like every other write-shaped thing here: a plain
           `<form method="post">` answered by a route handler is HTML that cannot fail with
           scripting off, which is the property the whole `no-javascript` project exists to keep.
           Downloading is not a write, and the two presses are two buttons in one form rather
           than two forms, because they ask for the same rows in two shapes. */}
-      <form method="post" action={exportAction}>
-        <p>
-          <button type="submit" name="format" value="csv" className="button">
-            Results as CSV
-          </button>{' '}
-          <button
-            type="submit"
-            name="format"
-            value="xlsx"
-            className="button button-quiet"
-          >
-            Results as a spreadsheet
-          </button>
-        </p>
-      </form>
-
-      <p>
-        A spreadsheet keeps a bib of <code>0311</code> as <code>0311</code>; a CSV opened
-        in Excel becomes <code>311</code>. Use the spreadsheet if the numbers matter, and
-        the CSV if something else is going to read the file.
-      </p>
-
-      <h2>
-        {state === 'published' ? 'Take these results down' : 'Publish these results'}
-      </h2>
-
-      {state === 'published' ? (
-        <>
-          <p className="notice notice-ok">
-            These results are public. A correction is{' '}
-            <strong>unpublish, fix, publish</strong> — the results page goes back to not
-            found in between, rather than serving a table somebody is editing.
-          </p>
-
-          <form method="post" action={action}>
-            <input type="hidden" name="intent" value="unpublish" />
-            <button type="submit" className="button button-quiet">
-              Unpublish these results
-            </button>
-          </form>
-        </>
-      ) : (
-        <>
-          {payload.event.finished_at === null ? (
-            <p className="notice notice-bad">
-              This race has not been marked finished, so its results cannot be published
-              yet. Finishing and publishing are two separate decisions.{' '}
-              <Link href={`/events/${slug}/console#finish`}>Finish this race</Link> first.
-            </p>
-          ) : null}
-
-          {open > 0 ? (
-            <p className="notice notice-bad">
-              {open === 1
-                ? 'There is 1 capture still to be resolved'
-                : `There are ${open} captures still to be resolved`}
-              , so these results cannot be published.{' '}
-              <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link> first.
-            </p>
-          ) : null}
-
-          <form method="post" action={action}>
-            <input type="hidden" name="intent" value="publish" />
-            <button type="submit" className="button button-wide">
-              Publish these results
-            </button>
-          </form>
-
-          {/* The sentence that stops somebody pressing this to see what it does. */}
+        <form method="post" action={exportAction}>
           <p>
-            Publishing puts this table on the <strong>open internet</strong>, readable by
-            anybody signed in or not. It can be undone here, and a correction is
-            unpublish, fix, publish.
+            <button type="submit" name="format" value="csv" className="button">
+              Results as CSV
+            </button>{' '}
+            <button
+              type="submit"
+              name="format"
+              value="xlsx"
+              className="button button-quiet"
+            >
+              Results as a spreadsheet
+            </button>
           </p>
-        </>
-      )}
+        </form>
 
-      <h2 id="prizes">Prize giving</h2>
+        <p>
+          A spreadsheet keeps a bib of <code>0311</code> as <code>0311</code>; a CSV
+          opened in Excel becomes <code>311</code>. Use the spreadsheet if the numbers
+          matter, and the CSV if something else is going to read the file.
+        </p>
 
-      <PrizesSection slug={slug} payload={payload} choices={prizeChoices} />
+        <h2>
+          {state === 'published' ? 'Take these results down' : 'Publish these results'}
+        </h2>
 
-      <p>
-        {/* ⚠️ "Prize giving" was a link to its own page and is the section above now — #308.
+        {state === 'published' ? (
+          <>
+            <p className="notice notice-ok">
+              These results are public. A correction is{' '}
+              <strong>unpublish, fix, publish</strong> — the results page goes back to not
+              found in between, rather than serving a table somebody is editing.
+            </p>
+
+            <form method="post" action={action}>
+              <input type="hidden" name="intent" value="unpublish" />
+              <button type="submit" className="button button-quiet">
+                Unpublish these results
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            {payload.event.finished_at === null ? (
+              <p className="notice notice-bad">
+                This race has not been marked finished, so its results cannot be published
+                yet. Finishing and publishing are two separate decisions.{' '}
+                <Link href={`/events/${slug}/console#finish`}>Finish this race</Link>{' '}
+                first.
+              </p>
+            ) : null}
+
+            {open > 0 ? (
+              <p className="notice notice-bad">
+                {open === 1
+                  ? 'There is 1 capture still to be resolved'
+                  : `There are ${open} captures still to be resolved`}
+                , so these results cannot be published.{' '}
+                <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link>{' '}
+                first.
+              </p>
+            ) : null}
+
+            <form method="post" action={action}>
+              <input type="hidden" name="intent" value="publish" />
+              <button type="submit" className="button button-wide">
+                Publish these results
+              </button>
+            </form>
+
+            {/* The sentence that stops somebody pressing this to see what it does. */}
+            <p>
+              Publishing puts this table on the <strong>open internet</strong>, readable
+              by anybody signed in or not. It can be undone here, and a correction is
+              unpublish, fix, publish.
+            </p>
+          </>
+        )}
+
+        <h2 id="prizes">Prize giving</h2>
+
+        <PrizesSection slug={slug} payload={payload} choices={prizeChoices} />
+
+        <p>
+          {/* ⚠️ "Prize giving" was a link to its own page and is the section above now — #308.
             "Open captures" moved with the triage list onto the console. */}
-        <Link href={`/events/${slug}/console#anomalies`}>Open captures</Link>
-        {' · '}
-        <Link href={`/events/${slug}`}>Back to this race</Link>
-      </p>
-    </>
+          <Link href={`/events/${slug}/console#anomalies`}>Open captures</Link>
+          {' · '}
+          <Link href={`/events/${slug}`}>Back to this race</Link>
+        </p>
+      </>
+    </RaceFrame>
   );
 }

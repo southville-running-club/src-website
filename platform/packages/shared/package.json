@@ -18,6 +18,7 @@
     "./brand": "./src/brand.ts",
     "./club-nav": "./src/club-nav.ts",
     "./club-content": "./src/club-content.ts",
+    "./content/club.json": "./content/club.json",
     "./countries": "./src/countries.ts",
     "./social": "./src/social.ts",
     "./contrast": "./src/contrast.ts",

@@ -508,10 +508,11 @@ club's own database.
 - **PR 1 — `/account/*` and `/admin/*`**, under a written freeze exception for their chrome
   alone. It has to **merge before the freeze starts (about 25 October)**, or wait until after
   the race like everything else.
-- **PR 2 — `apps/timing`**: the club header, a "Race timing" section bar, breadcrumbs, and a
-  slim focus header on the race-day operator screens. It may be built on a branch now and is
-  **merged after 1 November**, outside any race-week freeze, because the timing app runs the
-  race. Its pre-flight found the reported `/timing/events/` "Not found" is not a trailing-slash
+- **PR 2 — `apps/timing`**: the club header, a "Race timing" section bar, a bar per race,
+  breadcrumbs, and a slim focus header on the race console and the marshal's capture screen —
+  [ADR-053](../architecture/decisions/adr-053-the-timing-app-wears-the-club-header.md). **Built
+  on the `club-header-timing` branch, stacked on PR 1, and merged after 1 November**, outside
+  any race-week freeze, because the timing app runs the race. Its pre-flight found the reported `/timing/events/` "Not found" is not a trailing-slash
   defect — the slash form answers 308 to the bare one — but the ordinary refusal anybody without
   `timing.event.manage` gets; see `CLAUDE.md`.
 

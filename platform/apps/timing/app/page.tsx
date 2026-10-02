@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { canOpen } from '../lib/access';
 import { readPermissions, readTiming } from '../lib/reads';
+import { TimingFrame } from './chrome/frames';
 
 /**
  * `/timing`, for the people allowed to see it — **the list of where each of them may go.**
@@ -82,70 +83,72 @@ export default async function Page() {
     mayCapture && (!mayManage || rostered.length > 0 || races.state === 'unavailable');
 
   return (
-    <>
-      <h1>Race timing</h1>
+    <TimingFrame current={'/'}>
+      <>
+        <h1>Race timing</h1>
 
-      {permissions.length === 0 ? (
-        <p className="notice notice-bad">
-          The club&rsquo;s database could not be reached, so this page cannot show where
-          you can go. Nothing has been changed. Try again in a moment.
-        </p>
-      ) : (
-        <p className="lede">
-          You are signed in with access to the club&rsquo;s race-timing system.
-        </p>
-      )}
-
-      {mayManage ? (
-        <section aria-labelledby="timing-races">
-          <h2 id="timing-races">Running a race</h2>
-          <p>
-            <Link href="/events">Races</Link> &mdash; the entry list, the start, the
-            finish and the results for each race set up for timing.
+        {permissions.length === 0 ? (
+          <p className="notice notice-bad">
+            The club&rsquo;s database could not be reached, so this page cannot show where
+            you can go. Nothing has been changed. Try again in a moment.
           </p>
-        </section>
-      ) : null}
+        ) : (
+          <p className="lede">
+            You are signed in with access to the club&rsquo;s race-timing system.
+          </p>
+        )}
 
-      {showMarshalSection ? (
-        <section aria-labelledby="timing-marshalling">
-          <h2 id="timing-marshalling">Marshalling</h2>
-
-          {races.state === 'unavailable' ? (
-            <p className="notice notice-bad">
-              The races you are marshalling could not be read just now. Try again in a
-              moment, or open the link the race organiser sent you.
-            </p>
-          ) : rostered.length === 0 ? (
+        {mayManage ? (
+          <section aria-labelledby="timing-races">
+            <h2 id="timing-races">Running a race</h2>
             <p>
-              You are not on a race yet. The race organiser puts you on one; once they
-              have, it will be listed here.
+              <Link href="/events">Races</Link> &mdash; the entry list, the start, the
+              finish and the results for each race set up for timing.
             </p>
-          ) : (
-            <ul className="summary-list">
-              {rostered.map((race) => (
-                <li key={race.slug}>
-                  <h3>
-                    <Link href={`/marshal/${race.slug}`}>{race.name}</Link>
-                  </h3>
-                  <dl>
-                    <dt>Starts</dt>
-                    {/* `formatLondon` and nothing else — the race is the weekend after the
+          </section>
+        ) : null}
+
+        {showMarshalSection ? (
+          <section aria-labelledby="timing-marshalling">
+            <h2 id="timing-marshalling">Marshalling</h2>
+
+            {races.state === 'unavailable' ? (
+              <p className="notice notice-bad">
+                The races you are marshalling could not be read just now. Try again in a
+                moment, or open the link the race organiser sent you.
+              </p>
+            ) : rostered.length === 0 ? (
+              <p>
+                You are not on a race yet. The race organiser puts you on one; once they
+                have, it will be listed here.
+              </p>
+            ) : (
+              <ul className="summary-list">
+                {rostered.map((race) => (
+                  <li key={race.slug}>
+                    <h3>
+                      <Link href={`/marshal/${race.slug}`}>{race.name}</Link>
+                    </h3>
+                    <dl>
+                      <dt>Starts</dt>
+                      {/* `formatLondon` and nothing else — the race is the weekend after the
                         clocks go back. */}
-                    <dd>{formatLondon(race.start_at)}</dd>
+                      <dd>{formatLondon(race.start_at)}</dd>
 
-                    <dt>Where it has got to</dt>
-                    <dd>{stage(race)}</dd>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+                      <dt>Where it has got to</dt>
+                      <dd>{stage(race)}</dd>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
-      <p>
-        <a href="/">Southville Running Club</a>
-      </p>
-    </>
+        <p>
+          <a href="/">Southville Running Club</a>
+        </p>
+      </>
+    </TimingFrame>
   );
 }

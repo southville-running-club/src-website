@@ -25,8 +25,9 @@ event row decides which, per request. See [the entry form](#the-entry-form) and
 ```
 src/content/race.json          Every race fact, as data. See below
 src/content/privacy.json       The club notice's own values. Three keys, two of them null
-src/content/club.json          Where and when the club meets. Validated with Zod from
-                               @src/shared/club-content. See "the two surfaces" below
+@src/shared/content/club.json  Where and when the club meets. In packages/shared since
+                               the timing app's footer reads it too; validated with Zod
+                               from @src/shared/club-content. See "the two surfaces" below
 src/layouts/Base.astro         The document, the banner, and the optional `theme` prop.
                                Every page but the club's own — see ClubBase.astro
 src/layouts/ClubBase.astro     The club website's document. Loads club-chrome.css then
@@ -454,7 +455,7 @@ template.
 
 | File | Holds |
 | --- | --- |
-| `club.json` | Where and when the club meets, the map link, the legal name and the affiliation line |
+| `club.json` | Where and when the club meets, the map link, the legal name and the affiliation line. **In `packages/shared/content/`**, not here, because the timing app's footer reads it too |
 | `membership.json` | What a run and the subscription cost, the England Athletics registration year, and the whole of `/membership/`'s comparison table. See below |
 | `committee.json` | Who is on the committee, in three lists — officers, volunteers and the welfare officers — each person a name, a role and a photo. Rendered as the committee section of `/about/`. See below |
 
