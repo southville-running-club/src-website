@@ -39,6 +39,11 @@ const SHOTS: readonly (readonly [string, string, string | null])[] = [
   ['admin-timing-home', '/timing', TIMING_ADMIN_EMAIL],
   ['admin-race-overview', RACE, TIMING_ADMIN_EMAIL],
   ['admin-race-marshals', `${RACE}/marshals`, TIMING_ADMIN_EMAIL],
+  // Slice E: the work pages.
+  ['admin-race-registration', `${RACE}/registration`, TIMING_ADMIN_EMAIL],
+  ['admin-race-danger-zone', `${RACE}/danger-zone`, TIMING_ADMIN_EMAIL],
+  ['admin-race-results', `${RACE}/results`, TIMING_ADMIN_EMAIL],
+  ['admin-race-leaderboard', `${RACE}/leaderboard`, TIMING_ADMIN_EMAIL],
   ['marshal-timing-home', '/timing', TIMING_MARSHAL_EMAIL],
   ['signed-out-not-found', '/timing', null],
   // Slice D: the two race-day screens, which wear the focus header rather than the shell.

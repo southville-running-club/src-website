@@ -131,15 +131,18 @@ export default async function MarshalsPage({
   const action = `/timing/events/${encodeURIComponent(slug)}/marshals/update`;
 
   return (
-    <RaceFrame slug={slug} name={event.name} current="marshals" page="Marshals">
-      <>
-        <h1>Marshals</h1>
-
-        <p className="lede">Who may record a crossing for {event.name}.</p>
+    <RaceFrame slug={slug} name={event.name} current="marshals" page="Marshals" wide>
+      <div className="club-wrap-narrow">
+        <div className="club-phead">
+          <h1>Marshals</h1>
+          <p className="club-lede">Who may record a crossing for {event.name}.</p>
+        </div>
 
         {outcome === null ? null : (
           <p
-            className={outcome.tone === 'ok' ? 'notice notice-ok' : 'notice notice-bad'}
+            className={
+              outcome.tone === 'ok' ? 'club-notice' : 'club-notice timing-notice-bad'
+            }
             // ⚠️ **`role="status"` announces nothing here today, and that is worth saying rather
             // than letting somebody believe it does.** A live region only announces a change,
             // and every path to this message is a **full page load** after the route handler's
@@ -163,15 +166,17 @@ export default async function MarshalsPage({
             themselves like anybody else.
           </p>
         ) : (
-          <ul className="summary-list">
+          <ul className="timing-stack">
             {marshals.map((person) => (
-              <li key={person.person_id}>
+              <li key={person.person_id} className="club-card timing-person">
                 <h3>{nameOf(person)}</h3>
-                <dl>
-                  <dt>Added</dt>
-                  {/* `formatLondon` and nothing else. A bare `toLocale*String` takes the
+                <dl className="club-meta">
+                  <div>
+                    <dt>Added</dt>
+                    {/* `formatLondon` and nothing else. A bare `toLocale*String` takes the
                     ambient timezone, and this race is the weekend after the clocks go back. */}
-                  <dd>{formatLondon(person.assigned_at)}</dd>
+                    <dd>{formatLondon(person.assigned_at)}</dd>
+                  </div>
                 </dl>
                 <form method="post" action={action}>
                   <input type="hidden" name="intent" value="remove" />
@@ -186,7 +191,7 @@ export default async function MarshalsPage({
                   visible word stays "Remove", which is what a volunteer is looking for.
                 */}
                   <button
-                    className="button"
+                    className="timing-danger-link"
                     type="submit"
                     aria-label={`Remove ${nameOf(person)} from this roster`}
                   >
@@ -201,7 +206,7 @@ export default async function MarshalsPage({
         <h2>Add somebody</h2>
 
         {assignable.state === 'unavailable' ? (
-          <p className="notice notice-bad">
+          <p className="club-notice timing-notice-bad">
             The club&rsquo;s database could not be reached, so the list of people who
             could be added is not available. The roster above was read before that
             happened and is correct. Try again in a moment.
@@ -213,19 +218,19 @@ export default async function MarshalsPage({
               : 'Everybody who can record a crossing is already on this roster.'}
           </p>
         ) : (
-          <form method="post" action={action}>
+          <form method="post" action={action} className="club-card club-form">
             <input type="hidden" name="intent" value="assign" />
 
-            <div className="field">
-              <label className="field-label" htmlFor="person_id">
+            <div className="club-field">
+              <label className="club-label" htmlFor="person_id">
                 Who to add
               </label>
-              <p className="field-hint" id="person_id-hint">
+              <p className="club-hint" id="person_id-hint">
                 Only people who already hold the timing-marshal role are listed. Adding
                 somebody here lets them record a crossing for this race and no other.
               </p>
               <select
-                className="field-input"
+                className="club-select"
                 id="person_id"
                 name="person_id"
                 aria-describedby="person_id-hint"
@@ -243,16 +248,18 @@ export default async function MarshalsPage({
               </select>
             </div>
 
-            <button className="button" type="submit">
-              Add to this roster
-            </button>
+            <p className="club-form-actions">
+              <button className="club-btn club-btn-primary" type="submit">
+                Add to this roster
+              </button>
+            </p>
           </form>
         )}
 
         <p>
           <Link href={`/events/${slug}`}>Back to {event.name}</Link>
         </p>
-      </>
+      </div>
     </RaceFrame>
   );
 }
