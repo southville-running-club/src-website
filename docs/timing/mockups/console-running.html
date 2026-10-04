@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#16301f" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#eaf3e7" media="(prefers-color-scheme: dark)">
+<title>Race console — Nightingale Nightmare 2026 — Southville Running Club</title>
+<link rel="stylesheet" href="../../../platform/packages/shared/styles/club-chrome.css">
+<link rel="stylesheet" href="../../../platform/packages/shared/styles/club.css">
+<link rel="stylesheet" href="timing-mock.css">
+
+<script type="module">
+  // Slice B: the current tab scrolls into view on a phone. With scripting off the bar simply
+  // starts at its first tab, as it does today.
+  document.querySelector('.timing-area-bar [aria-current="page"]')
+    ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+</script>
+</head>
+<body class="timing-control-page">
+<a class="club-skip" href="#main">Skip to content</a>
+<header class="club-focus">
+  <div class="club-wrap club-focus-inner">
+    <p class="club-focus-title">
+      <span class="club-focus-club timing-wide">Southville RC<span aria-hidden="true"> · </span></span><strong>Race console</strong>
+      <span class="club-focus-race"><span class="timing-wide">Nightingale Nightmare 2026</span><span class="timing-narrow">NN 2026</span></span>
+    </p>
+    
+    <a class="club-focus-leave" href="/timing/events/nn-2026">Leave the console</a>
+  </div>
+</header>
+<main id="main" class="timing-control-main">
+<section class="timing-go" aria-labelledby="state">
+<p class="timing-go-race">Nightingale Nightmare 2026 · Started <span class="club-num">11:00:04 GMT</span></p>
+<p class="timing-clock club-num" aria-label="Elapsed 42 minutes 31 seconds">00:42:31</p>
+<h1 id="state">Race in progress</h1>
+<form method="post" action="/timing/events/nn-2026/finish/update"><button class="club-btn timing-btn-dark" type="submit">Finish this race</button></form>
+<p class="timing-go-caption">Finishing is a <strong>label, not a cut-off</strong>. Crossings can still be recorded and corrected afterwards, which is what happens every time — the last runner crosses after somebody has called the race. It can be undone here too.</p>
+<hr class="timing-go-rule">
+<p class="timing-go-links"><a href="#anomalies">2 anomalies to resolve</a><a href="#crossings">Timing log</a></p>
+</section>
+<nav class="timing-jump" aria-label="Race console sections">
+  <div class="club-wrap"><ul>
+    <li><a href="#state" aria-current="true">Start and finish</a></li>
+    <li><a href="#status">Race status</a></li>
+    <li><a href="#anomalies">Anomalies <span class="club-badge">2</span></a></li>
+    <li><a href="#crossings">Timing log</a></li>
+  </ul></div>
+</nav>
+<div class="club-wrap">
+  <section id="status" aria-labelledby="status-h">
+    <h2 id="status-h" class="timing-section-title">Race status</h2>
+    <form class="club-form club-card" role="search">
+      <div class="club-field">
+        <label class="club-label" for="status_q">Search by bib or name</label>
+        <input class="club-input" id="status_q" name="status_q" inputmode="search">
+      </div>
+      <p class="club-form-actions"><button class="club-btn club-btn-secondary" type="submit">Search</button></p>
+    </form>
+  </section>
+  <section id="anomalies" aria-labelledby="anomalies-h">
+    <h2 id="anomalies-h" class="timing-section-title">Anomalies</h2>
+    <div class="timing-status"><span class="timing-count club-num">2 open</span><span class="club-badge">Updated 11:42:40</span><a class="club-btn club-btn-secondary" href="?section=anomalies">Refresh</a></div>
+    <p class="club-small">A capture is here because a marshal’s screen flagged it, or because its bib matches nobody. An anomaly is a question, not an error.</p>
+  </section>
+  <section id="crossings" aria-labelledby="crossings-h">
+    <h2 id="crossings-h" class="timing-section-title">Timing log</h2>
+    <div class="timing-status"><span class="timing-count club-num">3 captures</span><span class="club-badge">Updated 11:42:40</span><a class="club-btn club-btn-secondary" href="?section=crossings">Refresh</a></div>
+    <form class="club-form" role="search">
+      <div class="club-field">
+        <label class="club-label" for="log_q">Search by bib or name</label>
+        <input class="club-input" id="log_q" name="log_q" inputmode="search">
+      </div>
+    </form>
+    <p class="club-small">Every recorded crossing, newest first. Times are Europe/London.</p>
+    <ul class="timing-stack"><li class="club-card">
+  <div class="timing-qcard-row">
+    <span class="timing-bib">214</span>
+    <div><p><strong>Alex Example</strong></p><p class="club-small">Women's Vet 40</p></div>
+    <span class="club-badge timing-state" data-state="flagged">Flagged</span>
+  </div>
+  <p class="club-small"><span class="club-num">11:42:31</span> · Sunday 1 November · recorded by Sam Marshal</p>
+  <p class="timing-qcard-actions"><a class="club-btn club-btn-secondary" href="#">Edit</a><button class="timing-danger-link" type="button">Discard</button></p>
+</li>
+<li class="club-card">
+  <div class="timing-qcard-row">
+    <span class="timing-bib">147</span>
+    <div><p><strong>Pat Demo</strong></p><p class="club-small">Men's Senior</p></div>
+    <span class="club-badge timing-state" data-state="ok">Counted</span>
+  </div>
+  <p class="club-small"><span class="club-num">11:42:18</span> · Sunday 1 November · recorded by Sam Marshal</p>
+  <p class="timing-qcard-actions"><a class="club-btn club-btn-secondary" href="#">Edit</a><button class="timing-danger-link" type="button">Discard</button></p>
+</li>
+<li class="club-card">
+  <div class="timing-qcard-row">
+    <span class="timing-bib">999</span>
+    <div><p><strong>No runner with this bib</strong></p><p class="club-small">Counts towards nobody until it is corrected</p></div>
+    <span class="club-badge timing-state" data-state="discarded">Discarded</span>
+  </div>
+  <p class="club-small"><span class="club-num">11:40:02</span> · Sunday 1 November · recorded by Chris Mock</p>
+  <p class="timing-qcard-actions"><a class="club-btn club-btn-secondary" href="#">Restore</a></p>
+</li></ul>
+  </section>
+</div>
+</main>
+</body>
+</html>

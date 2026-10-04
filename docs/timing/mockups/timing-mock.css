@@ -1,0 +1,861 @@
+/*
+ * Phase 2 mockups only: the timing layer, on top of the real club-chrome.css and club.css.
+ *
+ * Every colour here is a --club-* token, so light and dark come from the club's own :root.
+ * This is not the build. In Slice A these rules move into apps/timing, alongside a scoped copy
+ * of the club.css content components (HALT 1, D10), and get a contrast test of their own.
+ */
+
+:root {
+  --club-on-danger: #ffffff;
+  --timing-focus-bar-h: 3.25rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --club-on-danger: #0f1f15;
+  }
+
+  /* D5: the race console and the capture screen are always light, used outdoors in daylight.
+     The light values of every token club-chrome.css redefines for dark, restated for those two
+     screens only. `:has()` because the frame is chosen per page and the root layout owns <html>;
+     the build may prefer a class on <html> if the frame can set one. */
+  :root:has(body.timing-tool-page),
+  :root:has(body.timing-control-page) {
+    color-scheme: light;
+    --club-background: #f1f7ef;
+    --club-surface: #ffffff;
+    --club-surface-alt: #e6f1e3;
+    --club-text: #16301f;
+    --club-muted: #4a5c4e;
+    --club-link: #236a33;
+    --club-role: #17703b;
+    --club-logo: #1a7d3f;
+    --club-photo: #c8dfc1;
+    --club-rule: #d3e3cf;
+    --club-rule-strong: #76887a;
+    --club-danger: #a3231b;
+    --club-focus: #16301f;
+    --club-on-danger: #ffffff;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The signed-in app shell (ADR-054). Self-contained, so it can travel to /account and /admin.
+ * ------------------------------------------------------------------------------------- */
+.app-header {
+  position: relative;
+  z-index: 10;
+  background: var(--club-background);
+  color: var(--club-text);
+  border-bottom: 1px solid var(--club-rule);
+  font-family: var(--club-font-body);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 64px;
+}
+
+.app-header .club-mark {
+  margin-right: 0;
+}
+
+.app-area-name {
+  margin: 0 auto 0 0.25rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--club-rule);
+  font-family: var(--club-font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.app-areas {
+  display: none;
+}
+
+.app-areas ul {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-areas a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 0.85rem;
+  border-radius: var(--club-radius-button);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-areas a:hover {
+  color: var(--club-link);
+}
+
+.app-areas a[aria-current='page'] {
+  box-shadow: inset 0 -3px 0 var(--club-brand);
+}
+
+.app-user {
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.app-user-name {
+  margin: 0;
+  max-width: 16rem;
+  overflow: hidden;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-menu-user {
+  margin: 0.75rem 0 0.5rem;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+}
+
+/* One area: its name and nothing to switch to. */
+.app-header[data-areas='1'] .club-menu {
+  display: none;
+}
+
+.app-footer {
+  padding: 1.25rem 0 2rem;
+  border-top: 1px solid var(--club-rule);
+  color: var(--club-muted);
+  font-size: 0.875rem;
+}
+
+.app-footer ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-footer a {
+  color: var(--club-link);
+}
+
+/* club.css pads every <main> for prose pages; the page head carries its own space here. */
+.app-main {
+  padding-block: 0 2.5rem;
+}
+
+.timing-control-main {
+  padding: 0;
+}
+
+.timing-tool-page main {
+  padding-block: 0.9rem 0;
+}
+
+ul.club-g2 > li,
+ul.club-g3 > li {
+  margin: 0;
+}
+
+/* Six facts, not the home page's four: an even grid rather than the home page's spans. */
+.timing-facts ul {
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+
+.timing-facts li:nth-child(3) {
+  grid-column: auto;
+}
+
+/* The area bar scrolls on a phone: an edge fade says there is more. */
+.timing-area-bar .club-section-inner {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+@media (min-width: 62em) {
+  .app-area-name {
+    display: none;
+  }
+
+  .app-areas {
+    display: block;
+    margin-right: auto;
+  }
+
+  .app-user {
+    display: flex;
+  }
+
+  .timing-area-bar .club-section-inner {
+    mask-image: none;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Page furniture: the status row, the jump bar, section headings
+ * ------------------------------------------------------------------------------------- */
+.timing-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 1.5rem;
+}
+
+.timing-status .club-badge {
+  margin: 0;
+}
+
+.timing-status .club-btn {
+  margin-left: auto;
+}
+
+.timing-count {
+  font-weight: 800;
+}
+
+.timing-stack {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-stack > li {
+  margin: 0;
+}
+
+.timing-cards-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.timing-cards-head h3 {
+  margin: 0 0 0.25rem;
+}
+
+.timing-link-card {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 100%;
+}
+
+.timing-link-card p {
+  margin: 0;
+}
+
+.timing-link-card .club-badge {
+  justify-self: start;
+  margin: 0.25rem 0 0;
+}
+
+.timing-section-title {
+  margin: 2.5rem 0 1rem;
+}
+
+/* The console's sections, one tap away inside the one page (D3 deferred). */
+.timing-jump {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.6rem 0;
+  background: var(--club-background);
+  border-bottom: 1px solid var(--club-rule);
+}
+
+.timing-jump ul {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.timing-jump a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.timing-jump a[aria-current='true'] {
+  border-color: var(--club-text);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Buttons the club does not have yet
+ * ------------------------------------------------------------------------------------- */
+.timing-btn-dark {
+  min-height: 56px;
+  background: var(--club-text);
+  color: var(--club-background);
+  border-color: var(--club-text);
+}
+
+.timing-btn-danger {
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+  border-color: var(--club-danger);
+}
+
+.club-btn:disabled,
+.club-btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.timing-danger-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--club-danger);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.timing-btn-full {
+  width: 100%;
+  max-width: 28rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * T2 — the race control: the whole screen goes green
+ * ------------------------------------------------------------------------------------- */
+.timing-go {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  min-height: calc(100dvh - var(--timing-focus-bar-h));
+  padding: 2rem var(--club-gutter);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  text-align: center;
+  animation: timing-fade 0.25s ease;
+}
+
+.timing-go h1 {
+  margin: 0;
+  max-width: 18ch;
+  color: inherit;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+}
+
+.timing-go p {
+  max-width: 34rem;
+  margin: 0;
+}
+
+.timing-go-race {
+  font-weight: 700;
+}
+
+.timing-go-caption {
+  font-size: 0.95rem;
+}
+
+.timing-go form {
+  display: contents;
+}
+
+.timing-go .timing-btn-dark {
+  width: min(28rem, 100%);
+  font-size: 1.15rem;
+}
+
+.timing-go-rule {
+  width: min(28rem, 100%);
+  height: 0;
+  margin: 0.25rem 0;
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.35;
+}
+
+.timing-go a {
+  color: inherit;
+  font-weight: 700;
+}
+
+.timing-go :focus-visible {
+  outline: 3px solid var(--club-text);
+  outline-offset: 3px;
+}
+
+.timing-go-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+}
+
+@keyframes timing-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The big clock — measured: Bricolage's subset carries tabular figures (see the HALT 2 report)
+ * ------------------------------------------------------------------------------------- */
+.timing-clock {
+  margin: 0;
+  font: 800 clamp(3.25rem, 14vw, 6rem) / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * T5 — Record crossings
+ * ------------------------------------------------------------------------------------- */
+/* The screen is exactly the viewport: the bar, then the tool, and only the queue scrolls. */
+.timing-tool-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.timing-tool {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+  padding-block: 0.9rem 0;
+}
+
+.timing-capture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: clamp(11rem, 34vh, 18rem);
+  border: 0;
+  border-radius: var(--club-radius-card);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  font: 800 clamp(2.25rem, 8vw, 3rem) / 1.1 var(--club-font-display);
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.timing-capture:active {
+  transform: scale(0.97);
+}
+
+.timing-capture:focus-visible {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 3px;
+}
+
+.timing-tool-hints p {
+  margin: 0 0 0.25rem;
+  max-width: none;
+}
+
+.timing-queue-wrap {
+  overflow-y: auto;
+  padding-bottom: 1.25rem;
+}
+
+.timing-queue-wrap h2 {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 1.3rem;
+}
+
+.timing-queue {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-qcard {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.timing-qcard[data-state='open'] {
+  border: 2px solid var(--club-text);
+}
+
+.timing-qcard[data-state='failed'] {
+  border: 2px solid var(--club-danger);
+}
+
+.timing-qcard-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.timing-qcard-row .timing-state {
+  margin: 0 0 0 auto;
+}
+
+.timing-qcard p {
+  margin: 0;
+  max-width: none;
+}
+
+.timing-time {
+  font-weight: 800;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-time small {
+  margin-right: 0.35rem;
+  color: var(--club-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.timing-fail {
+  color: var(--club-danger);
+  font-weight: 700;
+}
+
+.timing-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.timing-key {
+  min-height: 56px;
+  border: 2px solid var(--club-rule-strong);
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
+  font: 800 1.5rem / 1 var(--club-font-body);
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.1s ease;
+}
+
+.timing-key:active {
+  transform: scale(0.97);
+}
+
+.timing-key-wide {
+  grid-column: span 2;
+  font-size: 1rem;
+}
+
+.timing-qcard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.timing-warn {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+/* -------------------------------------------------------------------------------------
+ * Small parts
+ * ------------------------------------------------------------------------------------- */
+.timing-bib {
+  display: inline-grid;
+  place-items: center;
+  min-width: 3.5rem;
+  min-height: 3rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--club-rule);
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
+  font: 800 1.35rem / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-bib-empty {
+  color: var(--club-muted);
+  font: 700 0.95rem / 1.2 var(--club-font-body);
+}
+
+.timing-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border-radius: var(--club-radius-button);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.timing-conn::before {
+  content: '';
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.timing-conn[data-online='true'] {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-conn[data-online='false'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-state {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.timing-state[data-state='flagged'],
+.timing-state[data-state='queued'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-state[data-state='ok'],
+.timing-state[data-state='resolved'] {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-state[data-state='failed'],
+.timing-state[data-state='discarded'] {
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+}
+
+/* The focus bar, extended for the capture screen: a count and the connection. */
+.timing-focus-extra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* On a phone the capture screen's bar takes two rows: where you are and the way out, then
+   what is waiting and whether there is signal. The tool below is a flex child, so it simply
+   gets what is left. */
+@media (max-width: 47.99em) {
+  .timing-tool-page .club-focus-inner {
+    flex-wrap: wrap;
+    padding-block: 0.25rem 0.5rem;
+  }
+
+  .timing-tool-page .timing-focus-extra {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+
+/* One row at every width, so the race control below can fill exactly what is left. On a
+   phone the club's name drops and the race is shortened; its full name is in the page title. */
+.club-focus-inner {
+  flex-wrap: nowrap;
+  min-height: var(--timing-focus-bar-h);
+}
+
+.club-focus .club-focus-race {
+  flex-basis: auto;
+}
+
+.club-focus-title {
+  min-width: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.club-focus-race::before {
+  content: '·';
+  margin: 0 0.35rem 0 0.1rem;
+}
+
+.timing-narrow {
+  display: none;
+}
+
+@media (max-width: 47.99em) {
+  .timing-wide {
+    display: none;
+  }
+
+  .timing-narrow {
+    display: inline;
+  }
+}
+
+/* The danger card: the club's error-summary treatment. */
+.timing-danger-card {
+  padding: 1.25rem 1.4rem;
+  border: 3px solid var(--club-danger);
+  border-radius: 14px;
+  background: var(--club-surface);
+}
+
+.timing-danger-card h2 {
+  color: var(--club-danger);
+  font-size: 1.3rem;
+}
+
+.timing-danger-card .club-meta > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+}
+
+.timing-danger-card .club-meta dd {
+  text-align: right;
+}
+
+/* A section jumped to lands below the sticky section bar, not under it. */
+.timing-control-main section[id]:not(.timing-go) {
+  scroll-margin-top: 4.5rem;
+}
+
+/* Leaderboard: cards below 62em, a table from 62em. */
+.timing-board-table {
+  display: none;
+}
+
+.timing-podium-time {
+  margin: 0.25rem 0 0;
+  font: 800 2rem / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-podium-name {
+  margin: 0;
+  font: 800 1.2rem / 1.2 var(--club-font-display);
+}
+
+.timing-row-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.timing-row-card p {
+  margin: 0;
+}
+
+.timing-place {
+  min-width: 1.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-sort a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.timing-sort a[aria-current='true'] {
+  background: var(--club-text);
+  border-color: var(--club-text);
+  color: var(--club-background);
+}
+
+.timing-num-right,
+.club-table .timing-num-right {
+  text-align: right;
+}
+
+@media (min-width: 62em) {
+  .timing-board-table {
+    display: block;
+  }
+
+  .timing-board-cards {
+    display: none;
+  }
+
+  .timing-tool {
+    max-width: 44rem;
+  }
+
+  .timing-capture {
+    min-height: 11.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timing-go {
+    animation: none;
+  }
+
+  .timing-capture,
+  .timing-key {
+    transition: none;
+  }
+
+  .timing-capture:active,
+  .timing-key:active {
+    transform: none;
+  }
+}
