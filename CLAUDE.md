@@ -2368,6 +2368,14 @@ now is whether it holds up on a field of real phones, not whether it can be buil
 
 ### Sharp things already paid for here
 
+⚠️ **A `.screens.ts` file runs in no gate, so a page change can break one and nobody hears.**
+`playwright.config.screenshots.ts` is deliberately outside `./dev test` and CI, so a screenshot
+run can never fail a pull request — which also means nothing runs it. `timing-race-night.screens.ts`
+went to the race console's five old addresses and headings from the day ADR-045 merged them (14
+September 2026) until 4 October 2026, failing at its second step every time, while the runbook
+beside it said it worked. **Change a page that a `.screens.ts` file visits, and run that file**:
+`./dev e2e --config=playwright.config.screenshots.ts <the file>`.
+
 ⚠️ **The timing redesign's styles depend on their import order, and a reorder breaks them
 silently.** `apps/timing/app/styles/timing.css` restates `club.css`'s bare heading, paragraph,
 link and `main` rules for the club's components, under `:where(.timing-ui)`, which has **no

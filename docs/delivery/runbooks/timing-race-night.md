@@ -504,9 +504,14 @@ results page that ends at a CSV. Copying them would document controls that do no
 
 **Pictures at all, for now — and the script that makes them is committed and works.** It was
 run for the first time on 14 September 2026: seven tests green, **nineteen PNGs written**, from
-`01-every-race.png` to `19-published-to-the-public.png`, about 2.3MB in all. **They are not
-committed**, for the reason in the paragraph below rather than because anything went wrong, and
+`01-every-race.png` to `19-published-to-the-public.png`, about 2.3MB in all. ⚠️ **It broke on
+the same day** — ADR-045 folded five pages into the race console, and the script still went to
+their old addresses and headings — and, because no gate runs it, nobody noticed until 4 October
+2026, when it was fixed and ran seven green again. **They are not committed**, for the reason in
+the paragraph below rather than because anything went wrong, and
 `docs/delivery/runbooks/images/timing-race-night/` is where they land when anybody re-runs it.
+⚠️ **Five of them are in the repository anyway** (`01` to `05`, from #320 on 26 September 2026),
+against that rule; whether to delete them or commit the set is the club's call.
 
 ⚠️ **Run it through `./dev e2e` from the repository root, not `npx playwright test`** — a scoped
 Playwright run needs the three Supabase variables `./dev` exports, and without them the fixtures
