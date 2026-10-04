@@ -1,0 +1,364 @@
+/*
+ * The club website's content components, copied for the timing app.
+ *
+ * ## Why this is a copy, and why that is temporary
+ *
+ * These rules come verbatim from `packages/shared/styles/club.css`. The timing app cannot import
+ * that file: alongside these class-scoped components it carries bare `body`, `h1`–`h4`, `p`, `a`
+ * and `main` rules, and they would collide with `base.css`, which every timing page not yet
+ * restyled still depends on. Splitting `club.css` into a components-only file is the clean
+ * answer, the way #329 split out `club-chrome.css`, but that edits a file under
+ * `platform/packages/`, and a change there also redeploys `apps/main` while it is taking entry
+ * money. So, until after Nightingale Nightmare on 1 November 2026, the timing app carries a copy
+ * (HALT 1, decision D10 in `docs/timing/nn-timing-redesign-brief.md`).
+ *
+ * ⚠️ **Do not edit a rule here.** `tests/unit/club-content-drift.test.ts` fails unless every
+ * rule below has the same selector, the same @media context and the same declarations as its
+ * original in `club.css`. Change the original, then copy it across. The split is in
+ * `docs/delivery/phases.md` under "After the race"; that pull request deletes this file and its
+ * test.
+ *
+ * **Every selector here contains a class**, which is the property that makes it safe to load on
+ * every timing page: nothing below can paint an element that has not opted in. What these
+ * components took for granted from `club.css`'s bare-element rules (Bricolage headings, the
+ * paragraph measure, the link colour) is restated in `timing.css` under `.timing-ui`, the class a
+ * restyled frame puts around its page.
+ *
+ * Only the components the race-day slices need are here (ADR-054; Slices B and D). A component
+ * a later slice needs is copied across in that slice, under the same test.
+ */
+
+.club-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.club-lede {
+  font-size: 1.15rem;
+}
+
+.club-facts {
+  padding: 1.1rem 0;
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.club-facts ul {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-facts li {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.club-facts li:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.club-facts b {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.club-facts a {
+  color: currentcolor;
+  font-weight: 700;
+}
+
+.club-phead {
+  padding: 2.25rem 0 1.25rem;
+}
+
+.club-phead .club-lede {
+  margin-bottom: 0;
+}
+
+.club-small {
+  font-size: 0.875rem;
+  color: var(--club-muted);
+}
+
+.club-g2,
+.club-g3,
+.club-g4 {
+  display: grid;
+  gap: 1.25rem;
+}
+
+ul.club-g2,
+ul.club-g3,
+ul.club-g4,
+ol.club-g3 {
+  margin: 0 0 1.25rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-card {
+  padding: 1.25rem 1.4rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.club-card > :last-child {
+  margin-bottom: 0;
+}
+
+.club-link-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.club-link-card h3 {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.club-events {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.club-events li {
+  display: grid;
+  grid-template-columns: 4.25rem 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-events li:last-child {
+  border-bottom: 1px solid var(--club-rule);
+}
+
+.club-event-when {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  margin: 0;
+  min-height: 4.25rem;
+  padding: 0.4rem 0.3rem;
+  max-width: none;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+  font-family: var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.club-event-when b {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.club-event-when span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--club-muted);
+}
+
+.club-event-when-tbc {
+  font-family: var(--club-font-body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--club-muted);
+}
+
+.club-events h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.club-events h3 a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.club-events p {
+  margin: 0;
+  max-width: none;
+}
+
+.club-meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  max-width: none;
+}
+
+.club-meta > div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.5rem;
+}
+
+.club-meta dt {
+  font-weight: 700;
+  color: var(--club-muted);
+}
+
+.club-meta dd {
+  margin: 0;
+}
+
+.club-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.club-badge {
+  display: inline-block;
+  margin: 0 0.4rem 0.5rem 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.club-wrap-narrow {
+  max-width: 44rem;
+}
+
+.club-form {
+  margin-top: 2rem;
+}
+
+.club-field {
+  margin-bottom: 1.5rem;
+}
+
+.club-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+legend.club-label {
+  padding: 0;
+}
+
+.club-optional {
+  font-weight: 400;
+  color: var(--club-muted);
+}
+
+.club-hint {
+  margin: 0 0 0.5rem;
+  color: var(--club-muted);
+  font-size: 0.95rem;
+}
+
+.club-error {
+  margin: 0 0 0.5rem;
+  color: var(--club-danger);
+  font-weight: 700;
+}
+
+.club-input,
+.club-select {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--club-rule-strong);
+  border-radius: 10px;
+  background: var(--club-surface);
+  color: inherit;
+  font: inherit;
+}
+
+.club-input:focus-visible,
+.club-select:focus-visible {
+  border-color: var(--club-focus);
+}
+
+.club-input[aria-invalid='true'],
+.club-select[aria-invalid='true'] {
+  border-color: var(--club-danger);
+  border-width: 3px;
+}
+
+.club-notice {
+  padding: 1rem 1.25rem;
+  margin-bottom: 2.5rem;
+  border-radius: 14px;
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.club-notice a {
+  color: inherit;
+}
+
+.club-form-actions {
+  padding-top: 1rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+.club-form-actions .club-btn {
+  width: 100%;
+}
+
+.club-form-actions .club-small {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+}
+
+@media (min-width: 30em) {
+  .club-form-actions .club-btn {
+    width: auto;
+  }
+}
+
+@media (min-width: 44em) {
+  .club-g2,
+  .club-g3,
+  .club-g4 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 62em) {
+  .club-facts ul {
+    grid-template-columns: 1fr 1.2fr 1.6fr 0.8fr 1.4fr;
+  }
+  .club-facts li:nth-child(3) {
+    grid-column: auto;
+  }
+  .club-g3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .club-g4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .club-g2 {
+    gap: 3rem;
+  }
+  .club-phead {
+    padding: 3.5rem 0 1.5rem;
+  }
+}

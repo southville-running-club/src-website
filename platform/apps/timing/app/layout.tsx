@@ -8,6 +8,10 @@ import '@src/shared/styles/base.css';
 // pages' own bodies are drawn by `base.css` exactly as before, where `club.css` would restyle
 // every bare `h1`, `p` and `a` on them.
 import '@src/shared/styles/club-chrome.css';
+// The club website's content components, copied from `club.css` because that file's bare
+// element rules would repaint every page here — ADR-054. Every rule in it is class-scoped, so
+// loading it changes no page until a frame uses the classes.
+import './styles/club-content.css';
 
 export const metadata: Metadata = {
   // **A browser tab is consumer-facing too.** This said "Race timing — deployment skeleton",
