@@ -543,6 +543,21 @@ body:has(.timing-ui) {
   opacity: 0.5;
 }
 
+/* A guarded action and why it is blocked, side by side: the reason is the button's
+   description, so it sits where the eye already is (brief §6.2 #6). Muted on the page, 6.58:1. */
+.timing-guarded-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  max-width: none;
+}
+
+.timing-guard-reason {
+  color: var(--club-muted);
+  font-size: 0.95rem;
+}
+
 .timing-danger-link {
   padding: 0;
   border: 0;

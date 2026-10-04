@@ -293,6 +293,11 @@ export default async function ResultsPage({
   const action = `/timing/events/${encodeURIComponent(slug)}/results/update`;
   const exportAction = `/timing/events/${encodeURIComponent(slug)}/results/export`;
   const open = payload.open_anomalies;
+  // Which of the notices below say why publishing would be refused, by id.
+  const blockers = [
+    ...(payload.event.finished_at === null ? ['publish-not-finished'] : []),
+    ...(open > 0 ? ['publish-open-anomalies'] : []),
+  ];
 
   return (
     <RaceFrame slug={slug} name={payload.event.name} current="results" page="Results">
@@ -377,7 +382,7 @@ export default async function ResultsPage({
         ) : (
           <>
             {payload.event.finished_at === null ? (
-              <p className="notice notice-bad">
+              <p className="notice notice-bad" id="publish-not-finished">
                 This race has not been marked finished, so its results cannot be published
                 yet. Finishing and publishing are two separate decisions.{' '}
                 <Link href={`/events/${slug}/console#finish`}>Finish this race</Link>{' '}
@@ -386,7 +391,7 @@ export default async function ResultsPage({
             ) : null}
 
             {open > 0 ? (
-              <p className="notice notice-bad">
+              <p className="notice notice-bad" id="publish-open-anomalies">
                 {open === 1
                   ? 'There is 1 capture still to be resolved'
                   : `There are ${open} captures still to be resolved`}
@@ -396,9 +401,23 @@ export default async function ResultsPage({
               </p>
             ) : null}
 
+            {/*
+              ⚠️ **Disabled whenever `publish_results()` would refuse**, with the reasons above
+              named as its description — brief §6.2 #6: a blocked action no longer looks
+              pressable. The two conditions are the function's own `not_finished` and
+              `open_anomalies`, read off the same payload the notices above render from, so the
+              page and the refusal cannot disagree about why. **Rendered disabled on the server**,
+              with or without scripting: unlike the wipe's typed phrase, there is nothing here
+              to wait for. The function still refuses a POST that never saw this page.
+            */}
             <form method="post" action={action}>
               <input type="hidden" name="intent" value="publish" />
-              <button type="submit" className="button button-wide">
+              <button
+                type="submit"
+                className="club-btn club-btn-primary"
+                disabled={blockers.length > 0}
+                aria-describedby={blockers.length > 0 ? blockers.join(' ') : undefined}
+              >
                 Publish these results
               </button>
             </form>

@@ -2485,16 +2485,41 @@ test.describe('the danger zone', () => {
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(dangerZonePath(testInfo.project.name));
+    const path = dangerZonePath(testInfo.project.name);
+    await page.goto(path);
 
-    await page.getByLabel(/^Type /).fill('nn-2026');
-    await page.getByRole('button', { name: 'Wipe this race' }).click();
+    // Posted straight at the form's address rather than pressed: with scripting on, the button
+    // stays disabled until the phrase matches (the test below), so the refusal this asserts is
+    // the database's, which is the guard either way.
+    const refused = await page.request.post(`${path}/update`, {
+      form: { confirmation: 'nn-2026' },
+      maxRedirects: 0,
+    });
+    expect(refused.status()).toBe(303);
+    await page.goto(refused.headers()['location'] ?? path);
 
     await expect(page.getByText(/you have to type its slug/)).toBeVisible();
 
     const state = await resetRaceState(testInfo.project.name);
     expect(state.crossings).toBe(3);
     expect(state.teams).toBe(2);
+  });
+
+  test('keeps the button disabled until the slug is typed, and says why @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(dangerZonePath(testInfo.project.name));
+
+    const button = page.getByRole('button', { name: 'Wipe this race' });
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAccessibleDescription(/Stays disabled until the box says/);
+
+    await page.getByLabel(/^Type /).fill('nn-2026');
+    await expect(button).toBeDisabled();
+
+    await page.getByLabel(/^Type /).fill(resetEventSlug(testInfo.project.name));
+    await expect(button).toBeEnabled();
   });
 
   /**
@@ -2721,7 +2746,19 @@ test.describe('the results preview', () => {
 
     await expect(page.getByText(/1 capture still to be resolved/)).toBeVisible();
 
-    await page.getByRole('button', { name: 'Publish these results' }).click();
+    // The button is disabled, and the notice saying why is its description (brief §6.2 #6).
+    const publish = page.getByRole('button', { name: 'Publish these results' });
+    await expect(publish).toBeDisabled();
+    await expect(publish).toHaveAccessibleDescription(/1 capture still to be resolved/);
+
+    // And the database still refuses a press that never saw the page.
+    const path = previewPath(testInfo.project.name);
+    const refused = await page.request.post(`${path}/update`, {
+      form: { intent: 'publish' },
+      maxRedirects: 0,
+    });
+    expect(refused.status()).toBe(303);
+    await page.goto(refused.headers()['location'] ?? path);
     await expect(page.getByText(/were not published/)).toBeVisible();
 
     expect((await previewRaceState(testInfo.project.name)).published).toBe(false);
